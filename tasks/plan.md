@@ -107,7 +107,7 @@
 
 ## Phase D7 · Widget+通知(4 任务)
 
-- [ ] **T7.0** doubt-driven-development 对抗审查: App Group 免费签名可行性→定 T7.1 走向
+- [ ] **T7.0** doubt-driven-development 对抗审查: App Group 免费签名可行性→定 T7.1 走向 · **提前触发: D1 开工时先做(纯调研5分钟，失败早知道)**
 - [ ] **T7.1** widget 数据层: WidgetContent/WidgetTableResolver/WidgetUpdater(差异#6)+共享方案实测 · M
 - [ ] **T7.2** 小 widget 3(Today/TwoDay/WeekList,排版逐函数=差异#5) · M
 - [ ] **T7.3** 大 widget 2(WeekView/WeekGrid 695)+gallery 预览(差异#7) · M
