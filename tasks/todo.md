@@ -7,12 +7,12 @@
 - [x] CP-D0 检查点 — ✅ ln-11 复审 READY WITH CONCERNS(3 MINOR 修正案已落: T7.0 提前至 D1 开工/T1.2 加 schema diff/独立审查限制披露);goal 模式下不停等用户,里程碑汇报制
 
 ## D1
-- [ ] T1.1 entity 3 文件+GRDB映射
-- [ ] T1.2 dao+AppDatabase(SQL语义逐条)
-- [ ] T1.3 DateUtils/TimeTableUtils/CourseColorUtil+2测试
+- [x] T1.1 entity 3 文件+GRDB映射 — ✅ 19+10 字段/索引/FK parity;autoGenerate 语义修复(id=0→nil)
+- [x] T1.2 dao+AppDatabase — ✅ Room SQL 逐条+建表 DDL parity+schema parity 测试(PRAGMA 列/索引/FK)
+- [~] T1.3 TimeTableUtils ✅+10测;DateUtils/CourseColorUtil 待
 - [ ] T1.4 AppPrefs/LocaleHelper+1测试
 - [ ] T1.5 VersionUtils/UpdateInfo/UpdateManager+2测试
-- [ ] T1.5b G4链①前半: 课程链条(DAO→周次→查询)内存全链测试
+- [x] T1.5b G4链①前半 — ✅ CourseDaoChainTests 10 用例含原子性/级联/冲突;25/25 全绿
 - [ ] T1.6 PinyinMatcher+389键×5语言+StringsKeyParityTest
 - [ ] CP-D1(7测试绿+G1零缺+G4链①绿+database-testing+ln-25审计)
 
