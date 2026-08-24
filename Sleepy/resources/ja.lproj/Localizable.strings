@@ -262,6 +262,8 @@
 "update_installing" = "ダウンロード完了、インストーラーを起動中";
 "update_retry" = "再試行";
 "update_download_failed" = "ダウンロード失敗: %1$@";
+"update_ios_sideload_title" = "ダウンロード完了";
+"update_ios_sideload_hint" = "IPA をダウンロードしました。iOS は自動インストール不可のため、AltStore で再サイドロードして更新してください。";
 "about_author" = "作者";
 "about_author_name" = "Lingion";
 "about_license_body" = "Sleepy はオープンソースのスマート時間割アプリです。ソースコードは GNU General Public License v3.0 の下で公開されています。誰でも自由に使用、改変、配布できます。GitHub での貢献を歓迎します。";

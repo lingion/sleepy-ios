@@ -262,6 +262,8 @@
 "update_installing" = "下載完成，正在開啟安裝器";
 "update_retry" = "重試";
 "update_download_failed" = "下載失敗：%1$@";
+"update_ios_sideload_title" = "下載完成";
+"update_ios_sideload_hint" = "IPA 已下載。iOS 無法自動安裝，請用該檔案透過 AltStore 重新側載更新。";
 "about_author" = "作者";
 "about_author_name" = "Lingion";
 "about_license_body" = "Sleepy 是一款開源的智慧課表應用，原始碼基於 GNU General Public License v3.0 協議發布。任何人都可以自由使用、修改和分發本軟體。歡迎透過 GitHub 參與貢獻。";

@@ -263,6 +263,8 @@
 "update_installing" = "Download complete, opening installer";
 "update_retry" = "Retry";
 "update_download_failed" = "Download failed: %1$@";
+"update_ios_sideload_title" = "Download Complete";
+"update_ios_sideload_hint" = "IPA downloaded. iOS cannot self-install — re-sideload it via AltStore to update.";
 "about_author" = "Author";
 "about_author_name" = "Lingion";
 "about_license_body" = "Sleepy is an open-source smart class schedule app. The source code is released under the GNU General Public License v3.0. Anyone is free to use, modify, and distribute this software. Contributions via GitHub are welcome.";

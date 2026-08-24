@@ -324,6 +324,8 @@
 "update_installing" = "下载完成，正在打开安装器";
 "update_retry" = "重试";
 "update_download_failed" = "下载失败：%1$@";
+"update_ios_sideload_title" = "下载完成";
+"update_ios_sideload_hint" = "IPA 已下载。iOS 无法自动安装，请用该文件通过 AltStore 重新侧载更新。";
 "semester_out_of_range" = "当前不在学期范围内";
 "about_author" = "作者";
 "about_author_name" = "Lingion";

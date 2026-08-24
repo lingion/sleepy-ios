@@ -262,6 +262,8 @@
 "update_installing" = "Descarga completa, abriendo instalador";
 "update_retry" = "Reintentar";
 "update_download_failed" = "Error de descarga: %1$@";
+"update_ios_sideload_title" = "Descarga completa";
+"update_ios_sideload_hint" = "IPA descargada. iOS no puede autoinstalar: vuelve a cargarla con AltStore para actualizar.";
 "about_author" = "Autor";
 "about_author_name" = "Lingion";
 "about_license_body" = "Sleepy es una aplicación de horario escolar inteligente de código abierto. El código fuente se publica bajo la licencia GNU General Public License v3.0. Cualquiera puede usar, modificar y distribuir este software libremente. Las contribuciones a través de GitHub son bienvenidas.";
