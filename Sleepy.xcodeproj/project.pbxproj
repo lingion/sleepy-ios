@@ -76,6 +76,7 @@
 		77BF6566053079C67DBD9122 /* CourseEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */; };
 		783DA0C18585ABE2B0F38CE4 /* JwNewZfParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C1D8BD48F149CE16160CE84 /* JwNewZfParser.swift */; };
 		7886F9D30CF882DA17E5DD03 /* SettingsCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE15454AE12C13CA8A96C9D /* SettingsCards.swift */; };
+		7B39EA18C8D7D03359DD1605 /* SleepyWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 64CFB5B5DD63AC209144EEDD /* SleepyWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7EDE753B2953799E66FC71E7 /* JwProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3480ED82E92E5E453EA66874 /* JwProtocol.swift */; };
 		7F9742C5721DF7B60B461AD9 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B945AD465F81AFC535B658B /* NotificationScheduler.swift */; };
 		82043935FD859F247D143C7A /* TodayWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4025E8D10A574C8F59C29E21 /* TodayWidgetView.swift */; };
@@ -158,7 +159,28 @@
 			remoteGlobalIDString = 5292F54B11655E3F1B8096ED;
 			remoteInfo = Sleepy;
 		};
+		D6F04DD7DA0BAC9D589566B1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 91C202EC74046D089FFA0F14 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DC378BF644C25C9AE77602E9;
+			remoteInfo = SleepyWidget;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C06A3431966930D5AF3E16A1 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				7B39EA18C8D7D03359DD1605 /* SleepyWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		05A3D362C9894D69BFFCEC3F /* MineScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MineScreen.swift; sourceTree = "<group>"; };
@@ -222,6 +244,7 @@
 		7D8DF7E3509AC5B4147E75C8 /* ReminderScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScreen.swift; sourceTree = "<group>"; };
 		804FD9B63BCC3C1726B9CAFF /* WeekViewWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekViewWidgetView.swift; sourceTree = "<group>"; };
 		83F0807AB00ED93A168AD2C6 /* LocaleHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleHelper.swift; sourceTree = "<group>"; };
+		84CAD820258525C104E5A44E /* SleepyWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SleepyWidget.entitlements; sourceTree = "<group>"; };
 		87411070D5476B65081E829B /* SleepyWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyWidgetBundle.swift; sourceTree = "<group>"; };
 		883A8F99C25404524386B89E /* WidgetLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetLogicTests.swift; sourceTree = "<group>"; };
 		8B945AD465F81AFC535B658B /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
@@ -248,6 +271,7 @@
 		C0892BA3B202EE76234C0CC9 /* VersionUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionUtils.swift; sourceTree = "<group>"; };
 		C4AD798EE56D6A6A6BD66287 /* Sleepy.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sleepy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C69CDDE3F7F1E2BEA3DA3C03 /* VersionAndUpdateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionAndUpdateTests.swift; sourceTree = "<group>"; };
+		D19C06FD8160EB36D513F677 /* Sleepy.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sleepy.entitlements; sourceTree = "<group>"; };
 		D3D445F86E00820411E38285 /* JwQzCrazyParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzCrazyParser.swift; sourceTree = "<group>"; };
 		D52AFD49A9FA76836199F06A /* TwoDayWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoDayWidgetView.swift; sourceTree = "<group>"; };
 		DA6CEF27A9C39504E09D3487 /* GeneralSettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsScreen.swift; sourceTree = "<group>"; };
@@ -389,6 +413,7 @@
 			isa = PBXGroup;
 			children = (
 				3809683F11A502026D9F44C5 /* Info.plist */,
+				84CAD820258525C104E5A44E /* SleepyWidget.entitlements */,
 				87411070D5476B65081E829B /* SleepyWidgetBundle.swift */,
 			);
 			path = SleepyWidget;
@@ -530,6 +555,7 @@
 				0395640CB0EAB91C47EE3909 /* util */,
 				5DDE39DDA5A4117A6CBF148B /* widget */,
 				AF8D64162D7772B54812CCBA /* Info.plist */,
+				D19C06FD8160EB36D513F677 /* Sleepy.entitlements */,
 				34F065FDCFDCA2A4AED9B5B8 /* SleepyApp.swift */,
 			);
 			path = Sleepy;
@@ -608,10 +634,12 @@
 				6334EAA8FC1B1CDD1463A082 /* Sources */,
 				946E89EE7634C10E5C59211E /* Resources */,
 				348BDEA72E7E2879036C7159 /* Frameworks */,
+				C06A3431966930D5AF3E16A1 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				2C57C48D741E1CDB6904CAD3 /* PBXTargetDependency */,
 			);
 			name = Sleepy;
 			packageProductDependencies = (
@@ -892,6 +920,11 @@
 			target = 5292F54B11655E3F1B8096ED /* Sleepy */;
 			targetProxy = 5454E6B4A695F8DB1AD47D5B /* PBXContainerItemProxy */;
 		};
+		2C57C48D741E1CDB6904CAD3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DC378BF644C25C9AE77602E9 /* SleepyWidget */;
+			targetProxy = D6F04DD7DA0BAC9D589566B1 /* PBXContainerItemProxy */;
+		};
 		E94E00D718A49F085F436234 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 5292F54B11655E3F1B8096ED /* Sleepy */;
@@ -1047,6 +1080,7 @@
 		B6558A02D5FF85C87F8499EF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SleepyWidget/SleepyWidget.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SleepyWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1063,6 +1097,7 @@
 		D62CC89124250D5D2D305C7B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SleepyWidget/SleepyWidget.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SleepyWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1144,6 +1179,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sleepy/Sleepy.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sleepy/Info.plist;
@@ -1161,6 +1197,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sleepy/Sleepy.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sleepy/Info.plist;

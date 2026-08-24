@@ -159,6 +159,13 @@
 "mine_stat_week" = "Semana";
 "settings_language" = "Idioma / Language";
 "settings_display_mode" = "Visualización de hora";
+"settings_grid_sub_info" = "Sub-info de la tarjeta";
+"settings_grid_sub_room" = "Aula";
+"settings_grid_sub_room_sub" = "Mostrar aula bajo el nombre (oculto si está vacío)";
+"settings_grid_sub_teacher" = "Profesor";
+"settings_grid_sub_teacher_sub" = "Mostrar profesor bajo el nombre (oculto si está vacío)";
+"settings_grid_sub_none" = "Ninguno";
+"settings_grid_sub_none_sub" = "Las tarjetas solo muestran el nombre";
 "settings_display_node" = "Mostrar como períodos";
 "settings_display_node_sub" = "Todos los cursos muestran \\\"Período N\\\"";
 "settings_display_time" = "Mostrar como horas";

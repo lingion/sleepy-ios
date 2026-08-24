@@ -159,6 +159,13 @@
 "mine_stat_week" = "現在の週";
 "settings_language" = "言語 / Language";
 "settings_display_mode" = "時間表示";
+"settings_grid_sub_info" = "グリッドカードの補足情報";
+"settings_grid_sub_room" = "教室";
+"settings_grid_sub_room_sub" = "授業名の下に教室を表示（未設定なら非表示）";
+"settings_grid_sub_teacher" = "教員";
+"settings_grid_sub_teacher_sub" = "授業名の下に教員を表示（未設定なら非表示）";
+"settings_grid_sub_none" = "なし";
+"settings_grid_sub_none_sub" = "グリッドカードは授業名のみ表示";
 "settings_display_node" = "時限で統一";
 "settings_display_node_sub" = "すべての授業を「第N時限」と表示";
 "settings_display_time" = "時刻で統一";

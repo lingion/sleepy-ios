@@ -159,6 +159,13 @@
 "mine_stat_week" = "目前週";
 "settings_language" = "語言 / Language";
 "settings_display_mode" = "課程時間顯示";
+"settings_grid_sub_info" = "網格卡片副資訊";
+"settings_grid_sub_room" = "教室";
+"settings_grid_sub_room_sub" = "課程名下方顯示上課地點（無教室則不顯示）";
+"settings_grid_sub_teacher" = "教師";
+"settings_grid_sub_teacher_sub" = "課程名下方顯示授課教師（無教師則不顯示）";
+"settings_grid_sub_none" = "無";
+"settings_grid_sub_none_sub" = "網格卡片只顯示課程名";
 "settings_display_node" = "統一顯示節次";
 "settings_display_node_sub" = "所有課程顯示為「第N節」";
 "settings_display_time" = "統一顯示時間";

@@ -38,10 +38,15 @@ targets:
     dependencies:
       - package: GRDB
       - package: SwiftSoup
+      - target: SleepyWidget       # 内嵌 widget extension → PlugIns/SleepyWidget.appex
     info:
       path: Sleepy/Info.plist
       properties:
         CFBundleDisplayName: Sleepy 课程表
+    entitlements:
+      path: Sleepy/Sleepy.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.lingion.sleepy.ios]
         CFBundleShortVersionString: "1.0.34"
         CFBundleVersion: "35"
         CFBundleIdentifier: com.lingion.sleepy.ios
@@ -85,6 +90,10 @@ targets:
       path: SleepyWidget/Info.plist
       properties:
         CFBundleDisplayName: Sleepy Widget
+    entitlements:
+      path: SleepyWidget/SleepyWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.lingion.sleepy.ios]
         CFBundleShortVersionString: "1.0.34"
         CFBundleVersion: "35"
         CFBundleIdentifier: com.lingion.sleepy.ios.widget

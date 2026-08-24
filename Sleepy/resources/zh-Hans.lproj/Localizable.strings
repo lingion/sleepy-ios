@@ -179,6 +179,13 @@
 "mine_stat_week" = "当前周";
 "settings_language" = "语言 / Language";
 "settings_display_mode" = "课程时间显示";
+"settings_grid_sub_info" = "网格卡片副信息";
+"settings_grid_sub_room" = "教室";
+"settings_grid_sub_room_sub" = "课程名下方显示上课地点（无教室则不显示）";
+"settings_grid_sub_teacher" = "教师";
+"settings_grid_sub_teacher_sub" = "课程名下方显示授课教师（无教师则不显示）";
+"settings_grid_sub_none" = "无";
+"settings_grid_sub_none_sub" = "网格卡片只显示课程名";
 "settings_display_node" = "统一显示节次";
 "settings_display_node_sub" = "所有课程显示为「第N节」";
 "settings_display_time" = "统一显示时间";

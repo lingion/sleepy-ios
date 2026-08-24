@@ -160,6 +160,13 @@
 "mine_stat_week" = "Week";
 "settings_language" = "Language";
 "settings_display_mode" = "Time Display";
+"settings_grid_sub_info" = "Grid card sub-info";
+"settings_grid_sub_room" = "Room";
+"settings_grid_sub_room_sub" = "Show room under course name (hidden if empty)";
+"settings_grid_sub_teacher" = "Teacher";
+"settings_grid_sub_teacher_sub" = "Show teacher under course name (hidden if empty)";
+"settings_grid_sub_none" = "None";
+"settings_grid_sub_none_sub" = "Grid cards show course name only";
 "settings_display_node" = "Show as periods";
 "settings_display_node_sub" = "All courses show as \\\"Period N\\\"";
 "settings_display_time" = "Show as times";
