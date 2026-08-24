@@ -133,6 +133,23 @@ final class ScheduleRepository {
         onDataChangedHook?()
     }
 
+    // ========== Flow 观察 ← observeAllTables / observeCourses(Room Flow) ==========
+
+    /// Room Flow → GRDB ValueObservation(Combine Publisher)。
+    /// 数据库任何写操作后自动 emit 最新列表(表列表/课程列表各自观察)。
+
+    func observeAllTables() -> DatabasePublishers.Value<[TimeTableEntity]> {
+        ValueObservation
+            .tracking { db in try TimeTableEntity.fetchAll(db, sql: "SELECT * FROM time_tables ORDER BY createdAt DESC") }
+            .publisher(in: db.dbQueue)
+    }
+
+    func observeCourses(_ tableId: Int64) -> DatabasePublishers.Value<[CourseEntity]> {
+        ValueObservation
+            .tracking { db in try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ? ORDER BY day, startNode, startWeek", arguments: [tableId]) }
+            .publisher(in: db.dbQueue)
+    }
+
     private func assignGroupIds(_ courses: [CourseEntity]) -> [CourseEntity] {
         var nameToGroupId: [String: String] = [:]
         return courses.map { c in

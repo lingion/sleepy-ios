@@ -6,7 +6,7 @@ import GRDB
 
 /// 课程实体 — Room @Entity(tableName = "courses") 的 GRDB 对应
 /// 表结构/列名/索引/FK 与 Room schema 逐列一致(建表 SQL 见 AppDatabase.swift)
-struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord {
+struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identifiable {
     static let databaseTableName = "courses"
 
     /// 课程组 ID — 同一门课的所有节次共享，编辑/删除时按此操作

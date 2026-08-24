@@ -1,0 +1,323 @@
+// ScheduleScreen.swift — ← ui/screen/schedule/ScheduleScreen.kt
+// 课表页: TopBar(周导航+跳周菜单) + 视图切换(周视图/网格) + 左右滑翻周(TabView pager) +
+// 详情 BottomSheet。空态两分支: 无表 → EmptyState; 有表无课 → NoCourseState。
+
+import SwiftUI
+
+private enum ViewMode: Hashable {
+    case full   // ← ViewMode.Full (周视图)
+    case cards  // ← ViewMode.Cards (网格)
+}
+
+struct ScheduleScreen: View {
+    @Environment(\.localWakeUpColors) private var colors
+    @ObservedObject var viewModel: ScheduleViewModel
+    var onGoImport: () -> Void = {}
+    var onManualAdd: () -> Void = {}
+    var onEditCourse: (CourseEntity) -> Void = { _ in }
+
+    @State private var viewMode: ViewMode = .full
+    @State private var selectedCourse: CourseEntity? = nil
+
+    var body: some View {
+        let state = viewModel.state
+        let displayMode = AppPrefs.shared.getDisplayMode()
+        let showDate = AppPrefs.shared.isShowDate()
+        let visibleDays = AppPrefs.shared.getVisibleDays()
+
+        let hasTable = !state.tables.isEmpty
+        let hasCourses = !state.courses.isEmpty
+
+        VStack(spacing: 0) {
+            if !hasTable {
+                // 真的没表: 去创建
+                EmptyState(onGoImport: onGoImport, onManualAdd: onManualAdd)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+            } else if !hasCourses {
+                // 有表无课: 加课/导入
+                NoCourseState(tableName: state.currentTable?.name ?? "",
+                              onAddCourse: onManualAdd, onImport: onGoImport)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+            } else {
+                ScheduleTopBar(
+                    currentWeek: state.selectedWeek,
+                    maxWeek: state.currentTable?.maxWeek ?? 20,
+                    startDate: state.currentTable?.startDate ?? "",
+                    onPrevWeek: { viewModel.changeWeek(state.selectedWeek - 1) },
+                    onNextWeek: { viewModel.changeWeek(state.selectedWeek + 1) },
+                    onJumpToActual: {
+                        guard let start = state.currentTable?.startDate else { return }
+                        viewModel.changeWeek(DateUtils.currentWeek(startDate: start))
+                    },
+                    onSelectWeek: { week in viewModel.changeWeek(week) })
+
+                // Segmented Switcher
+                SegmentedSwitcher(
+                    options: [(ViewMode.full, L10n.format("view_full")),
+                              (ViewMode.cards, L10n.format("view_cards"))],
+                    selected: viewMode) { viewMode = $0 }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+
+                // 主体视图 — 左右滑动切换周次(TabView pager)
+                let pagerMaxWeek = max(state.currentTable?.maxWeek ?? 20, 1)
+                WeekPager(viewModel: viewModel, viewMode: viewMode, pagerMaxWeek: pagerMaxWeek,
+                          displayMode: displayMode, showDate: showDate, visibleDays: visibleDays) {
+                    selectedCourse = $0
+                }
+            }
+        }
+        // 详情 Bottom Sheet
+        .sheet(item: $selectedCourse) { course in
+            CourseDetailSheet(
+                course: course,
+                timeString: course.nodeString(),
+                onEdit: { c in
+                    selectedCourse = nil
+                    onEditCourse(c)
+                })
+        }
+    }
+}
+
+// HorizontalPager → TabView(.page): 双向同步(手势→VM / VM→pager)
+// Cards 网格的 TimeSlot: parseNodes 每节一行(node/nodeStart 单节, Android 同为逐节行)
+private func cardTimeSlots(table: TimeTableEntity?) -> [TimeSlot] {
+    let nodes = TimeTableUtils.parseNodes(table?.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON)
+    return nodes.map { n in
+        let sc = Calendar.current.dateComponents([.hour, .minute], from: n.start)
+        let ec = Calendar.current.dateComponents([.hour, .minute], from: n.end)
+        return TimeSlot(label: "\(n.node)", startHour: sc.hour ?? 0, startMinute: sc.minute ?? 0,
+                        endHour: ec.hour ?? 0, endMinute: ec.minute ?? 0, nodeStart: n.node)
+    }
+}
+private struct WeekPager: View {
+    @ObservedObject var viewModel: ScheduleViewModel
+    let viewMode: ViewMode
+    let pagerMaxWeek: Int
+    let displayMode: String
+    let showDate: Bool
+    let visibleDays: Set<Int>
+    let onCourseClick: (CourseEntity) -> Void
+
+    var body: some View {
+        let state = viewModel.state
+        // VM 变化(TopBar 点击) → 同步 pager(binding 直写, 防双向打架由 onChange 用户手势分支承担)
+        TabView(selection: Binding(
+            get: { min(max(state.selectedWeek, 1), pagerMaxWeek) },
+            set: { newWeek in viewModel.changeWeek(newWeek) }   // 手势滑动 → VM
+        )) {
+            ForEach(1...pagerMaxWeek, id: \.self) { page in
+                // page 是 1-based 周索引,独立于 state.currentWeek 过滤课程
+                let weekCourses: [CourseEntity] = {
+                    let list = state.courses.filter { $0.inWeek(page) }
+                    guard let tj = state.currentTable?.timeJson else { return list }
+                    return list.map { $0.normalizeNode(timeJson: tj) }
+                }()
+                Group {
+                    switch viewMode {
+                    case .full:
+                        FullWeekView(courses: weekCourses,
+                                     visibleDays: visibleDays,
+                                     displayMode: displayMode,
+                                     timeJson: state.currentTable?.timeJson ?? "",
+                                     onCourseClick: onCourseClick)
+                    case .cards:
+                        CardsGridView(courses: weekCourses,
+                                      timeSlots: cardTimeSlots(table: state.currentTable),
+                                      visibleDays: visibleDays,
+                                      showDate: showDate,
+                                      startDate: state.currentTable?.startDate ?? "",
+                                      currentWeek: page,
+                                      onCourseClick: onCourseClick)
+                    }
+                }
+                .tag(page)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+    }
+}
+
+// ← TopBar
+private struct ScheduleTopBar: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let currentWeek: Int
+    let maxWeek: Int
+    let startDate: String
+    let onPrevWeek: () -> Void
+    let onNextWeek: () -> Void
+    let onJumpToActual: () -> Void
+    let onSelectWeek: (Int) -> Void
+
+    @State private var menuOpen = false
+
+    var body: some View {
+        let actualWeek = startDate.isEmpty ? 1 : DateUtils.currentWeek(startDate: startDate)
+        let isOnActual = currentWeek == actualWeek
+        let semesterStatus = DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek)
+
+        HStack {
+            WeekNavButton(icon: "chevron.left", onClick: onPrevWeek)
+
+            // 第 N 周 标签 — 点击行为根据是否在当前实际周而不同
+            Menu {
+                // 标签式选周(Android FlowRow 280dp 弹层)
+                VStack(spacing: 8) {
+                    Text(L10n.format("schedule_jump_week"))
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.onSurfaceVariant)
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(40), spacing: 8), count: 5),
+                              spacing: 8) {
+                        ForEach(1...maxWeek, id: \.self) { w in
+                            let isCurrent = w == currentWeek
+                            Button {
+                                onSelectWeek(w)
+                            } label: {
+                                Text("\(w)")
+                                    .font(.system(size: 14, weight: isCurrent ? .bold : .regular))
+                                    .foregroundColor(isCurrent ? colors.onPrimary : colors.onSurface)
+                                    .frame(width: 40, height: 40)
+                                    .background(isCurrent ? colors.primary : colors.surfaceContainerHigh)
+                                    .clipShape(Circle())
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Text(semesterStatus == .inRange
+                     ? L10n.format("schedule_current_week", currentWeek)
+                     : L10n.format("semester_out_of_range"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(isOnActual ? colors.onPrimaryContainer : colors.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 4)
+                    .background(isOnActual ? colors.primaryContainer
+                                           : colors.primaryContainer.opacity(SleepyTheme.Alpha.inactive))
+                    .cornerRadius(SleepyShapes.medium)
+            }
+            // 在当前实际周 → 弹菜单; 不在 → 一键跳回
+            .simultaneousGesture(TapGesture().onEnded {
+                if !isOnActual { onJumpToActual() }
+                // isOnActual 时 Menu 自身展开
+            })
+
+            WeekNavButton(icon: "chevron.right", onClick: onNextWeek)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(colors.surface)
+        .overlay(
+            Rectangle().frame(height: 0.5)
+                .foregroundColor(colors.outline.opacity(SleepyTheme.Alpha.tinted)),
+            alignment: .bottom
+        )
+    }
+}
+
+// ← WeekNavButton
+private struct WeekNavButton: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let icon: String
+    let onClick: () -> Void
+
+    var body: some View {
+        Button(action: onClick) {
+            Image(systemName: icon)
+                .foregroundColor(colors.onSurfaceVariant)
+                .frame(width: 32, height: 32)
+                .background(colors.surfaceContainerHigh)
+                .clipShape(Circle())
+                .padding(6)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// ← NoCourseState
+private struct NoCourseState: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let tableName: String
+    let onAddCourse: () -> Void
+    let onImport: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(L10n.format("schedule_empty_name", tableName))
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(colors.onSurface)
+            Text(L10n.format("schedule_empty_name_hint"))
+                .font(.system(size: 14))
+                .foregroundColor(colors.onSurfaceVariant)
+            Button(action: onAddCourse) {
+                Text(L10n.format("schedule_manual_first"))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(colors.primary)
+                    .cornerRadius(SleepyShapes.large)
+            }
+            .buttonStyle(.plain)
+            Button(action: onImport) {
+                Text(L10n.format("schedule_go_manage"))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onSecondaryContainer)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(colors.secondaryContainer)
+                    .cornerRadius(SleepyShapes.large)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 24)
+        .background(colors.surfaceContainer)
+        .cornerRadius(SleepyShapes.extraLarge)
+    }
+}
+
+// ← EmptyState
+private struct EmptyState: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let onGoImport: () -> Void
+    let onManualAdd: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(L10n.format("schedule_empty"))
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(colors.onSurface)
+            Text(L10n.format("schedule_empty_hint"))
+                .font(.system(size: 14))
+                .foregroundColor(colors.onSurfaceVariant)
+            Button(action: onGoImport) {
+                Text(L10n.format("schedule_go_manage"))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(colors.primary)
+                    .cornerRadius(SleepyShapes.large)
+            }
+            .buttonStyle(.plain)
+            Button(action: onManualAdd) {
+                Text(L10n.format("schedule_manual_first"))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onSecondaryContainer)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(colors.secondaryContainer)
+                    .cornerRadius(SleepyShapes.large)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 24)
+        .background(colors.surfaceContainer)
+        .cornerRadius(SleepyShapes.extraLarge)
+    }
+}

@@ -69,6 +69,13 @@ enum CourseColorUtil {
         !course.color.isEmpty && course.color.uppercased() != SENTINEL_COLOR
     }
 
+    /// 明暗探针 — 读 CoursePalette.primary 亮度。
+    /// 注意: 只能用 CoursePalette（亮=0xFFEADDFF / 暗=0xFF4F378B），不能用 WakeUpColorScheme.primary
+    /// （亮色=0xFF6750A4 加权亮度 0.38 会被误判为暗色）。
+    static func isPaletteDark(_ p: CoursePalette) -> Bool {
+        CourseColorUtil.luminance(p.primary) < 0.5
+    }
+
     /// 明暗探针 — 读 CoursePalette.primary 亮度(D4 主题落地后接 CoursePalette)。
     /// 注意: 只能用 CoursePalette（亮=0xFFEADDFF / 暗=0xFF4F378B）。
     static func isPaletteDark(primaryArgb: UInt32) -> Bool {
