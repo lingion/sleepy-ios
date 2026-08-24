@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 
 /// 课表实体 (TimeTable) — 一个课表包含多个课程
-struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord {
+struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Identifiable {
     static let databaseTableName = "time_tables"
 
     var name: String

@@ -34,6 +34,14 @@ struct SettingsCard<Content: View>: View {
     let onToggle: () -> Void
     @ViewBuilder let content: () -> Content
 
+    init(title: String, expanded: Bool, onToggle: @escaping () -> Void,
+         @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.expanded = expanded
+        self.onToggle = onToggle
+        self.content = content
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Button(action: onToggle) {
