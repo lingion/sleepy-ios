@@ -9,14 +9,18 @@
 /* Begin PBXBuildFile section */
 		0061BF9B6753422634DBF086 /* SleepyWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87411070D5476B65081E829B /* SleepyWidgetBundle.swift */; };
 		1EFE6A5CCA24F35DB5DC5A1C /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B58142DA4B1A49633BB19A05 /* GRDB */; };
+		2AB1C979346A5D643A0C2F16 /* CourseDaoChainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */; };
 		35AED6976FAE210F6E93C694 /* SleepyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18164021426E1BE78DB3F46 /* SleepyUITests.swift */; };
 		3D51B7D1C05FBC714FE7E481 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3899CC7A7D018A6D641C5E75 /* GRDB */; };
 		3D62756C181FAD2AC9F05B33 /* SmartPeriodConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F623ECECCA2E2A91223E72C /* SmartPeriodConfig.swift */; };
 		52BF11E4543EFC2F7C4941BA /* AppGroupResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */; };
 		65CE9E557881A66E2169BF28 /* TimeTableEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480CB26C5638A20DE5CED8AC /* TimeTableEntity.swift */; };
+		65CF01F49FC04AD316F12BB6 /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */; };
 		75BDBE0C304130911EB16781 /* CourseEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */; };
 		76FF6F179A8C437B32A20887 /* SmartPeriodConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196825AFE35B5C0E3D277722 /* SmartPeriodConfigTests.swift */; };
 		862CC2DE902FFABC92F04206 /* SleepyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34F065FDCFDCA2A4AED9B5B8 /* SleepyApp.swift */; };
+		8AAF5A7A3F027E8E1BE88727 /* TimeTableDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5DE7210118C9EC520F007E /* TimeTableDao.swift */; };
+		9C3967DF73C2215296271E04 /* CourseDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D3AA9F8B115E2B804EBDA31 /* CourseDao.swift */; };
 		BA2743A24ED00F9986AB65E3 /* TimeTableUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EB72448743A4CF5CF466C5 /* TimeTableUtils.swift */; };
 		D289B54F535EFF1753F5AD4C /* SleepyPlaceholderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */; };
 		D6770DDC7A4CB4206244FDD1 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1205376525F575AF970B7CD4 /* Localizable.strings */; };
@@ -58,6 +62,7 @@
 		3809683F11A502026D9F44C5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		38ACCC7671C8A0AA3121947D /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		3CE7034F859FC0E80A0569C9 /* SleepyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SleepyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDaoChainTests.swift; sourceTree = "<group>"; };
 		46936162C031CBA022123E64 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
 		480CB26C5638A20DE5CED8AC /* TimeTableEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTableEntity.swift; sourceTree = "<group>"; };
 		4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseEntity.swift; sourceTree = "<group>"; };
@@ -68,12 +73,15 @@
 		670ED236864A0DD636F04274 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		672BF2F028033B72BDD477D4 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
 		6B54C7ABE0AD4B91392A32A1 /* TimeTableUtilsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTableUtilsTests.swift; sourceTree = "<group>"; };
+		6E5DE7210118C9EC520F007E /* TimeTableDao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTableDao.swift; sourceTree = "<group>"; };
 		74EB72448743A4CF5CF466C5 /* TimeTableUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTableUtils.swift; sourceTree = "<group>"; };
 		87411070D5476B65081E829B /* SleepyWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyWidgetBundle.swift; sourceTree = "<group>"; };
+		9D3AA9F8B115E2B804EBDA31 /* CourseDao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDao.swift; sourceTree = "<group>"; };
 		A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroupResolver.swift; sourceTree = "<group>"; };
 		AF8D64162D7772B54812CCBA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B18164021426E1BE78DB3F46 /* SleepyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyUITests.swift; sourceTree = "<group>"; };
 		C4AD798EE56D6A6A6BD66287 /* Sleepy.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sleepy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDatabase.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -96,6 +104,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		01DFCD1C3F6D2AABDD720227 /* dao */ = {
+			isa = PBXGroup;
+			children = (
+				9D3AA9F8B115E2B804EBDA31 /* CourseDao.swift */,
+				6E5DE7210118C9EC520F007E /* TimeTableDao.swift */,
+			);
+			path = dao;
+			sourceTree = "<group>";
+		};
 		0395640CB0EAB91C47EE3909 /* util */ = {
 			isa = PBXGroup;
 			children = (
@@ -157,6 +174,7 @@
 		8AAD3F1069D6DE68878E0732 /* SleepyTests */ = {
 			isa = PBXGroup;
 			children = (
+				425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */,
 				1274843FE9312E87CD5807D5 /* Info.plist */,
 				4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */,
 				196825AFE35B5C0E3D277722 /* SmartPeriodConfigTests.swift */,
@@ -198,7 +216,9 @@
 		D47227BDA96D57A9ADAC2549 /* data */ = {
 			isa = PBXGroup;
 			children = (
+				01DFCD1C3F6D2AABDD720227 /* dao */,
 				7A160113E1905C5FA92D04C8 /* entity */,
+				FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */,
 			);
 			path = data;
 			sourceTree = "<group>";
@@ -335,11 +355,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				65CF01F49FC04AD316F12BB6 /* AppDatabase.swift in Sources */,
 				52BF11E4543EFC2F7C4941BA /* AppGroupResolver.swift in Sources */,
+				9C3967DF73C2215296271E04 /* CourseDao.swift in Sources */,
 				75BDBE0C304130911EB16781 /* CourseEntity.swift in Sources */,
 				E2CD16EE311B59D8B0B6CB74 /* L10n.swift in Sources */,
 				862CC2DE902FFABC92F04206 /* SleepyApp.swift in Sources */,
 				3D62756C181FAD2AC9F05B33 /* SmartPeriodConfig.swift in Sources */,
+				8AAF5A7A3F027E8E1BE88727 /* TimeTableDao.swift in Sources */,
 				65CE9E557881A66E2169BF28 /* TimeTableEntity.swift in Sources */,
 				BA2743A24ED00F9986AB65E3 /* TimeTableUtils.swift in Sources */,
 			);
@@ -365,6 +388,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2AB1C979346A5D643A0C2F16 /* CourseDaoChainTests.swift in Sources */,
 				D289B54F535EFF1753F5AD4C /* SleepyPlaceholderTests.swift in Sources */,
 				76FF6F179A8C437B32A20887 /* SmartPeriodConfigTests.swift in Sources */,
 				F4F3C180248F3621BFF7E4C4 /* TimeTableUtilsTests.swift in Sources */,

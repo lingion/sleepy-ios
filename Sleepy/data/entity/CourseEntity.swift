@@ -6,7 +6,7 @@ import GRDB
 
 /// 课程实体 — Room @Entity(tableName = "courses") 的 GRDB 对应
 /// 表结构/列名/索引/FK 与 Room schema 逐列一致(建表 SQL 见 AppDatabase.swift)
-struct CourseEntity: Codable, FetchableRecord, PersistableRecord {
+struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord {
     static let databaseTableName = "courses"
 
     /// 课程组 ID — 同一门课的所有节次共享，编辑/删除时按此操作
@@ -46,6 +46,35 @@ struct CourseEntity: Codable, FetchableRecord, PersistableRecord {
     var level: Int = 0
     /// 主键 autoGenerate
     var id: Int64 = 0
+
+    /// GRDB: 自增主键插入后回填
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+
+    /// Kotlin @PrimaryKey(autoGenerate = true) 语义: id=0 视为"未设置",
+    /// INSERT 时不编码该列 → SQLite 走自增。(GRDB 默认会把 0 当显式值插入,与 Room 不一致)
+    func encode(to container: inout PersistenceContainer) {
+        container["id"] = id == 0 ? nil : id
+        container["groupId"] = groupId
+        container["tableId"] = tableId
+        container["courseName"] = courseName
+        container["teacher"] = teacher
+        container["room"] = room
+        container["note"] = note
+        container["day"] = day
+        container["startNode"] = startNode
+        container["step"] = step
+        container["startWeek"] = startWeek
+        container["endWeek"] = endWeek
+        container["type"] = type
+        container["color"] = color
+        container["ownTime"] = ownTime
+        container["startTime"] = startTime
+        container["endTime"] = endTime
+        container["credit"] = credit
+        container["level"] = level
+    }
 }
 
 extension CourseEntity {

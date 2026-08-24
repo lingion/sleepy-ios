@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 
 /// 课表实体 (TimeTable) — 一个课表包含多个课程
-struct TimeTableEntity: Codable, FetchableRecord, PersistableRecord {
+struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord {
     static let databaseTableName = "time_tables"
 
     var name: String
@@ -26,4 +26,24 @@ struct TimeTableEntity: Codable, FetchableRecord, PersistableRecord {
     var createdAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
     /// 主键 autoGenerate
     var id: Int64 = 0
+
+    /// GRDB: 自增主键插入后回填
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+
+    /// Kotlin @PrimaryKey(autoGenerate = true) 语义: id=0 视为"未设置",
+    /// INSERT 时不编码该列 → SQLite 走自增。(GRDB 默认会把 0 当显式值插入,与 Room 不一致)
+    func encode(to container: inout PersistenceContainer) {
+        container["id"] = id == 0 ? nil : id
+        container["name"] = name
+        container["startDate"] = startDate
+        container["maxWeek"] = maxWeek
+        container["nodesPerDay"] = nodesPerDay
+        container["timeJson"] = timeJson
+        container["color"] = color
+        container["isDefault"] = isDefault
+        container["smartConfigJson"] = smartConfigJson
+        container["createdAt"] = createdAt
+    }
 }
