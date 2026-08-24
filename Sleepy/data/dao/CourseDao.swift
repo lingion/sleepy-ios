@@ -16,6 +16,16 @@ struct CourseDao {
         return course.id
     }
 
+    /// 事务内直插(同 TimeTableDao.insertInDb 注释)
+    func insertAllInDb(_ dbw: Database, _ courses: [CourseEntity]) throws -> [Int64] {
+        var ids: [Int64] = []
+        for var course in courses {
+            try course.insert(dbw, onConflict: .replace)
+            ids.append(course.id)
+        }
+        return ids
+    }
+
     func insertAll(_ courses: [CourseEntity]) throws -> [Int64] {
         try db.write { db in
             var ids: [Int64] = []

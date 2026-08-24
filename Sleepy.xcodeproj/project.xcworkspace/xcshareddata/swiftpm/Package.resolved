@@ -8,6 +8,15 @@
         "revision" : "2cf6c756e1e5ef6901ebae16576a7e4e4b834622",
         "version" : "6.29.3"
       }
+    },
+    {
+      "identity" : "swiftsoup",
+      "kind" : "remoteSourceControl",
+      "location" : "https://gh.qdp.qzz.io/scinfu/SwiftSoup.git",
+      "state" : {
+        "revision" : "e2d11208519549c2e5798d70190472045633f22f",
+        "version" : "2.7.3"
+      }
     }
   ],
   "version" : 2

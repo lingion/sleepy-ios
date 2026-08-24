@@ -8,31 +8,46 @@
 
 /* Begin PBXBuildFile section */
 		0061BF9B6753422634DBF086 /* SleepyWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87411070D5476B65081E829B /* SleepyWidgetBundle.swift */; };
+		0730FEAE6931481C90A557C4 /* JwSchoolInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F391D73202D6B93FFF6070 /* JwSchoolInfo.swift */; };
 		1EFE6A5CCA24F35DB5DC5A1C /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B58142DA4B1A49633BB19A05 /* GRDB */; };
 		247BD2909D3811BF1E518627 /* LocaleHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F0807AB00ED93A168AD2C6 /* LocaleHelper.swift */; };
+		25083A3FF7EDB6386F4AD3DC /* JwParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B8F322DCB1C5CF622C99C11 /* JwParserTests.swift */; };
 		2AB1C979346A5D643A0C2F16 /* CourseDaoChainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */; };
+		32C7A0EB4224644590EA4AB5 /* JwQzCrazyParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D445F86E00820411E38285 /* JwQzCrazyParser.swift */; };
 		35AED6976FAE210F6E93C694 /* SleepyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18164021426E1BE78DB3F46 /* SleepyUITests.swift */; };
+		38C933C0072C5DB489AB22AA /* JwUrpParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461D4FA2DB17915ACF3D0063 /* JwUrpParser.swift */; };
 		3D51B7D1C05FBC714FE7E481 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3899CC7A7D018A6D641C5E75 /* GRDB */; };
 		3D62756C181FAD2AC9F05B33 /* SmartPeriodConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F623ECECCA2E2A91223E72C /* SmartPeriodConfig.swift */; };
 		451EC791E28FAFB2754E6149 /* UpdateInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5B884B15CD7982BF4BC2F9 /* UpdateInfo.swift */; };
 		4D12094DB99D2877F409F0FD /* VersionAndUpdateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69CDDE3F7F1E2BEA3DA3C03 /* VersionAndUpdateTests.swift */; };
 		52BF11E4543EFC2F7C4941BA /* AppGroupResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */; };
+		52D98DAC3D9567B72C73792B /* schools.json in Resources */ = {isa = PBXBuildFile; fileRef = 40B0375B042F64DCB87DBE3F /* schools.json */; };
 		57DAC24943EF538C3837B5FB /* VersionUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0892BA3B202EE76234C0CC9 /* VersionUtils.swift */; };
+		5D4A7479034564838FE09CF0 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 9479A91B84B8B1735A6AC878 /* SwiftSoup */; };
 		65CE9E557881A66E2169BF28 /* TimeTableEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480CB26C5638A20DE5CED8AC /* TimeTableEntity.swift */; };
 		65CF01F49FC04AD316F12BB6 /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */; };
 		667A9EB53C54336E43442489 /* ThemePresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B72E006270ED69703F906F4 /* ThemePresets.swift */; };
+		71A63D49A1A964C911C5F47A /* JwWiseduParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467B034A9889202CEA76931B /* JwWiseduParser.swift */; };
 		75BDBE0C304130911EB16781 /* CourseEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */; };
 		76FF6F179A8C437B32A20887 /* SmartPeriodConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196825AFE35B5C0E3D277722 /* SmartPeriodConfigTests.swift */; };
+		783DA0C18585ABE2B0F38CE4 /* JwNewZfParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C1D8BD48F149CE16160CE84 /* JwNewZfParser.swift */; };
 		862CC2DE902FFABC92F04206 /* SleepyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34F065FDCFDCA2A4AED9B5B8 /* SleepyApp.swift */; };
+		876ED70CEEEF70194B99CFC3 /* JwImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B413E30FAD9261068960FC5F /* JwImportViewModel.swift */; };
+		89FAB921C7D98EA9A507D61A /* JwParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9090ACA661D747DF0AB718 /* JwParser.swift */; };
 		8AAF5A7A3F027E8E1BE88727 /* TimeTableDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5DE7210118C9EC520F007E /* TimeTableDao.swift */; };
 		955AA3AAA68DB122F123785B /* CourseColorUtilTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F19B09B9CF4562AD9450D43 /* CourseColorUtilTests.swift */; };
 		9C3967DF73C2215296271E04 /* CourseDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D3AA9F8B115E2B804EBDA31 /* CourseDao.swift */; };
+		9F02858A924B94A81586B6B7 /* JwNewUrpParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3858841858390C66EB60926 /* JwNewUrpParser.swift */; };
+		A7E770E7D1250EBC905B0B8E /* JwCourse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39EE2EC9F37C40DBBE526D31 /* JwCourse.swift */; };
 		B1436FEAB213A86DC79048AA /* UpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF4648DE833D3D2C58C52E6C /* UpdateManager.swift */; };
 		B7B7B9E50F2427797E4F6752 /* CourseColorUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F8589E7A5EA8C34355C1FFF /* CourseColorUtil.swift */; };
 		BA2743A24ED00F9986AB65E3 /* TimeTableUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EB72448743A4CF5CF466C5 /* TimeTableUtils.swift */; };
+		C75EAA02EC7094A728B8A0F7 /* JwQzParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166C8FB4895B9F8ACF079DDD /* JwQzParser.swift */; };
+		CD11FBD5ABFA3953CE6E30A0 /* JwProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3480ED82E92E5E453EA66874 /* JwProtocol.swift */; };
 		D289B54F535EFF1753F5AD4C /* SleepyPlaceholderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */; };
 		D6770DDC7A4CB4206244FDD1 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1205376525F575AF970B7CD4 /* Localizable.strings */; };
 		D850C9512A65FE07DDC9556F /* AppPrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB174180E779B7796964E378 /* AppPrefs.swift */; };
+		DFFBB81BEE798AFA2850BF99 /* resources in Resources */ = {isa = PBXBuildFile; fileRef = F84E511E00AFD8247D4D4B07 /* resources */; };
 		E2CD16EE311B59D8B0B6CB74 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60056452C13B6C1D48E232C7 /* L10n.swift */; };
 		EFBA358CFB2F74092DBDB6CB /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D79D23433FE386230D5AB1 /* DateUtils.swift */; };
 		F4F3C180248F3621BFF7E4C4 /* TimeTableUtilsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B54C7ABE0AD4B91392A32A1 /* TimeTableUtilsTests.swift */; };
@@ -67,20 +82,30 @@
 		0A34060A11A2074B2B02C7E1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		1274843FE9312E87CD5807D5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		15AF7FB34120128873D5A25C /* DateUtilsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtilsTests.swift; sourceTree = "<group>"; };
+		166C8FB4895B9F8ACF079DDD /* JwQzParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzParser.swift; sourceTree = "<group>"; };
 		1849E41D4246ACF12E07B8F0 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		196825AFE35B5C0E3D277722 /* SmartPeriodConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPeriodConfigTests.swift; sourceTree = "<group>"; };
+		1D9090ACA661D747DF0AB718 /* JwParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParser.swift; sourceTree = "<group>"; };
 		1F623ECECCA2E2A91223E72C /* SmartPeriodConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPeriodConfig.swift; sourceTree = "<group>"; };
+		22F391D73202D6B93FFF6070 /* JwSchoolInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwSchoolInfo.swift; sourceTree = "<group>"; };
+		3480ED82E92E5E453EA66874 /* JwProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwProtocol.swift; sourceTree = "<group>"; };
 		34F065FDCFDCA2A4AED9B5B8 /* SleepyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyApp.swift; sourceTree = "<group>"; };
 		3809683F11A502026D9F44C5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		38ACCC7671C8A0AA3121947D /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		39EE2EC9F37C40DBBE526D31 /* JwCourse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCourse.swift; sourceTree = "<group>"; };
 		3CE7034F859FC0E80A0569C9 /* SleepyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SleepyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		40B0375B042F64DCB87DBE3F /* schools.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = schools.json; sourceTree = "<group>"; };
 		425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDaoChainTests.swift; sourceTree = "<group>"; };
+		461D4FA2DB17915ACF3D0063 /* JwUrpParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwUrpParser.swift; sourceTree = "<group>"; };
+		467B034A9889202CEA76931B /* JwWiseduParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWiseduParser.swift; sourceTree = "<group>"; };
 		46936162C031CBA022123E64 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
 		480CB26C5638A20DE5CED8AC /* TimeTableEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTableEntity.swift; sourceTree = "<group>"; };
 		4B72E006270ED69703F906F4 /* ThemePresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePresets.swift; sourceTree = "<group>"; };
+		4B8F322DCB1C5CF622C99C11 /* JwParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParserTests.swift; sourceTree = "<group>"; };
 		4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseEntity.swift; sourceTree = "<group>"; };
 		4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyPlaceholderTests.swift; sourceTree = "<group>"; };
 		56B94B595CC8F831AE5AE3BC /* SleepyUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SleepyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5C1D8BD48F149CE16160CE84 /* JwNewZfParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwNewZfParser.swift; sourceTree = "<group>"; };
 		5F19B09B9CF4562AD9450D43 /* CourseColorUtilTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorUtilTests.swift; sourceTree = "<group>"; };
 		5F8589E7A5EA8C34355C1FFF /* CourseColorUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorUtil.swift; sourceTree = "<group>"; };
 		60056452C13B6C1D48E232C7 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
@@ -98,11 +123,15 @@
 		AD5B884B15CD7982BF4BC2F9 /* UpdateInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInfo.swift; sourceTree = "<group>"; };
 		AF8D64162D7772B54812CCBA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B18164021426E1BE78DB3F46 /* SleepyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyUITests.swift; sourceTree = "<group>"; };
+		B413E30FAD9261068960FC5F /* JwImportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportViewModel.swift; sourceTree = "<group>"; };
 		C0892BA3B202EE76234C0CC9 /* VersionUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionUtils.swift; sourceTree = "<group>"; };
 		C4AD798EE56D6A6A6BD66287 /* Sleepy.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sleepy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C69CDDE3F7F1E2BEA3DA3C03 /* VersionAndUpdateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionAndUpdateTests.swift; sourceTree = "<group>"; };
+		D3D445F86E00820411E38285 /* JwQzCrazyParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzCrazyParser.swift; sourceTree = "<group>"; };
 		DB174180E779B7796964E378 /* AppPrefs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPrefs.swift; sourceTree = "<group>"; };
 		EF4648DE833D3D2C58C52E6C /* UpdateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateManager.swift; sourceTree = "<group>"; };
+		F3858841858390C66EB60926 /* JwNewUrpParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwNewUrpParser.swift; sourceTree = "<group>"; };
+		F84E511E00AFD8247D4D4B07 /* resources */ = {isa = PBXFileReference; lastKnownFileType = folder; name = resources; path = SleepyTests/resources; sourceTree = SOURCE_ROOT; };
 		FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDatabase.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -112,6 +141,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1EFE6A5CCA24F35DB5DC5A1C /* GRDB in Frameworks */,
+				5D4A7479034564838FE09CF0 /* SwiftSoup in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -187,6 +217,24 @@
 			path = ui;
 			sourceTree = "<group>";
 		};
+		6D71EC5495896087F43D122A /* jw */ = {
+			isa = PBXGroup;
+			children = (
+				39EE2EC9F37C40DBBE526D31 /* JwCourse.swift */,
+				B413E30FAD9261068960FC5F /* JwImportViewModel.swift */,
+				F3858841858390C66EB60926 /* JwNewUrpParser.swift */,
+				5C1D8BD48F149CE16160CE84 /* JwNewZfParser.swift */,
+				1D9090ACA661D747DF0AB718 /* JwParser.swift */,
+				3480ED82E92E5E453EA66874 /* JwProtocol.swift */,
+				D3D445F86E00820411E38285 /* JwQzCrazyParser.swift */,
+				166C8FB4895B9F8ACF079DDD /* JwQzParser.swift */,
+				22F391D73202D6B93FFF6070 /* JwSchoolInfo.swift */,
+				461D4FA2DB17915ACF3D0063 /* JwUrpParser.swift */,
+				467B034A9889202CEA76931B /* JwWiseduParser.swift */,
+			);
+			path = jw;
+			sourceTree = "<group>";
+		};
 		738D49DFFDA4A0E6B15C13D5 = {
 			isa = PBXGroup;
 			children = (
@@ -215,6 +263,8 @@
 				425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */,
 				15AF7FB34120128873D5A25C /* DateUtilsTests.swift */,
 				1274843FE9312E87CD5807D5 /* Info.plist */,
+				4B8F322DCB1C5CF622C99C11 /* JwParserTests.swift */,
+				F84E511E00AFD8247D4D4B07 /* resources */,
 				4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */,
 				196825AFE35B5C0E3D277722 /* SmartPeriodConfigTests.swift */,
 				6B54C7ABE0AD4B91392A32A1 /* TimeTableUtilsTests.swift */,
@@ -241,6 +291,7 @@
 			isa = PBXGroup;
 			children = (
 				1205376525F575AF970B7CD4 /* Localizable.strings */,
+				40B0375B042F64DCB87DBE3F /* schools.json */,
 			);
 			path = resources;
 			sourceTree = "<group>";
@@ -259,6 +310,7 @@
 			children = (
 				01DFCD1C3F6D2AABDD720227 /* dao */,
 				7A160113E1905C5FA92D04C8 /* entity */,
+				6D71EC5495896087F43D122A /* jw */,
 				FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */,
 			);
 			path = data;
@@ -272,6 +324,7 @@
 			buildConfigurationList = 89061485F673DD77013BF26B /* Build configuration list for PBXNativeTarget "SleepyTests" */;
 			buildPhases = (
 				F990CBC90FED850EFFDA5C2D /* Sources */,
+				9C96903481AD93100EFA9B72 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -298,6 +351,7 @@
 			name = Sleepy;
 			packageProductDependencies = (
 				B58142DA4B1A49633BB19A05 /* GRDB */,
+				9479A91B84B8B1735A6AC878 /* SwiftSoup */,
 			);
 			productName = Sleepy;
 			productReference = C4AD798EE56D6A6A6BD66287 /* Sleepy.app */;
@@ -368,6 +422,7 @@
 			mainGroup = 738D49DFFDA4A0E6B15C13D5;
 			packageReferences = (
 				781557E357F7D0E5647419BF /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				044CD492B0AAF0A309C16EA0 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
 			);
 			projectDirPath = "";
 			projectRoot = "";
@@ -386,6 +441,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				D6770DDC7A4CB4206244FDD1 /* Localizable.strings in Resources */,
+				52D98DAC3D9567B72C73792B /* schools.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9C96903481AD93100EFA9B72 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DFFBB81BEE798AFA2850BF99 /* resources in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -403,6 +467,17 @@
 				9C3967DF73C2215296271E04 /* CourseDao.swift in Sources */,
 				75BDBE0C304130911EB16781 /* CourseEntity.swift in Sources */,
 				EFBA358CFB2F74092DBDB6CB /* DateUtils.swift in Sources */,
+				A7E770E7D1250EBC905B0B8E /* JwCourse.swift in Sources */,
+				876ED70CEEEF70194B99CFC3 /* JwImportViewModel.swift in Sources */,
+				9F02858A924B94A81586B6B7 /* JwNewUrpParser.swift in Sources */,
+				783DA0C18585ABE2B0F38CE4 /* JwNewZfParser.swift in Sources */,
+				89FAB921C7D98EA9A507D61A /* JwParser.swift in Sources */,
+				CD11FBD5ABFA3953CE6E30A0 /* JwProtocol.swift in Sources */,
+				32C7A0EB4224644590EA4AB5 /* JwQzCrazyParser.swift in Sources */,
+				C75EAA02EC7094A728B8A0F7 /* JwQzParser.swift in Sources */,
+				0730FEAE6931481C90A557C4 /* JwSchoolInfo.swift in Sources */,
+				38C933C0072C5DB489AB22AA /* JwUrpParser.swift in Sources */,
+				71A63D49A1A964C911C5F47A /* JwWiseduParser.swift in Sources */,
 				E2CD16EE311B59D8B0B6CB74 /* L10n.swift in Sources */,
 				247BD2909D3811BF1E518627 /* LocaleHelper.swift in Sources */,
 				862CC2DE902FFABC92F04206 /* SleepyApp.swift in Sources */,
@@ -440,6 +515,7 @@
 				955AA3AAA68DB122F123785B /* CourseColorUtilTests.swift in Sources */,
 				2AB1C979346A5D643A0C2F16 /* CourseDaoChainTests.swift in Sources */,
 				FB98667FC708E0C9DC47DDFE /* DateUtilsTests.swift in Sources */,
+				25083A3FF7EDB6386F4AD3DC /* JwParserTests.swift in Sources */,
 				D289B54F535EFF1753F5AD4C /* SleepyPlaceholderTests.swift in Sources */,
 				76FF6F179A8C437B32A20887 /* SmartPeriodConfigTests.swift in Sources */,
 				F4F3C180248F3621BFF7E4C4 /* TimeTableUtilsTests.swift in Sources */,
@@ -793,6 +869,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		044CD492B0AAF0A309C16EA0 /* XCRemoteSwiftPackageReference "SwiftSoup" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://gh.qdp.qzz.io/scinfu/SwiftSoup.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.7.3;
+			};
+		};
 		781557E357F7D0E5647419BF /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://gh.qdp.qzz.io/groue/GRDB.swift.git";
@@ -808,6 +892,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 781557E357F7D0E5647419BF /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		9479A91B84B8B1735A6AC878 /* SwiftSoup */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 044CD492B0AAF0A309C16EA0 /* XCRemoteSwiftPackageReference "SwiftSoup" */;
+			productName = SwiftSoup;
 		};
 		B58142DA4B1A49633BB19A05 /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;

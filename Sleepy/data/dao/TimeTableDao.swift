@@ -14,6 +14,19 @@ struct TimeTableDao {
         return table.id
     }
 
+    /// 事务内直插(JwImportViewModel.importAsNewTable 的 dbQueue.write 闭包里调用;
+    /// 再走 db.write 会 reentrant fatal — GRDB SerializedDatabase 禁止重入)
+    @discardableResult
+    func insertInDb(_ dbw: Database, _ table: TimeTableEntity) throws -> Int64 {
+        var table = table
+        try table.insert(dbw, onConflict: .replace)
+        return table.id
+    }
+
+    func setDefaultInDb(_ dbw: Database, _ id: Int64) throws {
+        try dbw.execute(sql: "UPDATE time_tables SET isDefault = (id = ?)", arguments: [id])
+    }
+
     // @Update
     func update(_ table: TimeTableEntity) throws {
         var table = table

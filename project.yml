@@ -19,6 +19,11 @@ packages:
     url: https://gh.qdp.qzz.io/groue/GRDB.swift.git
     from: 6.29.3
     # 仓库 2026 改名 GRDB→GRDB.swift;tag 带 v 前缀(v6.29.3)
+  SwiftSoup:
+    url: https://gh.qdp.qzz.io/scinfu/SwiftSoup.git
+    exactVersion: 2.7.3
+    # ← Jsoup 的 Swift 移植,API 与 org.jsoup 1:1(JwQzParser/JwUrpParser 依赖)。
+    # 锁 2.7.3(tools 5.7): 最新 2.13.x 要求 Swift 6 工具链,Xcode 14.3 编不过。
 
 targets:
   Sleepy:
@@ -32,6 +37,7 @@ targets:
         buildPhase: resources
     dependencies:
       - package: GRDB
+      - package: SwiftSoup
     info:
       path: Sleepy/Info.plist
       properties:
@@ -90,6 +96,10 @@ targets:
     platform: iOS
     sources:
       - path: SleepyTests
+        excludes: ["resources"]
+      - path: SleepyTests/resources
+        buildPhase: resources
+        type: folder
     dependencies:
       - target: Sleepy
     info:
