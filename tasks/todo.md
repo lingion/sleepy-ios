@@ -4,7 +4,7 @@
 - [x] T0.1 工程骨架 — ✅ xcodegen 2.38 源码编译装 ~/bin;三 target(app+widget+tests+uitests 实为4)BUILD SUCCEEDED;五语言 389键+day_names 已迁(63处格式占位符转 %1$@)
 - [x] T0.2 构建链+G1闸 — ✅ build-ipa.sh/coverage_audit.py 落盘(基线 1878 符号);GRDB.swift v6.29.3 经镜像 resolve 成功(仓库2026改名,旧路径404是假故障);xctest target plist 缺 CFBundleVersion 已修;simctl install+launch 验证通过;单测 1/1 绿
 - [x] T0.3 风险矩阵+环境定盘 — ✅ risk-matrix.md 13 项评分(R1教务链20/R2周次15/R3数据层15/R4解析16/R6widget16=CRITICAL)+失败模式五字段;fixture 服务器四协议链路实测通(login 200→302→cookie→kb 200;端口 8791)
-- [ ] CP-D0 检查点(IPA✓三target✓矩阵落盘+ln-11复审+**用户过目**)
+- [x] CP-D0 检查点 — ✅ ln-11 复审 READY WITH CONCERNS(3 MINOR 修正案已落: T7.0 提前至 D1 开工/T1.2 加 schema diff/独立审查限制披露);goal 模式下不停等用户,里程碑汇报制
 
 ## D1
 - [ ] T1.1 entity 3 文件+GRDB映射

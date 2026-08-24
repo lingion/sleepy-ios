@@ -115,6 +115,7 @@ Kotlin → Swift 逐行对译,保结构:
 | 6 | APPWIDGET_UPDATE 广播刷新 | WidgetCenter.reloadAllTimelines + WidgetKit timeline 策略 | 等价 |
 | 7 | PinWidgetActivity/WeekGridPreviewActivity | WidgetBundle gallery 静态预览描述 | 等价 |
 | 8 | Room(SQLite) | GRDB,表结构/D	sql语句语义保持 | 等价 |
+| 8b | 单进程无共享 | App Group 由 AltStore 动态改写 ID(源码证据:FetchProvisioningProfilesOperation.swift:447 加 team 后缀+ResignAppOperation.swift:126 写 ALTAppGroups key)→ AppGroupResolver.swift 运行时解析,Xcode 直跑回退声明 ID | 等价(新增) |
 | 9 | AppPrefs(DataStore/SP) | UserDefaults,键名保持一致 | 等价 |
 | 10 | in-app 语言切换 LocaleHelper | .environment(\.locale) 手动覆盖,5 语言 | 等价 |
 

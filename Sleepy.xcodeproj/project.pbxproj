@@ -11,6 +11,7 @@
 		1EFE6A5CCA24F35DB5DC5A1C /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B58142DA4B1A49633BB19A05 /* GRDB */; };
 		35AED6976FAE210F6E93C694 /* SleepyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18164021426E1BE78DB3F46 /* SleepyUITests.swift */; };
 		3D51B7D1C05FBC714FE7E481 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3899CC7A7D018A6D641C5E75 /* GRDB */; };
+		52BF11E4543EFC2F7C4941BA /* AppGroupResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */; };
 		862CC2DE902FFABC92F04206 /* SleepyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34F065FDCFDCA2A4AED9B5B8 /* SleepyApp.swift */; };
 		D289B54F535EFF1753F5AD4C /* SleepyPlaceholderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */; };
 		D6770DDC7A4CB4206244FDD1 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1205376525F575AF970B7CD4 /* Localizable.strings */; };
@@ -55,6 +56,7 @@
 		670ED236864A0DD636F04274 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		672BF2F028033B72BDD477D4 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
 		87411070D5476B65081E829B /* SleepyWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyWidgetBundle.swift; sourceTree = "<group>"; };
+		A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroupResolver.swift; sourceTree = "<group>"; };
 		AF8D64162D7772B54812CCBA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B18164021426E1BE78DB3F46 /* SleepyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyUITests.swift; sourceTree = "<group>"; };
 		C4AD798EE56D6A6A6BD66287 /* Sleepy.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sleepy.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -80,6 +82,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0395640CB0EAB91C47EE3909 /* util */ = {
+			isa = PBXGroup;
+			children = (
+				A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */,
+			);
+			path = util;
+			sourceTree = "<group>";
+		};
 		36402A5055750C390995F1BC /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -133,6 +143,7 @@
 				D47227BDA96D57A9ADAC2549 /* data */,
 				D2E90D2BDE85053EAAD43B10 /* resources */,
 				61C6345E527FB35D6279E0B0 /* ui */,
+				0395640CB0EAB91C47EE3909 /* util */,
 				AF8D64162D7772B54812CCBA /* Info.plist */,
 				34F065FDCFDCA2A4AED9B5B8 /* SleepyApp.swift */,
 			);
@@ -295,6 +306,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				52BF11E4543EFC2F7C4941BA /* AppGroupResolver.swift in Sources */,
 				862CC2DE902FFABC92F04206 /* SleepyApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
