@@ -70,10 +70,12 @@ targets:
     platform: iOS
     sources:
       - path: SleepyWidget
-      # widget 与主 app 共享全部实现源(data/util/theme/widget — 实体/DAO/主题/渲染);
-      # extension 独立编译(不能链接主 app binary),SleepyApp.swift 入口除外
+      # widget 与主 app 共享实现源(data/util/theme/widget — 实体/DAO/主题/渲染);
+      # extension 独立编译(不能链接主 app binary)。
+      # 排除: SleepyApp 入口 / Info.plist / ui 屏幕+组件(UIApplication 等 app-only API;
+      # widget 用不到屏层, 渲染逻辑已抽到 widget/ 与 util/)
       - path: Sleepy
-        excludes: ["resources", "SleepyApp.swift", "Info.plist"]
+        excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui"]
       - path: Sleepy/resources
         buildPhase: resources
     dependencies:
