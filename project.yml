@@ -1,0 +1,138 @@
+# Sleepy iOS — XcodeGen project definition
+# 移植自 sleepy Android (~/Desktop/sleepy), GPL-3.0
+name: Sleepy
+options:
+  bundleIdPrefix: com.lingion
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.8"
+    # 模拟器测试需要 ad-hoc 签名;真机 archive 走 build-ipa.sh 的 CODE_SIGNING_ALLOWED=NO
+    CODE_SIGN_IDENTITY: "-"
+
+packages:
+  GRDB:
+    url: https://gh.qdp.qzz.io/groue/GRDB.swift.git
+    from: 6.29.3
+    # 仓库 2026 改名 GRDB→GRDB.swift;tag 带 v 前缀(v6.29.3)
+
+targets:
+  Sleepy:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sleepy
+        excludes: ["resources"]
+      - path: Sleepy/resources
+        # iOS 标准:lproj 目录直接作为 resources bundle 根(xcodegen 默认逐文件拷贝)
+        buildPhase: resources
+    dependencies:
+      - package: GRDB
+    info:
+      path: Sleepy/Info.plist
+      properties:
+        CFBundleDisplayName: Sleepy 课程表
+        CFBundleShortVersionString: "1.0.34"
+        CFBundleVersion: "35"
+        CFBundleIdentifier: com.lingion.sleepy.ios
+        CFBundleName: Sleepy
+        CFBundlePackageType: APPL
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Schedule JSON
+            LSHandlerRank: Owner
+            LSItemContentTypes: ["public.json"]
+        LSSupportsOpeningDocumentsInPlace: false
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: "NO"
+
+  SleepyWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SleepyWidget
+    dependencies:
+      - package: GRDB
+      - target: Sleepy
+    info:
+      path: SleepyWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Sleepy Widget
+        CFBundleShortVersionString: "1.0.34"
+        CFBundleVersion: "35"
+        CFBundleIdentifier: com.lingion.sleepy.ios.widget
+        CFBundleName: SleepyWidget
+        CFBundlePackageType: XPC!
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios.widget
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: "NO"
+
+  SleepyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: SleepyTests
+    dependencies:
+      - target: Sleepy
+    info:
+      path: SleepyTests/Info.plist
+      properties:
+        CFBundleIdentifier: com.lingion.sleepy.ios.tests
+        CFBundleName: SleepyTests
+        CFBundlePackageType: BNDL
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        CFBundleShortVersionString: "1.0.34"
+        CFBundleVersion: "35"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios.tests
+        GENERATE_INFOPLIST_FILE: "NO"
+
+  SleepyUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: SleepyUITests
+    dependencies:
+      - target: Sleepy
+    info:
+      path: SleepyUITests/Info.plist
+      properties:
+        CFBundleIdentifier: com.lingion.sleepy.ios.uitests
+        CFBundleName: SleepyUITests
+        CFBundlePackageType: BNDL
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        CFBundleShortVersionString: "1.0.34"
+        CFBundleVersion: "35"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios.uitests
+        GENERATE_INFOPLIST_FILE: "NO"
+
+schemes:
+  Sleepy:
+    build:
+      targets:
+        Sleepy: all
+    test:
+      targets:
+        - SleepyTests
+        - SleepyUITests

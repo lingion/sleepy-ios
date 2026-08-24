@@ -1,0 +1,696 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0061BF9B6753422634DBF086 /* SleepyWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87411070D5476B65081E829B /* SleepyWidgetBundle.swift */; };
+		1EFE6A5CCA24F35DB5DC5A1C /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B58142DA4B1A49633BB19A05 /* GRDB */; };
+		35AED6976FAE210F6E93C694 /* SleepyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18164021426E1BE78DB3F46 /* SleepyUITests.swift */; };
+		3D51B7D1C05FBC714FE7E481 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3899CC7A7D018A6D641C5E75 /* GRDB */; };
+		862CC2DE902FFABC92F04206 /* SleepyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34F065FDCFDCA2A4AED9B5B8 /* SleepyApp.swift */; };
+		D289B54F535EFF1753F5AD4C /* SleepyPlaceholderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */; };
+		D6770DDC7A4CB4206244FDD1 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1205376525F575AF970B7CD4 /* Localizable.strings */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5454E6B4A695F8DB1AD47D5B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 91C202EC74046D089FFA0F14 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5292F54B11655E3F1B8096ED;
+			remoteInfo = Sleepy;
+		};
+		86469EB91E248246060EE77C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 91C202EC74046D089FFA0F14 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5292F54B11655E3F1B8096ED;
+			remoteInfo = Sleepy;
+		};
+		F20931185568CCC9EA7A0F49 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 91C202EC74046D089FFA0F14 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5292F54B11655E3F1B8096ED;
+			remoteInfo = Sleepy;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0A34060A11A2074B2B02C7E1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		1274843FE9312E87CD5807D5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		1849E41D4246ACF12E07B8F0 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		34F065FDCFDCA2A4AED9B5B8 /* SleepyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyApp.swift; sourceTree = "<group>"; };
+		3809683F11A502026D9F44C5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		38ACCC7671C8A0AA3121947D /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		3CE7034F859FC0E80A0569C9 /* SleepyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SleepyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		46936162C031CBA022123E64 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+		4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyPlaceholderTests.swift; sourceTree = "<group>"; };
+		56B94B595CC8F831AE5AE3BC /* SleepyUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SleepyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		64CFB5B5DD63AC209144EEDD /* SleepyWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SleepyWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		670ED236864A0DD636F04274 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		672BF2F028033B72BDD477D4 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
+		87411070D5476B65081E829B /* SleepyWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyWidgetBundle.swift; sourceTree = "<group>"; };
+		AF8D64162D7772B54812CCBA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B18164021426E1BE78DB3F46 /* SleepyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyUITests.swift; sourceTree = "<group>"; };
+		C4AD798EE56D6A6A6BD66287 /* Sleepy.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sleepy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		348BDEA72E7E2879036C7159 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1EFE6A5CCA24F35DB5DC5A1C /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		808D54269DC8EC28BDA45576 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3D51B7D1C05FBC714FE7E481 /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		36402A5055750C390995F1BC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C4AD798EE56D6A6A6BD66287 /* Sleepy.app */,
+				3CE7034F859FC0E80A0569C9 /* SleepyTests.xctest */,
+				56B94B595CC8F831AE5AE3BC /* SleepyUITests.xctest */,
+				64CFB5B5DD63AC209144EEDD /* SleepyWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5A3245F82EB9D2E262383DB0 /* SleepyWidget */ = {
+			isa = PBXGroup;
+			children = (
+				3809683F11A502026D9F44C5 /* Info.plist */,
+				87411070D5476B65081E829B /* SleepyWidgetBundle.swift */,
+			);
+			path = SleepyWidget;
+			sourceTree = "<group>";
+		};
+		61C6345E527FB35D6279E0B0 /* ui */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = ui;
+			sourceTree = "<group>";
+		};
+		738D49DFFDA4A0E6B15C13D5 = {
+			isa = PBXGroup;
+			children = (
+				C2BDE01138A338D45CA57003 /* Sleepy */,
+				8AAD3F1069D6DE68878E0732 /* SleepyTests */,
+				D329B1DFD15D4AF37A70CB50 /* SleepyUITests */,
+				5A3245F82EB9D2E262383DB0 /* SleepyWidget */,
+				36402A5055750C390995F1BC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8AAD3F1069D6DE68878E0732 /* SleepyTests */ = {
+			isa = PBXGroup;
+			children = (
+				1274843FE9312E87CD5807D5 /* Info.plist */,
+				4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */,
+			);
+			path = SleepyTests;
+			sourceTree = "<group>";
+		};
+		C2BDE01138A338D45CA57003 /* Sleepy */ = {
+			isa = PBXGroup;
+			children = (
+				D47227BDA96D57A9ADAC2549 /* data */,
+				D2E90D2BDE85053EAAD43B10 /* resources */,
+				61C6345E527FB35D6279E0B0 /* ui */,
+				AF8D64162D7772B54812CCBA /* Info.plist */,
+				34F065FDCFDCA2A4AED9B5B8 /* SleepyApp.swift */,
+			);
+			path = Sleepy;
+			sourceTree = "<group>";
+		};
+		D2E90D2BDE85053EAAD43B10 /* resources */ = {
+			isa = PBXGroup;
+			children = (
+				1205376525F575AF970B7CD4 /* Localizable.strings */,
+			);
+			path = resources;
+			sourceTree = "<group>";
+		};
+		D329B1DFD15D4AF37A70CB50 /* SleepyUITests */ = {
+			isa = PBXGroup;
+			children = (
+				0A34060A11A2074B2B02C7E1 /* Info.plist */,
+				B18164021426E1BE78DB3F46 /* SleepyUITests.swift */,
+			);
+			path = SleepyUITests;
+			sourceTree = "<group>";
+		};
+		D47227BDA96D57A9ADAC2549 /* data */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = data;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4E81C3F3A4B5518E77D9A340 /* SleepyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 89061485F673DD77013BF26B /* Build configuration list for PBXNativeTarget "SleepyTests" */;
+			buildPhases = (
+				F990CBC90FED850EFFDA5C2D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E94E00D718A49F085F436234 /* PBXTargetDependency */,
+			);
+			name = SleepyTests;
+			productName = SleepyTests;
+			productReference = 3CE7034F859FC0E80A0569C9 /* SleepyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		5292F54B11655E3F1B8096ED /* Sleepy */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9A440B4B129E8238A8A4A9B8 /* Build configuration list for PBXNativeTarget "Sleepy" */;
+			buildPhases = (
+				6334EAA8FC1B1CDD1463A082 /* Sources */,
+				946E89EE7634C10E5C59211E /* Resources */,
+				348BDEA72E7E2879036C7159 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Sleepy;
+			packageProductDependencies = (
+				B58142DA4B1A49633BB19A05 /* GRDB */,
+			);
+			productName = Sleepy;
+			productReference = C4AD798EE56D6A6A6BD66287 /* Sleepy.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8E90546735878A73D0A5A238 /* SleepyUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 41D457B0F319DA4C2C0ABC4E /* Build configuration list for PBXNativeTarget "SleepyUITests" */;
+			buildPhases = (
+				7EFE7B5FFEC98C871692876A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0FE5592992480ECD14DC0918 /* PBXTargetDependency */,
+			);
+			name = SleepyUITests;
+			productName = SleepyUITests;
+			productReference = 56B94B595CC8F831AE5AE3BC /* SleepyUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		DC378BF644C25C9AE77602E9 /* SleepyWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E1C73F6FACECFFA94DB3F0BA /* Build configuration list for PBXNativeTarget "SleepyWidget" */;
+			buildPhases = (
+				EE927D94D191016D85B2FC35 /* Sources */,
+				808D54269DC8EC28BDA45576 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1463CAE796A9D12A4B3D6566 /* PBXTargetDependency */,
+			);
+			name = SleepyWidget;
+			packageProductDependencies = (
+				3899CC7A7D018A6D641C5E75 /* GRDB */,
+			);
+			productName = SleepyWidget;
+			productReference = 64CFB5B5DD63AC209144EEDD /* SleepyWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		91C202EC74046D089FFA0F14 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					8E90546735878A73D0A5A238 = {
+						TestTargetID = 5292F54B11655E3F1B8096ED;
+					};
+				};
+			};
+			buildConfigurationList = A9CD7C1A24E3D3AA9A18F53C /* Build configuration list for PBXProject "Sleepy" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				es,
+				ja,
+				"zh-Hans",
+				"zh-Hant",
+			);
+			mainGroup = 738D49DFFDA4A0E6B15C13D5;
+			packageReferences = (
+				781557E357F7D0E5647419BF /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+			);
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5292F54B11655E3F1B8096ED /* Sleepy */,
+				4E81C3F3A4B5518E77D9A340 /* SleepyTests */,
+				8E90546735878A73D0A5A238 /* SleepyUITests */,
+				DC378BF644C25C9AE77602E9 /* SleepyWidget */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		946E89EE7634C10E5C59211E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D6770DDC7A4CB4206244FDD1 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6334EAA8FC1B1CDD1463A082 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				862CC2DE902FFABC92F04206 /* SleepyApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7EFE7B5FFEC98C871692876A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				35AED6976FAE210F6E93C694 /* SleepyUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EE927D94D191016D85B2FC35 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0061BF9B6753422634DBF086 /* SleepyWidgetBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F990CBC90FED850EFFDA5C2D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D289B54F535EFF1753F5AD4C /* SleepyPlaceholderTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0FE5592992480ECD14DC0918 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5292F54B11655E3F1B8096ED /* Sleepy */;
+			targetProxy = 5454E6B4A695F8DB1AD47D5B /* PBXContainerItemProxy */;
+		};
+		1463CAE796A9D12A4B3D6566 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5292F54B11655E3F1B8096ED /* Sleepy */;
+			targetProxy = F20931185568CCC9EA7A0F49 /* PBXContainerItemProxy */;
+		};
+		E94E00D718A49F085F436234 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5292F54B11655E3F1B8096ED /* Sleepy */;
+			targetProxy = 86469EB91E248246060EE77C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		1205376525F575AF970B7CD4 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				670ED236864A0DD636F04274 /* en */,
+				46936162C031CBA022123E64 /* es */,
+				672BF2F028033B72BDD477D4 /* ja */,
+				1849E41D4246ACF12E07B8F0 /* zh-Hans */,
+				38ACCC7671C8A0AA3121947D /* zh-Hant */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		00DAE3EB1CB1976A595E8441 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SleepyUITests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Sleepy;
+			};
+			name = Debug;
+		};
+		348FC1E4BFD950C0BA267061 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.8;
+			};
+			name = Release;
+		};
+		5032E51E1E763A0BBF7FB97B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SleepyUITests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Sleepy;
+			};
+			name = Release;
+		};
+		58571C646A192AD0FBC96644 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SleepyTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sleepy.app/Sleepy";
+			};
+			name = Release;
+		};
+		9BAE93609DB5991397F25D38 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SleepyTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sleepy.app/Sleepy";
+			};
+			name = Debug;
+		};
+		B6558A02D5FF85C87F8499EF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SleepyWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.widget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		D62CC89124250D5D2D305C7B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SleepyWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.widget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		E869182FA6C7B32082175D12 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.8;
+			};
+			name = Debug;
+		};
+		FA14003712A63B4804A5A692 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sleepy/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		FD010349CC7692DE2DCCF5BA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sleepy/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		41D457B0F319DA4C2C0ABC4E /* Build configuration list for PBXNativeTarget "SleepyUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				00DAE3EB1CB1976A595E8441 /* Debug */,
+				5032E51E1E763A0BBF7FB97B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		89061485F673DD77013BF26B /* Build configuration list for PBXNativeTarget "SleepyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9BAE93609DB5991397F25D38 /* Debug */,
+				58571C646A192AD0FBC96644 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9A440B4B129E8238A8A4A9B8 /* Build configuration list for PBXNativeTarget "Sleepy" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FA14003712A63B4804A5A692 /* Debug */,
+				FD010349CC7692DE2DCCF5BA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A9CD7C1A24E3D3AA9A18F53C /* Build configuration list for PBXProject "Sleepy" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E869182FA6C7B32082175D12 /* Debug */,
+				348FC1E4BFD950C0BA267061 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E1C73F6FACECFFA94DB3F0BA /* Build configuration list for PBXNativeTarget "SleepyWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B6558A02D5FF85C87F8499EF /* Debug */,
+				D62CC89124250D5D2D305C7B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		781557E357F7D0E5647419BF /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://gh.qdp.qzz.io/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.29.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3899CC7A7D018A6D641C5E75 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 781557E357F7D0E5647419BF /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		B58142DA4B1A49633BB19A05 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 781557E357F7D0E5647419BF /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 91C202EC74046D089FFA0F14 /* Project object */;
+}
