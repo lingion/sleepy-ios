@@ -70,9 +70,15 @@ targets:
     platform: iOS
     sources:
       - path: SleepyWidget
+      # widget 与主 app 共享全部实现源(data/util/theme/widget — 实体/DAO/主题/渲染);
+      # extension 独立编译(不能链接主 app binary),SleepyApp.swift 入口除外
+      - path: Sleepy
+        excludes: ["resources", "SleepyApp.swift", "Info.plist"]
+      - path: Sleepy/resources
+        buildPhase: resources
     dependencies:
       - package: GRDB
-      - target: Sleepy
+      - package: SwiftSoup
     info:
       path: SleepyWidget/Info.plist
       properties:

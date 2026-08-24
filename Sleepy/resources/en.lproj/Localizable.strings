@@ -2,7 +2,7 @@
 /* source: app/src/main/res/values-en/strings.xml */
 
 "app_name" = "Sleepy Schedule";
-"widget_today_label" = "Today\\'s Classes";
+"widget_today_label" = "Today's Classes";
 "widget_week_list_label" = "This Week (List)";
 "widget_week_grid_label" = "This Week (Grid)";
 "widget_twoday_label" = "Next Two Days";
@@ -225,7 +225,7 @@
 "mine_about" = "About";
 "mine_about_body" = "Sleepy Schedule v%1$@\\n\\nA minimal, clean, local-first schedule app.\\nAll data stays on your device — nothing is uploaded.\\n\\n· No ads\\n· No tracking\\n· Supports WakeUp / ICS / CSV / HTML / plain text import";
 "date_long_format" = "%1$d/%2$d";
-"notif_title" = "Today\\'s Classes — %1$@ %2$@";
+"notif_title" = "Today's Classes — %1$@ %2$@";
 "notif_text" = "Tap to view today\\'s schedule";
 "theme_name_default" = "Lilac";
 "theme_name_spring" = "Spring";
