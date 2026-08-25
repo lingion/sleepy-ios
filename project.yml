@@ -90,6 +90,8 @@ targets:
       path: SleepyWidget/Info.plist
       properties:
         CFBundleDisplayName: Sleepy Widget
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
       path: SleepyWidget/SleepyWidget.entitlements
       properties:

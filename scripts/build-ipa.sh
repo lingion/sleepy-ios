@@ -20,13 +20,13 @@ xcodebuild archive \
   -project Sleepy.xcodeproj \
   -scheme "$SCHEME" \
   -configuration "$CONFIG" \
-  -destination "generic/platform=iOS Simulator" \
+  -destination "generic/platform=iOS" \
   -archivePath "$EXPORT_DIR/Sleepy.xcarchive" \
   CODE_SIGNING_ALLOWED=NO \
   AD_HOC_CODE_SIGNING_ALLOWED=YES \
   | xcbeautify 2>/dev/null || xcodebuild archive \
   -project Sleepy.xcodeproj -scheme "$SCHEME" -configuration "$CONFIG" \
-  -destination "generic/platform=iOS Simulator" \
+  -destination "generic/platform=iOS" \
   -archivePath "$EXPORT_DIR/Sleepy.xcarchive" CODE_SIGNING_ALLOWED=NO
 
 echo "▸ 打包 IPA"

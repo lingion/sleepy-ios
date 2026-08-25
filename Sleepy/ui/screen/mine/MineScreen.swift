@@ -130,6 +130,7 @@ private struct SettingsItem: View {
     @Environment(\.localWakeUpColors) private var colors
     let icon: String
     let label: String
+    let identifier: String       // ← G5: UI 测试稳定锚点
     let onClick: () -> Void
 
     var body: some View {
@@ -150,6 +151,7 @@ private struct SettingsItem: View {
             .padding(.vertical, 14)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 }
 
@@ -185,11 +187,14 @@ private struct SettingsNavList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingsItem(icon: "square.and.pencil", label: L10n.format("all_tables"), onClick: onOpenAllTables)
+            SettingsItem(icon: "square.and.pencil", label: L10n.format("all_tables"),
+                         identifier: "mine_all_tables", onClick: onOpenAllTables)
             HDivider()
-            SettingsItem(icon: "square.and.arrow.up", label: L10n.format("mine_export"), onClick: onOpenExport)
+            SettingsItem(icon: "square.and.arrow.up", label: L10n.format("mine_export"),
+                         identifier: "mine_export", onClick: onOpenExport)
             HDivider()
-            SettingsItem(icon: "bell", label: L10n.format("reminder_title"), onClick: onOpenReminder)
+            SettingsItem(icon: "bell", label: L10n.format("reminder_title"),
+                         identifier: "mine_reminder", onClick: onOpenReminder)
             HDivider()
             SettingsNavListB(onOpenAppearance: onOpenAppearance, onOpenGeneral: onOpenGeneral,
                              onOpenAbout: onOpenAbout)
@@ -207,11 +212,14 @@ private struct SettingsNavListB: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingsItem(icon: "paintpalette", label: L10n.format("mine_appearance"), onClick: onOpenAppearance)
+            SettingsItem(icon: "paintpalette", label: L10n.format("mine_appearance"),
+                         identifier: "mine_appearance", onClick: onOpenAppearance)
             HDivider()
-            SettingsItem(icon: "slider.horizontal.3", label: L10n.format("mine_general"), onClick: onOpenGeneral)
+            SettingsItem(icon: "slider.horizontal.3", label: L10n.format("mine_general"),
+                         identifier: "mine_general", onClick: onOpenGeneral)
             HDivider()
-            SettingsItem(icon: "info.circle", label: L10n.format("about_title"), onClick: onOpenAbout)
+            SettingsItem(icon: "info.circle", label: L10n.format("about_title"),
+                         identifier: "mine_about", onClick: onOpenAbout)
         }
     }
 }

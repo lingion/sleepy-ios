@@ -11,7 +11,7 @@ struct PillNavigationBar: View {
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
             ForEach(items) { item in
-                PillNavItem(icon: item.icon, label: item.label,
+                PillNavItem(id: item.id, icon: item.icon, label: item.label,
                             selected: item.selected, colors: colors) { item.onClick() }
             }
         }
@@ -34,6 +34,7 @@ struct PillNavItemData: Identifiable {
 }
 
 private struct PillNavItem: View {
+    let id: String       // ← G5: 锚点(跨 locale 不变)
     let icon: String
     let label: String
     let selected: Bool
@@ -62,5 +63,8 @@ private struct PillNavItem: View {
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
+        // ← G5: UI 测试 stable 锚点(每个 tab 一个,跨 locale 不变)
+        .accessibilityIdentifier("pill_\(id)")
+        .accessibilityLabel(label)
     }
 }
