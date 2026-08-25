@@ -28,6 +28,7 @@ struct CourseDetailSheet: View {
                             .foregroundColor(colors.onSurfaceVariant)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("detail_close")
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
@@ -69,6 +70,7 @@ struct CourseDetailSheet: View {
                                 .cornerRadius(SleepyShapes.large)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("detail_edit")
                     }
                 }
                 .padding(.horizontal, 20)

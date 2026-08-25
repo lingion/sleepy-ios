@@ -59,6 +59,7 @@ struct MineScreen: View {
                     .cornerRadius(SleepyShapes.large)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("mine_refresh_widgets")
             }
             .padding(16)
         }

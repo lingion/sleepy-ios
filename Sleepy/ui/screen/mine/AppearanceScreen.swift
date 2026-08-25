@@ -84,6 +84,7 @@ struct AppearanceScreen: View {
                                         .cornerRadius(SleepyShapes.medium)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityIdentifier("theme_mode_\(mode)")
                             }
                         }
                         .padding(3)

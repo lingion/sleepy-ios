@@ -100,6 +100,7 @@ struct EditTableScreen: View {
                             .padding(16)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("edit_table_slots_header")
 
                         if timeSlotsExpanded {
                             TimeSlotEditor(rows: slotRows, onRowsChange: { newRows in
@@ -135,6 +136,7 @@ struct EditTableScreen: View {
                         .cornerRadius(SleepyShapes.large)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("edit_table_save")
 
                     // 删除(新建未保存的表不显示)
                     if pendingNewTableId == nil {
@@ -151,6 +153,7 @@ struct EditTableScreen: View {
                             .cornerRadius(SleepyShapes.large)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("edit_table_delete")
                     }
 
                     Spacer().frame(height: 28)
@@ -265,6 +268,7 @@ struct FieldTextField: View {
                 RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
                     .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
             )
+            .accessibilityIdentifier("field_\(label)")   // ← G5: 字段锚点(label 原文)
             .overlay(alignment: .leading) {
                 if !placeholder.isEmpty {
                     // label 浮动到左上(M3 风格近似: 前缀标签)

@@ -389,6 +389,7 @@
 "mode_auto" = "自動モード";
 "label_from" = "開始";
 "schedule_jump_week" = "週にジャンプ";
+"schedule_jump_current" = "現在の週へ戻る";
 "schedule_empty_name" = "「%1$@」はまだ空です";
 "schedule_empty_name_hint" = "この時間割に授業を追加するか、新しい時間割をインポート";
 "course_count_format" = "%1$d コマ";

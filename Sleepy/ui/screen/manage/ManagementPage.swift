@@ -66,20 +66,20 @@ struct ManagementPage: View {
 
                 // 管理按钮(4 个)
                 VStack(spacing: 12) {
-                    ManageCard(icon: "square.and.arrow.up",
+                    ManageCard(id: "manage_import", icon: "square.and.arrow.up",
                                title: L10n.format("manage_import"),
                                subtitle: L10n.format("manage_import_sub")) {
                         showImportSheet = true
                     }
-                    ManageCard(icon: "sparkles",
+                    ManageCard(id: "manage_new_table", icon: "sparkles",
                                title: L10n.format("manage_new_table"),
                                subtitle: L10n.format("manage_new_table_sub"),
                                onClick: onCreateNewTableRequested)
-                    ManageCard(icon: "plus",
+                    ManageCard(id: "manage_add_course", icon: "plus",
                                title: L10n.format("manage_manual_add"),
                                subtitle: L10n.format("manage_manual_add_sub"),
                                onClick: onManualAdd)
-                    ManageCard(icon: "pencil",
+                    ManageCard(id: "manage_edit_current", icon: "pencil",
                                title: L10n.format("manage_edit_current"),
                                subtitle: L10n.format("manage_edit_current_sub"),
                                onClick: onEditCurrentTable)
@@ -98,6 +98,7 @@ struct ManagementPage: View {
                 onDismiss: { showImportSheet = false },
                 onImported: onImported,
                 onOpenEditTable: onOpenEditTable)
+
         }
     }
 }
@@ -105,6 +106,7 @@ struct ManagementPage: View {
 // ← ManageCard
 private struct ManageCard: View {
     @Environment(\.localWakeUpColors) private var colors
+    let id: String
     let icon: String
     let title: String
     let subtitle: String
@@ -132,6 +134,7 @@ private struct ManageCard: View {
             .padding(16)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyShapes.large)
     }

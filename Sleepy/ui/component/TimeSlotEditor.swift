@@ -63,6 +63,7 @@ private struct ManualTimeSlotEditor: View {
                     .foregroundColor(colors.primary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("slot_add")
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 6)
@@ -124,6 +125,7 @@ private struct TimeSlotRowItem: View {
                         .foregroundColor(colors.error)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("slot_row_delete_\(row.node)")
                 .frame(width: 32)
             } else {
                 Spacer().frame(width: 32)

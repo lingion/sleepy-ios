@@ -52,6 +52,8 @@ struct ImportSheet: View {
     @State private var errorMsg: String? = nil
     @State private var preview: ImportPreview? = nil
     @State private var pendingMode: ImportApplyMode? = nil
+    // ★ sheet 冲突修复配套: 预览快照(确认 sheet 期间 preview 已置 nil)
+    @State private var confirmedPreview: ImportPreview? = nil
     @State private var confirmedTableName = ""
     @State private var confirmedStartDate = ""
     @State private var confirmedTimeJson = ""
@@ -73,13 +75,13 @@ struct ImportSheet: View {
                     .padding(.bottom, 16)
 
                 // 行 1: 教务直连
-                ImportMethodRow(icon: "qrcode", label: L10n.format("import_jw")) {
+                ImportMethodRow(id: "import_jw", icon: "qrcode", label: L10n.format("import_jw")) {
                     onDismiss()
                     onJwImportRequested()
                 }
 
                 // 行 2: 从文本导入(可折叠)
-                ImportMethodRow(icon: "doc.text",
+                ImportMethodRow(id: "import_text", icon: "doc.text",
                                 label: L10n.format("import_paste"),
                                 trailing: textExpanded ? "chevron.up" : "chevron.down") {
                     withAnimation { textExpanded.toggle() }
@@ -121,7 +123,7 @@ struct ImportSheet: View {
                 }
 
                 // 行 3: 从文件导入
-                ImportMethodRow(icon: "square.and.arrow.up", label: L10n.format("import_file")) {
+                ImportMethodRow(id: "import_file", icon: "square.and.arrow.up", label: L10n.format("import_file")) {
                     showFilePicker = true
                 }
 
@@ -208,13 +210,20 @@ struct ImportSheet: View {
                     ? (existingTable?.name ?? L10n.format("default_table_name"))
                     : preview!.parseResult.tableName
                 confirmedTimeJson = existingTable?.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON
-                pendingMode = mode
+                // ★ iOS 16 sheet 冲突修复: 先关预览 sheet 再开确认 sheet —
+                //   同一宿主上确认 sheet 会因预览未 dismiss 被丢弃。快照 preview
+                //   进 confirmedPreview 持有, 延迟到预览 dismiss 完成后再置模式。
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    confirmedPreview = preview
+                    pendingMode = mode
+                    preview = nil
+                }
             }
             .presentationDetents([.large])
         }
-        // 确认对话框
+        // 确认对话框(pendingMode 驱动; preview 已快照进 confirmedPreview)
         .sheet(isPresented: Binding(
-            get: { preview != nil && pendingMode != nil },
+            get: { pendingMode != nil },
             set: { if !$0 { pendingMode = nil } }
         )) {
             ImportConfirmDialog(
@@ -226,7 +235,7 @@ struct ImportSheet: View {
                 onTimeJsonChange: { confirmedTimeJson = $0 },
                 onDismiss: { pendingMode = nil },
                 onConfirm: {
-                    guard let mode = pendingMode, let currentPreview = preview else { return }
+                    guard let mode = pendingMode, let currentPreview = confirmedPreview else { return }
                     isLoading = true
                     let resultTableId = ImportSheet.applyImportPreview(
                         preview: currentPreview, mode: mode,
@@ -234,10 +243,13 @@ struct ImportSheet: View {
                         confirmedTableName: confirmedTableName,
                         confirmedTimeJson: confirmedTimeJson,
                         onImported: onImported) { msg in errorMsg = msg }
+                    confirmedPreview = nil
                     preview = nil
                     pendingMode = nil
                     isLoading = false
                     if let tid = resultTableId {
+                        // ★ Android 行为: 导入成功 → 关导入框 → 打开新表编辑页
+                        onDismiss()
                         onOpenEditTable(tid)
                     }
                 })
@@ -261,6 +273,7 @@ private struct PreviewBox: Identifiable {
 // ← ImportMethodRow
 private struct ImportMethodRow: View {
     @Environment(\.localWakeUpColors) private var colors
+    let id: String
     let icon: String
     let label: String
     var trailing: String? = nil
@@ -288,6 +301,7 @@ private struct ImportMethodRow: View {
             .padding(.horizontal, 4)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
     }
 }
 

@@ -32,6 +32,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
     override init() {
         database = AppDatabase.getShared()
+        // UI 测试种子钩子: -SLEEPY_UI_TEST_SEED 1 → 清库+注入确定性测试数据
+        // (XCUITest 无法直接触 DB;真实建表/导课走 UI 流程另有专项测试)
+        if ProcessInfo.processInfo.arguments.contains("-SLEEPY_UI_TEST_SEED") {
+            SleepyUITestSeeder.seed(database: AppDatabase.getShared())
+        }
         repository = ScheduleRepository(database)
         notificationScheduler = NotificationScheduler.shared
         rootViewModel = AppRootViewModel(repository: repository)
@@ -121,6 +126,9 @@ struct AppRoot: View {
     @State private var themeMode: String = AppPrefs.shared.getThemeMode()
     @State private var themeKey: String = AppPrefs.shared.getThemeKey()
     @State private var jwImportActive = false
+    // ★ iOS 16 sheet 冲突修复: ImportSheet 关闭动画中直接 present JwImportFlow
+    //   会被 SwiftUI 丢弃(同一 runloop 两个 sheet 状态翻转)→ 延到 dismiss 完成。
+    @State private var jwImportRequested = false
 
     var body: some View {
         NavigationStack {
@@ -146,6 +154,16 @@ struct AppRoot: View {
         .sheet(isPresented: $jwImportActive) {
             JwImportFlow {
                 jwImportActive = false
+            }
+        }
+        // ★ sheet 冲突修复续: ImportSheet dismiss 完成后(0.45s 动画)再 present JW 流程
+        .onChange(of: jwImportRequested) { req in
+            guard req else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if jwImportRequested {
+                    jwImportActive = true
+                    jwImportRequested = false
+                }
             }
         }
     }
@@ -240,11 +258,23 @@ struct AppRoot: View {
                     ManagementPage(
                         viewModel: root.scheduleViewModel,
                         autoShowImportSheet: PendingImportText.value != nil,
-                        onJwImportRequested: { jwImportActive = true },
+                        onJwImportRequested: { jwImportRequested = true },
                         onCreateNewTableRequested: { root.createNewTableThenEdit() },
                         onManualAdd: { root.overlayScreen = .addCourse },
                         onEditCurrentTable: {
                             root.editTableId = nil
+                            root.pendingNewTableId = nil
+                            root.overlayScreen = .editTable
+                        },
+                        // ★ 导入完成链(← Android onImported: 关导入框+切课表 Tab;
+                        //   onOpenEditTable: 新导入表 → 打开表编辑页)
+                        onImported: {
+                            PendingImportText.value = nil
+                            root.currentTab = .schedule
+                        },
+                        onOpenEditTable: { tableId in
+                            PendingImportText.value = nil
+                            root.editTableId = tableId
                             root.pendingNewTableId = nil
                             root.overlayScreen = .editTable
                         })

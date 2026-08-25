@@ -389,6 +389,7 @@
 "mode_auto" = "Modo automático";
 "label_from" = "Desde";
 "schedule_jump_week" = "Ir a semana";
+"schedule_jump_current" = "Ir a la semana actual";
 "schedule_empty_name" = "Horario \"%1$@\" está vacío";
 "schedule_empty_name_hint" = "Añade cursos o importa un nuevo horario";
 "course_count_format" = "%1$d cursos";

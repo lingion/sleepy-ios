@@ -44,10 +44,10 @@ struct SmartPeriodEditor: View {
 
             // 添加 break
             HStack(spacing: 8) {
-                AddBreakChip(label: L10n.format("short_break"), color: colors.tertiary) {
+                AddBreakChip(id: "break_short", label: L10n.format("short_break"), color: colors.tertiary) {
                     onConfigChange({ var c = config; c.breaks = config.breaks + [BreakOption(minutes: 10, isLong: false)]; return c }())
                 }
-                AddBreakChip(label: L10n.format("long_break"), color: colors.primary) {
+                AddBreakChip(id: "break_long", label: L10n.format("long_break"), color: colors.primary) {
                     onConfigChange({ var c = config; c.breaks = config.breaks + [BreakOption(minutes: 30, isLong: true)]; return c }())
                 }
             }
@@ -219,7 +219,9 @@ private struct PreviewList: View {
         } else {
             VStack(spacing: 2) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { i, slot in
-                    Text(L10n.format("period_time_range", slot.node, slot.start, slot.end))
+                    // ★ 崩溃修复: %1$@ 要求 CVarArg 为对象 — Int 传 %@ 在
+                    //   String(format:) 下野指针(SIGSEGV)。显式转 String。
+                    Text(L10n.format("period_time_range", "\(slot.node)", slot.start, slot.end))
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurface)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -273,6 +275,7 @@ private struct NumberField: View {
                 }
             ))
             .keyboardType(.numberPad)
+            .accessibilityIdentifier("number_\(label)")   // ← G5: 数字字段锚点
             .font(.system(size: 16))
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -295,6 +298,7 @@ private struct NumberField: View {
 
 // ← AddBreakChip
 private struct AddBreakChip: View {
+    let id: String
     let label: String
     let color: Color
     let onAdd: () -> Void
@@ -315,6 +319,7 @@ private struct AddBreakChip: View {
             .cornerRadius(8)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
         .frame(maxWidth: .infinity)
     }
 }

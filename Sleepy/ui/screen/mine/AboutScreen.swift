@@ -99,6 +99,7 @@ struct AboutScreen: View {
                             }
                             .buttonStyle(.plain)
                             .disabled(isChecking)
+                            .accessibilityIdentifier("about_check_update")
                         }
                     }
 

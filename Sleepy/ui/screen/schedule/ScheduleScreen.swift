@@ -163,28 +163,14 @@ private struct ScheduleTopBar: View {
             WeekNavButton(icon: "chevron.left", onClick: onPrevWeek)
 
             // 第 N 周 标签 — 点击行为根据是否在当前实际周而不同
-            Menu {
-                // 标签式选周(Android FlowRow 280dp 弹层)
-                VStack(spacing: 8) {
-                    Text(L10n.format("schedule_jump_week"))
-                        .font(.system(size: 12))
-                        .foregroundColor(colors.onSurfaceVariant)
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(40), spacing: 8), count: 5),
-                              spacing: 8) {
-                        ForEach(1...maxWeek, id: \.self) { w in
-                            let isCurrent = w == currentWeek
-                            Button {
-                                onSelectWeek(w)
-                            } label: {
-                                Text("\(w)")
-                                    .font(.system(size: 14, weight: isCurrent ? .bold : .regular))
-                                    .foregroundColor(isCurrent ? colors.onPrimary : colors.onSurface)
-                                    .frame(width: 40, height: 40)
-                                    .background(isCurrent ? colors.primary : colors.surfaceContainerHigh)
-                                    .clipShape(Circle())
-                            }
-                        }
-                    }
+            // ★ iOS 16 修复(二段): Menu 挂非 Button 顶层内容(VStack/LazyVGrid)在
+            //   iOS 16 上点击不展开(实测 menu 元素为 0)→ 改为 Button + sheet 弹层,
+            //   与 Android FlowRow 280dp 弹层语义一致。
+            Button {
+                if isOnActual {
+                    menuOpen = true
+                } else {
+                    onJumpToActual()   // 不在实际周 → 一键跳回(原 simultaneousGesture 语义)
                 }
             } label: {
                 Text(semesterStatus == .inRange
@@ -198,11 +184,41 @@ private struct ScheduleTopBar: View {
                                            : colors.primaryContainer.opacity(SleepyTheme.Alpha.inactive))
                     .cornerRadius(SleepyShapes.medium)
             }
-            // 在当前实际周 → 弹菜单; 不在 → 一键跳回
-            .simultaneousGesture(TapGesture().onEnded {
-                if !isOnActual { onJumpToActual() }
-                // isOnActual 时 Menu 自身展开
-            })
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("week_label")   // ← G5: 跳周菜单锚点
+            .sheet(isPresented: $menuOpen) {
+                // 标签式选周(← Android FlowRow 280dp 弹层)
+                VStack(spacing: 12) {
+                    Text(L10n.format("schedule_jump_week"))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(colors.onSurfaceVariant)
+                    ScrollView {
+                        LazyVGrid(columns: Array(repeating: GridItem(.fixed(40), spacing: 8), count: 5),
+                                  spacing: 8) {
+                            ForEach(1...maxWeek, id: \.self) { w in
+                                let isCurrent = w == currentWeek
+                                Button {
+                                    onSelectWeek(w)
+                                    menuOpen = false
+                                } label: {
+                                    Text("\(w)")
+                                        .font(.system(size: 14, weight: isCurrent ? .bold : .regular))
+                                        .foregroundColor(isCurrent ? colors.onPrimary : colors.onSurface)
+                                        .frame(width: 40, height: 40)
+                                        .background(isCurrent ? colors.primary : colors.surfaceContainerHigh)
+                                        .clipShape(Circle())
+                                }
+                                .accessibilityIdentifier("week_num_\(w)")
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                    }
+                    .frame(maxHeight: 340)
+                }
+                .padding(.vertical, 16)
+                .presentationDetents([.height(400)])
+            }
 
             WeekNavButton(icon: "chevron.right", onClick: onNextWeek)
         }
@@ -234,6 +250,8 @@ private struct WeekNavButton: View {
                 .padding(6)
         }
         .buttonStyle(.plain)
+        // ← G5: 周导航箭头锚点(chevron.left → week_prev / chevron.right → week_next)
+        .accessibilityIdentifier(icon.contains("left") ? "week_prev" : "week_next")
     }
 }
 

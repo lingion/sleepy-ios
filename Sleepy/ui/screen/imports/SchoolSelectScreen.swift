@@ -89,6 +89,7 @@ struct SchoolSelectScreen: View {
 
             // 搜索框
             TextField(L10n.format("search_school_url"), text: $query)
+                .accessibilityIdentifier("school_search")
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(colors.surfaceContainer)

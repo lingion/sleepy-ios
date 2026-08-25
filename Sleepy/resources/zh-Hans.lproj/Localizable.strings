@@ -389,6 +389,7 @@
 "mode_auto" = "自动模式";
 "label_from" = "自";
 "schedule_jump_week" = "跳转到周次";
+"schedule_jump_current" = "跳回当前周";
 "schedule_empty_name" = "「%1$@」还是空的";
 "schedule_empty_name_hint" = "往这张课表里加课，或导入新的课表";
 "course_count_format" = "%1$d 门";

@@ -57,6 +57,7 @@ struct AllTablesScreen: View {
                                         .foregroundColor(colors.onSurfaceVariant)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityIdentifier("table_edit_\(table.id)")
                             }
                             .padding(14)
                             .background(isCurrent ? colors.primaryContainer : colors.surfaceContainer)
@@ -102,6 +103,7 @@ struct SettingsTopBar: View {
                     .foregroundColor(colors.onBackground)
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("topbar_back")
             Text(title)
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(colors.onBackground)

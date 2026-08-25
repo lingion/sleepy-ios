@@ -105,6 +105,7 @@ struct AddCourseScreen: View {
                         .cornerRadius(SleepyShapes.large)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("course_add_slot")
 
                     // 保存
                     Button(action: { save(state: state) }) {
@@ -121,6 +122,7 @@ struct AddCourseScreen: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!canSave)
+                    .accessibilityIdentifier("course_save")
 
                     // 删除(编辑模式)
                     if editingCourse != nil {
@@ -137,6 +139,7 @@ struct AddCourseScreen: View {
                             .cornerRadius(SleepyShapes.large)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("course_delete")
                     }
 
                     Spacer().frame(height: 32)

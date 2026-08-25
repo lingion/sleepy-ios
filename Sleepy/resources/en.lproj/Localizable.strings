@@ -389,6 +389,7 @@
 "mode_auto" = "Auto mode";
 "label_from" = "From";
 "schedule_jump_week" = "Jump to week";
+"schedule_jump_current" = "Jump to current week";
 "schedule_empty_name" = "Schedule \\\"%1$@\\\" is still empty";
 "schedule_empty_name_hint" = "Add courses to this schedule, or import a new one";
 "course_count_format" = "%1$d courses";

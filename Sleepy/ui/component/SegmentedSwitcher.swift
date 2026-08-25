@@ -35,6 +35,7 @@ struct SegmentedSwitcher<T: Hashable>: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("seg_\(label)")
             }
         }
         .frame(maxWidth: .infinity)

@@ -58,6 +58,7 @@ struct SettingsCard<Content: View>: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("card_\(title)")
             // 展开动画: 高度+淡入同拍
             if expanded {
                 VStack(alignment: .leading, spacing: 4) {
@@ -81,6 +82,9 @@ struct DisplayModeOption: View {
     let selected: Bool
     let onClick: () -> Void
 
+    /// G5 锚点(自动取 label)
+    var aid: String { "opt_\(label)" }
+
     var body: some View {
         Button(action: onClick) {
             HStack {
@@ -101,6 +105,7 @@ struct DisplayModeOption: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(aid)
         .padding(.vertical, 10)
         .padding(.horizontal, 4)
     }
