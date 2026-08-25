@@ -40,6 +40,13 @@ struct AboutScreen: View {
 
                     // App name + icon
                     VStack(spacing: 4) {
+                        Image("SleepyLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 96, height: 96)
+                            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                            .shadow(color: colors.primary.opacity(0.18), radius: 12, y: 6)
+                            .accessibilityLabel(L10n.format("app_name"))
                         Spacer().frame(height: 8)
                         Text(L10n.format("app_name"))
                             .font(.system(size: 22, weight: .bold))

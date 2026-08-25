@@ -51,15 +51,21 @@ struct CardsGridView: View {
         let rowH: CGFloat = slotH + gapH   // 56
 
         GeometryReader { geo in
-            // 算出每列宽度(dp)
-            let colW = max((geo.size.width - 16 - timeW - gapW * CGFloat(dayCount + 1)) / CGFloat(dayCount), 0)
+            // 根据容器宽度计算列宽；窄屏优先压缩时间栏和间距，避免卡片向右溢出。
+            let sideInset: CGFloat = 16
+            let timeW = min(68, max(52, geo.size.width * 0.16))
+            let gapW = min(5, max(3, geo.size.width * 0.012))
+            let contentW = max(geo.size.width - sideInset - timeW - gapW * CGFloat(dayCount), 0)
+            let colW = max(contentW / CGFloat(dayCount), 28)
             let gridH = rowH * CGFloat(maxNode)   // grid 内容区固定高度
 
             ScrollView(.vertical) {
                 VStack(spacing: 0) {
                     // ---- 表头 ----
+                    // 首列留白 = timeW + gapW，与下方 grid 的 cardX 对齐；高度随日期行自适应
+                    let hasDateRow = showDate && !startDate.isEmpty
                     HStack(spacing: gapW) {
-                        Spacer().frame(width: timeW)
+                        Spacer().frame(width: timeW + gapW)
                         ForEach(sortedDays, id: \.self) { day in
                             let dateStr: String? = {
                                 guard showDate, !startDate.isEmpty,
@@ -70,10 +76,10 @@ struct CardsGridView: View {
                                         courseCount: courses.filter { $0.day == day }.count,
                                         dateStr: dateStr)
                                 .frame(width: colW)
-                                .frame(height: dateStr != nil ? 56 : headH)
+                                .frame(maxHeight: .infinity)
                         }
                     }
-                    .frame(height: headH)
+                    .frame(height: hasDateRow ? 56 : headH)
 
                     Spacer().frame(height: gapH)
 
@@ -94,7 +100,8 @@ struct CardsGridView: View {
                                 let cardY = rowH * CGFloat(course.startNode - 1)
                                 let cardH = rowH * CGFloat(steps) - gapH
 
-                                CourseOverlayCard(course: course, isDark: CourseColorUtil.isPaletteDark(palette)) {
+                                CourseOverlayCard(course: course, cardHeight: cardH,
+                                                  isDark: CourseColorUtil.isPaletteDark(palette)) {
                                     onCourseClick(course)
                                 }
                                 .frame(width: colW, height: cardH)
@@ -102,7 +109,8 @@ struct CardsGridView: View {
                             }
                         }
                     }
-                    .frame(width: geo.size.width - 16, height: gridH, alignment: .topLeading)
+                    .frame(width: max(geo.size.width - sideInset, 0),
+                           height: gridH, alignment: .topLeading)
                 }
                 .padding(8)
             }
@@ -128,10 +136,14 @@ private struct SingleTimeHeadCell: View {
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(colors.onSurface)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .allowsTightening(true)
             Text(slot.timeString)
                 .font(SleepyTextStyle.micro())
                 .foregroundColor(colors.onSurfaceVariant)
                 .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .allowsTightening(true)
         }
         .padding(4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -149,6 +161,7 @@ private struct SingleTimeHeadCell: View {
 private struct CourseOverlayCard: View {
     @Environment(\.localWakeUpColors) private var colors
     let course: CourseEntity
+    var cardHeight: CGFloat = 0   // 0 = 调用方未提供, 回退旧行为
     let isDark: Bool
     let onClick: () -> Void
 
@@ -159,6 +172,7 @@ private struct CourseOverlayCard: View {
             colorless: AppPrefs.shared.isCourseColorless())
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         // 副信息(教室/教师/无) — grid_sub_info 设置决定
+        let bodyFont = cardHeight >= 110 ? 10.0 : 11.0
         let subInfo = AppPrefs.shared.getGridSubInfo()
         let subText: String = {
             switch subInfo {
@@ -171,25 +185,31 @@ private struct CourseOverlayCard: View {
         Button(action: onClick) {
             Group {
                 if subText.isEmpty {
-                    // 无副信息: 课程名整体居中(原行为)
+                    // 无副信息: 课程名整体居中(原行为); 名字长时压缩字体防横向溢出
                     Text(course.courseName)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: bodyFont, weight: .semibold))
                         .foregroundColor(fg)
                         .lineLimit(6)
+                        .minimumScaleFactor(0.6)
+                        .allowsTightening(true)
                         .multilineTextAlignment(.center)
                 } else {
-                    // 有副信息: 课程名在上半区居中, 副信息贴卡底
-                    VStack(spacing: 0) {
+                    // 有副信息: 课程名在上半区居中, 副信息贴卡底; 两者都允许缩放
+                    VStack(spacing: 2) {
                         Text(course.courseName)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: bodyFont, weight: .semibold))
                             .foregroundColor(fg)
-                            .lineLimit(6)
+                            .lineLimit(4)
+                            .minimumScaleFactor(0.6)
+                            .allowsTightening(true)
                             .multilineTextAlignment(.center)
                             .frame(maxHeight: .infinity)
                         Text(subText)
                             .font(SleepyTextStyle.micro())
                             .foregroundColor(fg.opacity(SleepyTheme.Alpha.highContent))
                             .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                            .allowsTightening(true)
                             .multilineTextAlignment(.center)
                     }
                 }
@@ -225,20 +245,26 @@ private struct DayHeadCell: View {
 
         VStack(spacing: 1) {
             Text(DateUtils.localizedDay(day))
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(fg)
                 .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .allowsTightening(true)
             if let dateStr = dateStr {
                 Text(dateStr)
                     .font(.system(size: 10))
                     .foregroundColor(subFg)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .allowsTightening(true)
             } else {
                 Text(courseCount == 0 ? L10n.format("no_course")
                                       : L10n.format("course_count_format", courseCount))
                     .font(SleepyTextStyle.micro())
                     .foregroundColor(subFg)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .allowsTightening(true)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -248,6 +274,7 @@ private struct DayHeadCell: View {
             RoundedRectangle(cornerRadius: SleepyShapes.large)
                 .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.tinted), lineWidth: 0.5)
         )
+        .padding(.horizontal, 1)
         .padding(.vertical, 6)
     }
 }

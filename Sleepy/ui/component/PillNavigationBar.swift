@@ -56,8 +56,11 @@ private struct PillNavItem: View {
                     .background(pillBg)
                     .cornerRadius(SleepyShapes.large)
                 Text(label)
-                    .font(.system(size: 11, weight: selected ? .semibold : .medium))
+                    .font(.system(size: 10, weight: selected ? .semibold : .medium))
                     .foregroundColor(labelColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .allowsTightening(true)
             }
             .padding(.vertical, 4)
         }

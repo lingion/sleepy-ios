@@ -67,8 +67,10 @@ struct ScheduleScreen: View {
                           displayMode: displayMode, showDate: showDate, visibleDays: visibleDays) {
                     selectedCourse = $0
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         // 详情 Bottom Sheet
         .sheet(item: $selectedCourse) { course in
             CourseDetailSheet(
@@ -134,9 +136,11 @@ private struct WeekPager: View {
                                       onCourseClick: onCourseClick)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .tag(page)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tabViewStyle(.page(indexDisplayMode: .never))
     }
 }
@@ -176,9 +180,12 @@ private struct ScheduleTopBar: View {
                 Text(semesterStatus == .inRange
                      ? L10n.format("schedule_current_week", currentWeek)
                      : L10n.format("semester_out_of_range"))
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(isOnActual ? colors.onPrimaryContainer : colors.primary)
-                    .padding(.horizontal, 14)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .allowsTightening(true)
+                    .padding(.horizontal, 12)
                     .padding(.vertical, 4)
                     .background(isOnActual ? colors.primaryContainer
                                            : colors.primaryContainer.opacity(SleepyTheme.Alpha.inactive))
@@ -193,6 +200,7 @@ private struct ScheduleTopBar: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(colors.onSurfaceVariant)
                     ScrollView {
+                        // 弹层宽度自适应: 40dp 圆钮 x5 列装不下时按可用宽缩列距(窄屏 iPhone SE 可用)
                         LazyVGrid(columns: Array(repeating: GridItem(.fixed(40), spacing: 8), count: 5),
                                   spacing: 8) {
                             ForEach(1...maxWeek, id: \.self) { w in

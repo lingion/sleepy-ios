@@ -1,6 +1,21 @@
+# Build
 build/
+*.ipa
+*.xcarchive
+*.mobileprovision
+Payload/
 DerivedData/
 *.xcuserstate
+*.xccheckout
 .xcresult/
-.DS_Store
 .swiftpm/
+
+# IDE & OS
+.DS_Store
+*.swp
+*~
+
+# Dev
+tasks/
+Sleepy-unsigned.zip
+SPEC.md

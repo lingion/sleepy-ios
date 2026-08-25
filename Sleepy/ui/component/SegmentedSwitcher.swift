@@ -20,8 +20,12 @@ struct SegmentedSwitcher<T: Hashable>: View {
                     onSelect(value)
                 } label: {
                     Text(label)
-                        .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                         .foregroundColor(isSelected ? colors.onSecondaryContainer : colors.onSurfaceVariant)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .allowsTightening(true)
+                        .padding(.horizontal, 4)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(
                             Group {
