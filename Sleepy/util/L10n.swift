@@ -19,4 +19,10 @@ enum L10n {
     static func dayName(_ index: Int) -> String {
         t("array_day_names_\(index)")
     }
+
+    /// key 是否存在(缺失时 NSLocalizedString 返回 key 本身 → 判不等即可)
+    static func has(_ key: String) -> Bool {
+        let v = NSLocalizedString(key, bundle: .main, comment: "")
+        return !v.isEmpty && v != key
+    }
 }
