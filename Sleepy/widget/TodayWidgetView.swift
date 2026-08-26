@@ -98,14 +98,11 @@ struct TodayWidgetEntryView: View {
                 let maxCount = courseLimitForFamily()
                 let visible = Array(data.courses.prefix(maxCount))
                 VStack(spacing: 10) {
-                    ForEach(Array(visible.enumerated()), id: \.element.id) { _, course in
+                    ForEach(visible) { course in
                         WidgetCourseCard(course: course, timeJson: data.timeJson, scheme: s,
                                          colorless: colorless, fontSizeSp: 12,
                                          displayMode: displayMode)
                             .frame(height: 38)
-                    }
-                    if data.courses.count > maxCount {
-                        Spacer(minLength: 0)
                     }
                 }
             }
