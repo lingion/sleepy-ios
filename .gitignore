@@ -1,5 +1,6 @@
 # Build
 build/
+simderived/
 *.ipa
 *.xcarchive
 *.mobileprovision
