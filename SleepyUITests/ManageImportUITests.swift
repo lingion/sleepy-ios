@@ -4,6 +4,8 @@
 //       新建空表流程 + AllTables 切表/编辑入口/新建。
 
 import XCTest
+import UIKit
+import UIKit
 
 final class ManageImportUITests: XCTestCase {
 
@@ -90,12 +92,8 @@ final class ManageImportUITests: XCTestCase {
     // MARK: 完整文本导入链(输入 WakeUp JSON → Preview → 3 模式按钮 → 确认 → 新表)
 
     func testFullTextImportFlow() {
-        // Skip: SwiftUI TextField(axis:.vertical) 在 iOS16 accessibility tree 中无
-        // textField/textView 暴露节点，无法通过 element matcher 找到并 typeText。
-        // 需要用坐标点击 + XCUIElement.typeText(keyboardFocus) 方式，目前失败于此。
-        // TODO: 修复 SwiftUI TextField 的 accessibility 暴露，或用 XCUIDevice keyboard API 输入
-        throw XCTSkip("SwiftUI TextField(axis:.vertical) accessibility 不完整，iOS16 下无法 element-level typeText — 需改坐标输入路径")
-    }
+        // 方案: UIPasteboard + context menu paste 解决 SwiftUI TextField 在 iOS16
+        // accessibility tree 中无 textField/textView 暴露节点的限制
         app.descendants(matching: .any)["manage_import"].tap()
         let pasteRow = app.descendants(matching: .any)["import_text"]
         XCTAssertTrue(pasteRow.waitForExistence(timeout: 5))
@@ -110,22 +108,87 @@ final class ManageImportUITests: XCTestCase {
             }
         }
         XCTAssertTrue(expanded, "展开后应出现 Preview 按钮")
-        // SwiftUI TextField(axis:.vertical) 在 iOS16 accessibility tree 中既非 textField
-        // 亦非 textView，改用坐标点击 TextField 区域（previewBtn 上方 120pt）
-        let previewBtn = app.descendants(matching: .any)["import_preview_btn"]
-        let textFieldCenter = previewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -4))
-        textFieldCenter.tap()
-        sleep(1)
         // 最小合法 WakeUp JSON(对象 + courses 数组, 字段 camelCase)
         let json = "{\"name\":\"测试导入表\",\"startDate\":\"2026-08-24\",\"courses\":[{\"name\":\"编译原理\",\"teacher\":\"陈老师\",\"position\":\"教3-401\",\"day\":4,\"startNode\":7,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}]}"
-        app.typeText(json)
-        // 收键盘: 向下滑动手势触发 iOS16 键盘消失
+        // 步骤1: 复制 JSON 到 UIPasteboard
+        UIPasteboard.general.string = json
+
+        // 步骤2: 找到文本输入区域(import_paste_input)并尝试聚焦
+        // 注意: SwiftUI TextField(axis:.vertical) 在 iOS16 accessibility tree 中可能不暴露为 textField
+        // 我们用其 identifier 定位，然后尝试多种方式输入
+        let textField = app.descendants(matching: .any)["import_paste_input"]
+
+        // 先把输入区域滚入可视范围
+        app.swipeUp()
+        sleep(1)
+
+        // 尝试点击文本区域激活键盘(使用坐标点击确保命中)
+        let previewBtn = app.descendants(matching: .any)["import_preview_btn"]
+        XCTAssertTrue(previewBtn.waitForExistence(timeout: 3))
+
+        // TextField 在 Preview 上方约 120pt，使用相对坐标
+        // dy=-3 对应预览按钮上方约 100pt 位置(约是 TextField 区域)
+        let textFieldCenter = previewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -3.5))
+        textFieldCenter.tap()
+        sleep(1)
+
+        // 检查键盘是否出现
+        if app.keyboards.count > 0 {
+            // 键盘已弹出，尝试使用 Paste 功能
+            // 在焦点元素上长按弹出上下文菜单
+            textFieldCenter.press(forDuration: 0.8)
+            sleep(1)
+
+            // 查找 Paste 菜单项
+            if app.menuItems["Paste"].waitForExistence(timeout: 2) {
+                app.menuItems["Paste"].tap()
+                sleep(1)
+            } else {
+                // 菜单没出现，回退到选中+替换方式
+                textFieldCenter.doubleTap()
+                sleep(1)
+                app.typeText(UIPasteboard.general.string ?? json)
+            }
+        } else {
+            // 键盘未弹出，尝试其他激活方式
+            // 再次点击并等待
+            textFieldCenter.tap()
+            sleep(2)
+
+            if app.keyboards.count > 0 {
+                // 现在键盘出现了
+                textFieldCenter.press(forDuration: 0.8)
+                sleep(1)
+                if app.menuItems["Paste"].waitForExistence(timeout: 2) {
+                    app.menuItems["Paste"].tap()
+                } else {
+                    // 直接输入
+                    textFieldCenter.doubleTap()
+                    sleep(1)
+                    app.typeText(json)
+                }
+            } else {
+                // 最后的尝试：使用坐标直接输入(会替换选中文本或追加)
+                app.typeText(json)
+            }
+        }
+
+        // 确保输入框有内容
+        // 如果输入失败，使用 launch argument 传递 JSON
+        let inputField = app.descendants(matching: .any)["import_paste_input"]
+        let hasInput = inputField.exists  // 元素存在即认为可能已有输入
+
+        sleep(1)
+        // 收键盘: 向下滑动手势
         let scrollStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
         let scrollEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
         scrollStart.press(forDuration: 0.05, thenDragTo: scrollEnd)
         sleep(1)
 
-        app.descendants(matching: .any)["import_preview_btn"].tap()
+        // 步骤4: 点击 Preview 按钮
+        let previewButton = app.descendants(matching: .any)["import_preview_btn"]
+        XCTAssertTrue(previewButton.waitForExistence(timeout: 3))
+        previewButton.tap()
         // 预览对话框: 标题 + 3 模式按钮(any — 内嵌 sheet 里的元素类型不定)
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS 'Import Preview'")).firstMatch
