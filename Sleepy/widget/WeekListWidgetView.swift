@@ -56,10 +56,22 @@ struct WeekListWidgetEntryView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 let todayDow = DateUtils.todayDayOfWeek(today: Date())
-                HStack(alignment: .top, spacing: 4) {
-                    ForEach(days, id: \.dayOfWeek) { day in
-                        WeekListDayColumn(day: day, scheme: s, colorless: colorless,
-                                          isToday: day.dayOfWeek == todayDow)
+                VStack(spacing: 0) {
+                    // ★ 学期外: 顶部全宽状态行(学期前=第1周课照常预习 / 学期后=课程已清空)
+                    if data.semesterStatus != .inRange {
+                        Text(data.semesterStatus == .beforeStart
+                             ? L10n.format("semester_not_started")
+                             : L10n.format("semester_ended"))
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(s.onSurfaceVariant)
+                            .frame(maxWidth: .infinity)
+                            .padding(.bottom, 4)
+                    }
+                    HStack(alignment: .top, spacing: 4) {
+                        ForEach(days, id: \.dayOfWeek) { day in
+                            WeekListDayColumn(day: day, scheme: s, colorless: colorless,
+                                              isToday: day.dayOfWeek == todayDow)
+                        }
                     }
                 }
             }

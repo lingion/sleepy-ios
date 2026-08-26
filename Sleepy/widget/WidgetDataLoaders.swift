@@ -34,10 +34,11 @@ enum TodayWidgetLoader {
                                   hasTable: false, isDark: isDark, themeKey: themeKey)
             }
             let week = DateUtils.currentWeek(startDate: table.startDate, today: today)
+            let status = DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: today)
             let all = try repo.getCoursesByDay(table.id, day: dayOfWeek)
             let visible = all.filter { $0.inWeek(week) }.sorted { $0.startNode < $1.startNode }
             return WidgetData(date: today, courses: visible, timeJson: table.timeJson,
-                              hasTable: true, isDark: isDark, themeKey: themeKey)
+                              hasTable: true, isDark: isDark, themeKey: themeKey, semesterStatus: status)
         } catch {
             return WidgetData(date: today, courses: [], timeJson: TimeTableUtils.DEFAULT_TIME_JSON,
                               hasTable: false, isDark: isDark, themeKey: themeKey)
@@ -59,13 +60,14 @@ enum WeekListWidgetLoader {
                 return WeekData(days: [], hasTable: false, isDark: isDark, themeKey: themeKey)
             }
             let week = DateUtils.currentWeek(startDate: table.startDate, today: today)
+            let status = DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: today)
             let days = try (1...7).map { dayOfWeek -> DayData in
                 let date = DateUtils.dateOfWeekDay(ref: today, dayOfWeek: dayOfWeek)
                 let all = try repo.getCoursesByDay(table.id, day: dayOfWeek)
                 let visible = all.filter { $0.inWeek(week) }.sorted { $0.startNode < $1.startNode }
                 return DayData(date: date, dayOfWeek: dayOfWeek, courses: visible, timeJson: table.timeJson)
             }
-            return WeekData(days: days, hasTable: true, isDark: isDark, themeKey: themeKey)
+            return WeekData(days: days, hasTable: true, isDark: isDark, themeKey: themeKey, semesterStatus: status)
         } catch {
             return WeekData(days: [], hasTable: false, isDark: isDark, themeKey: themeKey)
         }
@@ -87,6 +89,7 @@ enum TwoDayWidgetLoader {
                 return TwoDayData(days: [], hasTable: false, isDark: isDark, themeKey: themeKey)
             }
             let week = DateUtils.currentWeek(startDate: table.startDate, today: today)
+            let status = DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: today)
             let todayDow = DateUtils.todayDayOfWeek(today: today)
             let tomorrowDow = DateUtils.todayDayOfWeek(today: tomorrow)
             let todayCourses = try repo.getCoursesByDay(table.id, day: todayDow)
@@ -98,7 +101,7 @@ enum TwoDayWidgetLoader {
                     DayData(date: today, dayOfWeek: todayDow, courses: todayCourses, timeJson: table.timeJson),
                     DayData(date: tomorrow, dayOfWeek: tomorrowDow, courses: tomorrowCourses, timeJson: table.timeJson)
                 ],
-                hasTable: true, isDark: isDark, themeKey: themeKey)
+                hasTable: true, isDark: isDark, themeKey: themeKey, semesterStatus: status)
         } catch {
             return TwoDayData(days: [], hasTable: false, isDark: isDark, themeKey: themeKey)
         }
@@ -122,6 +125,7 @@ enum WeekGridWidgetLoader {
                                 showDate: showDate, visibleDays: visibleDays)
             }
             let week = DateUtils.currentWeek(startDate: table.startDate, today: today)
+            let status = DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: today)
             let days = try (1...7).map { dow -> DayData in
                 let all = try repo.getCoursesByDay(table.id, day: dow)
                 let visible = all.filter { $0.inWeek(week) }.sorted { $0.startNode < $1.startNode }
@@ -129,7 +133,7 @@ enum WeekGridWidgetLoader {
                 return DayData(date: date, dayOfWeek: dow, courses: visible, timeJson: table.timeJson)
             }
             return WeekData(days: days, hasTable: true, isDark: isDark, themeKey: themeKey,
-                            showDate: showDate, visibleDays: visibleDays)
+                            showDate: showDate, visibleDays: visibleDays, semesterStatus: status)
         } catch {
             return WeekData(days: [], hasTable: false, isDark: isDark, themeKey: themeKey,
                             showDate: showDate, visibleDays: visibleDays)

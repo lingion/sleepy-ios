@@ -58,14 +58,26 @@ struct WeekGridWidgetEntryView: View {
 
         VStack(spacing: 0) {
             // ★ 空状态: 无课表时占位提示, 不渲染空白网格
+            // ★ 学期后课程被清空 → 落到这分支; 学期状态文案优先于"去创建课表"
             if !data.hasTable || data.days.isEmpty || data.days.allSatisfy({ $0.courses.isEmpty }) {
                 VStack(spacing: 4) {
-                    Text(L10n.format("widget_create_schedule"))
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(s.onSurface)
-                    Text(L10n.format("widget_open_sleepy"))
-                        .font(.system(size: 11))
-                        .foregroundColor(s.onSurfaceVariant)
+                    if data.semesterStatus != .inRange {
+                        Text(data.semesterStatus == .beforeStart
+                             ? L10n.format("semester_not_started")
+                             : L10n.format("semester_ended"))
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(s.onSurface)
+                        Text(L10n.format("today_semester_out_hint"))
+                            .font(.system(size: 11))
+                            .foregroundColor(s.onSurfaceVariant)
+                    } else {
+                        Text(L10n.format("widget_create_schedule"))
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(s.onSurface)
+                        Text(L10n.format("widget_open_sleepy"))
+                            .font(.system(size: 11))
+                            .foregroundColor(s.onSurfaceVariant)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -81,9 +93,20 @@ struct WeekGridWidgetEntryView: View {
                         // ── Header (Day labels) ──
                         HStack(alignment: .top, spacing: gapW) {
                             // time column 角落
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(s.surface)
-                                .frame(width: timeW, height: headH)
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(s.surface)
+                                // ★ 学期前(课照常显示供预习): 角落画学期状态, 用户知道现在学期没开始
+                                if data.semesterStatus == .beforeStart {
+                                    Text(L10n.format("semester_not_started"))
+                                        .font(.system(size: min(headH * 0.16, 9), weight: .regular))
+                                        .foregroundColor(s.onSurfaceVariant)
+                                        .minimumScaleFactor(0.6)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 2)
+                                }
+                            }
+                            .frame(width: timeW, height: headH)
                             ForEach(sortedDays, id: \.self) { dow in
                                 let isToday = dow == todayDow
                                 let dayData = data.days.first { $0.dayOfWeek == dow }

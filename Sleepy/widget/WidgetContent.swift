@@ -24,6 +24,8 @@ struct WidgetData {
     var isDark: Bool = false
     /// 跟 app 主题色(ThemePresets key)
     var themeKey: String = ThemePresets.KEY_DEFAULT
+    /// ★ 学期状态(学期外时 Today 渲染状态文案不渲染课程)
+    var semesterStatus: DateUtils.SemesterStatus = .inRange
 
     var dayName: String { DateUtils.localizedDay(DateUtils.todayDayOfWeek(today: date)) }
     var dateLabel: String { DateUtils.shortDateSlash(date) }
@@ -95,6 +97,8 @@ struct WeekData {
     // displayMode 死字段已删(Android 侧 renderer 各自直读 AppPrefs)
     var showDate: Bool = false
     var visibleDays: Set<Int> = Set(1...7)
+    /// ★ 学期状态(学期外时列头加状态行)
+    var semesterStatus: DateUtils.SemesterStatus = .inRange
 }
 
 /// 两天视图数据 ← TwoDayData
@@ -103,4 +107,6 @@ struct TwoDayData {
     var hasTable: Bool
     var isDark: Bool = false
     var themeKey: String = ThemePresets.KEY_DEFAULT
+    /// ★ 学期状态(学期外时渲染状态文案不渲染课程)
+    var semesterStatus: DateUtils.SemesterStatus = .inRange
 }

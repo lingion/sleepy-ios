@@ -69,6 +69,18 @@ struct TodayWidgetEntryView: View {
                     .font(.system(size: 15))
                     .foregroundColor(s.onSurface)
                 Spacer()
+            } else if data.semesterStatus != .inRange {
+                // ★ 学期外: 状态标题 + 提示行, 不画课程 (loadDataSync 侧课程已按周过滤, 此处为标题语义)
+                Text(data.semesterStatus == .beforeStart
+                     ? L10n.format("semester_not_started")
+                     : L10n.format("semester_ended"))
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(s.onSurface)
+                    .padding(.bottom, 6)
+                Text(L10n.format("today_semester_out_hint"))
+                    .font(.system(size: 11))
+                    .foregroundColor(s.onSurfaceVariant)
+                Spacer()
             } else if data.courses.isEmpty {
                 // 今日无课 → 大字提示 + 副文案
                 Text(L10n.format("today_no_course"))

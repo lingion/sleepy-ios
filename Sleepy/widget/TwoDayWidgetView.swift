@@ -54,6 +54,18 @@ struct TwoDayWidgetEntryView: View {
                     .font(.system(size: 15))
                     .foregroundColor(s.onSurface)
                 Spacer()
+            } else if data.semesterStatus != .inRange {
+                // ★ 学期外: 状态标题 + 提示行, 不渲染课程
+                Text(data.semesterStatus == .beforeStart
+                     ? L10n.format("semester_not_started")
+                     : L10n.format("semester_ended"))
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(s.onSurface)
+                    .padding(.bottom, 6)
+                Text(L10n.format("today_semester_out_hint"))
+                    .font(.system(size: 11))
+                    .foregroundColor(s.onSurfaceVariant)
+                Spacer()
             } else {
                 // ★ 左右两栏: 每天一列, 中间竖直分隔
                 HStack(alignment: .top, spacing: 10) {

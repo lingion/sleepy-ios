@@ -46,10 +46,22 @@ struct WeekViewWidgetEntryView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 let todayDow = DateUtils.todayDayOfWeek(today: Date())
-                HStack(alignment: .top, spacing: 4) {
-                    ForEach(days, id: \.dayOfWeek) { day in
-                        WeekViewDayColumn(day: day, scheme: s, isToday: day.dayOfWeek == todayDow,
-                                          showSeparator: showSeparator)
+                VStack(spacing: 0) {
+                    // ★ 学期外: 顶部全宽状态行(只画一次, 同 renderWeekList)
+                    if data.semesterStatus != .inRange {
+                        Text(data.semesterStatus == .beforeStart
+                             ? L10n.format("semester_not_started")
+                             : L10n.format("semester_ended"))
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(s.onSurfaceVariant)
+                            .frame(maxWidth: .infinity)
+                            .padding(.bottom, 4)
+                    }
+                    HStack(alignment: .top, spacing: 4) {
+                        ForEach(days, id: \.dayOfWeek) { day in
+                            WeekViewDayColumn(day: day, scheme: s, isToday: day.dayOfWeek == todayDow,
+                                              showSeparator: showSeparator)
+                        }
                     }
                 }
             }
