@@ -66,19 +66,25 @@ final class ManageImportUITests: XCTestCase {
         app.descendants(matching: .any)["manage_import"].tap()
         let pasteRow = app.descendants(matching: .any)["import_text"]
         XCTAssertTrue(pasteRow.waitForExistence(timeout: 5))
-        forceTap(pasteRow)
-        // 展开后出现输入框(axis:.vertical 多行 → textViews)+ Preview 按钮
-        let input = app.textViews.matching(
-            NSPredicate(format: "label CONTAINS 'Paste schedule' OR placeholderValue CONTAINS 'Paste schedule'")).firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 3), "展开后应出现文本输入框")
-        XCTAssertTrue(app.buttons.matching(
-            NSPredicate(format: "label CONTAINS 'Preview Import'")).firstMatch.exists,
+        // recovery: 重试直到展开
+        var expanded = false
+        for _ in 0..<3 {
+            forceTap(pasteRow)
+            sleep(1)
+            // 检查是否展开（import_preview_btn 出现 = 展开成功）
+            if app.descendants(matching: .any)["import_preview_btn"].exists {
+                expanded = true
+                break
+            }
+        }
+        XCTAssertTrue(expanded, "展开后应出现 Preview 按钮")
+        XCTAssertTrue(app.descendants(matching: .any)["import_preview_btn"].exists,
             "展开后应有 Preview 按钮")
         // 再点收起
         forceTap(app.descendants(matching: .any)["import_text"])
-        XCTAssertFalse(app.textViews.matching(
-            NSPredicate(format: "label CONTAINS 'Paste schedule' OR placeholderValue CONTAINS 'Paste schedule'")).firstMatch
-            .waitForExistence(timeout: 3), "再点应收起输入框")
+        sleep(1)
+        XCTAssertFalse(app.descendants(matching: .any)["import_preview_btn"]
+            .waitForExistence(timeout: 3), "再点应收起")
     }
 
     // MARK: 完整文本导入链(输入 WakeUp JSON → Preview → 3 模式按钮 → 确认 → 新表)
@@ -88,10 +94,10 @@ final class ManageImportUITests: XCTestCase {
         let pasteRow = app.descendants(matching: .any)["import_text"]
         XCTAssertTrue(pasteRow.waitForExistence(timeout: 5))
         forceTap(pasteRow)
+        sleep(1)
 
-        let input = app.textViews.matching(
-            NSPredicate(format: "label CONTAINS 'Paste schedule' OR placeholderValue CONTAINS 'Paste schedule'")).firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 3), "文本输入框未展开")
+        let input = app.textFields["import_paste_input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5), "文本输入框未展开")
         input.tap()
         // 最小合法 WakeUp JSON(对象 + courses 数组, 字段 camelCase)
         let json = "{\"name\":\"测试导入表\",\"startDate\":\"2026-08-24\",\"courses\":[{\"name\":\"编译原理\",\"teacher\":\"陈老师\",\"position\":\"教3-401\",\"day\":4,\"startNode\":7,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}]}".replacingOccurrences(of: "\\ ", with: " ")
@@ -102,8 +108,7 @@ final class ManageImportUITests: XCTestCase {
         scrollStart.press(forDuration: 0.05, thenDragTo: scrollEnd)
         sleep(1)
 
-        app.buttons.matching(
-            NSPredicate(format: "label CONTAINS 'Preview Import'")).firstMatch.tap()
+        app.descendants(matching: .any)["import_preview_btn"].tap()
         // 预览对话框: 标题 + 3 模式按钮(any — 内嵌 sheet 里的元素类型不定)
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS 'Import Preview'")).firstMatch

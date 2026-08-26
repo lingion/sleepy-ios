@@ -98,6 +98,7 @@ struct EditTableScreen: View {
                                     .rotationEffect(.degrees(timeSlotsExpanded ? 180 : 0))
                             }
                             .padding(16)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("edit_table_slots_header")

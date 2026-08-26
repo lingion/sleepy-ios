@@ -129,6 +129,7 @@ struct ImportSheet: View {
                                 RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
                                     .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
                             )
+                            .accessibilityIdentifier("import_paste_input")
                         Button {
                             isLoading = true
                             let p = ImportSheet.buildImportPreview(inputText, state) { msg in errorMsg = msg }
@@ -144,6 +145,7 @@ struct ImportSheet: View {
                                 .cornerRadius(SleepyShapes.large)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("import_preview_btn")
                         .disabled(isLoading || inputText.isEmpty)
                     }
                     .padding(.leading, 56)
@@ -350,6 +352,7 @@ private struct ImportMethodRow: View {
             }
             .padding(.vertical, 14)
             .padding(.horizontal, 4)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)

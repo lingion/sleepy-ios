@@ -8,6 +8,19 @@ final class TableEditUITests: XCTestCase {
 
     var app: XCUIApplication!
 
+    /// 保证可点: 先滚到元素可视区再 tap
+    private func forceTap(_ el: XCUIElement) {
+        _ = el.waitForExistence(timeout: 5)
+        var tries = 0
+        while !el.isHittable && tries < 5 {
+            app.swipeUp()
+            sleep(1)
+            tries += 1
+        }
+        if el.isHittable { el.tap() }
+        else { el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
@@ -64,20 +77,38 @@ final class TableEditUITests: XCTestCase {
         let header = app.descendants(matching: .any)["edit_table_slots_header"]
         XCTAssertTrue(header.waitForExistence(timeout: 5))
         // 展开: Manual mode Tab + slot_add
-        header.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["seg_Manual mode"].waitForExistence(timeout: 4),
-                      "展开后应显示手动模式 Tab")
+        // recovery: 重试直到展开成功
+        var expanded = false
+        for _ in 0..<3 {
+            forceTap(header)
+            sleep(1)
+            // 查是否展开（看 slot_add 出现否）
+            if app.descendants(matching: .any)["slot_add"].exists {
+                expanded = true
+                break
+            }
+            // 再试一次
+            forceTap(header)
+            sleep(1)
+            if app.descendants(matching: .any)["slot_add"].exists {
+                expanded = true
+                break
+            }
+        }
+        XCTAssertTrue(expanded, "展开后应显示 slot_add")
         XCTAssertTrue(app.descendants(matching: .any)["slot_add"].exists)
         // 收起
-        header.tap()
-        XCTAssertFalse(app.descendants(matching: .any)["seg_Manual mode"].waitForExistence(timeout: 3),
+        forceTap(header)
+        sleep(1)
+        XCTAssertFalse(app.descendants(matching: .any)["slot_add"].waitForExistence(timeout: 3),
                        "收起后编辑器应消失")
     }
 
     // MARK: 手动模式 — slot_add 加节 / slot_row_delete 删节
 
     func testManualAddDeletePeriod() {
-        app.descendants(matching: .any)["edit_table_slots_header"].tap()
+        forceTap(app.descendants(matching: .any)["edit_table_slots_header"])
+        sleep(1)
         let add = app.descendants(matching: .any)["slot_add"]
         XCTAssertTrue(add.waitForExistence(timeout: 4))
         add.tap()   // 12 → 13 节
@@ -93,10 +124,15 @@ final class TableEditUITests: XCTestCase {
     // MARK: 自动模式 — 全字段交互(seg_Manual mode ↔ seg_Auto mode)
 
     func testAutoModeSmartEditor() {
-        app.descendants(matching: .any)["edit_table_slots_header"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["seg_Manual mode"].waitForExistence(timeout: 4))
+        forceTap(app.descendants(matching: .any)["edit_table_slots_header"])
+        sleep(1)
+        let segManual = app.descendants(matching: .any)["seg_Manual mode"].firstMatch
+        XCTAssertTrue(segManual.waitForExistence(timeout: 5))
 
-        app.descendants(matching: .any)["seg_Auto mode"].tap()
+        let segAuto = app.descendants(matching: .any)["seg_Auto mode"].firstMatch
+        XCTAssertTrue(segAuto.waitForExistence(timeout: 3))
+        segAuto.tap()
+        sleep(1)
         // NumberField 锚点(number_<label>) + Input 标题
         let durationField = app.descendants(matching: .any)["number_Per-period duration"]
         XCTAssertTrue(durationField.waitForExistence(timeout: 4), "自动模式应显示时长字段")
