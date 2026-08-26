@@ -121,3 +121,36 @@ enum DateUtils {
         return "\(c.month ?? 1)/\(c.day ?? 1)"
     }
 }
+
+/// ICS 解析用的 ISO 周工具(Swift Date 版 java.time.LocalDate 语义)
+extension Calendar {
+    /// 两个日期之间的整天数(b - a)
+    static func isoDaysBetween(_ a: Date, _ b: Date) -> Int {
+        let ca = DateUtils.isoCalendar.startOfDay(for: a)
+        let cb = DateUtils.isoCalendar.startOfDay(for: b)
+        return DateUtils.isoCalendar.dateComponents([.day], from: ca, to: cb).day ?? 0
+    }
+
+    /// 日期 + n 天
+    static func isoAddDays(_ d: Date, _ n: Int) -> Date {
+        DateUtils.isoCalendar.date(byAdding: .day, value: n, to: d) ?? d
+    }
+
+    /// 该日期所在 ISO 周的周一
+    static func isoMondayOfWeek(_ d: Date) -> Date {
+        let start = DateUtils.isoCalendar.startOfDay(for: d)
+        let dow = DateUtils.isoCalendar.component(.weekday, from: start)  // 1=Sun..7=Sat
+        let isoDow = dow == 1 ? 7 : dow - 1                               // 1=Mon..7=Sun
+        return DateUtils.isoCalendar.date(byAdding: .day, value: -(isoDow - 1), to: start) ?? start
+    }
+
+    /// yyyy-MM-dd(无时区歧义,当日零点)
+    static func isoString(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = DateUtils.isoCalendar
+        f.timeZone = DateUtils.isoCalendar.timeZone
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: d)
+    }
+}
