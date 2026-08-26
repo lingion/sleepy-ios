@@ -37,6 +37,36 @@ enum PendingImportText {
     static var value: String? = nil
 }
 
+/// 格式详情弹窗键(← Android ImportFormat, sheet(item:) 驱动)
+enum ImportFormatKey: String, Identifiable, CaseIterable {
+    case wakeupShare, wakeupJson, ics, csv, html, plain
+    var id: String { rawValue }
+
+    /// L10n key 前缀(wakeupShare → wakeup_share, 其余同 rawValue)
+    var l10nKey: String {
+        switch self {
+        case .wakeupShare: return "wakeup_share"
+        case .wakeupJson: return "wakeup_json"
+        case .ics, .csv, .html, .plain: return rawValue
+        }
+    }
+
+    /// 什么时候用(← format_*_when)
+    var whenText: String { L10n.format("format_\(l10nKey)_when") }
+    /// 识别要求条目(← string-array format_*_spec, 扁平化为 _0.._n)
+    var specItems: [String] {
+        var items: [String] = []
+        var i = 0
+        while L10n.has("format_\(l10nKey)_spec_\(i)") {
+            items.append(L10n.format("format_\(l10nKey)_spec_\(i)"))
+            i += 1
+        }
+        return items
+    }
+    /// 示例(← format_*_example)
+    var exampleText: String { L10n.format("format_\(l10nKey)_example") }
+}
+
 struct ImportSheet: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.dismiss) private var dismiss
@@ -59,6 +89,7 @@ struct ImportSheet: View {
     @State private var confirmedTimeJson = ""
     @State private var showFilePicker = false
     @State private var consumedPending = false
+    @State private var detailFormat: ImportFormatKey? = nil
 
     var body: some View {
         let state = viewModel.state
@@ -135,12 +166,24 @@ struct ImportSheet: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(colors.onSurface)
                         .padding(.bottom, 8)
-                    FormatRow(name: L10n.format("format_wakeup_share"), desc: L10n.format("format_wakeup_desc"))
-                    FormatRow(name: L10n.format("format_wakeup_json"), desc: L10n.format("format_json_desc"))
-                    FormatRow(name: L10n.format("format_ics"), desc: L10n.format("format_ics_desc"))
-                    FormatRow(name: L10n.format("format_csv"), desc: L10n.format("format_csv_desc"))
-                    FormatRow(name: L10n.format("format_html"), desc: L10n.format("format_html_desc"))
-                    FormatRow(name: L10n.format("format_plain"), desc: L10n.format("format_plain_desc"))
+                    FormatRow(name: L10n.format("format_wakeup_share"), desc: L10n.format("format_wakeup_desc")) {
+                        detailFormat = .wakeupShare
+                    }
+                    FormatRow(name: L10n.format("format_wakeup_json"), desc: L10n.format("format_json_desc")) {
+                        detailFormat = .wakeupJson
+                    }
+                    FormatRow(name: L10n.format("format_ics"), desc: L10n.format("format_ics_desc")) {
+                        detailFormat = .ics
+                    }
+                    FormatRow(name: L10n.format("format_csv"), desc: L10n.format("format_csv_desc")) {
+                        detailFormat = .csv
+                    }
+                    FormatRow(name: L10n.format("format_html"), desc: L10n.format("format_html_desc")) {
+                        detailFormat = .html
+                    }
+                    FormatRow(name: L10n.format("format_plain"), desc: L10n.format("format_plain_desc")) {
+                        detailFormat = .plain
+                    }
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -209,7 +252,11 @@ struct ImportSheet: View {
                 confirmedTableName = preview!.parseResult.tableName.isEmpty
                     ? (existingTable?.name ?? L10n.format("default_table_name"))
                     : preview!.parseResult.tableName
-                confirmedTimeJson = existingTable?.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON
+                // ★ timeJson 首选取解析收割值(ICS 作息/纯文本时间表行/WakeUp timeList),
+                //   收割不到再用目标表现值 ← Android: parseResult.timeJson.ifBlank { ... }
+                confirmedTimeJson = preview!.parseResult.timeJson.isEmpty
+                    ? (existingTable?.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON)
+                    : preview!.parseResult.timeJson
                 // ★ iOS 16 sheet 冲突修复: 先关预览 sheet 再开确认 sheet —
                 //   同一宿主上确认 sheet 会因预览未 dismiss 被丢弃。快照 preview
                 //   进 confirmedPreview 持有, 延迟到预览 dismiss 完成后再置模式。
@@ -254,6 +301,10 @@ struct ImportSheet: View {
                     }
                 })
                 .presentationDetents([.large])
+        }
+        // 格式详情弹窗 ("支持格式"每行 ⓘ 点开)
+        .sheet(item: $detailFormat) { fmt in
+            FormatDetailDialog(format: fmt)
         }
     }
 
@@ -305,11 +356,12 @@ private struct ImportMethodRow: View {
     }
 }
 
-// ← FormatRow
+// ← FormatRow(每行带 ⓘ 详情入口)
 private struct FormatRow: View {
     @Environment(\.localWakeUpColors) private var colors
     let name: String
     let desc: String
+    var onDetail: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -324,8 +376,115 @@ private struct FormatRow: View {
             Text(desc)
                 .font(.system(size: 12))
                 .foregroundColor(colors.onSurfaceVariant)
+            Spacer(minLength: 4)
+            if let onDetail {
+                Button(action: onDetail) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 14))
+                        .foregroundColor(colors.primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.format("format_detail_content_desc"))
+            }
         }
         .padding(.vertical, 3)
+    }
+}
+
+// ← FormatDetailDialog(格式详情弹窗: 什么时候用 + 识别要求 + 示例; 纯文本独有 AI Prompt)
+private struct FormatDetailDialog: View {
+    @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.dismiss) private var dismiss
+    let format: ImportFormatKey
+    @State private var copiedPrompt = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(format.whenText)
+                    .font(.system(size: 14))
+                    .foregroundColor(colors.onSurfaceVariant)
+
+                Text(L10n.format("format_help_spec"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(colors.onSurface)
+                ForEach(format.specItems, id: \.self) { item in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•")
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.primary)
+                            .padding(.top, 2)
+                        Text(item)
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.onSurfaceVariant)
+                    }
+                }
+
+                Text(L10n.format("format_help_example"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(colors.onSurface)
+                    .padding(.top, 4)
+                Text(format.exampleText
+                        .replacingOccurrences(of: "\\n", with: "\n")
+                        .replacingOccurrences(of: "\\t", with: "\t"))
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(colors.onSurface)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(colors.surfaceContainer)
+                    .cornerRadius(SleepyShapes.medium)
+
+                // 纯文本独有: AI 截图转换 Prompt (可复制)
+                if format == .plain {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(L10n.format("ai_prompt_title"))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(colors.onPrimaryContainer)
+                        Text(L10n.format("ai_prompt_hint"))
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.onPrimaryContainer)
+                        Text(L10n.format("ai_prompt_text")
+                                .replacingOccurrences(of: "\\n", with: "\n")
+                                .replacingOccurrences(of: "\\t", with: "\t"))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(colors.onPrimaryContainer)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(colors.surfaceContainer)
+                            .cornerRadius(SleepyShapes.medium)
+                        Button {
+                            UIPasteboard.general.string = L10n.format("ai_prompt_text")
+                                .replacingOccurrences(of: "\\n", with: "\n")
+                                .replacingOccurrences(of: "\\t", with: "\t")
+                            copiedPrompt = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 14))
+                                Text(copiedPrompt ? L10n.format("copied") : L10n.format("copy_prompt"))
+                                    .font(.system(size: 14))
+                            }
+                            .foregroundColor(colors.onPrimaryContainer)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: SleepyShapes.medium)
+                                    .strokeBorder(colors.onPrimaryContainer.opacity(0.4), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(colors.primaryContainer)
+                    .cornerRadius(SleepyShapes.large)
+                    .padding(.top, 4)
+                }
+            }
+            .padding(20)
+        }
+        .background(colors.surface)
+        .presentationDetents([.large])
     }
 }
 
@@ -403,6 +562,32 @@ private struct ImportPreviewDialog: View {
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(colors.surfaceContainer)
+                    .cornerRadius(SleepyShapes.large)
+                }
+
+                // 防呆: 输入里有行没解析成功 → 明确告诉用户哪些行被跳过, 不静默丢
+                if !preview.parseResult.droppedLines.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L10n.format("import_dropped_title", preview.parseResult.droppedLines.count))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(colors.onErrorContainer)
+                        Text(L10n.format("import_dropped_hint"))
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.onErrorContainer)
+                        ForEach(preview.parseResult.droppedLines.prefix(3), id: \.self) { line in
+                            Text("• \(line)")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundColor(colors.onErrorContainer)
+                        }
+                        if preview.parseResult.droppedLines.count > 3 {
+                            Text(L10n.format("import_conflict_more", preview.parseResult.droppedLines.count - 3))
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(colors.onErrorContainer)
+                        }
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(colors.errorContainer)
                     .cornerRadius(SleepyShapes.large)
                 }
 
@@ -692,6 +877,7 @@ extension ImportSheet {
                     : confirmedTableName.trimmingCharacters(in: .whitespaces)
                 copy.startDate = confirmedStartDate
                 copy.timeJson = confirmedTimeJson
+                copy.nodesPerDay = preview.parseResult.nodesPerDay > 0 ? preview.parseResult.nodesPerDay : existing.nodesPerDay
                 try? repo.updateTable(copy)
             }
             try? repo.replaceCourses(preview.targetTableId, preview.parseResult.courses)
@@ -704,7 +890,7 @@ extension ImportSheet {
                 name: uniqueImportedTableName(confirmedTableName, existingNames),
                 startDate: confirmedStartDate,
                 maxWeek: base?.maxWeek ?? 20,
-                nodesPerDay: base?.nodesPerDay ?? 12,
+                nodesPerDay: preview.parseResult.nodesPerDay > 0 ? preview.parseResult.nodesPerDay : base?.nodesPerDay ?? 12,
                 timeJson: confirmedTimeJson,
                 isDefault: false)
             newTable.color = base?.color ?? "#FF6750A4"
