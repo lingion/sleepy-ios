@@ -16,16 +16,23 @@ struct TodayScreen: View {
         let actualWeek = state.currentTable.map {
             DateUtils.currentWeek(startDate: $0.startDate, today: today)
         } ?? state.currentWeek
-        let todayCourses = state.courses
-            .filter { $0.day == dayOfWeek && $0.inWeek(actualWeek) }
+        // ★ 学期外感知: BEFORE_START/AFTER_END 时今日课不按周过滤展示
+        let semesterStatus = state.currentTable.map {
+            DateUtils.semesterStatus(startDate: $0.startDate, maxWeek: $0.maxWeek, today: today)
+        } ?? .inRange
+        let isOutOfSemester = semesterStatus != .inRange
+        let todayCourses = (isOutOfSemester ? [] : state.courses.filter {
+            $0.day == dayOfWeek && $0.inWeek(actualWeek)
+        })
             .sorted { $0.startNode < $1.startNode }
 
         ScrollView {
             VStack(spacing: 16) {
-                TodayHeader(date: today, week: actualWeek, count: todayCourses.count)
+                TodayHeader(date: today, week: actualWeek, count: todayCourses.count,
+                            semesterStatus: semesterStatus)
 
                 if todayCourses.isEmpty {
-                    EmptyToday()
+                    EmptyToday(semesterStatus: semesterStatus)
                 } else {
                     SectionHead(title: L10n.format("widget_today_label"),
                                 action: L10n.format("n_periods", todayCourses.count))
@@ -46,6 +53,7 @@ private struct TodayHeader: View {
     let date: Date
     let week: Int
     let count: Int
+    var semesterStatus: DateUtils.SemesterStatus = .inRange
 
     var body: some View {
         let comps = DateUtils.isoCalendar.dateComponents([.month, .day, .weekday], from: date)
@@ -66,8 +74,18 @@ private struct TodayHeader: View {
             }
             Spacer().frame(height: 8)
             HStack(spacing: 12) {
-                Stat(label: L10n.format("schedule_current_week", week),
-                     bg: colors.primaryContainer, fg: colors.onPrimaryContainer)
+                // ★ 学期外: 周次 chip 换学期状态, 不再显示误导性的"第 1 周"
+                switch semesterStatus {
+                case .beforeStart:
+                    Stat(label: L10n.format("semester_not_started"),
+                         bg: colors.secondaryContainer, fg: colors.onSecondaryContainer)
+                case .afterEnd:
+                    Stat(label: L10n.format("semester_ended"),
+                         bg: colors.secondaryContainer, fg: colors.onSecondaryContainer)
+                case .inRange:
+                    Stat(label: L10n.format("schedule_current_week", week),
+                         bg: colors.primaryContainer, fg: colors.onPrimaryContainer)
+                }
                 Stat(label: count == 0 ? L10n.format("no_course")
                                        : L10n.format("n_course_periods", count),
                      bg: colors.tertiaryContainer, fg: colors.onTertiaryContainer)
@@ -100,18 +118,31 @@ private struct Stat: View {
 // ← EmptyToday
 private struct EmptyToday: View {
     @Environment(\.localWakeUpColors) private var colors
+    var semesterStatus: DateUtils.SemesterStatus = .inRange
 
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "clock")
                 .font(.system(size: 48))
                 .foregroundColor(colors.onSurfaceVariant)
-            Text(L10n.format("schedule_no_course_today"))
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(colors.onSurface)
-            Text(L10n.format("today_no_course"))
-                .font(.system(size: 14))
-                .foregroundColor(colors.onSurfaceVariant)
+            // ★ 学期外: 主副文案换学期状态(不是"今天没课")
+            if semesterStatus != .inRange {
+                Text(semesterStatus == .beforeStart
+                     ? L10n.format("semester_not_started")
+                     : L10n.format("semester_ended"))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(colors.onSurface)
+                Text(L10n.format("today_semester_out_hint"))
+                    .font(.system(size: 14))
+                    .foregroundColor(colors.onSurfaceVariant)
+            } else {
+                Text(L10n.format("schedule_no_course_today"))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(colors.onSurface)
+                Text(L10n.format("today_no_course"))
+                    .font(.system(size: 14))
+                    .foregroundColor(colors.onSurfaceVariant)
+            }
         }
         .padding(32)
         .frame(maxWidth: .infinity)

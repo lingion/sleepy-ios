@@ -177,9 +177,10 @@ private struct ScheduleTopBar: View {
                     onJumpToActual()   // 不在实际周 → 一键跳回(原 simultaneousGesture 语义)
                 }
             } label: {
+                // ★ 学期外: 标签带上周数(学期未开始 · 第 3 周), 翻周时数字跟着变, 用户才知道自己看到第几周
                 Text(semesterStatus == .inRange
                      ? L10n.format("schedule_current_week", currentWeek)
-                     : L10n.format("semester_out_of_range"))
+                     : "\(L10n.format(semesterStatus == .beforeStart ? "semester_not_started" : "semester_ended")) · \(L10n.format("schedule_week_prefix", currentWeek))")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(isOnActual ? colors.onPrimaryContainer : colors.primary)
                     .lineLimit(1)

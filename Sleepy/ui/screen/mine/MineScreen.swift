@@ -94,11 +94,14 @@ private struct StatsCard: View {
 
     var body: some View {
         HStack {
-            StatItem(value: "\(tableCount)", label: L10n.format("mine_stat_tables"))
+            StatItem(value: "\(tableCount)", label: L10n.format("mine_stat_tables"),
+                     identifier: "mine_stat_tables")
             VDivider()
-            StatItem(value: "\(courseCount)", label: L10n.format("mine_stat_courses"))
+            StatItem(value: "\(courseCount)", label: L10n.format("mine_stat_courses"),
+                     identifier: "mine_stat_courses")
             VDivider()
-            StatItem(value: "\(week)", label: L10n.format("mine_stat_week"))
+            StatItem(value: "\(week)", label: L10n.format("mine_stat_week"),
+                     identifier: "mine_stat_week")
         }
         .padding(.vertical, 18)
         .padding(.horizontal, 8)
@@ -113,16 +116,21 @@ private struct StatItem: View {
     @Environment(\.localWakeUpColors) private var colors
     let value: String
     let label: String
+    let identifier: String
 
     var body: some View {
         VStack(spacing: 2) {
             Text(value)
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(colors.primary)
+                .accessibilityIdentifier("\(identifier)_value")
             Text(label)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(colors.onSurfaceVariant)
+                .accessibilityIdentifier("\(identifier)_label")
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(identifier)
     }
 }
 
