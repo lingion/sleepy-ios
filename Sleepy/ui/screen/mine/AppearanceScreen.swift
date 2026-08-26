@@ -136,15 +136,11 @@ private struct SystemThemeCard: View {
                 }
             }
             .padding(16)
-            .background(colors.surfaceContainer)
+            .background(selected ? colors.primaryContainer : colors.surfaceContainer)
             .cornerRadius(SleepyShapes.large)
-            .overlay(
-                RoundedRectangle(cornerRadius: SleepyShapes.large)
-                    .strokeBorder(selected ? colors.primary : colors.outline.opacity(SleepyTheme.Alpha.hairline),
-                                  lineWidth: selected ? 2 : 1)
-            )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("theme_system_card")
     }
 }
 
@@ -179,15 +175,11 @@ private struct PresetThemeCard: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(colors.surfaceContainer)
+            .background(selected ? colors.primaryContainer : colors.surfaceContainer)
             .cornerRadius(SleepyShapes.large)
-            .overlay(
-                RoundedRectangle(cornerRadius: SleepyShapes.large)
-                    .strokeBorder(selected ? colors.primary : colors.outline.opacity(SleepyTheme.Alpha.hairline),
-                                  lineWidth: selected ? 2 : 1)
-            )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("theme_preset_\(preset.key)")
     }
 }
 

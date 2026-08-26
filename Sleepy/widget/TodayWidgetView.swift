@@ -38,6 +38,7 @@ struct TodayWidgetProvider: TimelineProvider {
 
 struct TodayWidgetEntryView: View {
     @Environment(\.widgetRenderingMode) var renderingMode
+    @Environment(\.widgetFamily) var widgetFamily
     let entry: TodayWidgetEntry
 
     var body: some View {
@@ -92,15 +93,19 @@ struct TodayWidgetEntryView: View {
                     .foregroundColor(s.onSurfaceVariant)
                 Spacer()
             } else {
-                // 课程列表(全部渲染,不截断 — 溢出由 widget 容器裁切,与 Android bitmap 同行为)
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 10) {  // 课程胶囊间距放大(用户反馈太紧凑)
-                        ForEach(Array(data.courses.enumerated()), id: \.element.id) { _, course in
-                            WidgetCourseCard(course: course, timeJson: data.timeJson, scheme: s,
-                                             colorless: colorless, fontSizeSp: 12,
-                                             displayMode: displayMode)
-                                .frame(height: 38)
-                        }
+                // ★ 课程列表 — WidgetKit 不支持 ScrollView 归档;按 family 取前 N 门,
+                // 溢出由 widget 容器自然裁切,与 Android bitmap 行为一致
+                let maxCount = courseLimitForFamily()
+                let visible = Array(data.courses.prefix(maxCount))
+                VStack(spacing: 10) {
+                    ForEach(Array(visible.enumerated()), id: \.element.id) { _, course in
+                        WidgetCourseCard(course: course, timeJson: data.timeJson, scheme: s,
+                                         colorless: colorless, fontSizeSp: 12,
+                                         displayMode: displayMode)
+                            .frame(height: 38)
+                    }
+                    if data.courses.count > maxCount {
+                        Spacer(minLength: 0)
                     }
                 }
             }
@@ -109,6 +114,17 @@ struct TodayWidgetEntryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(s.bg)
         .widgetURL(URL(string: "sleepy://open"))
+    }
+
+    /// 不同 widget family 显示的最大课程数。WidgetKit 不支持 ScrollView 归档,
+    /// 所以按容器尺寸裁剪,与 Android bitmap 渲染时由容器 clip 行为一致。
+    private func courseLimitForFamily() -> Int {
+        switch widgetFamily {
+        case .systemSmall: return 2
+        case .systemMedium: return 3
+        case .systemLarge: return 6
+        default: return 3
+        }
     }
 }
 

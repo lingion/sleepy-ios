@@ -32,6 +32,7 @@ struct TwoDayWidgetProvider: TimelineProvider {
 // MARK: - View ← renderTwoDay
 
 struct TwoDayWidgetEntryView: View {
+    @Environment(\.widgetFamily) var widgetFamily
     let entry: TwoDayWidgetEntry
 
     var body: some View {
@@ -41,6 +42,7 @@ struct TwoDayWidgetEntryView: View {
         let colorless = prefs.isWidgetColorless()
         let displayMode = prefs.getDisplayMode()
         let showDate = prefs.isShowDate()
+        let perColLimit: Int = widgetFamily == .systemLarge ? 3 : 2
 
         VStack(alignment: .leading, spacing: 0) {
             // 顶部标签
@@ -72,7 +74,8 @@ struct TwoDayWidgetEntryView: View {
                     ForEach(Array(data.days.enumerated()), id: \.element.dayOfWeek) { colIdx, day in
                         TwoDayColumn(day: day, scheme: s, colorless: colorless,
                                      displayMode: displayMode, showDate: showDate,
-                                     isLast: colIdx == data.days.count - 1)
+                                     isLast: colIdx == data.days.count - 1,
+                                     maxCourses: perColLimit)
                     }
                 }
             }
@@ -91,6 +94,7 @@ private struct TwoDayColumn: View {
     let displayMode: String
     let showDate: Bool
     let isLast: Bool
+    let maxCourses: Int
 
     var body: some View {
         let s = scheme
@@ -112,17 +116,19 @@ private struct TwoDayColumn: View {
                 Text(L10n.format("no_course"))
                     .font(.system(size: 11))
                     .foregroundColor(s.onSurfaceVariant)
-                Spacer()
+                Spacer(minLength: 0)
             } else {
-                // ★ 胶囊固定最大高度 44dp, 不撑满列
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 8) {
-                        ForEach(day.courses, id: \.id) { course in
-                            WidgetCourseCard(course: course, timeJson: day.timeJson, scheme: s,
-                                             colorless: colorless, fontSizeSp: 10,
-                                             displayMode: displayMode)
-                                .frame(height: 44)
-                        }
+                // ★ WidgetKit 不支持 ScrollView 归档;取前 N 门渲染,溢出由容器裁切
+                let visible = Array(day.courses.prefix(maxCourses))
+                VStack(spacing: 8) {
+                    ForEach(visible, id: \.id) { course in
+                        WidgetCourseCard(course: course, timeJson: day.timeJson, scheme: s,
+                                         colorless: colorless, fontSizeSp: 10,
+                                         displayMode: displayMode)
+                            .frame(height: 36)
+                    }
+                    if day.courses.count > maxCourses {
+                        Spacer(minLength: 0)
                     }
                 }
             }
