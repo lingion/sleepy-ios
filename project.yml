@@ -43,16 +43,8 @@ targets:
       path: Sleepy/Info.plist
       properties:
         CFBundleDisplayName: Sleepy 课程表
-    entitlements:
-      path: Sleepy/Sleepy.entitlements
-      properties:
-        com.apple.security.application-groups: [group.com.lingion.sleepy.ios]
         CFBundleShortVersionString: "1.0.34"
         CFBundleVersion: "35"
-        CFBundleIdentifier: com.lingion.sleepy.ios
-        CFBundleName: Sleepy
-        CFBundlePackageType: APPL
-        CFBundleExecutable: "$(EXECUTABLE_NAME)"
         UILaunchStoryboardName: LaunchScreen
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -64,6 +56,10 @@ targets:
             LSItemContentTypes: ["public.json"]
         LSSupportsOpeningDocumentsInPlace: false
         ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: Sleepy/Sleepy.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.lingion.sleepy.ios]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios
@@ -91,20 +87,14 @@ targets:
       path: SleepyWidget/Info.plist
       properties:
         CFBundleDisplayName: Sleepy Widget
+        CFBundleShortVersionString: "1.0.34"
+        CFBundleVersion: "35"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
       path: SleepyWidget/SleepyWidget.entitlements
       properties:
         com.apple.security.application-groups: [group.com.lingion.sleepy.ios]
-        CFBundleShortVersionString: "1.0.34"
-        CFBundleVersion: "35"
-        CFBundleIdentifier: com.lingion.sleepy.ios.widget
-        CFBundleName: SleepyWidget
-        CFBundlePackageType: XPC!
-        CFBundleExecutable: "$(EXECUTABLE_NAME)"
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios.widget
@@ -131,6 +121,7 @@ targets:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         CFBundleShortVersionString: "1.0.34"
         CFBundleVersion: "35"
+
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios.tests

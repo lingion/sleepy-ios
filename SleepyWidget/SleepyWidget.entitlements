@@ -2,23 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleExecutable</key>
-	<string>$(EXECUTABLE_NAME)</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.lingion.sleepy.ios.widget</string>
-	<key>CFBundleName</key>
-	<string>SleepyWidget</string>
-	<key>CFBundlePackageType</key>
-	<string>XPC!</string>
-	<key>CFBundleShortVersionString</key>
-	<string>1.0.34</string>
-	<key>CFBundleVersion</key>
-	<string>35</string>
-	<key>NSExtension</key>
-	<dict>
-		<key>NSExtensionPointIdentifier</key>
-		<string>com.apple.widgetkit-extension</string>
-	</dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.com.lingion.sleepy.ios</string>
