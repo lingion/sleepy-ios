@@ -61,6 +61,11 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # ★ widget 深链(widgetURL sleepy://open)+ 课程/导入深链(sleepy://course|import)
+        #   依赖 scheme 注册;缺此键 → simctl openurl 报 -10814,真机 widget 点击无响应
+        CFBundleURLTypes:
+          - CFBundleURLName: com.lingion.sleepy.ios
+            CFBundleURLSchemes: [sleepy]
         CFBundleDocumentTypes:
           - CFBundleTypeName: Schedule JSON
             LSHandlerRank: Owner
