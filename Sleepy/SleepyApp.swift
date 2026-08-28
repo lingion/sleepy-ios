@@ -138,6 +138,17 @@ struct AppRoot: View {
         .onOpenURL { url in
             handleDeepLink(url)
         }
+        // ★ Xcode14/iOS16.4 模拟器: XCUIApplication.open(_:) 丢 URL(只 launch 不投递,
+        //   SpringBoard 收不到 with-url 请求)→ UI 测试改由 app 内自触发
+        //   UIApplication.open 走真实系统路由。真实用户路径 onOpenURL 不变。
+        .onAppear {
+            if let raw = ProcessInfo.processInfo.environment["SLEEPY_UI_TEST_OPENURL"],
+               let url = URL(string: raw) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    UIApplication.shared.open(url)
+                }
+            }
+        }
         // 深链课程 → 编辑(← LaunchedEffect(deepLinkCourse?.id))
         .onChange(of: root.deepLinkCourse?.id) { courseId in
             if courseId != nil {

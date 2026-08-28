@@ -505,6 +505,7 @@ private struct ImportPreviewDialog: View {
                     Text(L10n.format("import_preview_title"))
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(colors.onSurface)
+                        .accessibilityIdentifier("import_preview_title")
                     if preview.targetTableId == 0 {
                         Text(L10n.format("import_new_table_hint"))
                             .font(.system(size: 12))
@@ -707,6 +708,7 @@ private struct PreviewInfoRow: View {
             Text(value)
                 .font(.system(size: 14))
                 .foregroundColor(colors.onSurface)
+                .accessibilityIdentifier("import_info_\(label)")
         }
     }
 }

@@ -44,6 +44,7 @@ struct ManagementPage: View {
                     .font(.system(size: 22, weight: .medium))
                     .foregroundColor(colors.onBackground)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("manage_page_title")
 
                 // 当前课表摘要
                 if let table = table {
