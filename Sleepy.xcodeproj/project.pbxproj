@@ -89,6 +89,7 @@
 		76FF6F179A8C437B32A20887 /* SmartPeriodConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196825AFE35B5C0E3D277722 /* SmartPeriodConfigTests.swift */; };
 		77BF6566053079C67DBD9122 /* CourseEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */; };
 		783DA0C18585ABE2B0F38CE4 /* JwNewZfParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C1D8BD48F149CE16160CE84 /* JwNewZfParser.swift */; };
+		784FCA1EA5F582BC59BC844F /* TableSwitchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EB2EA5882A1102A65170A9 /* TableSwitchUITests.swift */; };
 		7886F9D30CF882DA17E5DD03 /* SettingsCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE15454AE12C13CA8A96C9D /* SettingsCards.swift */; };
 		7B39EA18C8D7D03359DD1605 /* SleepyWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 64CFB5B5DD63AC209144EEDD /* SleepyWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7EDE753B2953799E66FC71E7 /* JwProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3480ED82E92E5E453EA66874 /* JwProtocol.swift */; };
@@ -213,6 +214,7 @@
 		166C8FB4895B9F8ACF079DDD /* JwQzParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzParser.swift; sourceTree = "<group>"; };
 		1849E41D4246ACF12E07B8F0 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		196825AFE35B5C0E3D277722 /* SmartPeriodConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPeriodConfigTests.swift; sourceTree = "<group>"; };
+		19EB2EA5882A1102A65170A9 /* TableSwitchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableSwitchUITests.swift; sourceTree = "<group>"; };
 		1BCB8B72B49233D52340AB7A /* ParserAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParserAuditTests.swift; sourceTree = "<group>"; };
 		1D9090ACA661D747DF0AB718 /* JwParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParser.swift; sourceTree = "<group>"; };
 		1DBE6E120D6B08E49C30A4C3 /* AboutScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutScreen.swift; sourceTree = "<group>"; };
@@ -636,6 +638,7 @@
 				B9C22DE3433DD8BF4069C158 /* SleepyUITests.entitlements */,
 				B18164021426E1BE78DB3F46 /* SleepyUITests.swift */,
 				13A484DCBC349DF312302C65 /* TableEditUITests.swift */,
+				19EB2EA5882A1102A65170A9 /* TableSwitchUITests.swift */,
 				8CAD39D80DA896A487637E86 /* UIElementAuditUITests.swift */,
 				3E7AD6CE77CFDEF12C064E61 /* WidgetArchivingUITests.swift */,
 			);
@@ -901,6 +904,7 @@
 				FE8B31B87F74A275C27FF9F6 /* SchoolSelectUITests.swift in Sources */,
 				35AED6976FAE210F6E93C694 /* SleepyUITests.swift in Sources */,
 				2796FEB743582031203286AD /* TableEditUITests.swift in Sources */,
+				784FCA1EA5F582BC59BC844F /* TableSwitchUITests.swift in Sources */,
 				5BBFF48EE96BC7C8BFB2E820 /* UIElementAuditUITests.swift in Sources */,
 				76D1F3F2759F5FBE76A9D061 /* WidgetArchivingUITests.swift in Sources */,
 			);
