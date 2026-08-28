@@ -155,6 +155,9 @@ struct AppRoot: View {
             JwImportFlow {
                 jwImportActive = false
             }
+            // Sheet 是独立 presentation tree；显式注入主题，避免自定义颜色环境回落到 lightScheme。
+            .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey))
+            .preferredColorScheme(isDark ? .dark : .light)
         }
         // ★ sheet 冲突修复续: ImportSheet dismiss 完成后(0.45s 动画)再 present JW 流程
         .onChange(of: jwImportRequested) { req in

@@ -4,6 +4,7 @@
 // 运行: xcodebuild test -scheme Sleepy -destination 'platform=iOS Simulator,id=E457BAD9-947A-469A-BD6B-0286F69267CD' -only-testing:SleepyUITests/UIElementAuditUITests
 
 import XCTest
+import CoreGraphics
 
 final class UIElementAuditUITests: XCTestCase {
 
@@ -26,12 +27,15 @@ final class UIElementAuditUITests: XCTestCase {
 
     private func launchApp(language: String = "zh-Hans", appearance: String = "light") {
         app = XCUIApplication()
-        // 主题:通过环境变量模拟
+        // 主题: -theme_mode <light|dark> 作为 launch argument 会落入 UserDefaults.standard,
+        //       AppPrefs.getThemeMode() 直接读到 → 无需触碰模拟器全局外观
+        //       (AppPrefs.isDarkMode: light→false / dark→true / system→跟随)
         app.launchArguments = [
             "-AppleLanguages", "(\(language))",
-            "-AppleLocale", language == "zh-Hans" ? "zh_CN" : (language == "zh-Hant" ? "zh_TW" : "\(language)_US")",
+            "-AppleLocale", language == "zh-Hans" ? "zh_CN" : (language == "zh-Hant" ? "zh_TW" : "\(language)_US"),
             "-SLEEPY_UI_TEST_SEED", "1",
-            "-UILaunchScreen_Generation", "YES" // 防止首屏黑屏
+            "-UILaunchScreen_Generation", "YES", // 防止首屏黑屏
+            "-theme_mode", appearance == "dark" ? "dark" : "light"
         ]
         app.launch()
 
@@ -48,13 +52,59 @@ final class UIElementAuditUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         // 保存到磁盘(不依赖 Xcode 结果存档)
         let url = URL(fileURLWithPath: "\(outputDir)/\(name).png")
-        if let data = screenshot.pngRepresentation {
-            try? data.write(to: url)
-        }
+        let data = screenshot.pngRepresentation
+        try? data.write(to: url)
         add(attachment)
     }
 
-    // MARK: - Tab 导航
+    private func captureScreenshot(_ name: String) {
+        captureScreenshot(named: name)
+    }
+
+    /// 回读刚截的 PNG,计算主体区域(垂直 20%-80%,水平 10%-90%)平均 luma。
+    /// 深色主题下主体应 < 80;若 ≥ 100 判定仍为浅色 → fail(防 JW sheet 主题环境丢失回归)。
+    private func assertDarkScreenshot(_ name: String, message: String) {
+        let url = URL(fileURLWithPath: "\(outputDir)/\(name).png")
+        guard let provider = CGDataProvider(url: url as CFURL),
+              let cgImage = CGImage(pngDataProviderSource: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else {
+            XCTFail("无法解码截图 \(name).png")
+            return
+        }
+        let width = cgImage.width, height = cgImage.height
+        guard width > 0, height > 0 else { XCTFail("截图尺寸异常"); return }
+        // 整幅重绘到 RGBA 缓冲,一次性取像素
+        let bytesPerRow = width * 4
+        guard let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                  bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let base = ctx.data else {
+            XCTFail("无法创建 CGContext")
+            return
+        }
+        ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let buf = base.bindMemory(to: UInt8.self, capacity: bytesPerRow * height)
+        // CG 原点在左下,截图分析按顶部起始换算 y
+        func lumaAt(_ x: Int, _ topOriginY: Int) -> Double {
+            let y = height - 1 - topOriginY
+            let off = y * bytesPerRow + x * 4
+            let r = Double(buf[off]), g = Double(buf[off + 1]), b = Double(buf[off + 2])
+            return 0.299 * r + 0.587 * g + 0.114 * b
+        }
+        let y0 = height * 20 / 100, y1 = height * 80 / 100
+        let x0 = width * 10 / 100, x1 = width * 90 / 100
+        var totalLuma = 0.0
+        var count = 0.0
+        for y in stride(from: y0, to: y1, by: 16) {
+            for x in stride(from: x0, to: x1, by: 16) {
+                totalLuma += lumaAt(x, y)
+                count += 1
+            }
+        }
+        guard count > 0 else { XCTFail("未采到任何像素"); return }
+        let avg = totalLuma / count
+        XCTAssertLessThan(avg, 100.0, "\(message) 实测主体 luma=\(Int(avg)) (阈值 100)")
+    }
+
 
     private func switchToTab(_ tabId: String) {
         let tab = app.descendants(matching: .any)["pill_\(tabId)"]
@@ -65,96 +115,88 @@ final class UIElementAuditUITests: XCTestCase {
 
     // MARK: - 导航到子页面
 
-    private func navigateToAppearance() {
+    /// 点 Mine 设置项(SettingsItem 是 Button,identifier 前缀 mine_)并断言子页真实打开。
+    private func openMineSetting(_ itemId: String, assertAnchor anchorId: String, scroll: Bool = true) {
         switchToTab("mine")
-        // 找"外观"按钮(通过静态文本匹配,跨locale用L10n key)
-        // MineScreen: "appearance" → L10n.format("appearance")
-        let appearanceBtn = app.staticTexts.element(matching: .any, identifier: "appearance").firstMatch
-        if appearanceBtn.exists {
-            appearanceBtn.tap()
-        } else {
-            // 备选:scroll + 找包含"外观"的文本
-            app.swipeUp()
-        }
-        sleep(1)
+        if scroll { app.swipeUp() }
+        let item = app.buttons[itemId].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "Mine 设置项 \(itemId) 未找到")
+        item.tap()
+        let anchor = app.descendants(matching: .any)[anchorId].firstMatch
+        XCTAssertTrue(anchor.waitForExistence(timeout: 5), "点击 \(itemId) 后子页锚点 \(anchorId) 未出现")
+        Thread.sleep(forTimeInterval: 1)
+    }
+
+    private func navigateToAppearance() {
+        openMineSetting("mine_appearance", assertAnchor: "theme_system_card", scroll: false)
     }
 
     private func navigateToGeneralSettings() {
-        switchToTab("mine")
-        app.swipeUp()
-        let generalBtn = app.staticTexts.element(matching: .any, identifier: "general").firstMatch
-        if generalBtn.exists { generalBtn.tap() }
-        sleep(1)
+        openMineSetting("mine_general", assertAnchor: "topbar_back")
     }
 
     private func navigateToReminder() {
-        switchToTab("mine")
-        app.swipeUp()
-        let reminderBtn = app.staticTexts.element(matching: .any, identifier: "reminder").firstMatch
-        if reminderBtn.exists { reminderBtn.tap() }
-        sleep(1)
+        openMineSetting("mine_reminder", assertAnchor: "topbar_back")
     }
 
     private func navigateToExport() {
-        switchToTab("mine")
-        app.swipeUp()
-        let exportBtn = app.staticTexts.element(matching: .any, identifier: "export").firstMatch
-        if exportBtn.exists { exportBtn.tap() }
-        sleep(1)
+        openMineSetting("mine_export", assertAnchor: "topbar_back")
     }
 
     private func navigateToAbout() {
-        switchToTab("mine")
-        app.swipeUp()
-        let aboutBtn = app.staticTexts.element(matching: .any, identifier: "about").firstMatch
-        if aboutBtn.exists { aboutBtn.tap() }
-        sleep(1)
+        openMineSetting("mine_about", assertAnchor: "about_check_update")
     }
 
     private func navigateToAllTables() {
-        switchToTab("mine")
-        let allTablesBtn = app.staticTexts.element(matching: .any, identifier: "all_tables").firstMatch
-        if allTablesBtn.exists { allTablesBtn.tap() }
-        sleep(1)
+        openMineSetting("mine_all_tables", assertAnchor: "topbar_back", scroll: false)
     }
 
     private func navigateToAddCourseEmpty() {
-        // 从 schedule tab 点击添加按钮
-        switchToTab("schedule")
-        // 找添加按钮(静态文本"添加课程"或 accessibilityIdentifier)
-        let addBtn = app.buttons.element(matching: .any, identifier: "course_add_slot").firstMatch
-        if !addBtn.exists {
-            // 备选:找导航栏右侧按钮
-            let navAdd = app.buttons.element(matching: .any, identifier: "nav_add")
-            if navAdd.exists { navAdd.tap() }
-        } else {
-            addBtn.tap()
-        }
-        sleep(1)
+        // 加课页入口在 manage Tab 的 manage_add_course 卡(schedule 页无固定加课按钮)
+        switchToTab("manage")
+        let addBtn = app.buttons["manage_add_course"].firstMatch
+        XCTAssertTrue(addBtn.waitForExistence(timeout: 5), "manage_add_course 未找到")
+        addBtn.tap()
+        let back = app.descendants(matching: .any)["topbar_back"].firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "加课页未打开(topbar_back 未出现)")
+        Thread.sleep(forTimeInterval: 1)
     }
 
     private func navigateToEditTableEmpty() {
         switchToTab("manage")
-        // 从 manage 页面找编辑课表按钮
-        let editTableBtn = app.staticTexts.element(matching: .any, identifier: "edit_current_table")
-        if editTableBtn.exists { editTableBtn.tap() }
-        sleep(1)
+        let editTableBtn = app.buttons["manage_edit_current"].firstMatch
+        XCTAssertTrue(editTableBtn.waitForExistence(timeout: 5), "manage_edit_current 未找到")
+        editTableBtn.tap()
+        Thread.sleep(forTimeInterval: 1)
     }
 
     private func navigateToSchoolSelect() {
         switchToTab("manage")
-        // 找导入入口 -> 选学校
-        let importBtn = app.staticTexts.element(matching: .any, identifier: "import_school_select")
-        if importBtn.exists { importBtn.tap() }
-        sleep(1)
+        let importBtn = app.buttons["manage_import"].firstMatch
+        XCTAssertTrue(importBtn.waitForExistence(timeout: 5), "manage_import 未找到")
+        importBtn.tap()
+        // ImportSheet 打开 → 点教务直连行 → (0.5s sheet 冲突延迟后) JwImportFlow 呈现
+        let jwRow = app.buttons["import_jw"].firstMatch
+        XCTAssertTrue(jwRow.waitForExistence(timeout: 5), "import_jw 行未出现")
+        jwRow.tap()
+        let search = app.descendants(matching: .any)["school_search"].firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5), "SchoolSelect 未打开(school_search 未出现)")
+        Thread.sleep(forTimeInterval: 1)
     }
 
     private func navigateToImportSheet() {
         switchToTab("manage")
-        // 找导入按钮
-        let importBtn = app.staticTexts.element(matching: .any, identifier: "import_sheet_entry")
-        if importBtn.exists { importBtn.tap() }
-        sleep(1)
+        let importBtn = app.buttons["manage_import"].firstMatch
+        XCTAssertTrue(importBtn.waitForExistence(timeout: 5), "manage_import 未找到")
+        importBtn.tap()
+        let pasteInput = app.descendants(matching: .any)["import_paste_input"].firstMatch
+        if !pasteInput.exists {
+            // 文本导入默认折叠,展开
+            let textRow = app.buttons["import_text"].firstMatch
+            XCTAssertTrue(textRow.waitForExistence(timeout: 5), "import_text 行未出现")
+            textRow.tap()
+        }
+        Thread.sleep(forTimeInterval: 1)
     }
 
     private func openFormatDetail(_ formatId: String) {
@@ -165,7 +207,7 @@ final class UIElementAuditUITests: XCTestCase {
         for btn in infoBtns {
             if btn.label.contains("info") || btn.label.contains("详情") {
                 btn.tap()
-                sleep(0.5)
+                Thread.sleep(forTimeInterval: 0.5)
                 break
             }
         }
@@ -318,14 +360,136 @@ final class UIElementAuditUITests: XCTestCase {
         captureScreenshot("A3_mine_ja_light")
     }
 
-    func testA3_Schedule_zh-Hant() {
+    func testA3_Schedule_zh_Hant() {
         launchApp(language: "zh-Hant", appearance: "light")
         captureScreenshot("A3_schedule_zh-Hant_light")
     }
 
-    func testA3_Mine_zh-Hant() {
+    // MARK: - A.4 填充数据交互与返回路径
+
+    func testA4_AddCourseNavigationBack() {
+        launchApp(language: "zh-Hans", appearance: "light")
+        switchToTab("manage")
+        let add = app.buttons["manage_add_course"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "加课入口未出现")
+        add.tap()
+        let addBack = app.descendants(matching: .any)["topbar_back"].firstMatch
+        XCTAssertTrue(addBack.waitForExistence(timeout: 5), "加课页未打开")
+        addBack.tap()
+        XCTAssertTrue(app.buttons["manage_add_course"].waitForExistence(timeout: 5), "加课页返回后未回到管理页")
+    }
+
+    func testA4_EditTableNavigationBack() {
+        launchApp(language: "zh-Hans", appearance: "light")
+        switchToTab("manage")
+        let edit = app.buttons["manage_edit_current"].firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 5), "编辑当前课表入口未出现")
+        edit.tap()
+        let editBack = app.descendants(matching: .any)["topbar_back"].firstMatch
+        XCTAssertTrue(editBack.waitForExistence(timeout: 5), "编辑课表页未打开")
+        editBack.tap()
+        XCTAssertTrue(app.buttons["manage_edit_current"].waitForExistence(timeout: 5), "编辑课表页返回后未回到管理页")
+    }
+
+    func testA4_ImportSheetNavigationBack() {
+        launchApp(language: "zh-Hans", appearance: "light")
+        switchToTab("manage")
+        let importButton = app.buttons["manage_import"].firstMatch
+        XCTAssertTrue(importButton.waitForExistence(timeout: 5), "导入入口未出现")
+        importButton.tap()
+        // ImportSheet 以 sheet 呈现; 验证其入口行可见后下滑关闭
+        XCTAssertTrue(app.buttons["import_jw"].waitForExistence(timeout: 5), "导入 sheet 未打开")
+        app.swipeDown()
+        XCTAssertTrue(app.buttons["manage_import"].waitForExistence(timeout: 5), "导入页返回后未回到管理页")
+    }
+
+    // MARK: - A.6 深色次级页矩阵(补齐 A2 只测了 4 主 tab 的缺口)
+
+    func testA6_Appearance_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToAppearance()
+        captureScreenshot("A6_appearance_dark")
+    }
+
+    func testA6_General_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToGeneralSettings()
+        captureScreenshot("A6_general_dark")
+    }
+
+    func testA6_Reminder_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToReminder()
+        captureScreenshot("A6_reminder_dark")
+    }
+
+    func testA6_Export_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToExport()
+        captureScreenshot("A6_export_dark")
+    }
+
+    func testA6_About_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToAbout()
+        captureScreenshot("A6_about_dark")
+    }
+
+    func testA6_AddCourse_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToAddCourseEmpty()
+        captureScreenshot("A6_addCourse_dark")
+    }
+
+    func testA6_EditTable_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToEditTableEmpty()
+        captureScreenshot("A6_editTable_dark")
+    }
+
+    func testA6_AllTables_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToAllTables()
+        captureScreenshot("A6_allTables_dark")
+    }
+
+    func testA6_SchoolSelect_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToSchoolSelect()
+        captureScreenshot("A6_schoolSelect_dark")
+        assertDarkScreenshot("A6_schoolSelect_dark",
+                             message: "SchoolSelect 深色主题未生效:主体仍为浅色(regression: JW sheet 主题环境丢失)")
+    }
+
+    func testA6_ImportSheet_Dark() {
+        launchApp(language: "zh-Hans", appearance: "dark")
+        navigateToImportSheet()
+        captureScreenshot("A6_importSheet_dark")
+    }
+
+    // MARK: - A.5 zh-CN/zh-TW runtime locale smoke
+
+    func testA5_Schedule_zh_CN_Runtime() {
+        // Apple runtime uses zh-Hans + zh_CN for the zh-CN locale.
+        launchApp(language: "zh-Hans", appearance: "light")
+        captureScreenshot("A5_schedule_zh-CN_light")
+    }
+
+    func testA5_Mine_zh_CN_Runtime() {
+        launchApp(language: "zh-Hans", appearance: "light")
+        switchToTab("mine")
+        captureScreenshot("A5_mine_zh-CN_light")
+    }
+
+    func testA5_Schedule_zh_TW_Runtime() {
+        launchApp(language: "zh-Hant", appearance: "light")
+        captureScreenshot("A5_schedule_zh-TW_light")
+    }
+
+    func testA5_Mine_zh_TW_Runtime() {
         launchApp(language: "zh-Hant", appearance: "light")
         switchToTab("mine")
-        captureScreenshot("A3_mine_zh-Hant_light")
+        captureScreenshot("A5_mine_zh-TW_light")
     }
+
 }
