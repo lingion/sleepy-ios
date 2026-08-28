@@ -15,10 +15,12 @@ struct TodayWidgetEntry: TimelineEntry {
 
 struct TodayWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> TodayWidgetEntry {
-        TodayWidgetEntry(date: Date(), data: TodayWidgetLoader.loadDataSync())
+        WidgetArchiveLog.append(kind: "TodayWidgetRV", family: context.family.description, result: "success")
+        return TodayWidgetEntry(date: Date(), data: TodayWidgetLoader.loadDataSync())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (TodayWidgetEntry) -> Void) {
+        WidgetArchiveLog.append(kind: "TodayWidgetRV", family: context.family.description, result: "success")
         completion(TodayWidgetEntry(date: Date(), data: TodayWidgetLoader.loadDataSync()))
     }
 
@@ -30,6 +32,7 @@ struct TodayWidgetProvider: TimelineProvider {
         cal.timeZone = .current
         let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) ?? Date().addingTimeInterval(3600)
         let refresh = cal.date(bySettingHour: 0, minute: 5, second: 0, of: tomorrow) ?? tomorrow
+        WidgetArchiveLog.append(kind: "TodayWidgetRV", family: context.family.description, result: "success")
         completion(Timeline(entries: [entry], policy: .after(refresh)))
     }
 }

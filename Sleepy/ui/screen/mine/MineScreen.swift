@@ -60,6 +60,16 @@ struct MineScreen: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("mine_refresh_widgets")
+
+                // Widget 归档诊断钩子: UI 测试 runner 无 App Group 权限读
+                // widget_archive.log, 由 app 进程(有权限)把日志内容透出到
+                // 无障碍 label 供 XCUITest 断言(仅 -SLEEPY_WIDGET_LOG_HOOK 时渲染)。
+                if ProcessInfo.processInfo.arguments.contains("-SLEEPY_WIDGET_LOG_HOOK") {
+                    Text(Self.widgetArchiveLogText())
+                        .font(.system(size: 9))
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .accessibilityIdentifier("widget_archive_log")
+                }
             }
             .padding(16)
         }
@@ -82,6 +92,13 @@ struct MineScreen: View {
                     }
             }
         }
+    }
+
+    /// 读 App Group 内 widget 归档日志(WidgetArchiveLog 的 app 侧读取端;
+    /// runner 沙箱读不了 group 容器, 此钩子代读后经 label 暴露给 XCUITest)。
+    private static func widgetArchiveLogText() -> String {
+        let url = AppGroupResolver.sharedDirectory().appendingPathComponent("widget_archive.log")
+        return (try? String(contentsOf: url, encoding: .utf8)) ?? "ARCHIVE_LOG_EMPTY"
     }
 }
 

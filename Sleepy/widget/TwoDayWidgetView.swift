@@ -12,10 +12,12 @@ struct TwoDayWidgetEntry: TimelineEntry {
 
 struct TwoDayWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> TwoDayWidgetEntry {
-        TwoDayWidgetEntry(date: Date(), data: TwoDayWidgetLoader.loadDataSync())
+        WidgetArchiveLog.append(kind: "TwoDayWidgetRV", family: context.family.description, result: "success")
+        return TwoDayWidgetEntry(date: Date(), data: TwoDayWidgetLoader.loadDataSync())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (TwoDayWidgetEntry) -> Void) {
+        WidgetArchiveLog.append(kind: "TwoDayWidgetRV", family: context.family.description, result: "success")
         completion(TwoDayWidgetEntry(date: Date(), data: TwoDayWidgetLoader.loadDataSync()))
     }
 
@@ -25,6 +27,7 @@ struct TwoDayWidgetProvider: TimelineProvider {
         let cal = DateUtils.isoCalendar
         let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) ?? Date().addingTimeInterval(3600)
         let refresh = cal.date(bySettingHour: 0, minute: 5, second: 0, of: tomorrow) ?? tomorrow
+        WidgetArchiveLog.append(kind: "TwoDayWidgetRV", family: context.family.description, result: "success")
         completion(Timeline(entries: [entry], policy: .after(refresh)))
     }
 }

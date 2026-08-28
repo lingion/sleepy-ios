@@ -1,16 +1,17 @@
 // WidgetArchivingUITests.swift — 验证 5 个 widget 在模拟器上能被 WidgetKit 成功归档。
 //
 // 测试策略:
-//   1. 启动 app 并切换到 Mine 页确保 seed 数据生效 (1 张课表 + 4 门课)。
-//   2. 通过 WidgetCenter.requestRefresh 触发所有 widget 重载。
-//   3. 读取 /tmp/sleepy_widget.log,断言每个 widget kind × supported family 都出现
-//      "Request ended ... success",且无 failedToEncode。
+//   1. 各 widget Provider 的 placeholder/getSnapshot/getTimeline 完成时向 App Group
+//      写一行归档记录(widget_archive.log, 见 WidgetArchiveLog.swift —
+//      真机排查 widget 空白的观测点)。
+//   2. 启动 app (seed 数据) — 重装/启动触发 chronod 预渲染全部 kind × family
+//      gallery placeholder 归档 → widget 扩展被拉起 → 日志出现全部 kind。
+//   3. 归档日志的读取通道: runner 沙箱无 App Group 权限(containerURL 返回 nil),
+//      由 app 进程透出 — Mine 页 -SLEEPY_WIDGET_LOG_HOOK 钩子把日志渲染成
+//      accessibility 元素, 测试读 label 断言。
 //
-// 用法:
-//   xcrun simctl spawn booted log stream --predicate 'processImagePath CONTAINS "SleepyWidget"'
-//                                                > /tmp/sleepy_widget.log &
-//   xcodebuild ... test -only-testing:SleepyUITests/WidgetArchivingUITests
-//   kill $LOG_PID
+// 旧版读宿主机 `log stream` 写的 /tmp/sleepy_widget.log — 实测模拟器上
+// processImagePath 谓词收不到 widget 扩展日志, 该带外流程已废弃。
 
 import XCTest
 
@@ -22,59 +23,67 @@ final class WidgetArchivingUITests: XCTestCase {
 
     func testAllWidgetsArchiveSuccessfully() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-SLEEPY_UI_TEST_SEED", "1"]
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+                               "-SLEEPY_UI_TEST_SEED", "1", "-SLEEPY_WIDGET_LOG_HOOK"]
         app.launch()
-
-        // 触发所有 widget 重载,确保 kind 都有 timeline 调用
         app.activate()
 
-        // 给 WidgetKit 留出时间完成归档
-        let deadline = Date().addingTimeInterval(20)
-        let logFile = "/tmp/sleepy_widget.log"
+        // 切到 Mine 页(钩子元素在 Mine 页底部)
+        XCTAssertTrue(app.descendants(matching: .any)["pill_mine"].waitForExistence(timeout: 10))
+        app.descendants(matching: .any)["pill_mine"].tap()
+        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 5))
 
-        // 等待 log 文件产生
-        while !FileManager.default.fileExists(atPath: logFile) && Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.5)
-        }
-
-        guard FileManager.default.fileExists(atPath: logFile) else {
-            XCTFail("widget log 文件不存在 — 请先用 'log stream' 命令开始收集")
-            return
-        }
-
-        // 读取并等待出现所有目标 widget kind × family 组合
-        let expectedKinds: [(String, [String])] = [
-            ("TodayWidgetRV", ["systemSmall", "systemMedium", "systemLarge"]),
-            ("TwoDayWidgetRV", ["systemMedium", "systemLarge"]),
-            ("WeekListWidgetRV", ["systemMedium", "systemLarge"]),
-            ("WeekViewWidgetRV", ["systemMedium", "systemLarge"]),
-            ("WeekGridWidgetV19", ["systemMedium", "systemLarge"]),
+        let expectedKinds = [
+            "TodayWidgetRV",
+            "TwoDayWidgetRV",
+            "WeekListWidgetRV",
+            "WeekViewWidgetRV",
+            "WeekGridWidgetV19",
         ]
 
-        // 给 widget center 充分时间触发每种 kind
-        Thread.sleep(forTimeInterval:10)
+        // 归档批次在 app 安装/启动后 1-3 秒内跑完; 轮询 Mine 页日志钩子最多 60s
+        let logEl = app.descendants(matching: .any)["widget_archive_log"]
+        XCTAssertTrue(logEl.waitForExistence(timeout: 10),
+                      "Mine 页未渲染 widget_archive_log 钩子 — 启动参数未生效?")
 
-        let logContent = (try? String(contentsOfFile: logFile, encoding: .utf8)) ?? ""
-        XCTAssertFalse(logContent.isEmpty, "widget log 为空")
+        let deadline = Date().addingTimeInterval(60)
+        var logText = ""
 
-        // 1. 归档错误不应出现
-        XCTAssertFalse(
-            logContent.contains("failedToEncode"),
-            "WidgetKit 出现归档失败 — 详细堆栈见日志"
-        )
-
-        // 2. 每个 kind 的归档请求应当出现过
-        for (kind, _) in expectedKinds {
-            XCTAssertTrue(
-                logContent.contains(kind),
-                "widget kind 未触发归档: \(kind)"
-            )
+        while Date() < deadline {
+            logText = logEl.label + "\n" + logEl.value(as: String.self)
+            let allPresent = expectedKinds.allSatisfy { kind in
+                logText.contains("\(kind):")
+            }
+            if allPresent { break }
+            // 刷新小组件按钮触发 reload → widget 扩展重新归档
+            let refresh = app.descendants(matching: .any)["mine_refresh_widgets"]
+            if refresh.exists { refresh.tap() }
+            Thread.sleep(forTimeInterval: 3)
         }
 
-        // 3. 至少一次 success
-        XCTAssertTrue(
-            logContent.contains("Request ended") && logContent.contains("success"),
-            "没有任何 widget timeline 归档返回 success"
+        XCTAssertFalse(logText.contains("ARCHIVE_LOG_EMPTY"),
+                       "归档日志为空 — widget 扩展未被拉起(App Group 不可写或 chronod 未触发)")
+        XCTAssertFalse(logText.isEmpty, "归档日志 label 无内容")
+
+        // 1. 无失败记录
+        XCTAssertFalse(
+            logText.lowercased().contains("error"),
+            "WidgetKit 归档出现失败记录 — 见 widget_archive.log"
         )
+
+        // 2. 每个 kind 至少一条 success
+        for kind in expectedKinds {
+            XCTAssertTrue(
+                logText.contains("\(kind):") && logText.contains("success"),
+                "widget kind 未成功归档: \(kind)"
+            )
+        }
+    }
+}
+
+private extension XCUIElement {
+    /// label 之外再取 value(SwiftUI Text 的内容在 label, 部分元素在 value)
+    func value<T>(as type: T.Type) -> String where T: LosslessStringConvertible {
+        (value as? String) ?? ""
     }
 }

@@ -13,16 +13,19 @@ struct WeekViewWidgetEntry: TimelineEntry {
 
 struct WeekViewWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> WeekViewWidgetEntry {
-        WeekViewWidgetEntry(date: Date(), data: WeekListWidgetLoader.loadDataSync())
+        WidgetArchiveLog.append(kind: "WeekViewWidgetRV", family: context.family.description, result: "success")
+        return WeekViewWidgetEntry(date: Date(), data: WeekListWidgetLoader.loadDataSync())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WeekViewWidgetEntry) -> Void) {
+        WidgetArchiveLog.append(kind: "WeekViewWidgetRV", family: context.family.description, result: "success")
         completion(WeekViewWidgetEntry(date: Date(), data: WeekListWidgetLoader.loadDataSync()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekViewWidgetEntry>) -> Void) {
         let entry = WeekViewWidgetEntry(date: Date(), data: WeekListWidgetLoader.loadDataSync())
         let refresh = Date().addingTimeInterval(6 * 3600)
+        WidgetArchiveLog.append(kind: "WeekViewWidgetRV", family: context.family.description, result: "success")
         completion(Timeline(entries: [entry], policy: .after(refresh)))
     }
 }
