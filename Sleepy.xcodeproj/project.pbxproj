@@ -144,6 +144,7 @@
 		E2CD16EE311B59D8B0B6CB74 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60056452C13B6C1D48E232C7 /* L10n.swift */; };
 		E2D0FD72A4735BD6B9451AB0 /* JwNewZfParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C1D8BD48F149CE16160CE84 /* JwNewZfParser.swift */; };
 		E3A1781977A55E7FE5CC8BA1 /* ScheduleExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEAA495471D6CEA3AECFD615 /* ScheduleExporter.swift */; };
+		E9F9AAF2D8687E4BD8631507 /* DeepLinkUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4DE50D458660EA5AFF52F87 /* DeepLinkUITests.swift */; };
 		EC2F5B2FFEEF908131D0D88E /* WidgetLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883A8F99C25404524386B89E /* WidgetLogicTests.swift */; };
 		EC71988CF2185B0F043DCA31 /* ScheduleScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 449BD8236BF9A935B646F5F3 /* ScheduleScreen.swift */; };
 		ED1304B67D86E2778FC7A12F /* CourseTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1335D448B44CCFBFCDA813D3 /* CourseTableView.swift */; };
@@ -285,6 +286,7 @@
 		9D3AA9F8B115E2B804EBDA31 /* CourseDao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDao.swift; sourceTree = "<group>"; };
 		A1D79D23433FE386230D5AB1 /* DateUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtils.swift; sourceTree = "<group>"; };
 		A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroupResolver.swift; sourceTree = "<group>"; };
+		A4DE50D458660EA5AFF52F87 /* DeepLinkUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkUITests.swift; sourceTree = "<group>"; };
 		A636CB3A1BF94C7389163283 /* AddCourseScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCourseScreen.swift; sourceTree = "<group>"; };
 		A7DC9AA7E9C052C705251AA6 /* ScheduleParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleParser.swift; sourceTree = "<group>"; };
 		AAA25C6698B82B80FF02AB1B /* SegmentedSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedSwitcher.swift; sourceTree = "<group>"; };
@@ -629,6 +631,7 @@
 			isa = PBXGroup;
 			children = (
 				64BF7FAB38EE44A780C793BD /* CourseEditorUITests.swift */,
+				A4DE50D458660EA5AFF52F87 /* DeepLinkUITests.swift */,
 				0718B20F0D0233CEBDC569F8 /* ImportAuditUITests.swift */,
 				0A34060A11A2074B2B02C7E1 /* Info.plist */,
 				C2F2A17F12A54A7F6392BA2C /* ManageImportUITests.swift */,
@@ -897,6 +900,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				658D875BFD9C89E43F647582 /* CourseEditorUITests.swift in Sources */,
+				E9F9AAF2D8687E4BD8631507 /* DeepLinkUITests.swift in Sources */,
 				0A85C1402956ED7AA81EE29B /* ImportAuditUITests.swift in Sources */,
 				5BB9CEB5499F051A3EE0F4D2 /* ManageImportUITests.swift in Sources */,
 				5A08679A20DB96F3A56D5DBB /* MineSettingsUITests.swift in Sources */,
