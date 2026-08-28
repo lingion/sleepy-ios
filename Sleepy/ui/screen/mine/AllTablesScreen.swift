@@ -20,13 +20,9 @@ struct AllTablesScreen: View {
                     Spacer().frame(height: 4)
                     ForEach(state.tables) { table in
                         let isCurrent = table.id == state.selectedTableId
-                        Button {
-                            if !isCurrent {
-                                viewModel.selectTable(table.id)
-                                onBack()
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
+                        // ← Kotlin Row + noRippleClickable: 行用 tap 手势而非 Button,
+                        //   否则嵌套在内层 Button(齿轮)的点击会冒泡给行, 齿轮永远打不开编辑页
+                        HStack(spacing: 12) {
                                 if isCurrent {
                                     Image(systemName: "checkmark.circle")
                                         .font(.system(size: 24))
@@ -62,8 +58,13 @@ struct AllTablesScreen: View {
                             .padding(14)
                             .background(isCurrent ? colors.primaryContainer : colors.surfaceContainer)
                             .cornerRadius(SleepyShapes.large)
-                        }
-                        .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if !isCurrent {
+                                    viewModel.selectTable(table.id)
+                                    onBack()
+                                }
+                            }
                     }
 
                     // 新建按钮(FilledTonalButton)
