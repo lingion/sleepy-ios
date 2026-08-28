@@ -409,48 +409,56 @@ final class UIElementAuditUITests: XCTestCase {
         launchApp(language: "zh-Hans", appearance: "dark")
         navigateToAppearance()
         captureScreenshot("A6_appearance_dark")
+        assertDarkScreenshot("A6_appearance_dark", message: "Appearance 深色主题未生效")
     }
 
     func testA6_General_Dark() {
         launchApp(language: "zh-Hans", appearance: "dark")
         navigateToGeneralSettings()
         captureScreenshot("A6_general_dark")
+        assertDarkScreenshot("A6_general_dark", message: "General 深色主题未生效")
     }
 
     func testA6_Reminder_Dark() {
         launchApp(language: "zh-Hans", appearance: "dark")
         navigateToReminder()
         captureScreenshot("A6_reminder_dark")
+        assertDarkScreenshot("A6_reminder_dark", message: "Reminder 深色主题未生效")
     }
 
     func testA6_Export_Dark() {
         launchApp(language: "zh-Hans", appearance: "dark")
         navigateToExport()
         captureScreenshot("A6_export_dark")
+        assertDarkScreenshot("A6_export_dark", message: "Export 深色主题未生效")
     }
 
     func testA6_About_Dark() {
         launchApp(language: "zh-Hans", appearance: "dark")
         navigateToAbout()
         captureScreenshot("A6_about_dark")
+        assertDarkScreenshot("A6_about_dark", message: "About 深色主题未生效")
     }
 
     func testA6_AddCourse_Dark() {
         launchApp(language: "zh-Hans", appearance: "dark")
         navigateToAddCourseEmpty()
         captureScreenshot("A6_addCourse_dark")
+        assertDarkScreenshot("A6_addCourse_dark", message: "AddCourse 深色主题未生效")
     }
 
     func testA6_EditTable_Dark() {
         launchApp(language: "zh-Hans", appearance: "dark")
         navigateToEditTableEmpty()
         captureScreenshot("A6_editTable_dark")
+        assertDarkScreenshot("A6_editTable_dark", message: "EditTable 深色主题未生效")
     }
 
     func testA6_AllTables_Dark() {
         launchApp(language: "zh-Hans", appearance: "dark")
         navigateToAllTables()
         captureScreenshot("A6_allTables_dark")
+        assertDarkScreenshot("A6_allTables_dark", message: "AllTables 深色主题未生效")
     }
 
     func testA6_SchoolSelect_Dark() {
@@ -465,6 +473,7 @@ final class UIElementAuditUITests: XCTestCase {
         launchApp(language: "zh-Hans", appearance: "dark")
         navigateToImportSheet()
         captureScreenshot("A6_importSheet_dark")
+        assertDarkScreenshot("A6_importSheet_dark", message: "ImportSheet 深色主题未生效")
     }
 
     // MARK: - A.5 zh-CN/zh-TW runtime locale smoke

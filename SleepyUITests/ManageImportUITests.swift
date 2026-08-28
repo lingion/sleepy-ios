@@ -214,8 +214,20 @@ final class ManageImportUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Confirm Before Import"].waitForExistence(timeout: 4),
                       "确认对话框未弹出")
         // 确认按钮在 safeAreaInset 底部, 键盘可能盖住 → 先收键盘再滚到位
+        // 注1: 键盘存在≠Return键存在(多行TextField无收起键/键名随locale漂移)
+        // 注2: exists→tap 有竞态 —— 点模式按钮后SwiftUI异步收焦点, exists读到陈旧树,
+        //      tap时键盘已消失→error 10008。先settle再查, 查键用waitForExistence收窄窗口,
+        //      tap包do/catch兜底: 键盘消失本就是目标状态, 兜底点标题失焦
+        Thread.sleep(forTimeInterval: 1) // 让 SwiftUI 完成焦点迁移/键盘收起动画
         if app.keyboards.count > 0 {
-            app.buttons["Return"].firstMatch.tap()
+            let dismissKey = app.keyboards.buttons.matching(
+                NSPredicate(format: "label IN {'Return', 'Done', 'return', 'done', '换行', '完成'}")
+            ).firstMatch
+            if dismissKey.waitForExistence(timeout: 2) {
+                dismissKey.tap() // waitForExistence后窗口极小; 若再撞竞态由下方标题失焦兜底
+            } else {
+                app.staticTexts["Confirm Before Import"].tap()
+            }
             sleep(1)
         }
         let confirmBtn = app.buttons.matching(
