@@ -32,18 +32,20 @@ enum SleepyUITestSeeder {
         guard table.id > 0 else { return }
 
         // 4 门课: 周一1-2 高数 / 周二3-4 英语 / 周三5-6 物理 / 周五1-2 体育
-        let courses: [(Int, Int, Int, String, String, String)] = [
-            (1, 1, 2, "高等数学", "张老师", "教1-101"),
-            (2, 3, 4, "大学英语", "李老师", "外楼202"),
-            (3, 5, 6, "大学物理", "王老师", "理楼305"),
-            (5, 1, 2, "体育", "赵老师", "操场"),
+        // ★ 固定 id 1..4: sleepy://course/N 深链测试需确定性定位(自增 id 跨种子漂移)
+        let courses: [(Int64, Int, Int, Int, String, String, String)] = [
+            (1, 1, 1, 2, "高等数学", "张老师", "教1-101"),
+            (2, 2, 3, 4, "大学英语", "李老师", "外楼202"),
+            (3, 3, 5, 6, "大学物理", "王老师", "理楼305"),
+            (4, 5, 1, 2, "体育", "赵老师", "操场"),
         ]
-        for (day, sn, en, name, teacher, room) in courses {
+        for (id, day, sn, en, name, teacher, room) in courses {
             var c = CourseEntity(
                 groupId: UUID().uuidString, tableId: table.id,
                 courseName: name, teacher: teacher, room: room,
                 day: day, startNode: sn, step: en - sn + 1,
                 startWeek: 1, endWeek: 20, type: 0, color: "#FF6750A4")
+            c.id = id
             c.note = ""
             _ = try? database.courseDao.insert(c)
         }
