@@ -230,42 +230,23 @@ final class MineSettingsUITests: XCTestCase {
     // MARK: Reminder — 总开关 + 子开关 + 时间行
 
     func testReminderScreenToggles() {
+        // ★ Reminder 深度场景(权限允许/拒绝/时间保存取消/子卡显隐)已迁至
+        //   ReminderPermissionUITests(幂等+identifier 版)。此处保留冒烟:
+        //   页可达 + master 幂等开 + 操作后不崩。
         app.descendants(matching: .any)["mine_reminder"].tap()
         XCTAssertTrue(app.staticTexts["Reminders"].waitForExistence(timeout: 5))
 
-        // 总开关行(Enable Reminders)
-        let masterRow = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS 'Enable Reminders'")).firstMatch
-        XCTAssertTrue(masterRow.waitForExistence(timeout: 3))
-        // master 默认关 → 子卡隐藏;开 master(第一个 switch)后子卡渲染
-        let masterSwitch = app.switches.firstMatch
+        let masterSwitch = app.descendants(matching: .any)["reminder_master_toggle"]
         XCTAssertTrue(masterSwitch.waitForExistence(timeout: 3), "总开关应在")
-        masterSwitch.tap()
-        sleep(1)
-        // 通知权限系统弹窗可能挡屏 — 自动点"Don't Allow"/"不允许"(springboard alert)
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let denyBtn = springboard.buttons.matching(
-            NSPredicate(format: "label CONTAINS 'Don' OR label CONTAINS '不允'")).firstMatch
-        if denyBtn.waitForExistence(timeout: 2) { denyBtn.tap() }
-        XCTAssertTrue(app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS 'Daily Reminder'")).firstMatch
-            .waitForExistence(timeout: 4), "开 master 后 Daily 子卡应显示")
-
-        // 点 Daily 开关(第二个 switch)
-        if app.switches.count > 1 { app.switches.element(boundBy: 1).tap() }
-        // 展开后: Reminder Time 行出现
-        let timeRow = app.staticTexts["Reminder Time"].firstMatch
-        if timeRow.waitForExistence(timeout: 3) {
-            timeRow.tap()
-            // 时间选择 sheet: Cancel / OK 按钮
-            let cancelBtn = app.buttons["Cancel"].firstMatch
-            if cancelBtn.waitForExistence(timeout: 3) {
-                cancelBtn.tap()
-            }
+        if (masterSwitch.value as? String) != "1" {
+            masterSwitch.tap()
+            // 若 notDetermined 会弹权限窗 — 点 Allow 使开关生效(幂等)
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            let allowBtn = springboard.alerts.firstMatch.buttons.matching(
+                NSPredicate(format: "label == 'Allow' OR label == '好'")).firstMatch
+            if allowBtn.waitForExistence(timeout: 4) { allowBtn.tap() }
         }
-        // 关回去 daily + master
-        if app.switches.count > 1 { app.switches.element(boundBy: 1).tap() }
-        app.switches.firstMatch.tap()
+        XCTAssertTrue((masterSwitch.value as? String) == "1", "master 应为开")
         XCTAssertTrue(app.staticTexts["Reminders"].exists, "提醒页操作后不崩")
     }
 
