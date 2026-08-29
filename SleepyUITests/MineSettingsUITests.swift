@@ -38,6 +38,26 @@ final class MineSettingsUITests: XCTestCase {
 
     // MARK: All Schedules — 切表 / 编辑入口 / 新建按钮
 
+    /// a.v.1.0.41 热区回归: 点行内"空白区"(右端 Spacer 区, 离图标/文字最远)也应触发。
+    /// 用户报障 = 点行色块不响应只有图标/文字才触发(SleepyButtonStyle 修复)。
+    /// 代表行 2 条: mine_all_tables(普通导航) + mine_export(第二行, 验证同卡多行互不串扰)
+    func testAllTablesRowBlankAreaTriggersNav() {
+        let row = app.descendants(matching: .any)["mine_all_tables"]
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        // dx=0.92 → 行右端 8% 处: 文字在左侧, 此处为纯空白色块区
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["All Schedules"].waitForExistence(timeout: 5),
+                      "点'所有课表'行右端空白区应跳转(SleepyButtonStyle 整行热区)")
+    }
+
+    func testExportRowBlankAreaTriggersNav() {
+        let row = app.descendants(matching: .any)["mine_export"]
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["Export Schedule"].waitForExistence(timeout: 5),
+                      "点'导出'行右端空白区应跳转到导出页")
+    }
+
     func testAllTablesSwitchAndEdit() {
         app.descendants(matching: .any)["mine_all_tables"].tap()
         XCTAssertTrue(app.staticTexts["All Schedules"].waitForExistence(timeout: 5))
