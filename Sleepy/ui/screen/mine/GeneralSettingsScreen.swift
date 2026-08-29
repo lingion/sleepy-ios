@@ -291,7 +291,7 @@ private struct LanguageSection: View {
                         .padding(.vertical, 10)
                         .padding(.horizontal, 4)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                     if code != languages.last!.0 { SubDivider() }
                 }
             }

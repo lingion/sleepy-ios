@@ -100,7 +100,7 @@ struct EditTableScreen: View {
                             .padding(16)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("edit_table_slots_header")
 
                         if timeSlotsExpanded {
@@ -136,7 +136,7 @@ struct EditTableScreen: View {
                         .background(colors.primary)
                         .cornerRadius(SleepyShapes.large)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                     .accessibilityIdentifier("edit_table_save")
 
                     // 删除(新建未保存的表不显示)
@@ -153,7 +153,7 @@ struct EditTableScreen: View {
                             .background(colors.errorContainer)
                             .cornerRadius(SleepyShapes.large)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("edit_table_delete")
                     }
 

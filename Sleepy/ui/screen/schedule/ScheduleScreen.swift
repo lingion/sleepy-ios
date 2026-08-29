@@ -192,7 +192,7 @@ private struct ScheduleTopBar: View {
                                            : colors.primaryContainer.opacity(SleepyTheme.Alpha.inactive))
                     .cornerRadius(SleepyShapes.medium)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
             .accessibilityIdentifier("week_label")   // ← G5: 跳周菜单锚点
             .sheet(isPresented: $menuOpen) {
                 // 标签式选周(← Android FlowRow 280dp 弹层)
@@ -258,7 +258,7 @@ private struct WeekNavButton: View {
                 .clipShape(Circle())
                 .padding(6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         // ← G5: 周导航箭头锚点(chevron.left → week_prev / chevron.right → week_next)
         .accessibilityIdentifier(icon.contains("left") ? "week_prev" : "week_next")
     }
@@ -288,7 +288,7 @@ private struct NoCourseState: View {
                     .background(colors.primary)
                     .cornerRadius(SleepyShapes.large)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
             Button(action: onImport) {
                 Text(L10n.format("schedule_go_manage"))
                     .font(.system(size: 14, weight: .medium))
@@ -298,7 +298,7 @@ private struct NoCourseState: View {
                     .background(colors.secondaryContainer)
                     .cornerRadius(SleepyShapes.large)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 24)
@@ -330,7 +330,7 @@ private struct EmptyState: View {
                     .background(colors.primary)
                     .cornerRadius(SleepyShapes.large)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
             Button(action: onManualAdd) {
                 Text(L10n.format("schedule_manual_first"))
                     .font(.system(size: 14, weight: .medium))
@@ -340,7 +340,7 @@ private struct EmptyState: View {
                     .background(colors.secondaryContainer)
                     .cornerRadius(SleepyShapes.large)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 24)

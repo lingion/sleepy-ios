@@ -52,7 +52,7 @@ struct AllTablesScreen: View {
                                         .font(.system(size: 20))
                                         .foregroundColor(colors.onSurfaceVariant)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(SleepyButtonStyle())
                                 .accessibilityIdentifier("table_edit_\(table.id)")
                             }
                             .padding(14)
@@ -80,7 +80,7 @@ struct AllTablesScreen: View {
                         .background(colors.secondaryContainer)
                         .cornerRadius(SleepyShapes.large)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                     Spacer().frame(height: 16)
                 }
                 .padding(.horizontal, 16)
@@ -103,7 +103,7 @@ struct SettingsTopBar: View {
                     .font(.system(size: 20, weight: .medium))
                     .foregroundColor(colors.onBackground)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
             .accessibilityIdentifier("topbar_back")
             Text(title)
                 .font(.system(size: 20, weight: .medium))

@@ -140,7 +140,7 @@ private struct BreakGroupSection: View {
                         .font(.system(size: 18))
                         .foregroundColor(colors.onSurfaceVariant)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
             }
 
             // 位置卡片网格(每行 8 个)
@@ -196,7 +196,7 @@ private struct PositionCard: View {
                 .foregroundColor(fg)
                 .frame(maxWidth: .infinity, minHeight: 36)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .background(bg)
         .cornerRadius(SleepyShapes.small)
     }
@@ -318,7 +318,7 @@ private struct AddBreakChip: View {
             .background(color.opacity(SleepyTheme.Alpha.tinted))
             .cornerRadius(8)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier(id)
         .frame(maxWidth: .infinity)
     }

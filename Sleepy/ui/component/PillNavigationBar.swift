@@ -64,7 +64,7 @@ private struct PillNavItem: View {
             }
             .padding(.vertical, 4)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .frame(maxWidth: .infinity)
         // ← G5: UI 测试 stable 锚点(每个 tab 一个,跨 locale 不变)
         .accessibilityIdentifier("pill_\(id)")

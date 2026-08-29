@@ -134,7 +134,7 @@ private struct ManageCard: View {
             }
             .padding(16)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier(id)
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyShapes.large)

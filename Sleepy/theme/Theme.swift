@@ -191,6 +191,20 @@ enum SleepyShapes {
     static let extraLarge = CGFloat(24)
 }
 
+// MARK: - 全 app 统一按钮样式 ← a.v.1.0.41 按钮热区修复
+
+/// PlainButtonStyle 的 hit-test 只认 label 前景内容(图标/文字 glyph),
+/// padding+background 色块不参与命中 → 用户点色块无反应, 必须点中图标/文字。
+/// Android Material 按钮整个 View bounds 可点; SleepyButtonStyle 用
+/// contentShape(Rectangle()) 恢复该语义, 全 app Button 一律用它, 禁 .plain。
+struct SleepyButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.7 : 1.0)
+    }
+}
+
 // MARK: - 扩展字号 ← SleepyTextStyle(switchable.html 额外尺寸 9/10/13/15)
 
 enum SleepyTextStyle {

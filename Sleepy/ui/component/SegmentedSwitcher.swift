@@ -38,7 +38,7 @@ struct SegmentedSwitcher<T: Hashable>: View {
                             }
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
                 .accessibilityIdentifier("seg_\(label)")
             }
         }

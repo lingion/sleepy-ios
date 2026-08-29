@@ -58,7 +58,7 @@ struct MineScreen: View {
                     .background(colors.secondaryContainer)
                     .cornerRadius(SleepyShapes.large)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
                 .accessibilityIdentifier("mine_refresh_widgets")
 
                 // Widget 归档诊断钩子: UI 测试 runner 无 App Group 权限读
@@ -176,7 +176,7 @@ private struct SettingsItem: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier(identifier)
     }
 }

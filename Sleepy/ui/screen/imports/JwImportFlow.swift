@@ -132,7 +132,7 @@ struct JwImportFlow: View {
                     }
                     .foregroundColor(colors.primary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
             }
             .padding(20)
         }

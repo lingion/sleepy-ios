@@ -272,7 +272,7 @@ private struct SchoolRow: View {
             .padding(.vertical, 14)
             .padding(.horizontal, 4)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
     }
 }
 
@@ -296,6 +296,7 @@ private struct UrlDirectRow: View {
                     Text(L10n.format("url_direct_login"))
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(colors.primary)
+                        .accessibilityIdentifier("url_direct_row")
                     Text(url)
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
@@ -315,7 +316,7 @@ private struct UrlDirectRow: View {
             .padding(.vertical, 14)
             .padding(.horizontal, 4)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
     }
 }
 

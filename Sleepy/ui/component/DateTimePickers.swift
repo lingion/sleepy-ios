@@ -41,7 +41,7 @@ struct DatePickerField: View {
                     .font(.system(size: 24))
                     .foregroundColor(colors.primary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
         }
         .sheet(isPresented: $showPicker) {
             VStack(spacing: 0) {
@@ -120,7 +120,7 @@ struct TimePickerField: View {
                     .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .sheet(isPresented: $showPicker) {
             VStack(spacing: 0) {
                 Text(L10n.format("select_time"))

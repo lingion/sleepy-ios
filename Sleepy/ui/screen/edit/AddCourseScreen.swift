@@ -104,7 +104,7 @@ struct AddCourseScreen: View {
                         .background(colors.secondaryContainer)
                         .cornerRadius(SleepyShapes.large)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                     .accessibilityIdentifier("course_add_slot")
 
                     // 保存
@@ -120,7 +120,7 @@ struct AddCourseScreen: View {
                         .background(colors.primary)
                         .cornerRadius(SleepyShapes.large)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                     .disabled(!canSave)
                     .accessibilityIdentifier("course_save")
 
@@ -138,7 +138,7 @@ struct AddCourseScreen: View {
                             .background(colors.errorContainer)
                             .cornerRadius(SleepyShapes.large)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("course_delete")
                     }
 
@@ -519,7 +519,7 @@ private struct MeetingBlockEditor: View {
                         Image(systemName: "xmark")
                             .foregroundColor(colors.onSurfaceVariant)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                 }
             }
 
@@ -597,7 +597,7 @@ private struct ModePicker: View {
                             }
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
             }
         }
         .frame(maxWidth: .infinity)
@@ -634,7 +634,7 @@ private struct MultiDayPicker: View {
                                         .strokeBorder(selected ? Color.clear : colors.outlineVariant, lineWidth: 1)
                                 )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SleepyButtonStyle())
                     }
                     if row.count < 4 {
                         ForEach(0..<(4 - row.count), id: \.self) { _ in Spacer() }
@@ -706,7 +706,7 @@ private struct AutoColorDot: View {
                     .foregroundColor(colors.onSurfaceVariant)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
     }
 }
 
@@ -732,7 +732,7 @@ private struct CustomColorDot: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
     }
 }
 

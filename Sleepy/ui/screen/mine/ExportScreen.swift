@@ -184,7 +184,7 @@ private struct ExportItem: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 16)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .modifier(OptionalIdentifier(id: id))
     }
 }

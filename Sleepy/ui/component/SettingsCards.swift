@@ -57,7 +57,7 @@ struct SettingsCard<Content: View>: View {
                         .rotationEffect(.degrees(expanded ? 180 : 0))
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
             .accessibilityIdentifier("card_\(title)")
             // 展开动画: 高度+淡入同拍
             if expanded {
@@ -104,7 +104,7 @@ struct DisplayModeOption: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier(aid)
         .padding(.vertical, 10)
         .padding(.horizontal, 4)

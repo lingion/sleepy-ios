@@ -144,7 +144,7 @@ struct ImportSheet: View {
                                 .background(colors.primary)
                                 .cornerRadius(SleepyShapes.large)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("import_preview_btn")
                         .disabled(isLoading || inputText.isEmpty)
                     }
@@ -354,7 +354,7 @@ private struct ImportMethodRow: View {
             .padding(.horizontal, 4)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier(id)
     }
 }
@@ -386,7 +386,7 @@ private struct FormatRow: View {
                         .font(.system(size: 14))
                         .foregroundColor(colors.primary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
                 .accessibilityLabel(L10n.format("format_detail_content_desc"))
             }
         }
@@ -475,7 +475,7 @@ private struct FormatDetailDialog: View {
                                     .strokeBorder(colors.onPrimaryContainer.opacity(0.4), lineWidth: 1)
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SleepyButtonStyle())
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -624,7 +624,7 @@ private struct ImportPreviewDialog: View {
                                         .strokeBorder(colors.error, lineWidth: 1)
                                 )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SleepyButtonStyle())
                     }
                     Button(action: onDismiss) {
                         Text(L10n.format("cancel"))
@@ -632,7 +632,7 @@ private struct ImportPreviewDialog: View {
                             .foregroundColor(colors.onSurfaceVariant)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                 }
             }
             .padding(20)
@@ -666,7 +666,7 @@ private struct PrimaryDialogButton: View {
                 .background(colors.primary)
                 .cornerRadius(SleepyShapes.medium)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
     }
 }
 
@@ -777,14 +777,14 @@ private struct ImportConfirmDialog: View {
                         .font(.system(size: 14))
                         .foregroundColor(colors.onSurfaceVariant)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
                 Spacer()
                 Button(action: validateAndConfirm) {
                     Text(L10n.format("import_confirm"))
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colors.onPrimary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 10)

@@ -216,7 +216,7 @@ private struct CourseOverlayCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("gridcell_\(course.id)")
         .padding(4)
         .background(bg)
@@ -530,7 +530,7 @@ private struct LessonRow: View {
             .background(bg)
             .cornerRadius(SleepyShapes.medium)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("lesson_\(course.id)")   // ← G5: 详情锚点
     }
 }

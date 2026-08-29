@@ -27,7 +27,7 @@ struct CourseDetailSheet: View {
                         Image(systemName: "xmark")
                             .foregroundColor(colors.onSurfaceVariant)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                     .accessibilityIdentifier("detail_close")
                 }
                 .padding(.horizontal, 20)
@@ -69,7 +69,7 @@ struct CourseDetailSheet: View {
                                 .background(colors.primary)
                                 .cornerRadius(SleepyShapes.large)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("detail_edit")
                     }
                 }

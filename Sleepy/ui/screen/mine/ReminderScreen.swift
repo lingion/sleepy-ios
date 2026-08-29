@@ -113,7 +113,7 @@ struct ReminderScreen: View {
                     .padding(.horizontal, 4)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
                 .accessibilityIdentifier("reminder_time_row")
                 SubDivider()
                 Text(L10n.format("reminder_daily_preview"))

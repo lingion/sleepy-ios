@@ -83,7 +83,7 @@ struct AppearanceScreen: View {
                                         .background(sel ? colors.primary : colors.surfaceContainer)
                                         .cornerRadius(SleepyShapes.medium)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(SleepyButtonStyle())
                                 .accessibilityIdentifier("theme_mode_\(mode)")
                             }
                         }
@@ -139,7 +139,7 @@ private struct SystemThemeCard: View {
             .background(selected ? colors.primaryContainer : colors.surfaceContainer)
             .cornerRadius(SleepyShapes.large)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("theme_system_card")
     }
 }
@@ -178,7 +178,7 @@ private struct PresetThemeCard: View {
             .background(selected ? colors.primaryContainer : colors.surfaceContainer)
             .cornerRadius(SleepyShapes.large)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("theme_preset_\(preset.key)")
     }
 }

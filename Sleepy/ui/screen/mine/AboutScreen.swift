@@ -104,7 +104,7 @@ struct AboutScreen: View {
                                 .background(colors.primary)
                                 .cornerRadius(SleepyShapes.large)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SleepyButtonStyle())
                             .disabled(isChecking)
                             .accessibilityIdentifier("about_check_update")
                         }
@@ -132,7 +132,7 @@ struct AboutScreen: View {
                                     .font(.system(size: 20))
                                     .foregroundColor(colors.primary)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SleepyButtonStyle())
                         }
                     }
 
@@ -154,7 +154,7 @@ struct AboutScreen: View {
                                         .foregroundColor(colors.primary)
                                         .underline()
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(SleepyButtonStyle())
                             }
                             Spacer()
                             Button {
@@ -164,7 +164,7 @@ struct AboutScreen: View {
                                     .font(.system(size: 20))
                                     .foregroundColor(colors.primary)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SleepyButtonStyle())
                         }
                     }
 
@@ -364,7 +364,7 @@ private struct UpdateChangelogDialog: View {
                     EmptyView()
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
         }
         .padding(20)
         .background(colors.surface)
