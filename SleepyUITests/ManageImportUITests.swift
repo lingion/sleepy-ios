@@ -126,9 +126,10 @@ final class ManageImportUITests: XCTestCase {
         let previewBtn = app.descendants(matching: .any)["import_preview_btn"]
         XCTAssertTrue(previewBtn.waitForExistence(timeout: 3))
 
-        // TextField 在 Preview 上方约 120pt，使用相对坐标
-        // dy=-3 对应预览按钮上方约 100pt 位置(约是 TextField 区域)
-        let textFieldCenter = previewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -3.5))
+        // TextField 在 Preview 上方, 使用相对坐标
+        // 按钮高 48(2026-08-29 从 44 调齐 Android regularHeight) + VStack spacing 8:
+        // dy=-1.7 ≈ 82pt 上方 = TextField 下半区中心, 保证命中输入框
+        let textFieldCenter = previewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -1.7))
         textFieldCenter.tap()
         sleep(1)
 

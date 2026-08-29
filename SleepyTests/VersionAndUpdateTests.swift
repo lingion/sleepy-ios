@@ -81,6 +81,10 @@ final class AppPrefsTests: XCTestCase {
         super.setUp()
         suite = UserDefaults(suiteName: "test-sleepy-prefs-\(UUID().uuidString)")
         prefs = AppPrefs(defaults: suite)
+        // getLanguage() 无保存值时回退 AppleLanguages ← AppPrefs 首启推断语义。
+        // 模拟器宿主语言可能是 en/es 等, 显式置中文环境保证 testDefaultValues 的
+        // "zh-CN" 默认值断言稳定(不依赖跑测试的机器语言)。
+        suite.set(["zh-CN"], forKey: "AppleLanguages")
     }
 
     override func tearDown() {
