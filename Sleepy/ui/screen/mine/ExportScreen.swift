@@ -42,7 +42,8 @@ struct ExportScreen: View {
                         VStack(spacing: 0) {
                             ExportItem(icon: "curlybraces",
                                        title: L10n.format("export_json_title"),
-                                       subtitle: L10n.format("export_json_subtitle")) {
+                                       subtitle: L10n.format("export_json_subtitle"),
+                                       id: "export_json_row") {
                                 exportFile(table: table, courses: courses,
                                            ext: "json", mime: "application/json",
                                            content: ScheduleExporter.exportWakeUpJson(table, courses))
@@ -50,7 +51,8 @@ struct ExportScreen: View {
                             RowDivider()
                             ExportItem(icon: "square.and.arrow.up",
                                        title: L10n.format("export_share_title"),
-                                       subtitle: L10n.format("export_share_subtitle")) {
+                                       subtitle: L10n.format("export_share_subtitle"),
+                                       id: "export_share_row") {
                                 // ← shareText: 直接分享文本
                                 shareSheet = ShareItem(text: ScheduleExporter.exportWakeUpShareText(table, courses),
                                                        subject: table.name, url: nil)
@@ -59,7 +61,8 @@ struct ExportScreen: View {
                             RowDivider()
                             ExportItem(icon: "calendar",
                                        title: L10n.format("export_ics_title"),
-                                       subtitle: L10n.format("export_ics_subtitle")) {
+                                       subtitle: L10n.format("export_ics_subtitle"),
+                                       id: "export_ics_row") {
                                 exportFile(table: table, courses: courses,
                                            ext: "ics", mime: "text/calendar",
                                            content: ScheduleExporter.exportIcs(table, courses))
@@ -82,6 +85,7 @@ struct ExportScreen: View {
             if let msg = snackMessage {
                 Text(msg)
                     .font(.system(size: 13))
+                    .accessibilityIdentifier("export_snackbar")
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -154,6 +158,7 @@ private struct ExportItem: View {
     let icon: String
     let title: String
     let subtitle: String
+    var id: String? = nil
     let onClick: () -> Void
 
     var body: some View {
@@ -180,6 +185,19 @@ private struct ExportItem: View {
             .padding(.vertical, 16)
         }
         .buttonStyle(.plain)
+        .modifier(OptionalIdentifier(id: id))
+    }
+}
+
+// 可选 identifier(不破坏无 id 调用点)
+private struct OptionalIdentifier: ViewModifier {
+    let id: String?
+    func body(content: Content) -> some View {
+        if let id = id {
+            content.accessibilityIdentifier(id)
+        } else {
+            content
+        }
     }
 }
 
