@@ -180,4 +180,31 @@ final class ScheduleFlowUITests: XCTestCase {
                       "网格模式课程卡点击应弹详情")
         app.descendants(matching: .any)["detail_close"].tap()
     }
+
+    // MARK: ★ 今天页课程卡点击 → 详情 Sheet(对齐 Android TodayScreen 点击交互;
+    //       修复前 iOS 今天页课卡不可点、无详情 Sheet)
+
+    func testTodayCourseTapOpensDetailSheet() {
+        app.descendants(matching: .any)["pill_today"].tap()
+        // 种子: 周一 高数 1-2 节 — 今天是周几不定, 有课才点
+        let course = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS '高等数学'")).firstMatch
+        guard course.waitForExistence(timeout: 4) else {
+            // 今天无课(空态)→ 用例只验证不崩
+            XCTAssertTrue(app.staticTexts["No classes today"].waitForExistence(timeout: 3))
+            return
+        }
+        course.tap()
+        XCTAssertTrue(app.staticTexts["Teacher"].waitForExistence(timeout: 5),
+                      "今天页课程卡点击应弹详情 Sheet(对齐 Android)")
+        XCTAssertTrue(app.staticTexts["张老师"].exists, "详情应含教师字段")
+        let edit = app.descendants(matching: .any)["detail_edit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 3), "详情应含编辑入口")
+        edit.tap()
+        XCTAssertTrue(app.staticTexts["Edit Course"].waitForExistence(timeout: 5),
+                      "详情编辑应打开课程编辑页")
+        let back = app.buttons.matching(NSPredicate(format: "label == 'Back'")).firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 3))
+        back.tap()
+    }
 }

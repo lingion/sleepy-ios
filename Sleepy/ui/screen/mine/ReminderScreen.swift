@@ -165,10 +165,7 @@ struct ReminderScreen: View {
                     .padding(.vertical, 8)
                     .background(colors.surfaceContainerLowest)
                     .cornerRadius(SleepyTheme.fieldShape)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                            .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
-                    )
+                    // ← Android filled TextField, 无描边
                     Text(L10n.format("reminder_before_minutes_unit"))
                         .font(.system(size: 14))
                         .foregroundColor(colors.onSurfaceVariant)
@@ -238,10 +235,7 @@ struct ReminderScreen: View {
                             .padding(.vertical, 10)
                             .background(colors.surfaceContainerLowest)
                             .cornerRadius(SleepyTheme.fieldShape)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                                    .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
-                            )
+                            // ← Android filled TextField, 无描边
                         }
                         Text(L10n.format("reminder_fluid_note"))
                             .font(.system(size: 12))

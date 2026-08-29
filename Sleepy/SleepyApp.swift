@@ -282,7 +282,8 @@ struct AppRoot: View {
                         onManualAdd: { root.overlayScreen = .addCourse },
                         onEditCourse: { course in root.editingCourse = course })
                 case .today:
-                    TodayScreen(viewModel: root.scheduleViewModel)
+                    TodayScreen(viewModel: root.scheduleViewModel,
+                                onEditCourse: { course in root.editingCourse = course })
                 case .manage:
                     ManagementPage(
                         viewModel: root.scheduleViewModel,

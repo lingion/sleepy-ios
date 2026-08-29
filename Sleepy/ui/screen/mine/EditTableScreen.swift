@@ -265,10 +265,7 @@ struct FieldTextField: View {
             .padding(.vertical, 10)
             .background(colors.surfaceContainerLowest)
             .cornerRadius(SleepyTheme.fieldShape)
-            .overlay(
-                RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                    .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
-            )
+            // ← Android filled TextField, 无描边
             .accessibilityIdentifier("field_\(label)")   // ← G5: 字段锚点(label 原文)
             .overlay(alignment: .leading) {
                 if !placeholder.isEmpty {

@@ -117,10 +117,6 @@ struct CardsGridView: View {
         }
         .background(colors.surfaceContainerHigh)
         .cornerRadius(SleepyShapes.large)
-        .overlay(
-            RoundedRectangle(cornerRadius: SleepyShapes.large)
-                .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.tinted), lineWidth: 0.5)
-        )
     }
 
 }
@@ -147,12 +143,8 @@ private struct SingleTimeHeadCell: View {
         }
         .padding(4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.surface)
+        .background(colors.surfaceContainerLow)
         .cornerRadius(SleepyShapes.medium)
-        .overlay(
-            RoundedRectangle(cornerRadius: SleepyShapes.medium)
-                .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.tinted), lineWidth: 0.5)
-        )
         .padding(2)
     }
 }
@@ -221,10 +213,6 @@ private struct CourseOverlayCard: View {
         .padding(4)
         .background(bg)
         .cornerRadius(SleepyShapes.medium)
-        .overlay(
-            RoundedRectangle(cornerRadius: SleepyShapes.medium)
-                .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.tinted), lineWidth: 0.5)
-        )
         .padding(2)
     }
 }
@@ -449,17 +437,9 @@ private struct DetailDayCard: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(courses.isEmpty ? Color.clear : colors.surface)
+        // 空课 surfaceContainerLow(← DetailDayCard L597), 无描边
+        .background(courses.isEmpty ? colors.surfaceContainerLow : colors.surface)
         .cornerRadius(SleepyShapes.medium)
-        .overlay(
-            // 空课: outlineVariant 描边卡
-            Group {
-                if courses.isEmpty {
-                    RoundedRectangle(cornerRadius: SleepyShapes.medium)
-                        .strokeBorder(colors.outlineVariant, lineWidth: 1)
-                }
-            }
-        )
     }
 }
 

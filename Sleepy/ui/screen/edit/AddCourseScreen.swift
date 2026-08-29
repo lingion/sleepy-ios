@@ -186,10 +186,7 @@ struct AddCourseScreen: View {
                     .padding(.vertical, 10)
                     .background(colors.surfaceContainerLowest)
                     .cornerRadius(SleepyTheme.fieldShape)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                            .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
-                    )
+                    // ← Android filled TextField, 无描边
                 // 颜色选择器
                 HStack(spacing: 10) {
                     Text(L10n.format("course_color"))
@@ -557,12 +554,9 @@ private struct MeetingBlockEditor: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(colors.surfaceContainerHigh)
+        // 有 issue 整卡变 errorContainer(← MeetingBlockEditor L728), 无描边
+        .background(issues.isEmpty ? colors.surfaceContainerHigh : colors.errorContainer)
         .cornerRadius(SleepyShapes.large)
-        .overlay(
-            RoundedRectangle(cornerRadius: SleepyShapes.large)
-                .strokeBorder(issues.isEmpty ? Color.clear : colors.error, lineWidth: 1.5)
-        )
     }
 }
 
@@ -622,6 +616,7 @@ private struct MultiDayPicker: View {
                         Button {
                             onToggleDay(day)
                         } label: {
+                            // 纯色块选中态, 无描边(← AddCourseScreen.kt L857)
                             Text(DateUtils.localizedDay(day))
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(selected ? colors.onPrimary : colors.onSurface)
@@ -629,10 +624,6 @@ private struct MultiDayPicker: View {
                                 .frame(height: 40)
                                 .background(selected ? colors.primary : colors.surfaceContainerHighest)
                                 .cornerRadius(SleepyShapes.medium)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: SleepyShapes.medium)
-                                        .strokeBorder(selected ? Color.clear : colors.outlineVariant, lineWidth: 1)
-                                )
                         }
                         .buttonStyle(SleepyButtonStyle())
                     }
@@ -674,10 +665,7 @@ struct NumberStepperField: View {
             .padding(.vertical, 8)
             .background(colors.surfaceContainerLowest)
             .cornerRadius(SleepyTheme.fieldShape)
-            .overlay(
-                RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                    .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
-            )
+            // ← Android filled TextField, 无描边
         }
         .onAppear { text = "\(value)" }
     }
@@ -693,17 +681,14 @@ private struct AutoColorDot: View {
 
     var body: some View {
         Button(action: onClick) {
+            // ← AutoColorDot.kt: 选中 primaryContainer 色块, 无描边
             ZStack {
                 Circle()
-                    .fill(colors.surfaceVariant)
+                    .fill(selected ? colors.primaryContainer : colors.surfaceVariant)
                     .frame(width: 32, height: 32)
-                    .overlay(
-                        Circle().strokeBorder(selected ? colors.primary : colors.outlineVariant,
-                                              lineWidth: selected ? 2.5 : 0.5)
-                    )
                 Text(L10n.format("label_from"))
                     .font(.system(size: 11))
-                    .foregroundColor(colors.onSurfaceVariant)
+                    .foregroundColor(selected ? colors.onPrimaryContainer : colors.onSurfaceVariant)
             }
         }
         .buttonStyle(SleepyButtonStyle())
@@ -720,11 +705,11 @@ private struct CustomColorDot: View {
         let c = hex.flatMap { CourseColorUtil.parseColor($0).map { Color(uiArgb: UInt32($0)) } }
             ?? colors.surfaceVariant
         Button(action: onClick) {
+            // ← CustomColorDot.kt: 纯色圆 + ＋号, 无描边
             ZStack {
                 Circle()
                     .fill(c)
                     .frame(width: 32, height: 32)
-                    .overlay(Circle().strokeBorder(colors.outlineVariant, lineWidth: 0.5))
                 if hex == nil {
                     Text("＋")
                         .font(.system(size: 16))
@@ -767,7 +752,6 @@ private struct ColorPickerDialog: View {
                 Circle()
                     .fill(currentUIColor)
                     .frame(width: 40, height: 40)
-                    .overlay(Circle().strokeBorder(colors.outlineVariant, lineWidth: 1))
                 Text(currentHex)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSurfaceVariant)

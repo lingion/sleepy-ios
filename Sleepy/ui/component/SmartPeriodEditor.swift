@@ -281,10 +281,7 @@ private struct NumberField: View {
             .padding(.vertical, 8)
             .background(colors.surfaceContainer)
             .cornerRadius(SleepyTheme.fieldShape)
-            .overlay(
-                RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                    .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
-            )
+            // ← Android NumberField = filled TextField, 无描边(Material3 filled 无 border)
             if !unit.isEmpty {
                 Text(unit)
                     .font(.system(size: 12))

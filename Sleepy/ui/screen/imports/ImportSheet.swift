@@ -125,10 +125,7 @@ struct ImportSheet: View {
                             .frame(height: 160, alignment: .topLeading)
                             .background(colors.surfaceContainer)
                             .cornerRadius(SleepyTheme.fieldShape)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                                    .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
-                            )
+                            // ← Android filled TextField, 无描边
                             .accessibilityIdentifier("import_paste_input")
                         Button {
                             isLoading = true
@@ -461,19 +458,18 @@ private struct FormatDetailDialog: View {
                                 .replacingOccurrences(of: "\\t", with: "\t")
                             copiedPrompt = true
                         } label: {
+                            // ★ 描线→色块(2026-08-25 统一指令): 复制按钮 surface 色块
                             HStack(spacing: 6) {
                                 Image(systemName: "doc.on.doc")
                                     .font(.system(size: 14))
                                 Text(copiedPrompt ? L10n.format("copied") : L10n.format("copy_prompt"))
                                     .font(.system(size: 14))
                             }
-                            .foregroundColor(colors.onPrimaryContainer)
+                            .foregroundColor(colors.onSurface)
                             .frame(maxWidth: .infinity)
                             .frame(height: 40)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: SleepyShapes.medium)
-                                    .strokeBorder(colors.onPrimaryContainer.opacity(0.4), lineWidth: 1)
-                            )
+                            .background(colors.surface)
+                            .cornerRadius(SleepyShapes.medium)
                         }
                         .buttonStyle(SleepyButtonStyle())
                     }
@@ -614,15 +610,15 @@ private struct ImportPreviewDialog: View {
                         Button {
                             onApply(.replaceCurrent)
                         } label: {
+                            // ★ 描线→色块(2026-08-25 统一指令): 覆盖课表为危险动作,
+                            //   errorContainer 色块底 + onErrorContainer 文字
                             Text(L10n.format("import_overwrite"))
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(colors.error)
+                                .foregroundColor(colors.onErrorContainer)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 40)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: SleepyShapes.medium)
-                                        .strokeBorder(colors.error, lineWidth: 1)
-                                )
+                                .background(colors.errorContainer)
+                                .cornerRadius(SleepyShapes.medium)
                         }
                         .buttonStyle(SleepyButtonStyle())
                     }

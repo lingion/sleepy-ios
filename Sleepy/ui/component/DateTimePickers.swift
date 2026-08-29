@@ -27,11 +27,7 @@ struct DatePickerField: View {
             .padding(.vertical, 10)
             .background(colors.surfaceContainer)
             .cornerRadius(SleepyTheme.fieldShape)
-            .overlay(
-                RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                    .strokeBorder(isError ? colors.error : colors.outline.opacity(SleepyTheme.Alpha.hairline),
-                                  lineWidth: 1)
-            )
+            // ← Android filled TextField, 无描边(isError 由调用方错误提示承担)
             Button {
                 // 初始值 = 当前输入日期(解析失败回退今天)
                 pickerDate = parseISO(value) ?? Date()
@@ -115,10 +111,7 @@ struct TimePickerField: View {
             .padding(.vertical, 10)
             .background(colors.surfaceContainer)
             .cornerRadius(SleepyTheme.fieldShape)
-            .overlay(
-                RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                    .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
-            )
+            // ← Android filled TextField, 无描边
         }
         .buttonStyle(SleepyButtonStyle())
         .sheet(isPresented: $showPicker) {

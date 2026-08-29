@@ -8,6 +8,9 @@ struct TodayScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
     @ObservedObject var viewModel: ScheduleViewModel
+    var onEditCourse: ((CourseEntity) -> Void)? = nil
+    // ← selectedCourse: 点课卡 → 详情 BottomSheet(与课表页同一组件同一交互)
+    @State private var selectedCourse: CourseEntity? = nil
 
     var body: some View {
         let state = viewModel.state
@@ -37,13 +40,25 @@ struct TodayScreen: View {
                     SectionHead(title: L10n.format("widget_today_label"),
                                 action: L10n.format("n_periods", todayCourses.count))
                     ForEach(todayCourses) { course in
-                        TodayCourseCard(course: course, timeJson: state.currentTable?.timeJson)
+                        TodayCourseCard(course: course, timeJson: state.currentTable?.timeJson) {
+                            selectedCourse = course
+                        }
                     }
                 }
             }
             .padding(16)
         }
         .background(colors.background)
+        // 详情 Bottom Sheet — 与课表页同一组件同一交互(← TodayScreen.kt CourseDetailSheet)
+        .sheet(item: $selectedCourse) { course in
+            CourseDetailSheet(
+                course: course,
+                timeString: course.nodeString(),
+                onEdit: { c in
+                    selectedCourse = nil
+                    onEditCourse?(c)
+                })
+        }
     }
 }
 
@@ -157,6 +172,7 @@ private struct TodayCourseCard: View {
     @Environment(\.localCoursePalette) private var palette
     let course: CourseEntity
     var timeJson: String? = nil
+    var onClick: (() -> Void)? = nil
 
     var body: some View {
         let isDark = CourseColorUtil.isPaletteDark(palette)
@@ -216,5 +232,7 @@ private struct TodayCourseCard: View {
         .padding(12)
         .background(bg)
         .cornerRadius(SleepyShapes.large)
+        .contentShape(Rectangle())
+        .onTapGesture { onClick?() }
     }
 }
