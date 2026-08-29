@@ -144,17 +144,16 @@ final class SleepyUITests: XCTestCase {
     // MARK: - 深链唤醒(平台差异表#4: Intent extras → URL scheme)
 
     func testDeepLinkCourse() {
-        // 模拟器冷启 → 用 URL scheme 拉起 app
-        // 这里测的是 URL scheme 注册(Info.plist CFBundleURLTypes)
-        // iOS 16.4+ API: 使用 launchEnvironment 注入 URL scheme 测试钩子;
-        // 退而求其次,这里仅验证 Info.plist 注册了 sleepy scheme
-        // (手工 devicectl 验证在 ci-cd-and-automation 中做)
-        let url = URL(string: "sleepy://open")!
-        // app.open(_:) iOS 17+ 才稳定; iOS 16 走 launch URL
-        app.launchEnvironment["SLEEPY_DEEPLINK_URL"] = url.absoluteString
-        // 断言: app 已启动 + 4 个 pill 仍在(基础烟囱)
-        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].exists,
-                      "启动后底栏应仍在;deep link 钩子不应破坏基础布局")
+        // widget 点击深链(sleepy://open): 冷启/回前台即达(widgetURL 路由, 无需处理)。
+        // 用 SLEEPY_UI_TEST_OPENURL 钩子走真实 lsd 路由(XCUIApplication.open 在
+        // Xcode14/iOS16.4 丢 URL, 见 DeepLinkUITests 头注), 断言 scheme 注册 +
+        // onOpenURL 处理后主界面完好。
+        app.launchEnvironment["SLEEPY_UI_TEST_OPENURL"] = "sleepy://open"
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10),
+                      "sleepy://open 深链后 app 应回主界面")
+        XCTAssertTrue(app.descendants(matching: .any)["pill_mine"].exists,
+                      "深链后底栏 4 pill 应完整")
     }
 
     // MARK: - 课表页 → 周视图/网格切换

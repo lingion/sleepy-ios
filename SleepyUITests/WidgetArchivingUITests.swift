@@ -41,6 +41,21 @@ final class WidgetArchivingUITests: XCTestCase {
             "WeekGridWidgetV19",
         ]
 
+        // kind×family 组合(supportedFamilies 总计 11):
+        // Today: sm+md+lg, 其余 4 个: md+lg
+        let expectedKindFamilies: [(String, String)] =
+            [("TodayWidgetRV", "systemSmall"),
+             ("TodayWidgetRV", "systemMedium"),
+             ("TodayWidgetRV", "systemLarge"),
+             ("TwoDayWidgetRV", "systemMedium"),
+             ("TwoDayWidgetRV", "systemLarge"),
+             ("WeekListWidgetRV", "systemMedium"),
+             ("WeekListWidgetRV", "systemLarge"),
+             ("WeekViewWidgetRV", "systemMedium"),
+             ("WeekViewWidgetRV", "systemLarge"),
+             ("WeekGridWidgetV19", "systemMedium"),
+             ("WeekGridWidgetV19", "systemLarge")]
+
         // 归档批次在 app 安装/启动后 1-3 秒内跑完; 轮询 Mine 页日志钩子最多 60s
         let logEl = app.descendants(matching: .any)["widget_archive_log"]
         XCTAssertTrue(logEl.waitForExistence(timeout: 10),
@@ -78,6 +93,15 @@ final class WidgetArchivingUITests: XCTestCase {
                 "widget kind 未成功归档: \(kind)"
             )
         }
+
+        // 3. 每个 kind×family 组合至少一条归档(gallery placeholder 覆盖全部 family;
+        //    归档行格式 "kind:family result")
+        var missing = ""
+        for (kind, family) in expectedKindFamilies {
+            let prefix = "\(kind):\(family)"
+            if !logText.contains(prefix) { missing += prefix + " " }
+        }
+        XCTAssertTrue(missing.isEmpty, "kind×family 归档缺失: \(missing)\nlog=\(logText)")
     }
 }
 
