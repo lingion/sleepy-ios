@@ -235,11 +235,6 @@ private struct ScheduleTopBar: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
         .background(colors.surface)
-        .overlay(
-            Rectangle().frame(height: 0.5)
-                .foregroundColor(colors.outline.opacity(SleepyTheme.Alpha.tinted)),
-            alignment: .bottom
-        )
     }
 }
 

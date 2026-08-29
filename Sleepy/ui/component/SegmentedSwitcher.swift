@@ -1,7 +1,8 @@
 // SegmentedSwitcher.swift — ← ui/component/SegmentedSwitcher.kt
 // 单选分段按钮 — 主视图模式切换(整周/卡片)。
 // M3 SegmentedButton → SwiftUI custom(等价适配:iOS 16 无原生 Material SegmentedButton,
-// Picker(segmented) 风格差异大 → 自绘 M3 样式: 40dp 高/选中段 secondaryContainer 底)。
+// Picker(segmented) 风格差异大 → 自绘 M3 样式: 总高 42dp/外框 14dp 圆角 surfaceContainer/
+// 内衬 4dp/选中段 secondaryContainer 底 12dp 圆角 ← L44-L70)。
 
 import SwiftUI
 
@@ -25,15 +26,13 @@ struct SegmentedSwitcher<T: Hashable>: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .allowsTightening(true)
-                        .padding(.horizontal, 4)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(
                             Group {
                                 if isSelected {
-                                    // 选中段: secondaryContainer 底 + 小圆角浮层
-                                    RoundedRectangle(cornerRadius: 8)
+                                    // 选中段: secondaryContainer 底(12dp 圆角 ← L66)
+                                    RoundedRectangle(cornerRadius: 12)
                                         .fill(colors.secondaryContainer)
-                                        .padding(.vertical, 3)
                                 }
                             }
                         )
@@ -42,9 +41,10 @@ struct SegmentedSwitcher<T: Hashable>: View {
                 .accessibilityIdentifier("seg_\(label)")
             }
         }
+        .padding(4)                       // ← L47 内衬(选中段浮层与外框间距)
         .frame(maxWidth: .infinity)
-        .frame(height: 40)
+        .frame(height: 42)                // ← L45 总高
         .background(colors.surfaceContainer)
-        .cornerRadius(10)
+        .cornerRadius(14)                 // ← L46 外框圆角
     }
 }
