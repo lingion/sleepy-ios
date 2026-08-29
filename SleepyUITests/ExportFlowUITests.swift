@@ -89,8 +89,14 @@ final class ExportFlowUITests: XCTestCase {
         app.descendants(matching: .any)["export_share_row"].tap()
         let snack = app.descendants(matching: .any)["export_snackbar"]
         XCTAssertTrue(snack.waitForExistence(timeout: 5))
-        // 2s 定时 + 动画余量 → 最多 4s 应消失
-        let gone = !snack.waitForExistence(timeout: 4.5)
+        // UI 测试态生命周期 6s(见 ExportScreen.onAppear) → 轮询上限 9s。
+        // 🚫用 !waitForExistence 判消失: 元素存在时它立即返回 true, 恒假。
+        // Xcode 14.3 无 waitForNonExistence(Xcode 15+ API), 用 0.5s 步进轮询。
+        var gone = false
+        for _ in 0..<18 {
+            if !snack.exists { gone = true; break }
+            usleep(500_000)
+        }
         XCTAssertTrue(gone, "snackbar 应自动消失")
     }
 

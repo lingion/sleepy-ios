@@ -27,7 +27,8 @@ final class TableEditUITests: XCTestCase {
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED"]
         app.launch()
-        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
+        // 20s: 批量跑套件时首启冷启动+seed 注入可远超 10s(批量失败即栽在此行, 单跑全绿)
+        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 20))
         app.descendants(matching: .any)["pill_manage"].tap()
         XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["manage_edit_current"].tap()
