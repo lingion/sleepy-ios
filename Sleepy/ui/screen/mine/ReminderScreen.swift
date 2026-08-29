@@ -59,6 +59,7 @@ struct ReminderScreen: View {
                 HStack {
                     Button(L10n.format("action_cancel")) { showTimePicker = false }
                         .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("reminder_time_cancel")
                     Button(L10n.format("action_confirm")) {
                         let f = DateFormatter()
                         f.dateFormat = "HH:mm"
@@ -67,6 +68,7 @@ struct ReminderScreen: View {
                         NotificationScheduler.shared.scheduleAll()
                         showTimePicker = false
                     }
+                    .accessibilityIdentifier("reminder_time_confirm")
                     .foregroundColor(colors.primary)
                     .frame(maxWidth: .infinity)
                 }
@@ -82,7 +84,8 @@ struct ReminderScreen: View {
             SubToggleRow(icon: "clock",
                          title: L10n.format("reminder_daily_title"),
                          subtitle: L10n.format("reminder_daily_sub"),
-                         checked: $dailyEnabled) { on in
+                         checked: $dailyEnabled,
+                         toggleId: "reminder_daily_toggle") { on in
                 dailyEnabled = on
                 prefs.setDailyReminderEnabled(on)
                 NotificationScheduler.shared.scheduleAll()
@@ -108,8 +111,10 @@ struct ReminderScreen: View {
                     }
                     .padding(.vertical, 12)
                     .padding(.horizontal, 4)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("reminder_time_row")
                 SubDivider()
                 Text(L10n.format("reminder_daily_preview"))
                     .font(.system(size: 12))
@@ -128,7 +133,8 @@ struct ReminderScreen: View {
             SubToggleRow(icon: "graduationcap",
                          title: L10n.format("reminder_before_class_title"),
                          subtitle: L10n.format("reminder_before_class_sub"),
-                         checked: $beforeClassEnabled) { on in
+                         checked: $beforeClassEnabled,
+                         toggleId: "reminder_before_class_toggle") { on in
                 beforeClassEnabled = on
                 prefs.setBeforeClassEnabled(on)
                 NotificationScheduler.shared.scheduleAll()
@@ -338,6 +344,7 @@ private struct MasterToggleRow: View {
             .toggleStyle(.switch)
             .tint(colors.primary)
             .labelsHidden()
+            .accessibilityIdentifier("reminder_master_toggle")
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 4)
@@ -352,6 +359,7 @@ private struct SubToggleRow: View {
     let subtitle: String
     @Binding var checked: Bool
     let onCheckedChange: (Bool) -> Void
+    var toggleId: String? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -372,8 +380,20 @@ private struct SubToggleRow: View {
             .toggleStyle(.switch)
             .tint(colors.primary)
             .labelsHidden()
+            .modifier(OptionalToggleId(id: toggleId))
         }
         .padding(4)
+    }
+}
+
+private struct OptionalToggleId: ViewModifier {
+    let id: String?
+    func body(content: Content) -> some View {
+        if let id = id {
+            content.accessibilityIdentifier(id)
+        } else {
+            content
+        }
     }
 }
 
