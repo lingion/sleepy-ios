@@ -71,6 +71,11 @@ targets:
             LSHandlerRank: Owner
             LSItemContentTypes: ["public.json"]
         LSSupportsOpeningDocumentsInPlace: false
+        # ★ 教务系统跳转链常混 http 中间页(校园网旧系统)。WKWebView 默认 ATS 拦 http,
+        #   表现为重定向链中途断掉。Android 原版 mixedContentMode=ALWAYS_ALLOW 等价意图:
+        #   只放开 WebView 内容 loads(NSAllowsArbitraryLoadsInWebContent 不影响 app 主 API)。
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoadsInWebContent: true
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: Sleepy/Sleepy.entitlements

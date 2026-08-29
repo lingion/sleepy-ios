@@ -4,6 +4,8 @@
 //   - loadUrl("javascript:") → evaluateJavaScript(直接回调, 无需桥)
 //   - addJavascriptInterface(__sleepyBridge) → WKScriptMessageHandler(name: "__sleepyBridge")
 //   - SSL 自签 proceed → 不实现(WKWebView 默认拒绝;ATS 例外需 Info.plist, 保守不放开)
+//   - 新窗(target=_blank/window.open) → NavUIDelegate.createWebViewWith 在当前
+//     webview 内加载(Android WebView 默认语义); 无它教务卡片点不动(a.v.1.0.41)
 // 抓 HTML: document.documentElement.outerHTML + iframe/frame 合并(同一份 JS)。
 // wisedu(金智) 协议: WebView 内 fetch 课表 JSON(WISEDU_FETCH_JS 原文移植)。
 
@@ -31,7 +33,7 @@ struct JwWebViewLoginScreen: View {
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(colors.onBackground)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text(school.name)
                         .font(.system(size: 16, weight: .medium))
@@ -85,7 +87,7 @@ struct JwWebViewLoginScreen: View {
                     .background(colors.primary)
                     .cornerRadius(SleepyShapes.extraLarge)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
             }
             .padding(16)
             .background(colors.surface)
@@ -188,6 +190,25 @@ struct JwWebViewLoginScreen: View {
     }
 }
 
+// MARK: - 新窗拦截(← Android WebView 默认"当前页打开新窗"语义)
+
+/// WKUIDelegate: 拦截 target="_blank" / window.open, 在当前 webview 内加载。
+/// 无此 delegate 时 WKWebView 静默丢弃新窗请求 → 教务卡片点不动。
+/// shared 单例: 每个 JwWebViewLoginScreen 建新 coordinator, 但 delegate 行为无状态。
+final class NavUIDelegate: NSObject, WKUIDelegate {
+    static let shared = NavUIDelegate()
+
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        guard let url = navigationAction.request.url else { return nil }
+        // 非 http(s)(如 about:blank / javascript:)不接管, 返回 nil 丢弃
+        guard url.scheme == "http" || url.scheme == "https" else { return nil }
+        // 在当前 webview 内加载(对齐 Android WebView 默认行为)
+        webView.load(URLRequest(url: url))
+        return nil
+    }
+}
+
 // MARK: - WKWebView 包装 ← JwWebView
 
 /// WKWebView 协调器(← WebView + WebViewClient + WebChromeClient + JS 桥)
@@ -217,6 +238,11 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
 
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.navigationDelegate = self
+        // ★ 教务系统功能卡片大量使用 target="_blank" / window.open。
+        //   Android WebView 默认在当前 WebView 内打开新窗; WKWebView 无 UIDelegate
+        //   时静默丢弃新窗请求 → 用户卡在教务中间页点卡片无反应(a.v.1.0.41 修复)。
+        //   NavUIDelegate 拦截 createWebViewWith, 在当前 webview 内加载新窗 URL。
+        wv.uiDelegate = NavUIDelegate.shared
         // ← settings: domStorage WKWebView 默认开; 缩放手势
         wv.allowsBackForwardNavigationGestures = true
 
