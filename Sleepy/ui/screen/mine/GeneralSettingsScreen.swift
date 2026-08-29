@@ -10,6 +10,7 @@ import WidgetKit
 struct GeneralSettingsScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     let onBack: () -> Void
+    var onOpenHoliday: () -> Void = {}
 
     private let prefs = AppPrefs.shared
 
@@ -35,14 +36,17 @@ struct GeneralSettingsScreen: View {
             SettingsTopBar(title: L10n.format("mine_general"), onBack: onBack)
             ScrollView {
                 VStack(spacing: 16) {
-                    // ── 分组① 课程显示 ──
-                    SectionHeader(title: L10n.format("appearance_section_display"))
+                    // ── 分组① 课程显示(11 子视图超 ViewBuilder 上限, 拆 Group) ──
+                    Group {
+                        SectionHeader(title: L10n.format("appearance_section_display"))
 
-                    displayModeCard
-                    gridSubInfoCard
-                    visibleDaysCard
-                    showDateCard
-                    courseColorlessCard
+                        displayModeCard
+                        gridSubInfoCard
+                        visibleDaysCard
+                        showDateCard
+                        courseColorlessCard
+                        holidayEntryCard
+                    }
 
                     MajorDivider()
 
@@ -162,6 +166,33 @@ struct GeneralSettingsScreen: View {
                 prefs.setCourseColorless($0)
             }
         }
+    }
+
+    // ← 节假日课程灰显: 点击进入二级页(Android General 页同款入口卡)
+    private var holidayEntryCard: some View {
+        Button(action: onOpenHoliday) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.format("settings_holiday_title"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(colors.onSurface)
+                    Text(L10n.format("settings_holiday_entry_sub"))
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.onSurfaceVariant)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16))
+                    .foregroundColor(colors.onSurfaceVariant)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(colors.surfaceContainer)
+            .cornerRadius(SleepyShapes.large)
+        }
+        .buttonStyle(SleepyButtonStyle())
+        .accessibilityIdentifier("settings_holiday_entry")
     }
 }
 

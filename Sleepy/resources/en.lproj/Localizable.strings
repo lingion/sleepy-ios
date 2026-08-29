@@ -472,3 +472,42 @@
 "format_plain_spec_7" = "No spaces inside course names, or the line is dropped";
 "format_plain_spec_8" = "If the source has a period-time table, output one line per period before the course lines: PeriodN HH:mm HH:mm — real times are applied automatically on import";
 "format_plain_spec_9" = "Pasting AI output with chit-chat around it is fine: wrap the data in <<<SLEEPY-BEGIN>>> and <<<SLEEPY-END>>> — anything outside the markers is ignored";
+
+// ===== 节假日课程灰显 (← settings_holiday_* / holiday_*) =====
+
+"settings_holiday_holiday" = "Gray out public holidays";
+"settings_holiday_holiday_sub" = "Courses on public holidays (e.g. National Day, Spring Festival) appear gray";
+"settings_holiday_entry_sub" = "Configure dimming rules and view holiday and make-up day data";
+"holiday_page_title" = "Holidays & Make-up Days";
+"holiday_data_source" = "Data source";
+"holiday_data_failed" = "Failed to fetch holiday data. Check your network and retry";
+"holiday_data_empty" = "No holiday or make-up day data for this year";
+"holiday_data_refresh" = "Refresh";
+"holiday_data_retry" = "Retry";
+"holiday_year_prev" = "Previous year";
+"holiday_year_next" = "Next year";
+"holiday_list_holidays" = "Public holidays";
+"holiday_list_workdays" = "Make-up workdays";
+"holiday_workday_badge" = "Workday";
+"settings_holiday_title" = "Holiday course dimming";
+"settings_holiday_weekend" = "Dim weekend courses";
+"settings_holiday_weekend_sub" = "Automatically show Saturday and Sunday courses in gray";
+"settings_holiday_style" = "Dimming style";
+"settings_holiday_style_grey" = "Gray";
+"settings_holiday_style_strikethrough" = "Gray with strikethrough";
+"settings_holiday_workday" = "Ignore make-up workdays";
+"settings_holiday_workday_sub" = "Make-up Saturdays and Sundays stay normal when weekend dimming is on";
+"holiday_edit_title" = "Edit custom dates";
+"holiday_add_title" = "Add custom dates";
+"holiday_name_label_date" = "Start date";
+"holiday_name_label" = "Name";
+"holiday_name_label_end" = "End date";
+"holiday_date_invalid" = "Invalid dates or end before start";
+"holiday_removed_section" = "Deleted";
+"holiday_restore" = "Restore";
+"holiday_delete_range" = "Delete";
+"holiday_type_holiday" = "Public holiday";
+"holiday_type_workday" = "Make-up workday";
+"holiday_custom_badge" = "Custom";
+"holiday_add_entry" = "Add custom dates";
+"settings_holiday_style_sub" = "Choose how dimmed courses look";

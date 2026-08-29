@@ -132,7 +132,7 @@ struct EditTableScreen: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colors.onPrimary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                        .frame(height: 56)
                         .background(colors.primary)
                         .cornerRadius(SleepyShapes.large)
                     }
@@ -149,7 +149,7 @@ struct EditTableScreen: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onErrorContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 44)
+                            .frame(height: 48)
                             .background(colors.errorContainer)
                             .cornerRadius(SleepyShapes.large)
                         }

@@ -471,3 +471,42 @@
 "format_plain_spec_7" = "課程名裡不能有空格，否則這行會被丟棄";
 "format_plain_spec_8" = "截圖/原文有節次時間表時，在課程行前逐行輸出：第N節 HH:mm HH:mm（如：第1節 08:00-09:35），匯入後自動套用真實作息";
 "format_plain_spec_9" = "從 AI 複製的輸出自帶廢話也沒關係：資料包在 <<<SLEEPY-BEGIN>>> 和 <<<SLEEPY-END>>> 之間即可，標識外的內容自動忽略";
+
+// ===== 节假日课程灰显 (← settings_holiday_* / holiday_*) =====
+
+"settings_holiday_holiday" = "法定假日課程灰顯";
+"settings_holiday_holiday_sub" = "法定假日（如國慶、春節）當天的課程顯示為灰色";
+"settings_holiday_entry_sub" = "設定灰顯規則，查看假日和補班日資料";
+"holiday_page_title" = "假日與補班日";
+"holiday_data_source" = "資料來源";
+"holiday_data_failed" = "假日或補班日資料取得失敗，請檢查網路後重試";
+"holiday_data_empty" = "該年份暫無假日或補班日資料";
+"holiday_data_refresh" = "重新整理資料";
+"holiday_data_retry" = "重試";
+"holiday_year_prev" = "上一年";
+"holiday_year_next" = "下一年";
+"holiday_list_holidays" = "法定假日";
+"holiday_list_workdays" = "補班日";
+"holiday_workday_badge" = "補班";
+"settings_holiday_title" = "假日課程灰顯";
+"settings_holiday_weekend" = "週末課程灰顯";
+"settings_holiday_weekend_sub" = "自動將週六、週日的課程顯示為灰色";
+"settings_holiday_style" = "灰顯樣式";
+"settings_holiday_style_grey" = "灰色";
+"settings_holiday_style_strikethrough" = "灰色加刪除線";
+"settings_holiday_workday" = "忽略補班日";
+"settings_holiday_workday_sub" = "開啟週末灰顯時，補班的週六、週日不灰顯";
+"holiday_edit_title" = "編輯自訂日期";
+"holiday_add_title" = "新增自訂日期";
+"holiday_name_label_date" = "開始日期";
+"holiday_name_label" = "名稱";
+"holiday_name_label_end" = "結束日期";
+"holiday_date_invalid" = "日期無效或結束早於開始";
+"holiday_removed_section" = "已刪除";
+"holiday_restore" = "恢復";
+"holiday_delete_range" = "刪除";
+"holiday_type_holiday" = "法定假日";
+"holiday_type_workday" = "補班日";
+"holiday_custom_badge" = "自訂";
+"holiday_add_entry" = "新增自訂日期";
+"settings_holiday_style_sub" = "選擇灰顯課程的樣式";

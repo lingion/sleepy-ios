@@ -36,6 +36,7 @@ struct CardsGridView: View {
     var currentWeek: Int = 1
     var today: Int = DateUtils.todayDayOfWeek()
     let onCourseClick: (CourseEntity) -> Void
+    var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7) — 节假日/周末灰显
 
     var body: some View {
         let maxNode = timeSlots.map { $0.nodeEnd }.max() ?? 12
@@ -73,6 +74,7 @@ struct CardsGridView: View {
                                 return DateUtils.shortDate(d)
                             }()
                             DayHeadCell(day: day, isToday: day == today,
+                                        isGrey: greyDays.contains(day),
                                         courseCount: courses.filter { $0.day == day }.count,
                                         dateStr: dateStr)
                                 .frame(width: colW)
@@ -101,7 +103,8 @@ struct CardsGridView: View {
                                 let cardH = rowH * CGFloat(steps) - gapH
 
                                 CourseOverlayCard(course: course, cardHeight: cardH,
-                                                  isDark: CourseColorUtil.isPaletteDark(palette)) {
+                                                  isDark: CourseColorUtil.isPaletteDark(palette),
+                                                  isGrey: greyDays.contains(course.day)) {
                                     onCourseClick(course)
                                 }
                                 .frame(width: colW, height: cardH)
@@ -155,6 +158,7 @@ private struct CourseOverlayCard: View {
     let course: CourseEntity
     var cardHeight: CGFloat = 0   // 0 = 调用方未提供, 回退旧行为
     let isDark: Bool
+    var isGrey: Bool = false      // 节假日灰显
     let onClick: () -> Void
 
     var body: some View {
@@ -163,6 +167,10 @@ private struct CourseOverlayCard: View {
             neutralColor: colors.surfaceVariant,
             colorless: AppPrefs.shared.isCourseColorless())
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
+        // 节假日灰显：色块叠 alpha + 文字应用 strikethrough 样式 ← effectiveBg/effectiveFg/textDecoration
+        let effectiveBg = isGrey ? bg.opacity(SleepyTheme.Alpha.inactive) : bg
+        let effectiveFg = isGrey ? fg.opacity(SleepyTheme.Alpha.inactive) : fg
+        let strikethrough = isGrey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
         // 副信息(教室/教师/无) — grid_sub_info 设置决定
         let bodyFont = cardHeight >= 110 ? 10.0 : 11.0
         let subInfo = AppPrefs.shared.getGridSubInfo()
@@ -180,7 +188,8 @@ private struct CourseOverlayCard: View {
                     // 无副信息: 课程名整体居中(原行为); 名字长时压缩字体防横向溢出
                     Text(course.courseName)
                         .font(.system(size: bodyFont, weight: .semibold))
-                        .foregroundColor(fg)
+                        .foregroundColor(effectiveFg)
+                        .strikethrough(strikethrough)
                         .lineLimit(6)
                         .minimumScaleFactor(0.6)
                         .allowsTightening(true)
@@ -190,7 +199,8 @@ private struct CourseOverlayCard: View {
                     VStack(spacing: 2) {
                         Text(course.courseName)
                             .font(.system(size: bodyFont, weight: .semibold))
-                            .foregroundColor(fg)
+                            .foregroundColor(effectiveFg)
+                            .strikethrough(strikethrough)
                             .lineLimit(4)
                             .minimumScaleFactor(0.6)
                             .allowsTightening(true)
@@ -198,7 +208,8 @@ private struct CourseOverlayCard: View {
                             .frame(maxHeight: .infinity)
                         Text(subText)
                             .font(SleepyTextStyle.micro())
-                            .foregroundColor(fg.opacity(SleepyTheme.Alpha.highContent))
+                            .foregroundColor(effectiveFg.opacity(SleepyTheme.Alpha.highContent))
+                            .strikethrough(strikethrough)
                             .lineLimit(2)
                             .minimumScaleFactor(0.7)
                             .allowsTightening(true)
@@ -211,7 +222,7 @@ private struct CourseOverlayCard: View {
         .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("gridcell_\(course.id)")
         .padding(4)
-        .background(bg)
+        .background(effectiveBg)
         .cornerRadius(SleepyShapes.medium)
         .padding(2)
     }
@@ -222,14 +233,17 @@ private struct DayHeadCell: View {
     @Environment(\.localWakeUpColors) private var colors
     let day: Int
     let isToday: Bool
+    var isGrey: Bool = false
     let courseCount: Int
     var dateStr: String? = nil
 
     var body: some View {
         let bg = isToday ? colors.primaryContainer : colors.surface
-        let fg = isToday ? colors.onPrimaryContainer : colors.onSurface
-        let subFg = isToday ? colors.onPrimaryContainer.opacity(SleepyTheme.Alpha.highContent)
-                            : colors.onSurfaceVariant
+        let fg = isGrey ? colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive)
+                        : (isToday ? colors.onPrimaryContainer : colors.onSurface)
+        let subFg = isGrey ? colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive)
+                           : (isToday ? colors.onPrimaryContainer.opacity(SleepyTheme.Alpha.highContent)
+                                      : colors.onSurfaceVariant)
 
         VStack(spacing: 1) {
             Text(DateUtils.localizedDay(day))
@@ -276,17 +290,19 @@ struct FullWeekView: View {
     var timeJson: String = ""
     var today: Int = DateUtils.todayDayOfWeek()
     let onCourseClick: (CourseEntity) -> Void
+    var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7)
 
     var body: some View {
         let byDay = Dictionary(grouping: courses, by: { $0.day })
 
         ScrollView(.vertical) {
             VStack(spacing: 0) {
-                WeekStrip(byDay: byDay, visibleDays: visibleDays, today: today)
+                WeekStrip(byDay: byDay, visibleDays: visibleDays, today: today, greyDays: greyDays)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                 DetailPanel(byDay: byDay, visibleDays: visibleDays, displayMode: displayMode,
-                            timeJson: timeJson, today: today, onCourseClick: onCourseClick)
+                            timeJson: timeJson, today: today, greyDays: greyDays,
+                            onCourseClick: onCourseClick)
                 // (参数顺序: byDay/visibleDays/displayMode/timeJson/today/onCourseClick)
             }
         }
@@ -299,11 +315,13 @@ private struct WeekStrip: View {
     let byDay: [Int: [CourseEntity]]
     let visibleDays: Set<Int>
     let today: Int
+    var greyDays: Set<Int> = []
 
     var body: some View {
         HStack(spacing: 6) {
             ForEach(visibleDays.sorted(), id: \.self) { day in
-                DaySummaryCell(day: day, courses: byDay[day] ?? [], isToday: day == today)
+                DaySummaryCell(day: day, courses: byDay[day] ?? [], isToday: day == today,
+                               isGrey: greyDays.contains(day))
             }
         }
     }
@@ -315,10 +333,12 @@ private struct DaySummaryCell: View {
     let day: Int
     let courses: [CourseEntity]
     let isToday: Bool
+    var isGrey: Bool = false
 
     var body: some View {
         let bg = isToday ? colors.primaryContainer : colors.surfaceContainer
-        let fg = isToday ? colors.onPrimaryContainer : colors.onSurface
+        let fg = isGrey ? colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive)
+                        : (isToday ? colors.onPrimaryContainer : colors.onSurface)
 
         VStack(spacing: 4) {
             // 日期
@@ -331,17 +351,20 @@ private struct DaySummaryCell: View {
             // Chip: 课程数 — "N 门" 完整文字, 列宽放不下退化为纯数字。
             // ← Android textMeasurer: fullText 在列宽内换行(lineCount>1) → 只显数字。
             //   ViewThatFits 等价: fullText(单行)放得下用 fullText, 否则回退数字。
+            // chipFg ← Android: onSurfaceVariant@alpha(grey ? inactive : 1)
+            let chipFg = isGrey ? colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive)
+                                : colors.onSurfaceVariant
             if courses.isEmpty {
                 Spacer().frame(height: 14)
             } else {
                 ViewThatFits(in: .horizontal) {
                     Text(L10n.format("course_count_format", courses.count))
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(colors.onSurfaceVariant)
+                        .foregroundColor(chipFg)
                         .lineLimit(1)
                     Text("\(courses.count)")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(colors.onSurfaceVariant)
+                        .foregroundColor(chipFg)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 7)
@@ -383,6 +406,7 @@ private struct DetailPanel: View {
     let displayMode: String
     let timeJson: String
     let today: Int
+    var greyDays: Set<Int> = []
     let onCourseClick: (CourseEntity) -> Void
 
     var body: some View {
@@ -391,6 +415,7 @@ private struct DetailPanel: View {
                 let dayCourses = (byDay[day] ?? []).sorted { $0.startNode < $1.startNode }
                 DetailDayCard(day: day, courses: dayCourses, isToday: day == today,
                               displayMode: displayMode, timeJson: timeJson,
+                              isGrey: greyDays.contains(day),
                               onCourseClick: onCourseClick)
             }
         }
@@ -408,27 +433,30 @@ private struct DetailDayCard: View {
     let isToday: Bool
     var displayMode: String = "node"
     var timeJson: String = ""
+    var isGrey: Bool = false
     let onCourseClick: (CourseEntity) -> Void
 
     var body: some View {
+        let greyFg = colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive)
         VStack(spacing: 8) {
             // 头部: 星期 + 今天标记
             HStack {
                 Text(DateUtils.localizedDay(day) + (isToday ? L10n.format("today_suffix") : ""))
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(colors.onSurface)
+                    .foregroundColor(isGrey ? greyFg : colors.onSurface)
                 Spacer()
             }
 
             if courses.isEmpty {
                 Text(DateUtils.localizedDay(day) + L10n.format("no_course_today"))
                     .font(.system(size: 12))
-                    .foregroundColor(colors.onSurfaceVariant)
+                    .foregroundColor(isGrey ? greyFg : colors.onSurfaceVariant)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 VStack(spacing: 7) {
                     ForEach(courses) { c in
-                        LessonRow(course: c, displayMode: displayMode, timeJson: timeJson) {
+                        LessonRow(course: c, displayMode: displayMode, timeJson: timeJson,
+                                  isGrey: isGrey) {
                             onCourseClick(c)
                         }
                     }
@@ -450,6 +478,7 @@ private struct LessonRow: View {
     let course: CourseEntity
     let displayMode: String
     let timeJson: String
+    var isGrey: Bool = false
     let onClick: () -> Void
 
     var body: some View {
@@ -458,6 +487,10 @@ private struct LessonRow: View {
             course, isDark: isDark, neutralColor: colors.surfaceVariant,
             colorless: AppPrefs.shared.isCourseColorless())
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
+        // 节假日灰显 ← effectiveBg/effectiveFg/textDecoration
+        let effectiveBg = isGrey ? bg.opacity(SleepyTheme.Alpha.inactive) : bg
+        let effectiveFg = isGrey ? fg.opacity(SleepyTheme.Alpha.inactive) : fg
+        let strikethrough = isGrey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
 
         // time 模式: 时间段在连字符后折行; node 模式: 节次标签
         let timeParts: (String, String)? = displayMode == "time" && !timeJson.isEmpty
@@ -483,25 +516,29 @@ private struct LessonRow: View {
                 if let parts = timeParts {
                     Text("\(parts.0)-\n\(parts.1)")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(fg)
+                        .foregroundColor(effectiveFg)
+                        .strikethrough(strikethrough)
                         .frame(width: 42, alignment: .leading)
                 } else {
                     Text(nodeLabel)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(fg)
+                        .foregroundColor(effectiveFg)
+                        .strikethrough(strikethrough)
                         .frame(width: 42, alignment: .leading)
                         .lineLimit(1)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(course.courseName)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(fg)
+                        .foregroundColor(effectiveFg)
+                        .strikethrough(strikethrough)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     if !meta.isEmpty {
                         Text(meta)
                             .font(SleepyTextStyle.smallMeta())
-                            .foregroundColor(fg.opacity(SleepyTheme.Alpha.highContent))
+                            .foregroundColor(effectiveFg.opacity(SleepyTheme.Alpha.highContent))
+                            .strikethrough(strikethrough)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                     }
@@ -510,7 +547,7 @@ private struct LessonRow: View {
             }
             .padding(9)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(bg)
+            .background(effectiveBg)
             .cornerRadius(SleepyShapes.medium)
         }
         .buttonStyle(SleepyButtonStyle())

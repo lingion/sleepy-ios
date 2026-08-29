@@ -100,7 +100,7 @@ struct AboutScreen: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(colors.onPrimary)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 44)
+                                .frame(height: 40)
                                 .background(colors.primary)
                                 .cornerRadius(SleepyShapes.large)
                             }

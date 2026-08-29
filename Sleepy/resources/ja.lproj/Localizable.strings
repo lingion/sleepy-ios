@@ -471,3 +471,42 @@
 "format_plain_spec_7" = "科目名にスペースを入れるとその行は捨てられる";
 "format_plain_spec_8" = "元データに時限の時刻表があれば、授業行の前に1行ずつ出力：第N節 HH:mm HH:mm — インポート時に実際の時刻が自動適用される";
 "format_plain_spec_9" = "AI の出力におしゃべりが混ざっていてもOK：データを <<<SLEEPY-BEGIN>>> と <<<SLEEPY-END>>> で囲めば、外側は自動的に無視される";
+
+// ===== 节假日课程灰显 (← settings_holiday_* / holiday_*) =====
+
+"settings_holiday_holiday" = "祝日の授業をグレー表示";
+"settings_holiday_holiday_sub" = "祝日（国民の祝日など）の授業をグレーで表示します";
+"settings_holiday_entry_sub" = "グレー表示のルールを設定し、祝日・振替出勤日のデータを表示";
+"holiday_page_title" = "祝日と振替出勤日";
+"holiday_data_source" = "データソース";
+"holiday_data_failed" = "祝日・振替出勤日データの取得に失敗しました。ネットワークを確認して再試行してください";
+"holiday_data_empty" = "この年の祝日・振替出勤日データはありません";
+"holiday_data_refresh" = "データを更新";
+"holiday_data_retry" = "再試行";
+"holiday_year_prev" = "前の年";
+"holiday_year_next" = "次の年";
+"holiday_list_holidays" = "法定祝日";
+"holiday_list_workdays" = "振替出勤日";
+"holiday_workday_badge" = "出勤日";
+"settings_holiday_title" = "祝日・週末のグレー表示";
+"settings_holiday_weekend" = "週末の授業をグレー表示";
+"settings_holiday_weekend_sub" = "土曜日と日曜日の授業を自動的に灰色で表示";
+"settings_holiday_style" = "表示スタイル";
+"settings_holiday_style_grey" = "灰色";
+"settings_holiday_style_strikethrough" = "灰色＋取り消し線";
+"settings_holiday_workday" = "振替出勤日を無視";
+"settings_holiday_workday_sub" = "週末のグレー表示が有効なとき、振替出勤日はグレー表示しません";
+"holiday_edit_title" = "カスタム日付を編集";
+"holiday_add_title" = "カスタム日付を追加";
+"holiday_name_label_date" = "開始日";
+"holiday_name_label" = "名前";
+"holiday_name_label_end" = "終了日";
+"holiday_date_invalid" = "日付が無効、または終了日が開始日より前です";
+"holiday_removed_section" = "削除済み";
+"holiday_restore" = "元に戻す";
+"holiday_delete_range" = "削除";
+"holiday_type_holiday" = "祝日";
+"holiday_type_workday" = "振替出勤日";
+"holiday_custom_badge" = "カスタム";
+"holiday_add_entry" = "カスタム日付を追加";
+"settings_holiday_style_sub" = "グレー表示した授業の見た目を選択";

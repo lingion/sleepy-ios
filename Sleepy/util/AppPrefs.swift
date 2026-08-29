@@ -30,6 +30,11 @@ final class AppPrefs {
     static let KEY_WIDGET_COLORLESS = "widget_colorless" // bool default false
     static let KEY_COURSE_COLORLESS = "course_colorless" // bool default false (App 课程胶囊专用)
     static let KEY_WIDGET_SEPARATOR = "widget_separator" // bool default true (WeekView 纯文字课程间分隔线)
+    static let KEY_HOLIDAY_GREY_HOLIDAY = "holiday_grey_holiday" // bool default true
+    static let KEY_HOLIDAY_GREY_WEEKEND = "holiday_grey_weekend" // bool default true
+    static let KEY_HOLIDAY_STYLE = "holiday_style"          // "grey" / "strikethrough" default "grey"
+    static let KEY_HOLIDAY_IGNORE_WORKDAY = "holiday_ignore_workday" // bool default true
+    static let KEY_HOLIDAY_OVERRIDES = "holiday_overrides"  // JSON, HolidayRangeOps 编解码
     static let KEY_THEME_MODE = "theme_mode"  // light/dark/system
     static let THEME_MODE_LIGHT = "light"
     static let THEME_MODE_DARK = "dark"
@@ -48,6 +53,9 @@ final class AppPrefs {
     }
 
     private func sp() -> UserDefaults { d }
+
+    /// HolidayManager 磁盘缓存与业务 prefs 共用同一存储(← PREFS_NAME 同文件语义)
+    var sharedBackedStore: UserDefaults { d }
 
     /// 实际是否深色:dark→true, light→false, system→isSystemDark。isSystemDark 由调用方传入。 ← isDarkMode
     func isDarkMode(isSystemDark: Bool = false) -> Bool {
@@ -208,4 +216,41 @@ final class AppPrefs {
         sp().object(forKey: Self.KEY_WIDGET_SEPARATOR) as? Bool ?? true
     }
     func setWidgetSeparator(_ v: Bool) { sp().set(v, forKey: Self.KEY_WIDGET_SEPARATOR) }
+
+    // ===== 节假日灰显 =====
+
+    /// 法定节假日灰显开关 — 默认 true ← isHolidayGreyHoliday
+    func isHolidayGreyHoliday() -> Bool {
+        sp().object(forKey: Self.KEY_HOLIDAY_GREY_HOLIDAY) as? Bool ?? true
+    }
+    func setHolidayGreyHoliday(_ v: Bool) { sp().set(v, forKey: Self.KEY_HOLIDAY_GREY_HOLIDAY) }
+
+    /// 周末灰显开关 — 默认 true ← isHolidayGreyWeekend
+    func isHolidayGreyWeekend() -> Bool {
+        sp().object(forKey: Self.KEY_HOLIDAY_GREY_WEEKEND) as? Bool ?? true
+    }
+    func setHolidayGreyWeekend(_ v: Bool) { sp().set(v, forKey: Self.KEY_HOLIDAY_GREY_WEEKEND) }
+
+    /// 灰显样式 — 默认 "grey" ← getHolidayStyle/setHolidayStyle
+    func getHolidayStyle() -> String {
+        sp().string(forKey: Self.KEY_HOLIDAY_STYLE) ?? "grey"
+    }
+    func setHolidayStyle(_ style: String) {
+        precondition(style == "grey" || style == "strikethrough")
+        sp().set(style, forKey: Self.KEY_HOLIDAY_STYLE)
+    }
+
+    /// 忽略补班日 — 默认 true ← isHolidayIgnoreWorkday
+    func isHolidayIgnoreWorkday() -> Bool {
+        sp().object(forKey: Self.KEY_HOLIDAY_IGNORE_WORKDAY) as? Bool ?? true
+    }
+    func setHolidayIgnoreWorkday(_ v: Bool) { sp().set(v, forKey: Self.KEY_HOLIDAY_IGNORE_WORKDAY) }
+
+    /// 用户范围化覆盖段: 编辑/新增/删除节日段 ← getHolidayRanges/setHolidayRanges
+    func getHolidayRanges() -> [HolidayRange] {
+        HolidayRangeOps.decodeOverrides(sp().string(forKey: Self.KEY_HOLIDAY_OVERRIDES) ?? "[]")
+    }
+    func setHolidayRanges(_ ranges: [HolidayRange]) {
+        sp().set(HolidayRangeOps.encodeOverrides(ranges), forKey: Self.KEY_HOLIDAY_OVERRIDES)
+    }
 }

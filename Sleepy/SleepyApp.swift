@@ -62,7 +62,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 @MainActor
 final class AppRootViewModel: ObservableObject {
     enum Tab: Hashable { case schedule, today, manage, mine }
-    enum OverlayScreen: String { case addCourse, allTables, editTable, theme, general, export, reminder, about }
+    enum OverlayScreen: String { case addCourse, allTables, editTable, theme, general, holiday, export, reminder, about }
 
     @Published var currentTab: Tab = .schedule
     @Published var overlayScreen: OverlayScreen? = nil
@@ -163,6 +163,8 @@ struct AppRoot: View {
                     UIApplication.shared.open(url)
                 }
             }
+            // ← SleepyApp.onCreate: 预加载当年+明年节假日数据(磁盘/网络)
+            Task { await HolidayManager.preload() }
         }
         // 深链课程 → 编辑(← LaunchedEffect(deepLinkCourse?.id))
         .onChange(of: root.deepLinkCourse?.id) { courseId in
@@ -258,7 +260,11 @@ struct AppRoot: View {
                     themeKey = AppPrefs.shared.getThemeKey()
                 })
         } else if root.overlayScreen == .general {
-            GeneralSettingsScreen(onBack: { root.overlayScreen = nil })
+            GeneralSettingsScreen(onBack: { root.overlayScreen = nil },
+                                  onOpenHoliday: { root.overlayScreen = .holiday })
+        } else if root.overlayScreen == .holiday {
+            // ← MainActivity: onBack = overlayScreen = null (回主界面, 非 General)
+            HolidaySettingsScreen(onBack: { root.overlayScreen = nil })
         } else if root.overlayScreen == .export {
             ExportScreen(viewModel: root.scheduleViewModel, onBack: { root.overlayScreen = nil })
         } else if root.overlayScreen == .reminder {

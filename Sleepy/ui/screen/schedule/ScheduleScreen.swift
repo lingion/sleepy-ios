@@ -104,6 +104,10 @@ private struct WeekPager: View {
     let visibleDays: Set<Int>
     let onCourseClick: (CourseEntity) -> Void
 
+    // 本页灰显的星期几 ← Android produceState greyDays: 逐日 shouldGrey
+    @State private var greyDays: Set<Int> = []
+    @State private var greyLoadedWeek: Int = -1
+
     var body: some View {
         let state = viewModel.state
         // VM 变化(TopBar 点击) → 同步 pager(binding 直写, 防双向打架由 onChange 用户手势分支承担)
@@ -125,7 +129,8 @@ private struct WeekPager: View {
                                      visibleDays: visibleDays,
                                      displayMode: displayMode,
                                      timeJson: state.currentTable?.timeJson ?? "",
-                                     onCourseClick: onCourseClick)
+                                     onCourseClick: onCourseClick,
+                                     greyDays: page == state.selectedWeek ? greyDays : [])
                     case .cards:
                         CardsGridView(courses: weekCourses,
                                       timeSlots: cardTimeSlots(table: state.currentTable),
@@ -133,7 +138,8 @@ private struct WeekPager: View {
                                       showDate: showDate,
                                       startDate: state.currentTable?.startDate ?? "",
                                       currentWeek: page,
-                                      onCourseClick: onCourseClick)
+                                      onCourseClick: onCourseClick,
+                                      greyDays: page == state.selectedWeek ? greyDays : [])
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -142,6 +148,26 @@ private struct WeekPager: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tabViewStyle(.page(indexDisplayMode: .never))
+        // 计算本周哪些天是节假日/周末(灰显用) ← Android produceState(greyDays, page, startDate)
+        .task(id: "\(state.selectedWeek)-\(state.currentTable?.startDate ?? "")") {
+            let start = state.currentTable?.startDate ?? ""
+            guard !start.isEmpty else {
+                greyDays = []
+                greyLoadedWeek = state.selectedWeek
+                return
+            }
+            let week = state.selectedWeek
+            if week == greyLoadedWeek { return }
+            var grey: Set<Int> = []
+            for day in 1...7 {
+                if let date = DateUtils.dateOfWeek(startDate: start, week: week, dayOfWeek: day),
+                   await HolidayManager.shouldGrey(date) {
+                    grey.insert(day)
+                }
+            }
+            greyDays = grey
+            greyLoadedWeek = week
+        }
     }
 }
 
@@ -279,7 +305,7 @@ private struct NoCourseState: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onPrimary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(height: 56)
                     .background(colors.primary)
                     .cornerRadius(SleepyShapes.large)
             }
@@ -289,7 +315,7 @@ private struct NoCourseState: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSecondaryContainer)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(height: 56)
                     .background(colors.secondaryContainer)
                     .cornerRadius(SleepyShapes.large)
             }
@@ -321,7 +347,7 @@ private struct EmptyState: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onPrimary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(height: 56)
                     .background(colors.primary)
                     .cornerRadius(SleepyShapes.large)
             }
@@ -331,7 +357,7 @@ private struct EmptyState: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSecondaryContainer)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(height: 56)
                     .background(colors.secondaryContainer)
                     .cornerRadius(SleepyShapes.large)
             }

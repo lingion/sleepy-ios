@@ -472,3 +472,42 @@
 "format_plain_spec_7" = "课程名里不能有空格，否则这行会被丢弃";
 "format_plain_spec_8" = "截图/原文有节次时间表时，在课程行前逐行输出：第N节 HH:mm HH:mm（如：第1节 08:00-09:35），导入后自动套用真实作息";
 "format_plain_spec_9" = "从 AI 复制的输出自带废话也没关系：数据包在 <<<SLEEPY-BEGIN>>> 和 <<<SLEEPY-END>>> 之间即可，标识外的内容自动忽略";
+
+// ===== 节假日课程灰显 (← settings_holiday_* / holiday_*) =====
+
+"settings_holiday_holiday" = "法定节假日课程灰显";
+"settings_holiday_holiday_sub" = "法定节假日（如国庆、春节）当天的课程显示为灰色";
+"settings_holiday_entry_sub" = "设置灰显规则，查看节假日和补班日数据";
+"holiday_page_title" = "节假日与补班日";
+"holiday_data_source" = "数据源";
+"holiday_data_failed" = "节假日和补班日数据获取失败，请检查网络后重试";
+"holiday_data_empty" = "该年份暂无节假日和补班日数据";
+"holiday_data_refresh" = "刷新数据";
+"holiday_data_retry" = "重试";
+"holiday_year_prev" = "上一年";
+"holiday_year_next" = "下一年";
+"holiday_list_holidays" = "法定节假日";
+"holiday_list_workdays" = "补班日";
+"holiday_workday_badge" = "补班";
+"settings_holiday_title" = "节假日课程灰显";
+"settings_holiday_weekend" = "周末课程灰显";
+"settings_holiday_weekend_sub" = "自动将周六、周日的课程显示为灰色";
+"settings_holiday_style" = "灰显样式";
+"settings_holiday_style_grey" = "灰色";
+"settings_holiday_style_strikethrough" = "灰色加删除线";
+"settings_holiday_workday" = "忽略补班日";
+"settings_holiday_workday_sub" = "开启周末灰显时，补班的周六、周日不灰显";
+"holiday_edit_title" = "编辑自定义日期";
+"holiday_add_title" = "添加自定义日期";
+"holiday_name_label_date" = "开始日期";
+"holiday_name_label" = "名称";
+"holiday_name_label_end" = "结束日期";
+"holiday_date_invalid" = "日期无效或结束早于开始";
+"holiday_removed_section" = "已删除";
+"holiday_restore" = "恢复";
+"holiday_delete_range" = "删除";
+"holiday_type_holiday" = "法定节假日";
+"holiday_type_workday" = "补班日";
+"holiday_custom_badge" = "自定义";
+"holiday_add_entry" = "添加自定义日期";
+"settings_holiday_style_sub" = "选择灰显课程的样子";

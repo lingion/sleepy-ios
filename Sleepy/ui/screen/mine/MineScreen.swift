@@ -54,7 +54,7 @@ struct MineScreen: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSecondaryContainer)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 44)
+                    .frame(height: 48)
                     .background(colors.secondaryContainer)
                     .cornerRadius(SleepyShapes.large)
                 }

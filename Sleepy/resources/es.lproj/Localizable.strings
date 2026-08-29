@@ -471,3 +471,42 @@
 "format_plain_spec_7" = "Sin espacios en los nombres de curso, o la línea se descarta";
 "format_plain_spec_8" = "Si el origen tiene una tabla de horarios por periodo, escribe una línea por periodo antes de los cursos: PeriodoN HH:mm HH:mm — los horarios reales se aplican automáticamente al importar";
 "format_plain_spec_9" = "Pegar salida de IA con charla alrededor no es problema: envuelve los datos en <<<SLEEPY-BEGIN>>> y <<<SLEEPY-END>>> — lo que quede fuera se ignora";
+
+// ===== 节假日课程灰显 (← settings_holiday_* / holiday_*) =====
+
+"settings_holiday_holiday" = "Atenuar festivos oficiales";
+"settings_holiday_holiday_sub" = "Los cursos en festivos oficiales (p. ej., Día Nacional, Año Nuevo Chino) se muestran en gris";
+"settings_holiday_entry_sub" = "Configurar reglas de atenuación y ver datos de festivos y días de recuperación";
+"holiday_page_title" = "Festivos y días de recuperación";
+"holiday_data_source" = "Fuente de datos";
+"holiday_data_failed" = "No se pudieron obtener los datos de festivos y días de recuperación. Comprueba la red y reintenta";
+"holiday_data_empty" = "Sin datos de festivos ni días de recuperación para este año";
+"holiday_data_refresh" = "Actualizar";
+"holiday_data_retry" = "Reintentar";
+"holiday_year_prev" = "Año anterior";
+"holiday_year_next" = "Año siguiente";
+"holiday_list_holidays" = "Festivos oficiales";
+"holiday_list_workdays" = "Días de recuperación";
+"holiday_workday_badge" = "Laborable";
+"settings_holiday_title" = "Atenuar cursos en festivos";
+"settings_holiday_weekend" = "Atenuar cursos del fin de semana";
+"settings_holiday_weekend_sub" = "Mostrar automáticamente en gris los cursos del sábado y domingo";
+"settings_holiday_style" = "Estilo de atenuación";
+"settings_holiday_style_grey" = "Gris";
+"settings_holiday_style_strikethrough" = "Gris con tachado";
+"settings_holiday_workday" = "Ignorar días de recuperación";
+"settings_holiday_workday_sub" = "Los sábados y domingos de recuperación no se atenúan cuando el atenuado de fin de semana está activado";
+"holiday_edit_title" = "Editar fechas personalizadas";
+"holiday_add_title" = "Añadir fechas personalizadas";
+"holiday_name_label_date" = "Fecha de inicio";
+"holiday_name_label" = "Nombre";
+"holiday_name_label_end" = "Fecha de fin";
+"holiday_date_invalid" = "Fechas no válidas o fin anterior al inicio";
+"holiday_removed_section" = "Eliminados";
+"holiday_restore" = "Restaurar";
+"holiday_delete_range" = "Eliminar";
+"holiday_type_holiday" = "Festivo";
+"holiday_type_workday" = "Día de recuperación";
+"holiday_custom_badge" = "Personalizado";
+"holiday_add_entry" = "Añadir fechas personalizadas";
+"settings_holiday_style_sub" = "Elige el aspecto de los cursos atenuados";

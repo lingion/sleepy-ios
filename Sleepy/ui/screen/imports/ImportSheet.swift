@@ -137,7 +137,7 @@ struct ImportSheet: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(colors.onPrimary)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 44)
+                                .frame(height: 48)
                                 .background(colors.primary)
                                 .cornerRadius(SleepyShapes.large)
                         }
@@ -465,11 +465,11 @@ private struct FormatDetailDialog: View {
                                 Text(copiedPrompt ? L10n.format("copied") : L10n.format("copy_prompt"))
                                     .font(.system(size: 14))
                             }
-                            .foregroundColor(colors.onSurface)
+                            .foregroundColor(colors.onPrimaryContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(colors.surface)
-                            .cornerRadius(SleepyShapes.medium)
+                            .frame(height: 48)
+                            .background(colors.primaryContainer)
+                            .cornerRadius(SleepyShapes.large)
                         }
                         .buttonStyle(SleepyButtonStyle())
                     }

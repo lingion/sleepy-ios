@@ -263,6 +263,23 @@ final class MineSettingsUITests: XCTestCase {
                       "切回 English 后应立即变回 General")
     }
 
+    // ★ 节假日入口(← Android General 页 holiday 入口卡): 点击进二级页, 返回回 General
+    func testHolidayEntryOpensHolidayScreen() {
+        app.descendants(matching: .any)["mine_general"].tap()
+        XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
+        app.swipeUp()
+        let entry = app.descendants(matching: .any)["settings_holiday_entry"].firstMatch
+        XCTAssertTrue(entry.waitForExistence(timeout: 5), "General 页应有节假日入口卡")
+        entry.tap()
+        // 二级页标题 "Holidays & Make-up Days"
+        let title = app.staticTexts["Holidays & Make-up Days"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "点入口应打开节假日设置页")
+        // 返回(← Android onBack = overlayScreen = null) → 回主界面, Mine tab 仍在
+        app.buttons["topbar_back"].firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["mine_general"].waitForExistence(timeout: 5),
+                      "返回后应回主界面(Mine tab)")
+    }
+
     // MARK: Export — 3 格式行存在
 
     func testExportScreenThreeFormats() {
