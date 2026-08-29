@@ -50,11 +50,16 @@ enum LocaleHelper {
         return bundle(for: lang)
     }
 
-    /// 切语言: 写 AppPrefs + AppleLanguages(下次启动全系统生效)+ 立即返回新 bundle
+    /// 切语言: 写 AppPrefs + AppleLanguages(下次启动全系统生效)+ 广播重建。
+    /// ← Android: wrap + Activity.recreate() — recreate 等价 = L10n.didChangeNotification,
+    /// AppRoot 监听后整树重建,运行中的 SwiftUI hierarchy 立即用新语言。
+    @discardableResult
     static func applyLanguage(_ langCode: String) -> Bundle {
         AppPrefs.shared.setLanguage(langCode)
         UserDefaults.standard.set([lprojName(for: langCode)], forKey: "AppleLanguages")
-        return bundle(for: langCode)
+        let b = bundle(for: langCode)
+        NotificationCenter.default.post(name: L10n.didChangeNotification, object: nil)
+        return b
     }
 
     /// App 启动时调用一次 ← wrapDefault 的 attachBaseContext 位置

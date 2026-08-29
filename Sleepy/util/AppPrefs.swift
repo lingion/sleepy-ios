@@ -137,7 +137,22 @@ final class AppPrefs {
 
     // ===== 语言 =====
 
-    func getLanguage() -> String { sp().string(forKey: Self.KEY_LANG) ?? "zh-CN" }
+    /// 首启无保存值 → 从 AppleLanguages 推断(等价 Android 首启跟随系统;
+    /// 用户在 App 内切过语言后 KEY_LANG 固定, AppPrefs 为唯一事实来源 ← wrapDefault)。
+    /// 读 UserDefaults "AppleLanguages"(launch args/系统设置同源), 非 Locale.preferredLanguages。
+    func getLanguage() -> String {
+        if let saved = sp().string(forKey: Self.KEY_LANG) { return saved }
+        let preferred = sp().stringArray(forKey: "AppleLanguages")?.first
+            ?? Locale.preferredLanguages.first ?? "zh-CN"
+        if preferred.hasPrefix("zh") {
+            return preferred.contains("Hant") || preferred.contains("TW")
+                || preferred.contains("HK") || preferred.contains("MO") ? "zh-TW" : "zh-CN"
+        }
+        if preferred.hasPrefix("en") { return "en" }
+        if preferred.hasPrefix("ja") { return "ja" }
+        if preferred.hasPrefix("es") { return "es" }
+        return "zh-CN"
+    }
     func setLanguage(_ lang: String) { sp().set(lang, forKey: Self.KEY_LANG) }
 
     // ===== 显示模式:节次 / 时间 =====

@@ -7,6 +7,12 @@ import Foundation
 
 enum SleepyUITestSeeder {
     static func seed(database: AppDatabase) {
+        // 语言复位: 语言切换测试会持久化 KEY_LANG/AppleLanguages, 残留会污染
+        // 后续依赖系统语言(launch args -AppleLanguages)的用例 → 每次种子清零。
+        // (L10n 现在跟随 AppPrefs 保存值 ← Android wrapDefault 语义)
+        UserDefaults.standard.removeObject(forKey: "language")
+        UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+
         do {
             try database.dbQueue.write { db in
                 try db.execute(sql: "DELETE FROM courses")

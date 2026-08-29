@@ -73,6 +73,10 @@ final class AppRootViewModel: ObservableObject {
     @Published var previousDefaultTableId: Int64? = nil
     // 深链课程
     @Published var deepLinkCourse: CourseEntity? = nil
+    // 语言切换重建 token(← Activity.recreate): L10n.didChange → 递增 → AppRoot 全树重建
+    @Published var languageReload = 0
+
+    private var langObserver: NSObjectProtocol?
 
     let scheduleViewModel: ScheduleViewModel
 
@@ -80,6 +84,15 @@ final class AppRootViewModel: ObservableObject {
         scheduleViewModel = ScheduleViewModel(
             repo: repository,
             onWidgetsNeedReload: { WidgetCenter.shared.reloadAllTimelines() })
+        langObserver = NotificationCenter.default.addObserver(
+            forName: L10n.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.languageReload += 1
+        }
+    }
+
+    deinit {
+        if let langObserver { NotificationCenter.default.removeObserver(langObserver) }
     }
 
     // ← BackHandler: overlay 返回(pendingNewTable 丢弃链)
@@ -134,6 +147,8 @@ struct AppRoot: View {
         NavigationStack {
             mainContent
         }
+        // ← Activity.recreate(): 语言切换 → L10n.didChange → languageReload+1 → 全树重建
+        .id(root.languageReload)
         .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey))
         .onOpenURL { url in
             handleDeepLink(url)

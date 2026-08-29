@@ -110,15 +110,20 @@ private struct StatsCard: View {
     let week: Int
 
     var body: some View {
-        HStack {
+        // ← Arrangement.SpaceEvenly: 三项中心均匀分布(1/6, 1/2, 5/6) = 两边靠边中间居中。
+        //   等宽 frame → StatItem 各占 1/3 且内容居中, 中心位置与 SpaceEvenly 一致。
+        HStack(spacing: 0) {
             StatItem(value: "\(tableCount)", label: L10n.format("mine_stat_tables"),
                      identifier: "mine_stat_tables")
+                .frame(maxWidth: .infinity)
             VDivider()
             StatItem(value: "\(courseCount)", label: L10n.format("mine_stat_courses"),
                      identifier: "mine_stat_courses")
+                .frame(maxWidth: .infinity)
             VDivider()
             StatItem(value: "\(week)", label: L10n.format("mine_stat_week"),
                      identifier: "mine_stat_week")
+                .frame(maxWidth: .infinity)
         }
         .padding(.vertical, 18)
         .padding(.horizontal, 8)

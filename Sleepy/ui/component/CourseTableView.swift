@@ -270,10 +270,6 @@ private struct DayHeadCell: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(bg)
         .cornerRadius(SleepyShapes.large)
-        .overlay(
-            RoundedRectangle(cornerRadius: SleepyShapes.large)
-                .strokeBorder(colors.outline.opacity(SleepyTheme.Alpha.tinted), lineWidth: 0.5)
-        )
         .padding(.horizontal, 1)
         .padding(.vertical, 6)
     }
@@ -344,19 +340,26 @@ private struct DaySummaryCell: View {
 
             Spacer().frame(height: 6)
 
-            // Chip: 课程数 — 列窄换行退化为纯数字(Android textMeasurer 逻辑)
+            // Chip: 课程数 — "N 门" 完整文字, 列宽放不下退化为纯数字。
+            // ← Android textMeasurer: fullText 在列宽内换行(lineCount>1) → 只显数字。
+            //   ViewThatFits 等价: fullText(单行)放得下用 fullText, 否则回退数字。
             if courses.isEmpty {
                 Spacer().frame(height: 14)
             } else {
-                // 等价适配: minimumScaleFactor 替代 measure 换行检测
-                Text("\(courses.count)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(colors.onSurfaceVariant)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(colors.surfaceVariant)
-                    .cornerRadius(50)
-                    .lineLimit(1)
+                ViewThatFits(in: .horizontal) {
+                    Text(L10n.format("course_count_format", courses.count))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .lineLimit(1)
+                    Text("\(courses.count)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(colors.surfaceVariant)
+                .cornerRadius(50)
             }
 
             Spacer().frame(height: 4)

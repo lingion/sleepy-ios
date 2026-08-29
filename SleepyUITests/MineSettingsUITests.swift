@@ -233,6 +233,36 @@ final class MineSettingsUITests: XCTestCase {
         zh.tap()
     }
 
+    // ★ 语言切换即时生效(修复前 L10n 固定 Bundle.main → 只写 prefs 不刷 UI):
+    //   启动 en(种子已清残留语言)→ 切 "简体中文" → 页面立即变中文。
+    //   全树重建(← Activity.recreate)保留 VM 状态 → 仍在 General overlay, 标题
+    //   "General"→"通用" 即时变化;语言项标签是硬编码原生名, 不随语言变可再定位。
+    func testLanguageSwitchAppliesImmediately() {
+        app.descendants(matching: .any)["mine_general"].tap()
+        XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
+        app.swipeUp()
+        app.swipeUp()
+        app.swipeUp()
+        app.swipeUp()
+        let zh = app.buttons["简体中文"].firstMatch
+        XCTAssertTrue(zh.waitForExistence(timeout: 3), "语言列表应有 简体中文")
+        zh.tap()
+
+        // 整树重建后仍在 General overlay — 标题应立即是 "通用"(即时生效, 无需重启)
+        XCTAssertTrue(app.staticTexts["通用"].waitForExistence(timeout: 5),
+                      "切简体中文后 General 页标题应立即变 通用(即时生效)")
+        // 恢复英文环境(与其他用例的英文断言隔离)
+        app.swipeUp()
+        app.swipeUp()
+        app.swipeUp()
+        app.swipeUp()
+        let english = app.buttons["English"].firstMatch
+        XCTAssertTrue(english.waitForExistence(timeout: 3))
+        english.tap()
+        XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5),
+                      "切回 English 后应立即变回 General")
+    }
+
     // MARK: Export — 3 格式行存在
 
     func testExportScreenThreeFormats() {
