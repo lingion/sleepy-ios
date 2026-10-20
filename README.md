@@ -203,6 +203,14 @@ xcodebuild -project Sleepy.xcodeproj \
   build
 ```
 
+> **没有 Mac 也能构建**：仓库配有 `iOS Build` workflow，用 GitHub Actions 免费的 macOS runner 云端出无签名 IPA（供 AltStore 重签）并可跑模拟器测试：
+>
+> ```bash
+> gh workflow run "iOS Build" -f ref=master -f config=Release
+> ```
+>
+> 详见 [docs/ci-automation.md](docs/ci-automation.md)。
+
 ### 测试
 
 ```bash
