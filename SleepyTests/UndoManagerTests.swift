@@ -1,4 +1,4 @@
-// UndoManagerTests.swift — ← UndoManagerTest.kt (对齐安卓 5 用例语义, GPL-3.0)
+// UndoManagerTests.swift — ← UndoManagerTest.kt (对齐安卓 12 用例语义, GPL-3.0)
 
 import XCTest
 @testable import Sleepy
@@ -17,6 +17,13 @@ final class UndoManagerTests: XCTestCase {
         t.id = id
         t.isDefault = isDefault
         return t
+    }
+
+    // 默认参数不能引用前序参数(Swift 规则), 兜底名在函数体内做
+    private func periodTable(_ id: Int64, name: String? = nil) -> PeriodTableEntity {
+        var p = PeriodTableEntity(name: name ?? "P\(id)")
+        p.id = id
+        return p
     }
 
     override func setUp() {
@@ -97,6 +104,105 @@ final class UndoManagerTests: XCTestCase {
         UndoManager.shared.capture(tables: [table(1), table(3)], courses: [], defaultTableId: 1)
         let snap = UndoManager.shared.poll()
         XCTAssertNotNil(snap?.tables.first { $0.id == 3 })
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // issue#40 — 快照须携带独立时间节次表
+    // ────────────────────────────────────────────────────────────────────
+
+    /// issue#40: 撤回快照必须含独立时间节次表, 否则撤回建时间表类动作后
+    /// period_tables 残留/绑定丢失。
+    func testSnapshotCarriesPeriodTablesForIssue40Undo() {
+        UndoManager.shared.clear()
+        let p1 = periodTable(5, name: "春季作息")
+        UndoManager.shared.capture(tables: [], courses: [], defaultTableId: nil, periodTables: [p1])
+        let snap = UndoManager.shared.poll()
+        XCTAssertEqual(snap?.periodTables.count, 1)
+        XCTAssertEqual(snap?.periodTables.first?.id, 5)
+        XCTAssertEqual(snap?.periodTables.first?.name, "春季作息")
+    }
+
+    /// 兼容: 旧三参数调用不得因新参数破坏(默认空 periodTables)。
+    func testLegacyThreeArgCaptureCompilesWithEmptyPeriodTables() {
+        UndoManager.shared.clear()
+        UndoManager.shared.capture(tables: [table(1)], courses: [], defaultTableId: 1)
+        let snap = UndoManager.shared.poll()
+        XCTAssertEqual(snap?.periodTables.isEmpty, true)
+        XCTAssertEqual(snap?.defaultTableId, 1)
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // 2026-09-21 redo 套件 — 单级 redo 槽, 与 undo 互不抢占, 新写清 redo
+    // ────────────────────────────────────────────────────────────────────
+
+    /// redo 与 undo 是两条独立槽; recordRedo 不动 undo 槽, pollRedo 不动 undo 槽。
+    func testRecordRedoAndPollRedoMutuallyExclusiveWithUndo() {
+        UndoManager.shared.clear()
+        let t = table(1)
+        UndoManager.shared.capture(tables: [t], courses: [], defaultTableId: 1)
+        var modified = t
+        modified.name = "modified"
+        UndoManager.shared.recordRedo(UndoSnapshot(tables: [modified], courses: [], defaultTableId: 1))
+        XCTAssertTrue(UndoManager.shared.hasSnapshot)       // undo 槽仍存在
+        XCTAssertTrue(UndoManager.shared.hasRedoSnapshot)   // redo 槽也存在
+        let undo = UndoManager.shared.poll()
+        XCTAssertEqual(undo?.tables.first?.name, "T1")
+        XCTAssertFalse(UndoManager.shared.hasSnapshot)      // undo 排空
+        XCTAssertTrue(UndoManager.shared.hasRedoSnapshot)   // redo 仍在(互不抢)
+        let redo = UndoManager.shared.pollRedo()
+        XCTAssertEqual(redo?.tables.first?.name, "modified")
+        XCTAssertFalse(UndoManager.shared.hasRedoSnapshot)
+    }
+
+    /// 标准编辑器语义: undo → 改 → redo 路径废。新用户动作 = 历史分叉, redo 立即作废。
+    func testCaptureClearsRedoSlotForkPrevention() {
+        UndoManager.shared.clear()
+        UndoManager.shared.recordRedo(UndoSnapshot(tables: [], courses: [], defaultTableId: nil))
+        XCTAssertTrue(UndoManager.shared.hasRedoSnapshot)
+        UndoManager.shared.capture(tables: [], courses: [], defaultTableId: nil)
+        XCTAssertFalse(UndoManager.shared.hasRedoSnapshot) // capture 必清 redo
+    }
+
+    /// redo 应用快照后必须把 redo 前态成 undo(对称 — 用户再次点撤回回退 redo)。
+    /// 实现把 redo 前态直接灌进 undo 槽, 不走 capture(批/抑制逻辑绕过)。
+    func testReinsertForRedoSymmetryRestoresUndoSlot() {
+        UndoManager.shared.clear()
+        let before = UndoSnapshot(tables: [], courses: [], defaultTableId: nil)
+        UndoManager.shared.reinsertForRedoSymmetry(before)
+        XCTAssertTrue(UndoManager.shared.hasSnapshot)
+        let snap = UndoManager.shared.poll()
+        XCTAssertNotNil(snap)
+        XCTAssertFalse(UndoManager.shared.hasSnapshot) // poll 即清空, 与槽内即传入值同语义
+    }
+
+    /// clear 同时清空 undo 与 redo 两槽。
+    func testClearEmptiesBothUndoAndRedoSlots() {
+        UndoManager.shared.clear()
+        UndoManager.shared.capture(tables: [], courses: [], defaultTableId: nil)
+        UndoManager.shared.recordRedo(UndoSnapshot(tables: [], courses: [], defaultTableId: nil))
+        UndoManager.shared.clear()
+        XCTAssertFalse(UndoManager.shared.hasSnapshot)
+        XCTAssertFalse(UndoManager.shared.hasRedoSnapshot)
+    }
+
+    /// 用户原动作: A→B→C 三态演进。仓库层语义模拟:
+    /// undo() 把当前态录 redo + 恢复 undo 快照; redo() 反向搬运;
+    /// 关键: 用户新写动作(capture)必须清 redo, 否则历史分叉(从中间态直跳新态)。
+    func testFullUndoThenRedoThenNewWriteCycle() {
+        UndoManager.shared.clear()
+        let a = UndoSnapshot(tables: [], courses: [], defaultTableId: nil)
+        let b = UndoSnapshot(tables: [table(1)], courses: [], defaultTableId: 1)
+        // 用户在 B 状态点击"撤回" → 仓库把当前态录 redo, 恢复 a
+        UndoManager.shared.recordRedo(b)
+        UndoManager.shared.reinsertForRedoSymmetry(a)
+        XCTAssertTrue(UndoManager.shared.hasSnapshot)
+        XCTAssertTrue(UndoManager.shared.hasRedoSnapshot)
+        // 用户点"取消撤回" → 仓库把当前态录 undo, 恢复 b
+        UndoManager.shared.reinsertForRedoSymmetry(b)
+        UndoManager.shared.recordRedo(a)
+        // 关键: 用户做了新动作(capture) → redo 必清
+        UndoManager.shared.capture(tables: [], courses: [], defaultTableId: 2)
+        XCTAssertFalse(UndoManager.shared.hasRedoSnapshot) // 关键断言: 新写清 redo
     }
 }
 

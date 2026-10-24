@@ -126,6 +126,63 @@ final class SmartPeriodConfigTests: XCTestCase {
         XCTAssertEqual([10, 15, 0, 10], mins)
     }
 
+    func testOldJSONDefaultsNewDurationFields() throws {
+        let json = """
+        {"startTime":"08:00","periodMinutes":45,"totalPeriods":2,"breaks":[],"transitionAssignments":[]}
+        """
+        let cfg = try JSONDecoder().decode(SmartPeriodConfig.self, from: Data(json.utf8))
+
+        XCTAssertEqual([], cfg.durations)
+        XCTAssertEqual([], cfg.periodAssignments)
+        let rows = cfg.derive()
+        XCTAssertEqual(["08:00-08:45", "08:45-09:30"], rows.map { "\($0.start)-\($0.end)" })
+    }
+
+    func testDeriveMixedPrimaryAndAssignedDurations() {
+        let cfg = SmartPeriodConfig(
+            startTime: "08:00",
+            periodMinutes: 45,
+            totalPeriods: 3,
+            durations: [DurationOption(minutes: 30, isLong: false)],
+            periodAssignments: [nil, 0, nil]
+        )
+
+        let rows = cfg.derive()
+        XCTAssertEqual(["08:00-08:45", "08:45-09:15", "09:15-10:00"], rows.map { "\($0.start)-\($0.end)" })
+        XCTAssertEqual([45, 30, 45], cfg.effectivePeriodMinutes())
+    }
+
+    func testInvalidDurationAssignmentFallsBackToPrimaryDuration() {
+        let cfg = SmartPeriodConfig(
+            periodMinutes: 45,
+            totalPeriods: 3,
+            durations: [DurationOption(minutes: 30)],
+            periodAssignments: [5, -1, nil, 0]
+        )
+
+        XCTAssertEqual([nil, nil, nil], cfg.effectivePeriodAssignments())
+        XCTAssertEqual([45, 45, 45], cfg.effectivePeriodMinutes())
+    }
+
+    func testDeletingDurationGroupRemapsLaterAssignments() {
+        let assignments: [Int?] = [0, 2, 1, nil]
+
+        let remapped = remapDurationAssignmentsAfterDeletion(assignments: assignments, deletedIndex: 1)
+        XCTAssertEqual([0, 1, nil, nil], remapped)
+    }
+
+    func testDurationOptionDisplayLabelUsesCustomOrLengthAwareDefault() {
+        XCTAssertEqual("午休", DurationOption(minutes: 60, isLong: true, label: "午休").displayLabel(index: 2))
+        XCTAssertEqual("短课时 30 分钟", DurationOption(minutes: 30).displayLabel(index: 0))
+        XCTAssertEqual("长课时 45 分钟", DurationOption(minutes: 45, isLong: true).displayLabel(index: 1))
+    }
+
+    func testBreakOptionBlankLabelFallsBackToDefault() {
+        // Android isNullOrBlank: 纯空白 label 视为未填 (kt:120)
+        XCTAssertEqual("小课间 10 分钟", BreakOption(minutes: 10, label: "   ").displayLabel(index: 0))
+        XCTAssertEqual("大课间 30 分钟", BreakOption(minutes: 30, isLong: true, label: " \n ").displayLabel(index: 1))
+    }
+
     func testTotalPeriodsMinimum1() {
         let cfg = SmartPeriodConfig(totalPeriods: 1)
         let rows = cfg.derive()

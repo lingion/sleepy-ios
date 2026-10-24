@@ -65,9 +65,29 @@ struct PeriodTableDao {
         try db.read { try PeriodTableEntity.fetchOne($0, sql: "SELECT * FROM period_tables WHERE id = ? LIMIT 1", arguments: [id]) }
     }
 
+    /// ← observeById(id): Flow<PeriodTableEntity?> (Room Flow → GRDB ValueObservation)
+    /// SELECT * FROM period_tables WHERE id = :id LIMIT 1
+    /// 设计 §5.2「立即全部同步」的数据源: Repository 以 TimeTable 观察 flatMap 到本观察,
+    /// 共享时间节次表被编辑时, 所有绑定课表立即重发新内容。
+    func observeById(_ id: Int64) -> DatabasePublishers.Value<PeriodTableEntity?> {
+        ValueObservation
+            .tracking { db in try PeriodTableEntity.fetchOne(db, sql: "SELECT * FROM period_tables WHERE id = ? LIMIT 1", arguments: [id]) }
+            .publisher(in: db)
+    }
+
     // SELECT * FROM period_tables ORDER BY createdAt DESC
     func getAll() throws -> [PeriodTableEntity] {
         try db.read { try PeriodTableEntity.fetchAll($0, sql: "SELECT * FROM period_tables ORDER BY createdAt DESC") }
+    }
+
+    /// ← observeAll(): Flow<List<PeriodTableEntity>> (Room Flow → GRDB ValueObservation)
+    /// SELECT * FROM period_tables ORDER BY createdAt DESC
+    /// 时间节次表管理页列表实时刷新 (← Android ScheduleViewModel.allPeriodTables,
+    /// stateIn WhileSubscribed(5000), 初始 emptyList)。
+    func observeAll() -> DatabasePublishers.Value<[PeriodTableEntity]> {
+        ValueObservation
+            .tracking { db in try PeriodTableEntity.fetchAll(db, sql: "SELECT * FROM period_tables ORDER BY createdAt DESC") }
+            .publisher(in: db)
     }
 
     // SELECT COUNT(*) FROM period_tables

@@ -78,10 +78,13 @@ enum RowKeyDiffer {
             let s = serverByGroup[gid] ?? []
             let d = draftByGroup[gid] ?? []
 
+            // Kotlin associateBy 文档语义: 同键多行保留【最后一条】(last-wins)。
+            // 旧代码 { a, _ in a } 保留第一条 → 同组内 RowKey 全同但 note/credit/alias
+            // 不同的两行, 两端 update/delete 结果不一致 (对齐 1.0.61 修正)。
             let sKeyToCourse = Dictionary(s.map { (RowKey.of($0), $0) },
-                                          uniquingKeysWith: { a, _ in a })
+                                          uniquingKeysWith: { _, b in b })
             let dKeyToCourse = Dictionary(d.map { (RowKey.of($0), $0) },
-                                          uniquingKeysWith: { a, _ in a })
+                                          uniquingKeysWith: { _, b in b })
 
             for (key, draftCourse) in dKeyToCourse {
                 if let serverCourse = sKeyToCourse[key] {

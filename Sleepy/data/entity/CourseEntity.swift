@@ -31,7 +31,9 @@ struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identif
     var startWeek: Int
     /// 结束周
     var endWeek: Int
-    /// 周次类型: 0=每周, 1=单周, 2=双周
+    /// 周次类型: 0=每周, 1=单周(第1/3/5周), 2=双周(第2/4/6周), 3=按周次列实际指定的周
+    /// (用于"只在某一两周上"的单次实验课; 解析器在类型列缺失/不明时默认填 3 而非 0,
+    /// 避免把"周次=6 单次实验"误标成"每周都上")
     var type: Int = 0
     /// 颜色 (ARGB Hex, 例如 "#FF6750A4")
     ///
@@ -53,9 +55,9 @@ struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identif
     /// 是否自定义时间 (即 startTime/endTime 由用户设置而非系统)
     /// 保留字段以兼容 WakeUp 旧 db
     var ownTime: Bool = false
-    /// 自定义开始时间 (HH:mm), 仅 ownTime=true 时使用
+    /// 自定义开始时间 (HH:mm), 仅 ownTime/isIrregularTime=true 时使用
     var startTime: String = ""
-    /// 自定义结束时间 (HH:mm), 仅 ownTime=true 时使用
+    /// 自定义结束时间 (HH:mm), 仅 ownTime/isIrregularTime=true 时使用
     var endTime: String = ""
     /// 课程别名 (issue#26): 非空时界面显示此名, 课表数据仍用 courseName
     var alias: String = ""
@@ -106,6 +108,11 @@ enum CourseColorMode {
 }
 
 extension CourseEntity {
+    /// Kotlin `isNotBlank()` 等价: 纯空白串(空格/换行/制表)视为空
+    private static func isNotBlank(_ s: String) -> Bool {
+        return !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// 第 N 周是否上这门课
     /// Kotlin: fun inWeek(week: Int): Boolean
     func inWeek(_ week: Int) -> Bool {
@@ -114,14 +121,14 @@ extension CourseEntity {
         case 0: return true   // 每周
         case 1: return week % 2 == 1  // 单周
         case 2: return week % 2 == 0  // 双周
-        default: return true
+        default: return true  // 3 = 按周次列实际指定的周(上面已限定区间); 旧数据非法 type 防御性不丢失
         }
     }
 
     /// "18:30-20:55"(ownTime) 或 "第 3-4 节" 本地化(nodeString(context))
     /// Android 两变体 nodeString/shortNodeString 合并:isShort 切换 course_node_format / course_period_range
     func nodeString(isShort: Bool = false) -> String {
-        if ownTime && !startTime.isEmpty && !endTime.isEmpty {
+        if ownTime && Self.isNotBlank(startTime) && Self.isNotBlank(endTime) {
             return "\(startTime)-\(endTime)"
         }
         let range = "\(startNode)-\(startNode + step - 1)"
@@ -135,7 +142,7 @@ extension CourseEntity {
     func normalizeNode(timeJson: String) -> CourseEntity {
         // issue#23: 边缘槽位卡的网格位置 = 槽位编号本身, 禁止按时间重映射
         if isIrregularNode { return self }
-        if !ownTime || startTime.isEmpty || endTime.isEmpty { return self }
+        if !ownTime || !Self.isNotBlank(startTime) || !Self.isNotBlank(endTime) { return self }
         guard let mapped = TimeTableUtils.timeToNode(startTime, endTime, timeJson) else { return self }
         var copy = self
         copy.startNode = mapped.0

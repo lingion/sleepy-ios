@@ -55,6 +55,17 @@ struct TimeTableDao {
         try db.read { try TimeTableEntity.fetchOne($0, sql: "SELECT * FROM time_tables WHERE id = ? LIMIT 1", arguments: [id]) }
     }
 
+    // SELECT * FROM time_tables WHERE id = :id LIMIT 1 (Flow<TimeTableEntity?>)
+    // Room Flow → GRDB ValueObservation;供 Repository 层 observeTable /
+    // observeEffectivePeriodTable (设计 §5.2 立即全部同步的反应式源) 使用。
+    func observeById(_ id: Int64) -> DatabasePublishers.Value<TimeTableEntity?> {
+        ValueObservation
+            .tracking { db in
+                try TimeTableEntity.fetchOne(db, sql: "SELECT * FROM time_tables WHERE id = ? LIMIT 1", arguments: [id])
+            }
+            .publisher(in: db)
+    }
+
     // SELECT * FROM time_tables ORDER BY createdAt DESC
     // (observeAll/getAll 共用;Flow 语义 → ValueObservation 在 Repository 层)
     func getAll() throws -> [TimeTableEntity] {
@@ -74,5 +85,15 @@ struct TimeTableDao {
     // SELECT * FROM time_tables WHERE isDefault = 1 LIMIT 1
     func getDefault() throws -> TimeTableEntity? {
         try db.read { try TimeTableEntity.fetchOne($0, sql: "SELECT * FROM time_tables WHERE isDefault = 1 LIMIT 1") }
+    }
+
+    // SELECT * FROM time_tables WHERE periodTableId = :periodTableId ORDER BY createdAt DESC
+    // 甲案 (设计 §4.1): 绑定到指定作息表的全部课表 — 弹窗"另有 N 张课表绑定"提示 +
+    // 三选项作用域语义共用 (← Android ScheduleRepository.getTablesBoundTo /
+    // repoTablesBoundToCount, EditTableScreen.kt:343/404)。
+    func getAllBoundTo(_ periodTableId: Int64) throws -> [TimeTableEntity] {
+        try db.read {
+            try TimeTableEntity.fetchAll($0, sql: "SELECT * FROM time_tables WHERE periodTableId = ? ORDER BY createdAt DESC", arguments: [periodTableId])
+        }
     }
 }
