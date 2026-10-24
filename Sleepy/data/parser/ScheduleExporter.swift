@@ -8,72 +8,144 @@ import Foundation
 
 enum ScheduleExporter {
 
+    /// startDate 无法按 ISO yyyy-MM-dd 解析 ← Android LocalDate.parse 抛 DateTimeParseException
+    enum ExportError: Error {
+        case invalidStartDate(String)
+    }
+
+    // MARK: - JSON 底层(逐字节对齐 kotlinx Json { prettyPrint = true })
+
+    /// kotlinx buildJsonObject 底层是 LinkedHashMap → 序列化保持插入序。
+    /// Swift [String: Any] 不保序, 故用元组数组承载字段(替代原 JSONSerialization 方案)。
+    private indirect enum JsonValue {
+        case string(String)
+        case int(Int)
+        case object([(String, JsonValue)])
+        case array([JsonValue])
+    }
+
+    /// kotlinx prettyPrint 固定格式: 4 空格缩进、`"key": value`(冒号后一个空格)、
+    /// 空容器输出 `{}` / `[]`、字符串不转义非 ASCII(Android Issue55OwnTimeRoundTripTest
+    /// 断言 `"startTime": "20:50"` 即此格式)。
+    private static func prettyJson(_ value: JsonValue, _ level: Int = 0) -> String {
+        let pad = String(repeating: " ", count: level * 4)
+        let inner = String(repeating: " ", count: (level + 1) * 4)
+        switch value {
+        case .string(let s):
+            return "\"\(escapeJsonString(s))\""
+        case .int(let i):
+            return String(i)
+        case .array(let items):
+            if items.isEmpty { return "[]" }
+            let body = items.map { inner + prettyJson($0, level + 1) }.joined(separator: ",\n")
+            return "[\n\(body)\n\(pad)]"
+        case .object(let fields):
+            if fields.isEmpty { return "{}" }
+            let body = fields.map { inner + "\"\(escapeJsonString($0.0))\": " + prettyJson($0.1, level + 1) }
+                .joined(separator: ",\n")
+            return "{\n\(body)\n\(pad)}"
+        }
+    }
+
+    /// kotlinx escapeString 语义: \" \\ \n \r \t \b \f, 其余 <U+0020 → \u00xx(小写十六进制),
+    /// 非 ASCII 原样输出(不转义)
+    private static func escapeJsonString(_ s: String) -> String {
+        var out = ""
+        for ch in s.unicodeScalars {
+            switch ch.value {
+            case 0x22: out += "\\\""
+            case 0x5C: out += "\\\\"
+            case 0x0A: out += "\\n"
+            case 0x0D: out += "\\r"
+            case 0x09: out += "\\t"
+            case 0x08: out += "\\b"
+            case 0x0C: out += "\\f"
+            default:
+                if ch.value < 0x20 {
+                    out += String(format: "\\u%04x", ch.value)
+                } else {
+                    out.unicodeScalars.append(ch)
+                }
+            }
+        }
+        return out
+    }
+
+    /// Kotlin String.isNotBlank() 对应: 纯空白视同缺失(非标准时间两路 JSON + ICS 共用同一闸)
+    private static func isNotBlank(_ s: String) -> Bool {
+        !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// 导出 WakeUp 兼容 JSON ← exportWakeUpJson (prettyPrint)
     static func exportWakeUpJson(_ table: TimeTableEntity, _ courses: [CourseEntity]) -> String {
-        var courseArr: [[String: Any]] = []
-        for c in courses {
-            courseArr.append([
-                "name": c.courseName,
-                "teacher": c.teacher,
-                "position": c.room,
-                "day": c.day,
-                "startNode": c.startNode,
-                "step": c.step,
-                "startWeek": c.startWeek,
-                "endWeek": c.endWeek,
-                "type": c.type,
-                "color": c.color
-            ])
-        }
-
-        let obj: [String: Any] = [
-            "name": table.name,
-            "startDate": table.startDate,
-            "tableInfo": [
-                "name": table.name,
-                "startDate": table.startDate,
-                "maxWeek": table.maxWeek,
-                "nodesPerDay": table.nodesPerDay,
-                "time": table.timeJson
-            ] as [String: Any],
-            "courses": courseArr
-        ]
-
+        let obj: JsonValue = .object([
+            ("name", .string(table.name)),
+            ("startDate", .string(table.startDate)),
+            ("tableInfo", .object([
+                ("name", .string(table.name)),
+                ("startDate", .string(table.startDate)),
+                ("maxWeek", .int(table.maxWeek)),
+                ("nodesPerDay", .int(table.nodesPerDay)),
+                ("time", .string(table.timeJson))
+            ])),
+            ("courses", courseArray(courses))
+        ])
         return prettyJson(obj)
     }
 
     /// 导出 WakeUp 分享文本格式 (URL 编码的 JSON 字符串) ← exportWakeUpShareText
     static func exportWakeUpShareText(_ table: TimeTableEntity, _ courses: [CourseEntity]) -> String {
-        var courseArr: [[String: Any]] = []
-        for c in courses {
-            courseArr.append([
-                "name": c.courseName,
-                "teacher": c.teacher,
-                "position": c.room,
-                "day": c.day,
-                "startNode": c.startNode,
-                "step": c.step,
-                "startWeek": c.startWeek,
-                "endWeek": c.endWeek,
-                "type": c.type,
-                "color": c.color
-            ])
-        }
-        // ← URLEncoder.encode(json, "UTF-8"): 表单编码(空格→+),非 componentEncoding(空格→%20)
-        let courseDetailJson = compactJson(courseArr)
+        // ← Android: courseDetailJson 与 root 都经 prettyPrint=true 的 Json 实例序列化;
+        //   URLEncoder.encode(json, "UTF-8") 表单编码(空格→+), 非 componentEncoding(空格→%20)
+        let courseDetailJson = prettyJson(courseArray(courses))
         let encoded = formURLEncode(courseDetailJson)
 
-        let root: [String: Any] = [
-            "name": table.name,
-            "startDate": table.startDate,
-            "courseDetailJson": encoded
-        ]
+        let root: JsonValue = .object([
+            ("name", .string(table.name)),
+            ("startDate", .string(table.startDate)),
+            ("courseDetailJson", .string(encoded))
+        ])
 
-        return "【来自Sleepy】\n课程分享:\n\n" + compactJson(root)
+        // ← Android 实字节: 课程分享 后跟全角冒号 U+FF1A(EF BC 9A), 非 ASCII ':'
+        return "【来自Sleepy】\n课程分享：\n\n" + prettyJson(root)
     }
 
-    /// 导出 ICS 日历 ← exportIcs
+    private static func courseArray(_ courses: [CourseEntity]) -> JsonValue {
+        var items: [JsonValue] = []
+        for c in courses {
+            var fields: [(String, JsonValue)] = [
+                ("name", .string(c.courseName)),
+                ("teacher", .string(c.teacher)),
+                ("position", .string(c.room)),
+                ("day", .int(c.day)),
+                ("startNode", .int(c.startNode)),
+                ("step", .int(c.step)),
+                ("startWeek", .int(c.startWeek)),
+                ("endWeek", .int(c.endWeek)),
+                ("type", .int(c.type)),
+                ("color", .string(c.color))
+            ]
+            // issue#55: 非标准时间课程往返保真 — startTime/endTime 为该卡覆盖值,
+            // 丢了导入端会退化成按节次定位(用户实测 20:50-22:00 变 11-12 节)
+            if c.ownTime && isNotBlank(c.startTime) && isNotBlank(c.endTime) {
+                fields.append(("startTime", .string(c.startTime)))
+                fields.append(("endTime", .string(c.endTime)))
+            }
+            items.append(.object(fields))
+        }
+        return .array(items)
+    }
+
+    /// 导出 ICS 日历 ← exportIcs (既有调用点签名不变)
+    /// ← Android `LocalDate.parse` 对非法 startDate 抛异常; 旧实现静默返回缺
+    /// `END:VCALENDAR` 的 header-only 残缺日历(非法 ICS)。这里改为拒绝输出:
+    /// 非法日期返回空串, 需要错误传播的新调用点走 exportIcsOrThrow。
     static func exportIcs(_ table: TimeTableEntity, _ courses: [CourseEntity]) -> String {
+        return (try? exportIcsOrThrow(table, courses)) ?? ""
+    }
+
+    /// ← exportIcs 真身: startDate 无法按 ISO yyyy-MM-dd 解析时抛 ExportError.invalidStartDate
+    static func exportIcsOrThrow(_ table: TimeTableEntity, _ courses: [CourseEntity]) throws -> String {
         var lines: [String] = []
         lines.append("BEGIN:VCALENDAR")
         lines.append("VERSION:2.0")
@@ -85,7 +157,10 @@ enum ScheduleExporter {
         // 学期起始日规范化为周一(应用约定 day=1 对应周一;导入数据可能非周一,直接 plusDays(day-1) 会整体偏移)
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone.current
-        guard let parsedStart = isoDate(table.startDate) else { return lines.joined(separator: "\n") + "\n" }
+        // ← LocalDate.parse 严格 ISO: 形状(4-2-2)与日历语义双重校验
+        guard isIsoDateShape(table.startDate), let parsedStart = isoDate(table.startDate) else {
+            throw ExportError.invalidStartDate(table.startDate)
+        }
         let start = mondayOfWeek(parsedStart, cal)
         let nodeStartTimes = parseNodeTimes(table.timeJson)
 
@@ -110,9 +185,10 @@ enum ScheduleExporter {
             let endDate = cal.date(byAdding: .day, value: (c.endWeek - 1) * 7 + (c.day - 1), to: start)!
 
             // ownTime 课程用自身自定义时间,否则按节次反查
+            // ← Android isNotBlank(): 纯空白视同缺失, 与 JSON 导出两路同一闸
             let startTime: String
             let endTime: String
-            if c.ownTime && !c.startTime.isEmpty && !c.endTime.isEmpty {
+            if c.ownTime && isNotBlank(c.startTime) && isNotBlank(c.endTime) {
                 startTime = compactTime(c.startTime)
                 endTime = compactTime(c.endTime)
             } else {
@@ -155,8 +231,16 @@ enum ScheduleExporter {
                 lines.append("RRULE:FREQ=WEEKLY\(interval)\(until)")
             }
             lines.append("SUMMARY:\(escapeIcs(c.courseName))")
-            if !c.room.isEmpty { lines.append("LOCATION:\(escapeIcs(c.room))") }
-            if !c.teacher.isEmpty { lines.append("DESCRIPTION:老师:\(escapeIcs(c.teacher))") }
+            if isNotBlank(c.room) { lines.append("LOCATION:\(escapeIcs(c.room))") }
+            // v7.10.16k 无损闭环: DESCRIPTION 写"第X-Y节"(字面 \n 转义换行, 与 WakeUp 格式一致:
+            // 第X - Y节\n教室\n教师)。旧版只写"老师：X", 导入端读不到节次,
+            // 只能按钟点估算 → 11-13节被估成第1节。
+            // issue#55: ownTime 卡再追加 "\nHH:mm-HH:mm" 行(导入端 descLines[3] 恢复 ownTime)。
+            let ownTimeLine = (c.ownTime && isNotBlank(c.startTime) && isNotBlank(c.endTime))
+                ? "\\n\(c.startTime)-\(c.endTime)" : ""
+            lines.append("DESCRIPTION:第\(c.startNode) - \(c.startNode + c.step - 1)节" +
+                (isNotBlank(c.room) ? "\\n\(escapeIcs(c.room))" : "") +
+                (isNotBlank(c.teacher) ? "\\n\(escapeIcs(c.teacher))" : "") + ownTimeLine)
             lines.append("END:VEVENT")
         }
         lines.append("END:VCALENDAR")
@@ -189,27 +273,20 @@ enum ScheduleExporter {
         }
     }
 
-    // MARK: - JSON 底层(替代 kotlinx.serialization prettyPrint/compact)
+    // MARK: - URL 编码
 
-    /// kotlinx Json { prettyPrint = true } 风格:缩进多行(键序保持插入序)
-    private static func prettyJson(_ obj: Any) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted])) ?? Data()
-        return String(data: data, encoding: .utf8) ?? "{}"
-    }
-
-    /// compact(无缩进,键序保持)
-    private static func compactJson(_ obj: Any) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: obj, options: [])) ?? Data()
-        return String(data: data, encoding: .utf8) ?? "{}"
-    }
-
-    /// java.net.URLEncoder.encode 表单语义: 空格→+,保留 .-*_,其余百分号编码(UTF-8)
+    /// java.net.URLEncoder.encode 表单语义: 保留 a-zA-Z0-9 与 .-*_,
+    /// 空格→+, 其余(含非 ASCII)按 UTF-8 字节百分号编码(大写十六进制)。
+    /// 注意: allowed 集必须 ASCII 限定 — CharacterSet.alphanumerics 含 Unicode 字母,
+    /// 会把中文原样留下 → 与 Android 的 %XX 字节串分叉。
     private static func formURLEncode(_ s: String) -> String {
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: ".-*_")
+        let allowed = CharacterSet(charactersIn:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.-*_")
         return s.addingPercentEncoding(withAllowedCharacters: allowed)?
             .replacingOccurrences(of: "%20", with: "+") ?? s
     }
+
+    // MARK: - 日期/杂项
 
     /// Kotlin String.hashCode() 不跨语言稳定 → djb2 替代(UID 只需唯一性,不需与 Android 相同)
     private static func stableHash(_ s: String) -> UInt64 {
@@ -229,11 +306,17 @@ enum ScheduleExporter {
         return f.string(from: Date())
     }
 
+    /// ISO 形状校验 ← LocalDate.parse 要求严格 4-2-2 数字位(yyyy-M-d 拒绝)
+    private static func isIsoDateShape(_ s: String) -> Bool {
+        s.range(of: #"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"#, options: .regularExpression) != nil
+    }
+
     private static func isoDate(_ s: String) -> Date? {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.timeZone = TimeZone.current
         f.dateFormat = "yyyy-MM-dd"
+        f.isLenient = false   // ← "2026-02-30" 等语义非法日期拒绝(LocalDate.parse 抛异常)
         return f.date(from: s)
     }
 

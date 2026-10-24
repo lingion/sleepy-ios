@@ -1,5 +1,5 @@
 // SleepyNativeParser.swift — ← data/parser/SleepyNativeParser.kt (逐行翻译, GPL-3.0)
-// Sleepy iOS — sleepy-v1 解析器(规范 §3/§4/§5/§7)。
+// Sleepy iOS — sleepy-v1 解析器(规范 §3/§4/§5/§6(issue#40 P 区块)/§7)。
 //
 // 三态处置: 空=默认(不上报) · 形状合法但越界=钳制+上报 · 形状非法=整行丢弃+上报。
 // 上报双通道: droppedLines(行级) + ParseResult.warnings(表级)。
@@ -34,7 +34,7 @@ enum SleepyNativeParser {
             if line.isEmpty { continue }
             if !foundMagic {
                 // 单行探测: 该行本身是不是 magic
-                if SleepyNativeFormat.isMagicLine(line) {
+                if isMagicLine(line) {
                     foundMagic = true
                     bodyStart = idx + 1
                 }
@@ -46,14 +46,14 @@ enum SleepyNativeParser {
                 if let cols = splitCols(line, prefixLen: 1, dropped: &dropped, warnings: &warnings) {
                     if cols.indices.contains(0) { tableName = SleepyNativeFormat.unescape(cols[0].trimmingCharacters(in: .whitespaces)) }
                     if cols.indices.contains(1) { startDateStr = cols[1].trimmingCharacters(in: .whitespaces) }
-                    if cols.indices.contains(2) { maxWeekRaw = Int(cols[2].trimmingCharacters(in: .whitespaces)) }
-                    if cols.indices.contains(3) { nodesPerDayRaw = Int(cols[3].trimmingCharacters(in: .whitespaces)) }
+                    if cols.indices.contains(2) { maxWeekRaw = javaInt(cols[2]) }
+                    if cols.indices.contains(3) { nodesPerDayRaw = javaInt(cols[3]) }
                     // 扩展键区: key=value
                     for kv in cols.dropFirst(4) {
                         if let eq = kv.firstIndex(of: "=") {
                             let k = String(kv[..<eq]).trimmingCharacters(in: .whitespaces)
                             let v = String(kv[kv.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
-                            if k == "n" { declaredCount = Int(v) }
+                            if k == "n" { declaredCount = javaInt(v) }
                             // 未知键静默忽略(v2 契约)
                         }
                     }
@@ -83,6 +83,11 @@ enum SleepyNativeParser {
         var nodeTimes: [Int: (Int, Int)] = [:]
         var nodeOrder: [Int] = []
         var ndSeen = false
+        // issue#40: P 区块解析态
+        var pdSeen = false
+        var periodHeaders: [PeriodHeaderInfo] = []
+        var periodNodeTimes: [Int: (Int, Int)] = [:]
+        var periodNodeOrder: [Int] = []
         var seenExactLines = Set<String>()
         var seenCourseLines = false
         var secondTableHeader = false
@@ -94,13 +99,13 @@ enum SleepyNativeParser {
             if line.isEmpty { continue }
             if line.hasPrefix("#") {
                 // 注释行(非 magic)忽略 — 但 magic 行恰好以 # 开头, 必须先判定
-                if SleepyNativeFormat.isMagicLine(line) {
+                if isMagicLine(line) {
                     dropped.append(shorten(line))
                     secondTableHeader = true
                 }
                 continue
             }
-            if SleepyNativeFormat.isMagicLine(line) {
+            if isMagicLine(line) {
                 // 二次 magic: 不硬拒, 整行上报 + warning(§6.3-P)
                 dropped.append(shorten(line))
                 secondTableHeader = true
@@ -124,6 +129,20 @@ enum SleepyNativeParser {
                     seenExactLines.insert(line)
                     parseNodeLine(line, &nodeTimes, &nodeOrder, &dropped)
                 }
+            case "P":
+                // issue#40 §6: 独立时间节次表区块 — P(头) / Pd(预设) / Pn(逐节)。
+                // 旧版本把 P 系行走"未知行类型"通道丢弃并上报; 本版本解析恢复共享关系。
+                let chars = Array(line)
+                if chars.count >= 2 && (chars[1] == "d" || chars[1] == "D") {
+                    pdSeen = true
+                } else if chars.count >= 3 && (chars[1] == "n" || chars[1] == "N") && chars[2] != "|" && chars[2] != "\\" {
+                    parsePeriodNodeLine(String(line.dropFirst(2)), &periodNodeTimes, &periodNodeOrder, &dropped)
+                } else if line.contains("|") {
+                    parsePeriodHeader(line, &periodHeaders, &dropped, &warnings)
+                } else {
+                    // 裸 P / Pd 变体残缺 — 上报不硬拒
+                    dropped.append(shorten(line))
+                }
             case "C":
                 seenCourseLines = true
                 seenExactLines.insert(line)
@@ -146,6 +165,31 @@ enum SleepyNativeParser {
             }
         }
         nodeOrder.sort()
+
+        // issue#40: Pd 展开(同 ND_PRESET 常量) + periodTable 组装
+        if pdSeen && !periodHeaders.isEmpty {
+            for (i, preset) in SleepyNativeFormat.ND_PRESET.enumerated() {
+                let node = i + 1
+                if periodNodeTimes[node] == nil {
+                    periodNodeTimes[node] = preset
+                    periodNodeOrder.append(node)
+                }
+            }
+        }
+        periodNodeOrder.sort()
+        // ← kt: periodHeaders.firstOrNull()?.let { if (periodNodeTimes.isEmpty()) null else ... }
+        var periodTable: ScheduleParser.ParsedPeriodTable?
+        if let h = periodHeaders.first, !periodNodeTimes.isEmpty {
+            let parts = periodNodeOrder.compactMap { node -> String? in
+                guard let se = periodNodeTimes[node] else { return nil }
+                return "{\"node\":\(node),\"start\":\"\(fmt(se.0))\",\"end\":\"\(fmt(se.1))\"}"
+            }
+            periodTable = ScheduleParser.ParsedPeriodTable(
+                sourceId: h.sourceId,
+                name: h.name,
+                nodesPerDay: h.nodesPerDay,
+                timeJson: "[" + parts.joined(separator: ",") + "]")
+        }
 
         // chk 校验(§6.3-Q: 警告不硬拒)
         if let chk = chkLine {
@@ -220,7 +264,15 @@ enum SleepyNativeParser {
             droppedLines: dropped,
             warnings: warnings,
             maxWeek: maxWeekClamped ?? 20,
-            groupIdsAuthoritative: true)
+            groupIdsAuthoritative: true,
+            periodTable: periodTable)
+    }
+
+    /// 本地 isMagicLine — 恒等移植 Android SleepyNativeParser.kt:266-267
+    /// (`detectVersion(line) >= 1`): "#sleepy-v0" **不是** magic。
+    /// 🚫不要用 SleepyNativeFormat.isMagicLine — 其 v0 语义错(只判数字可解析), 由 F051 单独修。
+    private static func isMagicLine(_ line: String) -> Bool {
+        SleepyNativeFormat.detectVersion(line) >= 1
     }
 
     // MARK: - 行解析
@@ -231,7 +283,7 @@ enum SleepyNativeParser {
                                       _ dropped: inout [String]) {
         let body = String(line.dropFirst())
         let cols = splitRespectingEscape(body)
-        let nodeNo = cols.indices.contains(0) ? Int(cols[0].trimmingCharacters(in: .whitespaces)) : nil
+        let nodeNo = javaInt(cols.indices.contains(0) ? cols[0] : nil)
         let start = cols.indices.contains(1) ? SleepyNativeFormat.parseClock(cols[1]) : nil
         let end = cols.indices.contains(2) ? SleepyNativeFormat.parseClock(cols[2]) : nil
         let ok = nodeNo != nil && nodeNo! > 0 && start != nil && end != nil &&
@@ -242,6 +294,58 @@ enum SleepyNativeParser {
         }
         if nodeTimes[nodeNo!] != nil {
             dropped.append(shorten(line))  // 重复节号: 首行生效
+            return
+        }
+        nodeTimes[nodeNo!] = (start!.h * 60 + start!.min, end!.h * 60 + end!.min)
+        nodeOrder.append(nodeNo!)
+    }
+
+    // MARK: - P 区块 (issue#40 §6: 独立时间节次表)
+
+    /// P 行表级信息(名/源 id/节数) — ← kt PeriodHeaderInfo
+    private struct PeriodHeaderInfo {
+        let name: String
+        let sourceId: Int64
+        let nodesPerDay: Int
+    }
+
+    /// P|name|id|nodesPerDay — 形状非法 → dropped(不硬拒, 退回兼容列)
+    private static func parsePeriodHeader(_ line: String,
+                                          _ into: inout [PeriodHeaderInfo],
+                                          _ dropped: inout [String],
+                                          _ warnings: inout [String]) {
+        // into 最多收一条 — 二次 P 头 = 形状异常, 丢弃上报
+        if !into.isEmpty { dropped.append(shorten(line)); return }
+        let body = String(line.dropFirst())
+        let cols = splitRespectingEscape(body)
+        let name = SleepyNativeFormat.unescape((cols.indices.contains(0) ? cols[0] : "").trimmingCharacters(in: .whitespaces))
+        let id = javaLong(cols.indices.contains(1) ? cols[1] : nil)
+        let npd = javaInt(cols.indices.contains(2) ? cols[2] : nil)
+        if name.isEmpty || id == nil || id! < 1 {
+            dropped.append(shorten(line))
+            warnings.append("时间节次表区块无法解析，已退回课程表内作息")
+            return
+        }
+        into.append(PeriodHeaderInfo(name: name, sourceId: id!, nodesPerDay: npd ?? 12))
+    }
+
+    /// Pn 节次行: 同 N 行文法(node|start|end)
+    private static func parsePeriodNodeLine(_ body: String,
+                                            _ nodeTimes: inout [Int: (Int, Int)],
+                                            _ nodeOrder: inout [Int],
+                                            _ dropped: inout [String]) {
+        let cols = splitRespectingEscape(body)
+        let nodeNo = javaInt(cols.indices.contains(0) ? cols[0] : nil)
+        let start = cols.indices.contains(1) ? SleepyNativeFormat.parseClock(cols[1]) : nil
+        let end = cols.indices.contains(2) ? SleepyNativeFormat.parseClock(cols[2]) : nil
+        let ok = nodeNo != nil && nodeNo! > 0 && start != nil && end != nil &&
+            (start!.h * 60 + start!.min) < (end!.h * 60 + end!.min)
+        if !ok {
+            dropped.append(shorten("Pn" + body))
+            return
+        }
+        if nodeTimes[nodeNo!] != nil {
+            dropped.append(shorten("Pn" + body))  // 重复节号: 首行生效
             return
         }
         nodeTimes[nodeNo!] = (start!.h * 60 + start!.min, end!.h * 60 + end!.min)
@@ -323,7 +427,7 @@ enum SleepyNativeParser {
         if colorRaw.isEmpty || colorRaw == "0" {
             color = defaultColor.isEmpty ? SleepyNativeFormat.AUTO_COLOR : defaultColor
         } else {
-            if let idx = Int(colorRaw), idx > 9 { markClamped(line, &dropped) }
+            if let idx = javaInt(colorRaw), idx > 9 { markClamped(line, &dropped) }
             color = SleepyNativeFormat.colorFromToken(colorRaw)
         }
 
@@ -377,6 +481,35 @@ enum SleepyNativeParser {
     }
 
     // MARK: - 工具
+
+    /// Java `String.toIntOrNull()`(= Integer.parseInt 语义)等价物:
+    /// 可选 +/- 号 + 纯 ASCII 数字 + 32 位范围内, 否则 nil。
+    /// Swift 原生 Int(String) 是 64 位 — "99999999999" Android 判 null(未声明),
+    /// iOS 旧代码判巨值再钳制(假 warning), 宽度对齐后语义一致
+    /// (kt:52-53/60/314/351/367/448 各 getOrNull...toIntOrNull 消费点统一走此函数)。
+    private static func javaInt(_ raw: String?) -> Int? {
+        guard let t = raw?.trimmingCharacters(in: .whitespaces) else { return nil }
+        var body = Substring(t)
+        var negative = false
+        if body.first == "+" { body = body.dropFirst() }
+        else if body.first == "-" { negative = true; body = body.dropFirst() }
+        guard !body.isEmpty, body.allSatisfy({ $0.isASCII && $0.isNumber }),
+              let v = Int(body) else { return nil }
+        let signed = negative ? -v : v
+        return (-2147483648...2147483647).contains(signed) ? signed : nil
+    }
+
+    /// Java `String.toLongOrNull()`(= Long.parseLong 语义)等价物: 同 javaInt, 64 位范围。
+    private static func javaLong(_ raw: String?) -> Int64? {
+        guard let t = raw?.trimmingCharacters(in: .whitespaces) else { return nil }
+        var body = Substring(t)
+        var negative = false
+        if body.first == "+" { body = body.dropFirst() }
+        else if body.first == "-" { negative = true; body = body.dropFirst() }
+        guard !body.isEmpty, body.allSatisfy({ $0.isASCII && $0.isNumber }),
+              let v = Int64(body) else { return nil }
+        return negative ? -v : v
+    }
 
     /// 按半角 | 切列; 恰差 1 列时全角｜作次级分隔符重切一次(§7.6)
     private static func splitCols(_ line: String, prefixLen: Int,

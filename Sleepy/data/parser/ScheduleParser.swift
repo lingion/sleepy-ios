@@ -1,4 +1,4 @@
-// ScheduleParser.swift — ← ScheduleParser.kt (738 行,逐函数)
+// ScheduleParser.swift — ← ScheduleParser.kt @ v1.0.61 (逐函数)
 // 课程表文本解析器 — 支持:
 //
 // 1. **WakeUp 课程表分享 JSON**(来自 WakeUp app 的导出)
@@ -10,6 +10,11 @@
 //    大学英语	李四	B202	2	3-4	1-16	0
 //    ```
 //    字段: 课程名\t老师\t教室\t星期\t节次(1-2)\t周次(1-16)\t类型(0/1/2)
+//
+// v7.10.16k 无损收尾: 全路径 nodesPerDay = max(作息声明, 课程到达) — 没时间 ≠ 没有节次。
+// v1.0.56 T10/T11: tableInfo 收割同时产出 ParsedPeriodTable; 纯作息 JSON(timeList-only)合法。
+// issue#55: WakeUp/ICS/CSV/HTML/文本/JSON 六通路恢复 ownTime 起止。
+// issue#28: NEU ICS 教学块模型整表重建(analyzeNeuBlocks)。
 
 import Foundation
 
@@ -31,14 +36,67 @@ enum ScheduleParser {
         var maxWeek: Int = 0
         /// sleepy-v1: groupId 已由解析端权威生成, 落库必须绕过 assignGroupIds (§3.4 契约一)
         var groupIdsAuthoritative: Bool = false
+        /// issue#40 §6 / v1.0.56 T10: 独立时间节次表。
+        /// null = 旧格式/未携带 — 导入流程须为每张课表各建一张(不误共享)。
+        var periodTable: ParsedPeriodTable? = nil
     }
+
+    /// P 区块 / tableInfo 收割产物: sourceId = 导出时的 period_tables.id(恢复共享关系的键; 0 = 无既有表可指)
+    struct ParsedPeriodTable {
+        let sourceId: Int64
+        let name: String
+        let nodesPerDay: Int
+        let timeJson: String
+    }
+
+    struct ParseError: LocalizedError {
+        let message: String
+        init(_ m: String) { message = m }
+        var errorDescription: String? { message }
+    }
+
+    /// AI 输出隔离标识 — 标识之间的才是课表数据, 标识外(AI 开场白/结尾废话)全部丢弃
+    // static let BEGIN_MARKER = "<<<SLEEPY-BEGIN>>>"  // 文档用, 匹配走 markerRegex
+    // static let END_MARKER = "<<<SLEEPY-END>>>"
+
+    /// 节次时间表行 — "时间表 1 08:00 09:35" / "第1-2节 08:20-10:00" / "1 08:00~09:35"。
+    /// 课程行不含冒号, 所以"带两个 HH:mm 的行"必是时间表行, 无歧义。
+    /// 2026-08-26: 作息块有专用标识符后(见 extractTimeBlock), 本正则只负责逐行判定。
+    /// 捕获起始和结束节点; "第1-2节 08:20-10:00"(连上两节)展开为每个节点各一条相同时间。
+    private static let timeTableRe: NSRegularExpression? = try? NSRegularExpression(
+        pattern: "^\\s*(?:时间表|节次|第)?\\s*(\\d{1,2})(?:\\s*[-–]\\s*(\\d{1,2}))?\\s*节?\\s*[\\s:：]*\\s*(\\d{1,2}):(\\d{2})\\s*[-–~～至\\s]+\\s*(\\d{1,2}):(\\d{2})\\s*$")
+
+    /// 自定义时间行(ICS DESCRIPTION 第 4 行) — "20:50-22:00"
+    private static let ownTimeLineRe: NSRegularExpression? = try? NSRegularExpression(
+        pattern: "(\\d{1,2}:\\d{2})-(\\d{1,2}:\\d{2})")
+
+    // MARK: - 正则小工具(NSString 域, 避免 String/NSRange 混用)
+
+    private static func match(_ re: NSRegularExpression?, _ s: String) -> NSTextCheckingResult? {
+        guard let re = re else { return nil }
+        let ns = s as NSString
+        return re.firstMatch(in: s, range: NSRange(location: 0, length: ns.length))
+    }
+
+    private static func matches(_ re: NSRegularExpression?, _ s: String) -> Bool {
+        return match(re, s) != nil
+    }
+
+    private static func group(_ m: NSTextCheckingResult, _ s: String, _ i: Int) -> String? {
+        guard i < m.numberOfRanges else { return nil }
+        let r = m.range(at: i)
+        if r.location == NSNotFound || r.length == 0 { return nil }
+        return (s as NSString).substring(with: r)
+    }
+
+    // MARK: - 分派
 
     /// 解析课表文本。返回 .success / .failure(错误)。 ← Result<ParseResult>
     static func parse(_ text: String, defaultTableId: Int64, defaultColor: String = "#FF6750A4") -> Result<ParseResult, Error> {
-        // 防呆: 先统一全角字符(AI 常输出 １－２ / ～), 再提取 AI 标识, 再分派
-        let normalized = normalizeFullWidth(text)
-        let trimmed = extractMarkedBody(normalized).trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return .failure(ParseError("空内容")) }
+        let raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty { return .failure(ParseError("空内容")) }
+        // 防呆: 先统一全角字符(AI 常输出 １－２ / ～), 再提取标识, 再分派
+        let trimmed = extractMarkedBody(normalizeFullWidth(raw))
 
         // 兼容性:导出端常在 JSON 前加 "【来自Sleepy】\n课程分享:\n\n" 前缀。
         // 如果 trimmed 不以 { 开头但包含 {,剥掉前缀再判别。
@@ -58,6 +116,11 @@ enum ScheduleParser {
             if SleepyNativeFormat.detectVersion(trimmed) == 1 {
                 return try SleepyNativeParser.parse(trimmed, defaultTableId: defaultTableId, defaultColor: defaultColor)
             }
+            // Excel "另存为网页" 的 Frameset HTML (issue #6): 顶层只有 <frame> 引用,
+            // 真课表在 xxx.files/sheet001.html 附属文件里, OpenDocument 拿不到 → 给出明确指引
+            if isExcelFrameset(trimmed) {
+                throw ParseError(excelFramesetError(trimmed))
+            }
             if body.contains("\"courseDetailJson\"") {
                 return try parseWakeUpShareText(body, defaultTableId)
             }
@@ -71,7 +134,7 @@ enum ScheduleParser {
             if startsWithAnyTag(trimmed, tags: ["html", "body", "table", "div", "section", "article"]) {
                 return try parseHtml(trimmed, defaultTableId, defaultColor)
             }
-            // CSV: 含有 CSV 表头 (课程名/名称/course/name + 教师/teacher 等),并且至少 1 个换行
+            // CSV: 含有 CSV 表头 (课程名/名称/course/name + (教师|老师|teacher 或 星期/周次)),并且至少 1 个换行
             if isLikelyCsv(trimmed) {
                 return try parseCsv(trimmed, defaultTableId, defaultColor)
             }
@@ -79,37 +142,81 @@ enum ScheduleParser {
         }
     }
 
-    // MARK: - AI 输出防呆(← extractMarkedBody + normalizeFullWidth)
+    private static func startsWithAnyTag(_ s: String, tags: [String]) -> Bool {
+        // BOM 已在 normalizeFullWidth 里转成空格, 再 trim 一次防 Windows 编辑器带 BOM 的 HTML
+        let t = s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if t.hasPrefix("<!doctype") || t.hasPrefix("<?xml") { return true }
+        return tags.contains { t.hasPrefix("<\($0)") }
+    }
+
+    // MARK: - Excel Frameset 识别 (issue #6)
+
+    /// 识别 Excel "另存为网页" 导出的 Frameset HTML (issue #6)。
+    /// 判据: <frameset> 存在 且 (Excel Workbook Frameset meta 或 .files/sheet00N.html 引用)。
+    /// 只认 frameset 不认 meta: 普通 HTML 页也可能带 Office meta 但内容可解析。
+    static func isExcelFrameset(_ html: String) -> Bool {
+        let lower = html.lowercased()
+        if !lower.contains("<frameset") { return false }
+        if lower.contains("excel workbook frameset") { return true }
+        let refRe = try? NSRegularExpression(pattern: "\\.files/sheet\\d+\\.html")
+        return matches(refRe, lower)
+    }
+
+    /// 提取 frameset 里 <link id="shLink"> / <frame src> 指向的 sheet 文件引用; 无 → 空串
+    static func excelSheetRef(_ html: String) -> String {
+        let linkRe = try? NSRegularExpression(pattern: "<link[^>]*id\\s*=\\s*\"?shLink\"?[^>]*>", options: [.caseInsensitive])
+        let frameRe = try? NSRegularExpression(pattern: "<frame[^>]*src\\s*=\\s*\"?([^\">]*)\"?\"?[^>]*>", options: [.caseInsensitive])
+        let shLink: String? = match(linkRe, html).map { (html as NSString).substring(with: $0.range) }
+            ?? match(frameRe, html).map { (html as NSString).substring(with: $0.range) }
+        guard let shLink else { return "" }
+        let hrefRe = try? NSRegularExpression(pattern: "href\\s*=\\s*\"?([^\">\\s]+)\"?", options: [.caseInsensitive])
+        let srcRe = try? NSRegularExpression(pattern: "src\\s*=\\s*\"?([^\">\\s]+)\"?", options: [.caseInsensitive])
+        let m = match(hrefRe, shLink) ?? match(srcRe, shLink)
+        guard let m, let v = group(m, shLink, 1) else { return "" }
+        return v.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Frameset 识别后的用户指引报错 — 点名 Excel 结构和可行出路, 不用泛泛的"未找到表格"
+    private static func excelFramesetError(_ html: String) -> String {
+        let ref = excelSheetRef(html)
+        let extra = !ref.isEmpty ? "（课表在附属文件 \(ref) 里，本应用无法读取）" : ""
+        return "这是 Excel 导出的网页\(extra)，无法直接解析。请在 Excel 中另存为 CSV 文件或普通网页（不要选「单个文件网页/网页-筛选」格式）后重新导入"
+    }
+
+    // MARK: - AI 输出防呆(← extractMarkedBody + normalizeFullWidth + TIME 块)
 
     /// 提取 <<<SLEEPY-BEGIN>>> 和 <<<SLEEPY-END>>> 之间的内容(纯文本导入的 AI 输出隔离)。
     /// - 容忍标识写歪: 少/多横线、大小写、不同括号、首尾空白
     /// - 只有 BEGIN: 取 BEGIN 之后全部(END 缺失容错)
     /// - 只有 END: 取 END 之前全部
     /// - 都没有: 原样返回(手工输入不带标识, 走原有路径)
+    /// 邻接标识(END 紧跟 BEGIN)按 Android 规: end.first > begin.last 成立 → 空内容,
+    /// 而非落进 BEGIN-only 分支把 END 字面量留在正文里。
     static func extractMarkedBody(_ text: String) -> String {
+        // 匹配 <<< / {{ / (( 等 2-4 个任意括号 + SLEEPY[- ]?(BEGIN|END) + 对应右括号, 大小写不敏感
         func markerRegex(_ kind: String) -> NSRegularExpression? {
             try? NSRegularExpression(pattern: "[<{(]{2,4}\\s*SLEEPY\\s*[-_ ]?\\s*\(kind)\\s*[>})]{2,4}",
                                      options: [.caseInsensitive])
         }
         let ns = text as NSString
-        guard let beginRe = markerRegex("begin"), let endRe = markerRegex("end") else { return text }
-        let beginM = beginRe.firstMatch(in: text, range: NSRange(location: 0, length: ns.length))
-        let endM = endRe.firstMatch(in: text, range: NSRange(location: 0, length: ns.length))
-        let lower = String.Index(encodedOffset: 0)
-        switch (beginM, endM) {
-        case let (b?, e?) where e.range.location > b.range.location + b.range.length:
-            let from = text.index(text.startIndex, offsetBy: b.range.location + b.range.length)
-            let to = text.index(text.startIndex, offsetBy: e.range.location)
-            return String(text[from..<to])
-        case (let b?, _):
-            let from = text.index(text.startIndex, offsetBy: b.range.location + b.range.length)
-            return String(text[from...])
-        case (_, let e?):
-            let to = text.index(text.startIndex, offsetBy: e.range.location)
-            return String(text[lower..<to])
-        default:
-            return text
+        let beginM = match(markerRegex("begin"), text)
+        let endM = match(markerRegex("end"), text)
+        // ← Android: endM.range.first > beginM.range.last ⇔ e.location >= b.location + b.length
+        // (begin.last = begin.location + begin.length - 1)。邻接标识(END 紧跟 BEGIN)在
+        // 两端同时满足该条件 → 空正文 → trim 后 "" → parse 报「空内容」,
+        // 不会落进 BEGIN-only 分支把 '<<<SLEEPY-END>>>' 字面量留在正文里。
+        let body: String
+        if let b = beginM, let e = endM, e.range.location >= b.range.location + b.range.length {
+            let from = b.range.location + b.range.length
+            body = ns.substring(with: NSRange(location: from, length: max(0, e.range.location - from)))
+        } else if let b = beginM {
+            body = ns.substring(from: b.range.location + b.range.length)
+        } else if let e = endM {
+            body = ns.substring(to: e.range.location)
+        } else {
+            body = text
         }
+        return body.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// 全角→半角归一: 数字/字母/横线/波浪线/空格。AI 常输出 １－２ 或 1～16, 不归一就静默丢行。
@@ -130,21 +237,63 @@ enum ScheduleParser {
         return String(out)
     }
 
-    struct ParseError: LocalizedError {
-        let message: String
-        init(_ m: String) { message = m }
-        var errorDescription: String? { message }
+    /// 作息表专用标识 — <<<SLEEPY-TIME-BEGIN>>> / <<<SLEEPY-TIME-END>>> 之间只放作息行。
+    /// 与 BEGIN/END 同规格的宽松匹配: 大小写、2-4 个任意括号、-/_/空格变体。
+    /// 注意不能被 markerRegex("begin"/"end") 误吞: SLEEPY 后面跟的是 -TIME-, 主标识正则匹配不上。
+    private static func timeMarkerRegex(_ kind: String) -> NSRegularExpression? {
+        try? NSRegularExpression(pattern: "[<{(]{2,4}\\s*SLEEPY\\s*[-_ ]?\\s*TIME\\s*[-_ ]?\\s*\(kind)\\s*[>})]{2,4}",
+                                 options: [.caseInsensitive])
     }
 
-    private static func startsWithAnyTag(_ s: String, tags: [String]) -> Bool {
-        let t = s.lowercased()
-        if t.hasPrefix("<!doctype") || t.hasPrefix("<?xml") { return true }
-        return tags.contains { t.hasPrefix("<\($0)") }
+    /// 切出作息块。返回 (剩余文本, 作息块文本)。
+    /// - 双标识: TIME-BEGIN..TIME-END 之间 = 作息块(严格: 块内垃圾行由调用方计入 dropped)
+    /// - 只有 TIME-BEGIN: 从标识后连续吞 timeTableRegex 能吃的行(含空行), 首个不匹配行起归还正文
+    ///   — 自愈"AI 忘写 TIME-END"的场景, 课程行不会被吃进作息块
+    /// - 没有 TIME 标识: 返回原文 + 空块(走老的裸行兼容路径)
+    private static func extractTimeBlock(_ text: String) -> (String, String) {
+        guard let bm = match(timeMarkerRegex("begin"), text) else { return (text, "") }
+        let ns = text as NSString
+        let afterBegin = ns.substring(from: bm.range.location + bm.range.length)
+        if let em = match(timeMarkerRegex("end"), afterBegin) {
+            let block = (afterBegin as NSString).substring(to: em.range.location)
+            let rest = (afterBegin as NSString).substring(from: em.range.location + em.range.length)
+            return (rest, block)
+        }
+        // TIME-END 缺失: 吞连续作息行, 碰到首个非作息行停
+        let lines = afterBegin.components(separatedBy: "\n")
+        var i = 0
+        while i < lines.count {
+            let l = lines[i]
+            let isBlank = l.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if isBlank || matches(timeTableRe, l.trimmingCharacters(in: .whitespaces)) {
+                i += 1
+            } else {
+                break
+            }
+        }
+        let rest = lines.dropFirst(i).joined(separator: "\n")
+        let block = lines.prefix(i).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.joined(separator: "\n")
+        return (rest, block)
     }
+
+    /// "08:00-09:35" / "08:00~09:35" / "08:00 09:35" → (startMin, endMin); 非法 nil
+    private static func parseTimeRange(_ s: String) -> (Int, Int)? {
+        let re = try? NSRegularExpression(pattern: "(\\d{1,2}):(\\d{2})\\s*[-–~～至\\s]+\\s*(\\d{1,2}):(\\d{2})")
+        guard let m = match(re, s),
+              let h1 = Int(group(m, s, 1) ?? ""), let mi1 = Int(group(m, s, 2) ?? ""),
+              let h2 = Int(group(m, s, 3) ?? ""), let mi2 = Int(group(m, s, 4) ?? ""),
+              (0...23).contains(h1), (0...59).contains(mi1),
+              (0...23).contains(h2), (0...59).contains(mi2) else { return nil }
+        let st = h1 * 60 + mi1, et = h2 * 60 + mi2
+        return st < et ? (st, et) : nil
+    }
+
+    // MARK: - 判断 CSV
 
     /// 判断是否为 CSV:
     /// 1) 第一行包含逗号,且第二行也存在
-    /// 2) 包含常见表头:课程/课程名/名称/course/name + 教师/老师/teacher
+    /// 2) 包含常见表头:课程/课程名/名称/course/name + (教师/老师/teacher 或 周次/星期)
+    ///    — 教师列不再硬性要求: 教务导出常无教师列, 靠 课程+星期/周次 就足够定位 CSV
     private static func isLikelyCsv(_ s: String) -> Bool {
         if s.filter({ $0 == "\n" }).count < 1 { return false }
         guard let firstLine = s.split(separator: "\n").first.map(String.init)?.lowercased() else { return false }
@@ -152,10 +301,108 @@ enum ScheduleParser {
         let hasCourse = firstLine.contains("课程") || firstLine.contains("course") || firstLine.contains("name")
         let hasTeacher = firstLine.contains("教师") || firstLine.contains("老师") || firstLine.contains("teacher")
         let hasDay = firstLine.contains("星期") || firstLine.contains("周几") || firstLine.contains("day") || firstLine.contains("周次")
-        return hasCourse && hasTeacher && hasDay
+        return hasCourse && (hasTeacher || hasDay)
+    }
+
+    // MARK: - v7.10.16k 无损收尾 + tableInfo 收割
+
+    /// v7.10.16k 无损收尾 — 全格式路径统一: 节次数 = max(作息声明, 课程到达)。
+    /// 用户 2026-09-03 实测 WakeUp 分享(补实验, startNode=11 step=3 → 13 节)
+    /// 没带 tableInfo → 旧代码报 0 → 落库被老表钳成 10 = 丢节次。
+    /// 没有时间 ≠ 没有节次; timeJson 原样保留(不伪造)。
+    private static func lossless(_ tableName: String, _ startDate: String, _ courses: [CourseEntity],
+                                 _ timeJson: String, _ declaredNodes: Int,
+                                 // v1.0.56 T10: 混合导入自动建作息表 — 非 nil 时 ParseResult 携带独立作息表,
+                                 // 落库端(ImportAsNew)自动建同名作息表并绑定
+                                 _ periodTable: ParsedPeriodTable? = nil) -> ParseResult {
+        let courseReach = courses.map { $0.startNode + $0.step - 1 }.max() ?? 0
+        var result = ParseResult(tableName: tableName, startDate: startDate, courses: courses,
+                                 timeJson: timeJson, nodesPerDay: max(declaredNodes, courseReach))
+        result.periodTable = periodTable
+        return result
+    }
+
+    /// 从 WakeUp JSON / Sleepy 导出的 tableInfo 里收割节次时间表。
+    /// Sleepy 导出: tableInfo.time = 我们的 timeJson 原文, 直接用。
+    /// WakeUp 原生: tableInfo.timeList = [{node, startTime, endTime}...] 逐条转。
+    ///
+    /// v1.0.56 T10: 收割结果同时产出 ParsedPeriodTable — 混合导入(课程+节次)时
+    /// 自动建一张同名作息表并绑定, 不再只填课表兼容列。sourceId=0(无既有表可指)。
+    ///
+    /// 声明节次数(tableInfo.nodesPerDay): Sleepy 导出必带 — 作息行数可能少于声明
+    /// (稀疏 timeJson 只存改动行), 导入不得把声明压掉(v7.10.16k 无损闭环)
+    private static func harvestTimeFromTableInfo(_ root: [String: Any], _ tableName: String)
+        -> (timeJson: String, nodesPerDay: Int, periodTable: ParsedPeriodTable?) {
+        guard let tableInfo = root["tableInfo"] as? [String: Any] else { return ("", 0, nil) }
+        let declared = intOrNull(tableInfo["nodesPerDay"]) ?? 0
+        // Sleepy 自家格式: time 字段就是 timeJson
+        if let time = tableInfo["time"] as? String, !time.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let nodes = TimeTableUtils.parseNodes(time)
+            if let last = nodes.last {
+                let nodesPerDay = max(last.node, declared)
+                return (time, nodesPerDay,
+                        ParsedPeriodTable(sourceId: 0, name: tableName, nodesPerDay: nodesPerDay, timeJson: time))
+            }
+        }
+        // WakeUp 原生: timeList 数组
+        guard let timeList = tableInfo["timeList"] as? [[String: Any]] else { return ("", declared, nil) }
+        var nodeTimes: [Int: (Int, Int)] = [:]   // node → (startMin, endMin)
+        for el in timeList {
+            guard let nodeVal = el["node"], nodeVal is NSNumber || nodeVal is String else { continue }
+            let node = intOrZero(nodeVal)
+            guard node >= 1,
+                  let st = contentOrNull(el["startTime"]).flatMap(parseHmLenient),
+                  let et = contentOrNull(el["endTime"]).flatMap(parseHmLenient),
+                  st < et else { continue }
+            nodeTimes[node] = (st, et)
+        }
+        guard !nodeTimes.isEmpty else { return ("", declared, nil) }
+        let builtJson = buildTimeJson(nodeTimes)
+        let nodesPerDay = max(nodeTimes.keys.max() ?? 0, declared)
+        return (builtJson, nodesPerDay,
+                ParsedPeriodTable(sourceId: 0, name: tableName, nodesPerDay: nodesPerDay, timeJson: builtJson))
+    }
+
+    /// "08:00" / "8:00" / "0800" → 当日分钟数; 非法 nil
+    private static func parseHmLenient(_ raw: String) -> Int? {
+        let s = raw.trimmingCharacters(in: .whitespaces)
+        let re = try? NSRegularExpression(pattern: "(\\d{1,2}):?(\\d{2})")
+        guard let m = match(re, s),
+              let r1 = group(m, s, 1), let r2 = group(m, s, 2),
+              let h = Int(r1), let mi = Int(r2) else { return nil }
+        return (0...23).contains(h) && (0...59).contains(mi) ? h * 60 + mi : nil
+    }
+
+    /// nodeTimes(node → 分钟对) → timeJson。空 → 空串(调用方用默认)。非连续节次照样输出存在的那些。
+    private static func buildTimeJson(_ nodeTimes: [Int: (Int, Int)]) -> String {
+        guard !nodeTimes.isEmpty else { return "" }
+        var parts: [String] = []
+        for n in nodeTimes.keys.sorted() {
+            let t = nodeTimes[n]!
+            parts.append("{\"node\":\(n),\"start\":\"\(hmString(t.0))\",\"end\":\"\(hmString(t.1))\"}")
+        }
+        return "[" + parts.joined(separator: ",") + "]"
+    }
+
+    /// 分钟数 → "HH:mm"(LocalTime.toString / fmtOwnTime 等价, 两位补零)
+    private static func hmString(_ minutes: Int) -> String {
+        String(format: "%02d:%02d", minutes / 60, minutes % 60)
     }
 
     // MARK: - WakeUp
+
+    /// Kotlin String.isBlank() 等价
+    private static func isBlank(_ s: String) -> Bool {
+        return s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// ← JsonPrimitive.contentOrNull: JSON 字符串原样; 数字回其字面串(content 语义); JsonNull/结构 → nil
+    private static func contentOrNull(_ v: Any?) -> String? {
+        if v is NSNull || v == nil { return nil }
+        if let s = v as? String { return s }
+        if let n = v as? NSNumber { return n.stringValue }
+        return nil
+    }
 
     /// 解析 WakeUp 分享文本格式:
     /// ```
@@ -188,7 +435,11 @@ enum ScheduleParser {
         let courses: [CourseEntity]
         if let courseDetailJsonStr = root["courseDetailJson"] as? String {
             // courseDetailJson 是 URL-encoded JSON 字符串
-            let decoded = courseDetailJsonStr.removingPercentEncoding ?? courseDetailJsonStr
+            // ← java.net.URLDecoder.decode(s, "UTF-8"): 表单编码语义, 先 '+'→空格 再百分号解码。
+            //   WakeUp 分享文本(Android URLEncoder / 官方 app 导出)空格一律编码成 '+',
+            //   直接 removingPercentEncoding 会留下 '+' → JSON 非法 → 整份分享解析失败。
+            let plusNormalized = courseDetailJsonStr.replacingOccurrences(of: "+", with: "%20")
+            let decoded = plusNormalized.removingPercentEncoding ?? plusNormalized
             courses = try parseCourseJsonArray(decoded, defaultTableId)
         } else {
             guard let arr = (root["courses"] as? [[String: Any]])
@@ -198,59 +449,31 @@ enum ScheduleParser {
             courses = parseCourseJsonArrayRaw(arr, defaultTableId)
         }
 
-        // 节次时间表: tableInfo.time(Sleepy 导出) / timeList(WakeUp 原生) ← harvestTimeJsonFromTableInfo
-        let (timeJson, nodesPerDay) = harvestTimeJsonFromTableInfo(root)
-        return ParseResult(tableName: name, startDate: startDate, courses: courses,
-                           timeJson: timeJson, nodesPerDay: nodesPerDay)
+        // 节次时间表: Sleepy 自家导出把 timeJson 放在 tableInfo.time — 往返保真
+        // v1.0.56 T10: 同时收割独立作息表(混合导入自动建表+绑定)
+        let harvested = harvestTimeFromTableInfo(root, name)
+        return lossless(name, startDate, courses, harvested.timeJson, harvested.nodesPerDay, harvested.periodTable)
     }
 
-    /// 从 WakeUp JSON / Sleepy 导出的 tableInfo 里收割节次时间表。
-    /// Sleepy 导出: tableInfo.time = 我们的 timeJson 原文, 直接用。
-    /// WakeUp 原生: tableInfo.timeList = [{node, startTime, endTime}...] 逐条转。
-    private static func harvestTimeJsonFromTableInfo(_ root: [String: Any]) -> (String, Int) {
-        guard let tableInfo = root["tableInfo"] as? [String: Any] else { return ("", 0) }
-        // Sleepy 自家格式: time 字段就是 timeJson
-        if let time = tableInfo["time"] as? String, !time.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let nodes = TimeTableUtils.parseNodes(time)
-            if let last = nodes.last { return (time, last.node) }
-        }
-        // WakeUp 原生: timeList 数组
-        guard let timeList = tableInfo["timeList"] as? [[String: Any]] else { return ("", 0) }
-        var nodeTimes: [Int: (Int, Int)] = [:]   // node → (startMin, endMin)
-        for el in timeList {
-            guard let node = el["node"] as? Int, node >= 1,
-                  let st = (el["startTime"] as? String).flatMap(parseHmLenient),
-                  let et = (el["endTime"] as? String).flatMap(parseHmLenient),
-                  st < et else { continue }
-            nodeTimes[node] = (st, et)
-        }
-        guard !nodeTimes.isEmpty else { return ("", 0) }
-        return (buildTimeJson(nodeTimes), nodeTimes.keys.max() ?? 0)
+    /// ← JsonPrimitive.intOrNull: 数字或数字串→Int, 否则 nil(键缺失与非法值都 nil)
+    private static func intOrNull(_ v: Any?) -> Int? {
+        if v == nil || v is NSNull { return nil }
+        if let n = v as? NSNumber { return n.intValue }
+        if let s = v as? String { return Int(s.trimmingCharacters(in: .whitespaces)) }
+        return nil
     }
 
-    /// "08:00" / "8:00" / "0800" → 当日分钟数; 非法 nil
-    private static func parseHmLenient(_ s: String) -> Int? {
-        guard let m = try? NSRegularExpression(pattern: "(\\d{1,2}):?(\\d{2})"),
-              let mm = m.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
-              let r1 = Range(mm.range(at: 1), in: s), let r2 = Range(mm.range(at: 2), in: s),
-              let h = Int(s[r1]), let mi = Int(s[r2]) else { return nil }
-        return (0...23).contains(h) && (0...59).contains(mi) ? h * 60 + mi : nil
+    /// 键存在时的 intOrZero 语义: 非法值 → 0(← JsonPrimitive.intOrZero(): content.toIntOrNull() ?: 0)
+    private static func intOrZero(_ v: Any?) -> Int {
+        if v == nil || v is NSNull { return 0 }
+        return intOrNull(v) ?? 0
     }
 
-    /// nodeTimes(node → 分钟对) → timeJson。空 → 空串(调用方用默认)。
-    private static func buildTimeJson(_ nodeTimes: [Int: (Int, Int)]) -> String {
-        guard !nodeTimes.isEmpty else { return "" }
-        var parts: [String] = []
-        for n in nodeTimes.keys.sorted() {
-            let t = nodeTimes[n]!
-            parts.append("{\"node\":\(n),\"start\":\"\(hmString(t.0))\",\"end\":\"\(hmString(t.1))\"}")
-        }
-        return "[" + parts.joined(separator: ",") + "]"
-    }
-
-    /// 分钟数 → "HH:mm"(LocalTime.toString 等价)
-    private static func hmString(_ minutes: Int) -> String {
-        String(format: "%02d:%02d", minutes / 60, minutes % 60)
+    /// 键缺失给默认、键存在但非数字/JsonNull 给 0 — ← obj["k"]?.jsonPrimitive?.intOrZero() ?: def
+    /// (def 只在 key 缺失时生效; day="一"/null → 0, 对齐 Android JsonPrimitive.intOrZero())
+    private static func intField(_ obj: [String: Any], _ key: String, def: Int) -> Int {
+        guard let v = obj[key] else { return def }
+        return intOrZero(v)
     }
 
     private static func parseWakeUpJson(_ text: String, _ defaultTableId: Int64, _ defaultColor: String) throws -> ParseResult {
@@ -260,33 +483,47 @@ enum ScheduleParser {
         }
         let name = root["name"] as? String ?? "导入的课表"
         let startDate = (root["startDate"] as? String) ?? todayString()
-        guard let arr = root["courses"] as? [[String: Any]] else {
+        // v1.0.56 T11: 纯作息 JSON(只有 tableInfo.timeList, 无 courses)是合法形态 —
+        // 空课程 + periodTable 非空 → 导入端 T9 纯作息路径只建作息表
+        let arr: [[String: Any]]
+        if let a = root["courses"] as? [[String: Any]] {
+            arr = a
+        } else if let timeList = (root["tableInfo"] as? [String: Any])?["timeList"] as? [[String: Any]],
+                  !timeList.isEmpty {
+            arr = []
+        } else {
             throw ParseError("找不到 courses 数组")
         }
 
         let courses: [CourseEntity] = arr.map { obj in
-            CourseEntity(
+            // issue#55: 与 parseCourseJsonArrayRaw 同规 — 带 startTime/endTime 恢复 ownTime
+            let ownStart = contentOrNull(obj["startTime"]) ?? ""
+            let ownEnd = contentOrNull(obj["endTime"]) ?? ""
+            let ownTime = !isBlank(ownStart) && !isBlank(ownEnd)
+            return CourseEntity(
                 groupId: "",
                 tableId: defaultTableId,
                 courseName: (obj["name"] as? String) ?? (obj["courseName"] as? String) ?? "未命名",
                 teacher: obj["teacher"] as? String ?? "",
                 room: (obj["position"] as? String) ?? (obj["room"] as? String) ?? "",
                 note: obj["note"] as? String ?? "",
-                day: intOrZero(obj["day"], 1),
-                startNode: intOrZero(obj["startNode"], 1),
-                step: intOrZero(obj["step"], 1),
-                startWeek: intOrZero(obj["startWeek"], 1),
-                endWeek: intOrZero(obj["endWeek"], 16),
-                type: intOrZero(obj["type"], 0),
+                day: intField(obj, "day", def: 1),
+                startNode: intField(obj, "startNode", def: 1),
+                step: intField(obj, "step", def: 1),
+                startWeek: intField(obj, "startWeek", def: 1),
+                endWeek: intField(obj, "endWeek", def: 16),
+                type: intField(obj, "type", def: 0),
                 color: (obj["color"] as? String) ?? defaultColor,
-                id: 0
+                ownTime: ownTime,
+                startTime: ownTime ? ownStart : "",
+                endTime: ownTime ? ownEnd : ""
             )
         }
 
-        // 节次时间表收割(与 parseWakeUpShareText 同一通道)
-        let (timeJson, nodesPerDay) = harvestTimeJsonFromTableInfo(root)
-        return ParseResult(tableName: name, startDate: startDate, courses: courses,
-                           timeJson: timeJson, nodesPerDay: nodesPerDay)
+        // 节次时间表: tableInfo.time(Sleepy 导出) / timeList(WakeUp 原生)
+        // v1.0.56 T10: 同时收割独立作息表(混合导入自动建表+绑定)
+        let harvested = harvestTimeFromTableInfo(root, name)
+        return lossless(name, startDate, courses, harvested.timeJson, harvested.nodesPerDay, harvested.periodTable)
     }
 
     private static func parseCourseJsonArray(_ jsonStr: String, _ tableId: Int64) throws -> [CourseEntity] {
@@ -299,21 +536,28 @@ enum ScheduleParser {
 
     private static func parseCourseJsonArrayRaw(_ arr: [[String: Any]], _ tableId: Int64) -> [CourseEntity] {
         return arr.map { obj in
-            CourseEntity(
+            // issue#55: Sleepy 导出的非标准时间课程带 startTime/endTime — 读完恢复 ownTime,
+            // 缺字段(原生 WakeUp 分享常态)保持 ownTime=false 兼容
+            let ownStart = contentOrNull(obj["startTime"]) ?? ""
+            let ownEnd = contentOrNull(obj["endTime"]) ?? ""
+            let ownTime = !isBlank(ownStart) && !isBlank(ownEnd)
+            return CourseEntity(
                 groupId: "",
                 tableId: tableId,
                 courseName: (obj["name"] as? String) ?? (obj["courseName"] as? String) ?? "未命名",
                 teacher: obj["teacher"] as? String ?? "",
                 room: obj["position"] as? String ?? "",
                 note: "",
-                day: intOrZero(obj["day"], 1),
-                startNode: intOrZero(obj["startNode"], 1),
-                step: intOrZero(obj["step"], 1),
-                startWeek: intOrZero(obj["startWeek"], 1),
-                endWeek: intOrZero(obj["endWeek"], 16),
-                type: intOrZero(obj["type"], 0),
+                day: intField(obj, "day", def: 1),
+                startNode: intField(obj, "startNode", def: 1),
+                step: intField(obj, "step", def: 1),
+                startWeek: intField(obj, "startWeek", def: 1),
+                endWeek: intField(obj, "endWeek", def: 16),
+                type: intField(obj, "type", def: 0),
                 color: (obj["color"] as? String) ?? "#FF6750A4",
-                id: 0
+                ownTime: ownTime,
+                startTime: ownTime ? ownStart : "",
+                endTime: ownTime ? ownEnd : ""
             )
         }
     }
@@ -326,12 +570,13 @@ enum ScheduleParser {
     /// 1. WakeUp 课程表导出 — SUMMARY=课名, DESCRIPTION="第X - Y节\n教室\n教师"(字面 \n 转义),
     ///    每个实际上课时段一条 VEVENT(双周课拆成 N 条 INTERVAL=1 的短事件),
     ///    UNTIL 日期为最后一次发生的日历日(可能比该次晚 6 天,按同星期几对齐回推)。
-    /// 2. Sleepy 自家导出 — DESCRIPTION="老师：X", 单双周用 INTERVAL=2 表达。
+    /// 2. Sleepy 自家导出 — DESCRIPTION 含 "第X - Y节"(v7.10.16k 起) 与末尾 "\nHH:mm-HH:mm"
+    ///    ownTime 时间行(issue#55), 单双周用 INTERVAL=2 表达。
     ///
     /// 语义:
     /// - 学期锚点 = 最早 DTSTART 所在周的周一 → startDate(周数编号基准)
     /// - 周区间 = [DTSTART 周, UNTIL 对齐星期几后的最后一次发生周]
-    /// - 节次优先读 DESCRIPTION "第X - Y节", 无则按 50min/节估算
+    /// - 节次优先读 DESCRIPTION "第X - Y节", 无则按 50min/节估算; NEU 导出走教学块模型(issue#28)
     /// - 同(课名,星期,节次,教师)的多个 VEVENT 按周序列合并:
     ///   连续拼合→type=0; 全同奇偶且间距2→单/双周; 否则(散周)保持独立行
     /// - 全校作息收割: 节次 → (start,end), 跨 lunch 的多节块只锚定两端
@@ -340,10 +585,21 @@ enum ScheduleParser {
             let name: String, day: Int, startNode: Int, step: Int
             let teacher: String, room: String
             let firstDate: Date, lastDate: Date, interval: Int
+            let ownStart: String, ownEnd: String
         }
 
         var events: [Event] = []
-        // 全校作息收割: 节次 → (startMin, endMin)
+        let isNeuIcs = matches(try? NSRegularExpression(
+            pattern: "^PRODID:.*NEU_Wisedu2Wakeup",
+            options: [.caseInsensitive, .anchorsMatchLines]), text)
+        // NEU 导出把真实时间块作为若干逻辑教学时段, 块间午休/晚间间隔不占节次。
+        // issue #28: 教学块模型整表重建 — 原子块(起止之间不含其他块起点)给出
+        // 节次行, 连排事件映射为跨块节次区间; 不再走逐事件收割。旧法两个缺陷:
+        // 同一时刻"最长事件步数"套给该时刻所有事件(08:00-09:40 被拉成 1-4 节),
+        // 以及长事件 start 写进共享 endNode.start(第4节 08:00-11:40 时间倒挂)。
+        let neuBlocks = isNeuIcs ? analyzeNeuBlocks(text) : []
+        // 全校作息收割: 节次 → (startMin, endMin)。每个 VEVENT 直接给出
+        // node[首节].start=DTSTART, node[末节].end=DTEND, 中间节次按边界推导。
         var nodeTimes: [Int: (Int, Int)] = [:]
         for raw in text.components(separatedBy: "BEGIN:VEVENT").dropFirst() {
             let endIdx = raw.range(of: "END:VEVENT")?.lowerBound ?? raw.endIndex
@@ -366,7 +622,7 @@ enum ScheduleParser {
                 teacher = ""
             }
             let room: String
-            if descLines.count >= 2, !descLines[1].trimmingCharacters(in: .whitespaces).isEmpty {
+            if descLines.count >= 2, !isBlank(descLines[1]) {
                 room = descLines[1].trimmingCharacters(in: .whitespaces)
             } else if !location.isEmpty && !teacher.isEmpty && location.hasSuffix(teacher) {
                 room = String(location.dropLast(teacher.count)).trimmingCharacters(in: .whitespaces)
@@ -374,29 +630,41 @@ enum ScheduleParser {
                 room = location
             }
 
+            // issue#55: Sleepy 自家 ICS 在 DESCRIPTION 末尾追加 "\nHH:mm-HH:mm" 时间行
+            // (exportIcs ownTimeLine)。读到 → 恢复 ownTime; WakeUp 原生无此行不受影响。
+            // 布局: [0]=第X-Y节 [1]=教室 [2]=教师 [3]=HH:mm-HH:mm(ownTime 时)
+            let ownTimeLine = descLines.count > 3 ? descLines[3].trimmingCharacters(in: .whitespaces) : ""
+            let ownTimeMatch = ownTimeLine.isEmpty ? nil : match(ownTimeLineRe, ownTimeLine)
+
             guard let day = extractIcsDayOfWeek(block) else { continue }
             guard let dtstart = extractIcsDate(block) else { continue }
-            // 节次优先读描述 "第X - Y节", 无则按时间估算
-            guard let (startNode, step) = extractIcsNode(description) ?? extractIcsTime(block) else { continue }
+            let explicitNode = extractIcsNode(description)
+            let neuSpan = (explicitNode == nil && isNeuIcs) ? neuSpanFor(neuBlocks, block) : nil
+            let timeSpan = (explicitNode == nil && !isNeuIcs) ? extractIcsTime(block) : nil
+            guard let (startNode, step) = explicitNode ?? neuSpan ?? timeSpan else { continue }
 
-            // 作息收割: 有节次行 + 有起止钟点才有贡献(Sleepy 自家导出也满足)
-            harvestNodeTimes(block, startNode, step, &nodeTimes)
+            // 作息收割: NEU 走块模型整表重建(buildNeuTimetable), 不逐事件合并;
+            // 非 NEU (如 WakeUp 导出带 DESCRIPTION 第X-Y节) 保留逐事件收割。
+            if !isNeuIcs { harvestNodeTimes(block, startNode, step, &nodeTimes) }
 
             let rrule = extractIcsField(block, "RRULE") ?? ""
             let interval = rrule.contains("INTERVAL=2") ? 2 : 1
             // UNTIL 是最后一次发生的日历日(可能晚于该次 0-6 天) → 对齐回同星期几
             var untilDate = dtstart
-            if let u = try? NSRegularExpression(pattern: "UNTIL=(\\d{8})"),
-               let um = u.firstMatch(in: rrule, range: NSRange(rrule.startIndex..., in: rrule)),
-               let ur = Range(um.range(at: 1), in: rrule), let ud = parseIcsDate(String(rrule[ur])) {
+            if let um = match(try? NSRegularExpression(pattern: "UNTIL=(\\d{8})"), rrule),
+               let us = group(um, rrule, 1), let ud = parseIcsDate(us) {
                 untilDate = ud
             }
             let deltaDays = Calendar.isoDaysBetween(dtstart, untilDate)
             let lastOccurrence = Calendar.isoAddDays(dtstart, deltaDays - deltaDays % 7)
 
+            let ownStart = ownTimeMatch.flatMap { group($0, ownTimeLine, 1) } ?? ""
+            let ownEnd = ownTimeMatch.flatMap { group($0, ownTimeLine, 2) } ?? ""
+
             events.append(Event(name: summary, day: day, startNode: startNode, step: step,
                                 teacher: teacher, room: room,
-                                firstDate: dtstart, lastDate: lastOccurrence, interval: interval))
+                                firstDate: dtstart, lastDate: lastOccurrence, interval: interval,
+                                ownStart: ownStart, ownEnd: ownEnd))
         }
 
         if events.isEmpty {
@@ -414,22 +682,32 @@ enum ScheduleParser {
         var groups: [SlotKey: [(Int, Int, String)]] = [:]   // (startW, endW, room)
         var groupOrder: [SlotKey] = []
         var groupInterval: [SlotKey: Int] = [:]
+        // issue#55: 同组事件来自同一课程实体, ownTime 时间恒一致 — 取首个非空即可
+        var groupOwnTime: [SlotKey: (String, String)] = [:]
         func weekOf(_ d: Date) -> Int { Calendar.isoDaysBetween(anchor, d) / 7 + 1 }
         for e in events {
             let key = SlotKey(name: e.name, day: e.day, node: e.startNode, step: e.step, teacher: e.teacher)
             if groups[key] == nil { groupOrder.append(key) }
             groups[key, default: []].append((weekOf(e.firstDate), weekOf(e.lastDate), e.room))
             groupInterval[key] = e.interval
+            if !e.ownStart.isEmpty && !e.ownEnd.isEmpty && groupOwnTime[key] == nil {
+                groupOwnTime[key] = (e.ownStart, e.ownEnd)
+            }
         }
 
         var courses: [CourseEntity] = []
         func emit(_ key: SlotKey, _ startWeek: Int, _ endWeek: Int, _ type: Int, _ room: String) {
+            let own = groupOwnTime[key]
             courses.append(CourseEntity(
                 groupId: "", tableId: defaultTableId,
                 courseName: key.name, teacher: key.teacher, room: room, note: "",
                 day: key.day, startNode: key.node, step: key.step,
                 startWeek: startWeek, endWeek: endWeek, type: type,
-                color: defaultColor, id: 0
+                color: defaultColor,
+                ownTime: own != nil,
+                startTime: own?.0 ?? "",
+                endTime: own?.1 ?? "",
+                id: 0
             ))
         }
 
@@ -475,13 +753,20 @@ enum ScheduleParser {
             }
         }
 
-        return ParseResult(
-            tableName: "导入的 ICS 课表",
-            startDate: Calendar.isoString(anchor),
-            courses: courses,
-            timeJson: buildTimeJson(nodeTimes),
-            nodesPerDay: nodeTimes.isEmpty ? 0 : (nodeTimes.keys.max() ?? 0)
+        // NEU: 整表由块模型重建(与事件写入顺序无关); 非 NEU: 逐事件收割结果。
+        let timeMap = isNeuIcs ? buildNeuTimetable(neuBlocks) : nodeTimes
+        return lossless(
+            "导入的 ICS 课表",
+            Calendar.isoString(anchor),
+            courses,
+            buildTimeJson(timeMap),
+            timeMap.isEmpty ? 0 : (timeMap.keys.max() ?? 0)
         )
+    }
+
+    /// Math.round(double).toInt() 等价 — 半数向上(与 Java 一致, 非 Swift 默认 toNearestOrEven)
+    private static func roundHalfUp(_ x: Double) -> Int {
+        return Int(floor(x + 0.5))
     }
 
     /// 从单个 VEVENT 收割节次边界: 事件占 [startNode, startNode+step-1] 节,
@@ -494,8 +779,8 @@ enum ScheduleParser {
                                          _ out: inout [Int: (Int, Int)]) {
         guard let dtstart = extractIcsField(block, "DTSTART"),
               let dtend = extractIcsField(block, "DTEND"),
-              let start = parseIcsTimeOfDay(String(dtstart.components(separatedBy: "T").dropFirst().first?.prefix(6) ?? "")),
-              let end = parseIcsTimeOfDay(String(dtend.components(separatedBy: "T").dropFirst().first?.prefix(6) ?? "")),
+              let start = icsTimeAfterT(dtstart),
+              let end = icsTimeAfterT(dtend),
               start < end else { return }
 
         let endNode = startNode + step - 1
@@ -512,6 +797,18 @@ enum ScheduleParser {
             out[startNode] = (start, prevFirst?.1 ?? end)
             out[endNode] = (prevLast?.0 ?? start, end)
         }
+    }
+
+    /// DTSTART/DTEND 值 "T" 后取 6 位 "HHmmss" → 当日分钟数
+    /// ← Kotlin substringAfter("T"): 无 "T" 时返回整串(与 Android 同规), 再 take(6)
+    private static func icsTimeAfterT(_ value: String) -> Int? {
+        let tail: Substring
+        if let tIdx = value.firstIndex(of: "T") {
+            tail = value[value.index(after: tIdx)...]
+        } else {
+            tail = value[...]
+        }
+        return parseIcsTimeOfDay(String(tail.prefix(6)))
     }
 
     /// "HHmmss" 前缀 → 当日分钟数; 非法 nil
@@ -536,12 +833,12 @@ enum ScheduleParser {
         return parseIcsDate(String((dtstart.components(separatedBy: "T").first ?? "").prefix(8)))
     }
 
-    /// 从 DESCRIPTION "第X - Y节" 提取节次; 兼容 Sleepy 自家导出(无此行,返回 nil 走时间估算)
+    /// 从 DESCRIPTION "第X - Y节" 提取节次; 兼容无此行场景(返回 nil 走时间估算/块模型)
     private static func extractIcsNode(_ description: String) -> (Int, Int)? {
-        guard let m = try? NSRegularExpression(pattern: "第\\s*(\\d+)\\s*[-–]\\s*(\\d+)\\s*节"),
-              let mm = m.firstMatch(in: description, range: NSRange(description.startIndex..., in: description)),
-              let r1 = Range(mm.range(at: 1), in: description), let r2 = Range(mm.range(at: 2), in: description),
-              let a = Int(description[r1]), let b = Int(description[r2]),
+        let re = try? NSRegularExpression(pattern: "第\\s*(\\d+)\\s*[-–]\\s*(\\d+)\\s*节")
+        guard let m = match(re, description),
+              let aStr = group(m, description, 1), let bStr = group(m, description, 2),
+              let a = Int(aStr), let b = Int(bStr),
               a >= 1, b >= a else { return nil }
         return (a, b - a + 1)
     }
@@ -558,23 +855,88 @@ enum ScheduleParser {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// 从 DTSTART/DTEND 提取节次(按 ~55min/节粗略估算;ICS 不含节次表,仅近似)
+    /// NEU 教学块: [start,end] 时钟区间 → [firstNode, firstNode+nodeCount-1] 节次区间
+    private struct NeuBlock {
+        let start: Int   // 当日分钟
+        let end: Int
+        let nodeCount: Int
+        let firstNode: Int
+        var lastNode: Int { firstNode + nodeCount - 1 }
+    }
+
+    /// issue #28: NEU ICS 节次重建的块模型。
+    ///
+    /// 从全部 VEVENT 的 (DTSTART, DTEND) 形态推导教学块: **原子块** = 起止之间
+    /// 不含其他事件开始时刻的形态(如 08:00-09:40; 08:00-11:40 中间含 10:00 →
+    /// 是跨块连排, 不是块)。块宽按 50min/节(45课+5间)从块自身时长四舍五入,
+    /// 节次编号从 1 跨块累加; 块间空档(午休/晚休)不占节次。
+    private static func analyzeNeuBlocks(_ text: String) -> [NeuBlock] {
+        var shapes: [(Int, Int)] = []
+        for raw in text.components(separatedBy: "BEGIN:VEVENT").dropFirst() {
+            let endIdx = raw.range(of: "END:VEVENT")?.lowerBound ?? raw.endIndex
+            let block = String(raw[raw.startIndex..<endIdx])
+            guard let s = extractIcsField(block, "DTSTART").flatMap(icsTimeAfterT),
+                  let e = extractIcsField(block, "DTEND").flatMap(icsTimeAfterT),
+                  s < e else { continue }
+            shapes.append((s, e))
+        }
+        let startTimes = Array(Set(shapes.map { $0.0 })).sorted()
+        var acc = 1
+        return startTimes.map { s in
+            // 原子块终点 = 该开始时刻所有事件里最早的结束时刻(连排事件的终点属于后面的块)
+            let end = shapes.filter { $0.0 == s }.map { $0.1 }.min()!
+            let nodeCount = max(roundHalfUp(Double(end - s) / 50.0), 1)
+            let blk = NeuBlock(start: s, end: end, nodeCount: nodeCount, firstNode: acc)
+            acc += nodeCount
+            return blk
+        }
+    }
+
+    /// 事件 → 节次区间。终点恰好是某块终点 → 精确跨块(块 i 到块 j);
+    /// 否则按起点块的每节分钟数折算步数。
+    /// 显式 DESCRIPTION 节次在调用方优先, 本函数只处理 NEU 的无描述导出。
+    private static func neuSpanFor(_ blocks: [NeuBlock], _ block: String) -> (Int, Int)? {
+        guard let dtstart = extractIcsField(block, "DTSTART"),
+              let dtend = extractIcsField(block, "DTEND"),
+              let start = icsTimeAfterT(dtstart),
+              let end = icsTimeAfterT(dtend) else { return nil }
+        guard let i = blocks.firstIndex(where: { $0.start == start }) else { return nil }
+        let b = blocks[i]
+        if let j = blocks.firstIndex(where: { $0.end == end }), j > i {
+            return (b.firstNode, blocks[j].lastNode - b.firstNode + 1)
+        }
+        let perNode = Double(b.end - b.start) / Double(b.nodeCount)
+        let step = max(roundHalfUp(Double(end - start) / perNode), 1)
+        return (b.firstNode, step)
+    }
+
+    /// 块模型 → 节次时间表: 块内均匀插值(块首节 start=块起点, 块末节 end=块终点),
+    /// 块间空档不产生行。与事件写入顺序无关。
+    private static func buildNeuTimetable(_ blocks: [NeuBlock]) -> [Int: (Int, Int)] {
+        var out: [Int: (Int, Int)] = [:]
+        for b in blocks {
+            let startSec = b.start * 60
+            let endSec = b.end * 60
+            let perNodeSec = Double(endSec - startSec) / Double(b.nodeCount)
+            for k in 0..<b.nodeCount {
+                let s = roundHalfUp(Double(startSec) + Double(k) * perNodeSec) / 60
+                let e = roundHalfUp(Double(startSec) + Double(k + 1) * perNodeSec) / 60
+                out[b.firstNode + k] = (s, e)
+            }
+        }
+        return out
+    }
+
+    /// 从 DTSTART/DTEND 提取节次(按 45min课+5min课间≈50min/节估算; DESCRIPTION 无"第X-Y节"时的兜底)
     private static func extractIcsTime(_ block: String) -> (Int, Int)? {
         guard let dtstart = extractIcsField(block, "DTSTART"),
-              let dtend = extractIcsField(block, "DTEND") else { return nil }
-        // 解析 HHmmss
-        // ← substringAfter("T").take(6)
-        let s = dtstart.components(separatedBy: "T").dropFirst().first ?? ""
-        let e = dtend.components(separatedBy: "T").dropFirst().first ?? ""
-        guard s.count >= 6, e.count >= 6,
-              let sh = Int(s.prefix(2)), let sm = Int(s.dropFirst(2).prefix(2)),
-              let eh = Int(e.prefix(2)), let em = Int(e.dropFirst(2).prefix(2)) else { return nil }
-        let startMin = sh * 60 + sm
-        let endMin = eh * 60 + em
-        let duration = endMin - startMin
+              let dtend = extractIcsField(block, "DTEND"),
+              let start = icsTimeAfterT(dtstart),
+              let end = icsTimeAfterT(dtend) else { return nil }
+        let duration = end - start
         // 8:00 = 第 1 节; 节边界按 50min 周期近似(45课+5课间), +10min 防边界抖动
-        let startNode = Int((Double(startMin - 480 + 10) / 50)) + 1
-        let step = max(Int((Double(duration) / 50).rounded()), 1)
+        let startNode = (start - 480 + 10) / 50 + 1
+        let step = max(roundHalfUp(Double(duration) / 50.0), 1)
         return (max(startNode, 1), step)
     }
 
@@ -616,40 +978,63 @@ enum ScheduleParser {
 
     /// 解析简化的纯文本格式:
     /// 一行一课,字段间用制表符或全角逗号分隔。
+    ///
+    /// 时间表(2026-08-26): 课前可混排节次时间行 — "时间表 1 08:00 09:35" / "第1节 08:00-09:35",
+    /// 截图带时间的场景 AI 直接照抄, 导入即拥有真实作息。课程行不含冒号, 无冲突。
+    ///
+    /// 防呆(AI 输出不可信, 2026-08-26):
+    ///  - Markdown 表格行(| a | b |)和 |---| 分隔行先剥管道再解析
+    ///  - 星号加粗 **高数** → 高数
+    ///  - 星期列接受 周一/Monday/mon
+    ///  - 区间反写 16-1 自动排序
+    ///  - day 越界(0/8)钳到 1..7
+    ///  - 解析失败的非空行计入 droppedLines, UI 提示用户
     private static func parseSimpleText(_ text: String, _ defaultTableId: Int64, _ defaultColor: String) throws -> ParseResult {
         var courses: [CourseEntity] = []
         var dropped: [String] = []
         var nodeTimes: [Int: (Int, Int)] = [:]
-        let lines = text.components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !$0.hasPrefix("#") }
 
-        // 节次时间表行: "时间表 1 08:00 09:35" / "第1节 08:00-09:35" / "1 08:00~09:35" — 先于课程行判断
-        // (课程行不含冒号, 所以"带两个 HH:mm 的行"必是时间表行, 无歧义)
-        let timeTableRe = try? NSRegularExpression(
-            pattern: "^\\s*(?:时间表|节次|第)?\\s*(\\d{1,2})\\s*节?\\s*[\\s:：]*\\s*(\\d{1,2}):(\\d{2})\\s*[-–~～至\\s]+\\s*(\\d{1,2}):(\\d{2})\\s*$")
+        // 作息块: <<<SLEEPY-TIME-BEGIN>>>..<<<SLEEPY-TIME-END>>> 优先切出。
+        // 块内行全部走作息正则, 不匹配的计入 dropped(不静默丢)。
+        // 没有标识时兼容老的裸作息行(混排在课程行前面)。
+        let (courseText, timeBlock) = extractTimeBlock(text)
+        var timeBlockDropped: [String] = []
+        for tl in timeBlock.components(separatedBy: "\n") {
+            if isBlank(tl) { continue }
+            let trimmed = tl.trimmingCharacters(in: .whitespaces)
+            guard let tt = match(timeTableRe, trimmed) else {
+                timeBlockDropped.append(String(trimmed.prefix(40)))
+                continue
+            }
+            let startNode = Int(group(tt, trimmed, 1) ?? "")
+            let endNode = Int(group(tt, trimmed, 2) ?? "") ?? startNode
+            let st = clockGroup(tt, trimmed, 3, 4)
+            let et = clockGroup(tt, trimmed, 5, 6)
+            if let sn = startNode, let en = endNode, en >= sn, let st = st, let et = et, st < et {
+                for node in sn...en { nodeTimes[node] = (st, et) }
+            } else {
+                timeBlockDropped.append(String(trimmed.prefix(40)))
+            }
+        }
+
+        let lines = courseText.components(separatedBy: "\n")
+            .filter { !isBlank($0) && !$0.hasPrefix("#") }
 
         for raw in lines {
-            let nsRaw = raw as NSString
-            if let tt = timeTableRe?.firstMatch(in: raw, range: NSRange(location: 0, length: nsRaw.length)) {
-                let g = { (i: Int) -> String? in
-                    guard let r = Range(tt.range(at: i), in: raw) else { return nil }
-                    return String(raw[r])
-                }
-                // "时间表 1 …" 节次在第 1 组; "第1节 …" 节次在字面里(也是第 1 组)
-                guard let nodeStr = g(1), let node = Int(nodeStr), node >= 1,
-                      let sh = g(2).flatMap(Int.init), let sm = g(3).flatMap(Int.init),
-                      let eh = g(4).flatMap(Int.init), let em = g(5).flatMap(Int.init) else { continue }
-                let st = sh * 60 + sm, et = eh * 60 + em
-                if (0...23).contains(sh) && (0...59).contains(sm)
-                    && (0...23).contains(eh) && (0...59).contains(em) && st < et {
-                    nodeTimes[node] = (st, et)
+            // 裸作息行兼容: 没写 TIME 标识的输入, "带两个 HH:mm 的行"必是时间表行
+            if let tt = match(timeTableRe, raw) {
+                guard let startNode = Int(group(tt, raw, 1) ?? "") else { continue }
+                let endNode = Int(group(tt, raw, 2) ?? "") ?? startNode
+                let st = clockGroup(tt, raw, 3, 4)
+                let et = clockGroup(tt, raw, 5, 6)
+                if endNode >= startNode, let st = st, let et = et, st < et {
+                    for node in startNode...endNode { nodeTimes[node] = (st, et) }
                 }
                 continue
             }
             // 剥 Markdown: 管道表格行 + 表头分隔行 + 星号加粗 + 反引号
             var line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let pipeRe = try? NSRegularExpression(pattern: "^\\|?[\\s|:-]+\\|?$"),
-               pipeRe.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil { continue }
+            if matches(try? NSRegularExpression(pattern: "^\\|?[\\s|:-]+\\|?$"), line) { continue }  // |---|---| 或整行管道
             if line.hasPrefix("|") || line.hasSuffix("|") {
                 line = line.trimmingCharacters(in: CharacterSet(charactersIn: "|"))
                     .replacingOccurrences(of: "\\s*\\|\\s*", with: "\t", options: .regularExpression)
@@ -681,7 +1066,23 @@ enum ScheduleParser {
             guard let (startWeek, endWeek) = parseRange(parts[5]).map(sortRange) else {
                 dropped.append(String(line.prefix(40))); continue
             }
-            let type = parts.count > 6 ? (Int(parts[6]) ?? 0) : 0
+            let type = parts.count > 6 ? parseType(parts[6]) : 3
+            // issue#55: 类型之后再跟钟点 → 该行是非标准时间课程, 起止为课程私有。
+            // 两种写法都认: "20:50 22:00"(两列) / "20:50-22:00"(一列)。
+            // 课程行本身不含冒号(作息行在上方已被 timeTableRegex 截走), 无歧义。
+            let extra7 = parts.count > 7 ? parts[7] : ""
+            let extra8 = parts.count > 8 ? parts[8] : ""
+            let ownPair: (Int, Int)?
+            if !isBlank(extra8), let p = parseTimeRange("\(extra7)-\(extra8)") {
+                ownPair = p
+            } else if extra7.contains(":"), let p = parseTimeRange(extra7) {
+                ownPair = p
+            } else {
+                ownPair = nil
+            }
+            let rowOwnTime = ownPair != nil
+            let ownStart = ownPair.map { hmString($0.0) } ?? ""
+            let ownEnd = ownPair.map { hmString($0.1) } ?? ""
 
             courses.append(CourseEntity(
                 groupId: "",
@@ -696,20 +1097,33 @@ enum ScheduleParser {
                 endWeek: endWeek,
                 type: type,
                 color: defaultColor,
+                ownTime: rowOwnTime,
+                startTime: rowOwnTime ? ownStart : "",
+                endTime: rowOwnTime ? ownEnd : "",
                 id: 0
             ))
         }
 
         if courses.isEmpty { throw ParseError("未能解析任何课程") }
 
-        return ParseResult(
-            tableName: "导入的课表",
-            startDate: todayString(),
-            courses: courses,
-            timeJson: buildTimeJson(nodeTimes),
-            nodesPerDay: nodeTimes.isEmpty ? 0 : (nodeTimes.keys.max() ?? 0),
-            droppedLines: dropped
+        // v7.10.16k: 无损收尾走统一 lossless() — 节次数 = max(作息声明, 课程到达)
+        var result = lossless(
+            "导入的课表",
+            todayString(),
+            courses,
+            buildTimeJson(nodeTimes),
+            nodeTimes.isEmpty ? 0 : (nodeTimes.keys.max() ?? 0)
         )
+        result.droppedLines = dropped + timeBlockDropped
+        return result
+    }
+
+    /// 正则组 (h, m) → 当日分钟; 越界 nil(LocalTime.of 非法 runCatching→null 等价)
+    private static func clockGroup(_ m: NSTextCheckingResult, _ s: String, _ hi: Int, _ mi: Int) -> Int? {
+        guard let hStr = group(m, s, hi), let mStr = group(m, s, mi),
+              let h = Int(hStr), let miV = Int(mStr),
+              (0...23).contains(h), (0...59).contains(miV) else { return nil }
+        return h * 60 + miV
     }
 
     /// 区间反写(16-1)自动排序为 (1,16)
@@ -733,16 +1147,18 @@ enum ScheduleParser {
     }
 
     private static func parseRange(_ s: String) -> (Int, Int)? {
-        // ← split('-', '~', '至')
-        let parts = s.split(whereSeparator: { $0 == "-" || $0 == "~" || $0 == "至" }).map(String.init)
+        // ← split('-', '~', '至'): Kotlin split 保留空子串 — "1--2" 是 3 段 → null(拒),
+        // "2-5-9" 同样 null。Swift 默认 omittingEmptySubsequences:true 会把 "1--2" 当 (1,2) 收编,
+        // 与 Android 分叉 → 必须显式保留空段。双段分支 Android 不 trim(" 2"→null),单段分支 trim。
+        let parts = s.split(omittingEmptySubsequences: false,
+                            whereSeparator: { $0 == "-" || $0 == "~" || $0 == "至" }).map(String.init)
         if parts.count == 1 {
             // 单个数字: e.g. "5" → (5, 5)
             guard let n = Int(parts[0].trimmingCharacters(in: .whitespaces)) else { return nil }
             return (n, n)
         }
         if parts.count != 2 { return nil }
-        guard let start = Int(parts[0].trimmingCharacters(in: .whitespaces)),
-              let end = Int(parts[1].trimmingCharacters(in: .whitespaces)) else { return nil }
+        guard let start = Int(parts[0]), let end = Int(parts[1]) else { return nil }
         return (start, end)
     }
 
@@ -756,6 +1172,8 @@ enum ScheduleParser {
     ///   星期 / 周几 / day
     ///   节次(单列 1-2 格式) / 节点 / node / 节 / class
     ///   开始节数 + 结束节数(两列)  — 教务处常见导出
+    ///   开始时间 + 结束时间(两列)  — 收割该节次真实作息(issue#55 时亦为私有起止)
+    ///   自定义时间(标记列)         — issue#55 "是/true/yes/1" → 该行 ownTime
     ///   周次 / 周数 / weeks / week — 支持多区间 "2-5,7-9,11-14" / 离散周 "11,13,15" / 单周 "5"
     ///   类型 / type
     ///   备注 / note
@@ -785,6 +1203,16 @@ enum ScheduleParser {
         }
         let teacherIdx = findCol("教师", "老师", "teacher")
         let roomIdx = findCol("教室", "位置", "地点", "room", "position")
+        // 时间列(可选): "开始时间"+"结束时间" 成对出现 → 每行收割该节次的真实作息
+        // (繁体/日文汉字/西语别名与内置说明文案的表头对齐: 開始時間/hora inicio)
+        let timeStartIdx = findCol("开始时间", "上课时间", "開始時間", "start time", "starttime", "hora inicio")
+        let timeEndIdx = findCol("结束时间", "下课时间", "結束時間", "end time", "endtime", "hora fin")
+        // issue#55: 自定义时间标记列(可选, Sleepy 自家 CSV 才有) — "是/true/yes/1" → 该行 ownTime,
+        // 时间列值即课程私有起止而非作息收割源
+        // 别名与 6 语说明文案对齐: 简中/繁中/日文汉字/英文 "own time|custom time"
+        let ownTimeIdx = findCol(
+            "自定义时间", "非标准时间", "自訂時間", "非標準時間", "自定義時間", "own time", "owntime", "custom time"
+        )
         guard let dayIdx = findCol("星期", "周几", "day") else {
             throw ParseError("找不到星期列")
         }
@@ -805,6 +1233,7 @@ enum ScheduleParser {
         }
 
         var courses: [CourseEntity] = []
+        var nodeTimes: [Int: (Int, Int)] = [:]
         for i in 1..<rows.count {
             let row = rows[i]
             if row.isEmpty || row.allSatisfy({ $0.trimmingCharacters(in: .whitespaces).isEmpty }) { continue }
@@ -831,6 +1260,20 @@ enum ScheduleParser {
             let (nodeStart, nodeEnd) = nodePair!
             let step = max(nodeEnd - nodeStart + 1, 1)
 
+            // 时间列收割: 该行带真实起止钟点 → 记录首末节的边界作息(中间节交给恰好落界的行补)
+            // issue#55: ownTime 行的起止是课程私有时间, 不入公共作息收割
+            let ownTimeRow = ownTimeIdx != nil && isYesMarker(cell(ownTimeIdx))
+            if !ownTimeRow, let ts = timeStartIdx, let te = timeEndIdx,
+               let (st, et) = parseTimeRange(cell(ts) + "-" + cell(te)) {
+                let prevStart = nodeTimes[nodeStart]?.0
+                let prevEnd = nodeTimes[nodeStart]?.1
+                nodeTimes[nodeStart] = (prevStart ?? st, nodeEnd == nodeStart ? et : (prevEnd ?? et))
+                if nodeEnd != nodeStart {
+                    let pe = nodeTimes[nodeEnd]
+                    nodeTimes[nodeEnd] = (pe?.0 ?? st, et)
+                }
+            }
+
             // 解析周次——支持多区间 "2-5,7-9,11-14" / 离散 "11,13,15" / 单周 "5" / 区间 "2-16"
             let weekRanges = parseWeekRanges(cell(weekIdx))
             if weekRanges.isEmpty { continue }
@@ -839,6 +1282,9 @@ enum ScheduleParser {
             let room = cell(roomIdx)
             let note = cell(noteIdx)
             let type = parseType(cell(typeIdx))
+            // issue#55: ownTime 行恢复课程私有起止(与导出端 buildCsv 列对齐)
+            let ownPair = ownTimeRow ? parseTimeRange(cell(timeStartIdx) + "-" + cell(timeEndIdx)) : nil
+            let rowOwnTime = ownPair != nil
 
             // 每个区间展开为一条 CourseEntity
             for (startWeek, endWeek) in weekRanges {
@@ -856,6 +1302,9 @@ enum ScheduleParser {
                     endWeek: endWeek,
                     type: type,
                     color: defaultColor,
+                    ownTime: rowOwnTime,
+                    startTime: rowOwnTime ? hmString(ownPair!.0) : "",
+                    endTime: rowOwnTime ? hmString(ownPair!.1) : "",
                     id: 0
                 ))
             }
@@ -863,11 +1312,18 @@ enum ScheduleParser {
 
         if courses.isEmpty { throw ParseError("未能解析任何课程") }
 
-        return ParseResult(
-            tableName: "导入的 CSV 课表",
-            startDate: todayString(),
-            courses: courses
+        return lossless(
+            "导入的 CSV 课表",
+            todayString(),
+            courses,
+            buildTimeJson(nodeTimes),
+            nodeTimes.isEmpty ? 0 : (nodeTimes.keys.max() ?? 0)
         )
+    }
+
+    /// issue#55 标记列取值: "是/true/yes/1"(大小写不敏感)→ true
+    private static func isYesMarker(_ s: String) -> Bool {
+        return s == "是" || s.lowercased() == "true" || s.lowercased() == "yes" || s == "1"
     }
 
     /// 解析周数字段,支持:
@@ -945,13 +1401,18 @@ enum ScheduleParser {
         return nil
     }
 
-    /// 解析 "类型" 列:0=每周 1=单周 2=双周
-    private static func parseType(_ s: String) -> Int {
+    /// 解析 "类型" 列:0=每周 1=单周 2=双周 3=按周次列实际指定的周
+    /// 空串/未知 → 3(不再回退到 0=每周,避免把"周次=6 单次实验"误标成"每周都上")
+    /// internal(非 private)供 SleepyTests 直测 — Kotlin 侧用反射访问 private, 语义不变
+    static func parseType(_ s: String) -> Int {
         let t = s.trimmingCharacters(in: .whitespaces).lowercased()
-        if t.isEmpty { return 0 }
+        if t.isEmpty { return 3 }
+        if t == "0" || t == "每周" || t == "每周都上" { return 0 }
         if t.contains("单") || t == "1" || t == "odd" { return 1 }
         if t.contains("双") || t == "2" || t == "even" { return 2 }
-        return 0
+        if t == "3" || t.contains("自定义") || t.contains("按周次") { return 3 }
+        // 未知值(包含负数、4+ 等)按"按周次"处理而非"每周",保护用户数据
+        return 3
     }
 
     /// 解析 "节次" 列:支持 "1-2" "第1-2节" "1,2" "1 1"
@@ -994,11 +1455,8 @@ enum ScheduleParser {
 
         if courses.isEmpty { throw ParseError("HTML 中未能解析出任何课程") }
 
-        return ParseResult(
-            tableName: "导入的 HTML 课表",
-            startDate: todayString(),
-            courses: courses
-        )
+        // v7.10.16k: 课程到达节次无损上报(HTML 表头路径本身不携带作息)
+        return lossless("导入的 HTML 课表", todayString(), courses, "", 0)
     }
 
     /// 抽取所有 <table>...</table> 转为 [[String]] (按 <td>/<th>)
@@ -1021,7 +1479,7 @@ enum ScheduleParser {
                     let raw = nsTr.substring(with: m.range(at: 2))
                     // 解码 HTML 实体
                     return tagRegex.stringByReplacingMatches(
-                        in: raw, range: NSRange(location: 0, length: raw.count),
+                        in: raw, range: NSRange(location: 0, length: (raw as NSString).length),
                         withTemplate: ""
                     )
                     .replacingOccurrences(of: "&nbsp;", with: " ")
@@ -1048,9 +1506,10 @@ enum ScheduleParser {
             return t.contains("课程") || t.contains("course") || t.contains("name")
         } ?? -1
         if headerIdx < 0 {
-            // 退化:按文本行处理
+            // 退化:按文本行处理 — Android 直调 parseSimpleText(不走完整分派,
+            // 防展平后的 cell 以 '{' 或 'BEGIN:VCALENDAR' 开头被误路由进 JSON/ICS 解析器)
             let text = rows.flatMap { $0 }.joined(separator: "\n")
-            if case .success(let r) = parse(text, defaultTableId: defaultTableId, defaultColor: defaultColor) {
+            if let r = try? parseSimpleText(text, defaultTableId, defaultColor) {
                 return r.courses
             }
             return []
@@ -1076,6 +1535,12 @@ enum ScheduleParser {
         let weekIdx = findCol("周次", "周数", "weeks", "week")
         let typeIdx = findCol("类型", "type")
         let noteIdx = findCol("备注", "note")
+        // issue#55: Sleepy 自家 HTML 才有的列 — 自定义时间标记 + 起止时间
+        let ownTimeIdx = findCol(
+            "自定义时间", "非标准时间", "自訂時間", "非標準時間", "自定義時間", "own time", "owntime", "custom time"
+        )
+        let timeStartIdx = findCol("开始时间", "上课时间", "開始時間", "start time", "starttime", "hora inicio")
+        let timeEndIdx = findCol("结束时间", "下课时间", "結束時間", "end time", "endtime", "hora fin")
 
         if nodeStartIdx == nil && nodeEndIdx == nil && nodeIdx == nil {
             return []
@@ -1115,6 +1580,11 @@ enum ScheduleParser {
             let teacher = cell(teacherIdx)
             let room = cell(roomIdx)
             let note = cell(noteIdx)
+            // issue#55: ownTime 行恢复课程私有起止(钟点归一两位补零, 与 sleepy-v1 同规)
+            let ownPair = (ownTimeIdx != nil && isYesMarker(cell(ownTimeIdx)))
+                ? parseTimeRange(cell(timeStartIdx) + "-" + cell(timeEndIdx))
+                : nil
+            let rowOwnTime = ownPair != nil
             for (startWeek, endWeek) in weekRanges {
                 courses.append(CourseEntity(
                     groupId: "",
@@ -1130,6 +1600,9 @@ enum ScheduleParser {
                     endWeek: endWeek,
                     type: type,
                     color: defaultColor,
+                    ownTime: rowOwnTime,
+                    startTime: rowOwnTime ? hmString(ownPair!.0) : "",
+                    endTime: rowOwnTime ? hmString(ownPair!.1) : "",
                     id: 0
                 ))
             }
@@ -1138,14 +1611,6 @@ enum ScheduleParser {
     }
 
     // MARK: - helpers
-
-    /// ← JsonPrimitive.intOrZero(): 数字或数字串→Int,否则 0
-    private static func intOrZero(_ v: Any?, _ def: Int) -> Int {
-        if let i = v as? Int { return i }
-        if let d = v as? Double { return Int(d) }
-        if let s = v as? String, let i = Int(s) { return i }
-        return def
-    }
 
     /// LocalDate.now().toString()
     private static func todayString() -> String {

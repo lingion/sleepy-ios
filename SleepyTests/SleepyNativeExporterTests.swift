@@ -271,4 +271,150 @@ final class SleepyNativeExporterTests: XCTestCase {
                                                    courses: [course("高数", day: 2, startNode: 1, step: 2)])
         XCTAssertTrue(out1.count <= 100, "len=\(out1.count) out=\(out1)")  // 含 T 行 + chk 行也远小于 100
     }
+
+    // ---- issue#40 §6: P 区块可选导出 (← PeriodTableRoundTripTest.kt 导出端断言) ----
+
+    private let periodTimeJson = "[{\"node\":1,\"start\":\"08:20\",\"end\":\"09:05\"},{\"node\":2,\"start\":\"09:15\",\"end\":\"10:00\"}]"
+
+    private func periodExport(id: Int64 = 5, name: String = "春季作息",
+                              nodesPerDay: Int = 2, timeJson: String? = nil) -> SleepyNativeExporter.PeriodTableExport {
+        SleepyNativeExporter.PeriodTableExport(id: id, name: name, nodesPerDay: nodesPerDay,
+                                               timeJson: timeJson ?? periodTimeJson)
+    }
+
+    func testExportFileWithPeriodTableWritesPBlock() {
+        let out = SleepyNativeExporter.exportFile(tableName: "2026 春季课表", startDate: "2026-02-23",
+                                                  maxWeek: 18, nodesPerDay: 2, timeJson: periodTimeJson,
+                                                  courses: [], periodTable: periodExport())
+        XCTAssertTrue(out.contains("\nP春季作息|5|2\n"), "out=\(out)")
+        XCTAssertTrue(out.contains("\nPn1|08:20|09:05\n"), "out=\(out)")
+        XCTAssertTrue(out.contains("\nPn2|09:15|10:00\n"), "out=\(out)")
+        // §6 兼容列: P 区块之外照常输出 N 行(旧版本至少读到课表内 timeJson)
+        XCTAssertTrue(out.contains("\nN1|08:20|09:05\n"), "out=\(out)")
+    }
+
+    func testExportFileWithoutPeriodTableOmitsPBlock() {
+        // 旧格式(未绑定/无共享): 零 P 行 → 导入端各建一张, 不误共享
+        let out = SleepyNativeExporter.exportFile(tableName: "t", startDate: "2026-02-23",
+                                                  maxWeek: 18, nodesPerDay: 2, timeJson: periodTimeJson,
+                                                  courses: [])
+        let pLines = out.components(separatedBy: .newlines).filter { $0.hasPrefix("P") }
+        XCTAssertTrue(pLines.isEmpty, "out=\(out)")
+    }
+
+    func testShareTextCarriesPeriodTable() {
+        let out = SleepyNativeExporter.exportShareText(tableName: "分享课表", startDate: "2026-02-23",
+                                                       maxWeek: 16, nodesPerDay: 2, timeJson: periodTimeJson,
+                                                       courses: [],
+                                                       periodTable: periodExport(id: 9, name: "考试周作息"))
+        XCTAssertTrue(out.hasPrefix("【来自Sleepy】"))
+        XCTAssertTrue(out.contains("\nP考试周作息|9|2\n"), "out=\(out)")
+        XCTAssertTrue(out.contains("Pn1|08:20|09:05"), "out=\(out)")
+        XCTAssertFalse(out.contains("z|chk="))
+    }
+
+    func testPeriodBlockNdPresetFoldsToPd() {
+        // P 区块时间等于冻结预设时写 Pd(紧凑形), 与 N 段判定同文法
+        let out = SleepyNativeExporter.exportFile(tableName: "ND表", startDate: "2026-02-23",
+                                                  maxWeek: 16, nodesPerDay: 12,
+                                                  timeJson: TimeTableUtils.DEFAULT_TIME_JSON, courses: [],
+                                                  periodTable: periodExport(id: 3, name: "默认作息",
+                                                                            nodesPerDay: 12,
+                                                                            timeJson: TimeTableUtils.DEFAULT_TIME_JSON))
+        XCTAssertTrue(out.contains("\nPd\n"), "out=\(out)")
+        XCTAssertFalse(out.contains("Pn1|"), "out=\(out)")
+    }
+
+    func testPeriodBlockBlankTimeJsonWritesOnlyHeader() {
+        // matchesNdPreset(空)=false, isNotBlank(空)=false → 零时间行(与 Android SleepyNativeExporter.kt
+        // buildBody 的 else-if 分支一致: P 头照写, 其后既无 Pd 也无 Pn)。
+        // exportFile 的 file 形态在 body 末尾追加 z|chk 行(§8.1, Android exportFile 同文法),
+        // 所以契约是"P 头是 chk 之前的 body 末行", 不是"整个文件以 P 头结尾"。
+        // 实测(2026-10-21, iPhone 14 sim): out=...P春季作息|5|2\nz|chk=crc32:xxxxxxxx
+        let out = SleepyNativeExporter.exportFile(tableName: "t", startDate: "2026-02-23",
+                                                  maxWeek: 16, nodesPerDay: 2, timeJson: "",
+                                                  courses: [], periodTable: periodExport(timeJson: ""))
+        let lines = out.components(separatedBy: .newlines)
+        XCTAssertTrue(lines.last!.hasPrefix("z|chk=crc32:"), "out=\(out)")
+        XCTAssertEqual("P春季作息|5|2", lines[lines.count - 2], "out=\(out)")
+        // 零时间行: 没有任何 Pn 行, 也没有 Pd 行(整行精确匹配, 排除子串误判)
+        XCTAssertFalse(lines.contains { $0.hasPrefix("Pn") }, "out=\(out)")
+        XCTAssertFalse(lines.contains { $0 == "Pd" }, "out=\(out)")
+    }
+
+    func testChkValidWithPeriodTableBlock() {
+        // chk = crc32(body), P 区块属 body → 校验照常成立
+        let out = SleepyNativeExporter.exportFile(tableName: "t", startDate: "2026-02-23",
+                                                  maxWeek: 16, nodesPerDay: 2, timeJson: periodTimeJson,
+                                                  courses: [], periodTable: periodExport())
+        let lines = out.components(separatedBy: .newlines)
+        guard let chkIdx = lines.firstIndex(where: { $0.hasPrefix("z|chk=") }) else {
+            XCTFail("缺 chk 行: \(out)"); return
+        }
+        let body = lines[..<chkIdx].joined(separator: "\n")
+        let expected = "z|chk=crc32:" + SleepyNativeFormat.crc32(body.data(using: .utf8)!)
+        XCTAssertEqual(expected, lines[chkIdx])
+    }
+
+    func testBlankTableNameEmitsDefaultName() {
+        // Android tableName.ifBlank: 纯空格名 → "导入的课表"; isEmpty 判定会原样写出 " "
+        let out = SleepyNativeExporter.exportFile(tableName: "   ", startDate: "2026-02-23",
+                                                  maxWeek: 16, nodesPerDay: 2, timeJson: "",
+                                                  courses: [])
+        XCTAssertTrue(out.contains("T导入的课表|"), "out=\(out)")
+    }
+
+    // ---- v1.0.56 T11: 纯作息单独导出 (← PeriodTableOnlyExportTest.kt) ----
+
+    private let threeNodeJson = "[{\"node\":1,\"start\":\"08:20\",\"end\":\"09:05\"},{\"node\":2,\"start\":\"09:15\",\"end\":\"10:00\"},{\"node\":3,\"start\":\"10:20\",\"end\":\"11:05\"}]"
+
+    private func periodEntity(id: Int64 = 7, name: String = "春季作息",
+                              nodesPerDay: Int = 3, timeJson: String? = nil) -> PeriodTableEntity {
+        var e = PeriodTableEntity(name: name)
+        e.id = id
+        e.nodesPerDay = nodesPerDay
+        e.timeJson = timeJson ?? threeNodeJson
+        return e
+    }
+
+    func testPeriodOnlyShareTextShape() {
+        let text = SleepyNativeExporter.exportPeriodTableShareText(periodEntity())
+        XCTAssertTrue(text.contains("<<<SLEEPY-BEGIN>>>"))
+        XCTAssertTrue(text.contains("#sleepy-v1"))
+        XCTAssertTrue(text.contains("P春季作息|7|3"), "text=\(text)")
+        XCTAssertTrue(text.contains("Pn1|08:20|09:05"), "text=\(text)")
+        XCTAssertTrue(text.contains("Pn3|10:20|11:05"), "text=\(text)")
+        // 纯作息 = 零课程行, 零 T 行
+        XCTAssertTrue(text.components(separatedBy: .newlines).allSatisfy { !$0.hasPrefix("C") })
+        XCTAssertTrue(text.components(separatedBy: .newlines).allSatisfy { !$0.hasPrefix("T") })
+    }
+
+    func testPeriodOnlyShareTextNdPresetFoldsToPd() {
+        let text = SleepyNativeExporter.exportPeriodTableShareText(periodEntity(timeJson: TimeTableUtils.DEFAULT_TIME_JSON))
+        XCTAssertTrue(text.contains("Pd"), "text=\(text)")
+    }
+
+    func testPeriodOnlyJsonShape() {
+        let json = SleepyNativeExporter.exportPeriodTableJson(periodEntity())
+        XCTAssertTrue(json.contains("\"name\""))
+        XCTAssertTrue(json.contains("春季作息"))
+        XCTAssertTrue(json.contains("\"nodesPerDay\""))
+        XCTAssertTrue(json.contains("\"node\""))
+        // timeList 用 WakeUp 原生字段名 — 解析端 harvest 按此收割
+        XCTAssertTrue(json.contains("\"startTime\":\"08:20\""), "json=\(json)")
+        XCTAssertTrue(json.contains("\"endTime\":\"11:05\""), "json=\(json)")
+    }
+
+    func testPeriodOnlyJsonParsesBackToPurePeriodResult() throws {
+        // ← PeriodTableOnlyExportTest.json_parses_back_to_pure_period_result (v1.0.56 T11)
+        // 纯作息 JSON 走 tableInfo.timeList 收割: courses 空 + periodTable 非空 → T9 只建作息表
+        let json = SleepyNativeExporter.exportPeriodTableJson(periodEntity())
+        let r = try parse(json)
+        XCTAssertEqual(0, r.courses.count)
+        let pt = try XCTUnwrap(r.periodTable)
+        XCTAssertEqual("春季作息", pt.name)
+        XCTAssertEqual(3, pt.nodesPerDay)
+        let nodes = TimeTableUtils.parseNodes(pt.timeJson)
+        XCTAssertEqual(3, nodes.count)
+    }
 }

@@ -9,28 +9,43 @@ enum SleepyNativeExporter {
 
     /// 文件形态: 末尾追加 z|chk=crc32:xxxxxxxx(文件导出默认写)
     static func exportFile(tableName: String, startDate: String, maxWeek: Int,
-                           nodesPerDay: Int, timeJson: String, courses: [CourseEntity]) -> String {
+                           nodesPerDay: Int, timeJson: String, courses: [CourseEntity],
+                           periodTable: PeriodTableExport? = nil) -> String {
         let body = buildBody(tableName: tableName, startDate: startDate, maxWeek: maxWeek,
-                             nodesPerDay: nodesPerDay, timeJson: timeJson, courses: courses)
+                             nodesPerDay: nodesPerDay, timeJson: timeJson, courses: courses,
+                             periodTable: periodTable)
         return body + "\nz|chk=crc32:" + SleepyNativeFormat.crc32(body.data(using: .utf8)!)
     }
 
     /// 分享文本形态: 【来自Sleepy】+ 包裹 marker + 无 chk(规范 §1.1)
     static func exportShareText(tableName: String, startDate: String, maxWeek: Int,
-                                nodesPerDay: Int, timeJson: String, courses: [CourseEntity]) -> String {
+                                nodesPerDay: Int, timeJson: String, courses: [CourseEntity],
+                                periodTable: PeriodTableExport? = nil) -> String {
         let body = buildBody(tableName: tableName, startDate: startDate, maxWeek: maxWeek,
-                             nodesPerDay: nodesPerDay, timeJson: timeJson, courses: courses)
+                             nodesPerDay: nodesPerDay, timeJson: timeJson, courses: courses,
+                             periodTable: periodTable)
         return "【来自Sleepy】\n课程分享：\n\n<<<SLEEPY-BEGIN>>>\n\(body)\n<<<SLEEPY-END>>>"
     }
 
+    /// issue#40 §6: 新格式可选 periodTable 区块的数据载体(← Kotlin data class PeriodTableExport)。
+    /// id = 导出时该课程表绑定的 period_tables.id(导入端恢复共享关系的键);
+    /// id 空/未绑定 = 调用方传 nil, 不写 P 区块。
+    struct PeriodTableExport {
+        let id: Int64
+        let name: String
+        let nodesPerDay: Int
+        let timeJson: String
+    }
+
     private static func buildBody(tableName: String, startDate: String, maxWeek: Int,
-                                  nodesPerDay: Int, timeJson: String, courses: [CourseEntity]) -> String {
+                                  nodesPerDay: Int, timeJson: String, courses: [CourseEntity],
+                                  periodTable: PeriodTableExport? = nil) -> String {
         var sb = ""
         sb += "#sleepy-v1\n"
 
         // ---- T 行(§3.5) ----
         sb += "T"
-        sb += SleepyNativeFormat.escape(tableName.isEmpty ? "导入的课表" : tableName)
+        sb += SleepyNativeFormat.escape(tableName.isBlank ? "导入的课表" : tableName)
         sb += "|" + startDate
         sb += "|" + String(maxWeek)
         sb += "|" + String(nodesPerDay)
@@ -40,10 +55,31 @@ enum SleepyNativeExporter {
         let partitionedCount = countAfterPartition(courses)
         sb += "|n=\(partitionedCount)\n"
 
-        // ---- 作息 (Nd 或逐节 N 行) (§5) ----
+        // ---- issue#40: P 行(独立时间节次表, §6 新格式可选区块) ----
+        // 携带绑定关系(periodTable 非空)时输出; 旧版本读到 P 行走"未知行类型→dropped+warning"通道, 不硬拒。
+        if let pt = periodTable {
+            sb += "P"
+            sb += SleepyNativeFormat.escape(pt.name)
+            sb += "|" + String(pt.id)
+            sb += "|" + String(pt.nodesPerDay)
+            sb += "\n"
+            if SleepyNativeFormat.matchesNdPreset(pt.timeJson) {
+                sb += "Pd\n"
+            } else if !pt.timeJson.isBlank {
+                let cal = Calendar(identifier: .gregorian)
+                for n in TimeTableUtils.parseNodes(pt.timeJson) {
+                    sb += "Pn" + String(n.node)
+                    sb += "|" + fmtDate(n.start, cal: cal)
+                    sb += "|" + fmtDate(n.end, cal: cal)
+                    sb += "\n"
+                }
+            }
+        }
+
+        // ---- 作息 (Nd 或逐节 N 行) (§5) — 兼容列永远保留(§6 旧版本至少读到 timeJson) ----
         if SleepyNativeFormat.matchesNdPreset(timeJson) {
             sb += "Nd\n"
-        } else if !timeJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        } else if !timeJson.isBlank {
             let nodes = TimeTableUtils.parseNodes(timeJson)
             let cal = Calendar(identifier: .gregorian)
             for n in nodes {
@@ -89,7 +125,7 @@ enum SleepyNativeExporter {
         var out: [String] = []
         for c in sorted {
             let token: String
-            if c.groupId.isEmpty {
+            if c.groupId.isBlank {
                 token = ""
             } else if forceToken {
                 if tokenMap[c.groupId] == nil { tokenMap[c.groupId] = String(tokenMap.count + 1) }
@@ -97,7 +133,7 @@ enum SleepyNativeExporter {
             } else {
                 // 决定是否需要显式 token: §3.4 契约二 — 同名异组必写; 否则按组是否跨多名判定
                 let sameGroupCount = sorted.filter { $0.groupId == c.groupId }.count
-                let sameNameCount = sorted.filter { $0.courseName.trimmingCharacters(in: .whitespaces) == c.courseName.trimmingCharacters(in: .whitespaces) }.count
+                let sameNameCount = sorted.filter { $0.courseName.trimmingCharacters(in: .whitespacesAndNewlines) == c.courseName.trimmingCharacters(in: .whitespacesAndNewlines) }.count
                 if sameGroupCount > 0 && sameNameCount > 1 {
                     if tokenMap[c.groupId] == nil { tokenMap[c.groupId] = String(tokenMap.count + 1) }
                     token = tokenMap[c.groupId]!
@@ -120,21 +156,21 @@ enum SleepyNativeExporter {
         sb += "|" + SleepyNativeFormat.escape(c.room)
         sb += "|" + SleepyNativeFormat.colorToToken(c.color)
         sb += "|" + SleepyNativeFormat.escape(c.note)
-        if c.ownTime && !c.startTime.trimmingCharacters(in: .whitespaces).isEmpty && !c.endTime.trimmingCharacters(in: .whitespaces).isEmpty {
+        if c.ownTime && !c.startTime.isBlank && !c.endTime.isBlank {
             sb += "|" + c.startTime + "-" + c.endTime
         } else {
             sb += "|"
         }
         sb += "|" + token
         // issue#26: 可选第 11 列 = 课程别名(escape 后写入); 空别名不写列(文件形状与既有 v1 完全一致)
-        if !c.alias.trimmingCharacters(in: .whitespaces).isEmpty {
-            sb += "|" + SleepyNativeFormat.escape(c.alias.trimmingCharacters(in: .whitespaces))
+        if !c.alias.isBlank {
+            sb += "|" + SleepyNativeFormat.escape(c.alias.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return sb
     }
 
     private static func hasSameNameMultipleGroups(_ courses: [CourseEntity]) -> Bool {
-        let byName = Dictionary(grouping: courses) { $0.courseName.trimmingCharacters(in: .whitespaces) }
+        let byName = Dictionary(grouping: courses) { $0.courseName.trimmingCharacters(in: .whitespacesAndNewlines) }
         return byName.values.contains { Set($0.map { $0.groupId }).count > 1 }
     }
 
@@ -164,16 +200,17 @@ enum SleepyNativeExporter {
 
     private static func jsonQuote(_ s: String) -> String {
         var sb = "\""
-        for ch in s {
-            switch ch {
+        // 逐标量迭代 — Kotlin 逐码元; 若按 Character(图簇)迭代会把 "\r\n" 当一簇丢失第二标量
+        for u in s.unicodeScalars {
+            switch u {
             case "\"": sb += "\\\""
             case "\\": sb += "\\\\"
-            case "\n": sb += "\\n"
-            case "\r": sb += "\\r"
-            case "\t": sb += "\\t"
+            case "\u{0A}": sb += "\\n"
+            case "\u{0D}": sb += "\\r"
+            case "\u{09}": sb += "\\t"
             default:
-                if ch < " " { sb += String(format: "\\u%04x", ch.asciiValue ?? 0) }
-                else { sb.append(ch) }
+                if u.value < 0x20 { sb += String(format: "\\u%04x", u.value) }
+                else { sb.unicodeScalars.append(u) }
             }
         }
         sb += "\""

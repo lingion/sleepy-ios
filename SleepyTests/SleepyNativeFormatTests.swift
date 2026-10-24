@@ -235,6 +235,99 @@ final class SleepyNativeFormatTests: XCTestCase {
         XCTAssertEqual("cbf43926", SleepyNativeFormat.crc32("123456789".data(using: .utf8)!))
     }
 
+    // ---- issue#F051 跨端语义锁定: Java/Kotlin 标准库口径(与 Android main v1.0.61 逐值一致) ----
+
+    func testF051ParseDayUnicodeDigitsMatchJavaIsDigit() {
+        // Android: 全角３(U+FF13) 属 Nd → t[0]-'0' = 65251, 越界交调用方钳制/上报;
+        // iOS 旧 wholeNumberValue 静默 3 → 分叉。现口径: 码点减法逐值复刻。
+        XCTAssertEqual(65251, SleepyNativeFormat.parseDay("３"))
+        XCTAssertEqual(65251, SleepyNativeFormat.parseDay("周３"))
+        XCTAssertEqual(65249, SleepyNativeFormat.parseDay("周１"))  // 0xFF11-0x30
+    }
+
+    func testF051ParseDaySuperscriptNotDigit() {
+        // ²(U+00B2, No 类): Java isDigit=false → null; iOS isNumber=true 旧行为 → 分叉。
+        XCTAssertNil(SleepyNativeFormat.parseDay("²"))
+        XCTAssertNil(SleepyNativeFormat.parseDay("周²"))
+    }
+
+    func testF051ParseDayTrimMatchesKotlinTrim() {
+        // Kotlin String.trim() = Char.isWhitespace = Character.isWhitespace || isSpaceChar
+        // (逐码点实测 kotlin-stdlib 2.1.10 + app 编译类反射 oracle):
+        // \n/\r 剥、NBSP(U+00A0)/U+2007/U+202F **也剥**(Zs 类)、NEL(U+0085) 不剥。
+        // 审计原述「Android 不剥 NBSP」系按 JDK Character.isWhitespace 口径误判, 实测反证。
+        XCTAssertEqual(1, SleepyNativeFormat.parseDay("1\n"))
+        XCTAssertEqual(1, SleepyNativeFormat.parseDay("1\r\n"))
+        XCTAssertEqual(1, SleepyNativeFormat.parseDay("\u{00A0}1\u{00A0}"))       // oracle: pd NBSP1NBSP=1
+        XCTAssertEqual(3, SleepyNativeFormat.parseDay("\u{2007}周3\u{2007}"))     // oracle: pd U2007zhou3=3
+        XCTAssertNil(SleepyNativeFormat.parseDay("\u{0085}1\u{0085}"))            // NEL 非空白 → 长度2 → null
+        XCTAssertNil(SleepyNativeFormat.parseDay("1\u{0085}"))                    // oracle: trim 后 "1\u0085" 形状非法
+    }
+
+    func testF051DetectVersionLineSplitIgnoresUnicodeSeparators() {
+        // Kotlin lineSequence() 只按 \n/\r\n/\r 切行; U+2028 不断行。
+        // magic 与内容以 U+2028 相连 → 两端同为「一行内 find 命中」=1(非 .newlines 口径差异)。
+        XCTAssertEqual(1, SleepyNativeFormat.detectVersion("#sleepy-v1\u{2028}C高数|1|1-2"))
+        XCTAssertEqual(1, SleepyNativeFormat.detectVersion("#sleepy-v1\u{0085}C高数|1|1-2"))
+        // magic 行本身以 \r 结尾(CRLF 老 Mac 导出) 照常命中
+        XCTAssertEqual(1, SleepyNativeFormat.detectVersion("#sleepy-v1\rC高数|1|1-2"))
+    }
+
+    func testF051EscapePipesWithCombiningMarks() {
+        // Kotlin String 逐 UTF-16 码元迭代: "|"+U+0301 是两个码元 → '|' 必须被转义。
+        // Swift 字素口径曾把该簇当「不等于 |」→ 漏转义 → 导出物裸竖线, 两端解析分叉。
+        // 断言走 utf16 码元子序列: 输出里转义符会与后续记号组成字素, 字面串搜索不可靠。
+        let s = "A|\u{0301}B"
+        let esc = Array(SleepyNativeFormat.escape(s).utf16)
+        var escapedPipe = false
+        for i in 0..<esc.count where esc[i] == 0x5C && i + 1 < esc.count && esc[i + 1] == 0x7C {
+            escapedPipe = true
+        }
+        XCTAssertTrue(escapedPipe, "保留码元 0x7C 必须被前置 0x5C 转义: got \(esc.map { String(format: "%04X", $0) })")
+        XCTAssertEqual(s, SleepyNativeFormat.unescape(SleepyNativeFormat.escape(s)), "往返保真(含结合记号)")
+        // 反斜杠+结合记号: Kotlin s[0]=='\\' 消费下一码元 → 记号脱落为字面; 两端逐码元同构
+        let bsCombo = "x\\\u{0301}y"
+        XCTAssertEqual(bsCombo, SleepyNativeFormat.unescape(SleepyNativeFormat.escape(bsCombo)))
+    }
+
+    func testF051TrailingUnicodeLineTerminatorParity() {
+        // JDK17 实测: Java 非 MULTILINE 的 $ 命中「末尾行终止符之前」(NEL/LS), ICU $ 同构。
+        // U+0085/U+2028 不在 Java isWhitespace → trim 不剥 → 两端都必须按同一口径命中。
+        XCTAssertEqual(8, SleepyNativeFormat.parseClock("8:00\u{0085}")?.h)
+        XCTAssertEqual(8, SleepyNativeFormat.parseClock("8:00\u{2028}")?.h)
+        XCTAssertEqual("2026-03-02", SleepyNativeFormat.parseDate("2026-03-02\u{0085}"))
+        XCTAssertEqual(16, SleepyNativeFormat.parseWeekSpec("1-16\u{0085}")?.end)
+        // 常规尾随空白仍正常(trim 已剥 \n)
+        XCTAssertEqual(8, SleepyNativeFormat.parseClock("8:00\n")?.h)
+    }
+
+    func testF051KotlinIntSemanticsViaPublicSurface() {
+        // toIntOrNull 口径经 parseWeekSpec 间接锁定: 下划线/超 Int32/全角位均 null(Android 同)
+        XCTAssertNil(SleepyNativeFormat.parseWeekSpec("1_0"))
+        XCTAssertNil(SleepyNativeFormat.parseWeekSpec("3000000000"))
+        XCTAssertNil(SleepyNativeFormat.parseWeekSpec("２-１６"))  // \d 为 ASCII 口径
+        XCTAssertEqual(16, SleepyNativeFormat.parseWeekSpec("1-16")?.end)
+    }
+
+    func testF051KotlinIntAcceptsUnicodeNdDigits() {
+        // JDK17 实测: Integer.parseInt / Kotlin toIntOrNull 对 BMP 的 Unicode Nd 数字位
+        // (Character.digit(c,10)) 一律接受 — parseInt("１")=1、parseInt("١٢")=12、parseInt("+16")=16。
+        // iOS 旧 kotlinInt ASCII-only → parseNodeSpan/colorFromToken 全角数字两端分叉
+        // (微信转发课表全角数字常见, issue#F051 同源补充)。
+        XCTAssertEqual(1, SleepyNativeFormat.parseNodeSpan("１")?.0)
+        XCTAssertEqual(1, SleepyNativeFormat.parseNodeSpan("１")?.1)
+        XCTAssertEqual(1, SleepyNativeFormat.parseNodeSpan("１-２")?.0)
+        XCTAssertEqual(2, SleepyNativeFormat.parseNodeSpan("１-２")?.1)
+        XCTAssertEqual(2, SleepyNativeFormat.parseNodeSpan("٢")?.0)      // Arabic-Indic
+        XCTAssertEqual(16, SleepyNativeFormat.parseNodeSpan("+16")?.0)   // 显式正号
+        XCTAssertEqual("#FFEADDFF", SleepyNativeFormat.colorFromToken("１"))  // 全角索引 → 调色板 1
+        // 反向: 下划线/超 Int32/空段仍旧口径(不受本次放宽影响)
+        XCTAssertNil(SleepyNativeFormat.parseNodeSpan("1_0"))
+        XCTAssertNil(SleepyNativeFormat.parseNodeSpan("3000000000"))
+        // 正则门(ASCII [0-9])路径不受影响: 全角周次仍旧形状非法
+        XCTAssertNil(SleepyNativeFormat.parseWeekSpec("２"))
+    }
+
     // ---- 确定性 UUID (§3.4, = UUID.nameUUIDFromBytes) ----
 
     func testDeterministicUUIDMatchesJavaNameUUIDFromBytes() {
