@@ -120,7 +120,8 @@ enum WidgetCompactWindow {
         var result: [DayData] = []
         for effectiveDate in dates {
             let dow = HolidayTransferHelper.effectiveDayOfWeek(tableId, effectiveDate)
-            let week = max(min(DateUtils.currentWeek(startDate: startDate, today: effectiveDate), 1), maxWeek)
+            // ← Android coerceIn(1, maxWeek) = min(max(x,1),maxWeek); 先钳下限再钳上限
+            let week = min(max(DateUtils.currentWeek(startDate: startDate, today: effectiveDate), 1), maxWeek)
             let afterEnd = DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek, today: effectiveDate) == .afterEnd
             let visible: [CourseEntity] = afterEnd ? []
                 : ((try? repo.getCoursesByDay(tableId, day: dow)) ?? [])
@@ -130,7 +131,7 @@ enum WidgetCompactWindow {
                 dayOfWeek: dow,
                 courses: visible,
                 timeJson: timeJson,
-                isGrey: await HolidayManager.shouldGrey(effectiveDate)
+                isGrey: await HolidayManager.shouldGrey(effectiveDate, tableId: tableId)
             ))
         }
         return result

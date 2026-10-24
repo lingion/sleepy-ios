@@ -9,6 +9,22 @@
 //  2. 每列 FIXED 窗口: availH = hDp − 58 − statusH, 行高 19 / 行距 0 / 页脚预留 19,
 //     截断时列底画「+N」(未截断不画,与 TwoDay 的「恒画」口径不同 —— 安卓即如此);
 //  3. 学期外顶部全宽状态行占位 16dp,同时从列可用高里扣掉。
+//
+// v1.0.61 对齐 (F125, ← WeekListWidget.kt L183-206 + Receiver 闸门 L60-64):
+//  4. 装载器走 WidgetWeekDataLoader.resolve(kind) — 展示周 = display.targetWeek,
+//     日期 = source.dateFor (钳制周=1 预习 / NEAREST_BUSY_DAY 跳周都随 display 走);
+//  5. AFTER_END 列内课程清空, 只画状态行 (Android L188);
+//  6. 取课星期 = HolidayTransferHelper.effectiveDayOfWeek 调休映射 (Android L187);
+//  7. isGrey = HolidayManager.shouldGrey(date, tableId) 灰显 0.6 alpha +
+//     「strikethrough」样式 (Android renderWeekListRegular L871-920);
+//  8. compactWindow = WidgetCompactWindow.build(...) 三天真实日期窗口 (2026-09-15 用户令,
+//     Android L199-205), SMALL 档日列 = compactShownDays 单一口径 (§9.1);
+//  9. statusH 闸门 = semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL
+//     (Android L60-61); 今天列高亮 = isDateToday(day.date) (Android L828, 展示周≠自然周
+//     时按星期判会错列)。
+// forceScroll 条带 (WidgetScrollStore/ScrollStripService) = Android 专有宿主,
+// iOS 由列底「+N」窗口截断等价承担 (平台差异, 非缺陷; compactFace 不叠窗口的
+// Android 分支在 iOS 统一走窗口, 否则小档溢出无处报告)。
 
 import SwiftUI
 import WidgetKit
@@ -18,22 +34,76 @@ struct WeekListWidgetEntry: TimelineEntry {
     let data: WeekData
 }
 
+// MARK: - loadData ← WeekListWidgetReceiver.Companion.loadDataSync (v1.0.61 对齐, F125)
+
+/// WeekList 专用装载器 — 逐行对齐 Android companion:
+/// WidgetWeekDataLoader.resolve(kind) → 展示周=display.targetWeek、日期=source.dateFor
+/// (学期前钳制周=1 预习 / NEAREST_BUSY_DAY 跳周都随 display 走) → AFTER_END 课程清空
+/// (L188) → 调休映射 effectiveDayOfWeek 取课 (L187) → isGrey (L195) →
+/// compactWindow 三天真实日期窗口 (L199-205) → weekDisplayStatus (L206)。
+/// Android runBlocking → iOS async (TimelineProvider completion 允许异步回调),
+/// 与 TwoDayWidgetDataLoader 同模式; WidgetDataLoaders.swift 通用版保留给 WeekView。
+enum WeekListWidgetDataLoader {
+
+    static func loadData(kind: String) async -> WeekData {
+        let today = Date()
+        let prefs = AppPrefs.shared
+        let isDark = prefs.isDarkMode()
+        let themeKey = prefs.getThemeKey()
+        let themeMode = prefs.getThemeMode()
+        let fallback = WeekData(days: [], hasTable: false, isDark: isDark,
+                                themeKey: themeKey, themeMode: themeMode)
+        guard let source = await WidgetWeekDataLoader.resolve(kind),
+              let repo = WidgetLoader.makeRepo() else { return fallback }
+        let table = source.table
+        let week = source.display.targetWeek
+        let status = source.display.semesterStatus
+        // 学期前: 钳制周=1, 第 1 周课照常显示(预习); 学期后: 课程清空, renderer 画状态行
+        var days: [DayData] = []
+        for dayOfWeek in 1...7 {
+            let date = source.dateFor(dayOfWeek: dayOfWeek)
+            let effectiveDay = HolidayTransferHelper.effectiveDayOfWeek(table.id, date)
+            let visible = status == .afterEnd ? [] : source.coursesFor(dayOfWeek: effectiveDay, week: week)
+            days.append(DayData(date: date, dayOfWeek: dayOfWeek, courses: visible,
+                                timeJson: table.timeJson,
+                                isGrey: await HolidayManager.shouldGrey(date, tableId: table.id)))
+        }
+        // 最小档三天窗口 (2026-09-15 用户令): 真实日期, 上下周打通 (Android L199-205)
+        let compactWindow = await WidgetCompactWindow.build(
+            repo: repo, tableId: table.id, timeJson: table.timeJson,
+            startDate: table.startDate, maxWeek: table.maxWeek,
+            today: today, todayFirst: WidgetCompactWindowStore.isTodayFirst(kind),
+            displayDate: source.display.status == .nearestBusyDay ? source.display.targetDate : nil
+        )
+        return WeekData(days: days, hasTable: true, isDark: isDark, themeKey: themeKey,
+                        themeMode: themeMode, semesterStatus: status,
+                        compactWindow: compactWindow, weekDisplayStatus: source.display.status)
+    }
+}
+
 struct WeekListWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> WeekListWidgetEntry {
         WidgetArchiveLog.append(kind: "WeekListWidgetRV", family: context.family.description, result: "success")
-        return WeekListWidgetEntry(date: Date(), data: WeekListWidgetLoader.loadDataSync(kind: "WeekListWidgetRV"))
+        // 占位脸不读 DB (异步装载不能同步等); 真实数据在 snapshot/timeline 到达。
+        return WeekListWidgetEntry(date: Date(), data: WeekData(days: [], hasTable: false))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WeekListWidgetEntry) -> Void) {
         WidgetArchiveLog.append(kind: "WeekListWidgetRV", family: context.family.description, result: "success")
-        completion(WeekListWidgetEntry(date: Date(), data: WeekListWidgetLoader.loadDataSync(kind: "WeekListWidgetRV")))
+        Task {
+            let data = await WeekListWidgetDataLoader.loadData(kind: "WeekListWidgetRV")
+            completion(WeekListWidgetEntry(date: Date(), data: data))
+        }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekListWidgetEntry>) -> Void) {
-        let entry = WeekListWidgetEntry(date: Date(), data: WeekListWidgetLoader.loadDataSync(kind: "WeekListWidgetRV"))
-        let refresh = Date().addingTimeInterval(6 * 3600)  // 半天兜底;数据变化由 App 端 reloadAllTimelines 触发
-        WidgetArchiveLog.append(kind: "WeekListWidgetRV", family: context.family.description, result: "success")
-        completion(Timeline(entries: [entry], policy: .after(refresh)))
+        Task {
+            let now = Date()
+            let data = await WeekListWidgetDataLoader.loadData(kind: "WeekListWidgetRV")
+            let refresh = now.addingTimeInterval(6 * 3600)  // 半天兜底;数据变化由 App 端 reloadAllTimelines 触发
+            WidgetArchiveLog.append(kind: "WeekListWidgetRV", family: context.family.description, result: "success")
+            completion(Timeline(entries: [WeekListWidgetEntry(date: now, data: data)], policy: .after(refresh)))
+        }
     }
 }
 
@@ -62,16 +132,22 @@ struct WeekListWidgetEntryView: View {
         // issue#26: widget 全局一档别名开关
         let useAlias = AppPrefs.shared.isWidgetUseAlias()
         let todayDow = DateUtils.todayDayOfWeek(today: Date())
-        // ← renderWeekList: SMALL 变体走 compact(最近 3 天列脸),其余档全量列
+        // ← renderWeekList: SMALL 变体走 compact(compactShownDays 单一口径 —
+        // compactWindow 优先三天真实日期窗口, 空才回退今天邻域 ≤3 列; §9.1)
         let isCompact = widgetFamily == .systemSmall
-        let days = isCompact ? WeekViewWidgetEntryView.compactDays(data: data, todayDow: todayDow)
+        let days = isCompact ? WidgetCompactHelpers.compactShownDays(data, AppPrefs.shared.getVisibleDays(), todayDow)
                              : shownDays(data)
         let tier = WidgetLayoutTier(family: widgetFamily)
-        // 学期外状态行占位 16dp (← statusH)
-        let statusH: CGFloat = data.semesterStatus != .inRange ? 16 : 0
+        // 状态行占位 16dp ← Android push() L60-61:
+        // semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL (自动跳最近有课日时同样抬列顶)
+        let statusH: CGFloat = (data.semesterStatus != .inRange || data.weekDisplayStatus != .normal) ? 16 : 0
 
         return GeometryReader { proxy in
-            let wins = (data.hasTable && !days.isEmpty && data.semesterStatus == .inRange)
+            // ← push() L62-64 闸门: hasTable && 列非空 && 任一天有课 (数据层 days 全量口径,
+            // 非过滤后 shownDays — 安卓 any 读 data.days)。学期外不在此设闸:
+            // BEFORE_START 钳周=1 预习照常叠窗口截断; AFTER_END 课程清空 → any=false 自然不成窗
+            // (旧 iOS 版误用 semesterStatus == .inRange 设闸, 学期前预览周第 1 周课多时无 +N 截断)。
+            let wins = (data.hasTable && !days.isEmpty && data.days.contains { !$0.courses.isEmpty })
                 ? WidgetWindows.weekList(days: days, heightDp: proxy.size.height, tier: tier,
                                          statusH: statusH)
                 : nil
@@ -94,9 +170,12 @@ struct WeekListWidgetEntryView: View {
                                 .padding(.bottom, 4)
                         }
                         HStack(alignment: .top, spacing: 4) {
-                            ForEach(Array(days.enumerated()), id: \.element.dayOfWeek) { colIdx, day in
+                            ForEach(Array(days.enumerated()), id: \.offset) { colIdx, day in
                                 WeekListDayColumn(day: day, scheme: s, colorless: colorless,
-                                                  isToday: day.dayOfWeek == todayDow, useAlias: useAlias,
+                                                  // ← renderWeekListRegular L828: 今天高亮按真实日期判
+                                                  // (展示周≠自然周 / compactWindow 跨周时按星期会错列)
+                                                  isToday: DateUtils.isDateToday(day.date),
+                                                  useAlias: useAlias,
                                                   window: colIdx < (wins?.count ?? 0) ? wins?[colIdx] : nil)
                             }
                         }
@@ -132,12 +211,18 @@ private struct WeekListDayColumn: View {
             visible = day.courses
         }
         let footerText: String? = window.flatMap { $0.footer ? "+\($0.hiddenAheadCourses)" : nil }
+        // 节假日/周末灰显 ← renderWeekListRegular L871-920: 文本/胶囊 alpha 153/255≈0.6,
+        // 「strikethrough」样式再叠删除线 (灰显列本身由 loader isGrey 驱动)
+        let grey = day.isGrey
+        let greyAlpha: Double = grey ? 0.6 : 1.0
+        let strikethrough = grey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
 
         return VStack(alignment: .center, spacing: 0) {
             // 星期标题
             Text(weekDayLabels[day.dayOfWeek])
                 .font(.system(size: 12, weight: .bold))
                 .foregroundColor(isToday ? s.onPrimaryContainer : s.onSurface)
+                .opacity(greyAlpha)
                 .padding(.top, 1)   // 安卓标题基线 colTop+12 (字形顶≈+4)
                 .padding(.bottom, 11) // chip 顶 colTop+26
 
@@ -146,9 +231,10 @@ private struct WeekListDayColumn: View {
                 Text("\(day.courses.count) 门")
                     .font(.system(size: 9))
                     .foregroundColor(s.onSurfaceVariant)
+                    .opacity(greyAlpha)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(s.surfaceVariant)
+                    .background(s.surfaceVariant.opacity(greyAlpha))
                     .cornerRadius(50)
                     .padding(.bottom, 6)
 
@@ -159,20 +245,25 @@ private struct WeekListDayColumn: View {
                         // issue#22: 同名课程多地点 — 用 day.courses 同 groupId 全行, 支持 AUTO/CUSTOM 按行判
                         let bgColor = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
                             course, groupRows: day.courses.filter { $0.groupId == course.groupId },
-                            isDark: s.isDark, neutralColor: s.surfaceVariant, colorless: colorless)
+                            isDark: s.isDark, neutralColor: s.secondaryContainer, colorless: colorless)
                         Text(CourseDisplayUtil.displayName(course, useAlias))
+                            // 紧贴 Text  receiver 调 Text 级重载(ios 13+, 默认实线), 显式
+                            // color: nil = 删除线随正文主色 —— 与修复前行为逐字相同;
+                            // 挂在 View 链上只会命中 iOS16 pattern 重载(extension 不可用)。
+                            .strikethrough(strikethrough, color: nil)
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(CourseColorUtil.textColorOn(bg: bgColor, isDark: s.isDark,
                                                                          onSurface: s.onSurface))
+                            .opacity(greyAlpha) // 安卓 applyAlpha(文字色, 153/255) (L917-920)
                             .lineLimit(1)
                             .padding(.horizontal, 2) // 文字距胶囊左/右 2dp (安卓 x+coursePad+2, 截断预算 colW-10)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .frame(height: 16)
-                            .background(bgColor)
+                            .background(bgColor.opacity(greyAlpha))
                             .cornerRadius(4)
                             .padding(.horizontal, 3) // 胶囊两侧内缩 3dp (安卓 x+3 ~ x+colW-3)
                     }
-                    // 列底「+N」短页脚 (仅窗口真的截断时画 ← footerByCol)
+                    // 列底「+N」短页脚 (仅窗口真的截断时画 ← footerByCol; 安卓页脚不随灰显降 alpha)
                     if let footerText = footerText {
                         Text(footerText)
                             .font(.system(size: 9, weight: .bold))

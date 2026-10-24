@@ -5,9 +5,19 @@
 //   - Android: 通知策略访问权限 + setInterruptionFilter(系统级 DND 切换)
 //   - iOS: 无系统级勿扰写入 API(UNNotificationSettings 只读;
 //     Focus 状态 NSSetUnabridged... 需要 Apple 授权的 Screen Time API)
-//   - 等价适配: 上课区间内抑制本 app 自己的课前通知投放(delegate willPresent
-//     查询 isCurrentlyInClass), 边界由通知触发时间自身承担(iOS 通知即日历触发器,
-//     无独立闹钟链可断 — 无需"两颗配对闹钟自续", 但保留纯函数边界计算供复用)
+//   - 等价适配: 上课区间内抑制本 app 自己的课前通知投放 — 投放闸即
+//     shouldSuppressNotification(now:)。到货 delegate 已存在:
+//     NotificationScheduler.swift 的 SleepyNotificationDelegate.willPresent,
+//     其 sleepy_bc_* 分支现只查 beforeClassDeliveryAllowed, 尚未 AND 本闸 —
+//     ⚠ 两处接线归集成者(共享文件, F128 issue#1):
+//     (a) SleepyApp.swift didFinishLaunching:
+//         UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
+//     (b) SleepyNotificationDelegate.willPresent 的 sleepy_bc_ 分支:
+//         allowed = await beforeClassDeliveryAllowed(...) &&
+//                   !(await ClassDndScheduler.shouldSuppressNotification())
+//     接线落地前本闸无调用方 (对齐审计 F128 issue#1 记录此缺口)。
+//     (iOS 通知即日历触发器, 无独立闹钟链可断 — 无需"两颗配对闹钟自续",
+//     但保留纯函数边界计算供复用)
 //
 // 契约(保留):
 //  - 枚举未来 WINDOW_DAYS 天的课程区间
@@ -28,10 +38,19 @@ final class ClassDndScheduler {
 
     static let WINDOW_DAYS = 7
 
+    /// ← Android companion `savedFilter` 默认值 (NotificationManager.INTERRUPTION_FILTER_ALL)。
+    /// iOS 无系统级 DND 可快照/恢复, 此常量只保留"离开时恢复到系统初始档"的契约语义,
+    /// 供 SleepyTests/ClassDndSchedulerTests.swift 锁定默认值不变 (F128 issue#5)。
+    static let savedFilterDefault = 1  // INTERRUPTION_FILTER_ALL
+
     /// 独立状态文件 — 与 Android DND_STATE_FILE 对齐。
     private static let DND_STATE_FILE = "sleepy_class_dnd_state"
     private static let KEY_DND_OWNED = "entered_by_app"
 
+    /// ⚠ 必须在 AppDelegate.init 调用 (← Android SleepyApp 注入 classDndScheduler):
+    ///   ClassDndScheduler.shared.configure(repositoryProvider: { [weak self] in self?.repository })
+    /// 否则 repositoryProvider 恒 nil, rebuildState/shouldSuppressNotification 短路返回。
+    /// (共享文件 SleepyApp.swift 接线, 集成者负责 — F128 issue#2)
     private var repositoryProvider: (() -> ScheduleRepository?)?
 
     func configure(repositoryProvider: (() -> ScheduleRepository?)?) {
@@ -59,6 +78,12 @@ final class ClassDndScheduler {
         )
     }
 
+    /// Kotlin `isNotBlank()` 等价 (← CourseEntity.isNotBlank 同语义):
+    /// 纯空白串视为空 → ownTime 课程回落节点表, 而非直接判破损跳过 (Android 同行为)。
+    private static func isNotBlank(_ s: String) -> Bool {
+        return !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// 单门课 → (start, end) 区间; 时间不可解析/非法 → nil 跳过。
     static func courseInterval(
         date: Date,
@@ -67,7 +92,7 @@ final class ClassDndScheduler {
     ) -> (Date, Date)? {
         let cal = DateUtils.isoCalendar
         let startStr: String
-        if course.ownTime && !course.startTime.isEmpty {
+        if course.ownTime && isNotBlank(course.startTime) {
             startStr = course.startTime
         } else if let node = nodes.first(where: { $0.node == course.startNode }) {
             startStr = TimeTableUtils.formatTime(node.start)
@@ -76,7 +101,7 @@ final class ClassDndScheduler {
         }
         let endNode = course.startNode + course.step - 1
         let endStr: String
-        if course.ownTime && !course.endTime.isEmpty {
+        if course.ownTime && isNotBlank(course.endTime) {
             endStr = course.endTime
         } else if let node = nodes.first(where: { $0.node == endNode }) {
             endStr = TimeTableUtils.formatTime(node.end)

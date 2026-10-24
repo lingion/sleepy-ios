@@ -3,6 +3,7 @@
 // WidgetLoader loadDataSync 全链(DB→resolver→过滤→排序)。
 
 import XCTest
+import WidgetKit
 @testable import Sleepy
 
 final class WidgetLogicTests: XCTestCase {
@@ -137,6 +138,46 @@ final class WidgetLogicTests: XCTestCase {
         let repo = ScheduleRepository(db)
         _ = try repo.insertTable(TimeTableEntity(name: "空表", startDate: "2026-08-24", timeJson: TimeTableUtils.DEFAULT_TIME_JSON, isDefault: true))
         XCTAssertNil(WidgetTableResolver.resolveCurrentTable(repo))
+    }
+
+    // ==================== WidgetEditCompactWindowSection.appliesTo(三天窗口族门控) ====================
+    // ← Android WidgetCompactWindowCoreTest `appliesTo only matches the two small
+    //   week receivers` (L50-58): 仅 WeekList/WeekView 两族的「· 小」档显示本节,
+    //   其余族与小/中/大其它档与未知族(nil)全部 false。锁死防止族门控漂移。
+
+    func testCompactWindowAppliesToOnlyWeekListAndWeekViewSmall() {
+        // 5 个 iOS kind × {systemSmall, systemMedium, systemLarge, nil} 全矩阵
+        let kinds = ["WeekGridWidgetV19", "TodayWidgetRV", "WeekListWidgetRV",
+                     "WeekViewWidgetRV", "TwoDayWidgetRV"]
+        let expectedTrue: Set<String> = ["WeekListWidgetRV", "WeekViewWidgetRV"]
+        for kind in kinds {
+            XCTAssertEqual(
+                WidgetEditCompactWindowSection.appliesTo(kind: kind, family: .systemSmall),
+                expectedTrue.contains(kind),
+                "systemSmall gate wrong for \(kind)"
+            )
+            for family in [WidgetFamily.systemMedium, .systemLarge] {
+                XCTAssertFalse(
+                    WidgetEditCompactWindowSection.appliesTo(kind: kind, family: family),
+                    "\(kind) on non-small family must hide the section"
+                )
+            }
+            XCTAssertFalse(
+                WidgetEditCompactWindowSection.appliesTo(kind: kind, family: nil),
+                "\(kind) with unknown family must hide the section (Android null→false)"
+            )
+        }
+    }
+
+    // ==================== WidgetEditCore.displayBinding(哨兵 0 → 默认选中) ====================
+    // ← Android WidgetEditCoreTest L140-161: 首装哨兵 0/非正值/缺失 → nil
+    //   (=「默认」行选中); 正值原样。makeWidgetEditScope 已接此函数, 此处锁语义。
+
+    func testDisplayBindingSentinelAndPositive() {
+        XCTAssertNil(WidgetEditCore.displayBinding(nil))
+        XCTAssertNil(WidgetEditCore.displayBinding(0), "first-add sentinel → follow default")
+        XCTAssertNil(WidgetEditCore.displayBinding(-3), "non-positive → follow default")
+        XCTAssertEqual(WidgetEditCore.displayBinding(7), 7, "explicit binding preserved")
     }
 
     // ==================== helpers ====================

@@ -42,17 +42,29 @@ struct WidgetData {
 
 /// 4 元组:背景 / 主题强调色 / 正文色 / 次要色
 /// 跟 app M3 scheme 派生方式相同:surface / primary / onSurface / onSurfaceVariant ← WidgetScheme
+///
+/// [intentional custom] 小组件渲染层拿不到 MaterialTheme.colorScheme,故维护一份
+/// 「与 app M3 scheme 同源派生」的扁平值类型。全部由 resolveWidgetScheme 构造,
+/// 不允许默认值 — 历史默认值(#FDFCFF/#FFFBFE/#6750A4 等)已被 ThemePresets
+/// LightScheme 取代(#FEF7FF/同/#6750A4),默认值即漂移源,故全部删默认,强制派生。
+/// (← WidgetContent.kt:64-70, v1.0.61 对齐)
 struct WidgetScheme {
-    var bg: Color = Color(0xFFFDFCFF)
-    var surface: Color = Color(0xFFFFFBFE)
-    var primary: Color = Color(0xFF6750A4)
-    var primaryContainer: Color = Color(0xFFEADDFF)
-    var onPrimaryContainer: Color = Color(0xFF1C1B1F)
-    var onSurface: Color = Color(0xFF1C1B1F)
-    var onSurfaceVariant: Color = Color(0xFF79747E)
-    var surfaceContainer: Color = Color(0xFFF3EDF7)
-    var surfaceVariant: Color = Color(0xFFE7E0EC)
-    var isDark: Bool = false
+    let bg: Color
+    let surface: Color
+    let primary: Color
+    let primaryContainer: Color
+    /// colorless 灰底基准色 (← WidgetContent.kt:76; Android 渲染层
+    /// CourseColorUtil.pickCourseColorIntWithGroupRows(..., scheme.secondaryContainer,
+    /// colorless) 用它当「刷新所有小组件」同色灰底,WidgetBitmapRenderers.kt:87)
+    let secondaryContainer: Color
+    let onPrimaryContainer: Color
+    let onSurface: Color
+    let onSurfaceVariant: Color
+    let surfaceContainer: Color
+    let surfaceContainerLow: Color
+    let surfaceContainerLowest: Color
+    let surfaceVariant: Color
+    let isDark: Bool
 }
 
 /// 按 themeKey + isDark 派生小组件配色。 ← resolveWidgetScheme
@@ -91,10 +103,13 @@ func resolveWidgetScheme(themeKey: String, isDark: Bool) -> WidgetScheme {
         surface: s.surface,
         primary: s.primary,
         primaryContainer: s.primaryContainer,
+        secondaryContainer: s.secondaryContainer,
         onPrimaryContainer: s.onPrimaryContainer,
         onSurface: s.onSurface,
         onSurfaceVariant: s.onSurfaceVariant,
         surfaceContainer: s.surfaceContainer,
+        surfaceContainerLow: s.surfaceContainerLow,
+        surfaceContainerLowest: s.surfaceContainerLowest,
         surfaceVariant: s.surfaceVariant,
         isDark: isDark
     )
@@ -149,4 +164,9 @@ struct TwoDayData {
     var themeMode: String? = nil
     /// ★ 学期状态(学期外时渲染状态文案不渲染课程)
     var semesterStatus: DateUtils.SemesterStatus = .inRange
+    /// 当前展示周状态 (← WidgetContent.kt:199 TwoDayData.weekDisplayStatus;
+    /// Android TwoDayWidget.kt:229 以 source.display.status 填充,.nearestBusyDay
+    /// 时渲染/装载端走 findNearestBusyDays(count=2) 的「最近两个未来有课日」窗口,
+    /// 用户 2026-09-23 定稿, 不再是 targetDate+1 日历相邻日)
+    var weekDisplayStatus: WeekDisplayStatus = .normal
 }

@@ -39,7 +39,9 @@ struct WidgetEditScope {
 
 // ← WidgetEditViewModel.reload / setBinding / setUseAlias 的取数与落库序列:
 //   availableTables = 有课的表 (← WidgetEditCore.filterAvailableTables, 保序)
-//   currentBinding = WidgetBindingStore.get(kind); 选择回调写库 + WidgetCenter 通知。
+//   currentBinding = WidgetEditCore.displayBinding(WidgetBindingStore.get(kind))
+//   (← vm.reload L72-74: 首装哨兵 0/非正值 → nil = 「默认」行选中, 非「无选中」);
+//   选择回调写库 + WidgetCenter 通知。
 //   useAlias = AppPrefs.isWidgetUseAlias; 切换回调写库(set 内已刷 timeline)。
 func makeWidgetEditScope(kind: String,
                          family: WidgetFamily? = nil,
@@ -58,7 +60,7 @@ func makeWidgetEditScope(kind: String,
     }
     return WidgetEditScope(
         kind: kind,
-        currentBinding: WidgetBindingStore.get(kind),
+        currentBinding: WidgetEditCore.displayBinding(WidgetBindingStore.get(kind)),
         availableTables: available,
         onSelectTable: onSelect,
         useAlias: AppPrefs.shared.isWidgetUseAlias(),
@@ -168,7 +170,8 @@ private struct WidgetEditScheduleSection: View {
             VStack(spacing: 0) {
                 sectionRow(
                     label: L10n.format("widget_edit_default_label"),
-                    selected: scope.currentBinding == nil
+                    selected: scope.currentBinding == nil,
+                    checkSpacer: false // ← Android DefaultRow 无 Spacer(8), 仅 TableRow 有
                 ) {
                     scope.onSelectTable(nil)
                 }
@@ -187,8 +190,10 @@ private struct WidgetEditScheduleSection: View {
         }
     }
 
-    // ← DefaultRow / TableRow (仅差 Spacer 8dp, 合一): bodyLarge 16 + Check primary
-    private func sectionRow(label: String, selected: Bool, onTap: @escaping () -> Void) -> some View {
+    // ← DefaultRow / TableRow (合一, checkSpacer 区分: Default 无 Spacer(8), Table 有):
+    //   bodyLarge 16 + Check primary
+    private func sectionRow(label: String, selected: Bool, checkSpacer: Bool = true,
+                            onTap: @escaping () -> Void) -> some View {
         Button(action: onTap) {
             HStack {
                 Text(label)
@@ -196,7 +201,9 @@ private struct WidgetEditScheduleSection: View {
                     .foregroundColor(colors.onSurface)
                 Spacer()
                 if selected {
-                    Spacer().frame(width: 8)
+                    if checkSpacer {
+                        Spacer().frame(width: 8)
+                    }
                     Image(systemName: "checkmark")
                         // ← Android Check 无 size 修饰符 = 默认 24dp (ScheduleSection L91/L121, AliasSection L91)
                         .font(.system(size: 24))
@@ -247,7 +254,8 @@ private struct WidgetEditAliasSection: View {
         }
     }
 
-    // ← OptionRow: bodyLarge 16 + Check 24 primary, 选中 primaryContainer 底, padding 16×14
+    // ← OptionRow: bodyLarge 16 + Check 24 primary (Android AliasSection L89-95
+    //   选中态直接放 Icon, 无 Spacer(8) — 同 DefaultRow), 选中 primaryContainer 底, padding 16×14
     private func optionRow(label: String, selected: Bool, onTap: @escaping () -> Void) -> some View {
         Button(action: onTap) {
             HStack {
@@ -256,7 +264,6 @@ private struct WidgetEditAliasSection: View {
                     .foregroundColor(colors.onSurface)
                 Spacer()
                 if selected {
-                    Spacer().frame(width: 8)
                     Image(systemName: "checkmark")
                         .font(.system(size: 24))
                         .foregroundColor(colors.primary)
@@ -347,21 +354,25 @@ private struct WidgetEditScrollSection: View {
 }
 
 // ← WidgetEditCompactWindowSection (2026-09-15 用户定稿): "三天窗口" 分区 —
-//   三天窗口档位, 本 kind 一档。仅系统小 family (Android「· 小」变体的
-//   WeekListSmall/WeekViewSmall) 显示; 未知族隐藏 (档位对其它变体无效果)。
-private struct WidgetEditCompactWindowSection: View {
+//   三天窗口档位, 本 kind 一档。仅 WeekList/WeekView 两族的系统小 family
+//   (Android「· 小」变体 WeekListSmall/WeekViewSmall) 显示; 其它族与未知族
+//   隐藏 (档位对其它变体无效果, 显示出来只会误导)。
+//   non-private: 门控纯函数供 SleepyTests 锁死 (← Android object 可被单测引用)。
+struct WidgetEditCompactWindowSection: View {
     @Environment(\.localWakeUpColors) private var colors
     let scope: WidgetEditScope
 
     /// 纯函数门控 — 单测锁死, 防止族名漂移。
     /// Android appliesTo(receiverSimpleName) == WeekListSmall/WeekViewSmall →
-    /// iOS 等价 = family == .systemSmall (「· 小」变体在 WidgetKit 的唯一表达)。
-    static func appliesTo(family: WidgetFamily?) -> Bool {
-        family == .systemSmall
+    /// iOS 等价 = 族(kind) ∈ {WeekList, WeekView} 且 family == .systemSmall
+    /// (「· 小」变体在 WidgetKit 的表达)。仅判 family 会把本节显示到
+    /// Today/TwoDay/WeekGrid 的小档实例上, 设置无效果 = 误导, 违反 Android 语义。
+    static func appliesTo(kind: String, family: WidgetFamily?) -> Bool {
+        family == .systemSmall && (kind.contains("WeekList") || kind.contains("WeekView"))
     }
 
     var body: some View {
-        if Self.appliesTo(family: scope.family) {
+        if Self.appliesTo(kind: scope.kind, family: scope.family) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(L10n.format("widget_edit_compact_title"))
                     .font(.system(size: 14, weight: .semibold))

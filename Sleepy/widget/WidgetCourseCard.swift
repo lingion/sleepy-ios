@@ -15,21 +15,26 @@ struct WidgetCourseCard: View {
     var groupRows: [CourseEntity] = []
     /// issue#26: widget 场景别名 — true 显示别名(trim 后, 空回退原名), false 原名
     var useAlias: Bool = false
+    /// 灰显行 (← WidgetBitmapRenderers.kt drawCourse isGrey): 与「删除线」样式合取时课程名加删除线
+    var isGrey: Bool = false
 
     var body: some View {
-        // 统一取色入口 (决策 D3) — colorless 灰底传 surfaceVariant
+        // 统一取色入口 (决策 D3) — colorless 灰底传 secondaryContainer
         // issue#22: 改走 *WithGroupRows 三态入口
         let bgColor = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(course,
             groupRows: groupRows.isEmpty ? [course] : groupRows,
-            isDark: scheme.isDark, neutralColor: scheme.surfaceVariant, colorless: colorless)
+            isDark: scheme.isDark, neutralColor: scheme.secondaryContainer, colorless: colorless)
         // 文字色亮度自适应 (决策 D5-13) — 深色自定义课色上切白字, 浅色底仍 onSurface
         let textColor = CourseColorUtil.textColorOn(bg: bgColor, isDark: scheme.isDark,
                                                     onSurface: scheme.onSurface)
         let timeStr = timeString
         let meta = course.room.isEmpty ? timeStr : "\(timeStr) · \(course.room)"
+        // ← WidgetBitmapRenderers.kt:153: 灰显行且「删除线」样式 → 课程名加删除线 (仅 dim 不删线是旧缺口)
+        let strike = isGrey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
 
         VStack(alignment: .leading, spacing: 2) {
             Text(displayName)
+                .strikethrough(strike)
                 .font(.system(size: fontSizeSp, weight: .bold))
                 .lineLimit(1)
             if !meta.isEmpty {
@@ -127,6 +132,8 @@ struct WidgetCourseRowView: View {
     let colorless: Bool
     var displayMode: String = "node"
     var useAlias: Bool = false
+    /// 灰显列 (TwoDay 传 day.isGrey; Today 无灰显传默认 false) → 卡片文字删除线判定
+    var isGrey: Bool = false
     var rowHeight: CGFloat = WidgetRowGeometry.rowH
     var fontSizeSp: CGFloat = 11
     var laneFontSizeSp: CGFloat = 10
@@ -170,6 +177,6 @@ struct WidgetCourseRowView: View {
         WidgetCourseCard(course: course, timeJson: timeJson, scheme: scheme,
                          colorless: colorless, fontSizeSp: fontSize, displayMode: displayMode,
                          groupRows: allCourses.filter { $0.groupId == course.groupId },
-                         useAlias: useAlias)
+                         useAlias: useAlias, isGrey: isGrey)
     }
 }

@@ -87,40 +87,9 @@ enum WeekListWidgetLoader {
     }
 }
 
-// MARK: - TwoDay ← TwoDayWidget.loadDataSync
-
-enum TwoDayWidgetLoader {
-    static func loadDataSync(kind: String? = nil) -> TwoDayData {
-        let today = Date()
-        let tomorrow = today.addingTimeInterval(86400)
-        let prefs = AppPrefs.shared
-        let isDark = prefs.isDarkMode()
-        let themeKey = prefs.getThemeKey()
-        let themeMode = prefs.getThemeMode()
-        do {
-            guard let repo = WidgetLoader.makeRepo(),
-                  let table = WidgetLoader.tableFor(kind: kind, repo: repo) else {
-                return TwoDayData(days: [], hasTable: false, isDark: isDark, themeKey: themeKey, themeMode: themeMode)
-            }
-            let week = DateUtils.currentWeek(startDate: table.startDate, today: today)
-            let status = DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: today)
-            let todayDow = DateUtils.todayDayOfWeek(today: today)
-            let tomorrowDow = DateUtils.todayDayOfWeek(today: tomorrow)
-            let todayCourses = try repo.getCoursesByDay(table.id, day: todayDow)
-                .filter { $0.inWeek(week) }.sorted { $0.startNode < $1.startNode }
-            let tomorrowCourses = try repo.getCoursesByDay(table.id, day: tomorrowDow)
-                .filter { $0.inWeek(week) }.sorted { $0.startNode < $1.startNode }
-            return TwoDayData(
-                days: [
-                    DayData(date: today, dayOfWeek: todayDow, courses: todayCourses, timeJson: table.timeJson),
-                    DayData(date: tomorrow, dayOfWeek: tomorrowDow, courses: tomorrowCourses, timeJson: table.timeJson)
-                ],
-                hasTable: true, isDark: isDark, themeKey: themeKey, themeMode: themeMode, semesterStatus: status)
-        } catch {
-            return TwoDayData(days: [], hasTable: false, isDark: isDark, themeKey: themeKey, themeMode: themeMode)
-        }
-    }
-}
+// TwoDay 装载器不在本文件: v1.0.61 对齐后由 TwoDayWidgetView.swift 的
+// TwoDayWidgetDataLoader.loadData (async) 逐行承担 —— 旧同步枚举 (写死 today/+86400、
+// 无调休映射、isGrey 恒 false、无 weekDisplayStatus) 已无任何调用方, 作为错位漂移源删除。
 
 // MARK: - WeekGrid ← WeekGridWidgetProvider.loadWeekData
 
