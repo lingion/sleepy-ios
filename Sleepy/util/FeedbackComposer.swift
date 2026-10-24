@@ -92,10 +92,14 @@ public enum FeedbackComposer {
     // MARK: - 内部
 
     private static func enc(_ s: String) -> String {
-        // URLComponents.queryItems 编码管标点; 这里用全量编码包括 `/` `+` 等避免语义出错
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~")
-        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
+        // 与 Android java.net.URLEncoder.encode(s, "UTF-8") 逐字节对齐:
+        // 字面保留 [A-Za-z0-9] . - * _ ; 空格转 '+' ; 其余(含非 ASCII、'~'、'/'、'+' 等)
+        // 按 UTF-8 字节做大写十六进制百分号编码。全量编码包括 `/` `+` 等避免语义出错。
+        let allowed = CharacterSet(charactersIn:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-*")
+        let encoded = s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
+        // URLEncoder 用 '+' 表示空格; 输入里的字面 "%20" 已被编码为 "%2520",替换安全。
+        return encoded.replacingOccurrences(of: "%20", with: "+")
     }
 
     /**

@@ -30,21 +30,25 @@ enum DateUtils {
     enum SemesterStatus { case beforeStart, inRange, afterEnd }
 
     static func semesterStatus(startDate: String, maxWeek: Int, today: Date = Date()) -> SemesterStatus {
-        guard let start = parseDate(startDate) else { return .inRange }
+        guard let raw = parseDate(startDate) else { return .inRange }
+        // 与 currentWeek 同一归一口径: 非周一 startDate 必须落到所在周周一,
+        // 否则 raw 比较与周数计算劈叉 (issue #5: startDate=周二, currentWeek 说第 2 周
+        // 而 semesterStatus 说「未开始」) ← DateUtils.kt:20-32
+        let start = mondayOf(raw)
         let cal = isoCalendar
         let todayStart = cal.startOfDay(for: today)
-        let startDay = cal.startOfDay(for: start)
-        if todayStart < startDay { return .beforeStart }
-        let days = cal.dateComponents([.day], from: startDay, to: todayStart).day ?? 0
+        if todayStart < start { return .beforeStart }
+        let days = cal.dateComponents([.day], from: start, to: todayStart).day ?? 0
         if days / 7 + 1 > maxWeek { return .afterEnd }
         return .inRange
     }
 
     /// 计算当前是学期第几周（1-based）；学期外统一钳制到可浏览范围。
     static func currentWeek(startDate: String, today: Date = Date()) -> Int {
-        guard let start = parseDate(startDate) else { return 1 }
+        guard let raw = parseDate(startDate) else { return 1 }
+        let start = mondayOf(raw)  // ← DateUtils.kt:37 归一到所在周周一 (issue #5)
         let cal = isoCalendar
-        let days = cal.dateComponents([.day], from: cal.startOfDay(for: start), to: cal.startOfDay(for: today)).day ?? 0
+        let days = cal.dateComponents([.day], from: start, to: cal.startOfDay(for: today)).day ?? 0
         return max(1, days / 7 + 1)
     }
 
@@ -56,9 +60,35 @@ enum DateUtils {
         return weekday == 1 ? 7 : weekday - 1
     }
 
+    /// 归一到该日期所在周的周一。
+    /// 应用约定 startDate 必须是周一（day=1 对应周一），但历史数据/用户手填可能是任意日期，
+    /// 直接使用会导致整周日期偏移（issue #5: 2026-09-01 周二被当周一）。
+    /// ← DateUtils.kt:56 previousOrSame(DayOfWeek.MONDAY)
+    static func mondayOf(_ date: Date) -> Date {
+        Calendar.isoMondayOfWeek(date)
+    }
+
+    /// 归一 yyyy-MM-dd 字符串到其所在周周一；解析失败原样返回。写库前统一走这里。
+    /// ← DateUtils.kt:60-65 normalizeStartDate(mondayOf + fullDate, catch → 原样)。
+    /// 回格式化比对 == 原文 = Java LocalDate.parse 的严格语义(2026-13-45 / 2026-09-1
+    /// 这类非法/欠宽输入必须原样返回, 不许 Calendar 宽松顺延成别的日期)。
+    static func normalizeStartDate(_ startDate: String) -> String {
+        guard let parsed = parseDate(startDate),
+              fullDate(parsed) == startDate else { return startDate }
+        return fullDate(mondayOf(parsed))
+    }
+
+    /// 比较具体日历日期，不把 weekday 当作跨周的“今天”标记。
+    /// ← DateUtils.kt:80 isDateToday(date == today)（LocalDate 民事日相等 = 同文件
+    /// 其余日比较口径: 两侧归到当日零点再比）
+    static func isDateToday(_ date: Date, _ today: Date = Date()) -> Bool {
+        isoCalendar.startOfDay(for: date) == isoCalendar.startOfDay(for: today)
+    }
+
     /// 从周数和星期几得到具体日期
     static func dateOfWeek(startDate: String, week: Int, dayOfWeek: Int) -> Date? {
-        guard let start = parseDate(startDate) else { return nil }
+        guard let raw = parseDate(startDate) else { return nil }
+        let start = mondayOf(raw)  // ← DateUtils.kt:69 锚定所在周周一 (issue #5)
         let cal = isoCalendar
         return cal.date(byAdding: DateComponents(day: dayOfWeek - 1 + (week - 1) * 7), to: start)
     }

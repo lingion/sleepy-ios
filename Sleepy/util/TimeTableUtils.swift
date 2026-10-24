@@ -38,7 +38,11 @@ enum TimeTableUtils {
         let end: Date
     }
 
-    /// 解析 timeJson -> 按 node 排序的 list
+    /// 解析 timeJson -> 按 node 排序的 list。
+    /// 兼容无 "node" 键的旧格式([{start,end},...]) — 节点号按数组序号补(1 起)。
+    /// issue#40 预览读旧格式 timeJson(如迁移生成的 period_tables 行)时不再整体解析失败。
+    /// ← Android parseNodes `o.optInt("node", i + 1)` + 整体 try/catch:
+    /// 任一行缺 start/end 或时间非法 → 整体返回空数组(不是丢弃单行)。
     static func parseNodes(_ timeJson: String) -> [NodeTime] {
         guard let data = timeJson.data(using: .utf8),
               let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
@@ -46,23 +50,24 @@ enum TimeTableUtils {
         }
         let cal = Calendar(identifier: .gregorian)
         let today = cal.startOfDay(for: Date())
-        return arr.compactMap { o -> NodeTime? in
-            guard let node = (o["node"] as? NSNumber)?.intValue,
-                  let startS = o["start"] as? String,
+        var out: [NodeTime] = []
+        out.reserveCapacity(arr.count)
+        for (i, o) in arr.enumerated() {
+            let node = (o["node"] as? NSNumber)?.intValue ?? (i + 1)
+            guard let startS = o["start"] as? String,
                   let endS = o["end"] as? String,
                   let start = parseTime(startS, base: today),
-                  let end = parseTime(endS, base: today) else { return nil }
-            return NodeTime(node: node, start: start, end: end)
-        }.sorted { $0.node < $1.node }
+                  let end = parseTime(endS, base: today) else { return [] }
+            out.append(NodeTime(node: node, start: start, end: end))
+        }
+        return out.sorted { $0.node < $1.node }
     }
 
     private static func parseTime(_ s: String, base: Date) -> Date? {
-        // "HH:mm" (也容忍 "HH:mm:ss")
-        let parts = s.split(separator: ":").compactMap { Int($0) }
-        guard parts.count >= 2 else { return nil }
-        var comps = Calendar.current.dateComponents([.year, .month, .day], from: base)
-        comps.hour = parts[0]; comps.minute = parts[1]; comps.second = parts.count > 2 ? parts[2] : 0
-        return Calendar.current.date(from: comps)
+        // ← Android LocalTime.parse 严格语义(见 hmToSeconds): "9:30"/"24:00"/"25:00"
+        // 旧实现(Int 无范围检查)会容忍甚至跨日滚动, 与 Android 分叉 → 现统一走严格解析。
+        guard let secs = hmToSeconds(s) else { return nil }
+        return base.addingTimeInterval(TimeInterval(secs))
     }
 
     static func formatTime(_ d: Date) -> String {
@@ -92,7 +97,9 @@ enum TimeTableUtils {
     /// 逻辑同 courseTimeString，但返回拆分后的两部分，避免外层再 split。
     static func courseTimeParts(courseStartNode: Int, courseStep: Int, timeJson: String,
                                 ownTime: Bool = false, startTime: String = "", endTime: String = "") -> (String, String)? {
-        if ownTime && !startTime.isEmpty && !endTime.isEmpty {
+        // ← Android startTime.isNotBlank() && endTime.isNotBlank(): 纯空白 ownTime
+        // 不算自带时间, 必须落到节点查询(旧 !isEmpty 会把 " " 原样返回)。
+        if ownTime && !startTime.isBlank && !endTime.isBlank {
             return (startTime, endTime)
         }
         let nodes = parseNodes(timeJson)
@@ -142,10 +149,26 @@ enum TimeTableUtils {
     // ------------------------------------------------------------------
 
     /// "HH:mm"/"HH:mm:ss" → 自午夜起秒数; 非法 → nil
+    /// ← Android LocalTime.parse 严格语义: 小时/分钟必须两位且 00-23 / 00-59,
+    /// 可选两位秒 00-59。"9:30"(单位小时)、"24:00"、"25:00"、"10:20:99" 一律拒绝
+    /// (旧实现 Int 宽容解析, 与 Android 双向分叉: "25:00" 曾跨日滚动改变比较结果)。
     static func hmToSeconds(_ s: String) -> Int? {
-        let parts = s.split(separator: ":").compactMap { Int($0) }
-        guard parts.count >= 2, (0...23).contains(parts[0]), (0...59).contains(parts[1]) else { return nil }
-        return parts[0] * 3600 + parts[1] * 60 + (parts.count > 2 ? parts[2] : 0)
+        localTimeParse(s)
+    }
+
+    /// LocalTime.parse 等价严格解析(数字位数+范围双闸)。
+    private static func localTimeParse(_ s: String) -> Int? {
+        let parts = s.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 2 || parts.count == 3 else { return nil }
+        guard parts[0].count == 2, parts[1].count == 2,
+              let h = Int(parts[0]), let m = Int(parts[1]),
+              (0...23).contains(h), (0...59).contains(m) else { return nil }
+        var sec = 0
+        if parts.count == 3 {
+            guard parts[2].count == 2, let ss = Int(parts[2]), (0...59).contains(ss) else { return nil }
+            sec = ss
+        }
+        return h * 3600 + m * 60 + sec
     }
 
     /// 便捷: 拿 TimeTableEntity 直接出 rows
@@ -168,6 +191,91 @@ enum TimeTableUtils {
         var edgeClass: EdgeClass? = nil
     }
 
+    /**
+     * issue#23: 从手动编辑的标准行推断自动模式配置(← Android inferSmartPeriodConfig:336)。
+     * Edge 行被刻意忽略; 调用方在手动模式保留它们。previous 提供时按分钟数承接既有
+     * 分组标签/长短分类(用户改行不丢已调好的「大课间/午休」等标签)。
+     *
+     * 失败返回 nil 的情形: 标准行为空 / 首节≠1 / 断号 / 时间畸形(严格 LocalTime 语义)/
+     * end≤start / 相邻行重叠。
+     */
+    static func inferSmartPeriodConfig(_ rows: [TimeSlotRow],
+                                       previous: SmartPeriodConfig? = nil) -> SmartPeriodConfig? {
+        struct ParsedRow { let start: Int; let end: Int; let duration: Int }  // 自午夜分钟数
+        let standard = rows.filter { $0.edgeClass == nil }.sorted { $0.node < $1.node }
+        if standard.isEmpty || standard.first!.node != 1 ||
+            (standard.map { $0.node } != Array(1...standard.count)) { return nil }
+
+        var parsed: [ParsedRow] = []
+        parsed.reserveCapacity(standard.count)
+        for row in standard {
+            guard let s = hmToSeconds(row.start.trimmingCharacters(in: .whitespaces)),
+                  let e = hmToSeconds(row.end.trimmingCharacters(in: .whitespaces)) else { return nil }
+            if e <= s { return nil }
+            parsed.append(ParsedRow(start: s, end: e, duration: (e - s) / 60))
+        }
+        for i in 1..<parsed.count {
+            if parsed[i].start < parsed[i - 1].end { return nil }
+        }
+
+        // 众数(并列取首次出现) — ← Android mode(): groupingBy + sortedBy count desc, firstIndex
+        func mode<T: Hashable>(_ values: [T]) -> T {
+            var counts: [T: Int] = [:]
+            for v in values { counts[v, default: 0] += 1 }
+            return counts.sorted { a, b in
+                a.value != b.value ? a.value > b.value
+                    : values.firstIndex(of: a.key)! < values.firstIndex(of: b.key)!
+            }.first!.key
+        }
+
+        let primaryMinutes = mode(parsed.map { $0.duration })
+        // distinct() 保首次出现序, 去掉主时长
+        var seenDurations = Set<Int>()
+        let durationMinutes = parsed.map { $0.duration }
+            .filter { seenDurations.insert($0).inserted }
+            .filter { $0 != primaryMinutes }
+        let previousDurationByMinutes = Dictionary(
+            (previous?.durations ?? []).map { ($0.minutes, $0) }, uniquingKeysWith: { a, _ in a })
+        let durations = durationMinutes.map { minutes -> DurationOption in
+            if let prev = previousDurationByMinutes[minutes] { return prev }
+            return DurationOption(minutes: minutes, isLong: minutes > primaryMinutes)
+        }
+        var durationIndex: [Int: Int] = [:]
+        for (i, d) in durations.enumerated() { durationIndex[d.minutes] = i }
+        let periodAssignments: [Int?] = parsed.map { durationIndex[$0.duration] }  // 主时长 → nil
+
+        let transitionMinutes = (1..<parsed.count).map { i in
+            (parsed[i].start - parsed[i - 1].end) / 60
+        }
+        var seenBreaks = Set<Int>()
+        let breakMinutes = transitionMinutes
+            .filter { $0 > 0 }
+            .filter { seenBreaks.insert($0).inserted }
+        let previousBreakByMinutes = Dictionary(
+            (previous?.breaks ?? []).map { ($0.minutes, $0) }, uniquingKeysWith: { a, _ in a })
+        let minBreak = breakMinutes.min()
+        let breaks = breakMinutes.map { minutes -> BreakOption in
+            if let prev = previousBreakByMinutes[minutes] { return prev }
+            // ← Android: minutes > (breakMinutes.minOrNull() ?: minutes)
+            return BreakOption(minutes: minutes, isLong: minBreak.map { minutes > $0 } ?? false)
+        }
+        var breakIndex: [Int: Int] = [:]
+        for (i, b) in breaks.enumerated() { breakIndex[b.minutes] = i }
+        let transitionAssignments: [Int?] = transitionMinutes.map { breakIndex[$0] }  // 0 分钟连续 → nil
+
+        // startTime = 首节开始 "HH:mm"(LocalTime.toString().substring(0,5) 语义)
+        let st = parsed.first!.start
+        let startTime = String(format: "%02d:%02d", st / 60 / 60 % 24, st / 60 % 60)
+        return SmartPeriodConfig(
+            startTime: startTime,
+            periodMinutes: primaryMinutes,
+            totalPeriods: parsed.count,
+            breaks: breaks,
+            transitionAssignments: transitionAssignments,
+            durations: durations,
+            periodAssignments: periodAssignments)
+    }
+
     /// timeJson -> 编辑 rows (按数组顺序)
     static func parseTimeSlotRows(_ timeJson: String) -> [TimeSlotRow] {
         guard let data = timeJson.data(using: .utf8),
@@ -185,16 +293,49 @@ enum TimeTableUtils {
     }
 
     /// rows -> timeJson (edge 元数据只在边缘节点时写出 "edge" 键)
+    /// 手写序列化 — 键序固定 node,start,end,edge(= Android JSONObject.put 插入序),
+    /// 输出与 org.json JSONArray.toString 逐字节一致(紧凑、无空格、字符串转义同规则),
+    /// 保证跨平台 timeJson 可直接做字节级对比。
+    /// (旧 JSONSerialization [String: Any] 键序不保证, 实测输出 start,end,node — 分叉)
     static func buildTimeJsonFromRows(_ rows: [TimeSlotRow]) -> String {
-        let arr: [[String: Any]] = rows.map { row in
-            var d: [String: Any] = ["node": row.node, "start": row.start, "end": row.end]
+        var out = "["
+        for (idx, row) in rows.enumerated() {
+            if idx > 0 { out.append(",") }
+            out.append("{")
+            out.append("\"node\":\(row.node),")
+            out.append("\"start\":\(jsonString(row.start)),")
+            out.append("\"end\":\(jsonString(row.end))")
             if let e = row.edgeClass {
-                d["edge"] = e.rawValue
+                out.append(",\"edge\":\(jsonString(e.rawValue))")
             }
-            return d
+            out.append("}")
         }
-        guard let data = try? JSONSerialization.data(withJSONObject: arr) else { return "[]" }
-        return String(data: data, encoding: .utf8) ?? "[]"
+        out.append("]")
+        return out
+    }
+
+    /// org.json JSONObject.quote 等价转义: " \\ \n \r \t 与 <0x20 控制符 \u 形式。
+    private static func jsonString(_ s: String) -> String {
+        var out = "\""
+        for ch in s.unicodeScalars {
+            switch ch {
+            case "\"": out += "\\\""
+            case "\\": out += "\\\\"
+            case "\n": out += "\\n"
+            case "\r": out += "\\r"
+            case "\t": out += "\\t"
+            case "\u{0C}": out += "\\f"
+            case "\u{08}": out += "\\b"
+            default:
+                if ch.value < 0x20 {
+                    out += String(format: "\\u%04x", ch.value)
+                } else {
+                    out.unicodeScalars.append(ch)
+                }
+            }
+        }
+        out += "\""
+        return out
     }
 
     /// 删除某 node 后**重新编号**为 1..N (用户友好)，返回新 list。
@@ -208,6 +349,25 @@ enum TimeTableUtils {
     static func appendEmptyRow(_ rows: [TimeSlotRow]) -> [TimeSlotRow] {
         let nextNode = (rows.map { $0.node }.max() ?? 0) + 1
         return rows + [TimeSlotRow(node: nextNode, start: "", end: "")]
+    }
+
+    /**
+     * 追加导入扩展 timeJson — 把 incomingJson 中 node > currentMaxNode 的节次复制进来,
+     * 时间从 incoming 拿, node 重新连续编号避免冲突。
+     * 用于"追加课程时, 课表自动延伸到新最大节次"场景。(← Android extendTimeJsonWith:450;
+     * Android 侧现无调用方, 此移植为 API 面平价)
+     */
+    static func extendTimeJsonWith(currentJson: String, incomingJson: String) -> String {
+        let currentRows = parseTimeSlotRows(currentJson)
+        let incomingRows = parseTimeSlotRows(incomingJson)
+        let currentMaxNode = currentRows.map { $0.node }.max() ?? 0
+        let newRows = incomingRows.filter { $0.node > currentMaxNode }
+        if newRows.isEmpty { return currentJson }
+        // node 重新连续编号(避免原 incoming 跳号, 保持 1..N 连续)
+        let merged = currentRows + newRows.enumerated().map { idx, r in
+            var copy = r; copy.node = currentMaxNode + idx + 1; return copy
+        }
+        return buildTimeJsonFromRows(merged)
     }
 
     // ------------------------------------------------------------------
@@ -276,6 +436,71 @@ enum TimeTableUtils {
         return nodes.sorted()
     }
 
+    /**
+     * 扫描全部边缘节次节点, 逐个回收未被引用的 — 从 before + after 两个方向。
+     * 被引用的判定: 某门课的 startNode..startNode+step-1 区间包含该节点号。
+     * 标准节点(1..N) 绝不回收(removeEdgeNodeIfUnused 内部有 edgeClass!=nil 硬闸)。
+     * 删课/删组/编辑 diff 后必须把结果回写课表 timeJson, 否则节点残留
+     * (用户 2026-09-06: "课程表恢复到之前的状态"; ← Android reclaimUnusedEdgeNodes:624)。
+     */
+    static func reclaimUnusedEdgeNodes(timeJson: String, usedNodes: Set<Int>) -> String {
+        var json = timeJson
+        for n in edgeNodesOf(timeJson: json, edgeClass: .before) {
+            json = removeEdgeNodeIfUnused(timeJson: json, edgeNode: n, usedNodes: usedNodes)
+        }
+        for n in edgeNodesOf(timeJson: json, edgeClass: .after) {
+            json = removeEdgeNodeIfUnused(timeJson: json, edgeNode: n, usedNodes: usedNodes)
+        }
+        return json
+    }
+
+    /**
+     * issue#28 P3: 作息表变更后的课程节次自适应(← Android remapCourseNodes:501)。
+     *
+     * 节次编号只是旧表绝对时间窗的载体: 取课程首节在旧表的 start 与末节在旧表的
+     * end, 在新表上找与之重叠的节点区间 — 首节 = 第一个 end 晚于课程起点的节,
+     * 末节 = 最后一个 start 早于课程终点的节。旧表缺行(课程锚的节次不存在)或
+     * 新表无任何重叠 → 返回原值(孤儿课保持原节次, 不猜不丢)。
+     * (ScheduleRepository.swift 现有一份同款私有静态实现; 集成者可删除该副本改调此处。)
+     */
+    static func remapCourseNodes(startNode: Int, step: Int,
+                                 oldTimeJson: String, newTimeJson: String) -> (Int, Int) {
+        if startNode < 1 || step < 1 { return (startNode, step) }
+        let oldRows = parseTimeSlotRows(oldTimeJson).sorted { $0.node < $1.node }
+        let newRows = parseTimeSlotRows(newTimeJson).sorted { $0.node < $1.node }
+        let oldStart = oldRows.first(where: { $0.node == startNode })?.start ?? ""
+        let oldEnd = oldRows.first(where: { $0.node == startNode + step - 1 })?.end ?? ""
+        // ← Android isBlank(): 纯空白 = 缺行
+        if oldStart.isBlank || oldEnd.isBlank { return (startNode, step) }
+        guard let firstIdx = newRows.firstIndex(where: { $0.end > oldStart }) else { return (startNode, step) }
+        guard let lastIdx = newRows.lastIndex(where: { $0.start < oldEnd }) else { return (startNode, step) }
+        if lastIdx < firstIdx { return (startNode, step) }
+        let firstNode = newRows[firstIdx].node
+        let lastNode = newRows[lastIdx].node
+        return (firstNode, max(lastNode - firstNode + 1, 1))
+    }
+
+    /**
+     * 确认导入时真正生效的节次行(v1.0.56 T6 绑表真源; ← Android effectiveRowsForConfirm:543)。
+     *
+     * 用户在确认对话框选了「作息表」Tab → bindId 即绑定的作息表 id:
+     *  - bindId > 0 (绑了既有表) → 该表的 timeJson 解析出的 rows 是真源, 手动 rows 仅供参考;
+     *  - bindId == -1 (本次导入自动建表, 合成项) → 用手动 rows, 落库即建;
+     *  - bindId == nil (未绑 / 用本表内置) → 用手动 rows。
+     *
+     * 历史上只把 bindId 记下, 校验/落库却无条件走手动 rows, 教务协议没回节次时间时
+     * 手动 rows 全是空 → 误报「第 X 节时间不能为空」(用户反馈 2026-09-20)。
+     * 此函数是确认流的唯一真源, 校验和落库 timeJson 都从这里拿。
+     * (ImportSheet.swift 现有一份同款静态实现; 集成者可删除该副本改调此处。)
+     */
+    static func effectiveRowsForConfirm(manualRows: [TimeSlotRow], bindId: Int64?,
+                                        tables: [(Int64, String)]) -> [TimeSlotRow] {
+        guard let id = bindId else { return manualRows }
+        if id <= 0 { return manualRows }
+        guard let json = tables.first(where: { $0.0 == id })?.1 else { return manualRows }
+        return parseTimeSlotRows(json)
+    }
+
     // MARK: - issue#23 逐卡非常规 (← effectiveCourseTime / maxStandardNode / EdgeCandidate / edgeCandidates / updateEdgeNodeTimes)
 
     /**
@@ -306,13 +531,25 @@ enum TimeTableUtils {
         return h * 60 + m
     }
 
-    /// "H:mm"/"HH:mm" 规范为 "HH:mm"(LocalTime.toString 语义); 非法 → nil
+    /// "H:mm" 以外一律按 LocalTime.parse 严格语义 → "HH:mm"(秒非零时保留 ":ss",
+    /// LocalTime.toString 语义); 非法 → nil。
+    /// 旧实现只收两段 parts.count == 2 → 拒绝 "08:00:30" 这类 Android 接受的输入。
     private static func normalizedHm(_ v: String) -> String? {
         let t = v.trimmingCharacters(in: .whitespaces)
-        let parts = t.split(separator: ":")
-        guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]),
+        let parts = t.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 2 || parts.count == 3 else { return nil }
+        guard parts[0].count == 2, parts[1].count == 2,
+              let h = Int(parts[0]), let m = Int(parts[1]),
               (0...23).contains(h), (0...59).contains(m) else { return nil }
-        return String(format: "%02d:%02d", h, m)
+        var sec = 0
+        if parts.count == 3 {
+            guard parts[2].count == 2, let ss = Int(parts[2]), (0...59).contains(ss) else { return nil }
+            sec = ss
+        }
+        // LocalTime.toString: 秒=0 省略, 否则保留
+        return sec == 0
+            ? String(format: "%02d:%02d", h, m)
+            : String(format: "%02d:%02d:%02d", h, m, sec)
     }
 
     /// 标准 1..N 连续节次上界 (edge 行不参与) — 逐卡重构后标准卡片只允许 1..maxStd
@@ -367,11 +604,13 @@ enum TimeTableUtils {
     /// 超出双方声明的节次(requiredNodeCount=导入课程实际到达的最大节)用 smart 默认铺底。
     static func mergeMostComplete(currentJson: String, incomingJson: String, requiredNodeCount: Int = 0) -> String {
         // 空串 = 没声明 — 不能进 parseTimeSlotRows(它会 catch 出 12 行 smart 伪声明,
-        // 反过来把有真实作息的一方当"缺省"盖掉)
+        // 反过来把有真实作息的一方当"缺省"盖掉)。
+        // ← Android takeIf { it.isNotBlank() }: 纯空白串同样 = 没声明(旧 !isEmpty
+        // 让 " " 进 parseTimeSlotRows → JSON 解析失败 catch 出 12 行伪声明覆盖真实表)。
         var currentRows: [TimeSlotRow] = []
-        if !currentJson.isEmpty { currentRows = parseTimeSlotRows(currentJson) }
+        if !currentJson.isBlank { currentRows = parseTimeSlotRows(currentJson) }
         var incomingRows: [TimeSlotRow] = []
-        if !incomingJson.isEmpty { incomingRows = parseTimeSlotRows(incomingJson) }
+        if !incomingJson.isBlank { incomingRows = parseTimeSlotRows(incomingJson) }
         let cur = Dictionary(currentRows.map { ($0.node, $0) }, uniquingKeysWith: { a, _ in a })
         let inc = Dictionary(incomingRows.map { ($0.node, $0) }, uniquingKeysWith: { a, _ in a })
         let declared = max(currentRows.map { $0.node }.max() ?? 0,
@@ -381,13 +620,14 @@ enum TimeTableUtils {
         let rows = (1...count).map { node -> TimeSlotRow in
             let i = inc[node]
             let c = cur[node]
+            // ← Android takeIf { it.isNotBlank() }: 纯空白时间 = 没声明
             return TimeSlotRow(
                 node: node,
-                start: i.flatMap { $0.start.isEmpty ? nil : $0.start }
-                    ?? c.flatMap { $0.start.isEmpty ? nil : $0.start }
+                start: i.flatMap { $0.start.isBlank ? nil : $0.start }
+                    ?? c.flatMap { $0.start.isBlank ? nil : $0.start }
                     ?? smartStartDefault(node),
-                end: i.flatMap { $0.end.isEmpty ? nil : $0.end }
-                    ?? c.flatMap { $0.end.isEmpty ? nil : $0.end }
+                end: i.flatMap { $0.end.isBlank ? nil : $0.end }
+                    ?? c.flatMap { $0.end.isBlank ? nil : $0.end }
                     ?? smartEndDefault(node))
         }
         return buildTimeJsonFromRows(rows)

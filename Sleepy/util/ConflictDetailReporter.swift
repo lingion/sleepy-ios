@@ -66,8 +66,12 @@ public enum ConflictDetailReporter {
                     hits.append((s, commonWeeks))
                 }
             }
-            hits.sort { $0.0.startNode < $1.0.startNode }
-            for (s, weeks) in hits {
+            // Android sortBy 稳定(同 startNode 保持入库次序); iOS sort 不保证稳定 —
+            // 用原始下标钉死平手次序, 与 Android 逐字节同序。
+            let orderedHits = hits.enumerated()
+                .sorted { ($0.element.0.startNode, $0.offset) < ($1.element.0.startNode, $1.offset) }
+                .map(\.element)
+            for (s, weeks) in orderedHits {
                 let dayText = dayIndices(draft.day, names: dayNames)
                 out.append(ConflictDetail(
                     existingName: s.courseName,
@@ -196,11 +200,14 @@ public struct CourseEntityLite {
     public let startTime: String
     public let endTime: String
     public let isIrregularTime: Bool
+    /// issue#23 §5: 边缘槽位卡 — 网格位置 = 槽位编号本身, 禁止按时间重映射
+    /// (← Android CourseEntity.kt normalizeNode 首闸 `if (isIrregularNode) return this`)
+    public let isIrregularNode: Bool
 
     public init(courseName: String, day: Int, startNode: Int, step: Int,
                 startWeek: Int, endWeek: Int, type: Int,
                 ownTime: Bool = false, startTime: String = "", endTime: String = "",
-                isIrregularTime: Bool = false) {
+                isIrregularTime: Bool = false, isIrregularNode: Bool = false) {
         self.courseName = courseName
         self.day = day
         self.startNode = startNode
@@ -212,17 +219,30 @@ public struct CourseEntityLite {
         self.startTime = startTime
         self.endTime = endTime
         self.isIrregularTime = isIrregularTime
+        self.isIrregularNode = isIrregularNode
     }
 
     /// issue#23 Fix 3: ownTime 课程/草稿的 startNode 只是 UI 占位, 真实网格位置
     /// 由 startTime/endTime 反算(normalizeNode)。比较前必须先 normalize, 否则
     /// ownTime 草稿按占位 startNode 比对会漏报/误报冲突。
+    ///
+    /// 逐字镜像 Android CourseEntity.normalizeNode(CourseEntity.kt:163-172):
+    /// 边缘槽位卡首闸禁止重映射, 起止时间用 isBlank 语义(纯空白当空), 与同仓
+    /// CourseEntity.swift:141-146 的 normalizeNode 保持同一契约。
     func normalizedForCompare(_ timeJson: String) -> CourseEntityLite {
-        guard ownTime, !startTime.isEmpty, !endTime.isEmpty else { return self }
+        // issue#23: 边缘槽位卡的网格位置 = 槽位编号本身, 禁止按时间重映射
+        // (← Android CourseEntity.kt:165 首闸; 草稿 ownTime=true 带起止时同样适用)
+        guard !isIrregularNode else { return self }
+        guard ownTime, Self.isNotBlank(startTime), Self.isNotBlank(endTime) else { return self }
         guard let mapped = TimeTableUtils.timeToNode(startTime, endTime, timeJson) else { return self }
         return CourseEntityLite(courseName: courseName, day: day, startNode: mapped.0, step: mapped.1,
                                 startWeek: startWeek, endWeek: endWeek, type: type,
                                 ownTime: ownTime, startTime: startTime, endTime: endTime,
-                                isIrregularTime: isIrregularTime)
+                                isIrregularTime: isIrregularTime, isIrregularNode: isIrregularNode)
+    }
+
+    /// Kotlin `isNotBlank()` 等价(纯空白串视为空), 与 CourseEntity.swift:111 同实现
+    private static func isNotBlank(_ s: String) -> Bool {
+        return !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }

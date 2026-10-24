@@ -11,7 +11,7 @@ import SwiftUI
 ///
 /// 决策树（所有入口 100% 同源）：
 ///   ① 用户自定义颜色（color 非空且非哨兵值）→ 直接返回，colorless 不覆盖手动设色
-///   ② colorless=true → 返回中性灰（surfaceVariant，与网格线同色保持一致）
+///   ② colorless=true → 返回当前主题最浅的 surface container（secondaryContainer）
 ///   ③ 否则 → 黄金角 137.508° 基于 groupId 撒 hue，同门课永远同色
 ///
 /// 三层结构：
@@ -43,10 +43,12 @@ enum CourseColorUtil {
     // ============================ 第二层 · 纯逻辑（无平台依赖） ============================
 
     /// Kotlin String.hashCode(): s[0]*31^(n-1) + ... (Int 溢出回绕)
-    /// Swift String.hashValue 每次进程随机化 → 不能用;必须复刻 Java 算法保证同 groupId 同色且跨端一致
+    /// Java/Kotlin 按 UTF-16 code unit 迭代 → 必须遍历 s.utf16(非 s.utf8),否则中文
+    /// groupId(如「高等数学」)两端哈希不同、同课跨端异色,违背本文件「复刻 Java 算法、
+    /// 跨端一致」契约。Swift String.hashValue 每次进程随机化 → 不能用。
     static func javaHash(_ s: String) -> Int64 {
         var h: Int64 = 0
-        for u in s.utf8 {
+        for u in s.utf16 {
             h = (h &* 31 &+ Int64(u)) & 0xFFFFFFFF
             if h >= 0x80000000 { h -= 0x100000000 }  // Int32 回绕
         }
@@ -60,22 +62,40 @@ enum CourseColorUtil {
         return (prod.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
     }
 
+    /// 复刻 Java Character.isWhitespace 口径(与 Foundation .whitespacesAndNewlines 不同):
+    /// 含表意空格 U+3000、OGHAM U+1680、0x1C-0x1F 等;不含不换行空格 U+00A0/U+2007/U+202F。
+    /// Kotlin isNotBlank/isNullOrBlank/String.trim 均以此为准,哨兵/空白判定跨端一致必须用此谓词。
+    private static func isJavaWhitespace(_ c: Unicode.Scalar) -> Bool {
+        switch c.value {
+        case 0x0009...0x000D, 0x001C...0x001F, 0x0020,
+             0x1680, 0x2000...0x2006, 0x2008...0x200A,
+             0x2028, 0x2029, 0x205F, 0x3000:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Kotlin String.isNotBlank() 等价: 非空且不全是 Java 空白字符
+    static func isNotBlank(_ s: String) -> Bool {
+        return s.unicodeScalars.contains { !isJavaWhitespace($0) }
+    }
+
     /// 判定课程是否有用户自定义颜色：color 非空且非哨兵值。
     /// 哨兵判定收敛到此单点，为后续铺路。
     ///
     /// TODO(Phase2): 哨兵值 #FF6750A4 与主题默认紫完全相同，用户主动选紫主题或导入指定此色
     ///   会被误判为「未设置」→ 需改为 isCustomColor 布尔字段 + DB migration。
     static func hasCustomColor(_ course: CourseEntity) -> Bool {
-        // ← isNotBlank 语义(非空且非纯空白),与 Kotlin 对齐
-        !course.color.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // ← isNotBlank 语义(Java Character.isWhitespace 口径,含全角空格 U+3000),与 Kotlin 对齐
+        isNotBlank(course.color)
             && course.color.uppercased() != SENTINEL_COLOR
     }
 
     /// hex-only 版哨兵判定 — 无实体上下文的调用方(改组色 UI 显示组色源)取用,
     /// 判定口径与 hasCustomColor 完全一致,哨兵值仍收敛到 SENTINEL_COLOR 单点。
     static func hasCustomColorHex(_ hex: String) -> Bool {
-        !hex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && hex.uppercased() != SENTINEL_COLOR
+        isNotBlank(hex) && hex.uppercased() != SENTINEL_COLOR
     }
 
     /// 明暗探针 — 读 CoursePalette.primary 亮度。
@@ -166,20 +186,25 @@ enum CourseColorUtil {
 
     // ============================ 第三层 · 平台适配入口 ============================
 
-    /// "#RRGGBB" 或 "#AARRGGBB" 解析(= android.graphics.Color.parseColor 的子集)
+    /// "#RRGGBB" 或 "#AARRGGBB" 解析(= android.graphics.Color.parseColor 语义)
     /// 6 位省略 alpha=FF; 8 位完整。
+    /// 与 Android 对齐的硬校验: '#' 前缀必带 —— android.graphics.Color.parseColor 对无 '#'
+    /// 输入抛 IllegalArgumentException,上层 runCatching 落空回退 neutral/HSL 分支;
+    /// iOS 若照收裸 hex(如 "FF5722")会让坏 hex 自定义色在两端走不同分支。
     static func parseColor(_ hex: String) -> Int? {
-        var s = hex
-        if s.hasPrefix("#") { s.removeFirst() }
+        guard hex.hasPrefix("#") else { return nil }
+        var s = String(hex.dropFirst())
         if s.count == 6 {
             s = "FF" + s
         }
-        guard s.count == 8, let v = UInt32(s, radix: 16) else { return nil }
+        guard s.count == 8,
+              s.allSatisfy({ $0.isHexDigit }),
+              let v = UInt32(s, radix: 16) else { return nil }
         return Int(v)
     }
 
     /// SwiftUI 路径取色入口（TodayScreen / CourseTableView）
-    /// - neutralColor: colorless 灰底，即 scheme.surfaceVariant
+    /// - neutralColor: colorless 统一底色，即 scheme.secondaryContainer
     static func pickCourseColorSwiftUI(_ course: CourseEntity, isDark: Bool,
                                        neutralColor: Color, colorless: Bool = false) -> Color {
         if hasCustomColor(course), let argb = parseColor(course.color) {
@@ -301,9 +326,9 @@ enum GoldenAngleColor {
     }
 
     /// parseHexHue — 空白/坏 hex 回 0 (androidx runCatching+getOrDefault 语义)
+    /// 空白口径 = Kotlin isNullOrBlank (Java Character.isWhitespace,含全角空格 U+3000)
     private static func parseHexHue(_ hex: String?) -> Float {
-        guard let h = hex,
-              !h.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return 0 }
+        guard let h = hex, CourseColorUtil.isNotBlank(h) else { return 0 }
         if let argb = CourseColorUtil.parseColor(h) {
             return rgbToHslHue(argb)
         }

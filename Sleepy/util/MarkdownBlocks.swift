@@ -5,160 +5,138 @@ import Foundation
  *
  * Android MarkdownBlocks.kt 1:1 移植: 取代第三方 MarkdownText 黑盒,
  * 上一版用 compose-markdown(Markwon)渲染真机标题/列表/粗体与普通正文无视觉差异
- * 且行为不可控。解析出确定性的块结构 + 行内结构, 由 UpdateChangelogDialog
+ * 且行为不可控。解析出确定性的块结构 Block + 行内结构 Inline, 由 UpdateChangelogDialog
  * 显式排版 — 每种块的实际视觉结果由本仓库代码决定, 不依赖第三方隐式行为。
+ * 同理 iOS 侧禁用 AttributedString(markdown:) 渲染行内语法: Apple 的 CommonMark
+ * 是黑盒(嵌套括号 URL 平衡进链接、try? 失败静默降级), 与本文件确定性 span 切分不一致。
  *
  * 覆盖 release notes 实际用到的语法: # 标题、- 列表、**粗体**、`代码`、
  * [文字](链接)、普通段落。其余 Markdown 语法按普通文本原样显示(安全兜底)。
+ *
+ * 本文件是 MarkdownBlocks 的唯一实现(原 UpdateManager.swift:138-187 的块级
+ * 临时副本由集成者删除; 旧 MarkdownBlocksLegacy/MarkdownInline 死代码已移除)。
  */
+enum MarkdownBlocks {
 
-public enum MarkdownBlock {
-    /// ATX 标题, level 1-6
-    public struct Heading: Equatable {
-        public let level: Int
-        public let text: String
+    /// 块级元素
+    enum Block: Equatable {
+        /// ATX 标题, level 1-6
+        case heading(level: Int, text: String)
+        /// 连续列表项合为一组
+        case bullet(items: [String])
+        /// 普通段落(可能多行, 已合并为单串)
+        case paragraph(text: String)
     }
-    /// 连续列表项合为一组
-    public struct Bullet: Equatable {
-        public let items: [String]
+
+    /// 行内元素
+    enum Inline: Equatable {
+        case text(String)
+        case bold(String)
+        case code(String)
+        case link(text: String, url: String)
     }
-    /// 普通段落(可能多行, 已合并为单串)
-    public struct Paragraph: Equatable {
-        public let text: String
-    }
-}
 
-public enum MarkdownInline {
-    public struct Text: Equatable { public let text: String }
-    public struct Bold: Equatable { public let text: String }
-    public struct Code: Equatable { public let text: String }
-    public struct Link: Equatable { public let text: String; public let url: String }
-}
-
-public enum MarkdownBlocksLegacy {
-
-    public static func parse(_ markdown: String) -> [Any] {
-        var blocks: [Any] = []
+    static func parse(_ markdown: String) -> [Block] {
+        var blocks: [Block] = []
         var listItems: [String] = []
         var paragraphLines: [String] = []
 
         func flushList() {
-            guard !listItems.isEmpty else { return }
-            blocks.append(MarkdownBlock.Bullet(items: listItems))
-            listItems = []
+            if !listItems.isEmpty {
+                blocks.append(.bullet(items: listItems))
+                listItems = []
+            }
         }
         func flushParagraph() {
-            guard !paragraphLines.isEmpty else { return }
-            blocks.append(MarkdownBlock.Paragraph(text: paragraphLines.joined(separator: " ").trimmingCharacters(in: .whitespaces)))
-            paragraphLines = []
+            if !paragraphLines.isEmpty {
+                // ← Android L47: paragraphLines.joinToString(" ").trim()
+                blocks.append(.paragraph(text: paragraphLines.joined(separator: " ")
+                    .trimmingCharacters(in: .whitespaces)))
+                paragraphLines = []
+            }
         }
         func flushAll() { flushList(); flushParagraph() }
 
         for rawLine in markdown.components(separatedBy: .newlines) {
-            let line = rawLine.trimmingCharacters(in: CharacterSet(charactersIn: ""))
-            let t = line.trimmingCharacters(in: .whitespaces)
+            // Android rawLine.trimEnd() 后再 line.trim(): 对按换行拆出的单行等价于一次全 trim
+            let t = rawLine.trimmingCharacters(in: .whitespaces)
             if t.isEmpty {
+                // 空行 = 块边界
                 flushAll()
-                continue
-            }
-            // ATX 标题: #..###### + 空格 + 内容
-            if let m = headingRegex.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)) {
+            } else if let g = captureGroups(headingRegex, t) {
+                // ATX 标题: #..###### + 空格 + 内容
                 flushAll()
-                let levelRange = m.range(at: 1)
-                let textRange = m.range(at: 2)
-                let level = (t as NSString).substring(with: levelRange).count
-                let text = (t as NSString).substring(with: textRange)
-                    .trimmingCharacters(in: .whitespaces)
-                blocks.append(MarkdownBlock.Heading(level: level, text: text))
-                continue
-            }
-            // 列表项: - / * / + + 空格
-            if let m = bulletRegex.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)) {
+                blocks.append(.heading(level: g[0].count,
+                                       text: g[1].trimmingCharacters(in: .whitespaces)))
+            } else if let item = captureGroups(bulletRegex, t)?.first {
+                // 列表项: - / * / + + 空格; 容忍嵌套缩进(拍平)
                 flushParagraph()
-                let itemRange = m.range(at: 1)
-                var item = (t as NSString).substring(with: itemRange)
-                // 拍平嵌套缩进: 去掉可能的前缀符号
-                for prefix in ["-", "*", "+"] {
-                    if item.hasPrefix("\(prefix) ") {
-                        item = String(item.dropFirst(2)).trimmingCharacters(in: .whitespaces)
-                        break
-                    }
-                }
-                listItems.append(item)
-                continue
+                listItems.append(item.trimmingCharacters(in: .whitespaces))
+            } else {
+                flushList()
+                paragraphLines.append(t)
             }
-            // 兜底: 段落行
-            flushList()
-            paragraphLines.append(t)
         }
         flushAll()
         return blocks
     }
 
-    /** 行内解析: **粗体**、`代码`、[文字](链接) → 有序 span 列表 */
-    public static func parseInline(_ text: String) -> [any Equatable] {
-        var spans: [any Equatable] = []
-        let patterns: [NSRegularExpression] = [boldRegex, codeRegex, linkRegex]
-        var i = text.startIndex
-        while i < text.endIndex {
+    /// 行内解析: **粗体**、`代码`、[文字](链接) → 有序 span 列表
+    /// ← Android MarkdownBlocks.kt:81-114 — 一趟扫描, 三种模式按出现位置取最早,
+    ///   同为最早起点时按 bold/code/link 声明顺序优先。
+    static func parseInline(_ text: String) -> [Inline] {
+        let ns = text as NSString
+        var spans: [Inline] = []
+        let patterns = [boldRegex, codeRegex, linkRegex]
+        var i = 0
+        while i < ns.length {
             var bestMatch: NSTextCheckingResult?
             var bestKind = -1
-            var bestRange: Range<String.Index>?
             for (kind, p) in patterns.enumerated() {
-                let nsRange = NSRange(i..<text.endIndex, in: text)
-                guard let m = p.firstMatch(in: text, range: nsRange) else { continue }
-                let range = Range(m.range, in: text)!
-                if bestMatch == nil || range.lowerBound < bestRange!.lowerBound {
+                guard let m = p.firstMatch(in: text,
+                                           range: NSRange(location: i, length: ns.length - i)) else { continue }
+                if bestMatch == nil || m.range.location < bestMatch!.range.location {
                     bestMatch = m
                     bestKind = kind
-                    bestRange = range
                 }
             }
-            guard let bm = bestMatch, let br = bestRange else {
-                spans.append(MarkdownInline.Text(text: String(text[i..<text.endIndex])))
+            guard let bm = bestMatch else {
+                spans.append(.text(ns.substring(with: NSRange(location: i, length: ns.length - i))))
                 break
             }
-            if br.lowerBound > i {
-                spans.append(MarkdownInline.Text(text: String(text[i..<br.lowerBound])))
+            if bm.range.location > i {
+                spans.append(.text(ns.substring(with: NSRange(location: i, length: bm.range.location - i))))
             }
             switch bestKind {
             case 0:
-                let groupRange = Range(bm.range(at: 1), in: text)!
-                spans.append(MarkdownInline.Bold(text: String(text[groupRange])))
+                spans.append(.bold(ns.substring(with: bm.range(at: 1))))
             case 1:
-                let groupRange = Range(bm.range(at: 1), in: text)!
-                spans.append(MarkdownInline.Code(text: String(text[groupRange])))
+                spans.append(.code(ns.substring(with: bm.range(at: 1))))
             default:
-                let textRange = Range(bm.range(at: 1), in: text)!
-                let urlRange = Range(bm.range(at: 2), in: text)!
-                spans.append(MarkdownInline.Link(
-                    text: String(text[textRange]),
-                    url: String(text[urlRange])
-                ))
+                spans.append(.link(text: ns.substring(with: bm.range(at: 1)),
+                                   url: ns.substring(with: bm.range(at: 2))))
             }
-            i = br.upperBound
+            i = NSMaxRange(bm.range)
         }
-        return spans.filter { span in
-            if let t = span as? MarkdownInline.Text { return !t.text.isEmpty }
+        return spans.filter {
+            if case .text(let t) = $0 { return !t.isEmpty }
             return true
         }
     }
 
-    // MARK: - 内部正则
+    // MARK: - 内部正则(与 Kotlin 逐字对齐)
 
-    private static let headingRegex: NSRegularExpression = {
-        return try! NSRegularExpression(pattern: "^(#{1,6})\\s+(.*)$")
-    }()
-    private static let bulletRegex: NSRegularExpression = {
-        return try! NSRegularExpression(pattern: "^[-*+]\\s+(.*)$")
-    }()
-    private static let boldRegex: NSRegularExpression = {
-        return try! NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*")
-    }()
-    private static let codeRegex: NSRegularExpression = {
-        return try! NSRegularExpression(pattern: "`([^`]+)`")
-    }()
-    private static let linkRegex: NSRegularExpression = {
-        return try! NSRegularExpression(pattern: "\\[([^\\]]+)]\\(([^)]+)\\)")
-    }()
+    private static let headingRegex = try! NSRegularExpression(pattern: "^(#{1,6})\\s+(.*)$")
+    private static let bulletRegex = try! NSRegularExpression(pattern: "^[-*+]\\s+(.*)$")
+    private static let boldRegex = try! NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*")
+    private static let codeRegex = try! NSRegularExpression(pattern: "`([^`]+)`")
+    private static let linkRegex = try! NSRegularExpression(pattern: "\\[([^\\]]+)]\\(([^)]+)\\)")
+
+    /// 正则捕获组(不含整串匹配), 无匹配返回 nil
+    private static func captureGroups(_ regex: NSRegularExpression, _ line: String) -> [String]? {
+        let ns = line as NSString
+        guard let m = regex.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)),
+              m.numberOfRanges >= 2 else { return nil }
+        return (1..<m.numberOfRanges).map { ns.substring(with: m.range(at: $0)) }
+    }
 }

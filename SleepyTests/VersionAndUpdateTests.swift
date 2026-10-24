@@ -107,9 +107,10 @@ final class AppPrefsTests: XCTestCase {
         XCTAssertEqual(["name", "time", "room", "teacher"], prefs.getBeforeClassFluidFields())
         XCTAssertEqual("room", prefs.getBeforeClassFluidPrimary())
         XCTAssertEqual("zh-CN", prefs.getLanguage())
-        XCTAssertEqual("node", prefs.getDisplayMode())
+        // ← Android 出厂默认: display_mode="time"(用户 2026-09-14 指令), show_date=true(用户反馈找不到开关)
+        XCTAssertEqual("time", prefs.getDisplayMode())
         XCTAssertEqual("room", prefs.getGridSubInfo())
-        XCTAssertFalse(prefs.isShowDate())
+        XCTAssertTrue(prefs.isShowDate())
         XCTAssertEqual(Set(1...7), prefs.getVisibleDays())
         XCTAssertFalse(prefs.isVertPunctReplace())
         XCTAssertFalse(prefs.isWidgetColorless())
@@ -181,6 +182,68 @@ final class AppPrefsTests: XCTestCase {
         prefs.setBeforeClassFluidPrimary("room")
         XCTAssertEqual(["name", "time"], Array(prefs.getBeforeClassFluidFields()).sorted())
         XCTAssertEqual("room", prefs.getBeforeClassFluidPrimary())
+    }
+
+    func testFluidPrimaryAcceptsCountdown() {
+        // ← Android v1.0.61 require(name|time|room|countdown): countdown 合法且往返一致
+        prefs.setBeforeClassFluidPrimary("countdown")
+        XCTAssertEqual("countdown", prefs.getBeforeClassFluidPrimary())
+    }
+
+    func testFactoryDefaultsAlignAndroid1061() {
+        // ← AppPrefs.kt 出厂默认逐条: start_view="cards"(用户令网格优先),
+        //   compact_window_today_first=true, calendar_apply_transfers=true,
+        //   holiday 规则总开关=false(四类子开关=true), 实验室组全默认关
+        XCTAssertEqual("cards", prefs.getStartView())
+        XCTAssertTrue(prefs.isCompactWindowTodayFirst())
+        XCTAssertTrue(prefs.isCalendarApplyTransfers())
+        XCTAssertFalse(prefs.isHolidayReminderRulesEnabled())
+        XCTAssertTrue(prefs.isHolidayReminderPublicHolidayEnabled())
+        XCTAssertTrue(prefs.isTodayReminderEnabled())
+        XCTAssertTrue(prefs.isShowViewSwitcher())
+        XCTAssertFalse(prefs.isGridAutoHideEmptyEvening())
+        XCTAssertFalse(prefs.isGridAdaptiveHeight())
+        XCTAssertFalse(prefs.isGridPinchZoom())
+        XCTAssertFalse(prefs.isGridShowSeparators())
+        XCTAssertFalse(prefs.isGridLongBreakSpacing())
+        XCTAssertEqual("18:00", prefs.getGridEveningStart())
+        XCTAssertEqual(1.0, prefs.getGridRowScale())
+    }
+
+    func testGridLabKeysRoundTrip() {
+        prefs.setGridAutoHideEmptyEvening(true)
+        XCTAssertTrue(prefs.isGridAutoHideEmptyEvening())
+        prefs.setGridEveningStart("19:30")
+        XCTAssertEqual("19:30", prefs.getGridEveningStart())
+        prefs.setGridRowScale(1.42)
+        XCTAssertEqual(1.42, prefs.getGridRowScale()) // ← Android 读侧不钳制, 存什么读什么
+        prefs.setShowViewSwitcher(false)
+        XCTAssertFalse(prefs.isShowViewSwitcher())
+        prefs.setTodayReminderEnabled(false)
+        XCTAssertFalse(prefs.isTodayReminderEnabled())
+    }
+
+    func testScaleReadClampsAndSetterCoerces() {
+        // ← Android coerceIn: 读侧钳制存量越界值; 写侧静默钳制不抛(precondition 已移除)
+        suite.set(2.5, forKey: AppPrefs.KEY_GRID_SCALE)
+        XCTAssertEqual(1.3, prefs.getGridScale())
+        suite.set(0.1, forKey: AppPrefs.KEY_WEEK_SCALE)
+        XCTAssertEqual(0.7, prefs.getWeekScale())
+        suite.set(9.0, forKey: AppPrefs.KEY_GRID_CORNER_RATIO)
+        XCTAssertEqual(2.0, prefs.getGridCornerRatio())
+        suite.set(-3.0, forKey: AppPrefs.KEY_GRID_CORNER_RATIO)
+        XCTAssertEqual(0.0, prefs.getGridCornerRatio()) // 0=直角, 是合法值(Android 无 0→1 哨兵)
+        prefs.setGridScale(5.0)                          // 写侧越界 → 静默落 1.3
+        XCTAssertEqual(1.3, prefs.getGridScale())
+        XCTAssertEqual(1.0, AppPrefs(defaults: UserDefaults(suiteName: "test-empty-scale-\(UUID().uuidString)")!).getGridScale())
+    }
+
+    func testWeekTwoColumnModeNormalizesOnWrite() {
+        // ← Android: if (v == "balance") "balance" else "days" — 任意其它值归一 "days"
+        prefs.setWeekTwoColumnMode("balance")
+        XCTAssertEqual("balance", prefs.getWeekTwoColumnMode())
+        prefs.setWeekTwoColumnMode("garbage")
+        XCTAssertEqual("days", prefs.getWeekTwoColumnMode())
     }
 
     // 注: Kotlin require() 抛异常可断言;Swift precondition() 是 fatal trap,

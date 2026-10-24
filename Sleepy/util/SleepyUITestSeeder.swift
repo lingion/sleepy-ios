@@ -13,6 +13,23 @@ enum SleepyUITestSeeder {
         UserDefaults.standard.removeObject(forKey: "language")
         UserDefaults.standard.removeObject(forKey: "AppleLanguages")
 
+        // 偏好复位(串行套件防污染): 设置页测试会真实写库这些偏好, 残留会改变
+        // 后续 suite 的启动形态 —— 实证链: MineSettings 把 Mon 关进 visible_days →
+        // 后续 ScheduleFlow 种子课"高等数学"(周一)整列消失; 启动视图被改 "full" →
+        // grid 用例起步即在 Week 模式。逐 key 复位到出厂默认(= AppPrefs 各 getter
+        // 的 ?? 兜底值), 每个带种子用例拿到的都是干净出厂态。
+        let d = AppPrefs.shared.sharedBackedStore
+        d.removeObject(forKey: AppPrefs.KEY_VISIBLE_DAYS)   // 出厂 1..7 全显
+        d.removeObject(forKey: AppPrefs.KEY_SHOW_DATE)      // 出厂 true
+        d.removeObject(forKey: AppPrefs.KEY_START_VIEW)     // 出厂 "cards"(← Android "cards")
+        d.removeObject(forKey: AppPrefs.KEY_NAV_DOCK)       // 出厂 false(贴底)
+        d.removeObject(forKey: "settings_expanded_sections") // 折叠卡展开集(GeneralSettings 持久化)
+        // 竖排标点替换开关(方案B): testGeneralToggles 真实点按 → 持久化; UI 测试
+        // terminate 不清容器, 残留经 Xcode14 串行的共享 app 容器渗入 SleepyTests
+        // (WidgetLogicTests.testTokenizePunctPlanA / VersionAndUpdateTests 断言出厂
+        //  false)→ 套件红。复位到出厂 false 断链。
+        d.removeObject(forKey: AppPrefs.KEY_VERT_PUNCT_REPLACE)
+
         do {
             try database.dbQueue.write { db in
                 try db.execute(sql: "DELETE FROM courses")

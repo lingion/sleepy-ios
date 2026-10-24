@@ -17,6 +17,12 @@ struct HolidayEntry: Equatable {
     let type: String
 }
 
+/** 某年数据 + 该数据是否可作权威判定 ← data class HolidayYearData */
+struct HolidayYearData: Equatable {
+    let entries: [HolidayEntry]
+    let available: Bool
+}
+
 // MARK: - HolidayRange (← data class HolidayRange)
 
 /** 用户可编辑的节假日段(连续日期范围)。type 复用 HolidayManager 常量 + HolidayRangeOps.REMOVED */
@@ -72,15 +78,28 @@ enum HolidayManager {
     private static func diskCache(_ year: Int) -> [HolidayEntry]? {
         // loaded 标记与数据同写: 空年份(该年确实无数据)也视为已缓存, 否则每次启动都会重复请求
         guard prefs.bool(forKey: loadedKey(year)) else { return nil }
-        guard let json = prefs.string(forKey: cacheKey(year)) else { return nil }
-        return parseEntries(json)
+        guard let json = prefs.string(forKey: cacheKey(year)),
+              let data = json.data(using: .utf8),
+              let dates = (try? JSONSerialization.jsonObject(with: data)) as? [Any] else { return nil }
+        // ← Android JSONObject().put("dates", dates) 再 parseEntries: 落盘是裸数组串, 解析要求根 {"dates":[...]}
+        guard let wrapped = try? JSONSerialization.data(withJSONObject: ["dates": dates]),
+              let wrappedJson = String(data: wrapped, encoding: .utf8) else { return nil }
+        return parseEntries(wrappedJson)
     }
 
     private static func writeDiskCache(_ year: Int, _ entries: [HolidayEntry]) {
-        let arr = entries.map { e -> [String: Any] in
+        // 存 JSON *字符串*(← Android putString(cacheKey, arr.toString())), 与 diskCache 的 string(forKey:) 读回同型
+        let arr: [[String: Any]] = entries.map { e in
             ["date": dateFormat.string(from: e.date), "name": e.name, "type": e.type]
         }
-        prefs.set(arr, forKey: cacheKey(year))
+        let s: String
+        if let data = try? JSONSerialization.data(withJSONObject: arr),
+           let str = String(data: data, encoding: .utf8) {
+            s = str
+        } else {
+            s = "[]"
+        }
+        prefs.set(s, forKey: cacheKey(year))
         prefs.set(true, forKey: loadedKey(year))
     }
 
@@ -90,8 +109,29 @@ enum HolidayManager {
         return wd == 1 || wd == 7
     }
 
+    /// 纯决策核: 日期在法定节假日集合内且该日未被调休映射 → 应跳过课程类提醒。← decideSkipPublicHoliday
+    static func decideSkipPublicHoliday(
+        date: Date,
+        holidays: Set<Date>,
+        dateHasTransfer: Bool
+    ) -> Bool { holidays.contains(date) && !dateHasTransfer }
+
+    /// Cache-only holiday decision for scheduler/recovery paths; never performs network I/O. ← isPublicHolidayCached
+    /// [tableId] 给定时同时查该表调休映射(命中 = 那天要上课, 不跳过)。
+    static func isPublicHolidayCached(_ date: Date, tableId: Int64? = nil) -> Bool {
+        guard AppPrefs.shared.isHolidayGreyHoliday() else { return false }
+        let networkEntries = entriesCache[date.year] ?? diskCache(date.year) ?? []
+        let ranges = AppPrefs.shared.getHolidayRanges()
+        let merged = HolidayRangeOps.mergeSegments(networkEntries, ranges)
+        let (holidays, _) = HolidayRangeOps.toSets(merged.active)
+        let hasTransfer = tableId != nil &&
+            HolidayTransferOps.transferFor(date, AppPrefs.shared.getHolidayTransfers(tableId!)) != nil
+        return decideSkipPublicHoliday(date: date, holidays: holidays, dateHasTransfer: hasTransfer)
+    }
+
     /// 判断某日期是否应该灰显（根据用户设置，含用户范围化覆盖）← shouldGrey
-    static func shouldGrey(_ date: Date) async -> Bool {
+    /// [tableId] 给定时同时查该表调休映射: 命中映射的放假日那天要上课, 永不灰 (issue#44)。
+    static func shouldGrey(_ date: Date, tableId: Int64? = nil) async -> Bool {
         let ranges = AppPrefs.shared.getHolidayRanges()
         let networkEntries = await getYearEntries(date.year)
         let merged = HolidayRangeOps.mergeSegments(networkEntries, ranges)
@@ -99,13 +139,16 @@ enum HolidayManager {
         let workdaysForWeekend: Set<Date> =
             (AppPrefs.shared.isHolidayGreyWeekend() && AppPrefs.shared.isHolidayIgnoreWorkday())
             ? workdays : []
+        let hasTransfer = tableId != nil &&
+            HolidayTransferOps.transferFor(date, AppPrefs.shared.getHolidayTransfers(tableId!)) != nil
         return decideGrey(
             date: date,
             holidays: holidays,
             workdays: workdaysForWeekend,
             greyHoliday: AppPrefs.shared.isHolidayGreyHoliday(),
             greyWeekend: AppPrefs.shared.isHolidayGreyWeekend(),
-            ignoreWorkday: AppPrefs.shared.isHolidayIgnoreWorkday()
+            ignoreWorkday: AppPrefs.shared.isHolidayIgnoreWorkday(),
+            dateHasTransfer: hasTransfer
         )
     }
 
@@ -129,14 +172,70 @@ enum HolidayManager {
         return entries
     }
 
+    /// 某年生效数据(含用户覆盖展开) + 可用性 ← getYearData
+    static func getYearData(_ year: Int) async -> HolidayYearData {
+        let cacheEntries = entriesCache[year] ?? diskCache(year)
+        // ?? 右操作数是 autoclosure 不支持 await, 拆成显式分支
+        let entries: [HolidayEntry]
+        if let cacheEntries {
+            entries = cacheEntries
+        } else {
+            entries = await getYearEntries(year)
+        }
+        if let cacheEntries { entriesCache[year] = cacheEntries }
+        let effective = HolidayRangeOps.mergeSegments(entries, AppPrefs.shared.getHolidayRanges()).active
+        // 段按日逐天展开 ← generateSequence(segment.startDate){...}
+        var effectiveEntries: [HolidayEntry] = []
+        for segment in effective {
+            var d = segment.startDate
+            while d <= segment.endDate {
+                effectiveEntries.append(HolidayEntry(date: d, name: segment.name, type: segment.type))
+                guard let next = Calendar.gregorianCST.date(byAdding: .day, value: 1, to: d) else { break }
+                d = next
+            }
+        }
+        return yearData(effectiveEntries, fetchFailed: isYearFetchFailed(year), hasCachedData: cacheEntries != nil)
+    }
+
+    /// 纯装配核 ← yearData: 用户覆盖能分类具体日期, 但不能让拉取失败的网络年对其他日期成为权威。
+    static func yearData(
+        _ entries: [HolidayEntry],
+        fetchFailed: Bool,
+        hasCachedData: Bool
+    ) -> HolidayYearData {
+        HolidayYearData(
+            entries: entries,
+            available: hasCachedData || !fetchFailed
+        )
+    }
+
+    /// 纯刷新核 ← refreshedEntries: 刷新失败且有缓存 → 保留缓存条目。
+    static func refreshedEntries(
+        cached: [HolidayEntry]?,
+        fetched: [HolidayEntry],
+        fetchFailed: Bool
+    ) -> [HolidayEntry] {
+        if fetchFailed { return cached ?? fetched }
+        return fetched
+    }
+
     /// 某年数据是否因网络原因拉取失败 ← isYearFetchFailed
     static func isYearFetchFailed(_ year: Int) -> Bool { yearFetchFailed[year] == true }
 
     /// 强制重新拉取某年条目(设置页"刷新"按钮用): 绕过内存+磁盘缓存 ← refreshYearEntries
     static func refreshYearEntries(_ year: Int) async -> [HolidayEntry] {
-        entriesCache.removeValue(forKey: year)
+        let cached = entriesCache[year] ?? diskCache(year)
+        if let cached { entriesCache[year] = cached }
         yearFetchFailed.removeValue(forKey: year)
-        return await getYearEntries(year)
+
+        let fetched = await fetchEntries(year)
+        let fetchFailed = isYearFetchFailed(year)
+        let result = refreshedEntries(cached: cached, fetched: fetched, fetchFailed: fetchFailed)
+        if !fetchFailed {
+            entriesCache[year] = fetched
+            writeDiskCache(year, fetched)
+        }
+        return result
     }
 
     /// 拉取并解析某年全部条目(带名称), 供二级页展示 ← fetchEntries
@@ -159,6 +258,10 @@ enum HolidayManager {
             if entries.isEmpty && !json.contains("\"dates\"") {
                 // 返回体异常(非预期结构)视为失败
                 await MainActor.run { yearFetchFailed[year] = true }
+            } else {
+                // 解析成功 → 清除失败标记(← Android else { yearFetchFailed.remove(year) }):
+                // 否则先前失败的年份在后续成功后仍被 isYearFetchFailed 判失败
+                await MainActor.run { yearFetchFailed.removeValue(forKey: year) }
             }
             return entries
         } catch {
@@ -204,7 +307,8 @@ enum HolidayManager {
     /**
      * 灰显判定纯函数(无网络, 单测覆盖) ← decideGrey。
      * greyHoliday/greyWeekend/ignoreWorkday 对应用户三个开关,
-     * workdays 为该年补班日集合(仅周末判定分支用到)。
+     * workdays 为该年补班日集合(仅周末判定分支用到),
+     * dateHasTransfer = 该日命中课表调休映射(issue#44)。
      */
     static func decideGrey(
         date: Date,
@@ -212,8 +316,12 @@ enum HolidayManager {
         workdays: Set<Date>,
         greyHoliday: Bool,
         greyWeekend: Bool,
-        ignoreWorkday: Bool
+        ignoreWorkday: Bool,
+        dateHasTransfer: Bool = false
     ) -> Bool {
+        // issue#44: 命中调休映射的放假日 = 那天要上课(上目标日的课), 永不灰
+        if dateHasTransfer { return false }
+
         // 法定节假日（独立开关）
         if greyHoliday && holidays.contains(date) { return true }
 

@@ -89,11 +89,11 @@ enum HolidayTransferOps {
         return String(data: data, encoding: .utf8) ?? "[]"
     }
 
-    /// JSON → 映射列表(坏行跳过; 同 sourceDate 只留最后一条; 解析失败返回空) ← decodeTransfers
+    /// JSON → 映射列表(坏行跳过; 同 sourceDate 只留最后一条; 返回按 sourceDate 升序; 解析失败返回空) ← decodeTransfers
     static func decodeTransfers(_ json: String) -> [HolidayTransferEntry] {
         guard let data = json.data(using: .utf8),
               let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
-        var bySource: [String: HolidayTransferEntry] = [:]  // key = yyyy-MM-dd, 插入序无关, 后者覆盖前者
+        var bySource: [String: HolidayTransferEntry] = [:]  // key = yyyy-MM-dd, 后者覆盖前者; 输出序与 JSON 插入序无关(下方按 sourceDate 排序)
         var order: [String] = []
         for obj in arr {
             guard let srcStr = obj["sourceDate"] as? String, let src = parseDay(srcStr) else { continue }
@@ -102,7 +102,8 @@ enum HolidayTransferOps {
             if bySource[srcStr] == nil { order.append(srcStr) }
             bySource[srcStr] = HolidayTransferEntry(sourceDate: src, targetDate: dst, segmentId: seg)
         }
-        return order.compactMap { bySource[$0] }
+        // Android: bySource.values.sortedBy { it.sourceDate } — 恒按 sourceDate 升序, 与 JSON 存储序无关
+        return order.compactMap { bySource[$0] }.sorted { dayKey($0.sourceDate) < dayKey($1.sourceDate) }
     }
 }
 

@@ -1,5 +1,6 @@
-// HolidayManagerTests.swift — ← HolidayManagerTest.kt + HolidayRangeTest.kt
-// 范围化覆盖纯逻辑: 聚合/合并/集合展开/序列化 + 灰显判定 (不触网络)。
+// HolidayManagerTests.swift — ← HolidayManagerTest.kt + HolidayRangeTest.kt +
+// HolidayGreyTransferTest.kt + HolidaySkipDecisionTest.kt
+// 范围化覆盖纯逻辑: 聚合/合并/集合展开/序列化 + 灰显判定 + 调休豁免 + 跳过决策 + 年数据可用性 (不触网络)。
 
 import XCTest
 @testable import Sleepy
@@ -10,6 +11,12 @@ final class HolidayManagerTests: XCTestCase {
     private func d(_ m: Int, _ day: Int) -> Date {
         var c = DateComponents()
         c.year = 2025; c.month = m; c.day = day; c.hour = 0
+        c.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        return Calendar(identifier: .gregorian).date(from: c)!
+    }
+    private func dy(_ y: Int, _ m: Int, _ day: Int) -> Date {
+        var c = DateComponents()
+        c.year = y; c.month = m; c.day = day; c.hour = 0
         c.timeZone = TimeZone(identifier: "Asia/Shanghai")
         return Calendar(identifier: .gregorian).date(from: c)!
     }
@@ -53,6 +60,185 @@ final class HolidayManagerTests: XCTestCase {
     func testDecideGrey_neverGreysNormalWeekdayWithoutHoliday() {
         XCTAssertFalse(HolidayManager.decideGrey(date: weekday, holidays: [], workdays: [],
                                                  greyHoliday: true, greyWeekend: true, ignoreWorkday: false))
+    }
+
+    // ===== issue#44 灰显与调休映射联动 (← HolidayGreyTransferTest.kt) =====
+    // 2026-10-01 周四法定假日; 2026-10-10 补班周六
+
+    private func dy26(_ m: Int, _ day: Int) -> Date { dy(2026, m, day) }
+
+    func testGreyTransfer_mappedSourceDateNeverGreysEvenIfHoliday() {
+        // 10/1 已映射到某目标日 → 那天上课, 不灰
+        let nationalDay = dy26(10, 1)
+        let holidays: Set<Date> = [nationalDay, dy26(10, 2), dy26(10, 3)]
+        let workdays: Set<Date> = [dy26(10, 10)]
+        let transfers = [HolidayTransferEntry(sourceDate: nationalDay, targetDate: dy26(10, 8), segmentId: "seg")]
+        let isMapped: (Date) -> Bool = { HolidayTransferOps.transferFor($0, transfers) != nil }
+        XCTAssertFalse(HolidayManager.decideGrey(
+            date: nationalDay, holidays: holidays, workdays: workdays,
+            greyHoliday: true, greyWeekend: true, ignoreWorkday: true,
+            dateHasTransfer: isMapped(nationalDay)))
+    }
+
+    func testGreyTransfer_unmappedHolidayStillGreys() {
+        let nationalDay = dy26(10, 1)
+        let holidays: Set<Date> = [nationalDay, dy26(10, 2), dy26(10, 3)]
+        let workdays: Set<Date> = [dy26(10, 10)]
+        let transfers = [HolidayTransferEntry(sourceDate: nationalDay, targetDate: dy26(10, 8), segmentId: "seg")]
+        let isMapped: (Date) -> Bool = { HolidayTransferOps.transferFor($0, transfers) != nil }
+        XCTAssertTrue(HolidayManager.decideGrey(
+            date: dy26(10, 2), // 同段未映射的假日
+            holidays: holidays, workdays: workdays,
+            greyHoliday: true, greyWeekend: true, ignoreWorkday: true,
+            dateHasTransfer: isMapped(dy26(10, 2))))
+    }
+
+    func testGreyTransfer_emptyTransfersKeepsLegacyGreyBehavior() {
+        // 兼容锁: dateHasTransfer=false 时逐位等同旧签名结果
+        let nationalDay = dy26(10, 1)
+        let holidays: Set<Date> = [nationalDay, dy26(10, 2), dy26(10, 3)]
+        let workdays: Set<Date> = [dy26(10, 10)]
+        let legacy = HolidayManager.decideGrey(
+            date: nationalDay, holidays: holidays, workdays: workdays,
+            greyHoliday: true, greyWeekend: true, ignoreWorkday: true)
+        let withFlag = HolidayManager.decideGrey(
+            date: nationalDay, holidays: holidays, workdays: workdays,
+            greyHoliday: true, greyWeekend: true, ignoreWorkday: true,
+            dateHasTransfer: false)
+        XCTAssertTrue(legacy)
+        XCTAssertEqual(legacy, withFlag)
+    }
+
+    // ===== 课程提醒"节假日跳过"纯决策核 (← HolidaySkipDecisionTest.kt) =====
+
+    func testSkipPublicHoliday_inHolidayNoTransfer_skips() {
+        let d1 = dy26(10, 1)
+        XCTAssertTrue(HolidayManager.decideSkipPublicHoliday(date: d1, holidays: [d1], dateHasTransfer: false))
+    }
+
+    func testSkipPublicHoliday_mappedTransfer_doesNotSkip() {
+        // 法定节假日但命中调休映射 → 不跳过 (当天要上课)
+        let d1 = dy26(10, 1)
+        XCTAssertFalse(HolidayManager.decideSkipPublicHoliday(date: d1, holidays: [d1], dateHasTransfer: true))
+    }
+
+    func testSkipPublicHoliday_notInHolidays_doesNotSkip() {
+        XCTAssertFalse(HolidayManager.decideSkipPublicHoliday(
+            date: dy26(10, 1), holidays: [dy26(5, 1)], dateHasTransfer: false))
+    }
+
+    func testSkipPublicHoliday_emptySetFailureState_doesNotSkip() {
+        // 空集合 网络失败态 → 不跳过 (宁误报不丢课)
+        XCTAssertFalse(HolidayManager.decideSkipPublicHoliday(
+            date: dy26(10, 1), holidays: [], dateHasTransfer: false))
+    }
+
+    // ===== isPublicHolidayCached (cache-only, 不触网络) =====
+
+    func testIsPublicHolidayCached_greyHolidaySwitchOff_returnsFalse() {
+        let original = AppPrefs.shared.isHolidayGreyHoliday()
+        AppPrefs.shared.setHolidayGreyHoliday(false)
+        defer { AppPrefs.shared.setHolidayGreyHoliday(original) }
+        XCTAssertFalse(HolidayManager.isPublicHolidayCached(dy26(10, 1), tableId: 1))
+    }
+
+    func testIsPublicHolidayCached_unknownYearEmptyData_doesNotSkip() {
+        // 远未来年份: 无内存/磁盘缓存 → 节假日集合为空 → 不跳过 (宁误报不丢课); 全程无网络 I/O
+        let farYearDate = dy(2099, 1, 1)
+        XCTAssertFalse(HolidayManager.isPublicHolidayCached(farYearDate))
+    }
+
+    // ===== 年数据可用性 (← HolidayManagerTest.kt year-data cases) =====
+
+    func testYearData_effectiveEntriesPreserveNetworkRowsRemovedByUserOverrides() {
+        let effectiveEntry = entry(1, 1, "New Year", HolidayManager.TYPE_PUBLIC_HOLIDAY)
+        let result = HolidayManager.yearData([effectiveEntry], fetchFailed: false, hasCachedData: true)
+        XCTAssertEqual(result.entries, [effectiveEntry])
+        XCTAssertTrue(result.available)
+    }
+
+    func testYearData_mergedUserOverrideParticipatesInPolicyClassification() {
+        let ov = range("user-holiday", "User holiday", holiday, holiday,
+                       HolidayManager.TYPE_PUBLIC_HOLIDAY, nil)
+        let merged = HolidayRangeOps.mergeSegments([], [ov])
+        let sets = HolidayRangeOps.toSets(merged.active)
+        let result = HolidayReminderPolicy.decide(
+            date: holiday,
+            publicHolidays: sets.holidays,
+            transferWorkdays: sets.workdays,
+            transfers: [],
+            rulesEnabled: true,
+            publicHolidayReminder: false,
+            transferHolidayReminder: true,
+            makeupWorkdayReminder: true,
+            ordinaryWeekendReminder: true,
+            dataAvailable: true)
+        XCTAssertTrue(sets.holidays.contains(holiday))
+        XCTAssertEqual(result.category, .publicHoliday)
+        XCTAssertFalse(result.allowReminder)
+    }
+
+    func testYearData_unavailableEmptyFetchDistinctFromSuccessfulEmptyYear() {
+        let unavailable = HolidayManager.yearData([], fetchFailed: true, hasCachedData: false)
+        let successfulEmpty = HolidayManager.yearData([], fetchFailed: false, hasCachedData: true)
+        XCTAssertFalse(unavailable.available)
+        XCTAssertTrue(unavailable.entries.isEmpty)
+        let unavailableDecision = HolidayReminderPolicy.decide(
+            date: holiday,
+            publicHolidays: [],
+            transferWorkdays: [],
+            transfers: [],
+            rulesEnabled: true,
+            publicHolidayReminder: false,
+            transferHolidayReminder: false,
+            makeupWorkdayReminder: false,
+            ordinaryWeekendReminder: false,
+            dataAvailable: unavailable.available)
+        XCTAssertEqual(unavailableDecision.category, .dataUnavailable)
+        XCTAssertTrue(unavailableDecision.allowReminder)
+        XCTAssertTrue(successfulEmpty.available)
+        XCTAssertTrue(successfulEmpty.entries.isEmpty)
+    }
+
+    func testYearData_overrideEntriesDoNotMakeFailedNetworkDataAvailable() {
+        let override = [entry(1, 1, "User holiday", HolidayManager.TYPE_PUBLIC_HOLIDAY)]
+        let result = HolidayManager.yearData(override, fetchFailed: true, hasCachedData: false)
+        XCTAssertFalse(result.available)
+        let decision = HolidayReminderPolicy.decide(
+            date: holiday,
+            publicHolidays: [holiday],
+            transferWorkdays: [],
+            transfers: [],
+            rulesEnabled: true,
+            publicHolidayReminder: false,
+            transferHolidayReminder: true,
+            makeupWorkdayReminder: true,
+            ordinaryWeekendReminder: true,
+            dataAvailable: result.available)
+        XCTAssertEqual(decision.category, .dataUnavailable)
+        XCTAssertTrue(decision.allowReminder)
+    }
+
+    // ===== 刷新失败保留缓存 (← HolidayManagerTest.kt refresh cases) =====
+
+    func testRefreshedEntries_failedRefreshWithCacheRetainsCachedEntries() {
+        let cached = [entry(1, 1, "New Year", HolidayManager.TYPE_PUBLIC_HOLIDAY)]
+        let result = HolidayManager.refreshedEntries(cached: cached, fetched: [], fetchFailed: true)
+        XCTAssertTrue(HolidayManager.yearData(result, fetchFailed: true, hasCachedData: true).available)
+        XCTAssertEqual(result, cached)
+    }
+
+    func testRefreshedEntries_failedRefreshWithoutCacheReturnsUnavailableEmptyData() {
+        let result = HolidayManager.refreshedEntries(cached: nil, fetched: [], fetchFailed: true)
+        XCTAssertEqual(result, [])
+        XCTAssertFalse(HolidayManager.yearData(result, fetchFailed: true, hasCachedData: false).available)
+    }
+
+    func testRefreshedEntries_successfulEmptyRefreshReplacesCachedDataAndRemainsAvailable() {
+        let cached = [entry(1, 1, "New Year", HolidayManager.TYPE_PUBLIC_HOLIDAY)]
+        let result = HolidayManager.refreshedEntries(cached: cached, fetched: [], fetchFailed: false)
+        XCTAssertTrue(result.isEmpty)
+        XCTAssertTrue(HolidayManager.yearData(result, fetchFailed: false, hasCachedData: true).available)
     }
 
     // ===== parseEntries (← HolidayManagerTest) =====

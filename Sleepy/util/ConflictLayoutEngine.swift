@@ -1,4 +1,4 @@
-// ConflictLayoutEngine.swift — ← util/ConflictLayoutEngine.kt (574 行, 终态 v7.10.16s, 逐行翻译, GPL-3.0)
+// ConflictLayoutEngine.swift — ← util/ConflictLayoutEngine.kt (终态 v1.0.61 / v7.10.16u+, 逐行翻译, GPL-3.0)
 // Sleepy iOS — 100% port of sleepy Android
 // 网格/周视图冲突布局引擎 — 纯函数,零 SwiftUI 依赖。
 
@@ -46,13 +46,19 @@ private struct LayerSortKey: Comparable {
 
 enum ConflictLayoutEngine {
 
-    /// 找出全部冲突簇。输出簇间按 day 升序,簇内课程已按主课判定序排好。
-    ///
-    /// timeJson 非空(推荐,渲染主链路): ownTime 课的真实时间区间(分钟级)参与聚簇 —
-    /// 跨节次空隙反算出的节点范围不再制造假冲突(用户 2026-09-09: 12:30 结束跨午间
-    /// 空隙被吸进 14:00 节 = 报障本体)。节点区间只用于排序/簇内几何, 重叠判定一律
-    /// 按分钟区间。真实时间不重叠的课绝不入簇。
-    /// timeJson 为空(旧调用方兼容): 行为与历史版本完全一致 — 节点区间相交即聚簇。
+    /**
+     * 找出全部冲突簇。输出簇间按 day 升序,簇内课程已按主课判定序排好。
+     *
+     * timeJson 非空(推荐,渲染主链路): ownTime 课的真实时间区间(分钟级)参与聚簇 —
+     * 跨节次空隙反算出的节点范围不再制造假冲突(用户 2026-09-09: 12:30 结束跨午间
+     * 空隙被吸进 14:00 节 = 报障本体)。比较基准:
+     *   - ownTime 课 = startTime~endTime 本身
+     *   - 常规课     = 其节次的真实起止时间(effectiveCourseTime 同一契约)
+     * 节点区间只用于排序/簇内几何, 重叠判定一律按分钟区间。真实时间不重叠的课绝不入簇。
+     *
+     * timeJson 为空(旧调用方兼容): 行为与历史版本完全一致 — 节点区间 [startNode,
+     * startNode+step-1] 相交即聚簇。
+     */
     static func findClusters(_ courses: [CourseEntity], timeJson: String? = nil) -> [ConflictCluster] {
         // 按 day 分组 → 簇内按 startNode 升序,线性扫相邻区间合并 → 仅保留 size≥2 的簇
         let byDay = Dictionary(grouping: courses, by: { $0.day }).sorted { $0.key < $1.key }
@@ -86,17 +92,30 @@ enum ConflictLayoutEngine {
      * 布局一簇: 返回全簇课,输出顺序 = zRank 升序(主课判定序;topOverrideId 命中时该课
      * 所在图层整体提到 zRank 0,其余保持图层间相对顺序,层内按 startNode 升序拼接)。
      *
-     * style ∈ "stack"/"fold"/"rail";stack 在 N≥3 时合流为 FOLD。
-     * maxNode 非 nil 时 hidden 与渲染同一裁剪空间(区间 clamp 进 [1, maxNode])。
+     * style ∈ "stack"/"fold"/"rail",按样式直配(v7.10.16u;旧版 stack 在 N≥3
+     * 合流为 FOLD,层身份职责已移交轮换 + N 徽标后撤销)。
+     *
+     * maxNode(可空,final fix wave Important): UI 渲染把每课区间 clamp 进 [1, maxNode]
+     * (startNode > maxNode 的课整课不画,step 截到不越界)。hidden 必须在同一裁剪空间算,
+     * 否则「界外尾部节次独占」的课会被判非 hidden 拿不到标记,UI 裁剪后却零视觉零 tap。
+     * 非 null 时先 clamp 再算露出(全被 clamp 出区间 → 露出集空 → hidden);null 同不裁剪。
      *
      * v7.8 图层语义: layers = chainGroups(courses) — 反复提取最大互不重叠集合。
+     *   默认态: 全局主序最高课所在图层置顶,其余层按【层首课主序】垫后。
+     *   override: 被点课所在图层整体置顶。
+     *   v7.10.16r 交叉验证修订: layerOrderOverride(完整层序,轮换通道)优先 —
+     *     按 rep id(层内 maxWith(primaryComparator),与 defaultLayerIdOrder/
+     *     memberToLayerRep 三处同键)逐层映射,未知 id 跳过、重复 id 去重(评审 cycle2 #6:
+     *     override 重复会让同一层被收集两次双绘)、缺失层按默认序补尾(层集合完备);
+     *     无该参数时原 topOverrideId 语义不变(两通道互斥)。
      * v7.10.16m/n: fold 样式一切非置顶图层 hidden=true(虚线语言);STACK/RAIL 沉底真卡。
      */
     static func layoutCluster(
         _ cluster: ConflictCluster,
         style: String,
         topOverrideId: Int64? = nil,
-        maxNode: Int? = nil
+        maxNode: Int? = nil,
+        layerOrderOverride: [Int64]? = nil
     ) -> [LaidOutCourse] {
         let ordered = primaryOrder(cluster.courses)
         _ = ordered // (Kotlin 原文同样只用于文档语义;z 序实际来自图层构建)
@@ -108,20 +127,36 @@ enum ConflictLayoutEngine {
         let hasChainLayer = layers.contains { $0.count >= 2 }
 
         // 层间默认序: LayerSortKey = (-step, startNode, id) 升序 — step 反转 ≡ primaryComparator
+        // 层代表 = 层内 maxWith(primaryComparator)(v7.10.16r 交叉验证修订: 链层 first()
+        // 未必是代表,三处必须同键 — 见 defaultLayerIdOrder/memberToLayerRep)。
         let defaultLayerOrder: [[CourseEntity]] = layers.sorted { ga, gb in
             let ta = ga.max(by: primaryComparator)!
             let tb = gb.max(by: primaryComparator)!
             return LayerSortKey(a: -ta.step, b: ta.startNode, c: ta.id)
                 < LayerSortKey(a: -tb.step, b: tb.startNode, c: tb.id)
         }
-        // z 序构造: override 命中则该层整体前移, 否则按默认序
-        // (Swift 数组是值类型,用层代表 id 判同一性 — Kotlin `it !== front` 语义等价)
+        // 层代表 id(去重/判同一性用): Swift 数组是值类型,用 maxWith 代表 id 判
+        // 「同一层」 — Kotlin `it !== front` 语义等价(每课恰属一层,层代表 id 层间唯一)。
+        func repId(_ g: [CourseEntity]) -> Int64 { g.max(by: primaryComparator)!.id }
+        // z 序构造(v7.10.16r 交叉验证修订): layerOrderOverride(完整层序,轮换通道)
+        // 优先 — 按 rep id 逐层映射,未知 id 跳过、缺失层按默认序补尾(层集合完备);
+        // 无 override 时原 topOverrideId 语义不变(该层整体前移,其余默认序垫后)。
         var orderedLayers: [[CourseEntity]]
-        if let ov = topOverrideId, let front = layerOfId[ov] {
-            let frontRep = front.map { $0.id }.min(by: { $0 < $1 }) ?? -1
-            orderedLayers = [front] + defaultLayerOrder.filter { g in
-                (g.map { $0.id }.min(by: { $0 < $1 }) ?? -2) != frontRep
+        if let override = layerOrderOverride {
+            var byRep: [Int64: [CourseEntity]] = [:]
+            for g in defaultLayerOrder { byRep[repId(g)] = g }
+            // 去重防御(评审 cycle2 #6): override 序重复 id 会让同一层被收集两次双绘;
+            // 按 rep id 去重保留首个命中,缺失层仍按默认序补尾(层集合完备)。
+            var seen = Set<Int64>()
+            var front: [[CourseEntity]] = []
+            for rid in override {
+                if let g = byRep[rid], seen.insert(rid).inserted { front.append(g) }
             }
+            for g in defaultLayerOrder where !seen.contains(repId(g)) { front.append(g) }
+            orderedLayers = front
+        } else if let ov = topOverrideId, let front = layerOfId[ov] {
+            let frontRep = repId(front)
+            orderedLayers = [front] + defaultLayerOrder.filter { repId($0) != frontRep }
         } else {
             orderedLayers = defaultLayerOrder
         }
@@ -190,18 +225,29 @@ enum ConflictLayoutEngine {
     }
 
     /**
-     * hidden 课的 variant 映射(v7.10.16f): rail 直配;fold 永远 FOLD(删同起点回落);
-     * stack 样式 N≥3 图层合流 FOLD 保留。chainMode=true 时按样式直配。
+     * hidden 课的 variant 映射(v7.10.16u, 用户 2026-09-04 报「叠层偏移怎么没了」):
+     * 三种 style 全部直配。v7.10.16f 的「stack N≥3 合流 FOLD」撤销 —
+     * 当初合流的理由是 4dp 偏移边承载不了三层语义,但 v7.10.16r 轮换上线后
+     * 层身份已由轮换点击 + N 徽标承载,偏移边不再背负该职责,
+     * 用户选叠层就该看到叠层(哪怕三层)。
+     * rail 直配;**fold 永远 FOLD** — 删除 v3 的同起点回落
+     * (「折角样式下肯定是永远折角的」;起点不齐的错位缺口是折角固有形态)。
+     * 链式模式(chainMode=true): hidden 课是被链组全遮的重叠者,按样式直配。
+     *
+     * v7.6 图层语义(历史): clusterSize 形参曾以「图层数」驱动 N≥3 合流判定
+     * (链组整组算 1 层);合流撤销后该形参不再参与分派,仅为调用兼容保留。
      */
     private static func variantFor(
         _ style: String,
         _ clusterSize: Int,
         chainMode: Bool = false
     ) -> ConflictVariant {
+        _ = clusterSize // v7.10.16u 起不参与分派
         if style == "rail" { return .rail }
+        // 链式模式: hidden 课=被链组全遮的重叠者,直接按样式走
         if chainMode { return style == "fold" ? .fold : .stack }
+        // v7.10.16f(用户 2026-09-03): 折角样式永远折角 — 删除同起点回落
         if style == "fold" { return .fold }
-        if clusterSize >= 3 { return .fold }
         return .stack
     }
 
@@ -276,8 +322,16 @@ enum ConflictLayoutEngine {
     static func weekLaneSegments(_ courses: [CourseEntity]) -> [WeekLaneSegment] {
         if courses.isEmpty { return [] }
         var out: [WeekLaneSegment] = []
-        let byDay = Dictionary(grouping: courses, by: { $0.day })
-        for (_, dayCourses) in byDay {
+        // 分组保序 (Kotlin groupBy = LinkedHashMap 语义, 按输入遇到 day 的顺序),
+        // 跨天输入时 segment 顺序才确定 — 与 weekLaneRows 同一 dayOrder 模式。
+        var dayOrder: [Int] = []
+        var byDay: [Int: [CourseEntity]] = [:]
+        for c in courses {
+            if byDay[c.day] == nil { dayOrder.append(c.day) }
+            byDay[c.day, default: []].append(c)
+        }
+        for day in dayOrder {
+            let dayCourses = byDay[day] ?? []
             let sorted = dayCourses.sorted {
                 if $0.startNode != $1.startNode { return $0.startNode < $1.startNode }
                 if $0.step != $1.step { return $0.step < $1.step }
@@ -480,12 +534,21 @@ enum ConflictLayoutEngine {
     // v7.10.16r N≥3 轮换置顶 (issue#10)
     // =====================================================================================
 
-    /// 簇的「默认图层序」— 每图层的代表 id,按 layoutCluster 同一真值排序。
+    /// 簇的「默认图层序」— 每图层的代表 id,按 layoutCluster 同一真值排序:
+    /// 图层按其代表课(maxWith(primaryComparator))的 (-step, startNode, id) 升序 —
+    /// 与 layoutCluster.defaultLayerOrder 完全一致。
+    /// 代表判定与 memberToLayerRep / layoutCluster.layerOrderOverride 三处同键:
+    /// 均为层内 maxWith(primaryComparator) — 链层(成员 step 不等)的 first() 未必是
+    /// 代表,两约定分裂会让气泡选课 indexOf=-1 静默无效(评审 cycle2 #1)。
+    /// 注意 maxWith 语义 = 比较器下最大者: step 最小者最「大」;同 step 取 startNode 最大 —
+    /// 与 primaryOrder「主序最前」(startNode 最小)是两端,层代表固定取 maxWith 端。
     static func defaultLayerIdOrder(_ courses: [CourseEntity]) -> [Int64] {
-        orderedDefaultLayers(courses).map { $0.first!.id }
+        orderedDefaultLayers(courses).map { $0.max(by: primaryComparator)!.id }
     }
 
     /// 簇的「默认图层序」完整形态: 排序后的图层本体(每层 = 成员课列表)。
+    /// defaultLayerIdOrder / 轮换 UI 的成员→层代表反查共用,保证单一真值。
+    /// 层代表 = maxWith(primaryComparator)(与 badge/详情 radio 的 rep 语义一致)。
     private static func orderedDefaultLayers(_ courses: [CourseEntity]) -> [[CourseEntity]] {
         chainGroups(courses).sorted { ga, gb in
             let ta = ga.max(by: primaryComparator)!
@@ -495,11 +558,30 @@ enum ConflictLayoutEngine {
         }
     }
 
-    /// 成员课 id → 其所在图层的代表 id(默认序;代表 = 层内主课判定序最前课)。
+    /// 置顶感知轮换基准序(评审 #4): 用户置顶层(topRepId)永远排基准首位,其余层保持
+    /// 默认相对序。整周期轮换(步数 ≡ 0 mod N)时轮换序 === 基准序 → 用户置顶层自动
+    /// 回到顶部,持久化偏好不被临时轮换遮蔽。topRepId 为 nil / 不在簇内 → 退回默认序。
+    static func overrideAwareLayerOrder(_ courses: [CourseEntity], topRepId: Int64?) -> [Int64] {
+        let defaultOrder = defaultLayerIdOrder(courses)
+        guard let top = topRepId, defaultOrder.contains(top) else { return defaultOrder }
+        return [top] + defaultOrder.filter { $0 != top }
+    }
+
+    /// 气泡徽标文案(评审 #3): 「+N」= 层数 - 2(默认两层已显示),按层计不按课数,
+    /// 轮换中恒定;层数 <2 → 0(不显示)。
+    /// 基数裁定(评审 cycle2 #2, trade-off 有意为之): layerCount 用**全量簇层数**,
+    /// 不按网格内可渲染层裁剪 — 徽标 +N 与气泡弹窗候选(picker 全量层)必须一致,
+    /// 出界层(整课 > maxNode)在弹窗里照样可选中并轮换到顶。
+    static func hiddenLayerCount(_ layerCount: Int) -> Int { max(layerCount - 2, 0) }
+
+    /// 成员课 id → 其所在图层的代表 id(maxWith(primaryComparator),与
+    /// overrideAwareLayerOrder / defaultLayerIdOrder / layoutCluster.layerOrderOverride
+    /// 三处同键 — 评审 cycle2 #1)。
+    /// 气泡弹窗点选任意成员时反查该层在轮换序中的位置。
     static func memberToLayerRep(_ courses: [CourseEntity]) -> [Int64: Int64] {
         var out: [Int64: Int64] = [:]
         for layer in orderedDefaultLayers(courses) {
-            let rep = layer.first!.id
+            let rep = layer.max(by: primaryComparator)!.id
             for c in layer { out[c.id] = rep }
         }
         return out

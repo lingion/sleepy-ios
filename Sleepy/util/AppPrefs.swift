@@ -20,11 +20,13 @@ final class AppPrefs {
     static let KEY_BEFORE_CLASS_BANNER = "before_class_banner"         // bool default true
     static let KEY_BEFORE_CLASS_FLUID = "before_class_fluid"            // bool default false
     static let KEY_BEFORE_CLASS_FLUID_FIELDS = "before_class_fluid_fields" // legacy multi-select
-    // ← v1.0.60 新增: 次日预告 + 上课自动勿扰
+    // ← v1.0.60 新增: 次日预告 + 当日提醒 + 上课自动勿扰
     static let KEY_TOMORROW_REMINDER_ENABLED = "tomorrow_reminder"             // bool default false
     static let KEY_TOMORROW_REMINDER_TIME = "tomorrow_reminder_time"           // "HH:mm" default "22:00"
     static let DEFAULT_TOMORROW_REMINDER_ENABLED = false
     static let DEFAULT_TOMORROW_REMINDER_TIME = "22:00"
+    static let KEY_TODAY_REMINDER_ENABLED = "today_reminder"                   // bool default true ← KEY_TODAY_REMINDER_ENABLED
+    static let DEFAULT_TODAY_REMINDER_ENABLED = true
     static let KEY_CLASS_DND_ENABLED = "class_dnd_enabled"                     // bool default false — 上课自动勿扰
     static let KEY_BEFORE_CLASS_FLUID_PRIMARY = "before_class_fluid_primary" // name/time/room
     static let KEY_THEME = "theme_key"
@@ -70,6 +72,19 @@ final class AppPrefs {
     static let KEY_WEEK_USE_ALIAS = "week_use_alias"  // bool default false — 周视图显示别名 (issue#26)
     static let KEY_GRID_USE_ALIAS = "grid_use_alias"  // bool default false — 网格视图显示别名 (issue#26)
     static let KEY_WIDGET_USE_ALIAS = "widget_use_alias"  // bool default false — widget 场景显示别名 (issue#26, 全局一档)
+    // ★ 实验室开关组(← AppPrefs.kt KEY_GRID_* v1.0.56): CourseTableView.GridLabPrefs 直读
+    //   的正式归属地; UserDefaults.standard 与 AppPrefs.shared 默认 suite 同源, 行为等价。
+    static let KEY_GRID_AUTO_HIDE_EMPTY_EVENING = "grid_auto_hide_empty_evening" // bool default false — 自动收起无课晚间节次
+    static let KEY_GRID_ADAPTIVE_HEIGHT = "grid_adaptive_height" // bool default false — 自适应行高(默认固定 52dp 基座)
+    static let KEY_GRID_EVENING_START = "grid_evening_start"     // "HH:mm" default 18:00 — 晚间起始时间(用户自定义)
+    static let KEY_GRID_ROW_SCALE = "grid_row_scale"             // Float default 1.0 — 双指行高缩放确认值(相对基座; Android 读侧不钳制)
+    static let KEY_GRID_PINCH_ZOOM = "grid_pinch_zoom"           // bool default false — 双指捏放行高(v1.0.56 默认关, 关=手势不挂; 存量缩放值不清)
+    static let DEFAULT_GRID_PINCH_ZOOM = false
+    static let KEY_GRID_SHOW_SEPARATORS = "grid_show_separators" // bool default false — 网格额外分隔线
+    static let DEFAULT_GRID_SHOW_SEPARATORS = false
+    static let KEY_GRID_LONG_BREAK_SPACING = "grid_long_break_spacing" // bool default false — 长课间额外留白
+    static let DEFAULT_GRID_LONG_BREAK_SPACING = false
+    static let KEY_SHOW_VIEW_SWITCHER = "show_view_switcher"     // bool default true — 首页周/网格视图切换栏显隐(GeneralSettingsScreen.LabPrefs 正式归属地)
     // ★ widget v1.0.60 对齐键 (← AppPrefs.kt)
     static let KEY_NEAREST_BUSY_DAY = "nearest_busy_day" // bool default false — 今天没课时自动显示最近一个有课的日子
     static let KEY_COMPACT_WINDOW_TODAY_FIRST = "compact_window_today_first" // bool default true — 最小档三天窗口锚点(2026-09-15 用户令)
@@ -175,6 +190,12 @@ final class AppPrefs {
 
     // MARK: - v1.0.60 次日预告提醒
 
+    /// 当日提醒子闸 — default true (← Android isTodayReminderEnabled getBoolean(key, DEFAULT_TODAY_REMINDER_ENABLED=true))
+    func isTodayReminderEnabled() -> Bool {
+        sp().object(forKey: Self.KEY_TODAY_REMINDER_ENABLED) as? Bool ?? Self.DEFAULT_TODAY_REMINDER_ENABLED
+    }
+    func setTodayReminderEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_TODAY_REMINDER_ENABLED) }
+
     func isTomorrowReminderEnabled() -> Bool {
         sp().object(forKey: Self.KEY_TOMORROW_REMINDER_ENABLED) as? Bool ?? Self.DEFAULT_TOMORROW_REMINDER_ENABLED
     }
@@ -213,7 +234,8 @@ final class AppPrefs {
     }
 
     func setBeforeClassFluidPrimary(_ value: String) {
-        precondition(value == "name" || value == "time" || value == "room")
+        // ← Android require(name|time|room|countdown) v1.0.61: countdown 是合法主字段
+        precondition(value == "name" || value == "time" || value == "room" || value == "countdown")
         // ★ 只写 PRIMARY;不再覆盖 FIELDS(多选字段集),否则用户配置的多字段组合被冲掉。
         sp().set(value, forKey: Self.KEY_BEFORE_CLASS_FLUID_PRIMARY)
     }
@@ -240,12 +262,13 @@ final class AppPrefs {
 
     // ===== 显示模式:节次 / 时间 =====
 
-    func getDisplayMode() -> String { sp().string(forKey: Self.KEY_DISPLAY_MODE) ?? "node" }
+    /// 显示模式出厂默认 "time"(时间段) — 用户 2026-09-14 指令, ← Android getString(KEY_DISPLAY_MODE, "time")
+    func getDisplayMode() -> String { sp().string(forKey: Self.KEY_DISPLAY_MODE) ?? "time" }
     func setDisplayMode(_ mode: String) { sp().set(mode, forKey: Self.KEY_DISPLAY_MODE) }
 
-    /// 启动默认视图 — ← AppPrefs.getStartView Android (默认 "full")。仅通用设置里设置,
-    /// 手动切换课表顶部视图不写入(Android 注释硬规则, iOS 一致遵循)。
-    func getStartView() -> String { sp().string(forKey: Self.KEY_START_VIEW) ?? "full" }
+    /// 启动默认视图 — ← AppPrefs.getStartView Android (出厂默认 "cards": 用户反馈网格更好用)。
+    /// 仅通用设置里设置, 手动切换课表顶部视图不写入(Android 注释硬规则, iOS 一致遵循)。
+    func getStartView() -> String { sp().string(forKey: Self.KEY_START_VIEW) ?? "cards" }
     func setStartView(_ mode: String) {
         precondition(mode == "full" || mode == "cards")
         sp().set(mode, forKey: Self.KEY_START_VIEW)
@@ -326,33 +349,39 @@ final class AppPrefs {
     // iOS 无 changeBus:渲染层在 body 内直读(靠设置页关闭触发父级重建重算),与冲突滑杆同模式。
 
     func getGridScale() -> Double {
-        let v = sp().double(forKey: Self.KEY_GRID_SCALE)
-        return v == 0 ? 1.0 : v
+        // ← Android getFloat(key, 1.0f).coerceIn(0.7f, 1.3f): 读侧钳制(存量越界值安全落地)
+        let v = sp().object(forKey: Self.KEY_GRID_SCALE) as? Double ?? 1.0
+        return min(max(v, Self.GRID_SCALE_RANGE.lowerBound), Self.GRID_SCALE_RANGE.upperBound)
     }
 
     func setGridScale(_ value: Double) {
-        precondition(Self.GRID_SCALE_RANGE.contains(value))
-        sp().set(value, forKey: Self.KEY_GRID_SCALE)
+        // ← Android setter 静默 coerceIn(0.7f, 1.3f), 不抛
+        sp().set(min(max(value, Self.GRID_SCALE_RANGE.lowerBound), Self.GRID_SCALE_RANGE.upperBound),
+                 forKey: Self.KEY_GRID_SCALE)
     }
 
     func getWeekScale() -> Double {
-        let v = sp().double(forKey: Self.KEY_WEEK_SCALE)
-        return v == 0 ? 1.0 : v
+        // ← Android getFloat(key, 1.0f).coerceIn(0.7f, 1.3f)
+        let v = sp().object(forKey: Self.KEY_WEEK_SCALE) as? Double ?? 1.0
+        return min(max(v, Self.GRID_SCALE_RANGE.lowerBound), Self.GRID_SCALE_RANGE.upperBound)
     }
 
     func setWeekScale(_ value: Double) {
-        precondition(Self.GRID_SCALE_RANGE.contains(value))
-        sp().set(value, forKey: Self.KEY_WEEK_SCALE)
+        // ← Android setter 静默 coerceIn(0.7f, 1.3f)
+        sp().set(min(max(value, Self.GRID_SCALE_RANGE.lowerBound), Self.GRID_SCALE_RANGE.upperBound),
+                 forKey: Self.KEY_WEEK_SCALE)
     }
 
     func getGridCornerRatio() -> Double {
-        let v = sp().double(forKey: Self.KEY_GRID_CORNER_RATIO)
-        return v == 0 ? 1.0 : v
+        // ← Android getFloat(key, 1.0f).coerceIn(0f, 2f)
+        let v = sp().object(forKey: Self.KEY_GRID_CORNER_RATIO) as? Double ?? 1.0
+        return min(max(v, Self.CORNER_RATIO_RANGE.lowerBound), Self.CORNER_RATIO_RANGE.upperBound)
     }
 
     func setGridCornerRatio(_ value: Double) {
-        precondition(Self.CORNER_RATIO_RANGE.contains(value))
-        sp().set(value, forKey: Self.KEY_GRID_CORNER_RATIO)
+        // ← Android setter 静默 coerceIn(0f, 2f)
+        sp().set(min(max(value, Self.CORNER_RATIO_RANGE.lowerBound), Self.CORNER_RATIO_RANGE.upperBound),
+                 forKey: Self.KEY_GRID_CORNER_RATIO)
     }
 
     func isWeekTwoColumn() -> Bool { sp().bool(forKey: Self.KEY_WEEK_TWO_COLUMN) }
@@ -361,7 +390,10 @@ final class AppPrefs {
     func getWeekTwoColumnMode() -> String {
         sp().string(forKey: Self.KEY_WEEK_TWO_COLUMN_MODE) ?? "days"
     }
-    func setWeekTwoColumnMode(_ v: String) { sp().set(v, forKey: Self.KEY_WEEK_TWO_COLUMN_MODE) }
+    func setWeekTwoColumnMode(_ v: String) {
+        // ← Android: if (v == "balance") "balance" else "days" — 任意其它值静默归一为 "days"
+        sp().set(v == "balance" ? "balance" : "days", forKey: Self.KEY_WEEK_TWO_COLUMN_MODE)
+    }
 
     func isWeekHideEmptyDays() -> Bool { sp().bool(forKey: Self.KEY_WEEK_HIDE_EMPTY_DAYS) }
     func setWeekHideEmptyDays(_ v: Bool) { sp().set(v, forKey: Self.KEY_WEEK_HIDE_EMPTY_DAYS) }
@@ -422,7 +454,10 @@ final class AppPrefs {
 
     // ===== 网格显示日期 =====
 
-    func isShowDate() -> Bool { sp().bool(forKey: Self.KEY_SHOW_DATE) }
+    /// 出厂默认 true ← Android getBoolean(KEY_SHOW_DATE, true) (用户反馈找不到开关, 直接默认开)
+    func isShowDate() -> Bool {
+        sp().object(forKey: Self.KEY_SHOW_DATE) as? Bool ?? true
+    }
     func setShowDate(_ v: Bool) { sp().set(v, forKey: Self.KEY_SHOW_DATE) }
 
     // ===== 可见天 =====
@@ -463,9 +498,12 @@ final class AppPrefs {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// 最小档三天窗口锚点全局旧值 — 默认 true (← KEY_COMPACT_WINDOW_TODAY_FIRST)
+    /// 最小档三天窗口锚点全局旧值 — 默认 true (← Android getBoolean(KEY_COMPACT_WINDOW_TODAY_FIRST, true);
+    /// 2026-09-15 用户令: 未写入过时今日居第一位)
     /// 仅作 per-kind 显式值未设置时的迁移默认 (WidgetCompactWindowStore.resolve)
-    func isCompactWindowTodayFirst() -> Bool { sp().bool(forKey: Self.KEY_COMPACT_WINDOW_TODAY_FIRST) }
+    func isCompactWindowTodayFirst() -> Bool {
+        sp().object(forKey: Self.KEY_COMPACT_WINDOW_TODAY_FIRST) as? Bool ?? true
+    }
     func setCompactWindowTodayFirst(_ v: Bool) {
         sp().set(v, forKey: Self.KEY_COMPACT_WINDOW_TODAY_FIRST)
         WidgetCenter.shared.reloadAllTimelines()
@@ -522,7 +560,8 @@ final class AppPrefs {
     }
 
     // ===== 节假日提醒规则开关 (v1.0.60 对齐) =====
-    // 默认全 true ← Android 同名 KEY, sp().getBoolean(KEY, true)
+    // 总开关默认 false(← Android getBoolean(KEY_HOLIDAY_REMINDER_RULES_ENABLED, false) —
+    // 出厂不自动开启规则, 用户显式打开), 四类规则子开关默认 true(← getBoolean(KEY, true))。
     static let KEY_HOLIDAY_REMINDER_RULES_ENABLED = "holiday_reminder_rules_enabled"
     static let KEY_HOLIDAY_REMINDER_PUBLIC_HOLIDAY = "holiday_reminder_public_holiday"
     static let KEY_HOLIDAY_REMINDER_TRANSFER_HOLIDAY = "holiday_reminder_transfer_holiday"
@@ -533,7 +572,9 @@ final class AppPrefs {
         sp().object(forKey: key) as? Bool ?? true
     }
 
-    func isHolidayReminderRulesEnabled() -> Bool { reminderFlag(Self.KEY_HOLIDAY_REMINDER_RULES_ENABLED) }
+    func isHolidayReminderRulesEnabled() -> Bool {
+        sp().object(forKey: Self.KEY_HOLIDAY_REMINDER_RULES_ENABLED) as? Bool ?? false
+    }
     func setHolidayReminderRulesEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_HOLIDAY_REMINDER_RULES_ENABLED) }
     func isHolidayReminderPublicHolidayEnabled() -> Bool { reminderFlag(Self.KEY_HOLIDAY_REMINDER_PUBLIC_HOLIDAY) }
     func setHolidayReminderPublicHolidayEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_HOLIDAY_REMINDER_PUBLIC_HOLIDAY) }
@@ -566,7 +607,10 @@ final class AppPrefs {
         sp().set(range, forKey: Self.KEY_CALENDAR_IMPORT_RANGE)
     }
 
-    func isCalendarApplyTransfers() -> Bool { sp().bool(forKey: Self.KEY_CALENDAR_APPLY_TRANSFERS) }
+    // ← Android 同名 KEY 默认值 1:1 (apply_transfers=true, first_alarm=false)
+    func isCalendarApplyTransfers() -> Bool {
+        sp().object(forKey: Self.KEY_CALENDAR_APPLY_TRANSFERS) as? Bool ?? true
+    }
     func setCalendarApplyTransfers(_ enabled: Bool) { sp().set(enabled, forKey: Self.KEY_CALENDAR_APPLY_TRANSFERS) }
 
     /// nil = 日历事件不加普通提醒(← Android sp.getInt(KEY, 15).takeIf { it >= 0 }; -1 = 关)
@@ -652,6 +696,59 @@ final class AppPrefs {
     func setPeriodHeaderShowX(_ value: Bool) {
         sp().set(value, forKey: Self.KEY_PERIOD_HEADER_SHOW_X)
     }
+
+    // MARK: - 实验室开关组 getter(← AppPrefs.kt KEY_GRID_* / KEY_SHOW_VIEW_SWITCHER, v1.0.56)
+    // GeneralSettingsScreen.LabPrefs / CourseTableView.GridLabPrefs 此前经 UserDefaults.standard
+    // 同源直读(AppPrefs.shared 默认 suite 即 standard), 行为等价; 本组为正式归属地。
+    // iOS 无 changeBus: 渲染层 body 内直读, 写入无需广播。
+
+    /// 自动收起无课晚间节次 — default false ← isGridAutoHideEmptyEvening
+    func isGridAutoHideEmptyEvening() -> Bool {
+        sp().object(forKey: Self.KEY_GRID_AUTO_HIDE_EMPTY_EVENING) as? Bool ?? false
+    }
+    func setGridAutoHideEmptyEvening(_ v: Bool) { sp().set(v, forKey: Self.KEY_GRID_AUTO_HIDE_EMPTY_EVENING) }
+
+    /// 自适应行高(默认固定 52dp 基座) — default false ← isGridAdaptiveHeight
+    func isGridAdaptiveHeight() -> Bool {
+        sp().object(forKey: Self.KEY_GRID_ADAPTIVE_HEIGHT) as? Bool ?? false
+    }
+    func setGridAdaptiveHeight(_ v: Bool) { sp().set(v, forKey: Self.KEY_GRID_ADAPTIVE_HEIGHT) }
+
+    /// 晚间起始时间 "HH:mm" — default "18:00" ← getGridEveningStart
+    func getGridEveningStart() -> String {
+        sp().string(forKey: Self.KEY_GRID_EVENING_START) ?? "18:00"
+    }
+    func setGridEveningStart(_ v: String) { sp().set(v, forKey: Self.KEY_GRID_EVENING_START) }
+
+    /// 双指行高缩放确认值 — default 1.0 ← getGridRowScale(Android 读侧不钳制, iOS 一致)
+    func getGridRowScale() -> Double {
+        sp().object(forKey: Self.KEY_GRID_ROW_SCALE) as? Double ?? 1.0
+    }
+    func setGridRowScale(_ v: Double) { sp().set(v, forKey: Self.KEY_GRID_ROW_SCALE) }
+
+    /// 双指捏放行高 — default false(v1.0.56 默认关, 关=手势不挂) ← isGridPinchZoom
+    func isGridPinchZoom() -> Bool {
+        sp().object(forKey: Self.KEY_GRID_PINCH_ZOOM) as? Bool ?? Self.DEFAULT_GRID_PINCH_ZOOM
+    }
+    func setGridPinchZoom(_ v: Bool) { sp().set(v, forKey: Self.KEY_GRID_PINCH_ZOOM) }
+
+    /// 网格额外分隔线 — default false ← isGridShowSeparators
+    func isGridShowSeparators() -> Bool {
+        sp().object(forKey: Self.KEY_GRID_SHOW_SEPARATORS) as? Bool ?? Self.DEFAULT_GRID_SHOW_SEPARATORS
+    }
+    func setGridShowSeparators(_ v: Bool) { sp().set(v, forKey: Self.KEY_GRID_SHOW_SEPARATORS) }
+
+    /// 长课间额外留白 — default false ← isGridLongBreakSpacing
+    func isGridLongBreakSpacing() -> Bool {
+        sp().object(forKey: Self.KEY_GRID_LONG_BREAK_SPACING) as? Bool ?? Self.DEFAULT_GRID_LONG_BREAK_SPACING
+    }
+    func setGridLongBreakSpacing(_ v: Bool) { sp().set(v, forKey: Self.KEY_GRID_LONG_BREAK_SPACING) }
+
+    /// 首页周/网格视图切换栏显隐 — default true ← isShowViewSwitcher getBoolean(key, true)
+    func isShowViewSwitcher() -> Bool {
+        sp().object(forKey: Self.KEY_SHOW_VIEW_SWITCHER) as? Bool ?? true
+    }
+    func setShowViewSwitcher(_ v: Bool) { sp().set(v, forKey: Self.KEY_SHOW_VIEW_SWITCHER) }
 
     /// 删表时清掉该表映射
     func clearHolidayTransfers(_ tableId: Int64) {

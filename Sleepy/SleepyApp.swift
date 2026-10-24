@@ -16,8 +16,10 @@
 //   - HighRefreshRate 120Hz 请求                        → 无公开 API (ProMotion 系统调度, 2026-09-10 已审计)
 //   - 权限请求序 (runtime permission)                   → 通知权限在 NotificationScheduler 首次调度时按需请求, 无独立序
 
+import Combine
 import SwiftUI
 import UIKit
+import UserNotifications
 import GRDB
 import WidgetKit
 
@@ -58,12 +60,42 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             WidgetCenter.shared.reloadAllTimelines()
             self.notificationScheduler.scheduleAll()
         }
+        // ← Android SleepyApp.onCreate: classDndScheduler 注入 (F128 issue#2)
+        ClassDndScheduler.shared.configure(repositoryProvider: { [weak self] in self?.repository })
+        // ← Android ReminderRescheduler.init 块 (SleepyApp.kt:44-52) — 同时修复 init_ 从未被调用、
+        //   全树 20+ 处 ReminderRescheduler.shared.request() 被静默丢弃的缺口。fluid-cloud 分支为
+        //   platform-only 不移植:
+        ReminderRescheduler.shared.init_(debounceMs: 300) {
+            NotificationScheduler.shared.scheduleAll()
+            ClassDndScheduler.shared.reconcileReminderRules()
+        }
+        // ← Android BootReceiver kt:808 冷启动无条件校准 (pref 关时 rebuildState 守卫 = 安全 no-op):
+        ClassDndScheduler.shared.syncFromPrefs()
+        // ← Android ProcessLifecycleOwner onStart observer (SleepyApp.kt:63-72; iOS app-wide
+        //   此前没有 didBecomeActive 调度观察者 — 只有 ReminderScreen 的局部快照刷新):
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard self != nil else { return }
+            // Android 侧此处还有 reconcileActiveFluidCloud — vendor platform-only, iOS 无等价
+            ClassDndScheduler.shared.syncFromPrefs()
+        }
+    }
+
+    // ← BGTaskScheduler 注册窗口在启动完成前 (F129 issue: 注册调用此前零调用方,
+    //   submit 因未注册静默失败)。willFinishLaunching 早于 didFinishLaunching。
+    func application(_ application: UIApplication,
+                     willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        NotificationScheduler.registerDailyResyncTask()
+        return true
     }
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // ← onCreate: 首启刷新小组件(WidgetUpdater.notifyDataChanged)
         WidgetCenter.shared.reloadAllTimelines()
+        // 到货重查/00:05 载体/摘要刷新的 delegate 此前从未注册 = 死接线 (F128/F129 issue6)。
+        UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
         // 高刷新率:iOS 无公开刷率 API(原 HighRefreshRate 桩已删),ProMotion 上
         // 系统自动调度 120Hz,无需 app 侧动作(2026-09-10 原生化审计)。
         return true
@@ -84,6 +116,7 @@ final class AppRootViewModel: ObservableObject {
         case courseList              // CourseListScreen(我的页课程数卡入口)
         case periodTables            // PeriodTablesScreen(作息表管理, issue#40 §4.1)
         case periodEdit              // PeriodTableEditScreen(pendingNew 丢弃链见 handleBack)
+        case periodHeaderSettings    // PeriodHeaderSettingsScreen(外观页 Section④ 节次表头入口)
         case scheduleDisplay         // ScheduleDisplayScreen(课表显示设置)
         // holiday 由 GeneralSettings 内部 sheet 呈现,不再出现在根 enum
         var id: String { rawValue }
@@ -109,11 +142,24 @@ final class AppRootViewModel: ObservableObject {
     // ★ v1.0.45 底栏 dock 样式: false=贴底, true=悬浮药丸
     //   ← Android v1.0.45 b0f8280;状态由 AppPrefs 持有, 监听 .didChange 自动反向同步
     @Published var navFloating: Bool = AppPrefs.shared.isNavDocked()
+    // ← Android MainActivity.kt:342-351 RightHalfContent: importDraftRepository.observeAll()
+    //   经 JwImportDraftCodec 映射成 UI 行模型; iOS getAll() 是同步等价(无 Flow)
+    @Published var importDrafts: [ImportDraftRowModel] = []
+    // ← Android JwImportActivity.EXTRA_DRAFT_ID: 管理页「恢复草稿」置位,
+    //   AppRoot 消费后带进 JwImportFlow(incomingDraftId:) 并清零
+    @Published var pendingDraftId: String? = nil
 
     private var langObserver: NSObjectProtocol?
     private var prefsObserver: NSObjectProtocol?
 
     let scheduleViewModel: ScheduleViewModel
+    private let draftRepository = ImportDraftRepository(AppDatabase.getShared())
+    // ← Android MainActivity.kt:261 `rememberSleepyNavigator()`: 门面唯一实例。
+    //   iOS 无 composition 生命周期, 挂在 VM 上 = 与 AppRoot 同寿(VM 由 AppDelegate
+    //   永久持有, 与本懒加载实例互为 app-scoped 常驻对象, 不构成新增泄漏)。
+    //   AppRoot 全部导航意图经它下发(push → vm.navigate 单一真源), 否则门面零消费方
+    //   = F071 审计项 1 未闭环。
+    lazy var navigator: SleepyNavigator = SleepyNavigator(viewModel: self)
 
     init(repository: ScheduleRepository) {
         scheduleViewModel = ScheduleViewModel(
@@ -205,6 +251,31 @@ final class AppRootViewModel: ObservableObject {
             deepLinkCourse = course
         }
     }
+
+    // ← Android MainActivity.kt:342-351 (observeAll + JwImportDraftCodec 映射)。
+    //   getAll() = observeAll() 的同步等价; 解码失败的行直接跳过(Android mapNotNull 同义)。
+    func refreshDrafts() {
+        let entities = (try? draftRepository.getAll()) ?? []
+        let importCoursesLabel = L10n.t("import_courses")
+        importDrafts = entities.compactMap { entity in
+            guard let snapshot = JwImportDraftCodec.fromJson(entity.payloadJson) else { return nil }
+            return ImportDraftRowModel(
+                id: entity.id,
+                name: snapshot.tableName.isEmpty ? snapshot.school.name : snapshot.tableName,
+                details: "\(snapshot.courses.count) \(importCoursesLabel)")
+        }
+    }
+
+    // ← Android onRestoreDraft = startActivity(JwImportActivity + EXTRA_DRAFT_ID) (MainActivity.kt:359)
+    func restoreImportDraft(_ id: String) {
+        pendingDraftId = id
+    }
+
+    // ← Android onDeleteDraft = importDraftRepository.delete(id) (MainActivity.kt:362)
+    func deleteDraft(_ id: String) {
+        try? draftRepository.delete(id)
+        refreshDrafts()
+    }
 }
 
 // ← AppRoot composable
@@ -215,10 +286,17 @@ struct AppRoot: View {
     // ← themeMode/手动切主题联动
     @State private var themeMode: String = AppPrefs.shared.getThemeMode()
     @State private var themeKey: String = AppPrefs.shared.getThemeKey()
+    // ← MainActivity.kt:171 CustomThemeStore.changes() 订阅: 同 id 就地改自定义主题时
+    //   themeKey 不变, 只有这份文档串变化能让 SleepyThemeProvider 重跑并回读 getById。
+    @State private var customThemesJson: String = ""
     @State private var jwImportActive = false
     // ★ iOS 16 sheet 冲突修复: ImportSheet 关闭动画中直接 present JwImportFlow
     //   会被 SwiftUI 丢弃(同一 runloop 两个 sheet 状态翻转)→ 延到 dismiss 完成。
     @State private var jwImportRequested = false
+    // ← Android EXTRA_DRAFT_ID 入参: 恢复草稿时带进 JwImportFlow(普通导入为 nil)
+    @State private var jwIncomingDraftId: String? = nil
+    // ← issue#39: 流程内 activeImport 为真时封掉 sheet 下滑关闭, 否则绕过退出确认静默丢进度
+    @State private var jwActiveImport = false
 
     var body: some View {
         // iOS 15 兼容(6s Plus 真机 = 15.8.8):此处仅作容器,无 NavigationLink 压栈,
@@ -233,8 +311,12 @@ struct AppRoot: View {
         mainContent
         // ← Activity.recreate(): 语言切换 → L10n.didChange → languageReload+1 → 全树重建
         .id(root.languageReload)
-        .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey))
+        .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                      customThemeVersion: customThemesJson))
         .preferredColorScheme(schemeOverride)
+        // ← MainActivity.kt:171: 自定义主题文档变更 = 独立失效信号(同 id 就地编辑时
+        //   themeKey 不变), 订阅后回写 token → provider 重跑 → 重读 CustomThemeStore.getById
+        .onReceive(CustomThemeStore.changes()) { customThemesJson = $0 }
         .onOpenURL { url in
             handleDeepLink(url)
         }
@@ -250,6 +332,8 @@ struct AppRoot: View {
             }
             // ← SleepyApp.onCreate: 预加载当年+明年节假日数据(磁盘/网络)
             Task { await HolidayManager.preload() }
+            // ← Android observeAll() 常驻订阅的等价: 进入即读一次草稿列表
+            root.refreshDrafts()
         }
         // 深链课程 → 编辑(← LaunchedEffect(deepLinkCourse?.id))
         .onChange(of: root.deepLinkCourse?.id) { courseId in
@@ -264,13 +348,29 @@ struct AppRoot: View {
                 root.currentTab = .manage
             }
         }
-        .sheet(isPresented: $jwImportActive) {
-            JwImportFlow {
+        // 待恢复草稿 → 带进 JwImportFlow 入参并消费清零(← EXTRA_DRAFT_ID 一次性语义)
+        .onChange(of: root.pendingDraftId) { id in
+            guard let id = id else { return }
+            jwIncomingDraftId = id
+            root.pendingDraftId = nil
+            jwImportRequested = true
+        }
+        .sheet(isPresented: $jwImportActive, onDismiss: {
+            // 下滑关闭与流程内关闭两条路径都收敛到这里: 入参带完即清, 草稿列表随流程结束刷新
+            jwIncomingDraftId = nil
+            jwActiveImport = false
+            root.refreshDrafts()
+        }) {
+            JwImportFlow(onFinish: {
                 jwImportActive = false
-            }
+            }, incomingDraftId: jwIncomingDraftId,
+               onActiveImportChanged: { jwActiveImport = $0 })
             // Sheet 是独立 presentation tree；显式注入主题，避免自定义颜色环境回落到 lightScheme。
-            .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey))
+            .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                          customThemeVersion: customThemesJson))
             .preferredColorScheme(schemeOverride)
+            // ← issue#39: 教务流程进行中禁止下滑关闭(绕过退出确认 = 静默丢进度)
+            .interactiveDismissDisabled(jwActiveImport)
         }
         // ★ sheet 冲突修复续: ImportSheet dismiss 完成后(0.45s 动画)再 present JW 流程
         .onChange(of: jwImportRequested) { req in
@@ -308,6 +408,7 @@ struct AppRoot: View {
             .modifier(PresentOverlay(
                 isDark: isDark,
                 themeKey: themeKey,
+                customThemeVersion: customThemesJson,
                 overlayScreen: $root.overlayScreen,
                 editingCourse: root.editingCourse,
                 editTableId: root.editTableId,
@@ -410,48 +511,67 @@ struct AppRoot: View {
                 viewModel: root.scheduleViewModel,
                 viewMode: $root.scheduleViewMode,
                 onGoImport: { root.currentTab = .manage },
-                onManualAdd: { root.overlayScreen = .addCourse },
+                // ← Android MainTabs:328 onManualAdd = navigator.openAddCourse()
+                onManualAdd: { root.navigator.openAddCourse() },
                 onCreateTable: { root.createNewTableThenEdit() },
-                onEditCourse: { course in root.editingCourse = course })
+                // ← Android MainTabs:330 onEditCourse = session.beginEditCourse(course)
+                //   + navigator.openAddCourse(course.id, editing: true)
+                onEditCourse: { course in
+                    root.navigator.session.beginEditCourse(course)
+                    root.navigator.openAddCourse(courseId: course.id, editing: true)
+                })
         case .today:
             TodayScreen(viewModel: root.scheduleViewModel,
-                        onEditCourse: { course in root.editingCourse = course })
+                        // ← Android MainTabs:333 TodayScreen.onEditCourse 同式
+                        onEditCourse: { course in
+                            root.navigator.session.beginEditCourse(course)
+                            root.navigator.openAddCourse(courseId: course.id, editing: true)
+                        })
         case .manage:
             ManagementPage(
                 viewModel: root.scheduleViewModel,
                 autoShowImportSheet: PendingImportText.value != nil,
                 onJwImportRequested: { jwImportRequested = true },
+                // ← Android MainTabs:352 onCreateNewTableRequested = onCreateNewTable
+                //   (MainActivity 闭包 = createEmptyTable + openEditTable; iOS 状态机
+                //   封装在 createNewTableThenEdit, 含 allTables-cover 换页时序, 保持直调)
                 onCreateNewTableRequested: { root.createNewTableThenEdit() },
-                onManualAdd: { root.overlayScreen = .addCourse },
-                onEditCurrentTable: {
-                    root.editTableId = nil
-                    root.pendingNewTableId = nil
-                    root.overlayScreen = .editTable
-                },
-                onExportRequested: { root.overlayScreen = .export },
-                // ★ 导入完成链(← Android onImported: 关导入框+切课表 Tab;
-                //   onOpenEditTable: 新导入表 → 打开表编辑页)
+                // ← Android MainTabs:355 onManualAdd = navigator.openAddCourse()
+                onManualAdd: { root.navigator.openAddCourse() },
+                // ← Android MainTabs:355 onEditCurrentTable = navigator.openEditTable()
+                onEditCurrentTable: { root.navigator.openEditTable() },
+                // ← Android MainTabs:355 onExportRequested = navigator.openExport()
+                onExportRequested: { root.navigator.openExport() },
+                // ★ 导入完成链(← Android onImported: 留在管理页, 摘要卡就地刷新)
                 onImported: {
                     // ← Android ce7f7924: 导入完成留在管理页(摘要卡就地刷新), 不再硬跳课表 Tab
                     PendingImportText.value = nil
                 },
-                onOpenEditTable: { tableId in
-                    PendingImportText.value = nil
-                    root.editTableId = tableId
-                    root.pendingNewTableId = nil
-                    root.overlayScreen = .editTable
-                })
+                // ← Android SleepyNavHost: onOpenAllTables = navigator.openAllTables()
+                onOpenAllTables: { root.navigator.openAllTables() },
+                // ← Android MainTabs:354 createPeriodTableAndEdit(newId) =
+                //   navigator.createPeriodTableAndEdit(newId) (内部 openPeriodEdit(newId, isNew=true))
+                onCreateNewPeriodTableRequested: { newId in
+                    root.navigator.createPeriodTableAndEdit(newId: newId)
+                },
+                // ← Android MainActivity.kt:353-364 drafts/onRestoreDraft/onDeleteDraft
+                //   (onRestoreDraft = startActivity(JwImportActivity + EXTRA_DRAFT_ID) —
+                //   iOS 无 Activity 通道, restoreImportDraft → pendingDraftId 等价 plumbing)
+                drafts: root.importDrafts,
+                onRestoreDraft: { id in root.restoreImportDraft(id) },
+                onDeleteDraft: { id in root.deleteDraft(id) })
         case .mine:
+            // ← Android MainTabs:370-377 MineScreen 八入口全部 navigator.openXxx()
             MineScreen(
                 viewModel: root.scheduleViewModel,
-                onOpenAllTables: { root.overlayScreen = .allTables },
-                onOpenCourseList: { root.overlayScreen = .courseList },
-                onOpenPeriodTables: { root.overlayScreen = .periodTables },
-                onOpenAppearance: { root.overlayScreen = .theme },
-                onOpenGeneral: { root.overlayScreen = .general },
-                onOpenExport: { root.overlayScreen = .export },
-                onOpenReminder: { root.overlayScreen = .reminder },
-                onOpenAbout: { root.overlayScreen = .about })
+                onOpenAllTables: { root.navigator.openAllTables() },
+                onOpenCourseList: { root.navigator.openCourseList() },
+                onOpenPeriodTables: { root.navigator.openPeriodTables() },
+                onOpenAppearance: { root.navigator.openAppearance() },
+                onOpenGeneral: { root.navigator.openGeneral() },
+                onOpenExport: { root.navigator.openExport() },
+                onOpenReminder: { root.navigator.openReminder() },
+                onOpenAbout: { root.navigator.openAbout() })
         }
     }
 
@@ -531,9 +651,22 @@ private struct TabsCanvasBackground: View {
     }
 }
 
+/// overlay 容器底色 ← Android SleepyNavHost 每个 composable 自带 Scaffold(containerColor)。
+/// 同 TabsCanvasBackground: 独立子 View 在 themedOverlay 的 provider 子树内解析 env,
+/// 深色模式不会误取 provider 之上的 lightScheme 默认值。
+private struct OverlayCanvasBackground: View {
+    @Environment(\.localWakeUpColors) private var colors
+
+    var body: some View {
+        colors.background
+    }
+}
+
 private struct PresentOverlay: ViewModifier {
     let isDark: Bool
     let themeKey: String
+    // ← AppRoot.customThemesJson 同源下发: 浮层页在自定义主题就地编辑后也要重跑 provider
+    var customThemeVersion: String = ""
     @Binding var overlayScreen: AppRootViewModel.OverlayScreen?
     let editingCourse: CourseEntity?
     let editTableId: Int64?
@@ -580,7 +713,19 @@ private struct PresentOverlay: ViewModifier {
             if let screen = shownScreen {
                 overlayContent(screen)
                     .offset(x: dragX)
-                    .transition(.move(edge: .trailing))
+                    // 容器级不透明底 ← Android SleepyNavHost 每个 composable 自带
+                    // Scaffold(containerColor)。旧行为: 浮层零背景 → 直接透出下层
+                    // tab 页, 深色模式下 = 白屏 (真机报告 "我的→设置页 全白")。
+                    // 必须 ignoresSafeArea — 与 TabsCanvasBackground 挂载点(479)同款,
+                    // 否则状态栏/底部 home indicator 区仍透底。
+                    // ★ 必须独立子 View 在 provider 子树内解析 env: PresentOverlay
+                    // 整体挂在根 SleepyThemeProvider 之外, 直接读环境拿到的是
+                    // WakeUpColorsKey.defaultValue = lightScheme (白) 而非当前主题。
+                    .background(OverlayCanvasBackground().ignoresSafeArea())
+                    // ← Android SleepyNavHost.kt:171 sleepyForwardTransform: 入页 fadeIn110
+                    //   + 中心浮起220, 出页 fadeOut+scaleOut(→0.92)。此前硬编码
+                    //   .move(edge:.trailing) = 只有侧滑, 零消费 Material 转场表 (F069)。
+                    .transition(SleepyMaterialTransition.forwardTransform)
             }
         }
         .onChange(of: activeScreen) { syncPresentation($0) }
@@ -596,9 +741,11 @@ private struct PresentOverlay: ViewModifier {
         if let screen = active {
             guard shownScreen != screen else { return }
             if shownScreen == nil {
-                // 打开: 右缘滑入(对齐安卓 Activity 转场方向)
+                // 打开: 中心浮起 + 淡入(← Android sleepyForwardEnter, 非右缘滑入)。
+                // forwardEnter 的 opacity/scale 段已自带 110ms/220ms 曲线,
+                // 此处 withAnimation 只提供转场触发上下文。
                 dragX = 0
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) { shownScreen = screen }
+                withAnimation(SleepyMaterialTransition.forwardAnimation) { shownScreen = screen }
             } else {
                 // 极端竞态: 未经过 nil 直接换页 → 无动画切换, 复位位移
                 shownScreen = screen
@@ -621,14 +768,16 @@ private struct PresentOverlay: ViewModifier {
         animateOutThen(then: then)
     }
 
+    // 关闭通路 ← F069 Option A: 出页交给 forwardTransform 的 removal(forwardExit =
+    //   淡出 + 缩向 0.92, 220ms, Android sleepyPopExit 同形态), 不再把 dragX 推到屏外
+    //   滑出 —— 滑出与 forwardExit 叠加 = 页面既滑走又缩放(双演)。dragX 只保留
+    //   手势跟手 + 释放后 commit/cancel 的职责, 复位挪到移除完成后(此时已不可见, 无回弹)。
     private func animateOutThen(then: @escaping () -> Void) {
-        let width = UIScreen.main.bounds.width
-        withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) { dragX = width + 60 }
+        withAnimation(SleepyMaterialTransition.forwardAnimation) { shownScreen = nil }
         dismissSeq += 1
         let seq = dismissSeq
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + SleepyMaterialTransition.forwardDuration) {
             guard seq == dismissSeq else { return }
-            shownScreen = nil
             dragX = 0
             then()
         }
@@ -645,7 +794,8 @@ private struct PresentOverlay: ViewModifier {
                 onDismiss: onDismiss,
                 onSaved: onSavedAdd,
                 editingCourse: editingCourse)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .allTables:
             AllTablesScreen(
@@ -653,7 +803,8 @@ private struct PresentOverlay: ViewModifier {
                 onDismiss: onDismiss,
                 onCreateNewTable: onCreateNewTable,
                 onOpenEditTable: onOpenEditTable)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .editTable:
             EditTableScreen(
@@ -664,40 +815,50 @@ private struct PresentOverlay: ViewModifier {
                 onDiscardPending: onBack,
                 onSaved: onSavedTable,
                 onDeleted: onDeletedTable)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onBack, onCommit: commitGestureDismiss)
         case .general:
             GeneralSettingsScreen(onDismiss: onDismiss)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .theme:
             AppearanceScreen(
                 onDismiss: onDismiss,
                 themeMode: themeMode,
                 onThemeModeChange: onThemeModeChange,
-                onThemeKeyChange: onThemeKeyChange)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                onThemeKeyChange: onThemeKeyChange,
+                // ← Android Appearance Section④ 节次表头入口 (默认 no-op 已解除)
+                onOpenPeriodHeaderSettings: { overlayScreen = .periodHeaderSettings })
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .export:
             ExportScreen(viewModel: scheduleViewModel, onDismiss: onDismiss)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .reminder:
             ReminderScreen(onDismiss: onDismiss)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .about:
             AboutScreen(onDismiss: onDismiss, onOpenLicense: onOpenLicense)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .license:
             LicenseScreen(onDismiss: onDismiss)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .courseList:
             CourseListScreen(onBack: onDismiss)
                 .environmentObject(scheduleViewModel)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .periodTables:
             PeriodTablesScreen(
@@ -710,7 +871,15 @@ private struct PresentOverlay: ViewModifier {
                     onOpenPeriodEdit(newId, true)
                 })
                 .environmentObject(scheduleViewModel)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
+                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+        case .periodHeaderSettings:
+            // ← Android PeriodHeaderSettingsScreen(外观页 Section④ 节次表头入口)
+            //   屏自身直读 AppPrefs, 无需 VM 参数 (F087/F088 路由接线)
+            PeriodHeaderSettingsScreen(onBack: onDismiss)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .periodEdit:
             PeriodTableEditScreen(
@@ -718,19 +887,23 @@ private struct PresentOverlay: ViewModifier {
                 periodTableId: periodEditId ?? SleepyRoute.NO_ID,
                 isNewUnsaved: pendingNewPeriodTableId != nil,
                 onBack: onBack)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onBack, onCommit: commitGestureDismiss)
         case .scheduleDisplay:
             ScheduleDisplayScreen(onBack: onDismiss)
-                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         }
     }
 }
 
 private extension View {
-    func themedOverlay(isDark: Bool, themeKey: String, schemeOverride: ColorScheme?) -> some View {
-        modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey))
+    func themedOverlay(isDark: Bool, themeKey: String, schemeOverride: ColorScheme?,
+                       customThemeVersion: String = "") -> some View {
+        modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                     customThemeVersion: customThemeVersion))
             .preferredColorScheme(schemeOverride)
     }
 }
