@@ -39,7 +39,7 @@ private struct NativeColorPickerRepresentable: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIColorPickerViewController {
         let picker = UIColorPickerViewController()
-        picker.selectedColor = UIColor(hex: initialHex) ?? .systemBlue
+        picker.selectedColor = UIColor(hex: initialHex) ?? UIColor(hex: "6750A4")!  // ← ColorPickerDialog.kt:58 getOrDefault(0xFF6750A4); 非法/缺省回退品牌紫
         picker.supportsAlpha = false
         picker.delegate = context.coordinator
         return picker
@@ -49,7 +49,7 @@ private struct NativeColorPickerRepresentable: UIViewControllerRepresentable {
         // 仅在 selectedColor 与初始色不同时更新,避免每次 rebuild 重置 picker 状态
         let current = vc.selectedColor.hexString
         if current != initialHex, !context.coordinator.didSelect {
-            vc.selectedColor = UIColor(hex: initialHex) ?? .systemBlue
+            vc.selectedColor = UIColor(hex: initialHex) ?? UIColor(hex: "6750A4")!  // ← ColorPickerDialog.kt:58 同 makeUIViewController
         }
     }
 
@@ -72,10 +72,7 @@ private struct NativeColorPickerRepresentable: UIViewControllerRepresentable {
         }
 
         func colorPickerViewControllerDidFinish(_ vc: UIColorPickerViewController) {
-            // 用户点击关闭:若仍未选色,提交当前色
-            guard !didSelect else { return }
-            didSelect = true
-            onColorSelected(vc.selectedColor.hexString)
+            // 取消/未选色直接关闭 = Android onDismissRequest(kotlin:71/129): 永不发 onConfirm ← F056 对齐
         }
     }
 }

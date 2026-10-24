@@ -8,6 +8,7 @@
 // 数值断言一律带容差:iOS 侧 Color → UIColor → 分量存在色域转换与 8-bit 量化,
 // 逐位相等不成立(Android Compose Color 是纯 Float 载体,可以精确相等)。
 
+import Combine
 import XCTest
 import SwiftUI
 @testable import Sleepy
@@ -163,6 +164,69 @@ final class CustomThemeCoreTests: XCTestCase {
         defer { suite.removePersistentDomain(forName: suite.dictionaryRepresentation()["__suiteName"] as? String ?? "") }
         suite.set("{not json", forKey: CustomThemeCore.KEY_THEMES)
         XCTAssertTrue(CustomThemeStore.getAll(suite).isEmpty)
+    }
+
+    // ── ← CustomThemeStore.changes() 反应式失效信号(对应 Android callbackFlow+distinctUntilChanged;
+    //    CustomThemeSaveAppliesImmediatelyTest 契约 2 的 iOS 立测:同 id 就地编辑必须发出新 token)──
+
+    /// didChangeNotification 经 CFPreferences 广播投递,可能落到下一轮 runloop —
+    /// 统一用 runloop 泵等待目标计数,超时即失败。
+    private func pumpUntil(_ count: Int, in received: () -> [String], timeout: TimeInterval = 2.0) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while received().count < count, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
+    }
+
+    func testChangesEmitsCurrentDocumentThenSameIdEditToken() {
+        let suite = UserDefaults(suiteName: "test-custom-changes-\(UUID().uuidString)")!
+        var received: [String] = []
+        let cancellable = CustomThemeStore.changes(suite).sink { received.append($0) }
+        defer { cancellable.cancel() }
+
+        // 订阅即收当前文档:未写入过 → 空串(← Android trySend(getString ?: "") 初值)
+        XCTAssertEqual([""], received)
+
+        CustomThemeStore.save(sample, suite)
+        pumpUntil(2, in: { received })
+        XCTAssertEqual(2, received.count, "save must emit the new serialized document")
+        let afterSave = received[1]
+        XCTAssertTrue(afterSave.contains(sample.id))
+
+        // 同 id 就地编辑(themeKey 不变)→ 文档内容变 → 必须再发一个不同 token
+        CustomThemeStore.save(sample.copy(name: "改名了"), suite)
+        pumpUntil(3, in: { received })
+        XCTAssertEqual(3, received.count, "same-id in-place edit must produce a fresh invalidation token")
+        XCTAssertNotEqual(afterSave, received[2])
+
+        // distinctUntilChanged:文档未变的其他写入(同域其他 key)不得重复发
+        suite.set("noise", forKey: "unrelated_key_in_same_domain")
+        let countBeforeNoise = received.count
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertEqual(countBeforeNoise, received.count, "unchanged document must not re-emit (removeDuplicates)")
+    }
+
+    func testChangesIgnoresOtherDefaultsDomains() {
+        let suiteA = UserDefaults(suiteName: "test-custom-changes-A-\(UUID().uuidString)")!
+        let suiteB = UserDefaults(suiteName: "test-custom-changes-B-\(UUID().uuidString)")!
+        var received: [String] = []
+        let cancellable = CustomThemeStore.changes(suiteA).sink { received.append($0) }
+        defer { cancellable.cancel() }
+
+        // 另一域写主题 → object !== suiteA → 过滤,不发出
+        CustomThemeStore.save(sample, suiteB)
+        let countAfterInitial = received.count
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertEqual(countAfterInitial, received.count, "other UserDefaults domain must not drive this subscription")
+
+        // 本域删除 → 发出空文档 token(删除后文档为 "[]":saveAll 写序列化空数组,
+        //   ← Android 同语义,getString 返回 "[]" 而非 null)
+        CustomThemeStore.save(sample, suiteA)
+        pumpUntil(2, in: { received })
+        CustomThemeStore.delete(sample.id, suiteA)
+        pumpUntil(3, in: { received })
+        XCTAssertEqual(3, received.count)
+        XCTAssertEqual("[]", received[2], "deleting the only theme emits the empty serialized document")
     }
 }
 

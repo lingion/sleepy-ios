@@ -270,8 +270,13 @@ extension Color {
 struct SleepyThemeProvider: ViewModifier {
     let darkTheme: Bool
     let themeKey: String
+    /// Invalidation token for same-id edits of the selected custom theme. The body intentionally
+    /// does not inspect it; a changed value re-runs the modifier and re-reads CustomThemeStore.getById.
+    var customThemeVersion: String = ""
 
     func body(content: Content) -> some View {
+        let customThemeInvalidation = customThemeVersion
+        _ = customThemeInvalidation
         // "custom:<id>" 走用户自定义主题:CustomThemeStore 读种子 → CustomSchemeDeriver
         //   派生整套深浅 scheme(与 widget resolveWidgetScheme 同一派生函数);已删 id
         //   读不到 → 用默认淡紫种子派生(与 Android Theme.kt 回落语义逐字一致)。

@@ -17,6 +17,7 @@
 // 解析容错语义对齐 HolidayManager:整文档损坏 → 空列表;坏行(缺 id/形状错)跳过、
 // 好行保留;缺可选数值字段(surfaceHue/surfaceChroma/createdAt)落默认值而非整行丢弃。
 
+import Combine
 import Foundation
 
 // MARK: - ← CustomTheme data class
@@ -203,6 +204,30 @@ enum CustomThemeStore {
 
     private static func saveAll(_ themes: [CustomTheme], _ d: UserDefaults) {
         d.set(CustomThemeCore.toJson(themes), forKey: CustomThemeCore.KEY_THEMES)
+    }
+
+    /// ← CustomThemeStore.kt:150 `fun changes(ctx): Flow<String>` 的 Combine 等价。
+    ///
+    /// 语义逐项对应 Android callbackFlow:
+    /// - 订阅即发当前序列化文档(cold-flow 逐订阅现取,对应 callbackFlow 每次 collect 现读
+    ///   `getString(key, null).orEmpty()` → 用 `Deferred` 把首值延迟到订阅时刻计算);
+    /// - registerOnSharedPreferenceChangeListener(key == KEY_THEMES) →
+    ///   `NotificationCenter` 监听 `UserDefaults.didChangeNotification`,按 object === 注入域过滤;
+    ///   同域其他 key 的写入也会被放行,但下方 removeDuplicates 会把"文档未变"的推送吞掉,
+    ///   可观测输出与 Android 的 key 过滤完全一致;
+    /// - distinctUntilChanged → `removeDuplicates()`。
+    ///
+    /// 发出值本身即 invalidation token:同 id 就地编辑也会改变文档内容,下游
+    /// (SleepyThemeProvider 的 customThemeVersion 位)只需据此重走 [getById] 读取,不消费内容。
+    /// ← MainActivity.kt:171 的订阅方在 iOS 由 AppRoot 接线(见集成说明)。
+    static func changes(_ d: UserDefaults = CustomThemeStore.defaults) -> AnyPublisher<String, Never> {
+        NotificationCenter.default
+            .publisher(for: UserDefaults.didChangeNotification)
+            .filter { ($0.object as? UserDefaults) === d }
+            .map { _ in d.string(forKey: CustomThemeCore.KEY_THEMES) ?? "" }
+            .prepend(Deferred { Just(d.string(forKey: CustomThemeCore.KEY_THEMES) ?? "") })
+            .removeDuplicates()
+            .eraseToAnyPublisher()
     }
 
     static func getAll(_ d: UserDefaults = CustomThemeStore.defaults) -> [CustomTheme] {

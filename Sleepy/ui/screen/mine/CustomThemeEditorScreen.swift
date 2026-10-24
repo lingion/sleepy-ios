@@ -20,6 +20,7 @@
 //      ROLE_PRIMARY 两条分支),iOS 用 fromSeedMode 开关表达同一对分支,两条都可达。
 
 import SwiftUI
+import UIKit
 
 struct CustomThemeEditorScreen: View {
     @Environment(\.localWakeUpColors) private var colors
@@ -102,25 +103,27 @@ struct CustomThemeEditorScreen: View {
                         DraftPreview(draft: draft)
                     }
 
-                    // ── 三动作区 ──
-                    EditorActionEntry(
-                        icon: "wand.and.stars",
-                        title: L10n.format("theme_editor_random"),
-                        desc: L10n.format("theme_editor_random_desc"),
-                        onClick: { draft = Self.randomDraft(draft) }
-                    )
-                    EditorActionEntry(
-                        icon: "paintpalette",
-                        title: L10n.format("theme_editor_from_seed"),
-                        desc: L10n.format("theme_editor_from_seed_desc"),
-                        onClick: { pickingRole = .seedPrimary }
-                    )
-                    EditorActionEntry(
-                        icon: "slider.horizontal.3",
-                        title: L10n.format("theme_editor_manual"),
-                        desc: L10n.format("theme_editor_manual_desc"),
-                        onClick: { withAnimation(.easeInOut(duration: 0.15)) { manualExpanded.toggle() } }
-                    )
+                    // ── 三动作区(Android Column spacedBy(8.dp),整体是外层 12 间距网格的一个 item)──
+                    VStack(alignment: .leading, spacing: 8) {
+                        EditorActionEntry(
+                            icon: "wand.and.stars",
+                            title: L10n.format("theme_editor_random"),
+                            desc: L10n.format("theme_editor_random_desc"),
+                            onClick: { draft = Self.randomDraft(draft) }
+                        )
+                        EditorActionEntry(
+                            icon: "paintpalette",
+                            title: L10n.format("theme_editor_from_seed"),
+                            desc: L10n.format("theme_editor_from_seed_desc"),
+                            onClick: { pickingRole = .seedPrimary }
+                        )
+                        EditorActionEntry(
+                            icon: "slider.horizontal.3",
+                            title: L10n.format("theme_editor_manual"),
+                            desc: L10n.format("theme_editor_manual_desc"),
+                            onClick: { withAnimation(.easeInOut(duration: 0.15)) { manualExpanded.toggle() } }
+                        )
+                    }
 
                     // ── 逐角色手选(展开后:模式开关 + 四个角色行 + 表面两滑杆)──
                     if manualExpanded {
@@ -191,12 +194,12 @@ struct CustomThemeEditorScreen: View {
                     // ── 底部动作:保存 ──
                     Button(action: save) {
                         Text(L10n.format("save"))
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 16, weight: .medium))   // ← titleMedium 16sp Medium (Theme.kt:274)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 52)   // ← SleepyTheme.Buttons.ctaHeight
+                            .frame(height: 56)   // ← SleepyTheme.Buttons.ctaHeight
                             .foregroundColor(isValid ? colors.onPrimary : colors.onSurfaceVariant)
                             .background(isValid ? colors.primary : colors.surfaceVariant)
-                            .cornerRadius(SleepyShapes.medium)
+                            .cornerRadius(SleepyShapes.large)   // ← SleepyTheme.Buttons.shape = shapes.large
                     }
                     .buttonStyle(SleepyButtonStyle())
                     .disabled(!isValid)
@@ -206,14 +209,14 @@ struct CustomThemeEditorScreen: View {
                     if editing != nil {
                         Button(action: { showDeleteConfirm = true }) {
                             HStack(spacing: 8) {
-                                Image(systemName: "trash").font(.system(size: 16))
-                                Text(L10n.format("delete")).font(.system(size: 16, weight: .medium))
+                                Image(systemName: "trash").font(.system(size: 18))   // ← Icons.Outlined.Delete 18.dp
+                                Text(L10n.format("delete")).font(.system(size: 14, weight: .medium))   // ← Button 默认 labelLarge 14sp Medium
                             }
                             .foregroundColor(colors.onErrorContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 44)   // ← SleepyTheme.Buttons.regularHeight
+                            .frame(height: 48)   // ← SleepyTheme.Buttons.regularHeight
                             .background(colors.errorContainer)
-                            .cornerRadius(SleepyShapes.medium)
+                            .cornerRadius(SleepyShapes.large)   // ← SleepyTheme.Buttons.shape = shapes.large
                         }
                         .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("theme_editor_delete")
@@ -256,7 +259,7 @@ struct CustomThemeEditorScreen: View {
         let id = draft.id.trimmingCharacters(in: .whitespaces).isEmpty ? CustomThemeCore.newId() : draft.id
         onSaved(CustomTheme(
             id: id,
-            name: draft.name.trimmingCharacters(in: .whitespaces),
+            name: draft.name,   // ← Android kt:214-217 原样保存 draft.name(仅 id 补 UUID),不 trim
             primary: normalizedHex(draft.primary),
             secondary: normalizedHex(draft.secondary),
             tertiary: normalizedHex(draft.tertiary),
@@ -471,14 +474,21 @@ private struct DraftPreview: View {
     @Environment(\.localWakeUpColors) private var colors
     let draft: CustomTheme
 
+    // isDark 跟随当前页面背景红色通道,所见即所得 ← Android kt:379 `pageColors.background.red < 0.5f`(只比红色通道,非亮度)
+    private var previewScheme: WakeUpColorScheme {
+        let ui = UIColor(colors.background)
+        var red: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&red, green: &g, blue: &b, alpha: &a)
+        return CustomSchemeDeriver.derive(theme: draft, isDark: red < 0.5)
+    }
+
     var body: some View {
-        // isDark 跟随当前页面模式(编辑器所见即所得的深浅一致)
-        let scheme = CustomSchemeDeriver.derive(theme: draft, isDark: CourseColorUtil.luminance(colors.background) < 0.5)
+        let scheme = previewScheme
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Circle().fill(scheme.primary).frame(width: 10, height: 10)
                 Text(L10n.format("theme_editor_preview"))
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))   // ← labelLarge 14sp Medium (Theme.kt:304)
                     .foregroundColor(scheme.onSurface)
                 Spacer()
             }
@@ -502,7 +512,7 @@ private struct DraftPreview: View {
                         .foregroundColor(scheme.onSecondaryContainer)
                     HStack(spacing: 6) {
                         Text("1-2")
-                            .font(.system(size: 11))
+                            .font(.system(size: 11, weight: .medium))   // ← labelSmall 11sp Medium (Theme.kt:316)
                             .foregroundColor(scheme.onTertiary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 1)

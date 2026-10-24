@@ -1,8 +1,10 @@
 // AppearanceScreen.swift — ← ui/screen/mine/AppearanceScreen.kt
-// 外观页(决策 D2 合并页): 仅主题色彩组(SystemThemeCard + 2列预设网格 + 深浅色三态)。
+// 外观页(决策 D2 合并页): 仅主题色彩组(SystemThemeCard + 2列预设网格 + 深浅色三态)
+// + Section③ 课表显示(内嵌 ScheduleDisplayContent) + Section④ 节次表头入口(2026-10 对齐补全)。
 // 选主题/模式后立即刷小组件(refreshWidgets 管线保留)。
 
 import SwiftUI
+import UIKit
 import WidgetKit
 import Combine
 
@@ -13,6 +15,9 @@ struct AppearanceScreen: View {
     var onThemeModeChange: (String) -> Void = { _ in }
     // ← Android themeKeyFlow.collectAsState: 选色即时生效,经 AppRoot 回写 themeKey
     var onThemeKeyChange: () -> Void = {}
+    // ← Android onOpenPeriodHeaderSettings(Section④ 节次表头入口, 默认 no-op 保持 API 兼容,
+    //   接线 .periodHeaderSettings 路由归共享文件 SleepyApp/SleepyNavigator, 见 needs_shared_wiring)
+    var onOpenPeriodHeaderSettings: () -> Void = {}
 
     @State private var currentKey: String
     // 自定义主题列表(编辑器保存/删除后重载)← Android customListVersion
@@ -24,11 +29,13 @@ struct AppearanceScreen: View {
     init(onDismiss: @escaping () -> Void,
          themeMode: String = AppPrefs.THEME_MODE_SYSTEM,
          onThemeModeChange: @escaping (String) -> Void = { _ in },
-         onThemeKeyChange: @escaping () -> Void = {}) {
+         onThemeKeyChange: @escaping () -> Void = {},
+         onOpenPeriodHeaderSettings: @escaping () -> Void = {}) {
         self.onDismiss = onDismiss
         self.themeMode = themeMode
         self.onThemeModeChange = onThemeModeChange
         self.onThemeKeyChange = onThemeKeyChange
+        self.onOpenPeriodHeaderSettings = onOpenPeriodHeaderSettings
         _currentKey = State(initialValue: AppPrefs.shared.getThemeKey())
     }
 
@@ -80,41 +87,59 @@ struct AppearanceScreen: View {
                         }
                     }
 
-                    // 外观模式: 浅色/深色/跟随系统 三态分段
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(L10n.format("theme_appearance"))
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(colors.onSurface)
-                        let modes: [(String, String)] = [
-                            (AppPrefs.THEME_MODE_SYSTEM, L10n.format("theme_mode_system")),
-                            (AppPrefs.THEME_MODE_LIGHT, L10n.format("theme_mode_light")),
-                            (AppPrefs.THEME_MODE_DARK, L10n.format("theme_mode_dark"))
-                        ]
-                        HStack(spacing: 3) {
-                            ForEach(modes, id: \.0) { mode, label in
-                                let sel = mode == themeMode
-                                Button {
-                                    guard mode != themeMode else { return }
-                                    prefs.setThemeMode(mode)
-                                    onThemeModeChange(mode)
-                                    refreshWidgets()
-                                } label: {
-                                    Text(label)
-                                        .font(.system(size: 14, weight: sel ? .semibold : .medium))
-                                        .foregroundColor(sel ? colors.onPrimary : colors.onSurfaceVariant)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 12)
-                                        .background(sel ? colors.primary : colors.surfaceContainer)
-                                        .cornerRadius(SleepyShapes.medium)
-                                }
-                                .buttonStyle(SleepyButtonStyle())
-                                .accessibilityIdentifier("theme_mode_\(mode)")
+                    // ── 分组② 外观深浅 ──
+                    // ← Android: SectionHeader(theme_appearance) 独立 item +
+                    //   外层 clip(shapes.large)+surfaceContainer+padding(4)+spacedBy(4),
+                    //   未选中段 background=surfaceContainerHigh(与容器拉开层级)
+                    SectionHeader(title: L10n.format("theme_appearance"))
+                    let modes: [(String, String)] = [
+                        (AppPrefs.THEME_MODE_SYSTEM, L10n.format("theme_mode_system")),
+                        (AppPrefs.THEME_MODE_LIGHT, L10n.format("theme_mode_light")),
+                        (AppPrefs.THEME_MODE_DARK, L10n.format("theme_mode_dark"))
+                    ]
+                    HStack(spacing: 4) {
+                        ForEach(modes, id: \.0) { mode, label in
+                            let sel = mode == themeMode
+                            Button {
+                                guard mode != themeMode else { return }
+                                prefs.setThemeMode(mode)
+                                onThemeModeChange(mode)
+                                refreshWidgets()
+                            } label: {
+                                Text(label)
+                                    .font(.system(size: 14, weight: sel ? .semibold : .medium))
+                                    .foregroundColor(sel ? colors.onPrimary : colors.onSurfaceVariant)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(sel ? colors.primary : colors.surfaceContainerHigh)
+                                    .cornerRadius(SleepyShapes.medium)
                             }
+                            .buttonStyle(SleepyButtonStyle())
+                            .accessibilityIdentifier("theme_mode_\(mode)")
                         }
-                        .padding(3)
-                        .background(colors.surfaceContainer)
-                        .cornerRadius(SleepyShapes.medium)
                     }
+                    .padding(4)
+                    .background(colors.surfaceContainer)
+                    .cornerRadius(SleepyShapes.large)
+
+                    // ── 分组③ 课表显示: 冲突样式及参数仍属于本组 ──
+                    // ← Android SectionHeader(appearance_section_schedule_display) +
+                    //   Surface(shapes.large, surfaceContainer) 内嵌 ScheduleDisplayContent(padding 16)
+                    SectionHeader(title: L10n.format("appearance_section_schedule_display"))
+                    ScheduleDisplayContent()
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(colors.surfaceContainer)
+                        .cornerRadius(SleepyShapes.large)
+
+                    // ── 分组④ 节次表头 ──
+                    // ← Android SectionHeader(appearance_period_header) +
+                    //   AppearanceNavigationRow(onClick = onOpenPeriodHeaderSettings)
+                    SectionHeader(title: L10n.format("appearance_period_header"))
+                    AppearanceNavigationRow(
+                        title: L10n.format("appearance_period_header"),
+                        onClick: onOpenPeriodHeaderSettings
+                    )
                 }
                 .padding(16)
             }
@@ -152,16 +177,19 @@ struct AppearanceScreen: View {
         showEditor = true
     }
 
-    /// 编辑器保存 → 落库 + 重排网格;若改的正是当前应用主题,顺带刷小组件
+    /// 编辑器保存 → 落库 + 重排网格;保存即应用(2026-09-21 用户反馈): 无条件把 theme_key
+    /// 落到本次保存的主题 —— 此前 iOS 只在「改的正是当前主题」时才刷新, 新建主题保存后
+    /// 从不生效, 正是 Android 明确修掉的「保存了但从没被应用过」行为。
     private func saveTheme(_ saved: CustomTheme) {
         CustomThemeStore.save(saved)
+        let savedKey = ThemePresets.CUSTOM_KEY_PREFIX + saved.id
+        prefs.setThemeKey(savedKey)
+        currentKey = savedKey
         customThemes = CustomThemeStore.getAll()
+        onThemeKeyChange()
+        refreshWidgets()
         showEditor = false
         editingTheme = nil
-        if currentKey == ThemePresets.CUSTOM_KEY_PREFIX + saved.id {
-            onThemeKeyChange()
-            refreshWidgets()
-        }
     }
 
     /// 编辑器删除 → 落库;删的正是当前应用主题则写回 default(与 unknown-key 回落语义一致)
@@ -263,8 +291,9 @@ private struct PresetThemeCard: View {
     let onClick: () -> Void
 
     var body: some View {
-        // 背景亮度决定展示 light 还是 dark 预览
-        let scheme = CourseColorUtil.luminance(colors.background) < 0.5 ? preset.dark : preset.light
+        // ← Android: if (colors.background.red < 0.5f) preset.light else preset.dark
+        //   探针是红通道(非亮度), 且分支方向: 深色底展示 light 预览板
+        let scheme = isDarkBackgroundByRedChannel(colors.background) ? preset.light : preset.dark
         Button(action: onClick) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
@@ -272,16 +301,16 @@ private struct PresetThemeCard: View {
                     ColorSwatch(color: scheme.secondary)
                     ColorSwatch(color: scheme.tertiary)
                 }
-                HStack {
+                HStack(spacing: 0) {
                     Text(L10n.format(preset.nameKey))
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colors.onSurface)
-                    Spacer()
-                    if selected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 20))
-                            .foregroundColor(colors.primary)
-                    }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // ✓槽位恒定 20pt 占位,图标仅在选中时渲染进槽位 —— 禁改回 raw
+                    // `if selected { Image }`(← Android 2026-09-22 用户实测: 条件渲染
+                    // =选中那刻凭空多一个决定行高的孩子=选中卡比未选中卡高)。
+                    // 不用 opacity(0) 隐藏: 读屏会照常播报"已选中", 占位槽才是布局+a11y 双正确。
+                    CheckmarkSlot(selected: selected)
                 }
             }
             .padding(16)
@@ -292,6 +321,35 @@ private struct PresetThemeCard: View {
         .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("theme_preset_\(preset.key)")
     }
+}
+
+/// 固定 20×20 对勾槽位(← Android Box(Modifier.size(20.dp)) + 条件 Icon)
+private struct CheckmarkSlot: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let selected: Bool
+
+    var body: some View {
+        ZStack {
+            Color.clear.frame(width: 20, height: 20)
+            if selected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 20))
+                    .foregroundColor(colors.primary)
+                    .accessibilityLabel(L10n.format("selected"))
+            }
+        }
+        .frame(width: 20, height: 20)
+    }
+}
+
+/// ← Android `colors.background.red < 0.5f` 语义探针: 取 SwiftUI Color 的红通道分量。
+/// 注意与 CourseColorUtil.luminance(BT.601 加权亮度)不同 —— 红通道值与整体亮度
+/// 可在偏暗绿/蓝主题上给出相反判定, 1.0.61 Android 定稿是红通道, iOS 必须同语义。
+private func isDarkBackgroundByRedChannel(_ color: Color) -> Bool {
+    let ui = UIColor(color)
+    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+    ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+    return r < 0.5
 }
 
 // ← ColorSwatch
@@ -315,8 +373,9 @@ private struct CustomThemeCard: View {
     let onEdit: () -> Void
 
     var body: some View {
-        // 卡片色板预览按当前深浅模式派生(与 PresetThemeCard 的探针逻辑一致)
-        let isDark = CourseColorUtil.luminance(colors.background) < 0.5
+        // 卡片色板预览按当前深浅模式派生(与 PresetThemeCard 的探针逻辑一致:
+        // ← Android `colors.background.red < 0.5f` 红通道语义)
+        let isDark = isDarkBackgroundByRedChannel(colors.background)
         let scheme = CustomSchemeDeriver.derive(theme: theme, isDark: isDark)
         Button(action: onClick) {
             VStack(alignment: .leading, spacing: 12) {
@@ -325,12 +384,14 @@ private struct CustomThemeCard: View {
                     ColorSwatch(color: scheme.secondary)
                     ColorSwatch(color: scheme.tertiary)
                     Spacer(minLength: 0)
-                    // edit 色块:surfaceContainerHighest 与卡片底色拉开层级;24 嵌 28 行不撑高
+                    // edit 色块:surfaceContainerHighest 与卡片底色拉开层级;
+                    // ← Android 28dp(与色板同高, 内嵌 16dp Edit 图标), 首行结构与
+                    // 预设卡严格同构不撑高(24 会差 4pt)
                     Button(action: onEdit) {
                         Image(systemName: "pencil")
                             .font(.system(size: 16))
                             .foregroundColor(colors.onSurfaceVariant)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 28, height: 28)
                             .background(colors.surfaceContainerHighest)
                             .cornerRadius(SleepyShapes.small)
                     }
@@ -338,17 +399,16 @@ private struct CustomThemeCard: View {
                     .accessibilityIdentifier("theme_custom_edit_\(theme.id)")
                     .accessibilityLabel(L10n.format("theme_custom_edit"))
                 }
-                HStack {
-                    Text(theme.name.isEmpty ? L10n.format("theme_new") : theme.name)
+                HStack(spacing: 0) {
+                    Text(theme.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? L10n.format("theme_new") : theme.name)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colors.onSurface)
                         .lineLimit(1)
-                    Spacer()
-                    if selected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 20))
-                            .foregroundColor(colors.primary)
-                    }
+                        // ← Android Text(modifier = Modifier.weight(1f))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // 与预设卡相同:固定 20pt 槽位,避免选中态改变标题行高度。
+                    CheckmarkSlot(selected: selected)
                 }
             }
             .padding(16)
