@@ -64,22 +64,49 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
         // AHU 形态优先匹配 (5 仓 cross-verified 共识):
         //   1) studentTableVms[0].activities[] (print-data) — 真正课表数据 (weekday/startUnit/...)
         //   2) data.lessons[] (get-data) — metadata-only, 含 courseCode/examMode 但缺节次
-        if let stVms = root["studentTableVms"] as? [[String: Any]], !stVms.isEmpty {
-            if let activities = stVms.first?["activities"] as? [[String: Any]], !activities.isEmpty {
+        // 逐元素容错 (对齐 Android runCatching{el.jsonObject}.getOrNull()?:continue):
+        // 数组含脏元素只跳过该行, 不整体作废。
+        if let stVms = root["studentTableVms"] as? [Any], !stVms.isEmpty {
+            let firstTable = stVms.first as? [String: Any]
+            if let activities = firstTable?["activities"] as? [Any], !activities.isEmpty {
                 return parseAhuPrintDataActivities(activities)
             }
         }
-        if let ahuLessons = (root["data"] as? [String: Any])?["lessons"] as? [[String: Any]], !ahuLessons.isEmpty {
+        if let ahuLessons = (root["data"] as? [String: Any])?["lessons"] as? [Any], !ahuLessons.isEmpty {
             return parseAhuLessons(ahuLessons)
         }
 
         // HFUT 形态: result.lessonList[] + result.scheduleList[] (双层)
         guard let result = root["result"] as? [String: Any] else { return [] }
 
+        // issue #46: 布局查表 (服务端权威节次表)。JS 链第 3.5 段 POST
+        // /ws/schedule-table/timetable-layout 拿 result.courseUnitList 后并入 payload 顶层;
+        // 有则 startTime→indexNo 精确映射 (HFUTer/kirsh1 社区共识算法),
+        // 无则 fallback heuristic (inferNodes), CUMTB/老包零回归。
+        func intContent(_ v: Any?) -> Int? {
+            content(v).flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        }
+        var unitByStart: [Int: Int] = [:]
+        var unitEnds: [(end: Int, indexNo: Int)] = []   // (endTime, indexNo)
+        if let units = root["courseUnitList"] as? [Any] {
+            for u in units {
+                guard let o = u as? [String: Any] else { continue }
+                guard let idx = intContent(o["indexNo"]) else { continue }
+                guard let st = intContent(o["startTime"]) else { continue }
+                guard let et = intContent(o["endTime"]) else { continue }
+                unitByStart[st] = idx
+                unitEnds.append((et, idx))
+            }
+            // Android sortBy 是稳定排序 (并列保持表序, 典型表序即 indexNo 升序),
+            // Swift sort 不保证稳定 → 并列显式按 indexNo 升序, 行为对齐。
+            unitEnds.sort { $0.end < $1.end || ($0.end == $1.end && $0.indexNo < $1.indexNo) }
+        }
+
         // lessonList → lessonId (String) → courseName (HFUT 用 String, scheduleList 用 Int — 注意互转)
         var nameMap: [String: String] = [:]
-        if let lessonArr = result["lessonList"] as? [[String: Any]] {
-            for o in lessonArr {
+        if let lessonArr = result["lessonList"] as? [Any] {
+            for el in lessonArr {
+                guard let o = el as? [String: Any] else { continue }
                 let id = content(o["id"]) ?? ""
                 let name = content(o["courseName"]) ?? ""
                 if !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -89,11 +116,12 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
             }
         }
 
-        guard let scheduleArr = result["scheduleList"] as? [[String: Any]] else { return [] }
+        guard let scheduleArr = result["scheduleList"] as? [Any] else { return [] }
 
         var out: [JwCourse] = []
-        for o in scheduleArr {
-            guard let lessonIdInt = content(o["lessonId"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) else { continue }
+        for el in scheduleArr {
+            guard let o = el as? [String: Any] else { continue }
+            guard let lessonIdInt = intContent(o["lessonId"]) else { continue }
             let lessonIdStr = String(lessonIdInt)
             let name = nameMap[lessonIdStr] ?? lessonIdStr
 
@@ -101,13 +129,25 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let teacher = (content(o["personName"]) ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let day = content(o["weekday"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) else { continue }
-            guard let weekIndex = content(o["weekIndex"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) else { continue }
-            let startTime = content(o["startTime"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) ?? 0
-            let endTime = content(o["endTime"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) ?? 0
-            let periods = content(o["periods"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) ?? 1
+            guard let day = intContent(o["weekday"]) else { continue }
+            guard let weekIndex = intContent(o["weekIndex"]) else { continue }
+            let startTime = intContent(o["startTime"]) ?? 0
+            let endTime = intContent(o["endTime"]) ?? 0
+            let periods = intContent(o["periods"]) ?? 1
 
-            guard let inferred = Self.inferNodes(startTime, endTime, periods) else { continue }
+            // issue #46: 布局查表优先 — schedule.startTime 精确等于 unit.startTime (采集包 122/122);
+            // endUnit = endTime >= unit.endTime 的最大 indexNo (11 仓实测零失败)。
+            // 查表不完整 (start 缺 / end 无覆盖) → 整行走旧 heuristic。
+            let inferred: (Int, Int)?
+            if !unitByStart.isEmpty,
+               let su = unitByStart[startTime],
+               let eu = unitEnds.last(where: { $0.end <= endTime })?.indexNo,
+               eu >= su {
+                inferred = (su, eu)
+            } else {
+                inferred = Self.inferNodes(startTime, endTime, periods)
+            }
+            guard let inferred = inferred else { continue }
 
             out.append(JwCourse(
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -125,14 +165,15 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
 
     /// AHU 形态解析: `data.lessons[]` 扁平结构 (已合并 scheduleList+lessonList)。
     /// 字段映射 (qiqqqqq517 ahu.js 实锤)。
-    private func parseAhuLessons(_ lessons: [[String: Any]]) -> [JwCourse] {
+    private func parseAhuLessons(_ lessons: [Any]) -> [JwCourse] {
         var out: [JwCourse] = []
         func content(_ v: Any?) -> String? {
             if let s = v as? String { return s }
             if let n = v as? NSNumber { return n.stringValue }
             return nil
         }
-        for o in lessons {
+        for el in lessons {
+            guard let o = el as? [String: Any] else { continue }
             let lessonId = content(o["lessonId"]) ?? content(o["id"])
             guard let lid = lessonId, !lid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
 
@@ -164,14 +205,15 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
 
     /// AHU print-data 形态解析: `studentTableVms[0].activities[]`
     /// (5 仓 cross-verified 共识: MoeclubM + abydym + Landon-3314 + Zeraora-807 + qiqqqqq517)
-    private func parseAhuPrintDataActivities(_ activities: [[String: Any]]) -> [JwCourse] {
+    private func parseAhuPrintDataActivities(_ activities: [Any]) -> [JwCourse] {
         var out: [JwCourse] = []
         func content(_ v: Any?) -> String? {
             if let s = v as? String { return s }
             if let n = v as? NSNumber { return n.stringValue }
             return nil
         }
-        for o in activities {
+        for el in activities {
+            guard let o = el as? [String: Any] else { continue }
             guard let name = content(o["courseName"]) else { continue }
 
             // teacherNames → List<String> → join "/" (5 仓 consensus)
@@ -273,9 +315,13 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
             if bare.isEmpty { continue }
             if bare.contains("-") {
                 // 范围: "1-16" 或 "1- 16"
-                let parts = bare.components(separatedBy: "-")
-                guard let a = Int(parts.first?.trimmingCharacters(in: .whitespaces) ?? "") else { continue }
-                let b = parts.count > 1 ? (Int(parts[1].trimmingCharacters(in: .whitespaces)) ?? a) : a
+                // 对齐 Android bare.split("-", limit = 2): 只按首个横杠拆两段, 剩余部分保留 —
+                // 畸形 "5-12-16" → a=5, b="12-16" 整串转 Int 失败 → b 回退 a → (5,5,parity)。
+                let dash = bare.firstIndex(of: "-")!
+                let aStr = String(bare[..<dash]).trimmingCharacters(in: .whitespaces)
+                let bStr = String(bare[bare.index(after: dash)...]).trimmingCharacters(in: .whitespaces)
+                guard let a = Int(aStr) else { continue }
+                let b = Int(bStr) ?? a
                 let r = JwParity.adjustedRange(a, b, parity: parity)
                 out.append((r.start, r.end, parity))
             } else {

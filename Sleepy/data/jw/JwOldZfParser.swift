@@ -100,9 +100,9 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
     private func parseImportBean(_ cDay: Int, _ html: String, _ node: Int) -> [ImportBean] {
         var courses: [ImportBean] = []
         var isAbnormal = false
-        // ← Kotlin substringBeforeLast("</td>"): 首个 "</td>" 前的部分; 无则原串
+        // ← Kotlin substringBeforeLast("</td>"): 最后个 "</td>" 前的部分; 无则原串
         let inner: String
-        if let r = html.range(of: "</td>")?.lowerBound {
+        if let r = html.range(of: "</td>", options: .backwards)?.lowerBound {
             inner = String(html[html.startIndex..<r])
         } else {
             inner = html
@@ -159,7 +159,10 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
     /// T1 修复: G3 hasTypeFlag 每门课后复位 / G4 末尾 token 越界守卫 / DEF-1 preIndex==0 守卫。
     private func parseImportBean1(_ cDay: Int, _ source: String, _ node: Int) -> [ImportBean] {
         var courses: [ImportBean] = []
-        let split = source.split(whereSeparator: { $0 == " " }).map(String.init)
+        // ← Kotlin source.split(" ".toRegex()).dropLastWhile { it.isEmpty() }:
+        //   保留连续/前导空格产生的空 token(下标语义依赖它们); courseSource 已 trim,
+        //   天然无尾部空 token, 与 dropLastWhile 等价。Swift split 默认丢空子串, 不可用。
+        let split = source.components(separatedBy: " ")
         var preIndex = -1
         var hasTypeFlag = false
         for i in split.indices {
@@ -224,10 +227,12 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
             } else {
                 day = i.cDay
             }
+            // T1 G1: 与 Kotlin 一致读 parseTime 写回后的 startNode（Kotlin 收引用可直接读 i,
+            // Swift 结构体是值拷贝, 必须读被 parseTime 改过的 bean, 否则写回丢失）
             result.append(JwCourse(
                 name: i.name, room: i.room ?? "", teacher: i.teacher ?? "",
-                day: day, startNode: i.startNode,
-                endNode: i.startNode + time[1] - 1,
+                day: day, startNode: bean.startNode,
+                endNode: bean.startNode + time[1] - 1,
                 startWeek: time[2],
                 endWeek: time[3],
                 type: time[4]))
@@ -384,11 +389,12 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
     static func parseHeaderNodeString(_ str: String) -> Int {
         guard str.range(of: "^\(HEADER_NODE_PATTERN)$", options: .regularExpression) != nil else { return -1 }
         let raw = String(str.dropFirst().dropLast())
+        // ← Kotlin raw.split('-', '—', '~', ',').firstOrNull(): 保留首段为空的空 token
+        //   (如 "第-4节" → 首段 ""→ -1); Swift split 会丢掉空段导致取到后段, 用 components。
         let firstSegRaw = raw
-            .split(whereSeparator: { $0 == "-" || $0 == "—" || $0 == "~" || $0 == "," })
-            .first.map(String.init)?
+            .components(separatedBy: CharacterSet(charactersIn: "-—~,"))[0]
             .trimmingCharacters(in: .whitespaces)
-        guard var seg = firstSegRaw else { return -1 }
+        var seg = firstSegRaw
         if seg.hasPrefix("第") { seg.removeFirst() }
         if seg.hasSuffix("节") { seg.removeLast() }
         seg = seg.trimmingCharacters(in: .whitespaces)
@@ -467,12 +473,5 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
         if source.contains("<a") { out.append("<a>课程链接") }
         if source.range(of: Self.WEEK_PATTERN, options: .regularExpression) != nil { out.append("{第N-M周}") }
         return out
-    }
-}
-
-extension String {
-    /// Kotlin substringBefore('/'...)-style helper used above
-    func dropLastComponent(_ separator: String) -> String {
-        components(separatedBy: separator).dropLast().joined(separator: separator)
     }
 }

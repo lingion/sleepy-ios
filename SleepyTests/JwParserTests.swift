@@ -250,6 +250,86 @@ final class JwWiseduParserTests: XCTestCase {
         XCTAssertEqual(0, try JwWiseduParser("not json").generateCourseList().count)
         XCTAssertEqual(0, try JwWiseduParser(#"{"code":"0","datas":{}}"#).generateCourseList().count)
     }
+
+    // MARK: - ← JwParserFixtureTest.kt wisedu 三例 (数字型 SKXQ/KSJC/JSJC 契约)
+
+    /// 载入 SleepyTests/resources/wisedu-json/<name>.json
+    /// (测试 target resources 以 folder 形式挂载, 加载方式参照 JwChaoxingParserTests)
+    private func loadWiseduFixture(_ name: String) throws -> String {
+        let bundle = Bundle(for: JwWiseduParserTests.self)
+        guard let url = bundle.url(forResource: name, withExtension: "json", subdirectory: "resources/wisedu-json")
+            ?? bundle.url(forResource: name, withExtension: "json", subdirectory: "wisedu-json") else {
+            XCTFail("测试资源 wisedu-json/\(name).json 应存在")
+            throw NSError(domain: "test", code: 2)
+        }
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// ← JwParserFixtureTest.expectedCourses: 读 expected.json 的 courses 数组,
+    /// 九字段 (name/day/startNode/endNode/startWeek/endWeek/type/teacher/room), 顺序敏感。
+    /// JwCourse: Equatable 恰含这九字段 → 整struct比较等价逐字段比较。
+    private func expectedCourses(_ jsonText: String) throws -> [JwCourse] {
+        guard let root = try JSONSerialization.jsonObject(with: Data(jsonText.utf8)) as? [String: Any],
+              let arr = root["courses"] as? [[String: Any]] else {
+            throw NSError(domain: "test", code: 3,
+                          userInfo: [NSLocalizedDescriptionKey: "expected.json 缺 courses 数组"])
+        }
+        return arr.map { o in
+            JwCourse(
+                name: (o["name"] as? String) ?? "",
+                room: (o["room"] as? String) ?? "",
+                teacher: (o["teacher"] as? String) ?? "",
+                day: (o["day"] as? Int) ?? -1,
+                startNode: (o["startNode"] as? Int) ?? -1,
+                endNode: (o["endNode"] as? Int) ?? -1,
+                startWeek: (o["startWeek"] as? Int) ?? -1,
+                endWeek: (o["endWeek"] as? Int) ?? -1,
+                type: (o["type"] as? Int) ?? -1
+            )
+        }
+    }
+
+    func testWiseduFixtureContracts() throws {
+        // ← caseTable 三行: wisedu-normal=5 / wisedu-missing=3 / wisedu-empty=0
+        //   + `every fixture matches its nine-field expected contract` +
+        //     `expectedCount annotation matches expected json` 两道闸
+        let cases: [(id: String, fixture: String, count: Int)] = [
+            ("wisedu-normal", "xskcb_normal", 5),
+            ("wisedu-missing", "xskcb_missing_fields", 3),
+            ("wisedu-empty", "xskcb_empty_rows", 0),
+        ]
+        for c in cases {
+            let expected = try expectedCourses(try loadWiseduFixture(c.fixture + ".json.expected"))
+            let actual = try JwWiseduParser(try loadWiseduFixture(c.fixture)).generateCourseList()
+            XCTAssertEqual(c.count, expected.count, "\(c.id): expectedCount 注记与 expected.json 不符")
+            XCTAssertEqual(expected.count, actual.count,
+                           "\(c.id): 课程数 expected=\(expected.count) actual=\(actual.count)")
+            XCTAssertEqual(expected, actual, "\(c.id): 九字段契约不符(顺序敏感)")
+        }
+    }
+
+    func testNumericJsonPrimitivesProduceCourses() throws {
+        // ← v1.0.61 对齐修复回归: kotlinx jsonPrimitive.contentOrNull 对 JSON 数字取
+        // "1" 字面文本; iOS 若只认 `as? String` 则 int("SKXQ")=nil 整行丢失(修复前 0 课)。
+        let json = #"""
+        {"code":"0","datas":{"xskcb":{"rows":[{"KCM":"高等数学","SKJS":"张老师","JASMC":"教学楼A101",
+        "SKXQ":1,"KSJC":1,"JSJC":2,
+        "SKZC":"1111100000000000000000000000000000000000000000000000000000","KBID":"kb-t1"}]}}}
+        """#
+        let courses = try JwWiseduParser(json).generateCourseList()
+        XCTAssertEqual(1, courses.count, "数字型 SKXQ/KSJC/JSJC 行不应被丢弃")
+        XCTAssertEqual(JwCourse(name: "高等数学", room: "教学楼A101", teacher: "张老师",
+                                day: 1, startNode: 1, endNode: 2,
+                                startWeek: 1, endWeek: 5, type: 0), courses[0])
+    }
+
+    func testNullModuleThrowsNotSilentEmpty() throws {
+        // ← 模块键存在但值为 JSON null: Kotlin `datas[it]?.jsonObject` 抛
+        // IllegalArgumentException; iOS 同形抛 JwParseError, 不再静默吞掉(问题3修复)。
+        XCTAssertThrowsError(try JwWiseduParser(#"{"datas":{"xskcb":null}}"#).generateCourseList())
+        // 模块键缺失仍走 firstNotNullOfOrNull 短路 → 空表 (Kotlin 不抛)
+        XCTAssertEqual(0, try JwWiseduParser(#"{"datas":{}}"#).generateCourseList().count)
+    }
 }
 
 // MARK: - JwImportViewModel 静态纯函数(iOS 新增,等价 Kotlin 侧可单测部分)
@@ -354,8 +434,11 @@ final class JwImportViewModelLogicTests: XCTestCase {
     func testSchoolsJsonLoadsAndParses() throws {
         // 校数闸门随安卓 schools.json 联动
         // 2026-09-10 安卓 185 → v1.0.60 全量交叉验证收录 348 (15 agent 分桶, 60 修/3 删/3 更名)
+        // 2026-10-10 收录湖北商贸学院(zf_new, PR #156/#157) → 349
+        //   (安卓 v1.0.61 tag XjuPostgraduateAdmissionTest `main assets schools json count gate 349`;
+        //    iOS resources/schools.json 与安卓 v1.0.61 assets 逐条 diff = 0)
         let list = try loadSchools()
-        XCTAssertEqual(348, list.count)
+        XCTAssertEqual(349, list.count)
         let first = list[0]
         XCTAssertFalse(first.name.isEmpty)
     }

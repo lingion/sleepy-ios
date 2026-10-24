@@ -24,11 +24,22 @@ func jint(_ o: [String: Any]?, _ key: String) -> Int? {
     return s.isEmpty ? nil : Int(s)
 }
 
+/// 对齐 Kotlin `Json { ignoreUnknownKeys = true; isLenient = true }` 的容错解析:
+/// 当前工具链(Swift 5.8/iOS 16.4 SDK)没有 allowJSON5Syntax(iOS 17 Foundation),
+/// 宽松重试不可编译 — 保持严格 JSONSerialization + .allowFragments;
+/// kotlinx 对标量 root 的接受由 .allowFragments 对齐 ("42" 解析成 fragment,
+/// 由调用方形状分发落到空列表, 不当解析失败)。
+func jwParseJSONLenient(_ s: String) -> Any? {
+    guard let data = s.data(using: .utf8) else { return nil }
+    return try? JSONSerialization.jsonObject(with: data, options: [.allowFragments])
+}
+
 // MARK: - 东南大学(正方 URP 系, newxk.urp.seu.edu.cn)
 //
 // 字段映射: KCM→name SKJS→teacher JASMC→room SKXQ→day KSJC→startNode JSJC→endNode ZCMC→周次段。
 // 支持三形态 ZCMC: 范围"1-16周"/单双周"1-10周(单)"/离散"2,4,6周"。
-// 单/双周端点收敛到第一个匹配周次(SEUTimetable parseWeekRange 语义)。
+// 单/双标记按逗号段内检测 (混合串各段独立成立); 端点修正走 JwParity.adjustedRange
+// (端点相等时 end 抬回 start 防倒挂, endWeek 不做奇偶收缩)。
 final class JwSeuParser: JwParser, JwParserConfidenceReporting {
 
     let source: String
@@ -38,8 +49,8 @@ final class JwSeuParser: JwParser, JwParserConfidenceReporting {
     }
 
     func generateCourseList() throws -> [JwCourse] {
-        guard let data = source.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
-              let root = try? JSONSerialization.jsonObject(with: data) else { return [] }
+        // 对齐 Kotlin Json { ignoreUnknownKeys = true; isLenient = true }
+        guard let root = jwParseJSONLenient(source.trimmingCharacters(in: .whitespacesAndNewlines)) else { return [] }
 
         var arr: [Any] = []
         if let a = root as? [Any] {
@@ -76,39 +87,41 @@ final class JwSeuParser: JwParser, JwParserConfidenceReporting {
         return out
     }
 
-    /// ZCMC 串 → [(startWeek, endWeek, type)]。三形态: 范围/单双周(端点收敛)/离散/单值。
+    /// ZCMC 串 → [(startWeek, endWeek, type)]。三形态: 范围/单双周/离散/单值。
+    /// 单/双标记按逗号段内检测 (混合串 "1-8周(单),9-16周(双)" 两段各自成立,
+    /// 整串 first-match 会标错后半段)。端点修正走 JwParity.adjustedRange —
+    /// 只抬起点到首个合法周, 端点相等时 end 抬回 start; endWeek 不做奇偶收缩
+    /// (UI 连续显示, type 驱动斜体/灰显, 周次命中由下游 inWeek 按奇偶判定)。
     func parseWeekRanges(_ zcmc: String) -> [(Int, Int, Int)] {
         if zcmc.trimmingCharacters(in: .whitespaces).isEmpty { return [] }
         var out: [(Int, Int, Int)] = []
 
-        // 1. 单/双周标志
-        let typeInt = zcmc.contains("(单)") ? 1 : (zcmc.contains("(双)") ? 2 : 0)
-
-        // 2. 剥 "周" + "(单|双)" + 空白; 按逗号拆离散段
+        // 剥 "周" + 全角括号归一 "(单)/(双)"; 按逗号拆段 — 单/双标记按段内检测
         let clean = zcmc
             .replacingOccurrences(of: "周", with: "")
-            .replacingOccurrences(of: "(单)", with: "")
-            .replacingOccurrences(of: "(双)", with: "")
-            .trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: "（", with: "(")
+            .replacingOccurrences(of: "）", with: ")")
         let segments = clean.split(whereSeparator: { $0 == "," || $0 == "，" })
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
 
         for seg in segments {
-            if seg.contains("-") {
-                let parts = seg.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+            let typeInt: Int
+            if seg.contains("单") { typeInt = 1 }
+            else if seg.contains("双") { typeInt = 2 }
+            else { typeInt = 0 }
+            let bare = seg
+                .replacingOccurrences(of: "(单)", with: "")
+                .replacingOccurrences(of: "(双)", with: "")
+            if bare.contains("-") {
+                let parts = bare.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
                     .map { $0.trimmingCharacters(in: .whitespaces) }
                 guard let a = Int(parts[0]) else { continue }
                 let b = parts.count > 1 ? (Int(parts[1]) ?? a) : a
-                // 单双周端点收敛到第一个匹配周次
-                let adjustedA: Int
-                switch typeInt {
-                case 1: adjustedA = a % 2 == 0 ? a + 1 : a   // 单周首=奇数
-                case 2: adjustedA = a % 2 != 0 ? a + 1 : a   // 双周首=偶数
-                default: adjustedA = a
-                }
-                out.append((adjustedA, b, typeInt))
-            } else if let v = Int(seg) {
+                // 单双周端点修正 (共享 helper: 端点相等时不产出倒挂区间)
+                let (sw, ew) = JwParity.adjustedRange(a, b, parity: typeInt)
+                out.append((sw, ew, typeInt))
+            } else if let v = Int(bare) {
                 out.append((v, v, 0))
             }
         }
@@ -146,8 +159,8 @@ final class JwZjuParser: JwParser, JwParserConfidenceReporting {
     }
 
     func generateCourseList() throws -> [JwCourse] {
-        guard let data = source.data(using: .utf8),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+        // 对齐 Kotlin Json { ignoreUnknownKeys = true; isLenient = true }
+        guard let root = jwParseJSONLenient(source) as? [String: Any],
               let kbList = jsonArr(root["kbList"]) else { return [] }
         var out: [JwCourse] = []
         for el in kbList {
@@ -162,26 +175,21 @@ final class JwZjuParser: JwParser, JwParserConfidenceReporting {
             let beforeZwf = rawKcb.components(separatedBy: "zwf").first ?? rawKcb
             let fields = beforeZwf.components(separatedBy: "<br>")
             if fields.isEmpty { continue }
-            let name = fields.count > 0
-                ? fields[0].replacingOccurrences(of: "(", with: "（").replacingOccurrences(of: ")", with: "）")
-                    .trimmingCharacters(in: .whitespaces)
-                : nil
-            guard let name = name, !name.isEmpty else { continue }
+            // 忠实 Kotlin: getOrNull(0)?.replace(...)?.trim() — split 永远 ≥1 元素,
+            // 仅在整体缺失时 continue; 空课名(如 "<br>1-16周<br>…")照常产出 name=""
+            let name = fields[0].replacingOccurrences(of: "(", with: "（").replacingOccurrences(of: ")", with: "）")
+                .trimmingCharacters(in: .whitespaces)
             let timeString = fields.count > 1 ? fields[1].trimmingCharacters(in: .whitespaces) : ""
             let teacher = fields.count > 2 ? fields[2].trimmingCharacters(in: .whitespaces) : ""
             let location = fields.count > 3 ? fields[3].trimmingCharacters(in: .whitespaces) : ""
             let segments = parseWeekSegments(timeString)
             for (startW, endW) in segments {
-                let adjustedStart: Int
-                switch typeInt {
-                case 1: adjustedStart = startW % 2 == 0 ? startW + 1 : startW
-                case 2: adjustedStart = startW % 2 != 0 ? startW + 1 : startW
-                default: adjustedStart = startW
-                }
+                // 共享 helper: 端点相等时 end 抬回 start, 不产出 (7,6) 倒挂区间
+                let (sw, ew) = JwParity.adjustedRange(startW, endW, parity: typeInt)
                 out.append(JwCourse(
                     name: name, room: location, teacher: teacher,
                     day: xqj, startNode: djj, endNode: djj + skcd - 1,
-                    startWeek: adjustedStart, endWeek: endW, type: typeInt))
+                    startWeek: sw, endWeek: ew, type: typeInt))
             }
         }
         return out
@@ -213,14 +221,13 @@ final class JwZjuParser: JwParser, JwParserConfidenceReporting {
     }
 
     var confidenceValue: Int {
-        guard let data = source.data(using: .utf8),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return 0 }
+        guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let root = jwParseJSONLenient(source) as? [String: Any] else { return 0 }
         return root["kbList"] is [Any] ? 90 : 0
     }
 
     var matchedFeatureList: [String] {
-        guard let data = source.data(using: .utf8),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+        guard let root = jwParseJSONLenient(source) as? [String: Any],
               root["kbList"] is [Any] else { return [] }
         return ["kbList"]
     }
@@ -229,7 +236,8 @@ final class JwZjuParser: JwParser, JwParserConfidenceReporting {
 // MARK: - 中国科学技术大学(自研新版, jw.ustc.edu.cn)
 //
 // JSON 路径: x.studentTableVm.activities[]。weeksStr 一次性给完整周次串:
-// "1-16"/"1-16单"/"1-16双"/"2,4,6..."。lessonCode 4 位数字, 1-2 位=startNode, 3-4 位=endNode。
+// "1-16"/"1-16单"/"1-16双"/"2,4,6..."。lessonCode 4 位数字, 1-2 位=startNode, 3-4 位=endNode;
+// 缺失/不合式时按 startDate/endDate (HH:mm) 时间推断节次兜底, 不整行丢弃。
 final class JwUstcParser: JwParser, JwParserConfidenceReporting {
 
     let source: String
@@ -239,8 +247,8 @@ final class JwUstcParser: JwParser, JwParserConfidenceReporting {
     }
 
     func generateCourseList() throws -> [JwCourse] {
-        guard let data = source.data(using: .utf8),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+        // 对齐 Kotlin Json { ignoreUnknownKeys = true; isLenient = true }
+        guard let root = jwParseJSONLenient(source) as? [String: Any],
               let tableVm = jsonObj(root["studentTableVm"]),
               let activities = jsonArr(tableVm["activities"]) else { return [] }
         var out: [JwCourse] = []
@@ -250,23 +258,29 @@ final class JwUstcParser: JwParser, JwParserConfidenceReporting {
             if name.isEmpty { continue }
             let room = fallbackRoom(obj)
             let teacher = joinTeachers(obj)
-            let (startNode, endNode) = parseLessonCode(obj)
-            if startNode == 0 { continue }
+            // lessonCode 4 位定宽是自创解读 (上游 json_version.py 只把它拼进
+            // description, 节次实际由 startDate/endDate 时间表达); 不合式时用
+            // startDate/endDate 推断兜底, 不整行丢弃。(同 Android v1.0.61)
+            let fromCode = parseLessonCode(obj)
+            let startNode: Int, endNode: Int
+            if fromCode.start > 0 {
+                (startNode, endNode) = fromCode
+            } else if let inferred = inferNodesFromTime(jstr(obj, "startDate"), jstr(obj, "endDate")) {
+                (startNode, endNode) = inferred
+            } else {
+                continue
+            }
             guard let weekday = jint(obj, "weekday") else { continue }
             let weeksStr = jstr(obj, "weeksStr")
             if weeksStr.isEmpty { continue }
             let (typeInt, cleanStr) = parseWeeksType(weeksStr)
-            for (sw, ew) in parseWeekSegments(cleanStr) {
-                let adjustedStart: Int
-                switch typeInt {
-                case 1: adjustedStart = sw % 2 == 0 ? sw + 1 : sw
-                case 2: adjustedStart = sw % 2 != 0 ? sw + 1 : sw
-                default: adjustedStart = sw
-                }
+            for (sw0, ew0) in parseWeekSegments(cleanStr) {
+                // 共享 helper: 端点相等时 end 抬回 start, 不产出 (7,6) 倒挂区间
+                let (sw, ew) = JwParity.adjustedRange(sw0, ew0, parity: typeInt)
                 out.append(JwCourse(
                     name: name, room: room, teacher: teacher,
                     day: weekday, startNode: startNode, endNode: endNode,
-                    startWeek: adjustedStart, endWeek: ew, type: typeInt))
+                    startWeek: sw, endWeek: ew, type: typeInt))
             }
         }
         return out
@@ -313,24 +327,54 @@ final class JwUstcParser: JwParser, JwParserConfidenceReporting {
         return names.joined(separator: " ")
     }
 
-    private func parseLessonCode(_ o: [String: Any]) -> (Int, Int) {
+    private func parseLessonCode(_ o: [String: Any]) -> (start: Int, end: Int) {
         let s = jstr(o, "lessonCode")
         guard s.count >= 4, s.allSatisfy({ $0.isNumber }) else { return (0, 0) }
-        let start = Int(s.prefix(2)) ?? 0
-        let end = Int(s.suffix(2)) ?? start
+        // 忠实 Kotlin substring(0,2)/substring(2,4): 固定取第 3-4 位, 非尾 2 位
+        let chars = Array(s)
+        let start = Int(String(chars[0...1])) ?? 0
+        let end = Int(String(chars[2...3])) ?? start
         return (start, end)
     }
 
+    /// lessonCode 缺失/不合式时的节次推断兜底: startDate/endDate (HH:mm) 按
+    /// 标准 985 节次布局映射 (同 JwEams5Parser 段起点表, ±10 分钟吸附)。
+    /// 推断不出返回 nil (调用方跳过该行)。
+    private func inferNodesFromTime(_ startDate: String, _ endDate: String) -> (start: Int, end: Int)? {
+        func parseHHmm(_ s: String) -> Int? {
+            let parts = s.split(separator: ":")
+            guard let h = parts.first.flatMap({ Int($0.trimmingCharacters(in: .whitespaces)) }),
+                  parts.count > 1,
+                  let m = Int(parts[1].trimmingCharacters(in: .whitespaces)) else { return nil }
+            guard (0...23).contains(h), (0...59).contains(m) else { return nil }
+            return h * 60 + m
+        }
+        guard let startMins = parseHHmm(startDate), let endMins = parseHHmm(endDate) else { return nil }
+        let slots: [(Int, Int)] = [
+            (8 * 60, 1),          // 08:00 → node 1
+            (10 * 60 + 10, 3),    // 10:10 → node 3
+            (14 * 60, 5),         // 14:00 → node 5
+            (16 * 60 + 10, 7),    // 16:10 → node 7
+            (19 * 60, 9),         // 19:00 → node 9
+        ]
+        func nodeOf(_ mins: Int) -> Int? {
+            for (slotMins, node) in slots where abs(mins - slotMins) <= 10 { return node }
+            return nil
+        }
+        guard let startNode = nodeOf(startMins) else { return nil }
+        let endNode = max(nodeOf(endMins) ?? (startNode + 1), startNode)
+        return (startNode, endNode)
+    }
+
     var confidenceValue: Int {
-        guard let data = source.data(using: .utf8),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return 0 }
-        return root["studentTableVm"] is [String: Any] ? 90 : 0
+        guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let root = jwParseJSONLenient(source) as? [String: Any] else { return 0 }
+        return jsonObj(root["studentTableVm"]) != nil ? 90 : 0
     }
 
     var matchedFeatureList: [String] {
-        guard let data = source.data(using: .utf8),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              root["studentTableVm"] is [String: Any] else { return [] }
+        guard let root = jwParseJSONLenient(source) as? [String: Any],
+              jsonObj(root["studentTableVm"]) != nil else { return [] }
         return ["studentTableVm"]
     }
 }
@@ -338,8 +382,9 @@ final class JwUstcParser: JwParser, JwParserConfidenceReporting {
 // MARK: - 四川大学(scu.edu.cn 自建门户 mobile JSON)
 //
 // JSON 路径: x.dateList[0].selectCourseList[].timeAndPlaceList[]。
-// weekDescription 剥非数字/横/逗后展开(上游 replaceAll 语义) — 单/双信息协议层丢失, 强制 type=0。
-// classDay 0-6 → day 1-7。
+// weekDescription 真实含单/双标记 ("3-9周单"/"1-16周（双）") — 保留 type=1/2,
+// 剥限定词后按 [^\d\-,] 展开(上游 replaceAll 语义), 单周(1)起点须奇数/双周(2)
+// 起点须偶数 (端点同 ZJU 修正, 只抬 start 不抬 end)。classDay 0-6 → day 1-7。
 final class JwScuParser: JwParser, JwParserConfidenceReporting {
 
     let source: String
@@ -349,8 +394,8 @@ final class JwScuParser: JwParser, JwParserConfidenceReporting {
     }
 
     func generateCourseList() throws -> [JwCourse] {
-        guard let data = source.data(using: .utf8),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+        // 对齐 Kotlin Json { ignoreUnknownKeys = true; isLenient = true }
+        guard let root = jwParseJSONLenient(source) as? [String: Any],
               let dateList = jsonArr(root["dateList"]),
               let first = dateList.first as? [String: Any],
               let selectCourseList = jsonArr(first["selectCourseList"]) else { return [] }
@@ -372,19 +417,46 @@ final class JwScuParser: JwParser, JwParserConfidenceReporting {
                 let endNode = startNode + continuing - 1
                 guard let rawDay = jint(tp, "classDay") else { continue }
                 let day = rawDay + 1  // 0-indexed Mon..Sun → 1..7
-                for (sw, ew) in parseWeeks(weekDesc) {
+                let (parity, cleanedWeeks) = extractParity(weekDesc)
+                for (sw0, ew) in parseWeeks(cleanedWeeks) {
+                    // Sleepy 语义保留 range: "1-16周" → startWeek=1, endWeek=16 (1 entry);
+                    // 离散周 "2,4,6,8" → 4 entries (每个 sw=ew=week 单周范围)。
+                    // 单周(1)起点须奇数/双周(2)起点须偶数, 端点同 ZJU 修正
+                    let adjustedStart: Int
+                    switch parity {
+                    case 1: adjustedStart = sw0 % 2 == 0 ? sw0 + 1 : sw0
+                    case 2: adjustedStart = sw0 % 2 != 0 ? sw0 + 1 : sw0
+                    default: adjustedStart = sw0
+                    }
                     out.append(JwCourse(
                         name: name, room: room, teacher: teacher,
                         day: day, startNode: startNode, endNode: endNode,
-                        startWeek: sw, endWeek: ew, type: 0))
+                        startWeek: adjustedStart, endWeek: ew, type: parity))
                 }
             }
         }
         return out
     }
 
-    /// 解析 weekDescription — "1-16周"/"2,4,6,8"/"1-15周(单)"。
-    /// 严格按上游 replaceAll("[^\\d\\-,]", "") 剥后展开; 单/双丢失, 按每周(type=0)输出。
+    /// 提取单/双周限定并剥净: 返回 (parity, 已剥限定词与括号的串)。
+    /// parity: 0=每周 1=单周 2=双周。真实形态 "3-9周单" / "1-16周（双）" /
+    /// "1-15周(单)" — ASCII/全角括号与"(单)/(双)"限定词剥除, 裸"单/双"字交
+    /// parseWeeks 的 [^\d\-,] 过滤兜底 (同 Android extractParity)。
+    func extractParity(_ s: String) -> (Int, String) {
+        let parity: Int
+        if s.contains("单") { parity = 1 }
+        else if s.contains("双") { parity = 2 }
+        else { parity = 0 }
+        let clean = s
+            .replacingOccurrences(of: "（", with: "(")
+            .replacingOccurrences(of: "）", with: ")")
+            .replacingOccurrences(of: "(单)", with: "")
+            .replacingOccurrences(of: "(双)", with: "")
+        return (parity, clean)
+    }
+
+    /// 解析 weekDescription (已剥单/双限定) — "1-16周"/"2,4,6,8"/"1-15周(单)"。
+    /// 严格按上游 replaceAll("[^\\d\\-,]", "") 剥后展开。
     func parseWeeks(_ s: String) -> [(Int, Int)] {
         if s.trimmingCharacters(in: .whitespaces).isEmpty { return [] }
         let clean = String(s.unicodeScalars.filter { CharacterSet(charactersIn: "0123456789-,").contains($0) })
@@ -405,8 +477,8 @@ final class JwScuParser: JwParser, JwParserConfidenceReporting {
     }
 
     var confidenceValue: Int {
-        guard let data = source.data(using: .utf8),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+        guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let root = jwParseJSONLenient(source) as? [String: Any],
               let dl = jsonArr(root["dateList"]), !dl.isEmpty,
               let first = dl.first as? [String: Any],
               first["selectCourseList"] is [Any] else { return 0 }
@@ -414,8 +486,7 @@ final class JwScuParser: JwParser, JwParserConfidenceReporting {
     }
 
     var matchedFeatureList: [String] {
-        guard let data = source.data(using: .utf8),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+        guard let root = jwParseJSONLenient(source) as? [String: Any],
               let dl = jsonArr(root["dateList"]), !dl.isEmpty,
               let first = dl.first as? [String: Any],
               first["selectCourseList"] is [Any] else { return [] }

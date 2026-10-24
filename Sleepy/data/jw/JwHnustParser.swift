@@ -13,7 +13,8 @@
 //            1=东北石油大学：style != "display: none;" 的 div 才是课
 //
 // 对上游偏离：kbtable null 返回空；style 比较去空格+小写（兼容 "display:none;" 与 "display: none;"）；
-// split 越界保护；周次/id 数字解析 toIntOrNull 防崩。
+// split 越界保护；周次/id 数字解析 toIntOrNull 防崩；div.html() 的 "<br />" 归一化为 "<br>" 再切分
+// （SwiftSoup 序列化 void 元素带斜杠，Jsoup 不带，不归一化则 split 失配、任何 div 都 0 产出）。
 
 import Foundation
 import SwiftSoup
@@ -52,7 +53,11 @@ final class JwHnustParser: JwParser, JwParserConfidenceReporting {
                         if style == "display:none;" { continue }
                     }
 
-                    let split = ((try? div.html()) ?? "").components(separatedBy: "<br>")
+                    // H6: SwiftSoup 把 void 元素序列化为 "<br />"（Jsoup 输出 "<br>"），
+                    // 先归一化再按 "<br>" 切分，语义与 Android 侧 div.html().split("<br>") 一致
+                    let split = ((try? div.html()) ?? "")
+                        .replacingOccurrences(of: #"<br\s*/?>"#, with: "<br>", options: .regularExpression)
+                        .components(separatedBy: "<br>")
                         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     var preIndex = -1
 

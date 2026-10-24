@@ -1,4 +1,4 @@
-// JwFetchJs2.swift — ← JwWebViewLoginScreen.kt v1.0.60 (WHUT/EAMS5/EAMS5_AHU/BJTU 续集)
+// JwFetchJs2.swift — ← JwWebViewLoginScreen.kt v1.0.61 (WHUT/EAMS5/EAMS5_AHU/BJTU 续集)
 //
 // 接续 JwFetchJs.swift 的另 4 个 fetch JS 块(分文件避免单文件过大)。
 // 桥回调统一 WKScriptMessage postMessage。
@@ -97,13 +97,15 @@ enum WhutFetchJs {
     """
 }
 
-// MARK: - EAMS5_FETCH_JS(← JwWebViewLoginScreen.kt EAMS5_FETCH_JS 原文移植)
+// MARK: - EAMS5_FETCH_JS(← JwWebViewLoginScreen.kt EAMS5_FETCH_JS 原文移植, v1.0.61 v2 四段链)
 //
-// 合肥工业大学 (jxglstu.hfut.edu.cn) EAMS5: course-table 拿 studentId + semesterId
-// → course-table/info 拿 bizTypeId → get-data 拿 lessonIds → POST datum 拿完整课表。
+// 合肥工业大学 (jxglstu.hfut.edu.cn) EAMS5: course-table 拿 studentId(+finalUrl 学号兜底)
+// → course-table/info 拿 bizTypeId(biz 空则跳过 get-data) → get-data 拿 lessonIds +
+// timeTableLayoutId → 3.5) POST timetable-layout 拿 courseUnitList → POST datum →
+// __layout/__datum 合并 + HHmm→'HH:MM' periods 转换 (issue #46)。
 // 显式拦截 one.hfut.edu.cn 门户(只有本周/下周预览, 完整学期在 jxglstu)。
 // 兼容 cumtb.edu.cn(中国矿业大学北京, 同 EAMS5 协议族)。
-// __EAMS5_PREFIX__ 运行时由 Kotlin 端用 Eams5PathPrefix.compute() 替换。
+// __EAMS5_PREFIX__ 运行时由派发端用 Eams5PathPrefix.fromSchoolUrl() 替换。
 enum Eams5FetchJs {
     static let js = """
     (function(){
@@ -155,81 +157,136 @@ enum Eams5FetchJs {
             return null;
           }
           // 多形态匹配 — 2026-09 用户反馈 + 跨仓验证 (Chiu-xaH/HFUT-Schedule,
-          //   JxglstuService.kt:34-41 + JxglstuRepository.kt:60-66)
-          // 形如:
-          //   var studentId = '2024210001';
-          //   studentId: '2024210001',
-          //   studentId: 2024210001,
-          //   studentId = 2024210001;
-          // 抓 group 1 (quoted / numeric), 失败回退更宽 [A-Za-z0-9]+ 兜底学号。
-          var m = html.match(/studentId\\s*[:=]\\s*(?:["']([0-9]{6,20})["']|([0-9]{6,20}))/);
-          var studentId = '';
-          if (m) studentId = m[1] || m[2] || '';
-          if (!studentId) {
-            var m2 = html.match(/studentId\\s*[:=]\\s*(?:["']([A-Za-z0-9]+)["']|([A-Za-z0-9]+))/);
-            if (m2) studentId = m2[1] || m2[2] || '';
+          // BoynChan/HfutOpenApi) 综合, 上游 script 段 studentId 写法不统一:
+          //   A. var studentId = '2024210001';
+          //   B. var studentId="2024210001";
+          //   C. studentId:'2024210001',        ← supwisdom 对象字面量
+          //   D. studentId: "2024210001",        ← supwisdom 对象字面量双引号
+          //   E. studentId=2024210001;           ← 极少数裸数字
+          //   F. studentId=2024210001&...        ← 在查询串里
+          // 用一条宽松正则覆盖 A–F: 键名后 [=:] 可有引号, 值允许 \\w (数字/字母/下划线)。
+          // 命中后取第一个纯数字/字母数字串; 不依赖引号, 不依赖分号终止。
+          // 与 JVM 端 EAMS5_STUDENT_ID_REGEX (data/jw/Eams5PathPrefix.kt) 同形 —
+          // 单测锁契约, JS 端保持字符串字面量 (WebView JS context 无 JVM 调用通道)。
+          var m = html.match(/studentId\\s*[=:]\\s*['"]?([A-Za-z0-9]+)['"]?/);
+          var sid = m ? m[1] : null;
+          if (!sid) {
+            // 参考仓 dev 分支实测口径: course-table 302 Location =
+            // /eams5-student/for-std/course-table/info/<studentId>, 其直接截断该路径取学号。
+            // fetch 已自动跟随重定向, r.url (ctx.finalUrl) 即 Location 的等价物。
+            m = /for-std\\/course-table\\/info\\/(\\d+)/.exec(ctx.finalUrl);
+            if (m) sid = m[1];
           }
-          if (!studentId) throw new Error('未取到 studentId: 请确认已在教务主页登录, 且当前域名属于 EAMS5 系列');
-          // 2) 拿 bizTypeId: 解析 /for-std/course-table/info/<studentId> HTML
-          //    多形态正则覆盖 (参考仓 parseBizTypeId 共识 + issue #46):
-          //   bizTypeId: 23,  /  bizTypeId = '23'  /  bizTypeId: '23',
-          fetch(PREFIX + '/for-std/course-table/info/' + encodeURIComponent(studentId), {credentials:'include'})
-          .then(function(r2){
-            if (!r2.ok) throw new Error('course-table/info 取 bizTypeId 失败 HTTP ' + r2.status);
-            return r2.text();
-          })
+          if (!sid) return null;
+          var sem = extractedSemester;
+          return {studentId: sid, semesterId: sem || ''};
+        })
+        .then(function(ctx){
+          if (!ctx) {
+            window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:false, err:'未取到 studentId,请在 course-table 页面停留后再试'})});
+            return null;
+          }
+          var sid = ctx.studentId;
+          var sem = ctx.semesterId;
+          // 2) info 页拿 bizTypeId (参考仓 parseBizTypeId: /bizTypeId\\s*:\\s*(\\d+)/ 同形)
+          return fetch(PREFIX + '/for-std/course-table/info/' + sid, {credentials:'include'})
+          .then(function(r){ return r.ok ? r.text() : ''; })
+          .catch(function(){ return ''; })
           .then(function(infoHtml){
-            var bz = infoHtml.match(/bizTypeId\\s*[:=]\\s*(?:["']?(\\d+)/i);
-            var bizTypeId = bz ? bz[1] : '23';
-            var semesterParam = extractedSemester ? '&semesterId=' + encodeURIComponent(extractedSemester) : '';
-            // 3) get-data 拿 lessonIds
-            return fetch(PREFIX + '/for-std/course-table/get-data?bizTypeId=' + encodeURIComponent(bizTypeId) +
-                         '&dataId=' + encodeURIComponent(studentId) + semesterParam,
-                         {credentials:'include'})
-            .then(function(r3){
-              if (!r3.ok) throw new Error('get-data 取 lessonIds 失败 HTTP ' + r3.status);
-              return r3.json().catch(function(){ return null; });
-            })
-            .then(function(gd){
-              var lessonIds = [];
+            var biz = '';
+            if (infoHtml) {
+              var bm = infoHtml.match(/bizTypeId\\s*[=:]\\s*['"]?(\\d+)/);
+              if (bm) biz = bm[1];
+              if (!sem) sem = extractSemesterId(infoHtml);
+            }
+            // 3) get-data 拿 lessonIds[]; 任一环失败 → ids 留空数组 = v1 旧行为兜底
+            var q = '/for-std/course-table/get-data?bizTypeId=' + biz + '&dataId=' + sid;
+            if (sem) q += '&semesterId=' + sem;
+            var chain = biz
+              ? fetch(PREFIX + q, {credentials:'include'})
+                  .then(function(r){ return r.ok ? r.text() : ''; })
+                  .catch(function(){ return ''; })
+              : Promise.resolve('');
+            return chain.then(function(txt){
+              var ids = [];
+              var layoutId = null;
               try {
-                if (gd) {
-                  if (Array.isArray(gd.lessonIds)) lessonIds = gd.lessonIds;
-                  else if (gd.result && Array.isArray(gd.result.lessonIds)) lessonIds = gd.result.lessonIds;
-                  else if (Array.isArray(gd.data)) lessonIds = gd.data;
-                }
-              } catch(e) {}
-              // 兜底: lessonIds 为空数组时 datum 仍会 500 (参考仓 JxglstuService.kt:53 注释),
-              // 但本 JS 跨 cumtb 共用, 不因 HFUT 异常让其它 EAMS5 校整体失败 — 透传空数组过去。
-              var studentIdParam;
-              if (/^\\d+$/.test(studentId)) studentIdParam = parseInt(studentId, 10);
-              else studentIdParam = studentId;
-              // 4) POST datum 拿完整课表
-              return fetch(PREFIX + '/ws/schedule-table/datum', {
-                method:'POST',
-                credentials:'include',
-                headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
-                body: JSON.stringify({lessonIds: lessonIds, studentId: studentIdParam, weekIndex: ''})
-              }).then(function(r4){
-                return r4.text().then(function(txt){
-                  if (!r4.ok) throw new Error('datum 接口失败 HTTP ' + r4.status + '（登录态可能已过期, 请刷新重登）');
-                  window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({
-                    ok:true,
-                    data:txt,
-                    eams5: {
-                      studentId: studentId,
-                      bizTypeId: bizTypeId,
-                      semesterId: extractedSemester || '',
-                      prefix: PREFIX
-                    }
-                  })});
+                var j = JSON.parse(txt);
+                var got = j && (j.lessonIds || (j.result && j.result.lessonIds));
+                if (got && got.length) ids = got;
+                // issue #46: get-data 顶层带 timeTableLayoutId (采集包实锤 122),
+                // 供第 3.5 段拉服务端权威节次表
+                if (j && typeof j.timeTableLayoutId === 'number') layoutId = j.timeTableLayoutId;
+              } catch (e) { /* get-data 异常 → 空数组兜底 */ }
+              // 3.5) POST timetable-layout 拿 courseUnitList (各校区节次表, 宣城 12 节 ≠ 合肥 10 节)。
+              //      参照 HFUTer/HFNewParserViewModel + 小爱系 provider + kirsh1/ustc-timetable 共识:
+              //      节次不能客户端硬编码, 以 {timeTableLayoutId} 换取 courseUnitList。
+              //      失败可降级: layoutId 空/接口 500 → units 留空, parser 走旧 heuristic 兜底。
+              var layoutChain = layoutId
+                ? fetch(PREFIX + '/ws/schedule-table/timetable-layout', {
+                    method:'POST',
+                    credentials:'include',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({timeTableLayoutId: layoutId})
+                  }).then(function(r){ return r.ok ? r.json() : null; })
+                    .catch(function(){ return null; })
+                : Promise.resolve(null);
+              return layoutChain.then(function(layout){
+                var units = (layout && layout.result && layout.result.courseUnitList) || [];
+                // 4) POST schedule-table/datum — lessonIds 为真课时数组; 纯数字学号按 int 提交
+                return fetch(PREFIX + '/ws/schedule-table/datum', {
+                  method:'POST',
+                  credentials:'include',
+                  headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({
+                    lessonIds: ids,
+                    studentId: /^\\d+$/.test(sid) ? Number(sid) : sid,
+                    weekIndex: ''
+                  })
+                }).then(function(r){
+                  if (!r.ok) throw new Error('POST schedule-table/datum 失败 HTTP ' + r.status + ' (lessonIds:' + ids.length + ')');
+                  return r.text().then(function(datumTxt){
+                    if (!units.length) return datumTxt;                 // 无布局 → 原样 (parser heuristic)
+                    var periodUnits = units.map(function(u){            // 布局节次升序, 与 datum 原文合并
+                      return {indexNo:u.indexNo, startTime:u.startTime, endTime:u.endTime};
+                    }).sort(function(a,b){ return a.indexNo - b.indexNo; });
+                    var merged;
+                    try {
+                      var dj = JSON.parse(datumTxt);
+                      dj.courseUnitList = periodUnits;                  // parser 精确查表锚点
+                      merged = JSON.stringify(dj);
+                    } catch (e2) { merged = datumTxt; }
+                    return JSON.stringify({__layout: periodUnits, __datum: merged});
+                  });
                 });
               });
             });
           });
         })
+        .then(function(txt){
+          if (!txt) return;
+          // issue #46: 有布局时把 courseUnitList 转成 periods[] 供确认页作息表预填
+          // (HHmm → 'HH:MM', 与 session-time-pattern 形态一致); 无布局 = 原行为 periods:[]
+          var periods = [];
+          var dataTxt = txt;
+          try {
+            var o = JSON.parse(txt);
+            if (o && o.__layout && o.__datum) {
+              dataTxt = o.__datum;
+              for (var i = 0; i < o.__layout.length; i++) {
+                var u = o.__layout[i];
+                periods.push({
+                  node: u.indexNo,
+                  start: Math.floor(u.startTime/100) + ':' + (u.startTime%100 < 10 ? '0' : '') + (u.startTime%100),
+                  end: Math.floor(u.endTime/100) + ':' + (u.endTime%100 < 10 ? '0' : '') + (u.endTime%100)
+                });
+              }
+            }
+          } catch (e) { /* 非 merged 形态 (CUMTB/AHU/无布局) → 原样 */ }
+          window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:true, data:dataTxt, periods:periods})});
+        })
         .catch(function(e){
-          window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:false, err:String(e && e.message || e)})});
+          window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:false, err:String(e)})});
         });
       } catch(err) {
         window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:false, err:String(err)})});
@@ -240,9 +297,11 @@ enum Eams5FetchJs {
 
 // MARK: - EAMS5_AHU_FETCH_JS(← JwWebViewLoginScreen.kt EAMS5_AHU_FETCH_JS 原文移植)
 //
-// 安徽大学 (one.ahu.edu.cn + jxglstu.ahu.edu.cn) EAMS5: 与合工大 EAMS5 协议同源
-// 但走 CAS (统一身份认证) — 登录态判定更严: 302 落 /cas/login OR 200 落 CAS 登录页
-// (双字段 name="lt" + name="execution")。
+// 安徽大学 (jw.ahu.edu.cn, 金智 EAMS 新版部署) EAMS5: 与合工大 EAMS5 协议同源但走
+// GET print-data 三段 (5 仓共识: 安大 POST /ws/schedule-table/datum 返 HTTP 500
+// 不存在该 endpoint)。登录态判定更严: 302 落 /cas/login OR 200 落 CAS 登录页
+// (双字段 name="lt" + name="execution")。学期从 allSemesters <select> 取 id 最大
+// (newest-first), JSON / selected 兜底; 拿不到即报错不硬猜。
 enum Eams5AhuFetchJs {
     static let js = """
     (function(){
@@ -294,79 +353,76 @@ enum Eams5AhuFetchJs {
           //   AHU 是 Thymeleaf/J2EE 模板渲染, 学期列表嵌入 HTML 内
           //   `<select id="allSemesters"><option value="112">2024-2025-2</option>...`
           //   qiqqqqq517 ahu.js:37 / abydym CourseRepository.kt:119-167 / Zeraora client.ts:480-489
+          //   共识 regex: <select[^>]*id=["']allSemesters["'][^>]*>([\\s\\S]*?)</select>
+          //   + 内部 <option value="(\\d+)"[^>]*>([^<]+)</option> 循环
+          // 按 id 倒序取首 (服务器返回 newest-first, abydym + Zeraora 一致)
           var semesterId = null;
-          var semesterMatch = html.match(/<select[^>]*id=["']allSemesters["'][^>]*>([\\s\\S]*?)<\\/select>/i);
-          if (semesterMatch) {
-            var selectedOpt = semesterMatch[1].match(/<option[^>]*\\bselected(?:\\s*=\\s*["']?selected["']?)?[^>]*value=["']?(\\d+)/i);
-            if (selectedOpt) semesterId = selectedOpt[1];
-            if (!semesterId) {
-              var firstOpt = semesterMatch[1].match(/<option[^>]*value=["']?(\\d+)/i);
-              if (firstOpt) semesterId = firstOpt[1];
+          var selectMatch = html.match(/<select[^>]*\\bid=["']allSemesters["'][^>]*>([\\s\\S]*?)<\\/select>/i);
+          if (selectMatch) {
+            var inner = selectMatch[1];
+            var optionRegex = /<option[^>]*\\bvalue=["'](\\d+)["'][^>]*>([^<]*)<\\/option>/gi;
+            var m;
+            var opts = [];
+            while ((m = optionRegex.exec(inner)) !== null) {
+              opts.push({id: parseInt(m[1], 10), name: m[2].trim()});
+            }
+            // 取 id 最大 (newest first; abydym .sortedByDescending { it.id }.first())
+            if (opts.length) {
+              opts.sort(function(a, b) { return b.id - a.id; });
+              semesterId = String(opts[0].id);
             }
           }
-          // 学号提取 (与合工大同多形态)
-          var m = html.match(/studentId\\s*[:=]\\s*(?:["']([0-9]{6,20})["']|([0-9]{6,20}))/);
-          var studentId = '';
-          if (m) studentId = m[1] || m[2] || '';
-          if (!studentId) {
-            var m2 = html.match(/studentId\\s*[:=]\\s*(?:["']([A-Za-z0-9]+)["']|([A-Za-z0-9]+))/);
-            if (m2) studentId = m2[1] || m2[2] || '';
-          }
-          if (!studentId) throw new Error('未取到 studentId: 请确认已在 AHU 教务主页登录, 且进入"我的课表"页');
-          // 2) 拿 bizTypeId
-          return fetch(PREFIX + '/for-std/course-table/info/' + encodeURIComponent(studentId), {credentials:'include'})
-          .then(function(r2){
-            if (!r2.ok) throw new Error('course-table/info 取 bizTypeId 失败 HTTP ' + r2.status);
-            return r2.text();
-          })
-          .then(function(infoHtml){
-            var bz = infoHtml.match(/bizTypeId\\s*[:=]\\s*(?:["']?(\\d+)/i);
-            var bizTypeId = bz ? bz[1] : '23';
-            var semesterParam = semesterId ? '&semesterId=' + encodeURIComponent(semesterId) : '';
-            return fetch(PREFIX + '/for-std/course-table/get-data?bizTypeId=' + encodeURIComponent(bizTypeId) +
-                         '&dataId=' + encodeURIComponent(studentId) + semesterParam,
-                         {credentials:'include'})
-            .then(function(r3){
-              if (!r3.ok) throw new Error('get-data 取 lessonIds 失败 HTTP ' + r3.status);
-              return r3.json().catch(function(){ return null; });
-            })
-            .then(function(gd){
-              var lessonIds = [];
+          // 优先级 2 fallback: Vue/Nuxt 嵌入的 JSON 形态 (防御性)
+          // 形如 var allSemesters = [...] 或 semesters = [...]
+          if (!semesterId) {
+            var jsonMatch = html.match(/(?:allSemesters|semesters)\\s*[=:]\\s*(\\[[\\s\\S]*?\\])\\s*[;,]?/);
+            if (jsonMatch) {
               try {
-                if (gd) {
-                  if (Array.isArray(gd.lessonIds)) lessonIds = gd.lessonIds;
-                  else if (gd.result && Array.isArray(gd.result.lessonIds)) lessonIds = gd.result.lessonIds;
-                  else if (Array.isArray(gd.data)) lessonIds = gd.data;
+                var arr = JSON.parse(jsonMatch[1]);
+                if (arr && arr.length) {
+                  // 优先 isCurrentSemester 标志
+                  var cur = null;
+                  for (var i = 0; i < arr.length; i++) {
+                    if (arr[i].isCurrentSemester === true || arr[i].isCurrent === true ||
+                        arr[i].current === true || arr[i].status === 'CURRENT') { cur = arr[i]; break; }
+                  }
+                  var semObj = cur || arr[0];
+                  semesterId = String(semObj.id || semObj.semesterId || semObj.value || semObj.code);
                 }
               } catch(e) {}
-              var studentIdParam;
-              if (/^\\d+$/.test(studentId)) studentIdParam = parseInt(studentId, 10);
-              else studentIdParam = studentId;
-              return fetch(PREFIX + '/ws/schedule-table/datum', {
-                method:'POST',
-                credentials:'include',
-                headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
-                body: JSON.stringify({lessonIds: lessonIds, studentId: studentIdParam, weekIndex: ''})
-              }).then(function(r4){
-                return r4.text().then(function(txt){
-                  if (!r4.ok) throw new Error('datum 接口失败 HTTP ' + r4.status + '（登录态可能已过期, 请刷新重登）');
-                  window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({
-                    ok:true,
-                    data:txt,
-                    eams5: {
-                      studentId: studentId,
-                      bizTypeId: bizTypeId,
-                      semesterId: semesterId || '',
-                      prefix: PREFIX
-                    }
-                  })});
-                });
-              });
-            });
+            }
+          }
+          // 优先级 3 fallback: <option selected value="X">
+          if (!semesterId) {
+            var sel = html.match(/<option[^>]*\\bselected\\b[^>]*\\bvalue=["']?(\\d+)["']?/i);
+            if (sel) semesterId = sel[1];
+          }
+          // v1 兜底: abydym hardcoded DEFAULT_SEMESTER_ID = 112 (2024-2025-2 已知)
+          // 不强行猜, 直接报"未取到学期列表"
+          if (!semesterId) {
+            window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:false,
+              err:'未取到学期列表 (allSemesters), 请在课表页面停留几秒后再点导入'})});
+            return null;
+          }
+          return semesterId;
+        })
+        .then(function(semesterId){
+          if (!semesterId) return null;
+          // 2) GET print-data (含 weekday/weekIndexes/startUnit/endUnit 的真实课表数据)
+          // followRedirects: 'follow' (服务端按 session 绑定学生, 不需要 studentId — 5 仓共识)
+          var url = PREFIX + '/for-std/course-table/semester/' + encodeURIComponent(semesterId)
+                  + '/print-data?semesterId=' + encodeURIComponent(semesterId) + '&hasExperiment=false';
+          return fetch(url, {credentials:'include', redirect:'follow'}).then(function(r){
+            if (!r.ok) throw new Error('print-data 失败 HTTP ' + r.status);
+            return r.text();
           });
         })
+        .then(function(txt){
+          if (!txt) return;
+          window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:true, data:txt, periods:[]})});
+        })
         .catch(function(e){
-          window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:false, err:String(e && e.message || e)})});
+          window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:false, err:String(e)})});
         });
       } catch(err) {
         window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:false, err:String(err)})});
@@ -378,7 +434,10 @@ enum Eams5AhuFetchJs {
 // MARK: - BJTU_FETCH_JS(← JwWebViewLoginScreen.kt BJTU_FETCH_JS 原文移植)
 //
 // 北京交通大学 (aa.bjtu.edu.cn): 并发取 stuschedule (个人课表) + schedule (含节次时间表) 两页,
-// 解析 tr/th 抓节次时间 (第N节+HH:MM-HH:MM), 判登录态 (/client/login/), payload 透传 stuschedule HTML。
+// 双双命中登录页 (a&&b) 才报"登录已失效", 双双 <200 字符报"课表页返回内容为空"; 拼
+// '<!--sleepy-bjtu-doc:stuschedule-->' + a + '<!--sleepy-bjtu-doc:schedule-->' + b 组合源交
+// JwBjtuParser 切段; periods 先 a 后 b 兜底。跨语言 invariant (SOP 铁律 3): LABEL_RE / TIME_RE
+// 的 JS 字符串字面量与 JwBjtuParser.PERIOD_LABEL_RE_SRC / PERIOD_TIME_RE_SRC 逐字符相等。
 enum BjtuFetchJs {
     static let js = """
     (function(){
@@ -429,28 +488,30 @@ enum BjtuFetchJs {
         Promise.all([
           get('/course_selection/courseselect/stuschedule/'),
           get('/course_selection/courseselecttask/schedule/')
-        ]).then(function(results){
-          var stuschedule = results[0];
-          var schedule = results[1];
-          if (isLoginExpired(stuschedule) || isLoginExpired(schedule)) {
-            err('登录态已失效,请在 aa.bjtu.edu.cn 重新登录后再点导入');
+        ])
+        .then(function(rs){
+          var a = rs[0], b = rs[1];
+          // 双双失效才判登录过期 (conjunctive, 与 Android 一致; 单页失效另一页仍可用)
+          if (isLoginExpired(a) && isLoginExpired(b)) {
+            err('登录已失效，请重新登录后再点导入');
             return;
           }
-          if (!stuschedule || stuschedule.status !== 200) {
-            err('个人课表接口失败 HTTP ' + (stuschedule ? stuschedule.status : 'null'));
+          // 双双内容过短 (空壳页) → 明确报空, 不落伪"0 课"
+          if ((a.body || '').length < 200 && (b.body || '').length < 200) {
+            err('课表页返回内容为空，请先在教务里打开课表页后再点导入');
             return;
           }
-          var periods = periodsFrom(schedule ? schedule.body : '');
-          finish({
-            ok:true,
-            data: stuschedule.body,
-            periods: periods
-          });
-        }).catch(function(e){
-          err(String(e && e.message ? e.message : e));
+          var combined = '<!--sleepy-bjtu-doc:stuschedule-->' + (a.body || '') +
+                         '<!--sleepy-bjtu-doc:schedule-->' + (b.body || '');
+          var periods = periodsFrom(a.body || '');
+          if (periods.length === 0) periods = periodsFrom(b.body || '');
+          finish({ok:true, data:combined, periods:periods});
+        })
+        .catch(function(e){
+          err('抓取失败: ' + String(e && e.message ? e.message : e) + '（登录会话可能已失效，请重新登录）');
         });
-      } catch(error) {
-        err(String(error && error.message ? error.message : error));
+      } catch(e) {
+        err(String(e && e.message ? e.message : e));
       }
     })();
     """

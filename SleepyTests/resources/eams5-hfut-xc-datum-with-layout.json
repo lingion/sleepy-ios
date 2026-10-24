@@ -1,0 +1,2002 @@
+{
+ "result": {
+  "lessonList": [
+   {
+    "id": 504129,
+    "courseName": "操作系统课程设计",
+    "name": "计算机24-1班,计算机24-2班,计算机24-3班",
+    "courseTypeName": "实践环节"
+   },
+   {
+    "id": 496258,
+    "courseName": "计算机网络课程设计",
+    "name": "计算机24-1班",
+    "courseTypeName": "实践环节"
+   },
+   {
+    "id": 496254,
+    "courseName": "系统硬件综合设计",
+    "name": "计算机24-1班,计算机24-2班,计算机24-3班,计算机24-4班",
+    "courseTypeName": "实践环节"
+   },
+   {
+    "id": 496250,
+    "courseName": "操作系统",
+    "name": "计算机24-1班,计算机24-2班,计算机24-3班",
+    "courseTypeName": "学科基础和专业必修课"
+   },
+   {
+    "id": 504133,
+    "courseName": "计算机网络",
+    "name": "计算机24-1班,计算机24-2班",
+    "courseTypeName": "学科基础和专业必修课"
+   },
+   {
+    "id": 504152,
+    "courseName": "计算机体系结构",
+    "name": "计算机24-1班,计算机24-2班",
+    "courseTypeName": "学科基础和专业必修课"
+   },
+   {
+    "id": 504139,
+    "courseName": "数字媒体技术",
+    "name": "计算机24-1班,计算机24-2班",
+    "courseTypeName": "各专业选修课"
+   },
+   {
+    "id": 504141,
+    "courseName": "计算机图形学",
+    "name": "计算机24-1班,计算机24-2班",
+    "courseTypeName": "各专业选修课"
+   },
+   {
+    "id": 504143,
+    "courseName": "人工智能原理",
+    "name": "计算机24-1班,计算机24-2班",
+    "courseTypeName": "各专业选修课"
+   },
+   {
+    "id": 496242,
+    "courseName": "习近平新时代中国特色社会主义思想概论",
+    "name": "计算机24-1班,计算机24-2班",
+    "courseTypeName": "通识必修课"
+   },
+   {
+    "id": 496246,
+    "courseName": "形势与政策（5）",
+    "name": "计算机24-1班,计算机24-2班",
+    "courseTypeName": "通识必修课"
+   },
+   {
+    "id": 508949,
+    "courseName": "情景喜剧与美国文化",
+    "name": "公选课-001",
+    "courseTypeName": "公选-文化、语言与文学"
+   },
+   {
+    "id": 510070,
+    "courseName": "大学美育（同济大学版）",
+    "name": "慕课002",
+    "courseTypeName": "慕课-人文素养与艺术审美"
+   }
+  ],
+  "scheduleList": [
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "计算中心103（临时）",
+     "nameEn": "103"
+    },
+    "personName": "田卫东",
+    "weekIndex": 1,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-09-07",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂114",
+     "nameEn": "XC00001114"
+    },
+    "personName": "田卫东",
+    "weekIndex": 1,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-09-10",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "计算中心103（临时）",
+     "nameEn": "103"
+    },
+    "personName": "田卫东",
+    "weekIndex": 2,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-09-14",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂114",
+     "nameEn": "XC00001114"
+    },
+    "personName": "田卫东",
+    "weekIndex": 2,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-09-17",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "计算中心103（临时）",
+     "nameEn": "103"
+    },
+    "personName": "田卫东",
+    "weekIndex": 3,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-09-21",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂114",
+     "nameEn": "XC00001114"
+    },
+    "personName": "田卫东",
+    "weekIndex": 3,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-09-24",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "计算中心103（临时）",
+     "nameEn": "103"
+    },
+    "personName": "田卫东",
+    "weekIndex": 4,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-09-28",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂114",
+     "nameEn": "XC00001114"
+    },
+    "personName": "田卫东",
+    "weekIndex": 4,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-10-01",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "罗月童",
+    "weekIndex": 5,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-05",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "罗月童",
+    "weekIndex": 5,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-10-08",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "罗月童",
+    "weekIndex": 6,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-12",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "罗月童",
+    "weekIndex": 6,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-10-15",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "罗月童",
+    "weekIndex": 7,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-19",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "罗月童",
+    "weekIndex": 7,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-10-22",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "罗月童",
+    "weekIndex": 8,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-26",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "罗月童",
+    "weekIndex": 8,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-10-29",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "田卫东",
+    "weekIndex": 9,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-02",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "田卫东",
+    "weekIndex": 9,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-11-05",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "田卫东",
+    "weekIndex": 10,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-09",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "田卫东",
+    "weekIndex": 10,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-11-12",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "田卫东",
+    "weekIndex": 11,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-16",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "田卫东",
+    "weekIndex": 11,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-11-19",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "田卫东",
+    "weekIndex": 12,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-23",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496250,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂317",
+     "nameEn": "XC00002317"
+    },
+    "personName": "田卫东",
+    "weekIndex": 12,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-11-26",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂119（临时）",
+     "nameEn": "XC00001119"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 2,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-09-15",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂217",
+     "nameEn": "a"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 2,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-09-17",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂119（临时）",
+     "nameEn": "XC00001119"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 3,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-09-22",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂217",
+     "nameEn": "a"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 3,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-09-24",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂119（临时）",
+     "nameEn": "XC00001119"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 4,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-09-29",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂217",
+     "nameEn": "a"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 4,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-01",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 5,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-10-06",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 5,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-08",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 6,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-10-13",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 6,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-15",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 7,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-10-20",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 7,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-22",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 8,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-10-27",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 8,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-29",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 9,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-11-03",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 9,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-05",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 10,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-11-10",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 10,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-12",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 11,
+    "startTime": 800,
+    "endTime": 940,
+    "date": "2026-11-17",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504133,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂229",
+     "nameEn": "XC00002229"
+    },
+    "personName": "郑淑丽",
+    "weekIndex": 11,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-19",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 9,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-11-04",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 9,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-06",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 10,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-11-11",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 10,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-13",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 11,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-11-18",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 11,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-20",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 12,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-11-25",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 12,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-11-27",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 13,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-02",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 13,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-12-04",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 14,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-09",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 14,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-12-11",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 15,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-16",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 15,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-12-18",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 16,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-23",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504152,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "丁贤庆",
+    "weekIndex": 16,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-12-25",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "敬亭学堂217",
+     "nameEn": "a"
+    },
+    "personName": "赵洋",
+    "weekIndex": 3,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-09-21",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "敬亭学堂217",
+     "nameEn": "a"
+    },
+    "personName": "赵洋",
+    "weekIndex": 3,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-09-23",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "敬亭学堂217",
+     "nameEn": "a"
+    },
+    "personName": "赵洋",
+    "weekIndex": 4,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-09-28",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "敬亭学堂217",
+     "nameEn": "a"
+    },
+    "personName": "赵洋",
+    "weekIndex": 4,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-09-30",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "赵洋",
+    "weekIndex": 5,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-05",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "赵洋",
+    "weekIndex": 5,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-07",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "赵洋",
+    "weekIndex": 6,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-12",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "赵洋",
+    "weekIndex": 6,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-14",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "赵洋",
+    "weekIndex": 7,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-19",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504139,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂230",
+     "nameEn": "XC00002230"
+    },
+    "personName": "赵洋",
+    "weekIndex": 7,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-21",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 13,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-11-30",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 13,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-12-02",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 14,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-07",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 14,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-12-09",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 15,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-14",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 15,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-12-16",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 16,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-21",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 16,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-12-23",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 17,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-28",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 17,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-12-30",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 1,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 18,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2027-01-04",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504141,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "吴文明",
+    "weekIndex": 18,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2027-01-06",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "敬亭学堂119（临时）",
+     "nameEn": "XC00001119"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 3,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-09-23",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "敬亭学堂305",
+     "nameEn": "a"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 3,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-09-25",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "敬亭学堂119（临时）",
+     "nameEn": "XC00001119"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 4,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-09-30",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "敬亭学堂305",
+     "nameEn": "a"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 4,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-02",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 5,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-07",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 5,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-09",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 6,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-14",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 6,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-16",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 7,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-21",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 7,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-23",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 3,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 8,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-28",
+    "lessonType": null
+   },
+   {
+    "lessonId": 504143,
+    "periods": 2,
+    "weekday": 5,
+    "room": {
+     "nameZh": "新安学堂232",
+     "nameEn": "XC00002232"
+    },
+    "personName": "刘雪南",
+    "weekIndex": 8,
+    "startTime": 1000,
+    "endTime": 1140,
+    "date": "2026-10-30",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 5,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-10-06",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 5,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-08",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 6,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-10-13",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 6,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-15",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 7,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-10-20",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 7,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-22",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 8,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-10-27",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 8,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-10-29",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 9,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-11-03",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 9,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-11-05",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 10,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-11-10",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 10,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-11-12",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 11,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-11-17",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 11,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-11-19",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 12,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-11-24",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 12,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-11-26",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 13,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-12-01",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 13,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-03",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 2,
+    "room": {
+     "nameZh": "敬亭学堂321",
+     "nameEn": "XC00001321"
+    },
+    "personName": "周彬",
+    "weekIndex": 14,
+    "startTime": 1550,
+    "endTime": 1730,
+    "date": "2026-12-08",
+    "lessonType": null
+   },
+   {
+    "lessonId": 496242,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂205",
+     "nameEn": "XC00001205"
+    },
+    "personName": "周彬",
+    "weekIndex": 14,
+    "startTime": 1400,
+    "endTime": 1540,
+    "date": "2026-12-10",
+    "lessonType": null
+   },
+   {
+    "lessonId": 508949,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "敬亭学堂118",
+     "nameEn": "XC00001118"
+    },
+    "personName": "吴平平",
+    "weekIndex": 4,
+    "startTime": 1920,
+    "endTime": 2100,
+    "date": "2026-10-01",
+    "lessonType": "THEORY"
+   },
+   {
+    "lessonId": 508949,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂416",
+     "nameEn": "XC00002416"
+    },
+    "personName": "吴平平",
+    "weekIndex": 5,
+    "startTime": 1920,
+    "endTime": 2100,
+    "date": "2026-10-08",
+    "lessonType": "THEORY"
+   },
+   {
+    "lessonId": 508949,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂416",
+     "nameEn": "XC00002416"
+    },
+    "personName": "吴平平",
+    "weekIndex": 6,
+    "startTime": 1920,
+    "endTime": 2100,
+    "date": "2026-10-15",
+    "lessonType": "THEORY"
+   },
+   {
+    "lessonId": 508949,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂416",
+     "nameEn": "XC00002416"
+    },
+    "personName": "吴平平",
+    "weekIndex": 7,
+    "startTime": 1920,
+    "endTime": 2100,
+    "date": "2026-10-22",
+    "lessonType": "THEORY"
+   },
+   {
+    "lessonId": 508949,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂416",
+     "nameEn": "XC00002416"
+    },
+    "personName": "吴平平",
+    "weekIndex": 8,
+    "startTime": 1920,
+    "endTime": 2100,
+    "date": "2026-10-29",
+    "lessonType": "THEORY"
+   },
+   {
+    "lessonId": 508949,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂416",
+     "nameEn": "XC00002416"
+    },
+    "personName": "吴平平",
+    "weekIndex": 9,
+    "startTime": 1920,
+    "endTime": 2100,
+    "date": "2026-11-05",
+    "lessonType": "THEORY"
+   },
+   {
+    "lessonId": 508949,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂416",
+     "nameEn": "XC00002416"
+    },
+    "personName": "吴平平",
+    "weekIndex": 10,
+    "startTime": 1920,
+    "endTime": 2100,
+    "date": "2026-11-12",
+    "lessonType": "THEORY"
+   },
+   {
+    "lessonId": 508949,
+    "periods": 2,
+    "weekday": 4,
+    "room": {
+     "nameZh": "新安学堂416",
+     "nameEn": "XC00002416"
+    },
+    "personName": "吴平平",
+    "weekIndex": 11,
+    "startTime": 1920,
+    "endTime": 2100,
+    "date": "2026-11-19",
+    "lessonType": "THEORY"
+   }
+  ]
+ },
+ "courseUnitList": [
+  {
+   "nameZh": "第一节",
+   "indexNo": 1,
+   "startTime": 800,
+   "endTime": 845,
+   "dayPart": "MORNING"
+  },
+  {
+   "nameZh": "第二节",
+   "indexNo": 2,
+   "startTime": 855,
+   "endTime": 940,
+   "dayPart": "MORNING"
+  },
+  {
+   "nameZh": "第三节",
+   "indexNo": 3,
+   "startTime": 1000,
+   "endTime": 1045,
+   "dayPart": "MORNING"
+  },
+  {
+   "nameZh": "第四节",
+   "indexNo": 4,
+   "startTime": 1055,
+   "endTime": 1140,
+   "dayPart": "MORNING"
+  },
+  {
+   "nameZh": "第五节",
+   "indexNo": 5,
+   "startTime": 1400,
+   "endTime": 1445,
+   "dayPart": "AFTERNOON"
+  },
+  {
+   "nameZh": "第六节",
+   "indexNo": 6,
+   "startTime": 1455,
+   "endTime": 1540,
+   "dayPart": "AFTERNOON"
+  },
+  {
+   "nameZh": "第七节",
+   "indexNo": 7,
+   "startTime": 1550,
+   "endTime": 1635,
+   "dayPart": "AFTERNOON"
+  },
+  {
+   "nameZh": "第八节",
+   "indexNo": 8,
+   "startTime": 1645,
+   "endTime": 1730,
+   "dayPart": "AFTERNOON"
+  },
+  {
+   "nameZh": "第九节",
+   "indexNo": 9,
+   "startTime": 1740,
+   "endTime": 1825,
+   "dayPart": "AFTERNOON"
+  },
+  {
+   "nameZh": "第十节",
+   "indexNo": 10,
+   "startTime": 1920,
+   "endTime": 2005,
+   "dayPart": "EVENING"
+  },
+  {
+   "nameZh": "第十一节",
+   "indexNo": 11,
+   "startTime": 2015,
+   "endTime": 2100,
+   "dayPart": "EVENING"
+  },
+  {
+   "nameZh": "第十二节",
+   "indexNo": 12,
+   "startTime": 2110,
+   "endTime": 2155,
+   "dayPart": "EVENING"
+  }
+ ]
+}

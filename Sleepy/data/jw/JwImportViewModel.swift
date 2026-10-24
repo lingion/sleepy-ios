@@ -96,6 +96,7 @@ final class JwImportViewModel: ObservableObject {
             if obj.keys.contains(where: { $0.hasPrefix("_") }) { continue }
             let aliases = (obj["aliases"] as? [String]) ?? []
             let typeStr = (obj["type"] as? String) ?? ""
+            // ← kt:187 ifBlank { null } — 纯空白 type 同样视为未声明
             // status 字段缺失/未知回落 supported
             let rawStatus = (obj["status"] as? String) ?? ""
             let status: String
@@ -110,7 +111,7 @@ final class JwImportViewModel: ObservableObject {
                 sortKey: obj["sortKey"] as? String ?? "",
                 name: obj["name"] as? String ?? "",
                 url: obj["url"] as? String ?? "",
-                type: typeStr.isEmpty ? nil : typeStr,
+                type: typeStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : typeStr,  // ← kt ifBlank
                 status: status,
                 aliases: aliases,
                 sortKeyFull: obj["sortKeyFull"] as? String ?? "",
@@ -172,8 +173,9 @@ final class JwImportViewModel: ObservableObject {
     }
 
     /// 从 URL 自动检测教务协议类型（T6: 大小写归一 + 空值保护）← detectProtocolFromUrl
+    /// ← kt:144 url.isBlank() — isBlank 含换行等全部 Unicode 空白
     static func detectProtocolFromUrl(_ url: String) -> String? {
-        if url.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+        if url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return nil }
         return detectProtocolFromUrlImpl(url.lowercased())
     }
 
@@ -185,8 +187,9 @@ final class JwImportViewModel: ObservableObject {
 
     /// T6 新增：URL + HTML 组合判型。
     /// URL 层命中（任何置信度）直接返回；否则 HTML 层；否则 nil。← detectProtocol
+    /// ← kt:159 takeIf { it.isNotBlank() } — isNotBlank 含换行等全部 Unicode 空白
     static func detectProtocol(_ html: String, url: String? = nil) -> String? {
-        if let u = url, !u.trimmingCharacters(in: .whitespaces).isEmpty {
+        if let u = url, !u.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             if let t = detectProtocolFromUrlImpl(u.lowercased()) { return t }
         }
         return detectProtocolFromHtmlImpl(html)
@@ -206,6 +209,12 @@ final class JwImportViewModel: ObservableObject {
         if u.contains("/webvpn/")
             || u.range(of: #"/http/[0-9a-f]+/"#, options: .regularExpression) != nil
             || u.contains(".webvpn.") {
+            // ← kt:350-351: host 锚点在 WebVPN 重写形态下仍保留 NUIT/KUST(两校 portal 域名
+            //    整体内嵌于重写路径, 先于 /jwapp/ 归位, 否则被 WISEDU 吸走)
+            if u.contains("jw.nuit.edu.cn") { return JwProtocol.TYPE_NUIT }
+            if u.contains("i.kust.edu.cn")
+                || u.contains("kust.edu.cn")
+                || u.contains("kmust.edu.cn") { return JwProtocol.TYPE_KUST }
             if u.contains("/jwapp/") { return JwProtocol.TYPE_WISEDU }
             if u.contains("jwglxt")
                 || u.range(of: #".*/xtgl(/|$).*"#, options: .regularExpression) != nil
@@ -227,7 +236,22 @@ final class JwImportViewModel: ObservableObject {
         }
 
         // ① WISEDU — 金智 jwapp 微应用，URL 唯一锚点，优先级最高
+        // ① 前置 host 锚点(← kt:374-375, 383): NUIT/KUST 两校 portal 域含 jwapp 路径,
+        //    BUAA 新本研(byxt)与东北大学 NEU 同族同字段形态(复用 NEU parser; 旧
+        //    jwxt.buaa.edu.cn 强智 iEAS 仍走下方 ②b)。三者必须先于通用 /jwapp/,
+        //    否则被吸进 TYPE_WISEDU — WISEDU_FETCH_JS 走 wdkb/xskcb.do 通道拿不到
+        //    arrangedList 必空课表(kt:376-382 注释原话)。
+        if u.contains("jw.nuit.edu.cn") { return JwProtocol.TYPE_NUIT }
+        if u.contains("i.kust.edu.cn")
+            || u.contains("kust.edu.cn")
+            || u.contains("kmust.edu.cn") { return JwProtocol.TYPE_KUST }
+        if u.contains("byxt.buaa.edu.cn") { return JwProtocol.TYPE_NEU }
         if u.contains("/jwapp/") { return JwProtocol.TYPE_WISEDU }
+
+        // ①a classic EAMS — server-rendered course table entry points (← kt:387-390).
+        //    NWUPL 与 LIXIN 同一 TaskActivity 族, 不同路径。
+        if u.contains("coursetableforstd")
+            || u.contains("/edu/lesson/std/timetable") { return JwProtocol.TYPE_CLASSIC_EAMS }
 
         // ①a EAMS5 — supwisdom 平台（issue #25）：此前整条判型链无任何 EAMS5 锚点，
         //    连正确的 jxglstu 课表 URL 都判 null 走通用抓取必 0 课。
@@ -241,8 +265,21 @@ final class JwImportViewModel: ObservableObject {
             || u.contains("jwxt.cumtb.edu.cn") { return JwProtocol.TYPE_EAMS5 }
 
         // ①b CQU — 重庆大学统一门户（host 锚点；自建 REST，非 jwapp）
-        if u.range(of: #"https?://my\.cqu\.edu\.cn(/.*)?"#, options: .regularExpression) != nil {
+        // ★ Kotlin u.matches() = 全串匹配; Swift range(of:) 默认任意位置搜索 →
+        //   必须 ^…$ 锚定, 否则 http://my.cqu.edu.cn.evil.com 这类串会误命中(kt:404)。
+        if u.range(of: #"^https?://my\.cqu\.edu\.cn(/.*)?$"#, options: .regularExpression) != nil {
             return JwProtocol.TYPE_CQU
+        }
+
+        // ①c YETHAN — 西南交通大学逐专平台（host 唯一锚点，自建 JSON API）← kt:406-407
+        if u.range(of: #"^https?://yhxt\.swjtu\.edu\.cn(/.*)?$"#, options: .regularExpression) != nil {
+            return JwProtocol.TYPE_YETHAN
+        }
+
+        // ①d XJU_POST — 新疆大学研究生培养管理信息系统（Gwork 族, host 唯一锚点;
+        //    yjspy 子域专属, xju.edu.cn 本科教务等其余子域不误判）← kt:409-411
+        if u.range(of: #"^https?://yjspy\.xju\.edu\.cn(/.*)?$"#, options: .regularExpression) != nil {
+            return JwProtocol.TYPE_XJU_POST
         }
 
         if u.contains("xkgo.ucas.ac.cn") && u.contains("/course/personschedule") {
@@ -290,6 +327,9 @@ final class JwImportViewModel: ObservableObject {
             || u.contains("zhjw.smu")
             || u.contains("jxgl.wyu")
             || u.contains("jw.hbmu") { return JwProtocol.TYPE_CF }
+
+        // ⑦a CF_NEW — 新青果 NTSS (FullCalendar 形态): /new/student/xsgrkb 唯一路径锚点 ← kt:457-458
+        if u.contains("/new/student/xsgrkb") { return JwProtocol.TYPE_CF_NEW }
 
         // ⑦b CHAOXING — 超星综合教务 (xsd=学生端 path, queryKbForGrdb 个人课表接口)
         if u.range(of: #".*/xsd(/|$).*"#, options: .regularExpression) != nil
@@ -352,7 +392,11 @@ final class JwImportViewModel: ObservableObject {
             || lower.contains("logon.do")
             || lower.contains("randomcode") { return JwProtocol.TYPE_QZ }
 
-        // ④ WISEDU — 业务回调路径
+        // ④ NUIT/KUST JSON portal fingerprints ← kt:524-526
+        if lower.contains("classdateandplace") { return JwProtocol.TYPE_NUIT }
+        if lower.contains("queryaweekschedule") || lower.contains("resultsjsonarr") { return JwProtocol.TYPE_KUST }
+
+        // ⑤ WISEDU — 业务回调路径
         if lower.contains("/jwapp/sys/")
             || (lower.contains("authserver/login") && lower.contains("execution=")) { return JwProtocol.TYPE_WISEDU }
 
@@ -361,6 +405,12 @@ final class JwImportViewModel: ObservableObject {
             || lower.contains("sm3web.js")
             || lower.contains("urpnova")
             || lower.contains("/js/login/login.js") { return JwProtocol.TYPE_URP_NEW }
+
+        // ⑦a CF_NEW — 新青果 NTSS: 课表页脚本路径特征, 必须先于 ⑦ CF
+        //    (NTSS 页脚可能同含乘方字样, 路径锚点更窄更准) ← kt:538-542
+        if lower.contains("/new/student/xsgrkb")
+            || lower.contains("getcalendarweekdatas")
+            || lower.contains("ntsscalendar") { return JwProtocol.TYPE_CF_NEW }
 
         // ⑥ URP — displayTag 老 URP
         if lower.contains("displaytag")
@@ -429,6 +479,9 @@ final class JwImportViewModel: ObservableObject {
         if lower.contains("/checkcode") { hits.append("/checkCode") }
         if lower.contains("乘方教务") { hits.append("乘方教务") }
         if lower.contains("乘方科技") { hits.append("乘方科技") }
+        if lower.contains("/new/student/xsgrkb") { hits.append("/new/student/xsgrkb") }
+        if lower.contains("getcalendarweekdatas") { hits.append("getCalendarWeekDatas") }
+        if lower.contains("ntsscalendar") { hits.append("ntsscalendar") }
         if lower.contains("iaaa.pku.edu.cn") { hits.append("iaaa.pku.edu.cn") }
         if lower.contains("pku.edu.cn") { hits.append("pku.edu.cn") }
         if title.contains("北京大学选课系统") { hits.append("北京大学选课系统") }
@@ -453,7 +506,9 @@ final class JwImportViewModel: ObservableObject {
             return (false, "parse failed", "FORMAT_ERROR")
         }
         if (obj["ok"] as? Bool) ?? false {
-            let d = obj["format"] as? String ?? "zf_new"
+            // ← kt:243-251: optString("format", "") — 缺键默认空串 → != "zf_new" → OTHER;
+            //   data 缺失/纯空白 → FORMAT_ERROR (Kotlin isBlank 语义)
+            let d = obj["format"] as? String ?? ""
             let dataStr = obj["data"] as? String ?? ""
             if d != "zf_new" {
                 return (false, "", "OTHER")
@@ -476,7 +531,7 @@ final class JwImportViewModel: ObservableObject {
             return CourseEntity(
                 groupId: "",
                 tableId: tableId,
-                courseName: jw.name.isEmpty ? "未命名" : jw.name,
+                courseName: jw.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "未命名" : jw.name,  // ← kt ifBlank
                 teacher: jw.teacher,
                 room: jw.room,
                 day: min(max(jw.day, 1), 7),
@@ -492,17 +547,23 @@ final class JwImportViewModel: ObservableObject {
     }
 
     /// 创建新课表并落库。返回新 tableId。 ← suspend importAsNewTable
+    /// v1.0.56 T10 对齐(← kt:661-723): 新增 smartConfigJson(智慧节次配置随导入落库,
+    /// 否则用户配置被丢弃) 与 periodTable(非 nil = 解析出了独立节次 → 同事务自动建
+    /// 同名作息表并绑定; 名字走全局唯一名顺延, 撞名自动加后缀)。
+    /// 默认值保持既有调用方源码兼容(新增而非改名)。
     static func importAsNewTable(
         _ db: AppDatabase,
         courses: [JwCourse],
         tableName: String,
         startDate: String? = nil,
         timeJson: String = "",
-        nodesPerDay: Int = 0
+        nodesPerDay: Int = 0,
+        smartConfigJson: String = "",
+        periodTable: PeriodTableEntity? = nil
     ) throws -> Int64 {
         if courses.isEmpty {
             throw NSError(domain: "JwImport", code: 3,
-                          userInfo: [NSLocalizedDescriptionKey: "课程列表为空,请确认已到达课表页面"])
+                          userInfo: [NSLocalizedDescriptionKey: "课程列表为空，请确认已到达课表页面"])  // ← kt:672 全角逗号
         }
 
         // ★ 整个建表 + 落库包在单一事务里:中途失败回滚,避免留下空课表。 ← db.withTransaction
@@ -511,17 +572,36 @@ final class JwImportViewModel: ObservableObject {
             let courseDao = db.courseDao
 
             // ★ 用 autoGenerate (id=0) 让 GRDB 分配真实主键,避免手动 max(id)+1 撞旧 ID 覆盖既有课表。
-            let resolvedStartDate = (startDate?.isEmpty == false ? startDate : nil)
+            // ← kt:681-683: 非空 startDate 先归一到所在周周一(应用约定 startDate=周一,
+            //   issue #5), 解析失败原样返回; 空白视为未填走学期默认。
+            let resolvedStartDate = (startDate?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                    ? Self.normalizeStartDate(startDate!) : nil)
                 ?? computeCurrentSemesterStart()
             let maxNode = nodesPerDay > 0 ? nodesPerDay : courses.map { max($0.startNode, $0.endNode) }.max() ?? 1
             var newTable = TimeTableEntity(
-                name: tableName.isEmpty ? "导入的课表" : tableName,
+                name: tableName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "导入的课表" : tableName,  // ← kt ifBlank
                 startDate: resolvedStartDate,
                 nodesPerDay: maxNode,
-                timeJson: timeJson.isEmpty ? TimeTableUtils.DEFAULT_TIME_JSON : timeJson,
+                timeJson: timeJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? TimeTableUtils.DEFAULT_TIME_JSON : timeJson,
                 isDefault: true,  // 导入的课表设为默认,widget 直接展示
+                smartConfigJson: smartConfigJson,
                 id: 0
             )
+            // v1.0.56 T10: 自动作息表先落库拿 id — 建表时同名, 但全局唯一名墙:
+            // 名字与既有课表/作息表撞 → 顺延后缀。建课表时直接带绑定。(← kt:694-707)
+            // 事务内直读直插: DAO 的 getAll() 走 db.read 会在写事务里重入死锁,
+            // 故此处用事务句柄 dbw 内联查询(语义同 Room getAll, 仅取 name 列参与撞名)。
+            // 禁 try? 吞错: Android Room 事务内 insert 失败 → 整笔事务回滚(kt:676 withTransaction),
+            // 静默继续会留下未绑定的空课表 — 与 Android 行为劈叉。
+            let autoPeriodTableId: Int64? = try periodTable.map { pt in
+                var pt = pt
+                let courseNames = try TimeTableEntity.fetchAll(dbw, sql: "SELECT * FROM time_tables").map { $0.name }
+                let periodNames = try PeriodTableEntity.fetchAll(dbw, sql: "SELECT * FROM period_tables").map { $0.name }
+                pt.name = TimeTableUtils.suggestUniqueName(pt.name, courseTableNames: courseNames, periodTableNames: periodNames)
+                pt.nodesPerDay = max(pt.nodesPerDay, 1)  // ← kt coerceAtLeast(1)
+                return try db.periodTableDao.insertInDb(dbw, pt)
+            }
+            newTable.periodTableId = autoPeriodTableId
             let generatedId = try tableDao.insertInDb(dbw, newTable)
             // 把其他表设为非 default,确保只有当前表是 default
             try tableDao.setDefaultInDb(dbw, generatedId)
@@ -544,6 +624,17 @@ final class JwImportViewModel: ObservableObject {
             try courseDao.insertAllInDb(dbw, entities)
             return generatedId
         }
+    }
+
+    /// 归一 yyyy-MM-dd 字符串到其所在周周一; 解析失败原样返回。
+    /// ← DateUtils.kt:60-65 normalizeStartDate(mondayOf + fullDate, catch → 原样),
+    /// 应用约定 startDate=周一(issue #5), 写库前统一走这里。
+    /// 回格式化比对 == 原文 = Java LocalDate.parse 的严格语义(2026-13-45 / 2026-09-1
+    /// 这类非法/欠宽输入必须原样返回, 不许 Calendar 宽松顺延成别的日期)。
+    static func normalizeStartDate(_ startDate: String) -> String {
+        guard let parsed = DateUtils.parseDate(startDate),
+              DateUtils.fullDate(parsed) == startDate else { return startDate }
+        return DateUtils.fullDate(Calendar.isoMondayOfWeek(parsed))
     }
 
     /// 默认学期开始日期:本学期第一周周一的 ISO 日期。
@@ -592,7 +683,8 @@ enum JwParseDispatch {
     }
 
     static func parse(_ html: String, _ protocolType: String) -> Outcome {
-        if protocolType.trimmingCharacters(in: .whitespaces).isEmpty {
+        // ← kt:106 protocolType.isBlank() — isBlank 含换行等全部 Unicode 空白
+        if protocolType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // 未知协议(URL 直接登录): 跑全部候选按 confidence/课程数裁决
             let best = JwParserRegistry.selectBest(html, declaredType: nil)
             return Outcome(courses: best.0, attempts: best.1, error: nil)

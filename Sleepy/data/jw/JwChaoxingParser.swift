@@ -28,8 +28,10 @@
 //   xjc     节号（字符串/数字皆容）；缺位回退 rqxl%100            → startNode=endNode
 //   zcstr   周次串 "1,2,3" 逗号形态 / "1-16" 区间形态             → 周次段
 //
-// 合并规则：同(课名,星期,教室,教师,周次串)且节号连续的行 → 合并为
-// startNode..endNode 单条（超星按单节粒度返回行, 连堂课拆多行）。
+// 合并规则 (闽江师范 2026-09-30 修正): 按 (课名,星期,教师) 分组, 节号连续段拉通
+// 为 startNode..endNode, 周次取组内并集, 同节多教室用 "/" 连接 (超星按单节粒度
+// 返回行, 连堂课拆多行; 同一节还可能因按周次换教室返回多行、各带不同周次串与
+// 教室 — 若分组键含教室或周次, 同一节会渲染成两张重叠课程卡)。
 
 import Foundation
 
@@ -99,7 +101,8 @@ final class JwChaoxingParser: JwParser {
               let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return []
         }
-        let rows = root["rows"] as? [[String: Any]] ?? []
+        // 逐元素取字典: 单个非对象元素只跳过该行 (对齐 Android el.jsonObject runCatching ?: continue)
+        let rows = (root["rows"] as? [Any]) ?? []
 
         struct Row {
             let name: String
@@ -111,7 +114,8 @@ final class JwChaoxingParser: JwParser {
         }
 
         var parsed: [Row] = []
-        for o in rows {
+        for element in rows {
+            guard let o = element as? [String: Any] else { continue }
             func str(_ k: String) -> String {
                 ((o[k] as? String) ?? (o[k] as? NSNumber)?.stringValue ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -135,37 +139,82 @@ final class JwChaoxingParser: JwParser {
                 room: stripHtml(str("croommc")), teacher: stripHtml(str("tmc"))))
         }
 
-        // 合并连堂: 排序后同(name,day,room,teacher,weeks串)且 node 前后衔接 → 拉通
-        let sorted = parsed.sorted { a, b in
-            if a.day != b.day { return a.day < b.day }
-            if a.node != b.node { return a.node < b.node }
-            return a.name < b.name
+        // 合并: 按 (课名,星期,教师) 分组 → 节号连续段拉通, 周次取并集, 同节多教室
+        // 用 "/" 连接。必要性 (闽江师范 2026-09-30 采集实锤): 同一节因按周次换教室
+        // 返回多行、各带不同周次串与教室 (如 5..15 周 A 室 + 17,19 周 B 室);
+        // 若按 (含周次或含教室) 的行分组, 同一节会渲染成两张重叠课程卡。
+        struct Key: Hashable {
+            let name: String
+            let day: Int
+            let teacher: String
+        }
+        var groupOrder: [Key] = []
+        var groups: [Key: [Row]] = [:]
+        for r in parsed {
+            let k = Key(name: r.name, day: r.day, teacher: r.teacher)
+            if groups[k] == nil { groupOrder.append(k) }
+            groups[k, default: []].append(r)
         }
         var result: [JwCourse] = []
-        var i = 0
-        while i < sorted.count {
-            let cur = sorted[i]
-            var endNode = cur.node
-            var j = i + 1
-            while j < sorted.count &&
-                    sorted[j].name == cur.name && sorted[j].day == cur.day &&
-                    sorted[j].room == cur.room && sorted[j].teacher == cur.teacher &&
-                    sorted[j].weeks == cur.weeks && sorted[j].node == endNode + 1 {
-                endNode = sorted[j].node
-                j += 1
+        for key in groupOrder {
+            let group = groups[key]!
+            let weeks = Array(Set(group.flatMap { $0.weeks })).sorted()
+            // 每节点教室: 组内该 node 各行教室去空白后按出现序去重, "/" 连接
+            var roomsByNodeRows: [Int: [String]] = [:]
+            var nodeOrder: [Int] = []
+            for r in group {
+                if roomsByNodeRows[r.node] == nil { nodeOrder.append(r.node) }
+                roomsByNodeRows[r.node, default: []].append(r.room)
             }
-            let weeks = cur.weeks
-            // 周次段: 一行可能展开为多段 (非连续周次, 如 1-3周 + 8-9周)
-            for (sw, ew, type) in weekRuns(weeks) {
-                result.append(JwCourse(
-                    name: cur.name, room: cur.room, teacher: cur.teacher,
-                    day: cur.day, startNode: cur.node, endNode: endNode,
-                    startWeek: sw, endWeek: ew,
-                    type: type))
+            var roomsByNode: [Int: String] = [:]
+            for node in nodeOrder {
+                var distinctRooms: [String] = []
+                for room in roomsByNodeRows[node]! where !room.isEmpty {
+                    if !distinctRooms.contains(room) { distinctRooms.append(room) }
+                }
+                roomsByNode[node] = distinctRooms.joined(separator: "/")
             }
-            i = j
+            let nodes = Array(Set(group.map { $0.node })).sorted()
+            var start = nodes.first!
+            var prev = nodes.first!
+            var blocks: [(Int, Int)] = []
+            for n in nodes.dropFirst() {
+                if n == prev + 1 {
+                    prev = n
+                } else {
+                    blocks.append((start, prev))
+                    start = n
+                    prev = n
+                }
+            }
+            blocks.append((start, prev))
+            for (bs, be) in blocks {
+                var blockRooms: [String] = []
+                for n in bs...be {
+                    guard let room = roomsByNode[n], !room.isEmpty,
+                          !blockRooms.contains(room) else { continue }
+                    blockRooms.append(room)
+                }
+                let room = blockRooms.joined(separator: "/")
+                // 周次段: 并集展开后可能多段 (非连续周次, 如 1-3周 + 8-9周)
+                for (sw, ew, type) in weekRuns(weeks) {
+                    result.append(JwCourse(
+                        name: key.name, room: room, teacher: key.teacher,
+                        day: key.day, startNode: bs, endNode: be,
+                        startWeek: sw, endWeek: ew,
+                        type: type))
+                }
+            }
         }
-        return result
+        // 稳定排序 (day, startNode, name), 口径与 Kotlin sortWith(compareBy) 一致
+        return result.enumerated()
+            .sorted { a, b in
+                if a.element.day != b.element.day { return a.element.day < b.element.day }
+                if a.element.startNode != b.element.startNode { return a.element.startNode < b.element.startNode }
+                if a.element.name != b.element.name { return a.element.name < b.element.name }
+                return a.offset < b.offset
+            }
+            .map { $0.element }
     }
 }
 

@@ -1,9 +1,13 @@
-// SchoolSelectScreen.swift — ← ui/screen/imports/SchoolSelectScreen.kt (514 行)
+// SchoolSelectScreen.swift — ← ui/screen/imports/SchoolSelectScreen.kt (824 行)
 // 学校选择页 — 教务直连第一步。
 // schools.json 145 所 + 拼音搜索(PinyinMatcher) + URL 直连识别(detectProtocolFromUrl)
-// + 首字母分组(sortKeyFull 拼音排序) + 右侧字母索引栏(点击/滑动跳转)。
+// + issue #25 注册域映射目录条目(SchoolDomainMatch.matchSchool)
+// + 「自定义教务链接」引导入口(CustomUrlEntryRow)
+// + 首字母分组(sortKeyFull 拼音排序) + 右侧字母索引栏(点击/滑动跳转, 高亮随滚动派生)
+// + 跨 stage 往返状态保持(SchoolSelectStateStore ← rememberSaveable/viewModel)。
 
 import SwiftUI
+import Combine
 import CoreLocation
 import UIKit
 
@@ -32,6 +36,77 @@ struct SchoolSection {
     let schools: [JwSchoolInfo]
 }
 
+/// 跨 stage 往返状态仓 ← Android rememberSaveable(query / resumeLocationAfterSettings /
+/// rememberSaveable(city) expanded) + JwImportActivity stage 分支的 SaveableStateProvider
+/// (列表滚动位置) + viewModel() 作用域(学校列表/定位状态随同一 VM 实例跨 stage 存活)。
+///
+/// JwImportFlow 在 selectSchool→webViewLogin→selectSchool 的 stage 切换里会整树销毁
+/// SchoolSelectScreen 连同其 @State/@StateObject;「选校进 WebView 再返回, 搜索词也要
+/// 跟着回来」要求这些状态存活于比 View 更久的载体。JwImportFlow.swift 不在本 agent
+/// 可改文件集内, 故用文件级单例仓承载 — 语义对齐 Activity 存活期:
+/// 同一次导入流程内往返完整保留, 返回键退出流程(onDismiss)清零。
+/// (流程「新进入」也需要调 resetForNewEntry 对齐 Activity 重建 — 见交付报告的
+///  needs_shared_wiring: JwImportFlow.onAppear 一行。)
+final class SchoolSelectStateStore: ObservableObject {
+    static let shared = SchoolSelectStateStore()
+
+    /// ← var query by rememberSaveable { mutableStateOf("") }
+    @Published var query = ""
+    /// ← var resumeLocationAfterSettings by rememberSaveable { mutableStateOf(false) }
+    @Published var resumeLocationAfterSettings = false
+    /// ← rememberSaveable(city) { expanded } 键控 — 推荐卡展开态跨 stage 保留
+    @Published var expandedCity = ""
+    /// ← rememberLazyListState().firstVisibleItemIndex 的一维近似快照:
+    ///   滚动派生的当前激活分组字母(返回时 scrollTo 对应组头; 组内偏移为近似)。
+    ///   nil = 顶部区(推荐卡/入口行) → 返回时不滚动。
+    var scrollLetter: String? = nil
+    /// ← viewModel(): 同实例贯穿一次导入流程, WebView 返回不重载学校列表
+    let viewModel = JwImportViewModel()
+
+    private init() {}
+
+    /// 新进入整个导入流程 → 等价 Activity 重建: saveable 状态清零
+    func resetForNewEntry() {
+        query = ""
+        resumeLocationAfterSettings = false
+        expandedCity = ""
+        scrollLetter = nil
+    }
+}
+
+/// 各分组 header 在滚动容器坐标系的 minY(LazyVStack 只测屏上 header;
+/// 离屏回收的保留最后一次观测值 — header 越过顶边后该值恒 ≤0, 判定「已滚过」仍正确)
+private struct SectionHeaderMinYKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
+/// 滚动派生量宿主 ← rememberLazyListState + derivedStateOf。
+/// @StateObject 承载: preference 回调只写这里, 不直接 @State — 每帧滚动的更新
+/// 只重建依赖它的子树(与 Android derivedStateOf 只触发订阅者一致)。
+final class SchoolSelectScrollModel: ObservableObject {
+    @Published var headerYs: [String: CGFloat] = [:]
+
+    func merge(_ patch: [String: CGFloat]) {
+        guard !patch.isEmpty else { return }
+        var merged = headerYs
+        merged.merge(patch, uniquingKeysWith: { $1 })
+        headerYs = merged
+    }
+
+    /// 跳转前清理陈旧观测: 滚动跳位后目标 header 锚定顶边、其后各组必然位于视口下方,
+    /// 它们上一次深滚留下的 ≤1 值必为陈旧 → 删除, 防止派生高亮粘在旧底部字母
+    /// (Android firstVisibleItemIndex 无陈旧态, 此为 preference 方案的对应补正;
+    /// 被删条目重新进入视口时会重新上报, 删除本身不会漏判)。
+    func dropHeaders(after letter: String, in order: [String]) {
+        guard let idx = order.firstIndex(of: letter), idx + 1 < order.count else { return }
+        let stale = Set(order[(idx + 1)...])
+        headerYs = headerYs.filter { !stale.contains($0.key) }
+    }
+}
+
 /// 完整拼音排序键(sortKeyFull 预生成; 缺失 fallback name) ← schoolSortKey
 func schoolSortKey(_ s: JwSchoolInfo) -> String {
     let firstLetter = !s.sortKey.isEmpty && s.sortKey.first!.isLetter
@@ -43,7 +118,12 @@ func schoolSortKey(_ s: JwSchoolInfo) -> String {
 /// 扁平列表 → 拼音排序 → 首字母分组 ← groupByLetter
 func groupByLetter(_ schools: [JwSchoolInfo]) -> [SchoolSection] {
     if schools.isEmpty { return [] }
-    let sorted = schools.sorted { schoolSortKey($0) < schoolSortKey($1) }
+    // Kotlin compareBy 稳定排序(同键保原序); Swift sorted 不保证稳定 → 下标 tie-break 复刻
+    let sorted = schools.enumerated().sorted { a, b in
+        let ka = schoolSortKey(a.element), kb = schoolSortKey(b.element)
+        if ka != kb { return ka < kb }
+        return a.offset < b.offset
+    }.map { $0.element }
     var groups: [String: [JwSchoolInfo]] = [:]
     var order: [String] = []
     for s in sorted {
@@ -62,33 +142,72 @@ struct SchoolSelectScreen: View {
     let onSchoolSelected: (JwSchoolInfo) -> Void
     let onDismiss: () -> Void
 
-    @StateObject private var viewModel = JwImportViewModel()
-    @State private var query = ""
-    @State private var selectedLetter: String? = nil
-    // ← resumeLocationAfterSettings: 仅当「设置」按钮打开过系统设置, 返回时才续定位
-    @State private var resumeLocationAfterSettings = false
-    @State private var expandedCity = ""   // ← rememberSaveable(city) expanded 键控
+    /// ← rememberSaveable(query / resumeLocationAfterSettings / expanded) + JwImportActivity
+    /// stage 分支 SaveableStateProvider(滚动位置) + viewModel() 作用域(学校列表跨 stage 存活):
+    /// 全部状态存放于比 View 更久的单例仓, 选校进 WebView 再返回不再被整树销毁重置。
+    @StateObject private var store = SchoolSelectStateStore.shared
+    /// @ObservedObject 直订共享 VM — 其 @Published schools/schoolLocation 更新驱动本屏刷新
+    @ObservedObject private var viewModel = SchoolSelectStateStore.shared.viewModel
+    /// ← rememberLazyListState + derivedStateOf: 滚动位置派生高亮字母的宿主
+    @StateObject private var scrollModel = SchoolSelectScrollModel()
+    /// ← searchFocusRequester.requestFocus() + keyboard?.show(): 「自定义教务链接」入口
+    /// 点击聚焦搜索框, iOS 上设置 focus 即自动弹键盘
+    @FocusState private var searchFocused: Bool
+
+    /// ← resumeLocationAfterSettings: 仅当「设置」按钮打开过系统设置, 返回时才续定位
+    ///   (存于跨 stage 仓, WebView 往返不清)
+    private var resumeLocationAfterSettings: Bool {
+        get { store.resumeLocationAfterSettings }
+        set { store.resumeLocationAfterSettings = newValue }
+    }
+    /// query 同样读自跨 stage 仓(写入只在 TextField 绑定处)
+    private var query: String { store.query }
+    /// ← rememberSaveable(city) expanded 键控(跨 stage 保留)
+    private var expandedCityBinding: Binding<String> {
+        Binding(get: { store.expandedCity }, set: { store.expandedCity = $0 })
+    }
 
     private var filtered: [JwSchoolInfo] {
         let schools = viewModel.schools
         if query.trimmingCharacters(in: .whitespaces).isEmpty { return schools }
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         let matched = schools.filter { PinyinMatcher.match($0.name, $0.sortKey, query, aliases: $0.aliases) }
-        // 别名精确匹配优先
-        return matched.sorted { a, b in
-            let aExact = a.aliases.contains { $0.lowercased() == q }
-            let bExact = b.aliases.contains { $0.lowercased() == q }
+        // 别名精确匹配优先 ← Android matched.sortedByDescending{...}: Kotlin 排序稳定,
+        // 同键保持原序; Swift sorted 不保证稳定 → 用原始下标做同键 tie-break 复刻稳定语义
+        let keyed = matched.enumerated().map { ($0.element, $0.offset) }
+        let ordered = keyed.sorted { a, b in
+            let aExact = a.0.aliases.contains { $0.lowercased() == q }
+            let bExact = b.0.aliases.contains { $0.lowercased() == q }
             if aExact != bExact { return aExact }
-            return false
+            return a.1 < b.1
         }
+        return ordered.map { $0.0 }
     }
 
     private var isUrl: Bool { looksLikeUrl(query) }
     private var urlProtocol: String? { isUrl ? JwImportViewModel.detectProtocolFromUrl(query) : nil }
+    /// ← issue #25: 输入 URL 的注册域若与目录条目同域, 直接映射到目录条目
+    ///   (拿权威教务 URL + 协议 type), 而不是建 type=nil 的自定义条目。
+    private var matchedSchool: JwSchoolInfo? {
+        isUrl ? SchoolDomainMatch.matchSchool(normalizeUrl(query.trimmingCharacters(in: .whitespaces)),
+                                              viewModel.schools)
+              : nil
+    }
 
     private var sections: [SchoolSection] { groupByLetter(filtered) }
     private var showIndexBar: Bool { query.trimmingCharacters(in: .whitespaces).isEmpty && sections.count > 1 }
     private var showRecommendations: Bool { query.trimmingCharacters(in: .whitespaces).isEmpty }
+    /// ← derivedStateOf { firstVisibleItemIndex in headerIdx..lastSchoolIdx }:
+    ///   高亮 = 已滚过滚动容器顶边的最后一个分组 header(其分组正占据视口顶边);
+    ///   列表顶部区(推荐卡/入口行)无任何 header 越线 → nil, 与 Android 顶部无高亮一致。
+    ///   离屏回收的 header 保留最后一次观测值(越过顶边后恒 ≤0)。
+    private var activeLetter: String? {
+        var letter: String? = nil
+        for section in sections {
+            if let y = scrollModel.headerYs[section.letter], y <= 1 { letter = section.letter }
+        }
+        return letter
+    }
     private var recommendedSchools: [JwSchoolInfo] {
         guard case .ready(let city) = viewModel.schoolLocation else { return [] }
         return SchoolCityIndex.schoolsInCity(viewModel.schools, city: city)
@@ -120,7 +239,8 @@ struct SchoolSelectScreen: View {
                     }
                 }
             } else {
-                resumeLocationAfterSettings = true
+                // 计算属性 setter 在 struct self 的逃逸闭包里不可变 — 直写 store(真相源)
+                store.resumeLocationAfterSettings = true
                 // iOS 无公开 API 打开「定位服务」总开关页; app 设置页是最近可达点
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
@@ -133,8 +253,13 @@ struct SchoolSelectScreen: View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("select_school"), onBack: onDismiss)
 
-            // 搜索框
-            TextField(L10n.format("search_school_url"), text: $query)
+            // 搜索框 ← query 存于 SchoolSelectStateStore(rememberSaveable 语义),
+            // 跨 WebView 往返不丢; focusRequester 等价 = @FocusState
+            TextField(L10n.format("search_school_url"), text: Binding(
+                get: { store.query },
+                set: { store.query = $0 }
+            ))
+                .focused($searchFocused)
                 .accessibilityIdentifier("school_search")
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -168,9 +293,12 @@ struct SchoolSelectScreen: View {
             .padding(.vertical, 4)
 
             if isUrl {
+                // issue #25: 域名命中目录条目 → 直接选中目录条目(权威 URL + type),
+                // 未命中才回退到自定义条目(与 Android `matchedSchool ?: JwSchoolInfo(...)` 一致)
                 UrlDirectRow(url: query.trimmingCharacters(in: .whitespaces),
-                             protocolType: urlProtocol) {
-                    let school = JwSchoolInfo(
+                             protocolType: urlProtocol,
+                             matchedSchool: matchedSchool) {
+                    let school = matchedSchool ?? JwSchoolInfo(
                         sortKey: "",
                         name: "自定义教务",
                         url: normalizeUrl(query.trimmingCharacters(in: .whitespaces)),
@@ -186,9 +314,16 @@ struct SchoolSelectScreen: View {
                     .foregroundColor(colors.onSurfaceVariant)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if !(isUrl && filtered.isEmpty) {
-                HStack(alignment: .top, spacing: 0) {
-                    // 学校列表
-                    ScrollViewReader { proxy in
+                // 布局回归修复(本会话引入): ScrollViewReader 的内容闭包是普通 ViewBuilder,
+                // 把 AlphabetIndexBar 与 ScrollView 并列为它的两个子节点 = 隐式 VStack 堆叠
+                // → 索引栏整条沉到列表下方(iPhone 6 实测「跑到页面底部」)。
+                // Android 真值 SchoolSelectScreen.kt: Row { LazyColumn(Modifier.weight(1f));
+                // AlphabetIndexBar(Modifier.width(32.dp).fillMaxSize()) } — 索引栏是贴右缘的
+                // 水平并列兄弟。此处把整个 HStack 包进 ScrollViewReader(proxy 对尾部索引栏
+                // 仍可见), 恢复 HEAD 的兄弟结构。
+                ScrollViewReader { proxy in
+                    HStack(alignment: .top, spacing: 0) {
+                        // 学校列表
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 2) {
                                 if showRecommendations {
@@ -199,10 +334,14 @@ struct SchoolSelectScreen: View {
                                         onLocate: retryLocation,
                                         onPermissionSettings: openPermissionSettings,
                                         onSchoolSelected: onSchoolSelected,
-                                        expanded: $expandedCity
+                                        expanded: expandedCityBinding
                                     )
                                     .padding(.vertical, 8)
                                 }
+                                // 自定义教务链接入口 — 位于推荐卡后、A 分组前,
+                                // 不随搜索过滤消失; 点击聚焦搜索框弹键盘输 URL
+                                CustomUrlEntryRow(onClick: { searchFocused = true })
+                                DividerRow()
                                 ForEach(sections, id: \.letter) { section in
                                     SchoolSectionHeader(letter: section.letter)
                                         .id("header_\(section.letter)")
@@ -217,21 +356,33 @@ struct SchoolSelectScreen: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 4)
                         }
-                        .onChange(of: selectedLetter) { letter in
-                            if let letter = letter {
-                                withAnimation {
-                                    proxy.scrollTo("header_\(letter)", anchor: .top)
-                                }
+                        .coordinateSpace(name: "schoolList")
+                        .onPreferenceChange(SectionHeaderMinYKey.self) { scrollModel.merge($0) }
+                        .onAppear {
+                            // ← SaveableStateProvider 恢复 firstVisibleItemIndex 的一维近似:
+                            //   返回本 stage 时跳回上次激活分组
+                            if let letter = store.scrollLetter {
+                                proxy.scrollTo("header_\(letter)", anchor: .top)
                             }
                         }
-                    }
+                        .onChange(of: activeLetter) { store.scrollLetter = $0 }
 
-                    // 字母索引栏(点击+滑动)
-                    if showIndexBar {
-                        AlphabetIndexBar(letters: sections.map { $0.letter },
-                                         activeLetter: selectedLetter,
-                                         onLetterTap: { selectedLetter = $0 })
-                            .frame(width: 32)
+                        // 字母索引栏(点击+滑动) — 高亮随滚动派生; 点击直接滚动,
+                        // 同字母重复点击也能重新跳转
+                        if showIndexBar {
+                            AlphabetIndexBar(letters: sections.map { $0.letter },
+                                             activeLetter: activeLetter,
+                                             onLetterTap: { letter in
+                                                 // 跳位后清除目标之后各组的陈旧 minY,
+                                                 // 防止高亮粘在旧底部字母(见 dropHeaders)
+                                                 scrollModel.dropHeaders(after: letter,
+                                                                         in: sections.map { $0.letter })
+                                                 withAnimation {
+                                                     proxy.scrollTo("header_\(letter)", anchor: .top)
+                                                 }
+                                             })
+                                .frame(width: 32)
+                        }
                     }
                 }
             }
@@ -242,7 +393,7 @@ struct SchoolSelectScreen: View {
             if phase != .active {
                 viewModel.cancelSchoolLocation()
             } else if resumeLocationAfterSettings {
-                resumeLocationAfterSettings = false
+                store.resumeLocationAfterSettings = false
                 viewModel.locateSchoolCity()
             }
         }
@@ -370,8 +521,9 @@ private struct PossibleSchoolsCard: View {
         .padding(12)
         .background(colors.surface)
         .overlay(
+            // ← M3 OutlinedCard 默认边框 = outlineVariant 满 alpha 1dp(非 hairline 分隔线)
             RoundedRectangle(cornerRadius: SleepyShapes.medium)
-                .stroke(colors.outline.opacity(SleepyTheme.Alpha.hairline), lineWidth: 1)
+                .stroke(colors.outlineVariant, lineWidth: 1)
         )
         .cornerRadius(SleepyShapes.medium)   // ← OutlinedCard
     }
@@ -392,6 +544,13 @@ private struct SchoolSectionHeader: View {
             .cornerRadius(SleepyShapes.extraSmall)
             .padding(.vertical, 8)
             .padding(.horizontal, 4)
+            // 滚动派生高亮的观测点: 上报 header 在列表坐标系的 minY(← firstVisibleItemIndex)
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: SectionHeaderMinYKey.self,
+                                           value: [letter: geo.frame(in: .named("schoolList")).minY])
+                }
+            )
     }
 }
 
@@ -526,11 +685,48 @@ private struct SchoolRow: View {
     }
 }
 
+// ← CustomUrlEntryRow(Android 520-565): 「自定义教务链接」引导入口 —
+// 与 UrlDirectRow 同构(Link 图标 + primary 色)但语义是引导: 点击不导入,
+// 聚焦搜索框弹键盘, 用户把教务 URL 输进去后搜索框下方出现 UrlDirectRow 完成导入。
+private struct CustomUrlEntryRow: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let onClick: () -> Void
+
+    var body: some View {
+        Button(action: onClick) {
+            HStack(spacing: 12) {
+                Image(systemName: "link")
+                    .font(.system(size: 20))
+                    .foregroundColor(colors.onPrimary)
+                    .frame(width: 36, height: 36)
+                    .background(colors.primary)
+                    .cornerRadius(SleepyShapes.small)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.format("custom_url_entry"))
+                        .font(.system(size: 16, weight: .medium))   // ← bodyLarge Medium 16sp
+                        .foregroundColor(colors.primary)
+                    Text(L10n.format("custom_url_entry_hint"))
+                        .font(.system(size: 12))                    // ← bodySmall 12sp
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 4)
+        }
+        .buttonStyle(SleepyButtonStyle())
+        .accessibilityIdentifier("custom_url_entry_row")
+    }
+}
+
 // ← UrlDirectRow
 private struct UrlDirectRow: View {
     @Environment(\.localWakeUpColors) private var colors
     let url: String
     let protocolType: String?
+    /// ← issue #25: 非 nil = 输入 URL 的注册域命中目录条目
+    let matchedSchool: JwSchoolInfo?
     let onClick: () -> Void
 
     var body: some View {
@@ -551,7 +747,12 @@ private struct UrlDirectRow: View {
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
                         .lineLimit(1)
-                    if let proto = protocolType {
+                    if let matched = matchedSchool {
+                        // issue #25: 域名映射命中目录条目时, 显示学校名, 比协议名更可确认
+                        Text(L10n.format("url_match_school", matched.name))
+                            .font(.system(size: 11))   // ← labelSmall 11sp 常规
+                            .foregroundColor(colors.primary)
+                    } else if let proto = protocolType {
                         Text("\(L10n.format("url_detected")) \(JwProtocol.displayName(proto))")
                             .font(.system(size: 11))   // ← labelSmall 11sp 常规
                             .foregroundColor(colors.primary)

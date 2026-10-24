@@ -94,6 +94,38 @@ final class JwJsonParserTests: XCTestCase {
         XCTAssertTrue(features.contains { $0.contains("KCM") })
     }
 
+    func testSeuMixedParityPerSegment() {  // ← mixed parity string applies marker per segment
+        // "1-8周(单),9-16周(双)": 整串 first-match 会把后半段标成单周,
+        // 偶周 10,12,14,16 全丢且多出 4 个假周。按段检测后两段各自正确。
+        let ranges = JwSeuParser("{}").parseWeekRanges("1-8(单),9-16(双)")
+        XCTAssertEqual(ranges.count, 2)
+        XCTAssert((1, 8, 1) == ranges[0])    // 单周段: start 已奇不动; end 不做奇偶收缩
+        XCTAssert((10, 16, 2) == ranges[1])  // 双周段: 9→10 抬起点
+    }
+
+    func testSeuSingleWeekSegmentEqualEndpointsNotInverted() {  // ← single week segment equal endpoints does not invert
+        // "6-6(单)" 旧实现产出 (7,6) 倒挂; 共享 helper 把 end 抬回 start
+        let ranges = JwSeuParser("{}").parseWeekRanges("6-6(单)")
+        XCTAssertEqual(ranges.count, 1)
+        XCTAssert((7, 7, 1) == ranges[0])
+    }
+
+    func testSeuFullWidthParenNormalized() {
+        // "1-16周（单）" 全角形态: 先归一括号再按段检测 (对齐 Android v1.0.61)
+        let ranges = JwSeuParser("{}").parseWeekRanges("1-16周（单）")
+        XCTAssertEqual(ranges.count, 1)
+        XCTAssert((1, 16, 1) == ranges[0])
+    }
+
+    func testSeuScalarRootReturnsEmpty() {  // ← scalar root json returns empty list not exception
+        // root 是标量 (用户误粘 "42") 不得抛错, 走 0 课路径
+        XCTAssertTrue(try JwSeuParser("42").generateCourseList().isEmpty)
+    }
+
+    func testSeuDataObjectShapeReturnsEmpty() {  // ← data object shape returns empty list not exception
+        XCTAssertTrue(try JwSeuParser("{\"data\":{\"nested\":1}}").generateCourseList().isEmpty)
+    }
+
     // MARK: - ZJU(浙江大学)
 
     func testZjuTotalCount() throws {  // ← total count is correct
@@ -109,6 +141,10 @@ final class JwJsonParserTests: XCTestCase {
         XCTAssertEqual(math.room, "紫金港东1A-301")
         XCTAssertEqual(math.day, 1)
         XCTAssertEqual(math.startNode, 1)
+        XCTAssertEqual(math.endNode, 2)
+        XCTAssertEqual(math.startWeek, 1)
+        XCTAssertEqual(math.endWeek, 16)
+        XCTAssertEqual(math.type, 0)  // dsz=2 → type 0 (每周)
     }
 
     func testZjuPhysicsOddWeek() throws {
@@ -120,6 +156,7 @@ final class JwJsonParserTests: XCTestCase {
         // 单周=奇数, 2-15(单) → 起点 3, 终点 15
         XCTAssertEqual(phys.startWeek, 3)
         XCTAssertEqual(phys.endWeek, 15)
+        XCTAssertEqual(phys.type, 1)  // dsz=0 → type 1 (单周)
     }
 
     func testZjuDiscreteWeeksExpand() throws {
@@ -128,6 +165,10 @@ final class JwJsonParserTests: XCTestCase {
         XCTAssertEqual(lab.count, 8)
         XCTAssertEqual(lab.first?.day, 5)
         XCTAssertEqual(lab.first?.startNode, 7)
+        XCTAssertEqual(lab.first?.endNode, 8)
+        // 离散周每周为一段
+        let weeks = lab.map { $0.startWeek }.sorted()
+        XCTAssertEqual(weeks, [2, 4, 6, 8, 10, 12, 14, 16])
     }
 
     func testZjuEvenWeekType2() throws {
@@ -139,6 +180,21 @@ final class JwJsonParserTests: XCTestCase {
         // 双周=偶数, 1-16(双) → 起点 2, 终点 16
         XCTAssertEqual(eng.startWeek, 2)
         XCTAssertEqual(eng.endWeek, 16)
+        XCTAssertEqual(eng.type, 2)  // dsz=1 → type 2 (双周)
+    }
+
+    func testZjuDegenerateOddWeekNoInversion() throws {
+        // "6-6周" dsz=0(单): 起点抬到 7, 端点相等时 end 抬回 start → (7,7) 不倒挂
+        // (对齐 Android JwParity.adjustedRange; 旧内联实现产 (7,6))
+        let json = """
+        {"kbList": [{"xkkh": "TEST0000000000000002", "xqj": "1", "dsz": "0", "djj": "1",
+                     "skcd": "1", "kcb": "倒挂测试<br>6-6周<br>老师<br>教室", "xxq": "秋冬"}]}
+        """
+        let courses = try JwZjuParser(json).generateCourseList()
+        XCTAssertEqual(courses.count, 1)
+        XCTAssertEqual(courses.first?.startWeek, 7)
+        XCTAssertEqual(courses.first?.endWeek, 7)
+        XCTAssertEqual(courses.first?.type, 1)
     }
 
     func testZjuShortKcbTolerated() throws {  // ← teacher falls back when missing in kcb
@@ -179,6 +235,10 @@ final class JwJsonParserTests: XCTestCase {
         XCTAssertEqual(math.day, 1)
         // lessonCode "0102" → start=1, end=2
         XCTAssertEqual(math.startNode, 1)
+        XCTAssertEqual(math.endNode, 2)
+        XCTAssertEqual(math.startWeek, 1)
+        XCTAssertEqual(math.endWeek, 16)
+        XCTAssertEqual(math.type, 0)  // weeksStr "1-16" 无单双 → type 0
     }
 
     func testUstcPhysicsOddWeek() throws {
@@ -187,14 +247,19 @@ final class JwJsonParserTests: XCTestCase {
         XCTAssertEqual(phys.day, 3)
         XCTAssertEqual(phys.startNode, 5)
         XCTAssertEqual(phys.endNode, 6)
+        // 2-15单: 单周=奇数, 2 偶 → 校正为 3, 终点 15
         XCTAssertEqual(phys.startWeek, 3)
         XCTAssertEqual(phys.endWeek, 15)
+        XCTAssertEqual(phys.type, 1)  // weeksStr 含 "单" → type 1
     }
 
     func testUstcDiscreteWeeksExpand() throws {
         let courses = try JwUstcParser(try loadFixture("ustc_courses")).generateCourseList()
         let lab = courses.filter { $0.name == "数据结构实验" }
         XCTAssertEqual(lab.count, 8)
+        XCTAssertEqual(lab.first?.day, 5)
+        XCTAssertEqual(lab.first?.startNode, 7)
+        XCTAssertEqual(lab.first?.endNode, 8)
         let weeks = lab.map { $0.startWeek }.sorted()
         XCTAssertEqual(weeks, [2, 4, 6, 8, 10, 12, 14, 16])
     }
@@ -205,8 +270,10 @@ final class JwJsonParserTests: XCTestCase {
         XCTAssertEqual(eng.day, 2)
         XCTAssertEqual(eng.startNode, 9)
         XCTAssertEqual(eng.endNode, 10)
+        // 1-16双: 双周=偶数, 1 奇 → 校正为 2, 终点 16
         XCTAssertEqual(eng.startWeek, 2)
         XCTAssertEqual(eng.endWeek, 16)
+        XCTAssertEqual(eng.type, 2)  // weeksStr 含 "双" → type 2
     }
 
     func testUstcRoomFallbackToCustomPlace() throws {
@@ -225,6 +292,38 @@ final class JwJsonParserTests: XCTestCase {
         """
         let courses = try try JwUstcParser(json).generateCourseList()
         XCTAssertEqual(courses.first?.teacher, "李四 王五")
+    }
+
+    func testUstcMalformedLessonCodeFallsBackToTimeInference() throws {  // ← malformed lessonCode falls back to start end time inference
+        // lessonCode 并非协议契约 (上游 json_version.py 只把它拼进 description,
+        // 节次实际从 startDate/endDate HH:mm 推) — 不合式时不得整行丢弃。
+        // 08:00 → node 1 (slot ±10min 吸附); 09:40 不吸附任何 slot → startNode+1=2
+        let json = """
+        {"studentTableVm": {"activities": [
+          {"courseName": "机器学习", "campus": "高新园区", "customPlace": null,
+           "room": "电三楼201", "teachers": ["周老师"], "weeksStr": "1-16",
+           "weekday": 2, "startDate": "08:00", "endDate": "09:40", "lessonCode": "X-77"}
+        ]}}
+        """
+        let courses = try try JwUstcParser(json).generateCourseList()
+        XCTAssertEqual(courses.count, 1)
+        XCTAssertEqual(courses.first?.startNode, 1)
+        XCTAssertEqual(courses.first?.endNode, 2)
+    }
+
+    func testUstcLessonCodeAbsentStillParsesViaTimeInference() throws {  // ← lessonCode absent entirely still parses via time inference
+        let json = """
+        {"studentTableVm": {"activities": [
+          {"courseName": "学术道德", "campus": null, "customPlace": "线上",
+           "room": null, "teachers": ["吴老师"], "weeksStr": "6-9",
+           "weekday": 5, "startDate": "19:00", "endDate": "20:50"}
+        ]}}
+        """
+        let courses = try try JwUstcParser(json).generateCourseList()
+        XCTAssertEqual(courses.count, 1)
+        XCTAssertEqual(courses.first?.startNode, 9)   // 19:00 → slot 9
+        XCTAssertEqual(courses.first?.endNode, 10)    // 20:50 = 19:00+110, 不吸附 → 9+1
+        XCTAssertEqual(courses.first?.room, "线上")
     }
 
     func testUstcConfidence() throws {
@@ -284,7 +383,8 @@ final class JwJsonParserTests: XCTestCase {
     }
 
     func testScuWeekDescriptionStripsNonDigit() throws {
-        // "1-15周(单)" 走 replaceAll([^\d\-,]) 语义: 单/双丢失, type=0
+        // "1-15周(单)" 对齐 Android v1.0.61 extractParity: "(单)" 剥除后按
+        // [^\d\-,] 展开, 单周信息保留 (type=1); 起点 1 已奇 → 不抬 (同 Android)
         let json = """
         {"dateList": [{"selectCourseList": [{
             "attendClassTeacher": "X", "courseName": "单周测试", "examTypeName": "",
@@ -297,7 +397,42 @@ final class JwJsonParserTests: XCTestCase {
         XCTAssertEqual(courses.count, 1)
         XCTAssertEqual(courses.first?.startWeek, 1)
         XCTAssertEqual(courses.first?.endWeek, 15)
-        XCTAssertEqual(courses.first?.type, 0)
+        XCTAssertEqual(courses.first?.type, 1)
+    }
+
+    func testScuSingleWeekMarkerKeptAsType1() throws {  // ← single week marker kept as type 1
+        // weekDescription 真实含裸"单"后缀形态 (上游 timetable.json 资产实证);
+        // 单/双信息在线协议不丢失 — 保留 type 并做端点修正 (2 偶 → 3)
+        let json = """
+        {"dateList": [{"selectCourseList": [{
+            "attendClassTeacher": "X", "courseName": "单周测试", "examTypeName": "",
+            "timeAndPlaceList": [{"weekDescription": "2-15周单", "classSessions": "1",
+                                  "continuingSession": "2", "classDay": "0",
+                                  "teachingBuildingName": "一教", "classroomName": "A101"}]
+        }]}]}
+        """
+        let courses = try try JwScuParser(json).generateCourseList()
+        XCTAssertEqual(courses.count, 1)
+        XCTAssertEqual(courses.first?.startWeek, 3)
+        XCTAssertEqual(courses.first?.endWeek, 15)
+        XCTAssertEqual(courses.first?.type, 1)
+    }
+
+    func testScuDoubleWeekParenFormKeptAsType2() throws {  // ← double week paren form kept as type 2
+        // 全角括号形态 "1-16周（双）": 先归一 (）→ () 再剥 "(双)" 限定词
+        let json = """
+        {"dateList": [{"selectCourseList": [{
+            "attendClassTeacher": "X", "courseName": "双周测试", "examTypeName": "",
+            "timeAndPlaceList": [{"weekDescription": "1-16周（双）", "classSessions": "1",
+                                  "continuingSession": "2", "classDay": "1",
+                                  "teachingBuildingName": "二教", "classroomName": "B202"}]
+        }]}]}
+        """
+        let courses = try try JwScuParser(json).generateCourseList()
+        XCTAssertEqual(courses.count, 1)
+        XCTAssertEqual(courses.first?.startWeek, 2)  // 起点 1 奇 → 双周校正为 2
+        XCTAssertEqual(courses.first?.endWeek, 16)
+        XCTAssertEqual(courses.first?.type, 2)
     }
 
     func testScuConfidence() throws {
@@ -480,5 +615,30 @@ final class JwJsonParserTests: XCTestCase {
         XCTAssertEqual(JwImportViewModel.detectProtocolFromUrl("https://my.cqu.edu.cn/enroll/Home"), JwProtocol.TYPE_CQU)
         // URL 含 cqu.edu.cn 子域但非门户 host 不得误判
         XCTAssertNil(JwImportViewModel.detectProtocolFromUrl("https://jw.cqu.edu.cn/"))
+    }
+
+    func testCquRegistryDispatch() throws {  // ← registry dispatches CQU json to JwCquParser
+        let (courses, attempts) = JwParserRegistry.selectBest(try loadFixture("my_table_cqu"),
+                                                              declaredType: JwProtocol.TYPE_CQU)
+        XCTAssertEqual(6, courses.count)
+        let cqu = try XCTUnwrap(attempts.first { $0.type == JwProtocol.TYPE_CQU }, "cqu 行必须被尝试")
+        XCTAssertEqual(JwProtocol.TYPE_CQU, cqu.type)
+        XCTAssertGreaterThanOrEqual(cqu.confidence, 80, "CQU parser 置信度应 >= 80")
+    }
+
+    func testCquSchoolEntryRegisteredAndSupported() throws {  // ← CQU entry in schools json is registered and supported
+        // ← JwParserTests.loadSchools: app bundle 的 schools.json
+        let bundle = Bundle(for: JwImportViewModel.self) // @testable → 用 app 类型
+        let url = Bundle.main.url(forResource: "schools", withExtension: "json")
+            ?? bundle.url(forResource: "schools", withExtension: "json")
+        let raw = try String(contentsOf: XCTUnwrap(url, "测试资源 schools.json 应存在"), encoding: .utf8)
+        let cqu = try XCTUnwrap(JwImportViewModel.parseSchoolsJson(raw).first { $0.name == "重庆大学" },
+                                "重庆大学 条目缺失")
+        XCTAssertEqual("cqu", cqu.type)
+        XCTAssertEqual(JwProtocol.TYPE_CQU, cqu.type)
+        XCTAssertEqual("https://my.cqu.edu.cn/", cqu.url)
+        XCTAssertTrue(cqu.isSupported)
+        XCTAssertTrue(cqu.aliases.contains("cqu"))
+        XCTAssertEqual("chongqingdaxue", cqu.sortKeyFull)
     }
 }

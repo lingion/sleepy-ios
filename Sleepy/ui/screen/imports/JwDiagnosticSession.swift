@@ -52,15 +52,22 @@ final class JwDiagnosticSession {
     private var consoles: [ConsoleLog] = []
     private var downloads: [DownloadLog] = []
     private var jsNetwork: [String] = []
-    private let startTimeMs: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
+    private let startTimeMs: Int64 = JwDiagnosticSession.monotonicMs()
     private var sessionId: String = JwDiagnosticSession.makeSessionId()
     private let lock = NSLock()
+
+    /// 单调毫秒时钟 — 对标 Android SystemClock.elapsedRealtime(): 自设备启动计数,
+    /// 不受 NTP 校时/手动改表影响, ts 偏移恒为非负、不跳变。
+    private static func monotonicMs() -> Int64 {
+        Int64(ProcessInfo.processInfo.systemUptime * 1000)
+    }
 
     private static func makeSessionId() -> String {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyyMMdd-HHmmss"
         fmt.locale = Locale(identifier: "en_US_POSIX")
-        fmt.timeZone = TimeZone(secondsFromGMT: 0)
+        // 时区跟随设备本地 — 对齐 Android SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+        // 的设备默认时区; 强行 UTC 会让 UTC+8 用户的会话 id 比本机时刻早 8 小时。
         return fmt.string(from: Date())
     }
 
@@ -85,7 +92,7 @@ final class JwDiagnosticSession {
                        isRedirect: Bool = false, isMainFrame: Bool = false) {
         lock.lock()
         let log = RequestLog(
-            ts: Int64(Date().timeIntervalSince1970 * 1000) - startTimeMs,
+            ts: Self.monotonicMs() - startTimeMs,
             method: method,
             url: url,
             status: status,
@@ -109,7 +116,7 @@ final class JwDiagnosticSession {
     func recordConsole(level: String, message: String, sourceId: String?) {
         lock.lock()
         let log = ConsoleLog(
-            ts: Int64(Date().timeIntervalSince1970 * 1000) - startTimeMs,
+            ts: Self.monotonicMs() - startTimeMs,
             level: level,
             message: message,
             sourceId: sourceId
@@ -125,13 +132,13 @@ final class JwDiagnosticSession {
 
     /// 下载实捕获版 — body 前 2MB 落 ring buffer; 桌面 collector 4-downloads/ 对标。
     func recordDownload(url: String, userAgent: String?, contentDisposition: String?, mime: String?, length: Int64, body: Data?) {
-        guard !url.isEmpty else { return }
+        guard !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         lock.lock()
         let cap = 2 * 1024 * 1024
         let truncated = body != nil && (body!.count > cap)
         let cappedBody = body.flatMap { truncated ? Data($0.prefix(cap)) : $0 }
         let log = DownloadLog(
-            ts: Int64(Date().timeIntervalSince1970 * 1000) - startTimeMs,
+            ts: Self.monotonicMs() - startTimeMs,
             url: url,
             userAgent: userAgent ?? "",
             contentDisposition: contentDisposition ?? "",
@@ -166,7 +173,7 @@ final class JwDiagnosticSession {
 
     /// 页面 recorder 的增量回调; 限制单条大小和总条数,避免异常页面耗尽内存。
     func recordJsNetwork(_ json: String) {
-        guard !json.isEmpty else { return }
+        guard !json.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         lock.lock()
         let cap = 512 * 1024
         let truncated = String(json.prefix(cap))

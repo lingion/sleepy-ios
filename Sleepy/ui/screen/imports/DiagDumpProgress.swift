@@ -57,21 +57,28 @@ struct DiagDumpProgress: Equatable {
     }
 
     /// 当前正在跑的段序号 (1-based, "步骤 x/n").
+    /// 有意钳位到 totalCount (与 Android 的防御性差异, 非漂移): iOS 流程在 SaveShare
+    /// 完成时发 stepsDone = allCases.count (9), 不钳位会显示 "10/9"; Android UI 传裸
+    /// stepsDone + 1 不钳位, 但 Android 流程的最后一个 entering() 是 pre-increment
+    /// 计数器 (stepsDone = 8), 实际最高也只渲染 "9/9" — 钳位后两端展示一致。
     var stepIndex: Int { min(stepsDone + 1, totalCount) }
 }
 
 /// 进度卡片 — Android JwImportActivity 错误弹窗内的展开进度区 等价:
 /// 步骤 x/n + 阶段文案 + 进度条 + 百分比, 用户在问题上下文内不离开即可看见进度.
+/// 间距 1:1 Android JwImportActivity: 步骤文案→阶段文案 4pt、阶段文案→进度条 8pt、
+/// 进度条→百分比文案 4pt (VStack spacing 4 + ProgressView .padding(.top, 4)).
 struct DiagDumpProgressCard: View {
     let progress: DiagDumpProgress
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(L10n.format("jw_diag_progress_step", progress.stepIndex, progress.totalCount))
                 .font(.footnote)
             Text(progress.stage.label)
                 .font(.subheadline)
             ProgressView(value: Double(progress.percent), total: 100)
+                .padding(.top, 4) // 4(VStack spacing)+4 = 8, 对齐 Android Spacer(8.dp)
             Text(L10n.format("jw_diag_progress_percent", progress.percent))
                 .font(.footnote)
         }

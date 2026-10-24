@@ -49,19 +49,34 @@ final class JwCquParser: JwParser, JwParserConfidenceReporting {
             let position = jstr(o, "position")
             let room = position.isEmpty ? jstr(o, "roomName") : position
 
-            guard let day = jint(o, "weekDay") else { continue }
+            // Kotlin 端 int(k) = str(k).toIntOrNull(): 越界 Int32(如 "9999999999")返回 null → 丢弃该行。
+            // Swift Int 为 64 位, 需范围守卫复刻该宽度(共享 jint 不改, 避免波及其它解析器)。
+            func cint(_ key: String) -> Int? {
+                guard let v = jint(o, key), v >= Int(Int32.min), v <= Int(Int32.max) else { return nil }
+                return v
+            }
 
-            // periodFormat "3-4" / "5"(单节起止相同); 非数字整体 → 丢弃该行
+            guard let day = cint("weekDay") else { continue }
+
+            // periodFormat "3-4" / "5"(单节起止相同); 非数字整体 → 丢弃该行。
+            // endNode 严格复刻 Kotlin substringAfter('-'): 取首个 '-' 之后整串再 trim().toIntOrNull(),
+            // 多横线(如 "3-4-5")尾段为 "4-5" → 解析失败回退 startNode(≠ 取第二段)。
             let pf = jstr(o, "periodFormat")
             let startNode: Int
             let endNode: Int
-            if pf.contains("-") {
-                let parts = pf.components(separatedBy: "-")
-                guard let s = Int(parts[0].trimmingCharacters(in: .whitespaces)) else { continue }
+            if let dash = pf.firstIndex(of: "-") {
+                let head = String(pf[pf.startIndex..<dash]).trimmingCharacters(in: .whitespaces)
+                guard let s = Int(head), s >= Int(Int32.min), s <= Int(Int32.max) else { continue }
                 startNode = s
-                endNode = parts.count > 1 ? (Int(parts[1].trimmingCharacters(in: .whitespaces)) ?? s) : s
+                let tail = String(pf[pf.index(after: dash)...]).trimmingCharacters(in: .whitespaces)
+                if let e = Int(tail), e >= Int(Int32.min), e <= Int(Int32.max) {
+                    endNode = e
+                } else {
+                    endNode = s
+                }
             } else {
-                guard let s = Int(pf.trimmingCharacters(in: .whitespaces)) else { continue }
+                guard let s = Int(pf.trimmingCharacters(in: .whitespaces)),
+                      s >= Int(Int32.min), s <= Int(Int32.max) else { continue }
                 startNode = s
                 endNode = s
             }

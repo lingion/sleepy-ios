@@ -68,15 +68,22 @@ final class JwQzIeasParser: JwParser, JwParserConfidenceReporting {
             .trimmingCharacters(in: .whitespaces)
         if name.isEmpty { return nil }
 
-        let teacher = cleanNull(ifBlank(attrOf(row, "data-teacher"), cells.count > 1 ? cells[1] : ""))
-        let room = cleanNull(ifBlank(attrOf(row, "data-room"), cells.count > 2 ? cells[2] : ""))
+        // ← Kotlin: ifBlank { cells }.trim().cleanNull() —— 先 trim 后 cleanNull,
+        // 使 " null " 这类带空白的 null 字面量同样被清成空串。
+        let teacher = cleanNull(ifBlank(attrOf(row, "data-teacher"), cells.count > 1 ? cells[1] : "")
+            .trimmingCharacters(in: .whitespaces))
+        let room = cleanNull(ifBlank(attrOf(row, "data-room"), cells.count > 2 ? cells[2] : "")
+            .trimmingCharacters(in: .whitespaces))
         let weeks = ifBlank(attrOf(row, "data-weeks"), cells.count > 3 ? cells[3] : "")
         let timeText = cells.count > 4 ? cells[4] : ""
 
-        let day = Int(attrOf(row, "data-day").trimmingCharacters(in: .whitespaces)) ?? parseDay(timeText)
+        // ← Kotlin toIntOrNull(): 严格整数, 不做预 trim —— " 3" 这类带空白值
+        // 与 Kotlin 一致地落回 parseDay/parseNodes 文本兜底。Swift Int("+3")=3
+        // 与 Kotlin toIntOrNull("+3")=3 同为接受符号。
+        let day = Int(attrOf(row, "data-day")) ?? parseDay(timeText)
         let parsedNodes = parseNodes(timeText)
-        let start = Int(attrOf(row, "data-start-node").trimmingCharacters(in: .whitespaces)) ?? parsedNodes.0
-        let end = Int(attrOf(row, "data-end-node").trimmingCharacters(in: .whitespaces)) ?? parsedNodes.1
+        let start = Int(attrOf(row, "data-start-node")) ?? parsedNodes.0
+        let end = Int(attrOf(row, "data-end-node")) ?? parsedNodes.1
         guard (1...7).contains(day), start >= 1, end >= start else { return nil }
 
         let triples = parseWeeks(weeks)

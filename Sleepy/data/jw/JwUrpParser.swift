@@ -22,6 +22,10 @@ final class JwUrpParser: JwParser, JwParserConfidenceReporting {
     func generateCourseList() throws -> [JwCourse] {
         var result: [JwCourse] = []
         guard let doc = try? SwiftSoup.parse(source) else { return result }
+        // T10: URP 网格变体 (td[id='day_node'] + div.class_div) — 真实结构来自 urp_01.js
+        let grid = Self.parseUrpGrid(doc)
+        if !grid.isEmpty { return grid }
+
         var tables = (try? doc.getElementsByAttributeValue("class", "displayTag")) ?? Elements()
         if tables.isEmpty() {
             tables = (try? doc.getElementsByAttributeValue("class", "table table-striped table-bordered")) ?? Elements()
@@ -163,27 +167,126 @@ final class JwUrpParser: JwParser, JwParserConfidenceReporting {
 
     private static func weekStrToRanges(_ weekStr: String) -> [(Int, Int, Int)] {
         var result: [(Int, Int, Int)] = []
-        if weekStr.isEmpty {  // ← isBlank
+        if weekStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {  // ← isBlank
             result.append((1, 20, 0))
             return result
         }
-        // 支持 "1-16周", "1,3,5周", "1-16周(单)"
-        for week in weekStr.split(separator: ",") {
-            let w = String(week)
-            let cleaned = w.replacingOccurrences(of: "周", with: "")
-                .replacingOccurrences(of: "(", with: "")
-                .replacingOccurrences(of: ")", with: "")
-            let type: Int
-            if w.contains("单") { type = 1 }
-            else if w.contains("双") { type = 2 }
-            else { type = 0 }
-            if cleaned.contains("-") {
-                let parts = cleaned.components(separatedBy: "-")
-                let s = Int(parts[0].trimmingCharacters(in: .whitespaces)) ?? 1
-                let e = parts.count > 1 ? (Int(parts[1].trimmingCharacters(in: .whitespaces)) ?? s) : s
-                result.append((s, e, type))
+        // 支持 "1-16周", "1-16周(单)", "2,4,6,8,10周"(逗号列表按上游 weekIntList2WeekBeanList 归并)
+        let type: Int
+        if weekStr.contains("单") { type = 1 }
+        else if weekStr.contains("双") { type = 2 }
+        else { type = 0 }
+        let cleaned = weekStr.replacingOccurrences(of: "周", with: "")
+            .replacingOccurrences(of: "(", with: "")
+            .replacingOccurrences(of: ")", with: "")
+            .replacingOccurrences(of: "单", with: "")
+            .replacingOccurrences(of: "双", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        if cleaned.contains("-") {
+            let parts = cleaned.components(separatedBy: "-")
+            let s = Int(parts[0].trimmingCharacters(in: .whitespaces)) ?? 1
+            let e = parts.count > 1 ? (Int(parts[1].trimmingCharacters(in: .whitespaces)) ?? s) : s
+            result.append((s, e, type))
+        } else if cleaned.contains(",") {
+            // 逗号列表: 归并成连续/单双周段 (T10 契约: "2,4,6,8,10周" → (2,10,type=2))
+            let weeks = cleaned.components(separatedBy: ",")
+                .map { Int($0.trimmingCharacters(in: .whitespaces)) }
+                .compactMap { $0 }
+            result += JwChengFangParser.weekIntList2WeekBeanList(weeks)
+        } else {
+            let v = Int(cleaned.trimmingCharacters(in: .whitespaces)) ?? 1
+            result.append((v, v, type))
+        }
+        return result
+    }
+
+    ///
+    /// T10: URP 网格变体解析 — td[id='<day>_<node>'] 定位, div.class_div 含 >=5 个 <p>:
+    /// p[0]=课名, p[1]=星号占位, p[2]=教师, p[3]=周次串, p[4]=节次串, p[5]=教室(可选)
+    ///
+    private static func parseUrpGrid(_ doc: Document) -> [JwCourse] {
+        var result: [JwCourse] = []
+        let gridTds = (try? doc.select("td[id]")) ?? Elements()
+        for td in gridTds {
+            let id = (try? td.attr("id")) ?? ""
+            let parts = id.components(separatedBy: "_")
+            if parts.count != 2 { continue }
+            guard let day = Int(parts[0].trimmingCharacters(in: .whitespaces)), (1...7).contains(day) else { continue }
+            guard let node = Int(parts[1].trimmingCharacters(in: .whitespaces)) else { continue }
+            let divs = (try? td.getElementsByClass("class_div")) ?? Elements()
+            for div in divs {
+                let ps = (try? div.getElementsByTag("p")) ?? Elements()
+                if ps.count < 5 { continue }
+                let name = ((try? ps[0].text()) ?? "").trimmingCharacters(in: .whitespaces)
+                if name.isEmpty { continue }
+                let teacher = ((try? ps[2].text()) ?? "").trimmingCharacters(in: .whitespaces)
+                let weekStr = ((try? ps[3].text()) ?? "").trimmingCharacters(in: .whitespaces)
+                let nodeStr = ((try? ps[4].text()) ?? "").trimmingCharacters(in: .whitespaces)
+                let ranges = gridWeekRanges(weekStr)
+                if ranges.isEmpty { continue }
+                // 节次串 "N-M节" → start/end
+                let nParts = nodeStr.replacingOccurrences(of: "节", with: "")
+                    .components(separatedBy: "-")
+                let startNode = Int((nParts.first ?? "").trimmingCharacters(in: .whitespaces)) ?? node
+                let endNode = nParts.count > 1 ? (Int(nParts[1].trimmingCharacters(in: .whitespaces)) ?? startNode) : startNode
+                let room = ps.count >= 6 ? ((try? ps[5].text()) ?? "").trimmingCharacters(in: .whitespaces) : ""
+                for r in ranges {
+                    result.append(JwCourse(
+                        name: name, room: room, teacher: teacher, day: day,
+                        startNode: startNode, endNode: endNode,
+                        startWeek: r.0, endWeek: r.1, type: r.2
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
+    /// 网格变体周次串: "1-16周" / "2-14周单周" / "1-8,10-17周" / "3-12周双周" → 归并段
+    private static func gridWeekRanges(_ weekStr: String) -> [(Int, Int, Int)] {
+        if weekStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
+        var result: [(Int, Int, Int)] = []
+        let cleaned = weekStr.replacingOccurrences(of: "周", with: "")
+        // ← cleaned.split(',', '，', ';', '；'): Swift 手工切分四个分隔符
+        var segments: [String] = []
+        var current = ""
+        for ch in cleaned {
+            if ch == "," || ch == "，" || ch == ";" || ch == "；" {
+                segments.append(current); current = ""
             } else {
-                let v = Int(cleaned.trimmingCharacters(in: .whitespaces)) ?? 1
+                current.append(ch)
+            }
+        }
+        segments.append(current)
+        for seg0 in segments {
+            let trimmed = seg0.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty { continue }
+            let type: Int
+            if trimmed.contains("单") { type = 1 }
+            else if trimmed.contains("双") { type = 2 }
+            else { type = 0 }
+            // ← seg.filter { it.isDigit() || it == '-' } (isDigit 仅 ASCII 0-9)
+            let digits = String(trimmed.filter { $0.isASCII && $0.isNumber || $0 == "-" })
+            if digits.contains("-") {
+                let parts = digits.components(separatedBy: "-")
+                // ← parts.getOrNull(0)?.toIntOrNull() ?: return@forEach
+                guard let s = Int(parts.first ?? "") else { continue }
+                // ← parts.getOrNull(1)?.toIntOrNull() ?: s (第二段坏值回退到 s, 不跳过)
+                let e: Int
+                if parts.count > 1 {
+                    e = Int(parts[1]) ?? s
+                } else {
+                    e = s
+                }
+                if type == 0 {
+                    result.append((s, e, 0))
+                } else {
+                    // 单/双周: 展开成奇/偶周序列再归并 ("2-14周单周" → (3,13,1))
+                    let weeks = (s...e).filter { type == 1 ? $0 % 2 == 1 : $0 % 2 == 0 }
+                    result += JwChengFangParser.weekIntList2WeekBeanList(weeks)
+                }
+            } else {
+                guard let v = Int(digits) else { continue }
                 result.append((v, v, type))
             }
         }

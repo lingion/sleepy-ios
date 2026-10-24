@@ -327,6 +327,98 @@ final class JwUcasParserTests: XCTestCase {
         XCTAssertEqual(7, courses[1].endWeek)
     }
 
+    // ---- issue #18 报告人真实采集包回放 (0906 v1.1 / 0908 v1.2) ----
+
+    private func realGrid(_ name: String) throws -> String { try fixture(name, "html") }
+
+    private func realDetail(_ id: String) throws -> String {
+        let bundle = Bundle(for: JwUcasParserTests.self)
+        guard let url = bundle.url(forResource: "coursetime_\(id)", withExtension: "html",
+                                   subdirectory: "resources/real-detail-0908")
+            ?? bundle.url(forResource: "coursetime_\(id)", withExtension: "html",
+                          subdirectory: "real-detail-0908") else {
+            XCTFail("测试资源 real-detail-0908/coursetime_\(id).html 应存在")
+            throw NSError(domain: "test", code: 2)
+        }
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    func testReal0906GridPageHitsUcasConfidenceGateAndYieldsCourses() throws {
+        // v1.1 采集器包: 无详情页, 网格页必须能被认出 (>=90 才会被 registry 选中)
+        let html = try realGrid("person-schedule.real-0906")
+        let parser = JwUcasParser(html)
+        XCTAssertGreaterThanOrEqual(parser.confidenceValue, 90)
+        let courses = try parser.generateCourseList()
+        // 0906 网格页实有 13 门课 (含 AI for Science 方法与磐石平台应用 / 网络攻防基础)
+        XCTAssertGreaterThanOrEqual(courses.count, 13)
+    }
+
+    func testReal0908GridPlus11RealDetailPagesGivesExactWeeks() throws {
+        // v1.2 采集器包: 网格 + 11 真实详情页 → 组合源, exact-week
+        let grid = try realGrid("person-schedule.real-0908")
+        let urls = JwUcasParser.extractDetailUrls(grid)
+        XCTAssertEqual(11, urls.count)
+        var combined = grid
+        for url in urls {
+            let id = String(url.components(separatedBy: "/").last ?? "")
+            combined += "\n"
+            combined += JwUcasParser.DETAIL_MARKER_OPEN + url + "-->\n"
+            combined += try realDetail(id)
+            combined += "\n"
+            combined += JwUcasParser.DETAIL_MARKER_CLOSE
+            combined += "\n"
+        }
+        let parser = JwUcasParser(combined)
+        XCTAssertGreaterThanOrEqual(parser.confidenceValue, 90)
+        let courses = try parser.generateCourseList()
+        // 0908 网格页 11 门课; 每门课的周次必须来自详情页 (非 1..16 占位)
+        XCTAssertGreaterThanOrEqual(courses.count, 11)
+        // 抽查真实边界 (取自 coursetime_313613 Web安全技术):
+        // 周二第3、4节 周次 2、3、4、5、7、8、9、10、11、12 → 第6周空缺 → splitWeekRuns 拆 [2-5, 7-12]
+        let webSec = courses.filter { $0.name == "Web安全技术" }
+        XCTAssertGreaterThanOrEqual(webSec.count, 4)
+        let tueRuns = webSec.filter { $0.day == 2 }
+            .map { $0.startWeek * 100 + $0.endWeek }.sorted()
+        XCTAssertEqual([205, 712], tueRuns)
+        // 周四第3、4节 周次 2、3、4、6、7、8、9、10、11 → 第5周空缺 → [2-4, 6-11]
+        let thuRuns = webSec.filter { $0.day == 4 }
+            .map { $0.startWeek * 100 + $0.endWeek }.sorted()
+        XCTAssertEqual([204, 611], thuRuns)
+        let sun = try XCTUnwrap(webSec.first { $0.day == 7 })
+        XCTAssertEqual(3, sun.startWeek)
+        XCTAssertEqual(3, sun.endWeek)
+        // 抽查 coursetime_314215 计算机体系结构: 周一 10,11,12 节, 2..20 周
+        let arch = try XCTUnwrap(courses.first { $0.name == "计算机体系结构" })
+        XCTAssertEqual(1, arch.day)
+        XCTAssertEqual(2, arch.startWeek)
+        XCTAssertEqual(20, arch.endWeek)
+        // 所有课都不得是占位周次 (详情页可用的组合源里 fallback 不应触发)
+        let provisional = courses.filter { $0.startWeek == 1 && $0.endWeek == 16 }
+        XCTAssertTrue(provisional.isEmpty,
+                      "不应有占位周次课: \(provisional.map { $0.name })")
+    }
+
+    func testReal0908GridAloneStillFallsBackToProvisionalWeeks() throws {
+        // 只有网格页 (无详情) 时走 fallback 占位 1..16 — 报告人 0906 采集器场景
+        let html = try realGrid("person-schedule.real-0908")
+        let parser = JwUcasParser(html)
+        let courses = try parser.generateCourseList()
+        XCTAssertFalse(courses.isEmpty)
+        XCTAssertTrue(
+            courses.allSatisfy { $0.startWeek == 1 && $0.endWeek == 16 },
+            "无详情时全部应为 1..16 占位: \(courses.filter { $0.startWeek != 1 || $0.endWeek != 16 }.map { $0.name })"
+        )
+    }
+
+    func testReal0906GridDetailUrlsMatchExpectedCourseIds() throws {
+        let html = try realGrid("person-schedule.real-0906")
+        let urls = JwUcasParser.extractDetailUrls(html)
+        // 0906 网格页 12 个链接, 含 313611 (0908 包没有此课)
+        XCTAssertEqual(12, urls.count)
+        XCTAssertTrue(urls.contains { $0.hasSuffix("/coursetime/313611") })
+        XCTAssertTrue(urls.allSatisfy { $0.hasPrefix("https://xkcts.ucas.ac.cn:8443/course/coursetime/") })
+    }
+
     // ---- UcasDetailFetch (组合源拼装 + 字符集) ----
 
     func testCombineWrapsEachDetailInMarkersParserCanRead() throws {

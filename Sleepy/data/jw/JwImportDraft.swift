@@ -44,6 +44,12 @@ enum JwImportDraftPhase: String {
     case configureConfirm = "CONFIGURE_CONFIRM"
 }
 
+/// 对齐 Kotlin String.isBlank() = Character.isWhitespace (含 \n/\r/\f):
+/// .whitespaces 只覆盖空格+tab, 换行-only 字符串会被误判为非空白。
+private func jwIsBlank(_ s: String) -> Bool {
+    s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+}
+
 /// [JwImportDraftSnapshot] 的带版本 JSON 边界。
 enum JwImportDraftCodec {
     static let schemaVersion: Int = 1
@@ -79,7 +85,13 @@ enum JwImportDraftCodec {
         // schemaVersion 缺省 = -1 (Kotlin optInt default)
         guard (root["schemaVersion"] as? Int) ?? -1 == schemaVersion else { return nil }
 
-        let phaseName = (root["phase"] as? String) ?? JwImportDraftPhase.configureConfirm.rawValue
+        // Kotlin: optString("phase", 默认) 仅在 key 缺失时取默认; 非字符串/JSON null 会被
+        // org.json 强制转成不匹配的名字 → 整包 null。Swift 若直接 ?? 默认值会误接受。
+        var phaseName = JwImportDraftPhase.configureConfirm.rawValue
+        if let raw = root["phase"] {
+            guard let s = raw as? String else { return nil }
+            phaseName = s
+        }
         guard let phase = JwImportDraftPhase(rawValue: phaseName) else { return nil }
 
         guard let schoolJson = root["school"] as? [String: Any] else { return nil }
@@ -128,22 +140,21 @@ enum JwImportDraftCodec {
     private static func schoolFromJson(_ json: [String: Any]) -> JwSchoolInfo? {
         let sortKey = (json["sortKey"] as? String) ?? ""
         let name = (json["name"] as? String) ?? ""
-        if sortKey.trimmingCharacters(in: .whitespaces).isEmpty
-            || name.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+        if jwIsBlank(sortKey) || jwIsBlank(name) { return nil }
 
         let aliasesJson = json["aliases"] as? [Any]
         var aliases: [String] = []
         if let arr = aliasesJson {
             for item in arr {
                 let alias = (item as? String) ?? ""
-                if alias.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+                if jwIsBlank(alias) { return nil }
                 aliases.append(alias)
             }
         }
 
         // Kotlin: optString("type","").ifBlank { null }
         let typeRaw = (json["type"] as? String) ?? ""
-        let type: String? = typeRaw.trimmingCharacters(in: .whitespaces).isEmpty ? nil : typeRaw
+        let type: String? = jwIsBlank(typeRaw) ? nil : typeRaw
 
         return JwSchoolInfo(
             sortKey: sortKey,
@@ -184,7 +195,7 @@ enum JwImportDraftCodec {
             type: (json["type"] as? Int) ?? 0
         )
         // Kotlin: JwCourse(...).takeIf { ... } — Swift 无内置 takeIf, 等价为 valid ? course : nil
-        let validName = !course.name.trimmingCharacters(in: .whitespaces).isEmpty
+        let validName = !jwIsBlank(course.name)
         let validDay = (1...7).contains(course.day)
         let validNode = course.startNode >= 1 && course.endNode >= course.startNode
         let validWeek = course.startWeek >= 1 && course.endWeek >= course.startWeek
@@ -202,8 +213,8 @@ enum JwImportDraftCodec {
             start: (json["start"] as? String) ?? "",
             end: (json["end"] as? String) ?? ""
         )
-        let blankStart = period.start.trimmingCharacters(in: .whitespaces).isEmpty
-        let blankEnd = period.end.trimmingCharacters(in: .whitespaces).isEmpty
+        let blankStart = jwIsBlank(period.start)
+        let blankEnd = jwIsBlank(period.end)
         let hhmm = { (s: String) in s.range(of: #"^\d{2}:\d{2}$"#, options: .regularExpression) != nil }
         // Kotlin: period.takeIf { ... } — Swift 无内置 takeIf, 等价为 valid ? period : nil
         let bothBlank = blankStart && blankEnd

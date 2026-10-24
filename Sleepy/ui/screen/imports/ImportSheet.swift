@@ -1,8 +1,10 @@
-// ImportSheet.swift — ← ui/screen/imports/ImportSheet.kt (904 行)
+// ImportSheet.swift — ← ui/screen/imports/ImportSheet.kt (v1.0.61, 1816 行)
 // 导入课表弹窗: 教务直连 / 从文本导入(折叠) / 从文件导入 + 支持格式说明 +
-// 预览对话框(三模式按钮) + 确认对话框(表名/开始日期/节次编辑器)。
+// 预览对话框(五模式按钮) + 确认对话框(表名/开始日期/节次编辑器/作息表 Tab) +
+// v1.0.56 T9 纯作息导入命名框。
 //
-// 平台映射: OpenDocument → fileImporter;Activity recreate → LocaleHelper 无关此处。
+// 平台映射: OpenDocument → fileImporter; SnackbarHost → 底部胶囊浮层(← JwImportFlow
+// statusMsg 同款); Activity recreate → LocaleHelper 无关此处。
 
 import SwiftUI
 import UniformTypeIdentifiers
@@ -80,7 +82,6 @@ struct ImportSheet: View {
     let onJwImportRequested: () -> Void
     let onDismiss: () -> Void
     var onImported: () -> Void = {}
-    var onOpenEditTable: (Int64) -> Void = { _ in }
     // ← Android ImportSheet(drafts/onRestoreDraft/onDeleteDraft, 默认空 = 零行为变化)
     var drafts: [ImportDraftRowModel] = []
     var onRestoreDraft: (String) -> Void = { _ in }
@@ -98,8 +99,13 @@ struct ImportSheet: View {
     @State private var confirmedTableName = ""
     @State private var confirmedStartDate = ""
     @State private var confirmedTimeJson = ""
+    // v1.0.56 T6: 第三 Tab「作息表」— 绑定选择; 确认导入时传给 applyImportPreview 落绑定
+    @State private var confirmedBindPeriodTableId: Int64? = nil
+    // v1.0.56 T9: 纯作息导入 — 解析结果只有作息表没课程时, 走独立确认框(只建作息表)
+    @State private var purePeriodName = ""
+    // ← Android snackbar.showSnackbar(import_success): 导入成功提示(不再跳编辑页)
+    @State private var successMsg: String? = nil
     @State private var showFilePicker = false
-    @State private var consumedPending = false
     @State private var detailFormat: ImportFormatKey? = nil
 
     var body: some View {
@@ -222,18 +228,38 @@ struct ImportSheet: View {
             .padding(.vertical, 8)
         }
         .background(colors.surface)
-        // 外部打开 json: pendingImportText 自动触发 paste 路径(一次性消费)
-        .onAppear {
-            guard !consumedPending else { return }
-            consumedPending = true
-            if let text = PendingImportText.value, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                PendingImportText.value = nil
-                isLoading = true
-                let p = ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg }
-                if p != nil { preview = p }
-                isLoading = false
+        // ← Android SnackbarHost + LaunchedEffect(importJustApplied):
+        //   导入成功提示(不再跳编辑课表页), 底部胶囊浮层, 复用 JwImportFlow statusMsg 同款
+        .overlay(alignment: .bottom) {
+            if let msg = successMsg {
+                Text(msg)
+                    .font(.system(size: 14))   // ← Android Snackbar bodyMedium 14
+                    .foregroundColor(colors.onSurface)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(colors.surfaceContainerHighest)
+                    .cornerRadius(8)
+                    .padding(.bottom, 16)
+                    .transition(.opacity)
+                    .onAppear {
+                        // UI 测试态延到 6s(← ExportScreen/MineScreen 同款): 串行套件
+                        // 下确认 sheet dismiss + 快照延迟会错过 2.5s 存活窗口
+                        // (2026-10-24 串行 run: tap 确认→首查 snackbar 间隔 3.6s)。
+                        let life: Double = ProcessInfo.processInfo.arguments
+                            .contains("-SLEEPY_UI_TEST_SEED") ? 6 : 2.5
+                        DispatchQueue.main.asyncAfter(deadline: .now() + life) {
+                            if successMsg == msg { withAnimation { successMsg = nil } }
+                        }
+                    }
+                    .accessibilityIdentifier("import_success_snackbar")
             }
         }
+        // 外部打开 json: pendingImportText 自动触发 paste 路径。
+        // ← Android LaunchedEffect(pendingImportText): 以 pendingImportText 为 key,
+        //   sheet 存活期间外部再塞 text 会重新触发预览(旧 onAppear+一次性消费会把
+        //   sheet 开着时的推送丢掉)。onAppear 兜冷启动首值, onChange 管后续推送。
+        .onAppear { consumePendingImportText() }
+        .onChange(of: PendingImportText.value) { _ in consumePendingImportText() }
         .fileImporter(isPresented: $showFilePicker,
                       allowedContentTypes: [.json, .plainText, .text, .html, .data],
                       allowsMultipleSelection: false) { result in
@@ -255,12 +281,14 @@ struct ImportSheet: View {
                 errorMsg = L10n.format("read_failed", e.localizedDescription)
             }
         }
-        // 错误反馈通道(← SnackbarHost)
-        .alert(L10n.format("import_title"), isPresented: Binding(
+        // 错误反馈通道(← Android AlertDialog 统一弹窗, 2026-09-18 用户: 报错必须
+        // 统一弹窗不再是 Snackbar 一闪即逝): 标题 jw_error_dialog_title「导入遇到问题」+
+        // 单按钮 jw_err_dismiss「知道了」+ 错误文本可滚动(heightIn max 320dp)
+        .alert(L10n.format("jw_error_dialog_title"), isPresented: Binding(
             get: { errorMsg != nil },
             set: { if !$0 { errorMsg = nil } }
         )) {
-            Button(L10n.format("ok"), role: .cancel) {}
+            Button(L10n.format("jw_err_dismiss"), role: .cancel) {}
         } message: {
             Text(errorMsg ?? "")
         }
@@ -269,6 +297,25 @@ struct ImportSheet: View {
             get: { preview.map { PreviewBox(preview: $0) } },
             set: { if $0 == nil { preview = nil } }
         )) { box in
+            // v1.0.56 T9: 纯作息导入(只有 P 区块/节次, 零课程) — 不进课程确认框,
+            // 弹独立命名框(预填全局唯一名, 用户可改), 确认只建作息表不建空课表。
+            if box.preview.parseResult.courses.isEmpty, let pt = box.preview.parseResult.periodTable {
+                PurePeriodImportDialog(
+                    parsed: pt,
+                    suggestUniqueName: { Self.suggestPurePeriodName(for: pt, state: state, viewModel: viewModel) },
+                    courseTableNames: state.tables.map { $0.name },
+                    periodTableNames: viewModel.loadAllPeriodTables().map { $0.name },
+                    onDismiss: { preview = nil },
+                    onConfirm: { candidate in
+                        isLoading = true
+                        ImportSheet.applyPurePeriodImport(name: candidate, parsed: pt,
+                                                          onImported: onImported) { msg in errorMsg = msg }
+                        preview = nil
+                        isLoading = false
+                        // ← Android importJustApplied=true → snackbar 明示已落库
+                        showSuccess(L10n.format("import_success"))
+                    })
+            } else {
             ImportPreviewDialog(preview: box.preview,
                                 onDismiss: { preview = nil }) { mode in
                 let existingTable = state.currentTable
@@ -278,11 +325,13 @@ struct ImportSheet: View {
                 confirmedTableName = preview!.parseResult.tableName.isEmpty
                     ? (existingTable?.name ?? L10n.format("default_table_name"))
                     : preview!.parseResult.tableName
-                // ★ timeJson 首选取解析收割值(ICS 作息/纯文本时间表行/WakeUp timeList),
-                //   收割不到再用目标表现值 ← Android: parseResult.timeJson.ifBlank { ... }
-                confirmedTimeJson = preview!.parseResult.timeJson.isEmpty
-                    ? (existingTable?.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON)
-                    : preview!.parseResult.timeJson
+                // v7.10.16k 无损合并(用户 2026-09-03「哪个大用哪个, 最完整优先」):
+                // 不再 ifBlank 单选 — 老表作息与导入作息逐节合并, 节次数取双方最大,
+                // 并拓到导入课程实际到达的最大节。导入源 13 节绝不被老表 10 节压小。
+                confirmedTimeJson = TimeTableUtils.mergeMostComplete(
+                    currentJson: existingTable?.timeJson ?? "",
+                    incomingJson: preview!.parseResult.timeJson,
+                    requiredNodeCount: preview!.parseResult.nodesPerDay)
                 // ★ iOS 16 sheet 冲突修复: 先关预览 sheet 再开确认 sheet —
                 //   同一宿主上确认 sheet 会因预览未 dismiss 被丢弃。快照 preview
                 //   进 confirmedPreview 持有, 延迟到预览 dismiss 完成后再置模式。
@@ -294,7 +343,7 @@ struct ImportSheet: View {
                         isLoading = true
                         _ = ImportSheet.applyImportPreview(
                             preview: p, mode: mode,
-                            confirmedStartDate: p.parseResult.startDate.isEmpty
+                            confirmedStartDateRaw: p.parseResult.startDate.isEmpty
                                 ? (state.currentTable?.startDate ?? Self.todayISO())
                                 : p.parseResult.startDate,
                             confirmedTableName: state.currentTable?.name ?? "",
@@ -306,7 +355,8 @@ struct ImportSheet: View {
                         preview = nil
                         pendingMode = nil
                         isLoading = false
-                        onDismiss()
+                        // ← Android: 导入成功不再跳编辑课表页(假保存闸), snackbar 明示已落库
+                        showSuccess(L10n.format("import_success"))
                     }
                     return
                 }
@@ -317,6 +367,7 @@ struct ImportSheet: View {
                 }
             }
             .sheetDetents([.large])
+            }
         }
         // 确认对话框(pendingMode 驱动; preview 已快照进 confirmedPreview)
         .sheet(isPresented: Binding(
@@ -333,24 +384,33 @@ struct ImportSheet: View {
                 onStartDateChange: { confirmedStartDate = $0 },
                 onTimeJsonChange: { confirmedTimeJson = $0 },
                 onDismiss: { pendingMode = nil },
+                // v1.0.56 T6: 第三 Tab「作息表」
+                periodTableOptions: viewModel.loadAllPeriodTables().map {
+                    PeriodTableOption(id: $0.id, name: $0.name, nodesPerDay: $0.nodesPerDay)
+                },
+                selectedPeriodTableId: confirmedBindPeriodTableId,
+                onSelectPeriodTable: { confirmedBindPeriodTableId = $0 },
+                periodTableTimeJsonById: Dictionary(
+                    uniqueKeysWithValues: viewModel.loadAllPeriodTables().map { ($0.id, $0.timeJson) }),
                 onConfirm: {
                     guard let mode = pendingMode, let currentPreview = confirmedPreview else { return }
                     isLoading = true
-                    let resultTableId = ImportSheet.applyImportPreview(
+                    // 「确认导入」= 唯一写库点, 点下即落库。之后不再跳编辑课表页 —
+                    // 那个页面有「保存」按钮, 会造成"没点保存数据也在"的假保存闸误导
+                    // (Android v1.0.56 已删跳转, 改 snackbar 明示 import_success)。
+                    _ = ImportSheet.applyImportPreview(
                         preview: currentPreview, mode: mode,
-                        confirmedStartDate: confirmedStartDate,
+                        confirmedStartDateRaw: confirmedStartDate,
                         confirmedTableName: confirmedTableName,
                         confirmedTimeJson: confirmedTimeJson,
-                        onImported: onImported) { msg in errorMsg = msg }
+                        onImported: onImported,
+                        onError: { msg in errorMsg = msg },
+                        bindPeriodTableId: confirmedBindPeriodTableId)
                     confirmedPreview = nil
                     preview = nil
                     pendingMode = nil
                     isLoading = false
-                    if let tid = resultTableId {
-                        // ★ Android 行为: 导入成功 → 关导入框 → 打开新表编辑页
-                        onDismiss()
-                        onOpenEditTable(tid)
-                    }
+                    showSuccess(L10n.format("import_success"))
                 })
                 .sheetDetents([.large])
         }
@@ -375,6 +435,38 @@ struct ImportSheet: View {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: Date())
+    }
+
+    /// 外部 app 塞来的 json → 自动触发 paste 路径 buildImportPreview。
+    /// 一次性消费: 读完即清空全局字段(← Android LaunchedEffect 引用为 key 的语义)。
+    private func consumePendingImportText() {
+        let state = viewModel.state
+        if let text = PendingImportText.value,
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            PendingImportText.value = nil
+            isLoading = true
+            let p = ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg }
+            if p != nil { preview = p }
+            isLoading = false
+        }
+    }
+
+    /// 成功提示(← snackbar.showSnackbar(importSuccessMessage)), 2.5s 自动消失由 overlay onAppear 管。
+    /// onImported 由 applyImportPreview / applyPurePeriodImport 内部调用(← Android 同位)。
+    private func showSuccess(_ msg: String) {
+        withAnimation { successMsg = msg }
+    }
+
+    /// ← Android LaunchedEffect 预填: 源名参与全局唯一名顺延(课程表∪作息表)
+    static func suggestPurePeriodName(
+        for pt: ScheduleParser.ParsedPeriodTable,
+        state: ScheduleState,
+        viewModel: ScheduleViewModel
+    ) -> String {
+        let courseNames = state.tables.map { $0.name }
+        let periodNames = viewModel.loadAllPeriodTables().map { $0.name }
+        return TimeTableUtils.suggestUniqueName(
+            pt.name, courseTableNames: courseNames, periodTableNames: periodNames)
     }
 }
 
@@ -543,11 +635,14 @@ private struct FormatDetailDialog: View {
             }
             .listStyle(.insetGrouped)
             .background(colors.surface)
-            .navigationTitle(L10n.format("format_detail_content_desc"))
+            // ← Android 行763 title = titleRes(格式名, 如 format_plain);
+            //   旧版误用 format_detail_content_desc「查看格式说明」当标题
+            .navigationTitle(L10n.format("format_\(format.l10nKey)"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(L10n.format("cancel")) { dismiss() }
+                    // ← Android 行884-886 关闭按钮 = format_help_close「知道了」(旧版误用 cancel「取消」)
+                    Button(L10n.format("format_help_close")) { dismiss() }
                         .foregroundColor(colors.primary)
                 }
             }
@@ -667,6 +762,12 @@ private struct ImportPreviewDialog: View {
                                 ForEach(preview.parseResult.droppedLines.prefix(3), id: \.self) { line in
                                     Text("• \(line)")
                                         .font(.system(size: 12, design: .monospaced))
+                                        .foregroundColor(colors.onErrorContainer)
+                                }
+                                // ← Android 行1096-1102: 被跳过行 >3 时补「还有 N 行」溢出提示
+                                if preview.parseResult.droppedLines.count > 3 {
+                                    Text(L10n.format("import_conflict_more", preview.parseResult.droppedLines.count - 3))
+                                        .font(.system(size: 11))
                                         .foregroundColor(colors.onErrorContainer)
                                 }
                             }
@@ -868,11 +969,24 @@ private struct ImportConfirmDialog: View {
     let onStartDateChange: (String) -> Void
     let onTimeJsonChange: (String) -> Void
     let onDismiss: () -> Void
+    // v1.0.56 T6: 第三 Tab「作息表」— 绑定现有作息表直接用; nil=未绑定(用解析出的节次)
+    // (声明顺序 = 调用点实参顺序: Swift 成员初始化器强制按声明序传参, onConfirm 必须最后)
+    var periodTableOptions: [PeriodTableOption] = []
+    var selectedPeriodTableId: Int64? = nil
+    var onSelectPeriodTable: (Int64?) -> Void = { _ in }
+    // id -> timeJson, 绑表时确认校验/落库以表 timeJson 为真源 (用户反馈 2026-09-20 误报修复)
+    var periodTableTimeJsonById: [Int64: String] = [:]
     let onConfirm: () -> Void
 
     @State private var rows: [TimeTableUtils.TimeSlotRow] = []
     @State private var rowsLoaded = false
     @State private var localError: String? = nil
+    // issue#28 P2: 自动模式状态必须真实持有并回传 — 旧代码没传 smartConfig/
+    // onSmartConfigChange, 落到默认 no-op, "添加课间"点了没有任何反应。
+    // issue#23 T5: 初值 = 共享推断从导入解析出的行播种(45 分钟主时长 + 混合时长组
+    // 一并识别, 与 EditTableScreen/PeriodTableEditScreen 同规); 行不可推断
+    // (缺时间/畸形/断号) → 最简默认兜底, TimeSlotEditor 保持手动模式 + 既有校验。
+    @State private var smartConfig = SmartPeriodConfig()
 
     var body: some View {
         ScrollView {
@@ -897,7 +1011,10 @@ private struct ImportConfirmDialog: View {
                 DatePickerField(value: startDate, onValueChange: { newValue in
                     startDate = newValue
                     onStartDateChange(newValue)
-                }, label: L10n.format("import_week_start"), isError: localError != nil,
+                }, label: L10n.format("import_week_start"),
+                   // 只在日期错误时标红; 节次错误标到节次区(2026-09-20 反馈: 节次错也标日期框误导)
+                   isError: localError != nil && (startDate.trimmingCharacters(in: .whitespaces).isEmpty ||
+                       startDate.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) == nil),
                    fillsWidth: true)
 
                 if let localError = localError {
@@ -909,7 +1026,11 @@ private struct ImportConfirmDialog: View {
                 TimeSlotEditor(rows: rows, onRowsChange: { newRows in
                     rows = newRows
                     onTimeJsonChange(TimeTableUtils.buildTimeJsonFromRows(newRows))
-                })
+                }, smartConfig: smartConfig, onSmartConfigChange: { smartConfig = $0 },
+                   // v1.0.56 T6: 第三 Tab「作息表」
+                   periodTableOptions: periodTableOptions,
+                   selectedPeriodTableId: selectedPeriodTableId,
+                   onSelectPeriodTable: onSelectPeriodTable)
             }
             .padding(20)
         }
@@ -918,29 +1039,26 @@ private struct ImportConfirmDialog: View {
             guard !rowsLoaded else { return }
             rowsLoaded = true
             rows = TimeTableUtils.parseTimeSlotRows(timeJson)
+            // issue#28 P2 + issue#23 T5 播种: 与 Android remember { resolveAutoPeriodConfig
+            // (rows, null) ?: SmartPeriodConfig(totalPeriods=max(1,rows), startTime=首行或"08:00") } 同规
+            smartConfig = resolveAutoPeriodConfig(rows: rows, stored: nil)
+                ?? SmartPeriodConfig(
+                    startTime: {
+                        let s = rows.first?.start ?? ""
+                        return s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "08:00" : s
+                    }(),
+                    totalPeriods: max(rows.count, 1))
         }
         .safeAreaInset(edge: .bottom) {
-            HStack {
-                // ← Android TextButton 默认色 = primary, labelLarge 14sp Medium, 高 40dp
-                Button(action: onDismiss) {
-                    Text(L10n.format("back"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(colors.primary)
-                        .frame(height: 40)
-                }
-                .buttonStyle(SleepyButtonStyle())
-                Spacer()
-                Button(action: validateAndConfirm) {
-                    Text(L10n.format("import_confirm"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(colors.primary)
-                        .frame(height: 40)
-                }
-                .buttonStyle(SleepyButtonStyle())
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .background(colors.surface)
+            // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
+            DialogActionButtons(
+                confirmText: L10n.format("import_confirm"),
+                onConfirm: validateAndConfirm,
+                dismissText: L10n.format("back"),
+                onDismiss: onDismiss)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(colors.surface)
         }
     }
 
@@ -955,13 +1073,17 @@ private struct ImportConfirmDialog: View {
             localError = L10n.format("start_date_format")
             return
         }
-        let emptyRows = rows.filter { $0.start.isEmpty || $0.end.isEmpty }
+        // v1.0.56 T6 修正: 绑了作息表(id>0)时以表的 timeJson 为真源;
+        // 旧代码无条件校验手动 rows, 解析源没回节次时间 → 误报「第 X 节时间不能为空」(用户反馈 2026-09-20)
+        let effectiveRows = Self.effectiveRowsForConfirm(
+            manualRows: rows, bindId: selectedPeriodTableId, tables: periodTableTimeJsonById)
+        let emptyRows = effectiveRows.filter { $0.start.isEmpty || $0.end.isEmpty }
         if let first = emptyRows.first {
             localError = L10n.format("slot_time_required", first.node)
             return
         }
         let timeRegex = "^\\d{2}:\\d{2}$"
-        let invalidRows = rows.filter {
+        let invalidRows = effectiveRows.filter {
             $0.start.range(of: timeRegex, options: .regularExpression) == nil ||
             $0.end.range(of: timeRegex, options: .regularExpression) == nil ||
             $0.start >= $0.end
@@ -971,8 +1093,84 @@ private struct ImportConfirmDialog: View {
             return
         }
         localError = nil
-        onTimeJsonChange(TimeTableUtils.buildTimeJsonFromRows(rows))
+        onTimeJsonChange(TimeTableUtils.buildTimeJsonFromRows(effectiveRows))
         onConfirm()
+    }
+
+    /// ← TimeTableUtils.effectiveRowsForConfirm: 绑定作息表时校验/落库以表 timeJson 为真源
+    static func effectiveRowsForConfirm(
+        manualRows: [TimeTableUtils.TimeSlotRow],
+        bindId: Int64?,
+        tables: [Int64: String]
+    ) -> [TimeTableUtils.TimeSlotRow] {
+        guard let id = bindId, id > 0, let json = tables[id] else { return manualRows }
+        return TimeTableUtils.parseTimeSlotRows(json)
+    }
+}
+
+// ← v1.0.56 T9 纯作息导入命名确认框(← Android 行436-508)
+// courses.isEmpty && periodTable != nil 时替代 ImportPreviewDialog: 预填全局唯一名
+// (课程表∪作息表, 后缀 2/3 预览即可见), 查重红标, 确认只建作息表不建空课表。
+private struct PurePeriodImportDialog: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let parsed: ScheduleParser.ParsedPeriodTable
+    /// 预填唯一名 = 源名参与全局唯一名顺延; ← Android LaunchedEffect(currentPreview) 一次性播种
+    let suggestUniqueName: () -> String
+    let courseTableNames: [String]
+    let periodTableNames: [String]
+    let onDismiss: () -> Void
+    /// 回调入参 = 已 trim 的候选名(非空且未撞名)
+    let onConfirm: (String) -> Void
+
+    @State private var name = ""
+    @State private var seeded = false
+
+    private var candidate: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var nameTaken: Bool {
+        !candidate.isEmpty && TimeTableUtils.isTableNameTaken(
+            candidate, courseTableNames: courseTableNames, periodTableNames: periodTableNames)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(L10n.format("period_table_import_title"))
+                    .font(.system(size: 24))
+                    .foregroundColor(colors.onSurface)
+                Text(L10n.format("period_table_import_body"))
+                    .font(.system(size: 14))
+                    .foregroundColor(colors.onSurfaceVariant)
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField(L10n.format("period_table_name_label"), text: $name)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(colors.surfaceContainerHighest)
+                        .cornerRadius(SleepyTheme.fieldShape)
+                        .overlay(RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
+                            .stroke(nameTaken ? colors.error : Color.clear, lineWidth: 1))
+                    if nameTaken {
+                        Text(L10n.format("period_table_name_taken"))
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.error)
+                    }
+                }
+                DialogActionButtons(
+                    confirmText: L10n.format("period_table_import_confirm"),
+                    onConfirm: { onConfirm(candidate) },
+                    dismissText: L10n.format("cancel"),
+                    onDismiss: onDismiss,
+                    confirmEnabled: !candidate.isEmpty && !nameTaken)
+            }
+            .padding(20)
+        }
+        .background(colors.surface)
+        .onAppear {
+            // ← Android LaunchedEffect(currentPreview): 每个预览对象播一次预填名
+            guard !seeded else { return }
+            seeded = true
+            name = suggestUniqueName()
+        }
     }
 }
 
@@ -1026,29 +1224,51 @@ extension ImportSheet {
         }
     }
 
-    // ← applyImportPreview: 三模式落地
+    // ← applyImportPreview: 五模式落地 (v1.0.61 全对齐)
     @discardableResult
     static func applyImportPreview(
         preview: ImportPreview,
         mode: ImportApplyMode,
-        confirmedStartDate: String,
+        confirmedStartDateRaw: String,
         confirmedTableName: String,
         confirmedTimeJson: String,
         onImported: () -> Void,
-        onError: (String) -> Void
+        onError: (String) -> Void,
+        // v1.0.56 T6: 第三 Tab「作息表」绑定 — 非 nil 且 ImportAsNew 时, 新建课表直接绑该表
+        bindPeriodTableId: Int64? = nil
     ) -> Int64? {
         let repo = ScheduleRepository(AppDatabase.getShared())
+        // v7.10.16 撤回: 整个导入是一个动作 — 批内只保首快照, 撤回一次回退到导入前。
+        // defer 收口(↔ Android try/finally): 分支里的 early return 也要退出批边界。
+        UndoManager.shared.beginBatch()
+        defer { UndoManager.shared.endBatch() }
+        // 应用约定 startDate=周一；用户在确认框可能手填非周一日期，落库前归一（issue #5）
+        let confirmedStartDate = normalizeStartDate(confirmedStartDateRaw)
         switch mode {
         case .replaceCurrent:
             if let existing = try? repo.getTable(preview.targetTableId) {
-                var copy = existing
-                copy.name = confirmedTableName.trimmingCharacters(in: .whitespaces).isEmpty
+                let newName = confirmedTableName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? preview.parseResult.tableName
-                    : confirmedTableName.trimmingCharacters(in: .whitespaces)
-                copy.startDate = confirmedStartDate
-                copy.timeJson = confirmedTimeJson
-                copy.nodesPerDay = preview.parseResult.nodesPerDay > 0 ? preview.parseResult.nodesPerDay : existing.nodesPerDay
-                try? repo.updateTable(copy)
+                    : confirmedTableName.trimmingCharacters(in: .whitespacesAndNewlines)
+                // 时间域写回真实 owner: 绑定独立作息表时写 period_tables, 不污染兼容列
+                let bound = existing.periodTableId.flatMap { try? repo.getPeriodTable($0) }
+                var nameDateCopy = existing
+                nameDateCopy.name = newName
+                nameDateCopy.startDate = confirmedStartDate
+                try? repo.updateTable(nameDateCopy)
+                if let bound = bound {
+                    var updatedBound = bound
+                    updatedBound.timeJson = confirmedTimeJson
+                    if preview.parseResult.nodesPerDay > 0 {
+                        updatedBound.nodesPerDay = preview.parseResult.nodesPerDay
+                    }
+                    _ = try? repo.savePeriodTable(updatedBound)
+                } else {
+                    var copy = nameDateCopy
+                    copy.timeJson = confirmedTimeJson
+                    copy.nodesPerDay = preview.parseResult.nodesPerDay > 0 ? preview.parseResult.nodesPerDay : existing.nodesPerDay
+                    try? repo.updateTable(copy)
+                }
             }
             // sleepy-v1 (§3.4 契约一): 解析端权威 groupId → 绕过 assignGroupIds 再分配
             if preview.parseResult.groupIdsAuthoritative {
@@ -1056,10 +1276,32 @@ extension ImportSheet {
             } else {
                 try? repo.replaceCourses(preview.targetTableId, preview.parseResult.courses)
             }
+            // v7.10.12: 整表替换不过闸门(换的是整张表, 拦截太武断), 但超层时提示
+            let badDays = ConflictLayoutEngine.daysExceedingTwoLanes(preview.parseResult.courses)
+            if !badDays.isEmpty {
+                onError(L10n.format("import_three_layers_kept", dayNames(badDays)))
+            }
             onImported()
             return preview.targetTableId
         case .importAsNew:
-            let base = try? repo.getTable(preview.targetTableId)
+            let base = (try? repo.getTable(preview.targetTableId)) ?? nil
+            // issue#40 §6: 新格式带 P 区块 → 建 period_tables 并绑定(恢复共享关系);
+            // 旧格式 periodTable=nil → 不建(课表用自己兼容列, 不误共享)。
+            // v1.0.56 T6: 用户在第三 Tab 显式选了作息表 → 绑定用户所选(优先于自动建表绑定);
+            // v1.0.56 T10: 自动建表走全局唯一名顺延(撞名加后缀, 禁与既有课表/作息表同名)
+            var importedPeriodTableId: Int64? = bindPeriodTableId
+            if importedPeriodTableId == nil, let pt = preview.parseResult.periodTable {
+                let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
+                let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
+                let entity = PeriodTableEntity(
+                    name: TimeTableUtils.suggestUniqueName(
+                        pt.name, courseTableNames: courseNames, periodTableNames: periodNames),
+                    nodesPerDay: pt.nodesPerDay,
+                    timeJson: pt.timeJson)
+                if let newId = (try? repo.insertPeriodTable(entity)) ?? nil, newId > 0 {
+                    importedPeriodTableId = newId
+                }
+            }
             let existingNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
             var newTable = TimeTableEntity(
                 name: uniqueImportedTableName(confirmedTableName, existingNames),
@@ -1069,6 +1311,7 @@ extension ImportSheet {
                 timeJson: confirmedTimeJson,
                 isDefault: false)
             newTable.color = base?.color ?? "#FF6750A4"
+            newTable.periodTableId = importedPeriodTableId
             let newTableId = (try? repo.insertTable(newTable)) ?? 0
             var courses = preview.parseResult.courses
             for i in courses.indices {
@@ -1082,22 +1325,40 @@ extension ImportSheet {
                 _ = try? repo.insertCourses(courses)
             }
             try? repo.setDefault(newTableId)
+            // v7.10.12: 整表新建不过闸门, 超层时提示(同 ReplaceCurrent 策略)
+            let badDaysNew = ConflictLayoutEngine.daysExceedingTwoLanes(preview.parseResult.courses)
+            if !badDaysNew.isEmpty {
+                onError(L10n.format("import_three_layers_kept", dayNames(badDaysNew)))
+            }
             onImported()
             return newTableId
         case .appendNonConflict:
             let cleanCourses = preview.parseResult.courses.filter { incoming in
                 !preview.existingCourses.contains { Self.coursesConflict(incoming, $0) }
             }
+            if cleanCourses.isEmpty {
+                onError(L10n.format("import_all_conflict"))
+                return nil
+            }
             // v7.10.16x 三层闸门改相对判定(用户 2026-09-10 报"预览 8 门全不冲突,
             // 仅追加不冲突却 toast 全部冲突"): 旧绝对判定连坐原表已有超层天上的无辜候选。
             // 与 AppendAsNew(v7.10.16j)同规: 只剔**让某天新超 2 层**的候选(因它而恶化才拦)。
             let baseExceeding = ConflictLayoutEngine.daysExceedingTwoLanes(preview.existingCourses)
-            let survivors = cleanCourses.filter { cand in
-                ConflictLayoutEngine.daysExceedingTwoLanes(preview.existingCourses + [cand]) == baseExceeding
+            var survivors: [CourseEntity] = []
+            var droppedDays = Set<Int>()
+            for cand in cleanCourses {
+                if ConflictLayoutEngine.daysExceedingTwoLanes(preview.existingCourses + [cand]) == baseExceeding {
+                    survivors.append(cand)
+                } else {
+                    droppedDays.insert(cand.day)
+                }
             }
             if survivors.isEmpty {
                 onError(L10n.format("import_all_conflict"))
                 return nil
+            }
+            if survivors.count < cleanCourses.count {
+                onError(L10n.format("import_three_layers_dropped", dayNames(droppedDays)))
             }
             var courses = survivors
             for i in courses.indices {
@@ -1109,36 +1370,85 @@ extension ImportSheet {
             } else {
                 _ = try? repo.insertCourses(courses)
             }
+            // v7.10.16k 无损延伸: 老表作息∪导入作息, 并拓到导入课程实际到达的最大节。
+            // 旧代码 timeJson 空白(粘贴文本常态)就整段跳过 → 课程入库了课表却不延伸 = 静默丢。
+            // 2026-09-23: 绑定共享作息表时写入兼容列不生效(水合读 period); 写回真正 owner。
+            extendTimeDomain(repo: repo, tableId: preview.targetTableId,
+                             incomingJson: preview.parseResult.timeJson,
+                             requiredNodeCount: preview.parseResult.nodesPerDay)
             onImported()
             return preview.targetTableId
         case .appendAsNew:
-            // v7.10.13: 并集追加为新课表 — 老表全部课程 + 导入课程(闸门不拦), 用户命名
-            let base = try? repo.getTable(preview.targetTableId)
+            // 当前课表 + 导入数据合并 → 新课表(用户命名)
+            let base = (try? repo.getTable(preview.targetTableId)) ?? nil
+            let incoming = preview.parseResult
+            // v7.10.16k: 时间表 = 用户确认框里的 confirmedTimeJson 优先(它本身就是
+            // mergeMostComplete 的无损合并初值, 用户又可手拓); 万一为空白再兜底无损合并。
+            // mergedRows 恒非空(mergeMostComplete 至少 1 行), nodesPerDay 恒取行数。
+            let mergedTimeJson = confirmedTimeJson.isEmpty
+                ? TimeTableUtils.mergeMostComplete(
+                    currentJson: base?.timeJson ?? "",
+                    incomingJson: incoming.timeJson,
+                    requiredNodeCount: incoming.nodesPerDay)
+                : confirmedTimeJson
+            let mergedRows = TimeTableUtils.parseTimeSlotRows(mergedTimeJson)
             let existingNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
             var newTable = TimeTableEntity(
                 name: uniqueImportedTableName(confirmedTableName, existingNames),
                 startDate: confirmedStartDate,
-                maxWeek: preview.parseResult.maxWeek > 0 ? preview.parseResult.maxWeek : (base?.maxWeek ?? 20),
-                nodesPerDay: preview.parseResult.nodesPerDay > 0 ? preview.parseResult.nodesPerDay : base?.nodesPerDay ?? 12,
-                timeJson: confirmedTimeJson,
+                maxWeek: incoming.maxWeek > 0 ? incoming.maxWeek : (base?.maxWeek ?? 20),
+                nodesPerDay: !mergedRows.isEmpty ? mergedRows.count : (base?.nodesPerDay ?? 12),
+                timeJson: mergedTimeJson,
                 isDefault: false)
             newTable.color = base?.color ?? "#FF6750A4"
             let newTableId = (try? repo.insertTable(newTable)) ?? 0
-            var courses = preview.existingCourses + preview.parseResult.courses
-            for i in courses.indices {
-                courses[i].id = 0
-                courses[i].tableId = newTableId
+            // 当前课表原课 + 导入课程合并导入新课表
+            // v7.10.16i: 老课全量保留。v7.10.16j(用户 2026-09-03「新课表=纯老表复制」):
+            // 三层闸门改为**只拦新增冲突** — 候选违规判定只看新增候选本身是否比原表
+            // 多出新层(before/after 对比); 原表已有超层不再连坐, 冲突课不进新课表(防重复入库)。
+            let cleanIncoming = incoming.courses.filter { inc in
+                !preview.existingCourses.contains { existing in Self.coursesConflict(inc, existing) }
+            }
+            let oldCourses: [CourseEntity]
+            if let b = base, let fetched = (try? repo.getCourses(b.id)) ?? nil {
+                oldCourses = fetched
+            } else {
+                oldCourses = []
+            }
+            let beforeDays = ConflictLayoutEngine.daysExceedingTwoLanes(oldCourses)
+            let afterDays = ConflictLayoutEngine.daysExceedingTwoLanes(oldCourses + cleanIncoming)
+            if afterDays != beforeDays {
+                let droppedDays = afterDays.subtracting(beforeDays)
+                onError(L10n.format("import_three_layers_kept", dayNames(droppedDays)))
+            }
+            // AppendAsNew 合并新老课: 导入侧 groupId 权威时仅对导入课保组, 老课照原样保组
+            var mergedCourses = (oldCourses + cleanIncoming).map { c in
+                var copy = c; copy.id = 0; copy.tableId = newTableId; return copy
             }
             if preview.parseResult.groupIdsAuthoritative {
-                _ = try? repo.insertCoursesKeepingGroups(courses)
+                _ = try? repo.insertCoursesKeepingGroups(mergedCourses)
+                mergedCourses = []
             } else {
-                _ = try? repo.insertCourses(courses)
+                _ = try? repo.insertCourses(mergedCourses)
+                mergedCourses = []
             }
+            // v7.10.16j: 合并新课表建完即激活 — 缺 setDefault 则用户仍看老表
+            try? repo.setDefault(newTableId)
             onImported()
             return newTableId
         case .appendAll:
-            // v7.10.13: 连冲突课一起追加进当前课表(危险: 会形成同格多层)
-            var courses = preview.parseResult.courses
+            // 连冲突课一起追加进当前课表 — 冲突/闸门全部放行, 仅提示(与整表新建同策略)。
+            // 用户 2026-09-03: 该按钮的存在意义就是"冲突也要进来", 剔除即违背语义。
+            let allCourses = preview.parseResult.courses
+            if allCourses.isEmpty {
+                onError(L10n.format("import_content_empty"))
+                return nil
+            }
+            let badDaysAll = ConflictLayoutEngine.daysExceedingTwoLanes(preview.existingCourses + allCourses)
+            if !badDaysAll.isEmpty {
+                onError(L10n.format("import_three_layers_kept", dayNames(badDaysAll)))
+            }
+            var courses = allCourses
             for i in courses.indices {
                 courses[i].id = 0
                 courses[i].tableId = preview.targetTableId
@@ -1148,13 +1458,91 @@ extension ImportSheet {
             } else {
                 _ = try? repo.insertCourses(courses)
             }
+            // v7.10.16k: 节次无损延伸 — 与 AppendNonConflict 同策略(不再要求导入带 timeJson)
+            // 2026-09-23: 绑定态写 period_tables(真正 owner), 不污染兼容列。
+            extendTimeDomain(repo: repo, tableId: preview.targetTableId,
+                             incomingJson: preview.parseResult.timeJson,
+                             requiredNodeCount: preview.parseResult.nodesPerDay)
             onImported()
             return preview.targetTableId
         }
     }
 
+    // ← v1.0.56 T9 纯作息导入: 只建一张作息表, 不建空课表。
+    // 名字已由确认框查重; 落库前再走 suggestUniqueName 兜底(同屏并发导入等边缘)。
+    static func applyPurePeriodImport(
+        name: String,
+        parsed: ScheduleParser.ParsedPeriodTable,
+        onImported: () -> Void,
+        onError: (String) -> Void
+    ) {
+        let repo = ScheduleRepository(AppDatabase.getShared())
+        UndoManager.shared.beginBatch()
+        defer { UndoManager.shared.endBatch() }
+        let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
+        let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
+        let unique = TimeTableUtils.suggestUniqueName(
+            name, courseTableNames: courseNames, periodTableNames: periodNames)
+        let entity = PeriodTableEntity(
+            name: unique,
+            nodesPerDay: max(parsed.nodesPerDay, 1),
+            timeJson: parsed.timeJson)
+        if (try? repo.insertPeriodTable(entity)) == nil {
+            onError(L10n.format("import_failed", ""))
+            return
+        }
+        onImported()
+    }
+
+    /// v7.10.16k 节次无损延伸(← Android 行1644-1664/1741-1760): 插课后把老表作息∪导入作息
+    /// 写回真实 owner(绑表写 period_tables, 未绑写兼容列 + nodesPerDay=延伸后最大节)。
+    static func extendTimeDomain(
+        repo: ScheduleRepository,
+        tableId: Int64,
+        incomingJson: String,
+        requiredNodeCount: Int
+    ) {
+        guard let existingTable = (try? repo.getTable(tableId)) ?? nil else { return }
+        let bound = existingTable.periodTableId.flatMap { (try? repo.getPeriodTable($0)) ?? nil }
+        let extended = TimeTableUtils.mergeMostComplete(
+            currentJson: bound?.timeJson ?? existingTable.timeJson,
+            incomingJson: incomingJson,
+            requiredNodeCount: requiredNodeCount)
+        if let bound = bound {
+            if extended != bound.timeJson {
+                let newMaxNode = TimeTableUtils.parseTimeSlotRows(extended).map { $0.node }.max() ?? bound.nodesPerDay
+                var updated = bound
+                updated.timeJson = extended
+                updated.nodesPerDay = newMaxNode
+                _ = try? repo.savePeriodTable(updated)
+            }
+        } else if extended != existingTable.timeJson {
+            let newMaxNode = TimeTableUtils.parseTimeSlotRows(extended).map { $0.node }.max() ?? existingTable.nodesPerDay
+            var updated = existingTable
+            updated.timeJson = extended
+            updated.nodesPerDay = newMaxNode
+            try? repo.updateTable(updated)
+        }
+    }
+
+    /// ← DateUtils.kt normalizeStartDate(应用约定 startDate=周一, issue #5;
+    /// 与 JwImportViewModel.normalizeStartDate 同一实现/同一严格语义):
+    /// 非法/欠宽输入原样返回, 不许宽松顺延成别的日期。
+    static func normalizeStartDate(_ startDate: String) -> String {
+        guard let parsed = DateUtils.parseDate(startDate),
+              DateUtils.fullDate(parsed) == startDate else { return startDate }
+        return DateUtils.fullDate(Calendar.isoMondayOfWeek(parsed))
+    }
+
+    /// 被剔除课所在 day 的本地化名(← Android dayNames: " / " join)
+    static func dayNames(_ days: Set<Int>) -> String {
+        days.sorted().map { DateUtils.localizedDay($0) }.joined(separator: " / ")
+    }
+
     // ← coursesConflict: 同日 + 周次区间重叠 + 节次区间重叠
-    static func coursesConflict(_ a: CourseEntity, _ b: CourseEntity) -> Bool {
+    // nonisolated: 纯函数(只读 CourseEntity 值字段), Android 无线程约束 —
+    // 预览冲突计算在 Task.detached 后台段调用(JwImportFlow rebuildPreview)。
+    nonisolated static func coursesConflict(_ a: CourseEntity, _ b: CourseEntity) -> Bool {
         if a.day != b.day { return false }
         if a.endWeek < b.startWeek || b.endWeek < a.startWeek { return false }
         let aStart = a.startNode

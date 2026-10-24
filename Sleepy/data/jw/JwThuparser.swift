@@ -54,6 +54,22 @@ private func matchStr(_ pattern: String, in s: String, group: Int = 0) -> String
     return v.isEmpty ? nil : v
 }
 
+/// Android `Regex.containsMatchIn` 等价物。
+private func regexHasMatch(_ pattern: String, in s: String) -> Bool {
+    guard let re = try? NSRegularExpression(pattern: pattern, options: []) else { return false }
+    let range = NSRange(location: 0, length: (s as NSString).length)
+    return re.firstMatch(in: s, options: [], range: range) != nil
+}
+
+/// Android `Regex.find(input, startIndex)` 等价物 (UTF-16 偏移)。
+private func regexFirstMatchRange(_ pattern: String, in s: String, from location: Int) -> NSRange? {
+    guard let re = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+    let ns = s as NSString
+    guard location < ns.length else { return nil }
+    let searchRange = NSRange(location: location, length: ns.length - location)
+    return re.firstMatch(in: s, options: [], range: searchRange)?.range
+}
+
 final class JwThuparser: JwParser, JwParserConfidenceReporting {
 
     let source: String
@@ -80,7 +96,7 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
     static let RE_C1_WEEKBIG = #"getElementById\('a(\d)_(\d)'\).innerHTML \+= strHTML"#
     static let RE_C2_BLUE_RED_NONE = ##"strHTML = "<a class='blue_red_none' href='.*?p_id=([0-9A-Z]+)'.*?><b><font color='blue'>(.*?)</font></b></a><font color='blue'>(.*?)</font>";"##
     static let RE_SEMESTER = ##"name="p_xnxq" value="([\d\-]+?)"##
-    static let RE_SET_INIT_VALUE = #"function setInitValue\("#
+    static let RE_SET_INIT_VALUE = #"function setInitValue\(\)"#
     static let RE_EVENT_OBSERVE = #"Event\.observe"#
 
     // ---- state machine ----
@@ -88,7 +104,7 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
         case idle, gotLink, gotTitle, gotTeacher, gotType, gotWeeks, gotLocation
     }
     private static let defaultWeekCount: Int = 16
-    private let xkTypeList = ["必修", "限选", "任选"]
+    private static let xkTypeList = ["必修", "限选", "任选"]
 
     private struct PendingCourse {
         var courseId: String = ""
@@ -112,13 +128,17 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
         if !source.contains("function setInitValue") || !source.contains("Event.observe") {
             return []
         }
-        guard let startIdx = source.range(of: "function setInitValue")?.lowerBound,
-              let endMarker = source.range(of: "Event.observe", range: startIdx..<source.endIndex) else {
+        // Android: RE_SET_INIT_VALUE.find(source) ?: return emptyList() — 需完整 "function setInitValue()"
+        guard let startRange = regexFirstMatchRange(Self.RE_SET_INIT_VALUE, in: source, from: 0) else {
             return []
         }
-        let jsBlock = String(source[startIdx..<endMarker.lowerBound])
+        let startIdx = startRange.location
+        // Android: RE_EVENT_OBSERVE.find(source, startIdx) ?: source.length — observe 缺失时解析至源文末尾
+        let nsSource = source as NSString
+        let endIdx = regexFirstMatchRange(Self.RE_EVENT_OBSERVE, in: source, from: startIdx)?.location ?? nsSource.length
+        let jsBlock = nsSource.substring(with: NSRange(location: startIdx, length: max(0, endIdx - startIdx)))
         let lines = jsBlock.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
         var state = ParseState.idle
@@ -151,7 +171,7 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
                 }
             case .gotTeacher:
                 if let str = matchStr(Self.RE_C1_DATA, in: trimmed, group: 1) {
-                    if xkTypeList.contains(str) { pending.type = str; state = .gotType }
+                    if Self.xkTypeList.contains(str) { pending.type = str; state = .gotType }
                 }
             case .gotType:
                 if let weekText = matchStr(Self.RE_C1_DATA, in: trimmed, group: 1) {
@@ -177,7 +197,9 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
 
     // MARK: - Emit
     private func emitCourse(_ p: PendingCourse) -> [JwCourse] {
-        guard !p.name.isEmpty, (1...6).contains(p.big), (1...7).contains(p.day) else { return [emptyCourse(p.name)] }
+        // Android: p.name.isBlank() — 纯空白名也算空
+        guard !p.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              (1...6).contains(p.big), (1...7).contains(p.day) else { return [emptyCourse(p.name)] }
         let startNode = Self.START_NODE_MAP[p.big]
         let endNode = Self.END_NODE_MAP[p.big]
         if startNode == 0 || endNode == 0 { return [emptyCourse(p.name)] }
@@ -208,7 +230,8 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
     /// C2 (blue_red_none) — 跨周实验课/辅修。
     /// name = `<font color=blue>` 第1段 课程名; detail = 第2段 blue font (周次/地点).
     private func parseBlueRedNone(name: String, detStr: String) -> [JwCourse] {
-        return [JwCourse(name: name, room: detStr.trimmingCharacters(in: .whitespaces), teacher: "",
+        // Android: detStr.trim() 同时去掉换行
+        return [JwCourse(name: name, room: detStr.trimmingCharacters(in: .whitespacesAndNewlines), teacher: "",
             day: 0, startNode: 0, endNode: 0,
             startWeek: 1, endWeek: Self.defaultWeekCount, type: 0)
         ]
@@ -218,24 +241,29 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
     /// "全周"→(1,16,0); "前八周"→(1,8,0); "后八周"→(9,16,0); "单周"→(1,16,1); "双周"→(2,16,2)
     /// "第X-Y周（单/双）" / "第X-Y周(单/双)"; "第X-Y周"; "第X周"
     internal static func parseWeekText(_ text: String) -> (startWeek: Int, endWeek: Int, parity: Int) {
-        let t = text.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\u{FF1B};"))
+        // Android: text.trim().trimStart('；',';') — 只去前导分号, 保留尾部分号
+        let spaceTrimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let t = String(spaceTrimmed.drop { $0 == "\u{FF1B}" || $0 == ";" })
         if t == "全周" { return (1, Self.defaultWeekCount, 0) }
         if t == "前八周" { return (1, 8, 0) }
         if t == "后八周" { return (9, Self.defaultWeekCount, 0) }
         if t == "单周" { return (1, Self.defaultWeekCount, 1) }
         if t == "双周" { return (2, Self.defaultWeekCount, 2) }
-        let parityRe = #"第(\d+)-(\d+)周[（(](单|双)[）)]"#
-        if let m = matchStr(parityRe, in: t, groups: [1, 2, 3]) {
+        // Android 走 t.matches(...) 全串匹配 → iOS 用 ^…$ 锚定;
+        // 全角（单/双）与半角(单/双) 分别匹配, 混用括号不匹配 (与 Android 两分支语义一致)
+        let parityFullRe = #"^第(\d+)-(\d+)周（(单|双)）$"#
+        let parityHalfRe = #"^第(\d+)-(\d+)周\((单|双)\)$"#
+        if let m = matchStr(parityFullRe, in: t, groups: [1, 2, 3]) ?? matchStr(parityHalfRe, in: t, groups: [1, 2, 3]) {
             let sw = Int(m[0]) ?? 1, ew = Int(m[1]) ?? sw
             let p = m[2] == "单" ? 1 : 2
             return (sw, ew, p)
         }
-        let rangeRe = #"第(\d+)-(\d+)周"#
+        let rangeRe = #"^第(\d+)-(\d+)周$"#
         if let m = matchStr(rangeRe, in: t, groups: [1, 2]) {
             let sw = Int(m[0]) ?? 1, ew = Int(m[1]) ?? sw
             return (sw, ew, 0)
         }
-        let singleRe = #"第(\d+)周"#
+        let singleRe = #"^第(\d+)周$"#
         if let m = matchStr(singleRe, in: t, groups: [1]) {
             let sw = Int(m[0]) ?? 1
             return (sw, sw, 0)
@@ -253,32 +281,38 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
     }
 
     // MARK: - Static confidence (协议指纹 6 件套)
-    /// 6 特征 → confidence 100 (Android: hits>=6 → 95, iOS 走 100)
+    /// Android confidence(): 6 个 regex containsMatchIn 计 hits,
+    /// hits>=6→95, 5→80, 4→70, 3→50, 2→30, 1→10, else 0 (阶梯映射, 与 Registry 打分对齐)。
     static func confidenceValueFor(source: String) -> Int {
-        let feats = matchedFeaturesFor(source: source)
-        if feats.isEmpty || feats == ["guard:login-only-no-setInitValue"] { return 0 }
-        return Int(Double(feats.count) / 6.0 * 100)  // 6 特征 → 100
+        var hits = 0
+        if regexHasMatch(RE_SEMESTER, in: source) { hits += 1 }
+        if regexHasMatch(RE_SET_INIT_VALUE, in: source) { hits += 1 }
+        if regexHasMatch(RE_C1_LINK, in: source) { hits += 1 }
+        if regexHasMatch(RE_C1_TITLE, in: source) { hits += 1 }
+        if regexHasMatch(RE_C1_WEEKBIG, in: source) { hits += 1 }
+        if regexHasMatch(RE_C1_DATA, in: source) { hits += 1 }
+        if hits >= 6 { return 95 }
+        if hits >= 5 { return 80 }
+        if hits >= 4 { return 70 }
+        if hits >= 3 { return 50 }
+        if hits >= 2 { return 30 }
+        if hits >= 1 { return 10 }
+        return 0
     }
+    /// Android matchedFeatures(): 7 项特征检查 (含 thu:login-or-sso-marker),
+    /// 仅当特征列表为空时追加 guard 项 (不对 login-only 页面短路)。
     static func matchedFeaturesFor(source: String) -> [String] {
-        // guard: setInitValue 缺失 → login-only 页面, confidence=0
-        if !source.contains("function setInitValue") && !source.contains("Event.observe") {
-            return ["guard:login-only-no-setInitValue"]
-        }
         var feats: [String] = []
         if source.contains("zhjwxk") || source.contains("cic.tsinghua") {
             feats.append("thu:login-or-sso-marker")
         }
-        let checks: [(String, (String) -> Bool)] = [
-            ("thu:p_xnxq-form",      { s in s.contains("/syxk.vsyxkKcapb.do") && s.contains("name=\"p_xnxq\"") }),
-            ("thu:setInitValue-block",{ s in s.contains("function setInitValue") }),
-            ("thu:strHTML-course-link", { s in s.contains("strHTML += \"<a class='mainHref'") }),
-            ("thu:aN_M-innerHTML",   { s in s.range(of: "getElementById\\('a\\d_\\d'\\)", options: .regularExpression) != nil }),
-            ("thu:xktype-必修/限选/任选", { s in s.contains("必修") || s.contains("限选") || s.contains("任选") || s.contains("blue_red_none") }),
-            ("thu:week-text-grammar", { s in s.contains("前八周") || s.contains("后八周") || s.contains("单周") || s.contains("双周") || s.contains("全周") || s.contains("第") }),
-        ]
-        for (label, cond) in checks where cond(source) {
-            feats.append(label)
-        }
+        if regexHasMatch(RE_SEMESTER, in: source) { feats.append("thu:p_xnxq-form") }
+        if regexHasMatch(RE_SET_INIT_VALUE, in: source) { feats.append("thu:setInitValue-block") }
+        if regexHasMatch(RE_C1_LINK, in: source) { feats.append("thu:strHTML-course-link") }
+        if regexHasMatch(RE_C1_WEEKBIG, in: source) { feats.append("thu:aN_M-innerHTML") }
+        if Self.xkTypeList.contains(where: { source.contains($0) }) { feats.append("thu:xktype-必修/限选/任选") }
+        if regexHasMatch(RE_C1_DATA, in: source) { feats.append("thu:week-text-grammar") }
+        if feats.isEmpty { feats.append("guard:login-only-no-setInitValue") }
         return feats
     }
 }

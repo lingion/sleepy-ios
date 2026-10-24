@@ -109,9 +109,14 @@ final class JwImportDiagnosticsTests: XCTestCase {
         XCTAssertFalse(out.attempts.isEmpty, "兜底路径也要产出 attempts 供诊断")
     }
 
-    /// 声明协议且解析成功: attempts 记录命中 parser, error 为空。
+    /// 声明协议解析失败 (parser 抛 JwParseError): error 文案 + attempts 快照都要交回调用方。
+    /// ← Android 真值两面对照: JwQzParserNoTableTest 锁 qz 缺 #kbtable 抛
+    ///   JwParseException 且 attempts[0].exception=NO_TABLE_CONTAINER_MARKER;
+    ///   zf_new 缺表**不抛** (JwNewZfParser.parseHtmlTableFromQt 吸收为 0 课,
+    ///   JwNewZfParser.kt:737-742) — zf_new 没有"错误带 attempts"路径可测,
+    ///   原稿用 zf_new 断言 error 非空是对 Android 契约的误译, 改用 qz 协议触发真错误。
     func testDeclaredProtocolReportsAttemptsOnError() {
-        let out = JwParseDispatch.parse("<html><body>无课表</body></html>", JwProtocol.TYPE_ZF_NEW)
+        let out = JwParseDispatch.parse("<html><body>无课表</body></html>", JwProtocol.TYPE_QZ)
         XCTAssertTrue(out.courses.isEmpty)
         XCTAssertFalse(out.attempts.isEmpty)
         XCTAssertNotNil(out.error)

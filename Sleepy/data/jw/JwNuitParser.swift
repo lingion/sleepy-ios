@@ -23,34 +23,39 @@ final class JwNuitParser: JwParser, JwParserConfidenceReporting {
     // MARK: - T8
 
     func generateCourseList() throws -> [JwCourse] {
-        guard let data = source.data(using: .utf8),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rows = root["datas"] as? [[String: Any]] else {
+        // 对齐 Android `Json { ignoreUnknownKeys = true; isLenient = true }`: 宽松解析 +
+        // 标量/非对象 root 落到空列表; rows 逐元素判类型, 非对象行跳过(不整表作废)。
+        guard let root = jsonObj(jwParseJSONLenient(source)),
+              let rows = jsonArr(root["datas"]) else {
             return []
         }
 
         let dayMap = ["一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "日": 7]
         let regex = try! NSRegularExpression(
-            pattern: "(.+?)\\s*/\\s*星期([一二三四五六日])\\s*/\\s*第(\\d+)节-第(\\d+)节\\s*/\\s*(.+?)\\[主讲\\]\\s*/\\s*(.+)",
+            pattern: "^(.+?)\\s*/\\s*星期([一二三四五六日])\\s*/\\s*第(\\d+)节-第(\\d+)节\\s*/\\s*(.+?)\\[主讲\\]\\s*/\\s*(.+)$",
             options: []
         )
         var out: [JwCourse] = []
-        for obj in rows {
-            guard let name = (obj["courseName"] as? String)?.trimmingCharacters(in: .whitespaces),
-                  !name.isEmpty,
-                  let detailsRaw = obj["classDateAndPlace"] as? String,
-                  !detailsRaw.isEmpty else { continue }
+        for element in rows {
+            guard let obj = jsonObj(element) else { continue }
+            let name = jstr(obj, "courseName")
+            let details = jstr(obj, "classDateAndPlace")
+            if name.isEmpty || details.isEmpty { continue }
 
-            let parts = detailsRaw.components(separatedBy: "，")
+            // Android details.split('，', ','): 全角与半角逗号都是分隔符
+            let parts = details.components(separatedBy: CharacterSet(charactersIn: "，,"))
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .flatMap { detail -> [JwCourse] in
                     let range = NSRange(detail.startIndex..., in: detail)
-                    guard let m = regex.firstMatch(in: detail, options: [], range: range) else { return [] }
+                    // Android matchEntire: 必须整段匹配, 前后缀垃圾直接丢弃
+                    guard let m = regex.firstMatch(in: detail, options: [.anchored], range: range),
+                          m.range == range else { return [] }
                     let ns = detail as NSString
                     let weekPart = ns.substring(with: m.range(at: 1))
                     guard let dayChar = ns.substring(with: m.range(at: 2)).first,
                           let day = dayMap[String(dayChar)] else { return [] }
-                    let start = Int(ns.substring(with: m.range(at: 3))) ?? 0
+                    // Android toIntOrNull() ?: return emptyList(): 起始节数解析失败整条丢弃
+                    guard let start = Int(ns.substring(with: m.range(at: 3))) else { return [] }
                     let end = Int(ns.substring(with: m.range(at: 4))) ?? start
                     let teacher = ns.substring(with: m.range(at: 5)).trimmingCharacters(in: .whitespaces)
                     let room = ns.substring(with: m.range(at: 6)).trimmingCharacters(in: .whitespaces)
@@ -76,43 +81,41 @@ final class JwNuitParser: JwParser, JwParserConfidenceReporting {
         return cleaned
             .components(separatedBy: CharacterSet(charactersIn: ",，"))
             .flatMap { segment -> [Int] in
-                let seg = segment.trimmingCharacters(in: .whitespaces)
-                guard !seg.isEmpty else { return [] }
-                let odd = seg.contains("(单)")
-                let even = seg.contains("(双)")
-                let clean = seg.replacingOccurrences(of: "(单)", with: "")
+                let odd = segment.contains("(单)")
+                let even = segment.contains("(双)")
+                let clean = segment.replacingOccurrences(of: "(单)", with: "")
                     .replacingOccurrences(of: "(双)", with: "")
 
-                let nums = extractInts(clean)
-                guard !nums.isEmpty else { return [] }
-
-                var from = nums[0]
-                var to = nums.count > 1 ? nums[1] : nums[0]
-                if from > to { swap(&from, &to) }
-
-                var result: [Int] = []
-                for w in from...to {
-                    if (!odd || w % 2 == 1) && (!even || w % 2 == 0) {
-                        result.append(w)
-                    }
+                // Android clean.split('-', limit = 2).mapNotNull { it.toIntOrNull() }:
+                // 只在第一个 '-' 处切两段, 每侧整段必须是纯 Int
+                // ("1-3-5" -> ["1","3-5"] -> [1] -> 1..1; "第1-3" -> ["第1","3"] -> 3..3),
+                // 倒挂区间(5..1)在 Kotlin 为空 IntRange → 不产出周次, 不交换。
+                var sides: [String]
+                if let dash = clean.firstIndex(of: "-") {
+                    sides = [String(clean[clean.startIndex..<dash]),
+                             String(clean[clean.index(after: dash)...])]
+                } else {
+                    sides = [clean]
                 }
-                return result
+                let bounds = sides.compactMap { Int($0) }
+                let range: ClosedRange<Int>?
+                switch bounds.count {
+                case 2: range = bounds[0]...bounds[1]
+                case 1: range = bounds[0]...bounds[0]
+                default: range = nil
+                }
+                guard let r = range, r.lowerBound <= r.upperBound else { return [] }
+                return r.filter { (!odd || $0 % 2 == 1) && (!even || $0 % 2 == 0) }
             }
-    }
-
-    private func extractInts(_ text: String) -> [Int] {
-        let nums = try? NSRegularExpression(pattern: "\\d+", options: [])
-            .matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
-            .map { Int((text as NSString).substring(with: $0.range))! }
-        return nums ?? []
     }
 
     // MARK: - T9
 
     var confidenceValue: Int {
-        guard let data = source.data(using: .utf8),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              root["datas"] is [[String: Any]],
+        // Android: datas 只要是 JsonArray 且 source 含 "classDateAndPlace" 即 90,
+        // 不要求元素是对象({"datas":["x"]} 也得分)。
+        guard let root = jsonObj(jwParseJSONLenient(source)),
+              root["datas"] is [Any],
               source.contains("classDateAndPlace") else { return 0 }
         return 90
     }

@@ -101,6 +101,7 @@ final class OfflineSchoolCityIndex {
     enum ParseError: Error, LocalizedError {
         case unsupportedFormat
         case invalidCount
+        case unexpectedEndOfStream
         case missingName
         case tooLarge
         case invalidCoordinate
@@ -111,6 +112,8 @@ final class OfflineSchoolCityIndex {
             switch self {
             case .unsupportedFormat: return "Unsupported city boundary format"
             case .invalidCount: return "Invalid city boundary count"
+            // 对齐 Android DataInputStream EOFException: 截断流报"流提前结束", 不冒充计数错误
+            case .unexpectedEndOfStream: return "Unexpected end of city boundary stream"
             case .missingName: return "Missing city name"
             case .tooLarge: return "City boundary data too large"
             case .invalidCoordinate: return "Invalid city boundary coordinate"
@@ -122,11 +125,17 @@ final class OfflineSchoolCityIndex {
 
     /// SCB1 流式解析 — 不建 JSON 树、不建点对象, 直接读进缩放整数 ring。
     /// 调用方持有流。每 ring 与每 256 点检查一次取消。
-    static func parse(_ stream: InputStream, checkCancelled: () -> Void = {}) throws -> OfflineSchoolCityIndex {
+    /// `checkCancelled` 可抛错中断扫描(Android `{ coroutineContext.ensureActive() }` 语义):
+    /// 抛 `CancellationError` 归一为 `ParseError.cancelled`, 其余错误原样传播。
+    static func parse(_ stream: InputStream, checkCancelled: () throws -> Void = {}) throws -> OfflineSchoolCityIndex {
         let input = stream
         input.open()
         defer { input.close() }
-        checkCancelled()
+        func checkCancellation() throws {
+            do { try checkCancelled() }
+            catch is CancellationError { throw ParseError.cancelled }
+        }
+        try checkCancellation()
 
         var buffer = [UInt8](repeating: 0, count: 4)
 
@@ -134,7 +143,8 @@ final class OfflineSchoolCityIndex {
             var read = 0
             while read < 4 {
                 let n = input.read(&buffer, maxLength: 4 - read)
-                if n <= 0 { throw ParseError.invalidCount }
+                // 对齐 Android DataInputStream.readInt 的 EOFException: 提前结束 = 流截断
+                if n <= 0 { throw ParseError.unexpectedEndOfStream }
                 read += n
             }
             // 大端 (Java DataInputStream.writeInt 语义)
@@ -155,16 +165,18 @@ final class OfflineSchoolCityIndex {
         var areas: [Area] = []
         let areaCount = try count(minimum: 1, maximum: 10000)
         for _ in 0..<areaCount {
-            checkCancelled()
+            try checkCancellation()
             let nameLen = try count(minimum: 1, maximum: 256)
             var nameBytes = [UInt8](repeating: 0, count: nameLen)
             var read = 0
             while read < nameLen {
                 let n = input.read(&nameBytes, maxLength: nameLen - read)
-                if n <= 0 { throw ParseError.invalidCount }
+                if n <= 0 { throw ParseError.unexpectedEndOfStream }
                 read += n
             }
-            let name = String(bytes: nameBytes, encoding: .utf8) ?? ""
+            // Java `toString(Charsets.UTF_8)` 对非法字节序列用 U+FFFD 替换(名字仍非空白);
+            // String(decoding:as:) 与之等价 — 不能用 String(bytes:encoding:) 的 nil→"" 路径。
+            let name = String(decoding: nameBytes, as: UTF8.self)
             guard !name.isBlank else { throw ParseError.missingName }
             var polygons: [Polygon] = []
             let polygonCount = try count(minimum: 1, maximum: 10000)
@@ -172,13 +184,13 @@ final class OfflineSchoolCityIndex {
                 var rings: [Ring] = []
                 let ringCount = try count(minimum: 1, maximum: 10000)
                 for _ in 0..<ringCount {
-                    checkCancelled()
+                    try checkCancellation()
                     let points = try count(minimum: 3, maximum: 1_000_000)
                     totalPoints += points
                     guard totalPoints <= 2_000_000 else { throw ParseError.tooLarge }
                     var coordinates = [Int32](repeating: 0, count: points * 2)
                     for point in 0..<points {
-                        if point % 256 == 0 { checkCancelled() }
+                        if point % 256 == 0 { try checkCancellation() }
                         let longitude = try readInt32()
                         let latitude = try readInt32()
                         guard longitude >= -1_800_000 && longitude <= 1_800_000
@@ -194,10 +206,16 @@ final class OfflineSchoolCityIndex {
             }
             areas.append(Area(name: name, polygons: polygons))
         }
-        // EOF 后不得有尾随字节
+        // EOF 后不得有尾随字节 — 对齐 Android `require(input.read() == -1)`:
+        // Foundation InputStream(data:) 在流末尾返回 0(实测非 -1), 必须按 hasBytesAvailable
+        // 判"有无尾随字节", 直接把 0 当尾随数据会让每个合法流都误报 .trailingData。
         var probe: UInt8 = 0
-        if input.read(&probe, maxLength: 1) != -1 { throw ParseError.trailingData }
-        checkCancelled()
+        if input.hasBytesAvailable {
+            let n = input.read(&probe, maxLength: 1)
+            if n > 0 { throw ParseError.trailingData }
+            if n < 0 { throw ParseError.unexpectedEndOfStream }
+        }
+        try checkCancellation()
         return OfflineSchoolCityIndex(areas: areas)
     }
 }

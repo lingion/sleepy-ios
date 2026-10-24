@@ -46,15 +46,31 @@ class JwWiseduParser: JwParser, JwParserConfidenceReporting {
             return []  // ← kotlinx Json 宽松解析失败 → 空(Kotlin 侧异常由调用方 catch)
         }
         let datas = root["datas"] as? [String: Any]
-        let module = datas.flatMap { d in
-            moduleNames.first { d[$0] != nil }.flatMap { d[$0] as? [String: Any] }
+        // ← firstNotNullOfOrNull { datas[it]?.jsonObject }: key 缺失 → `?.` 短路试下一个模块名;
+        //   存在但不是对象 (JSON null/数组/标量) → Kotlin `.jsonObject` 抛
+        //   IllegalArgumentException, iOS 同形抛 JwParseError (对齐 JwNewUrpParser:178),
+        //   不再静默当成"没有该模块"。
+        var module: [String: Any]?
+        if let d = datas {
+            for name in moduleNames {
+                guard let v = d[name] else { continue }
+                guard let m = v as? [String: Any] else {
+                    throw JwParseError(message: "JwWiseduParser: datas.\(name) is not a JSON object")
+                }
+                module = m
+                break
+            }
         }
         let rows = module?["rows"] as? [[String: Any]] ?? []
 
         var result: [JwCourse] = []
         for o in rows {
+            // kotlinx `jsonPrimitive.contentOrNull`: JSON 数字 (NSNumber) 也取其字面文本
+            // ("SKXQ": 1 → "1"), 与 JwChaoxingParser/JwQzAppParser 同款 NSNumber 容错读。
+            // 只认 `as? String` 会令数字型 SKXQ/KSJC/JSJC 整行丢失 (v1.0.61 对齐修复)。
             func str(_ k: String) -> String {
-                ((o[k] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                (((o[k] as? String) ?? (o[k] as? NSNumber)?.stringValue) ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
             }
             func int(_ k: String) -> Int? { Int(str(k)) }
 

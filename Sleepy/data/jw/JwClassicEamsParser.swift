@@ -53,6 +53,9 @@ final class JwClassicEamsParser: JwParser, JwParserConfidenceReporting {
     }
 
     func generateCourseList() throws -> [JwCourse] {
+        if source.contains("newActivity(") && source.contains("addActivityByTime(") {
+            return timeActivities()
+        }
         guard let unitCount = unitCountFromPage() else { return [] }
         var out: [JwCourse] = []
 
@@ -78,6 +81,66 @@ final class JwClassicEamsParser: JwParser, JwParserConfidenceReporting {
             }
         }
         return out
+    }
+
+    /// 一条 addActivityByTime 形态的时间活动 (块级, 尚未按周展开)
+    private struct TimeActivity {
+        let teacher: String
+        let name: String
+        let room: String
+        let weeks: [Int]
+    }
+
+    /// 时间形态活动: 页面用 newActivity(...) + addActivityByTime(activity, D, startMin, endMin)
+    /// 而非 index 段 → 直接按 link 的分钟区间映射节次。
+    private func timeActivities() -> [JwCourse] {
+        let ns = source as NSString
+        let linkRe = try! NSRegularExpression(pattern: #"addActivityByTime\(activity\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)"#)
+        let links = linkRe.matches(in: source, range: NSRange(location: 0, length: ns.length))
+        var out: [JwCourse] = []
+        for link in links {
+            let activityStart = ns.range(of: "newActivity(", options: .backwards, range: NSRange(location: 0, length: link.range.location)).location
+            if activityStart == NSNotFound { continue }
+            let argStart = activityStart + ("newActivity(" as NSString).length
+            let (args, _) = splitArgs(ns, argStart)
+            if args.count < 8 { continue }
+            let activity = TimeActivity(
+                teacher: unquote(args[1]),
+                name: unquote(args[3]),
+                room: unquote(args[5]),
+                weeks: bitmapToWeeks(args[7].trimmingCharacters(in: .whitespaces)))
+            guard let day = Int(ns.substring(with: link.range(at: 1))) else { continue }
+            guard let startMin = Int(ns.substring(with: link.range(at: 2))),
+                  let endMin = Int(ns.substring(with: link.range(at: 3))) else { continue }
+            let start = timeToNode(startMin)
+            let end = timeToNode(endMin)
+            for week in activity.weeks {
+                out.append(JwCourse(
+                    name: activity.name,
+                    room: activity.room,
+                    teacher: activity.teacher,
+                    day: day,
+                    startNode: start,
+                    endNode: end,
+                    startWeek: week,
+                    endWeek: week,
+                    type: 0))
+            }
+        }
+        return out
+    }
+
+    /// 分钟时刻 → 节次起点/终点 (addActivityByTime 形态, 阈值逐条对齐 Android)
+    private func timeToNode(_ minutes: Int) -> Int {
+        switch minutes {
+        case ...900: return 1
+        case ...1010: return 3
+        case ...1170: return 5
+        case ...1330: return 7
+        case ...1450: return 9
+        case ...1615: return 11
+        default: return 13
+        }
     }
 
     /// 页面 var unitCount = N; — 拿不到返回 nil (硬失败, 别猜默认值)
@@ -150,6 +213,7 @@ final class JwClassicEamsParser: JwParser, JwParserConfidenceReporting {
 
     /// 带引号/括号深度状态的参数切分 (hunnu.js splitArgs 形态)。
     /// 返回 (参数列表, 闭括号位置)。参数内逗号 (引号中/括号内) 不切分。
+    /// 全程 NSString UTF-16 偏移 (与调用方的 NSRegularExpression range 同基, 对齐 Kotlin String 索引)。
     private func splitArgs(_ src: NSString, _ start: Int) -> ([String], Int) {
         var args: [String] = []
         var cur = ""
@@ -157,20 +221,24 @@ final class JwClassicEamsParser: JwParser, JwParserConfidenceReporting {
         var depth = 0
         var i = start
         var closed = -1
-        let chars = Array(src as String)
-        while i < chars.count {
-            let c = chars[i]
-            if c == "\"" && !isEscaped(src, i) {
-                inQuote.toggle(); cur.append(c)
-            } else if c == "(" && !inQuote {
-                depth += 1; cur.append(c)
-            } else if c == ")" && !inQuote {
+        let limit = src.length
+        while i < limit {
+            let c = src.character(at: i)
+            if c == 0x22 /* " */ && !isEscaped(src, i) {
+                inQuote.toggle(); cur += String(decoding: [c], as: UTF16.self)
+            } else if c == 0x28 /* ( */ && !inQuote {
+                depth += 1; cur += String(decoding: [c], as: UTF16.self)
+            } else if c == 0x29 /* ) */ && !inQuote {
                 if depth == 0 { closed = i; break }
-                depth -= 1; cur.append(c)
-            } else if c == "," && !inQuote && depth == 0 {
+                depth -= 1; cur += String(decoding: [c], as: UTF16.self)
+            } else if c == 0x2C /* , */ && !inQuote && depth == 0 {
                 args.append(cur.trimmingCharacters(in: .whitespaces)); cur = ""
+            } else if c >= 0xD800 && c <= 0xDBFF && i + 1 < limit {
+                // 代理对: 高低位一起解码, 保持字符完整
+                cur += String(decoding: [c, src.character(at: i + 1)], as: UTF16.self)
+                i += 1
             } else {
-                cur.append(c)
+                cur += String(decoding: [c], as: UTF16.self)
             }
             i += 1
         }
@@ -181,10 +249,9 @@ final class JwClassicEamsParser: JwParser, JwParserConfidenceReporting {
     }
 
     private func isEscaped(_ src: NSString, _ i: Int) -> Bool {
-        let chars = Array(src as String)
         var back = 0
         var j = i - 1
-        while j >= 0 && j < chars.count && chars[j] == "\\" { back += 1; j -= 1 }
+        while j >= 0 && src.character(at: j) == 0x5C /* \ */ { back += 1; j -= 1 }
         return back % 2 == 1
     }
 
@@ -228,7 +295,14 @@ final class JwClassicEamsParser: JwParser, JwParserConfidenceReporting {
     /// 位图 → 周列表。下标 0 占位, 下标 i=1 即第 i 周 (勿 +1, 四源同证)。
     /// 超长位图 (53/54 位) 天然兼容。
     private func bitmapToWeeks(_ bitmap: String) -> [Int] {
-        bitmap.enumerated().compactMap { i, ch in (i >= 1 && ch == "1") ? i : nil }
+        if bitmap.count > 20 && bitmap.contains(where: { $0 == "8" || $0 == "9" }) {
+            // 数值形态长位图: 十进制数 → Long 位掩码, 位 i-1 置位即第 i 周
+            if let value = Int64(bitmap) {
+                return (1...63).filter { value & (Int64(1) << (UInt64($0) - 1)) != 0 }
+            }
+            return []
+        }
+        return bitmap.enumerated().compactMap { i, ch in (i >= 1 && ch == "1") ? i : nil }
     }
 
     /// index 对 (0基) → (day, startNode, endNode): 排序后连续节次合并成连堂
@@ -238,7 +312,7 @@ final class JwClassicEamsParser: JwParser, JwParserConfidenceReporting {
             return a.1 < b.1
         }
         let day = sorted.first!.0 + 1
-        let nodes = sorted.map { $0.1 + 1 }
+        let nodes = Array(Set(sorted.map { $0.1 + 1 })).sorted()
         // 连续段取首尾 (跨天 index 不该出现在同一块; 出现时取最小段保守处理)
         var start = nodes[0]
         var end = nodes[0]

@@ -8,8 +8,8 @@ enum SchoolLocationMode {
     case approximate
 }
 
-/// 瞬态采样; 永不持久化。
-struct SchoolLocationFix {
+/// 瞬态采样; 永不持久化。Equatable 对齐 Kotlin data class 的结构相等。
+struct SchoolLocationFix: Equatable {
     let latitude: Double
     let longitude: Double
     let accuracyMeters: Double
@@ -46,10 +46,12 @@ enum SchoolLocationPolicy {
 
     /// approximate 模式的城市查询降精度: 坐标取 2 位小数 + 精度半径 +800m。
     /// 早前 fine 授权不得让 approximate 选择用 fine 坐标。
+    /// 取整用 floor(x+0.5) 语义精确对齐 Kotlin Math.round(向 +∞ 破 .5 平局),
+    /// Swift 默认 .rounded() 是"远离零"破平局, 负坐标(南/西半球)的 .5 平局会与 Android 差 1。
     static func forCityLookup(mode: SchoolLocationMode, fix: SchoolLocationFix) -> SchoolLocationFix {
         guard mode == .approximate else { return fix }
-        let lat = (fix.latitude * 100).rounded() / 100
-        let lon = (fix.longitude * 100).rounded() / 100
+        let lat = (fix.latitude * 100 + 0.5).rounded(.down) / 100
+        let lon = (fix.longitude * 100 + 0.5).rounded(.down) / 100
         return SchoolLocationFix(
             latitude: lat, longitude: lon,
             accuracyMeters: fix.accuracyMeters + 800.0,

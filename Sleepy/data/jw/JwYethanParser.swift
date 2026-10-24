@@ -60,14 +60,15 @@ final class JwYethanParser: JwParser, JwParserConfidenceReporting {
         var result: [JwCourse] = []
 
         for o in rows {
-            let name = (o["courseName"] as? String ?? "").trimmingCharacters(in: .whitespaces)
+            // Kotlin str(k) 用 .trim(): 去首尾空白(含 \n\r)。对齐 whitespacesAndNewlines。
+            let name = (o["courseName"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if name.isEmpty { continue }
-            let teacher = (o["staffName"] as? String ?? "").trimmingCharacters(in: .whitespaces)
+            let teacher = (o["staffName"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
             for i in 1...40 {
                 let timeKey = "classTime\(i)"
                 let placeKey = "classPlace\(i)"
-                let timeRaw = (o[timeKey] as? String ?? "").trimmingCharacters(in: .whitespaces)
+                let timeRaw = (o[timeKey] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if timeRaw.isEmpty { continue }
                 let placeRaw = (o[placeKey] as? String ?? "")
                 let place = roomOf(placeRaw)
@@ -80,14 +81,18 @@ final class JwYethanParser: JwParser, JwParserConfidenceReporting {
                       let day = dayCharToCharacter(dayCh) else { continue }
 
                 let nodeStr = ns.substring(with: m.range(at: 3))
+                // Kotlin 语义: substringBefore/After('-') 只按「首个」'-' 切分。
+                // "5-6-7" → start=5, end=substringAfter="6-7".toIntOrNull()=null → 回落 start=5。
                 let startNode: Int
                 let endNode: Int
-                if nodeStr.contains("-") {
-                    guard let s = Int(nodeStr.components(separatedBy: "-").first?.trimmingCharacters(in: .whitespaces) ?? "") else { continue }
+                if let dash = nodeStr.firstIndex(of: "-") {
+                    let before = String(nodeStr[..<dash]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    let after = String(nodeStr[nodeStr.index(after: dash)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard let s = Int(before) else { continue }
                     startNode = s
-                    endNode = Int(nodeStr.components(separatedBy: "-").last?.trimmingCharacters(in: .whitespaces) ?? "") ?? s
+                    endNode = Int(after) ?? s
                 } else {
-                    guard let s = Int(nodeStr.trimmingCharacters(in: .whitespaces)) else { continue }
+                    guard let s = Int(nodeStr.trimmingCharacters(in: .whitespacesAndNewlines)) else { continue }
                     startNode = s
                     endNode = s
                 }
@@ -123,11 +128,14 @@ final class JwYethanParser: JwParser, JwParserConfidenceReporting {
     func weekRuns(_ weekList: String) -> [(Int, Int)] {
         var runs: [(Int, Int)] = []
         for part in weekList.components(separatedBy: "、") {
-            let p = part.trimmingCharacters(in: .whitespaces)
+            let p = part.trimmingCharacters(in: .whitespacesAndNewlines)
             if p.isEmpty { continue }
-            if p.contains("-") {
-                guard let s = Int(p.components(separatedBy: "-").first?.trimmingCharacters(in: .whitespaces) ?? ""),
-                      let e = Int(p.components(separatedBy: "-").last?.trimmingCharacters(in: .whitespaces) ?? ""),
+            if let dash = p.firstIndex(of: "-") {
+                // Kotlin substringBefore/After('-'): 只按首个 '-' 切分。
+                // "7-8-9" → e = "8-9".toIntOrNull() = null → continue(整项丢弃)。
+                let sStr = String(p[..<dash]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let eStr = String(p[p.index(after: dash)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let s = Int(sStr), let e = Int(eStr),
                       (1...30).contains(s), (s...30).contains(e) else { continue }
                 runs.append((s, e))
             } else {
@@ -144,13 +152,13 @@ final class JwYethanParser: JwParser, JwParserConfidenceReporting {
      * Online(教师) → Online;空 → ""。
      */
     func roomOf(_ place: String) -> String {
-        let p = place.trimmingCharacters(in: .whitespaces)
+        let p = place.trimmingCharacters(in: .whitespacesAndNewlines)
         if p.isEmpty { return "" }
         let openCount = p.filter { $0 == "(" || $0 == "（" }.count
         if openCount >= 2 {
             let lastOpen = p.lastIndex(of: "(") ?? p.lastIndex(of: "（") ?? p.startIndex
             if lastOpen > p.startIndex {
-                return String(p[..<lastOpen]).trimmingCharacters(in: .whitespaces)
+                return String(p[..<lastOpen]).trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
         if p.lowercased().hasPrefix("online") { return "Online" }
@@ -163,7 +171,7 @@ final class JwYethanParser: JwParser, JwParserConfidenceReporting {
             let ns = p as NSString
             let inner = ns.substring(with: m.range(at: 2))
             if !inner.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) {
-                return ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
+                return ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
         return p

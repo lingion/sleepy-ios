@@ -191,14 +191,19 @@ enum JwCaptureDump {
         let session = JwDiagnosticSession.shared.currentSessionId()
         let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let appBuild = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        let debug = "#if DEBUG"
+        // 对齐 Android `debug=${BuildConfig.DEBUG}` → 输出 true/false 字面量, 而非条件编译指令文本。
+        #if DEBUG
+        let debug = "true"
+        #else
+        let debug = "false"
+        #endif
         let path = result.selectedFramePath?.joined(separator: "/") ?? "<none>"
         let sb = """
         # Sleepy JW Diagnostic Summary
         session=\(session)
         appVersion=\(appVersion) (\(appBuild))
         debug=\(debug)
-        school=\(school.name) type=\(school.type ?? "") url=\(school.url)
+        school=\(school.name) type=\(school.type ?? "null") url=\(school.url)
         status=\(String(describing: result.status))
         courseCount=\(result.courseCount)
         selectedFramePath=\(path)
@@ -271,15 +276,17 @@ enum JwCaptureDump {
     ) throws {
         guard let raw = json, !raw.isBlank,
               let data = raw.data(using: .utf8),
-              let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [Any]
         else { return }
-        let manifestData = try JSONSerialization.data(withJSONObject: rows, options: [.prettyPrinted])
-        let manifestJson = String(data: manifestData, encoding: .utf8) ?? "[]"
+        // 对齐 Android rows.toString() — org.json 紧凑格式, 无 prettyPrinted。
+        let manifestJson = compactJSONString(rows) ?? "[]"
         try writeText(archive: archive, manifest: &manifest, name: "4-net-replay/manifest.json",
                       content: manifestJson,
                       description: "资源重取结果与失败原因")
         for (i, row) in rows.enumerated() {
-            if let error = row["error"] { _ = error; continue }
+            // 对齐 Android rows.optJSONObject(i) ?: continue — 非对象元素只跳过, 不丢整包。
+            guard let row = row as? [String: Any] else { continue }
+            if row["error"] != nil { continue }
             guard let body = row["body"] as? String, !body.isBlank else { continue }
             try writeText(archive: archive, manifest: &manifest, name: "4-net-replay/\(i + 1).body",
                           content: body, description: "同源资源真实响应体")
@@ -326,14 +333,14 @@ enum JwCaptureDump {
         json: String?
     ) throws {
         let root = parseNetworkLiveRoot(json: json)
-        let rows = (root["live"] as? [[String: Any]]) ?? []
-        let replay = (root["replay"] as? [[String: Any]]) ?? []
-        let weeks = (root["weeks"] as? [[String: Any]]) ?? []
+        // 对齐 Android root.optJSONArray(...) + rows.optJSONObject(i) ?: continue —
+        // 非对象元素逐条跳过, 不整包丢弃。
+        let rows = (root["live"] as? [Any]) ?? []
+        let replay = (root["replay"] as? [Any]) ?? []
+        let weeks = (root["weeks"] as? [Any]) ?? []
 
-        // 4-net-live/manifest.json
-        let rowsData = (try? JSONSerialization.data(withJSONObject: rows,
-                                                    options: [.prettyPrinted])) ?? Data()
-        let rowsJson = String(data: rowsData, encoding: .utf8) ?? "[]"
+        // 4-net-live/manifest.json — 对齐 Android rows.toString() 紧凑格式。
+        let rowsJson = compactJSONString(rows) ?? "[]"
         try writeText(archive: archive, manifest: &manifest, name: "4-net-live/manifest.json",
                       content: rowsJson,
                       description: "页面运行时真实 fetch/XHR 请求与响应")
@@ -341,15 +348,18 @@ enum JwCaptureDump {
         var headers = StringBuilder()
         var urls: [String] = []   // 保序去重
         var seenUrls = Set<String>()
-        for (i, row) in rows.enumerated() {
+        for (i, rowAny) in rows.enumerated() {
+            // 对齐 Android rows.optJSONObject(i) ?: continue — 编号仍用原始数组下标 i。
+            guard let row = rowAny as? [String: Any] else { continue }
             let method = (row["method"] as? String) ?? "GET"
             let url = (row["url"] as? String) ?? ""
-            if !url.isBlank, !seenUrls.contains(url) {
+            if !url.isBlank, seenUrls.insert(url).inserted {
                 urls.append(url)
-                seenUrls.insert(url)
             }
             if let responseHeaders = row["responseHeaders"] {
-                let rendered = String(describing: responseHeaders)
+                // 对齐 Android responseHeaders.toString() — org.json 紧凑 JSON,
+                // 不能用 String(describing:) (Swift 字典字面量语法, 非法 JSON)。
+                let rendered = compactJSONString(responseHeaders) ?? ""
                 if !rendered.isBlank {
                     headers.appendLine("== \(method) \(url) ==")
                     headers.appendLine(rendered)
@@ -362,20 +372,16 @@ enum JwCaptureDump {
             }
         }
         if !replay.isEmpty {
-            let data = (try? JSONSerialization.data(withJSONObject: replay,
-                                                    options: [.prettyPrinted])) ?? Data()
-            let str = String(data: data, encoding: .utf8) ?? "[]"
             try writeText(archive: archive, manifest: &manifest,
                           name: "4-net-replay-withparam/manifest.json",
-                          content: str, description: "基于已观察 POST 请求的重放结果")
+                          content: compactJSONString(replay) ?? "[]",
+                          description: "基于已观察 POST 请求的重放结果")
         }
         if !weeks.isEmpty {
-            let data = (try? JSONSerialization.data(withJSONObject: weeks,
-                                                    options: [.prettyPrinted])) ?? Data()
-            let str = String(data: data, encoding: .utf8) ?? "[]"
             try writeText(archive: archive, manifest: &manifest,
                           name: "4-net-replay-weeks/manifest.json",
-                          content: str, description: "基于已观察周参数的 1..25 周重放计划")
+                          content: compactJSONString(weeks) ?? "[]",
+                          description: "基于已观察周参数的 1..25 周重放计划")
         }
         try writeText(archive: archive, manifest: &manifest, name: "6-logs/network-live.json",
                       content: rowsJson, description: "机器可读运行时网络记录")
@@ -388,8 +394,10 @@ enum JwCaptureDump {
         }
 
         // WebView 下载元数据
+        // 对齐 Android downloadText.lines().size — Kotlin lines() 保留空行,
+        // 必须用 components(separatedBy:) (split 默认丢弃空片段, 空行多的文本会误判跳过)。
         let downloadText = JwDiagnosticSession.shared.exportDownloads()
-        if downloadText.split(separator: "\n").count > 2 {
+        if downloadText.components(separatedBy: "\n").count > 2 {
             try writeText(archive: archive, manifest: &manifest, name: "4-downloads/manifest.txt",
                           content: downloadText, description: "WebView 下载元数据")
         }
@@ -404,24 +412,31 @@ enum JwCaptureDump {
             try writeText(archive: archive, manifest: &manifest, name: "6-logs/capture.har",
                           content: har, description: "HAR 1.2 网络回放文件")
         }
-        let summary: [String: Any] = [
-            "networkRecords": rows.count,
-            "replayRecords": replay.count,
-            "weekPlans": weeks.count,
-            "responseBodies": rows.filter { ($0["responseBody"] as? String)?.isBlank == false }.count
-        ]
-        let summaryData = (try? JSONSerialization.data(withJSONObject: summary,
-                                                        options: [.prettyPrinted, .sortedKeys])) ?? Data()
-        let summaryJson = (String(data: summaryData, encoding: .utf8) ?? "{}") + "\n"
+        // 对齐 Android org.json 插入序 networkRecords → replayRecords → weekPlans → responseBodies。
+        // Swift 字典不保序, .sortedKeys 会按字母排; 手工按 Android 顺序拼串。
+        let responseBodies = rows.reduce(into: 0) { count, any in
+            if let row = any as? [String: Any],
+               let body = row["responseBody"] as? String, !body.isBlank { count += 1 }
+        }
+        let summaryJson = """
+        {
+          "networkRecords": \(rows.count),
+          "replayRecords": \(replay.count),
+          "weekPlans": \(weeks.count),
+          "responseBodies": \(responseBodies)
+        }
+        """ + "\n"
         try writeText(archive: archive, manifest: &manifest, name: "6-logs/collection-summary.json",
                       content: summaryJson, description: "机器可读采集汇总")
     }
 
     /** Build a HAR 1.2 representation from runtime records. Bodies are bounded to 64 KiB
      *  each to keep the file usable in browsers; full bodies live under 4-net-live. */
-    private static func buildHar(rows: [[String: Any]]) -> String? {
+    private static func buildHar(rows: [Any]) -> String? {
         if rows.isEmpty { return nil }
-        let entries: [[String: Any]] = rows.map { row in
+        // 对齐 Android rows.optJSONObject(i) ?: continue — 非对象行只跳过。
+        let entries: [[String: Any]] = rows.compactMap { rowAny in
+            guard let row = rowAny as? [String: Any] else { return nil }
             let method = (row["method"] as? String) ?? "GET"
             let url = (row["url"] as? String) ?? ""
             let requestHeadersJson = row["requestHeaders"] as? [String: Any]
@@ -480,14 +495,27 @@ enum JwCaptureDump {
             "entries": entries
         ]
         let builder: [String: Any] = ["log": log]
-        let data = (try? JSONSerialization.data(withJSONObject: builder,
-                                                options: [.prettyPrinted])) ?? Data()
-        return String(data: data, encoding: .utf8)
+        // 对齐 Android builder.toString() — 紧凑格式, 无 prettyPrinted。
+        return compactJSONString(builder)
     }
 
     private static func harQueryString(url: String) -> [[String: String]] {
-        guard let query = URLComponents(string: url)?.query, !query.isEmpty else { return [] }
-        return query.split(separator: "&").map { item in
+        // 对齐 Android Uri.parse(url).query — 含空格的 URL 用 URL(string:) 返 nil,
+        // 先 percent-encode 空格再解; 仍失败则退到手工切 query 段。
+        let query: String
+        if let encoded = url.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let components = URLComponents(string: encoded), let q = components.query {
+            query = q
+        } else if let range = url.range(of: "?") {
+            var tail = String(url[range.upperBound...])
+            if let hash = tail.range(of: "#") { tail = String(tail[..<hash.lowerBound]) }
+            query = tail
+        } else {
+            return []
+        }
+        guard !query.isBlank else { return [] }
+        // 对齐 Android query.split('&') — CharSequence.split 保留空片段。
+        return query.split(separator: "&", omittingEmptySubsequences: false).map { item in
             let parts = item.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
             return [
                 "name": parts.first ?? "",
@@ -512,6 +540,23 @@ enum JwCaptureDump {
     private static func toHarHeaders(_ map: [String: Any]?) -> [[String: String]] {
         guard let map = map else { return [] }
         return map.map { k, v in ["name": k, "value": String(describing: v)] }
+    }
+
+    /// 对齐 Android org.json `.toString()` — 紧凑(非 pretty)JSON。
+    /// Kotlin `Any.toString()`: String → 原样; JSONObject/JSONArray → 紧凑 JSON;
+    /// Number/Boolean → 字面量。JSONSerialization 默认输出即无缩进。
+    private static func compactJSONString(_ object: Any) -> String? {
+        if let s = object as? String { return s }
+        // org.json 的 JSONObject.NULL.toString() = "null"。
+        if object is NSNull { return "null" }
+        if let n = object as? NSNumber {
+            if CFGetTypeID(n) == CFBooleanGetTypeID() { return n.boolValue ? "true" : "false" }
+            return n.stringValue
+        }
+        guard JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(withJSONObject: object)
+        else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     private static func writeEnvironment(
@@ -558,6 +603,7 @@ enum JwCaptureDump {
         4-net-live/    页面运行时真实 fetch/XHR + 响应体
         4-downloads/   WebView 下载元数据 + 真实下载文件字节
         6-logs/        采集过程日志 + HAR 1.2 + 采集汇总
+
         == 文件清单 (path | 说明) ==
         \(manifest.map { "\($0.0)  |  \($0.1)" }.joined(separator: "\n"))
 

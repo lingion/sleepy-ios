@@ -29,7 +29,7 @@ struct JwSchoolInfo: Equatable {
     var isPending: Bool { status == Self.STATUS_PENDING || status == Self.STATUS_GRAD_PENDING }
 
     /// T13: 是否配置了可打开的教务 URL
-    var hasUrl: Bool { !url.trimmingCharacters(in: .whitespaces).isEmpty }
+    var hasUrl: Bool { !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     static let STATUS_SUPPORTED = "supported"
     static let STATUS_PENDING = "pending"

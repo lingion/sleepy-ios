@@ -118,7 +118,7 @@ final class JwBjtuParser: JwParser, JwParserConfidenceReporting {
         while let r = idx {
             let labelStart = r.upperBound
             guard let arrow = source.range(of: "-->", range: labelStart..<source.endIndex) else { break }
-            let label = String(source[labelStart..<arrow.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let label = String(source[labelStart..<arrow.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
             let bodyStart = arrow.upperBound
             let next = source.range(of: DOC_MARKER_PREFIX, range: bodyStart..<source.endIndex)
             let bodyEnd = next?.lowerBound ?? source.endIndex
@@ -159,7 +159,11 @@ final class JwBjtuParser: JwParser, JwParserConfidenceReporting {
             }
             var weeks = Set<Int>()
             for (a, b) in nums {
-                for w in a...(b ?? a) where (1...MAX_WEEK).contains(w) { weeks.insert(w) }
+                // 逆序区间 (如 第16-2周) 对齐 Kotlin a..(b ?: a) 的空区间语义: 跳过, 不产周次。
+                // Swift 的 a...hi 在 a > hi 时触发 ClosedRange 前置条件 trap, 必须先挡。
+                let hi = b ?? a
+                if a > hi { continue }
+                for w in a...hi where (1...MAX_WEEK).contains(w) { weeks.insert(w) }
             }
             let filtered = parity >= 0 ? weeks.filter { $0 % 2 == parity } : Array(weeks)
             if filtered.isEmpty { continue }

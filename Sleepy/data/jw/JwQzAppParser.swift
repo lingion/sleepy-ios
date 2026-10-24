@@ -56,8 +56,11 @@ final class JwQzAppParser: JwParser, JwParserConfidenceReporting {
         var seen = Set<String>()
         var result: [JwCourse] = []
         for grid in grids {
-            guard let rows = grid["courses"] as? [[String: Any]] else { continue }
-            for o in rows {
+            // ← Android `if (el !is JsonObject) continue`: 逐元素过滤, 数组里混入
+            // null/字符串等坏行只跳过该行, 不能像整体 `as? [[String: Any]]` 强转
+            // 失败那样丢掉整个 grid 的全部课程。
+            guard let rows = grid["courses"] as? [Any] else { continue }
+            for case let o as [String: Any] in rows {
                 // 逐周抓取后同一行课会在每周响应里重复出现 (classWeek 是全学期位图),
                 // 完全相同的行只展开一次; 字段有任何差异的行都保留, 不猜并集
                 guard seen.insert(Self.canonicalKey(o)).inserted else { continue }
@@ -71,20 +74,24 @@ final class JwQzAppParser: JwParser, JwParserConfidenceReporting {
                 let teacher = str("teacherName")
                 let room = [str("classroomNub"), str("classroomName"), str("location")]
                     .first { !$0.isEmpty } ?? ""
-                guard let timeSpec = Self.parseClassTime(str("classTime")) else { continue }
+                let timeSpecs = Self.parseClassTime(str("classTime"))
+                if timeSpecs.isEmpty { continue }
                 let weeks = Self.parseWeekSpec(str("classWeek").isEmpty ? str("classWeekDetails") : str("classWeek"))
+                let runs = Self.weekRuns(weeks)
 
-                for (sw, ew, type) in Self.weekRuns(weeks) {
-                    result.append(JwCourse(
-                        name: name,
-                        room: room,
-                        teacher: teacher,
-                        day: timeSpec.0,
-                        startNode: timeSpec.1,
-                        endNode: timeSpec.2,
-                        startWeek: sw,
-                        endWeek: ew,
-                        type: type))
+                for (day, startNode, endNode) in timeSpecs {
+                    for (sw, ew, type) in runs {
+                        result.append(JwCourse(
+                            name: name,
+                            room: room,
+                            teacher: teacher,
+                            day: day,
+                            startNode: startNode,
+                            endNode: endNode,
+                            startWeek: sw,
+                            endWeek: ew,
+                            type: type))
+                    }
                 }
             }
         }
@@ -126,24 +133,35 @@ final class JwQzAppParser: JwParser, JwParserConfidenceReporting {
         return "null"
     }
 
-    /// classTime "10304" → (day=1, start=3, end=4)。
-    /// 首位 = 星期 (1-7, 禁 0); 后 4 位 = 起止节各 2 位补零; 非数字/长度不足 → nil。
-    static func parseClassTime(_ v: String) -> (Int, Int, Int)? {
-        let chars = Array(v)
-        if chars.count != 3 && chars.count != 5 { return nil }
-        if chars.contains(where: { $0 < "0" || $0 > "9" }) { return nil }
-        let day = Int(String(chars[0]))!
-        if !(1...7).contains(day) { return nil }
-        guard let start = Int(v[v.index(v.startIndex, offsetBy: 1)..<v.index(v.startIndex, offsetBy: 3)]) else { return nil }
-        let end: Int
-        if chars.count == 5 {
-            guard let e = Int(v.suffix(2)) else { return nil }
-            end = e
-        } else {
-            end = start
+    /// classTime 编码 → [(day, start, end)] 列表 (一行课可含多段)。
+    ///
+    /// 已知形态 (2026-09-11 学生采集包实锤):
+    ///   "10304"     → [(1, 3, 4)]            周一 3-4 节 (5 位 = 星期 + 一组起止)
+    ///   "301020304" → [(3, 1, 2), (3, 3, 4)] 周三 1-2 + 3-4 连堂两段
+    ///   首位 = 星期 (1-7, 禁 0); 其余每 2 位一对 = (start, end) 补零节次,
+    ///   相邻对首尾相接的连堂合并不拆 (SPA 网格以每对独立格子渲染, 保持逐对 =
+    ///   SPA 行为; weekNoteDetail "301,302,…" 与逐对节次一致)。
+    /// 非数字 / 剩余位为奇数 / 节次非法 → 空列表。
+    static func parseClassTime(_ v: String) -> [(day: Int, start: Int, end: Int)] {
+        if v.isEmpty || v.contains(where: { $0 < "0" || $0 > "9" }) { return [] }
+        guard let day = v.first?.wholeNumberValue, (1...7).contains(day) else { return [] }
+        let rest = Array(v.dropFirst())
+        if rest.isEmpty || rest.count % 2 != 0 { return [] }
+        // 每 4 位 = (start, end) 各 2 位; 剩 2 位 = 单节 (start == end)
+        var specs: [(day: Int, start: Int, end: Int)] = []
+        var i = 0
+        while i < rest.count {
+            guard let start = Int(String(rest[i..<i + 2])) else { return [] }
+            var end = start
+            if i + 4 <= rest.count {
+                guard let e = Int(String(rest[i + 2..<i + 4])) else { return [] }
+                end = e
+            }
+            if start < 1 || end < start { return [] }
+            specs.append((day, start, end))
+            i += 4
         }
-        if start < 1 || end < start { return nil }
-        return (day, start, end)
+        return specs
     }
 
     /// 周次集合 "1-4,6-19" → 周次列表。区间 "a-b" + 单周 "a" 混合; 域外/非法 token 忽略。
@@ -153,8 +171,9 @@ final class JwQzAppParser: JwParser, JwParserConfidenceReporting {
         for token in spec.components(separatedBy: ",") {
             let t = token.trimmingCharacters(in: .whitespacesAndNewlines)
             if t.isEmpty { continue }
-            if let r = t.range(of: #"^(\d+)-(\d+)$"#, options: .regularExpression) {
-                _ = r
+            if t.range(of: #"^\d+-\d+$"#, options: .regularExpression) != nil {
+                // 锚定 ^…$ 整 token 匹配 (← Android Regex("^(\d+)-(\d+)$").find):
+                // "1-2-3" 这类多段 token 整串不匹配 → 忽略, 不取前两段
                 let parts = t.components(separatedBy: "-")
                 guard let lo = Int(parts[0]), let hi = Int(parts[1]) else { continue }
                 if (1...30).contains(lo) && (lo...30).contains(hi) {

@@ -55,21 +55,29 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
               let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return result
         }
-        guard let dateList = root["dateList"] as? [[String: Any]] else { return result }
+        guard let dateList = root["dateList"] as? [Any] else { return result }
         if dateList.isEmpty { return result }
 
-        let firstDate = dateList[0]
-        guard let courseList = firstDate["selectCourseList"] as? [[String: Any]] else { return result }
+        // ← Android dateList.getJSONObject(0): 元素非对象时抛异常(不静默吞)
+        // 注: Android 的 optJSONArray 无字符串强制转换(instanceof 检查而已), 故此处 as? 即对齐
+        let firstDate = try Self.jsonObject(in: dateList, at: 0, path: "dateList")
+        guard let courseList = firstDate["selectCourseList"] as? [Any] else { return result }
 
-        for course in courseList {
-            let name = (course["courseName"] as? String ?? "").trimmingCharacters(in: .whitespaces)
-            let teacher = (course["attendClassTeacher"] as? String ?? "").trimmingCharacters(in: .whitespaces)
-            guard let timeAndPlaceList = course["timeAndPlaceList"] as? [[String: Any]] else { continue }
+        for i in 0..<courseList.count {
+            // ← Android courseList.getJSONObject(i)
+            let course = try Self.jsonObject(in: courseList, at: i, path: "selectCourseList")
+            let name = (course["courseName"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let teacher = (course["attendClassTeacher"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            // ← Android course.optJSONArray("timeAndPlaceList"): instanceof 检查, 无字符串强制转换
+            guard let timeAndPlaceList = course["timeAndPlaceList"] as? [Any] else { continue }
 
-            for tp in timeAndPlaceList {
+            for j in 0..<timeAndPlaceList.count {
+                // ← Android timeAndPlaceList.getJSONObject(j)
+                let tp = try Self.jsonObject(in: timeAndPlaceList, at: j, path: "timeAndPlaceList")
                 func optInt(_ k: String, _ d: Int) -> Int {
                     if let v = tp[k] as? Int { return v }
-                    if let v = tp[k] as? String, let i = Int(v) { return i }
+                    // ← org.json optInt: Integer.parseInt(value.toString().trim())
+                    if let v = tp[k] as? String, let i = Int(v.trimmingCharacters(in: .whitespacesAndNewlines)) { return i }
                     return d
                 }
                 let day = optInt("classDay", 1)
@@ -80,7 +88,7 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
                 let campus = tp["campusName"] as? String ?? ""
                 let building = tp["teachingBuildingName"] as? String ?? ""
                 let room = tp["classroomName"] as? String ?? ""
-                let fullRoom = (campus + building + room).trimmingCharacters(in: .whitespaces)
+                let fullRoom = (campus + building + room).trimmingCharacters(in: .whitespacesAndNewlines)
 
                 // 解析 classWeek: 字符串每位 0/1,从左到右对应第 1..N 周
                 let weekBits = Self.parseWeekBits(classWeek)
@@ -152,6 +160,15 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
         return nil
     }
 
+    /// ← org.json JSONArray.getJSONObject(index): 元素不是 JSON 对象时抛异常
+    /// (Android 侧 JSONException 直接冒泡;iOS 不得静默丢弃整个数组)
+    private static func jsonObject(in array: [Any], at index: Int, path: String) throws -> [String: Any] {
+        guard let obj = array[index] as? [String: Any] else {
+            throw JwParseError(message: "JwNewUrpParser: \(path)[\(index)] is not a JSON object")
+        }
+        return obj
+    }
+
     private static func parseWeekBits(_ s: String) -> [Int] {
         var out: [Int] = []
         for (i, c) in s.enumerated() where c == "1" {
@@ -182,9 +199,9 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
                     i = k + 1
                 case 2:
                     // 奇数开头→单周;偶数开头→双周
+                    // ← Kotlin: 循环前不给 end 赋值(2 元素段 end 保持 = start)
                     step = 2
                     var k = i + 1
-                    end = weeks[i + 1]
                     while k + 1 < weeks.count && weeks[k + 1] - weeks[k] == 2 { k += 1; end = weeks[k] }
                     let type = start % 2 != 0 ? 1 : 2
                     i = k + 1

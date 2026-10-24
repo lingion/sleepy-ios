@@ -5,25 +5,43 @@ import Foundation
 
 enum SchoolCityIndex {
     /// 解析 school_cities.json → 学校名 → 城市列表。
+    /// 与 Android 一致: 坏 JSON / 缺 "schools" 对象 / 城市值不是数组 一律抛错
+    /// (Android 对应 JSONObject(text).getJSONObject("schools") / getJSONArray(name) 的 JSONException)。
+    /// 调用方 JwImportViewModel 用 try? 兜底为 [:] — 等价 Android 侧 catch → emptyMap。
     static func parse(_ text: String) throws -> [String: [String]] {
-        guard let data = text.data(using: .utf8),
-              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let schools = root["schools"] as? [String: Any] else {
-            return [:]
+        guard let data = text.data(using: .utf8) else {
+            throw JwParseError(message: "SchoolCityIndex: text is not valid UTF-8")
+        }
+        let root = try JSONSerialization.jsonObject(with: data)
+        guard let rootObject = root as? [String: Any] else {
+            throw JwParseError(message: "SchoolCityIndex: root is not a JSON object")
+        }
+        guard let schools = rootObject["schools"] as? [String: Any] else {
+            throw JwParseError(message: "SchoolCityIndex: missing \"schools\" object")
         }
         var out: [String: [String]] = [:]
         for (name, raw) in schools {
-            if let cities = raw as? [String] {
-                out[name] = cities.filter { !$0.isBlank }
+            guard let cities = raw as? [Any] else {
+                throw JwParseError(message: "SchoolCityIndex: schools[\"\(name)\"] is not a JSON array")
             }
+            var list: [String] = []
+            for city in cities {
+                guard let value = city as? String else {
+                    throw JwParseError(message: "SchoolCityIndex: schools[\"\(name)\"] contains a non-string city")
+                }
+                if !value.isBlank {
+                    list.append(value)
+                }
+            }
+            out[name] = list
         }
         return out
     }
 
-    /// 城市名归一: 去首尾空白 + 去"市"后缀。
+    /// 城市名归一: 去首尾空白 + 去单个"市"后缀 (Android removeSuffix 只剥结尾一次, 不是全局替换)。
     static func normalizeCity(_ city: String) -> String {
-        return city.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "市", with: "", options: .backwards, range: nil)
+        let trimmed = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.hasSuffix("市") ? String(trimmed.dropLast()) : trimmed
     }
 
     /// 同城学校列表 — 按 supported 优先 + sortKeyFull 字典序。

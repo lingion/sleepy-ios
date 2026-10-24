@@ -23,7 +23,8 @@ enum WakeUpCompat {
     // 入口: JSON 课表 → JZ 兼容 JSON → JzHtml → marked table → plain CSV
     static func parse(_ source: String, markers: Set<String>, jsonHint: Bool = false) -> [JwCourse] {
         if let root = parseJson(source) {
-            if let r = parseJsonCourses(root) as? [JwCourse], !r.isEmpty { return r }
+            let r = parseJsonCourses(root)
+            if !r.isEmpty { return r }
             let jz = parseJzJson(root)
             if !jz.isEmpty { return jz }
         }
@@ -36,10 +37,11 @@ enum WakeUpCompat {
 
     /// JZHandCourseInfoItem JSON: xqj=day, djj=起始节, qmz="1-8;10-16", dsz==1→单 / dsz!=2→双 / else 每周 (WakeUp 反转语义).
     static func parseJzJson(_ root: Any) -> [JwCourse] {
-        guard let rows = root as? [[String: Any]] else { return [] }
+        // Kotlin: root as? JSONArray + optJSONObject(i) ?: continue — 混合/null 元素逐行跳过, 不丢整串
+        let rows = jsonRows(root)
         var out: [JwCourse] = []
         for row in rows {
-            let nameRaw = (row["kcmc"] as? String) ?? ""
+            let nameRaw = optString(row["kcmc"])
             let day = intField(row["xqj"]) ?? 0
             let start = intField(row["djj"]) ?? 0
             if nameRaw.trimmingCharacters(in: .whitespaces).isEmpty || day < 1 || day > 7 || start < 1 { continue }
@@ -49,20 +51,15 @@ enum WakeUpCompat {
             case 2: type = 0
             default: type = 2
             }
-            let qmz = (row["qmz"] as? String) ?? ""
-            let skdd = (row["skdd"] as? String) ?? ""
-            let jsxm = (row["jsxm"] as? String) ?? ""
-            for token in qmz.components(separatedBy: ";") {
-                let tokens = token.components(separatedBy: "；")
-                for sub in tokens {
-                    let nums = extractInts(sub)
-                    if nums.isEmpty { continue }
-                    let first = nums[0]
-                    let second = nums.count > 1 ? nums[1] : first
-                    out.append(JwCourse(name: nameRaw, room: skdd, teacher: jsxm,
-                        day: day, startNode: start, endNode: start,
-                        startWeek: first, endWeek: second, type: type))
-                }
+            // Kotlin: split(';', '；') — 一次按两个分隔符切
+            for token in optString(row["qmz"]).components(separatedBy: CharacterSet(charactersIn: ";；")) {
+                let nums = extractInts(token)
+                if nums.isEmpty { continue }
+                let first = nums[0]
+                let second = nums.count > 1 ? nums[1] : first
+                out.append(JwCourse(name: nameRaw, room: optString(row["skdd"]), teacher: optString(row["jsxm"]),
+                    day: day, startNode: start, endNode: start,
+                    startWeek: first, endWeek: second, type: type))
             }
         }
         return out
@@ -80,8 +77,10 @@ enum WakeUpCompat {
                 if (try? td.attr("style").contains("center")) ?? false { continue }
                 let day = col + 1
                 let html = (try? td.html()) ?? ""
-                for chunk in html.components(separatedBy: "<hr>") {
-                    let lines = chunk.components(separatedBy: "<br>").map { s -> String in
+                // SwiftSoup 把 <hr>/<br> 序列化为自闭合 "<hr />"/"<br />"(Jsoup 输出字面 "<hr>"/"<br>"),
+                // 字面量分隔符永远切不开 → 整格塌成一行。正则分隔才是 Android 行为的等价翻译。
+                for chunk in splitByRegex(html, #"<hr\s*/?>"#) {
+                    let lines = splitByRegex(chunk, #"<br\s*/?>"#).map { s -> String in
                         let d = (try? SwiftSoup.parse(s)) ?? Document("")
                         return (try? d.text())?.trimmingCharacters(in: .whitespaces) ?? s
                     }.filter { !$0.isEmpty }
@@ -116,23 +115,23 @@ enum WakeUpCompat {
     /// 死代码: 私有未暴露给 WakeUpCompat.parse 调用, 仅在 WakeUpCompat 内部可见 — 1:1 Kotlin 复制以保
     /// 跨语言 diff 审计一致(Kotlin 侧仅一处 `private fun parseKingoInfo(root: Any)` 声明)。
     fileprivate static func parseKingoInfo(_ root: Any) -> [JwCourse] {
-        guard let rows = root as? [[String: Any]] else { return [] }
+        let rows = jsonRows(root)
         if rows.isEmpty { return [] }
         var out: [JwCourse] = []
         for (r, row) in rows.enumerated() {
             for d in 1...7 {
                 let key = "week\(d)"
-                guard let cells = row[key] as? [[String: Any]] else { continue }
-                for cell in cells {
-                    let name = (cell["kcmc"] as? String) ?? ""
-                    let jcxx = (cell["jcxx"] as? String) ?? ""
+                guard let cells = optArray(row[key]) else { continue }
+                for case let cell as [String: Any] in cells {
+                    let name = optString(cell["kcmc"])
+                    let jcxx = optString(cell["jcxx"])
                     let bounds = jcxx.components(separatedBy: "-")
                     guard let start = Int(bounds.first?.trimmingCharacters(in: .whitespaces) ?? "") else { continue }
                     if name.trimmingCharacters(in: .whitespaces).isEmpty || start < 1 { continue }
                     let end = bounds.count > 1 ? (Int(bounds[1].trimmingCharacters(in: .whitespaces)) ?? start) : start
                     out.append(JwCourse(name: name,
-                        room: (cell["skdd"] as? String) ?? "",
-                        teacher: (cell["rkjs"] as? String) ?? "",
+                        room: optString(cell["skdd"]),
+                        teacher: optString(cell["rkjs"]),
                         day: d, startNode: start, endNode: end,
                         startWeek: r, endWeek: r))
                 }
@@ -147,19 +146,23 @@ extension WakeUpCompat {
 
     static func parseChaoxing(_ source: String) -> [JwCourse] {
         guard let root = parseJson(source) as? [String: Any] else { return [] }
-        let dataNode = root["data"] as? [String: Any]
-        let rows = dataNode?["kckbData"] as? [[String: Any]] ?? (root["kckbData"] as? [[String: Any]]) ?? []
+        // Kotlin: root.optJSONObject("data")?.optJSONArray("kckbData") ?: root.optJSONArray("kckbData")
+        let rowsNode = optArray((root["data"] as? [String: Any])?["kckbData"]) ?? optArray(root["kckbData"])
+        guard let rowsNode else { return [] }
+        // Kotlin 逐行 optJSONObject(i) ?: continue
+        let rows = rowsNode.compactMap { $0 as? [String: Any] }
         if rows.isEmpty { return [] }
         var out: [JwCourse] = []
         for row in rows {
-            let name = stripMarkup((row["kcmc"] as? String) ?? "")
-            guard let day = Int((row["xq"] as? String) ?? "") else { continue }
+            let name = stripMarkup(optString(row["kcmc"]))
+            // Kotlin: row.optString("xq").toIntOrNull() — optString 把数字 3 强转 "3", 混合类型不丢行
+            guard let day = Int(optString(row["xq"])) else { continue }
             let node = intField(row["djc"]) ?? 0
             if name.isEmpty || day < 1 || day > 7 || node < 1 { continue }
-            let type = intField(row["zctype"]) ?? 0
-            let zcRaw = (row["zc"] as? String) ?? ""
-            let room = stripMarkup((row["croommc"] as? String) ?? "")
-            let teacher = stripMarkup((row["tmc"] as? String) ?? "")
+            let type = Int(optString(row["zctype"])) ?? 0
+            let zcRaw = optString(row["zc"])
+            let room = stripMarkup(optString(row["croommc"]))
+            let teacher = stripMarkup(optString(row["tmc"]))
             for token in zcRaw.components(separatedBy: ",") {
                 let nums = extractInts(token)
                 if nums.isEmpty { continue }
@@ -177,14 +180,15 @@ extension WakeUpCompat {
         guard let root = parseJson(source) as? [String: Any],
               let payload = root["result"] as? [String: Any] else { return [] }
         var names: [Int: String] = [:]
-        let lessons = payload["lessonList"] as? [[String: Any]] ?? []
-        for l in lessons {
+        // Kotlin: payload.optJSONArray("lessonList") ?: JSONArray() + 逐行 optJSONObject(i)?.let
+        for l in jsonRows(payload["lessonList"]) {
             let id = intField(l["id"]) ?? -1
-            names[id] = (l["courseName"] as? String) ?? ""
+            names[id] = optString(l["courseName"])
         }
-        guard let schedules = payload["scheduleList"] as? [[String: Any]] else { return [] }
+        // Kotlin: optJSONArray("scheduleList") ?: return emptyList() — 缺失返回空, 混合/null 元素逐行跳过
+        guard let schedulesNode = optArray(payload["scheduleList"]) else { return [] }
         var out: [JwCourse] = []
-        for row in schedules {
+        for row in schedulesNode.compactMap({ $0 as? [String: Any] }) {
             let lessonId = intField(row["lessonId"]) ?? -1
             let name = (names[lessonId] ?? "").isEmpty ? "未知" : (names[lessonId] ?? "")
             let day = intField(row["weekday"]) ?? 0
@@ -194,8 +198,8 @@ extension WakeUpCompat {
             if day < 1 || day > 7 || week < 1 || start < 1 { continue }
             let endTime = intField(row["endTime"]) ?? 0
             let count = durationToNodes(startTime, endTime)
-            let room = (row["room"] as? [String: Any])?["nameZh"] as? String ?? ""
-            let teacher = (row["personName"] as? String) ?? ""
+            let room = optString((row["room"] as? [String: Any])?["nameZh"])
+            let teacher = optString(row["personName"])
             out.append(JwCourse(name: name, room: room, teacher: teacher,
                 day: day, startNode: start, endNode: start + count - 1,
                 startWeek: week, endWeek: week))
@@ -205,25 +209,28 @@ extension WakeUpCompat {
 
     static func parseSouthSoft(_ source: String) -> [JwCourse] {
         guard let parsed = parseJson(source) else { return [] }
+        // Kotlin: root is JSONArray -> root; root is JSONObject ->
+        //   root.optJSONArray("value") ?: root.optJSONArray("data") ?: return emptyList()
         let rows: [[String: Any]]
-        if let arr = parsed as? [[String: Any]] {
-            rows = arr
-        } else if let obj = parsed as? [String: Any],
-                  let v = obj["value"] as? [[String: Any]] ?? obj["data"] as? [[String: Any]] {
-            rows = v
+        if optArray(parsed) != nil {
+            rows = jsonRows(parsed)
+        } else if let obj = parsed as? [String: Any] {
+            // 注意: Kotlin 中 value/data 均缺失(或非数组)→ 直接 emptyList; 存在但全是坏元素 → 空行集
+            guard let node = optArray(obj["value"]) ?? optArray(obj["data"]) else { return [] }
+            rows = node.compactMap { $0 as? [String: Any] }
         } else {
             return []
         }
         var out: [JwCourse] = []
         let keyRe = try! NSRegularExpression(pattern: "xq(\\d+)_jc\\d+", options: [])
         for row in rows {
-            let keyRaw = (row["KEY"] as? String) ?? ""
+            let keyRaw = optString(row["KEY"])
             if keyRaw == "bz" { continue }
             let nsKey = keyRaw as NSString
             let keyRange = NSRange(keyRaw.startIndex..., in: keyRaw)
             guard let m = keyRe.firstMatch(in: keyRaw, options: [], range: keyRange),
                   let day = Int(nsKey.substring(with: m.range(at: 1))) else { continue }
-            let sksj = (row["SKSJ"] as? String) ?? ""
+            let sksj = optString(row["SKSJ"])
             let bracketRe = try! NSRegularExpression(pattern: "\\[(.*?)\\]", options: [])
             let sksjNs = sksj as NSString
             let sksjRange = NSRange(sksj.startIndex..., in: sksj)
@@ -241,8 +248,9 @@ extension WakeUpCompat {
                 if token.contains("单") { type = 1 }
                 else if token.contains("双") { type = 2 }
                 else { type = 0 }
+                let kcwzsm = optString(row["KCWZSM"])
                 out.append(JwCourse(
-                    name: ((row["KCWZSM"] as? String) ?? "").isEmpty ? fields[0] : ((row["KCWZSM"] as? String) ?? ""),
+                    name: kcwzsm.isEmpty ? fields[0] : kcwzsm,
                     room: fields[4], teacher: fields[2],
                     day: day, startNode: start, endNode: end,
                     startWeek: first, endWeek: second, type: type))
@@ -267,7 +275,9 @@ extension WakeUpCompat {
         let block = String(source[blockRange])
         var pending: [(name: String, room: String, teacher: String, weeks: [Int])] = []
         let stmtRe = try! NSRegularExpression(pattern: #"courseName[\s]*\+?=[\s]*[\"']([^\"']*)[\"']"#, options: [])
-        let nameInLineRe = try! NSRegularExpression(pattern: #"['\"]([^'\"]*)['\"]\s*:\s*['\"]([^'\"]*)['\"]"#, options: [])
+        // Kotlin line 169: Regex("[\"']name[\"']\\s*:\\s*[\"']([^\"']*)[\"']") — 键必须锚定为引号包裹的 name,
+        // 不锚定会误吞 {'teacher':'张三','course':'高数'} 等任意键值对
+        let nameInLineRe = try! NSRegularExpression(pattern: #"["']name["']\s*:\s*["']([^"']*)["']"#, options: [])
         let taskActRe = try! NSRegularExpression(pattern: #"new[\s]*TaskActivity[\s]*\("#, options: [])
         let strArgRe = try! NSRegularExpression(pattern: #"['\"]([^'\"]*)['\"]"#, options: [])
         let indexRe = try! NSRegularExpression(pattern: #"index[\s]*=[\s]*(\d+)[\s]*\*[\s]*unitCount[\s]*\+[\s]*(\d+)"#, options: [])
@@ -283,7 +293,7 @@ extension WakeUpCompat {
             }
             let matches = nameInLineRe.matches(in: stmt, options: [], range: r)
             if !matches.isEmpty {
-                teacher = matches.map { ns.substring(with: $0.range(at: 2)) }.joined(separator: ",")
+                teacher = matches.map { ns.substring(with: $0.range(at: 1)) }.joined(separator: ",")
             }
             if taskActRe.firstMatch(in: stmt, options: [], range: r) != nil {
                 let args = strArgRe.matches(in: stmt, options: [], range: r)
@@ -358,7 +368,10 @@ extension WakeUpCompat {
     ///  通用通路: 还原 (col, row) 网格, rowspan 残留补齐, 映射 (day, node).
     static func parseXju(_ source: String) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
-        guard let els1 = try? doc.select("#ctl00_contentParent_dgData"), let table = els1.first() else { return [] }
+        // Kotlin: selectFirst("#ctl00_contentParent_dgData") ?: selectFirst("#contentParent_dgData")
+        // — 真实 Gwork 形态 B 页面表 id 无 ctl00_ 前缀(2026-09-17 报修案例), 缺回退 = 0 课
+        guard let table = (try? doc.select("#ctl00_contentParent_dgData"))?.first()
+                ?? (try? doc.select("#contentParent_dgData"))?.first() else { return [] }
         let rows = (try? table.select("tr")) ?? Elements()
         if rows.isEmpty() { return [] }
         guard let firstRow = rows.first(),
@@ -507,7 +520,7 @@ extension WakeUpCompat {
                         let bracket = innerBracket(firstInner) ?? ""
                         let teacher = bracketTeacher(bracket)
                         let room = bracketRoom(bracket)
-                        for entry in weeksSection.components(separatedBy: CharacterSet(charactersIn: "、,,")) {
+                        for entry in weeksSection.components(separatedBy: CharacterSet(charactersIn: "、，,")) {
                             for (from, to, type) in parseWeekTokens(entry) {
                                 out.append(JwCourse(name: name, room: room, teacher: teacher,
                                     day: day, startNode: startNode, endNode: endNode,
@@ -535,7 +548,7 @@ extension WakeUpCompat {
                 let bracket = innerBracket(inner) ?? ""
                 let teacher = bracketTeacher(bracket)
                 let room = bracketRoom(bracket)
-                for entry in weeksSection.components(separatedBy: CharacterSet(charactersIn: "、,,")) {
+                for entry in weeksSection.components(separatedBy: CharacterSet(charactersIn: "、，,")) {
                     for (from, to, type) in parseWeekTokens(entry) {
                         out.append(JwCourse(name: name, room: room, teacher: teacher,
                             day: day, startNode: startNode, endNode: endNode,
@@ -591,7 +604,7 @@ extension WakeUpCompat {
             beforeBracket = String(inner[..<r.lowerBound])
         } else { beforeBracket = inner }
         var out: [(Int, Int, String, String)] = []
-        for token in beforeBracket.components(separatedBy: CharacterSet(charactersIn: "、,,")) {
+        for token in beforeBracket.components(separatedBy: CharacterSet(charactersIn: "、，,")) {
             for (from, to, _) in parseWeekTokens(token) {
                 out.append((from, to, teacher, room))
             }
@@ -608,7 +621,10 @@ extension WakeUpCompat {
     /// 单元格 "课程:"-名, "(x)"-教师(非辅讲), "主讲教师:"-教师, "第a-b周[单/双]"(以;/,分).
     static func parseSuda(_ source: String) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
-        guard let els2 = try? doc.select("#DataGrid1"), let table = els2.first() else { return [] }
+        // Kotlin: selectFirst("#DataGrid1") ?: selectFirst("#MainWork_DataGrid1")
+        // — Android 单测(171/195)喂 <table id="MainWork_DataGrid1">, 缺回退这些页面 iOS 返回 []
+        guard let table = (try? doc.select("#DataGrid1"))?.first()
+                ?? (try? doc.select("#MainWork_DataGrid1"))?.first() else { return [] }
         var out: [JwCourse] = []
         for row in (try? table.select("tr")) ?? Elements() {
             let tds = (try? row.select("td")) ?? Elements()
@@ -630,7 +646,8 @@ extension WakeUpCompat {
                 let text = (try? td.text()) ?? ""
                 if text.trimmingCharacters(in: .whitespaces).isEmpty { continue }
                 let html = (try? td.html()) ?? ""
-                let lines = html.components(separatedBy: "<br>").map { s -> String in
+                // SwiftSoup 输出 "<br />"(Jsoup 输出 "<br>"), 字面量分隔切不开 → 整格塌成一行
+                let lines = splitByRegex(html, #"<br\s*/?>"#).map { s -> String in
                     let d = (try? SwiftSoup.parse(s)) ?? Document("")
                     return (try? d.text())?.trimmingCharacters(in: .whitespaces) ?? s
                 }.filter { !$0.isEmpty }
@@ -649,12 +666,16 @@ extension WakeUpCompat {
                     } else if line.range(of: "第\\s*\\d+.*周", options: .regularExpression) != nil {
                         let r = NSRange(line.startIndex..., in: line)
                         let ms = weekRe.matches(in: line, options: [], range: r)
+                        let ns = line as NSString
                         for m in ms {
-                            let ns = line as NSString
-                            let from = Int(ns.substring(with: m.range(at: 1))) ?? 1
-                            let to = Int(ns.substring(with: m.range(at: 3))) ?? from
+                            // 可选组(第X周无尾数/无单双时)range = {NSNotFound, 0}, substring 直接抛 NSRangeException。
+                            // Kotlin groupValues[n] 非参与组返回 "" → 用 optGroup 等价。
+                            let toStr = optGroup(ns, m, 3)
+                            let typeStr = optGroup(ns, m, 4)
+                            let from = Int(optGroup(ns, m, 1)) ?? 1
+                            let to = Int(toStr) ?? from
                             let type: Int
-                            switch ns.substring(with: m.range(at: 4)) {
+                            switch typeStr {
                             case "单": type = 1
                             case "双": type = 2
                             default: type = 0
@@ -688,6 +709,31 @@ extension WakeUpCompat {
         return s
     }
 
+    /// Kotlin `MatchResult.groupValues[n]` 等价: 非参与捕获组(.location == NSNotFound)返回 "",
+    /// 绝不对 {NSNotFound, 0} 调 NSString.substring(with:) 抛 NSRangeException。
+    fileprivate static func optGroup(_ ns: NSString, _ m: NSTextCheckingResult, _ g: Int) -> String {
+        let r = m.range(at: g)
+        guard r.location != NSNotFound else { return "" }
+        return ns.substring(with: r)
+    }
+
+    /// SwiftSoup 的 html() 把 <br>/<hr> 序列化为自闭合 "<br />"/"<hr />"(Jsoup 输出字面 "<br>"),
+    /// 字面量 components 分隔永远切不开 → 整格塌成一行。按正则切片分隔才是 Jsoup 行为的等价翻译。
+    /// NSRange 为 UTF-16 单位, 经 Range(of:) 换回 String.Index 再切片 — 禁 String.Index 偏移直接进 NSRange。
+    fileprivate static func splitByRegex(_ s: String, _ pattern: String) -> [String] {
+        let re = try! NSRegularExpression(pattern: pattern, options: [])
+        let full = NSRange(s.startIndex..., in: s)
+        var parts: [String] = []
+        var cursor = s.startIndex
+        for m in re.matches(in: s, options: [], range: full) {
+            guard let r = Range(m.range, in: s) else { continue }
+            parts.append(String(s[cursor..<r.lowerBound]))
+            cursor = r.upperBound
+        }
+        parts.append(String(s[cursor...]))
+        return parts
+    }
+
     static func confidence(_ source: String, markers: Set<String>) -> Int {
         if markers.contains(where: { source.range(of: $0, options: .caseInsensitive) != nil }) { return 90 }
         let trimmed = source.trimmingCharacters(in: .whitespaces)
@@ -704,19 +750,22 @@ extension WakeUpCompat {
     static func parseShuwei(_ source: String) -> [JwCourse] {
         guard let root = parseJson(source) else { return [] }
         var result: [JwCourse] = []
-        func visit(_ value: Any) {
-            if let arr = value as? [[String: Any]] {
+        func visit(_ value: Any?) {
+            // Kotlin: is JSONArray -> for (i in 0 until value.length()) value.opt(i)?.let(::visit)
+            // — 逐元素递归, 单个非对象元素不中断整串遍历
+            if let arr = value as? [Any] {
                 for item in arr { visit(item) }
             } else if let obj = value as? [String: Any] {
                 for key in ["activities", "courseUnits", "unitList"] {
-                    if let arr = obj[key] as? [[String: Any]] {
-                        for row in arr {
+                    if let arr = optArray(obj[key]) {
+                        // Kotlin: array.optJSONObject(i) ?: continue
+                        for case let row as [String: Any] in arr {
                             if let r = parseActivity(row) { result.append(contentsOf: r) }
                         }
                     }
                 }
                 for key in obj.keys {
-                    if let v = obj[key] { visit(v) }
+                    visit(obj[key])
                 }
             }
         }
@@ -765,39 +814,41 @@ extension WakeUpCompat {
         return out
     }
 
+    /// 顶层 JSON 宽松解析 — 对齐 Kotlin `JSONArray(text)` / `JSONObject(text)`:
+    /// 混合/null 元素数组照常返回 [Any](严格 `as? [[String: Any]]` 会整串变 nil 杀掉 JSON 通路)。
     fileprivate static func parseJson(_ source: String) -> Any? {
         let trimmed = source.trimmingCharacters(in: .whitespaces)
-        guard let data = trimmed.data(using: .utf8) else { return nil }
-        if trimmed.hasPrefix("{") {
-            return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        }
-        if trimmed.hasPrefix("[") {
-            return try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
-        }
-        return nil
+        guard trimmed.hasPrefix("{") || trimmed.hasPrefix("["),
+              let data = trimmed.data(using: .utf8) else { return nil }
+        let opts: JSONSerialization.ReadingOptions = [.fragmentsAllowed]
+        return try? JSONSerialization.jsonObject(with: data, options: opts)
     }
 
-    fileprivate static func parseJsonCourses(_ root: Any) -> Any {
+    fileprivate static func parseJsonCourses(_ root: Any) -> [JwCourse] {
         var result: [JwCourse] = []
-        func walk(_ value: Any, _ depth: Int) {
+        func walk(_ value: Any?, _ depth: Int) {
             guard depth <= 5 else { return }
-            if let arr = value as? [[String: Any]] {
+            if let arr = value as? [Any] {
+                // Kotlin: for (i in 0 until value.length()) value.opt(i)?.let { item -> if (item is JSONObject) {...}; walk(item, ...) }
+                // — 逐元素访问, null/原始值元素只是跳过该条, 不中断整个数组。
                 for item in arr {
-                    let name = first(item, "courseName", "kcmc", "KCM", "name", "course")
-                    if !name.isEmpty,
-                       let day = firstInt(item, "weekday", "dayOfWeek", "xqj", "day", "classDay", "xq"),
-                       let node = firstInt(item, "beginNumber", "beginSection", "startNode", "ksjc", "start") {
-                        let endNode = firstInt(item, "endNumber", "endSection", "endNode", "jsjc", "end") ?? node
-                        let room = first(item, "location", "room", "classroomName", "JASMC", "cdmc")
-                        let teacher = first(item, "teacherName", "teacher", "teachers", "SKJS", "xm")
-                        result.append(JwCourse(name: name, room: room, teacher: teacher,
-                            day: max(1, min(day, 7)), startNode: node, endNode: endNode,
-                            startWeek: 1, endWeek: 16))
+                    if let obj = item as? [String: Any] {
+                        let name = first(obj, "courseName", "kcmc", "KCM", "name", "course")
+                        if !name.isEmpty,
+                           let day = firstInt(obj, "weekday", "dayOfWeek", "xqj", "day", "classDay", "xq"),
+                           let node = firstInt(obj, "beginNumber", "beginSection", "startNode", "ksjc", "start") {
+                            let endNode = firstInt(obj, "endNumber", "endSection", "endNode", "jsjc", "end") ?? node
+                            let room = first(obj, "location", "room", "classroomName", "JASMC", "cdmc")
+                            let teacher = first(obj, "teacherName", "teacher", "teachers", "SKJS", "xm")
+                            result.append(JwCourse(name: name, room: room, teacher: teacher,
+                                day: max(1, min(day, 7)), startNode: node, endNode: endNode,
+                                startWeek: 1, endWeek: 16))
+                        }
                     }
                     walk(item, depth + 1)
                 }
             } else if let obj = value as? [String: Any] {
-                for key in obj.keys { if let v = obj[key] { walk(v, depth + 1) } }
+                for key in obj.keys { walk(obj[key], depth + 1) }
             }
         }
         walk(root, 0)
@@ -813,16 +864,20 @@ extension WakeUpCompat {
             let texts = cells.array().map { (try? $0.text())?.trimmingCharacters(in: .whitespaces) ?? "" }
             let text = texts.joined(separator: " | ")
             if !markers.isEmpty && !markers.contains(where: { source.range(of: $0, options: .caseInsensitive) != nil })
-                && ((try? row.attr("data-day")) ?? "").isEmpty { continue }
+                && isBlank((try? row.attr("data-day")) ?? "") { continue }
             let nameAttr = (try? row.attr("data-course")) ?? ""
-            let name = nameAttr.isEmpty ? (texts.first ?? "") : nameAttr
-            let dayAttr = Int((try? row.attr("data-day")) ?? "") ?? extractDay(text) ?? 0
-            guard dayAttr > 0 else { continue }
-            let nodeAttr = Int((try? row.attr("data-node")) ?? "") ?? extractNode(text) ?? 0
-            guard nodeAttr > 0 else { continue }
-            let roomAttr = (try? row.attr("data-room")) ?? (cells.size() > 3 ? texts[3] : "")
-            let teacherAttr = (try? row.attr("data-teacher")) ?? (cells.size() > 2 ? texts[2] : "")
-            if !name.isEmpty {
+            // Kotlin: attr(...).ifBlank { ... } — SwiftSoup attr 缺失时返回 ""(永不 nil), `??` 回退永不触发,
+            // 必须按 blank 判断回退单元格文本
+            let name = isBlank(nameAttr) ? (texts.first ?? "") : nameAttr
+            // Kotlin: row.attr("data-day").toIntOrNull() ?: extractDay(text) ?: continue —
+            // 无 >0 范围校验, data-day=0/-1 照常出行(异形标记表与 Android 行集一致)
+            guard let dayAttr = Int((try? row.attr("data-day")) ?? "") ?? extractDay(text) else { continue }
+            guard let nodeAttr = Int((try? row.attr("data-node")) ?? "") ?? extractNode(text) else { continue }
+            let rawRoomAttr = (try? row.attr("data-room")) ?? ""
+            let roomAttr = isBlank(rawRoomAttr) ? (cells.size() > 3 ? texts[3] : "") : rawRoomAttr
+            let rawTeacherAttr = (try? row.attr("data-teacher")) ?? ""
+            let teacherAttr = isBlank(rawTeacherAttr) ? (cells.size() > 2 ? texts[2] : "") : rawTeacherAttr
+            if !isBlank(name) {
                 out.append(JwCourse(name: name, room: roomAttr, teacher: teacherAttr,
                     day: dayAttr, startNode: nodeAttr, endNode: nodeAttr,
                     startWeek: 1, endWeek: 16))
@@ -844,8 +899,11 @@ extension WakeUpCompat {
     }
 
     fileprivate static func first(_ o: [String: Any], _ keys: String...) -> String {
+        // Kotlin: keys.firstNotNullOfOrNull { o.optString(it).takeIf(String::isNotBlank) }
+        // — optString 对数字/布尔自动转字符串, 严格 `as? String` 会漏掉数字型课名/教师
         for k in keys {
-            if let v = o[k] as? String, !v.isEmpty { return v }
+            let s = optString(o[k])
+            if !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return s }
         }
         return ""
     }
@@ -908,7 +966,34 @@ extension WakeUpCompat {
     fileprivate static func intField(_ v: Any?) -> Int? {
         if let n = v as? Int { return n }
         if let s = v as? String { return Int(s.trimmingCharacters(in: .whitespaces)) }
+        if let n = v as? Double { return Int(n) }
+        if let b = v as? Bool { return b ? 1 : 0 }
         return nil
+    }
+    /// Kotlin `isBlank()` 等价: 全空白(含换行)视为空。
+    fileprivate static func isBlank(_ s: String) -> Bool {
+        s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    /// org.json `optString` 语义: 数字/布尔自动转字符串, null/缺失 → ""。
+    fileprivate static func optString(_ v: Any?) -> String {
+        if let s = v as? String { return s }
+        if v == nil || v is NSNull { return "" }
+        if let n = v as? NSNumber {
+            // JSON true/false 是 NSNumber 子类(CFBoolean) — Kotlin optString 给 "true"/"false"
+            if CFGetTypeID(n) == CFBooleanGetTypeID() { return n.boolValue ? "true" : "false" }
+            let d = n.doubleValue
+            return d == d.rounded() && !d.isInfinite ? String(n.int64Value) : n.stringValue
+        }
+        return String(describing: v)
+    }
+    /// org.json `optJSONArray` 语义: 非数组返回 nil(便于 `?? ` 链回退)。
+    fileprivate static func optArray(_ v: Any?) -> [Any]? {
+        v as? [Any]
+    }
+    /// org.json `optJSONObject(i) ?: continue` 语义: 逐元素取字典, 混合/null 元素只跳过该条,
+    /// 不像严格 `as? [[String: Any]]` 那样因一个坏元素丢掉整个数组。
+    fileprivate static func jsonRows(_ v: Any?) -> [[String: Any]] {
+        optArray(v)?.compactMap { $0 as? [String: Any] } ?? []
     }
 }
 

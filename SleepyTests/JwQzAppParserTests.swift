@@ -21,9 +21,8 @@ final class JwQzAppParserTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    private func ct(_ v: String) -> String {
-        guard let t = JwQzAppParser.parseClassTime(v) else { return "nil" }
-        return "\(t.0)-\(t.1)-\(t.2)"
+    private func ct(_ v: String) -> [String] {
+        JwQzAppParser.parseClassTime(v).map { "\($0.day)-\($0.start)-\($0.end)" }
     }
 
     private func runs(_ weeks: [Int]) -> [String] {
@@ -87,17 +86,19 @@ final class JwQzAppParserTests: XCTestCase {
 
     func testClassTimeDecode() {
         // "10304" → 周一 3-4 节
-        XCTAssertEqual(ct("10304"), "1-3-4")
-        XCTAssertEqual(ct("701"), "7-1-1", "单节 (长度 3)")
-        XCTAssertEqual(ct("21112"), "2-11-12")
+        XCTAssertEqual(ct("10304"), ["1-3-4"])
+        XCTAssertEqual(ct("701"), ["7-1-1"], "单节 (长度 3)")
+        XCTAssertEqual(ct("21112"), ["2-11-12"])
+        // 9 位连堂两段 (2026-09-11 学生采集包: ITMC 周三 1-2 + 3-4)
+        XCTAssertEqual(ct("301020304"), ["3-1-2", "3-3-4"], "连堂多段展开")
         // 非法形态: 长度 4 半对 / 非数字 / day 越界 / end<start / 空串
-        XCTAssertEqual(ct("1034"), "nil", "长度 4 拒 (01+34 半对)")
-        XCTAssertEqual(ct("1030a"), "nil", "非数字拒")
-        XCTAssertEqual(ct("0304"), "nil", "day=0 拒")
-        XCTAssertEqual(ct("8304"), "nil", "day=8 拒")
-        XCTAssertEqual(ct("14213"), "nil", "end<start 拒")
-        XCTAssertEqual(ct(""), "nil", "空串拒")
-        XCTAssertEqual(ct("-10304"), "nil", "负号拒")
+        XCTAssertEqual(ct("1034"), [], "长度 4 拒 (01+34 半对)")
+        XCTAssertEqual(ct("1030a"), [], "非数字拒")
+        XCTAssertEqual(ct("0304"), [], "day=0 拒")
+        XCTAssertEqual(ct("8304"), [], "day=8 拒")
+        XCTAssertEqual(ct("14213"), [], "end<start 拒")
+        XCTAssertEqual(ct(""), [], "空串拒")
+        XCTAssertEqual(ct("-10304"), [], "负号拒")
     }
 
     // MARK: - 空 / 对抗输入
@@ -201,6 +202,84 @@ final class JwQzAppParserTests: XCTestCase {
                        .generateCourseList().count, 0)
     }
 
+    /// courses 数组混入 null/字符串坏行 → 只跳过坏行 (← Android `if (el !is JsonObject) continue`),
+    /// 不得像整体 `as? [[String: Any]]` 强转那样丢掉整个 grid。
+    func testCoursesArrayWithJunkElementsKeepsGoodRows() throws {
+        let src = #"{"code":"1","data":[{"courses":[null,"x",42,{"classTime":"10304","classWeek":"1-4","courseName":"好课"}]}]}"#
+        let courses = try JwQzAppParser(src).generateCourseList()
+        XCTAssertEqual(courses.count, 1, "坏元素只跳过自身, 好课保留")
+        XCTAssertEqual(courses.first?.name, "好课")
+    }
+
+    // MARK: - confidence / matchedFeatures (← Android JwQzAppParserTest 锚点案)
+
+    func testConfidenceAnchors() {
+        let strong = """
+        {"code":"1","data":[{"courses":[\
+        {"classWeekDetails":",1,2,3,4,","classTime":"10304","courseName":"x"}]}]}
+        """
+        XCTAssertEqual(JwQzAppParser(strong).confidenceValue, 90, "classWeekDetails+classTime → 90")
+        let ok = """
+        {"code":"1","data":[{"courses":[\
+        {"classWeek":"1-4,6-19","classTime":"10304","courseName":"x"}]}]}
+        """
+        XCTAssertEqual(JwQzAppParser(ok).confidenceValue, 85, "classWeek+classTime → 85")
+        XCTAssertEqual(JwQzAppParser(#"{"code":"1"}"#).confidenceValue, 0)
+        XCTAssertEqual(JwQzAppParser(#"{"classTime":"10304"}"#).confidenceValue, 0, "缺 classWeek 系")
+        XCTAssertEqual(JwQzAppParser(#"{"classWeek":"1-4"}"#).confidenceValue, 0, "缺 classTime")
+    }
+
+    func testMatchedFeaturesListReturnsOnlyPresentMarkers() {
+        let full = #"{"classWeekDetails":",1,","classTime":"10304","courses":[],"code":"1","Msg":"x"}"#
+        let feats = JwQzAppParser(full).matchedFeatureList
+        XCTAssertTrue(feats.contains("classWeekDetails"))
+        XCTAssertTrue(feats.contains("classTime"))
+        XCTAssertTrue(feats.contains("courses[]"))
+        XCTAssertTrue(feats.contains("code/Msg envelope"))
+    }
+
+    // MARK: - 多周合并 + 连堂多段 classTime (2026-09-11 学生三周采集包实锤)
+
+    /// 9 门课 29 行零丢失 —— ITMC 曾因 9 位 classTime 被整行丢弃 (旧 parseClassTime 只认 3/5 位)。
+    func testMultiweekRealCapturesNoLoss() throws {
+        let courses = try JwQzAppParser(try fixture("curriculum.multiweek.sample")).generateCourseList()
+        XCTAssertEqual(courses.count, 29)
+        XCTAssertEqual(
+            Set(courses.map(\.name)),
+            [
+                "ITMC市场营销沙盘模拟（二）",
+                "商务数据分析",
+                "客户关系管理",
+                "广告策划与创意",
+                "数字营销",
+                "消费行为分析",
+                "短视频策划与制作",
+                "管理学",
+                "财务管理（市场营销专业）",
+            ],
+            "9 门课全保留 (ITMC 曾因 9 位 classTime 被丢)")
+    }
+
+    func testMultiweekITMCTwoBackToBackSegments() throws {
+        let courses = try JwQzAppParser(try fixture("curriculum.multiweek.sample")).generateCourseList()
+        let itmc = courses.filter { $0.name == "ITMC市场营销沙盘模拟（二）" }
+        // classTime "301020304" = 周三 1-2 + 3-4 两段; classWeek 11-19 → 1 段周次 × 2 时段 = 2 JwCourse
+        XCTAssertEqual(Set(itmc.map { "\($0.day)-\($0.startNode)-\($0.endNode)" }),
+                       ["3-1-2", "3-3-4"], "周三 1-2 与 3-4 两段都在")
+        XCTAssertTrue(itmc.allSatisfy { $0.startWeek == 11 && $0.endWeek == 19 }, "周次 11-19")
+    }
+
+    func testMultiweekCrossWeekDuplicateRowsCollapsedDistinctRoomsKept() throws {
+        let courses = try JwQzAppParser(try fixture("curriculum.multiweek.sample")).generateCourseList()
+        // 广告策划与创意: 周一3-4 (Z5-117) + 周二5-6 (Z5-103, 7-15) — 两行不同教室都保留
+        let ad117 = courses.filter { $0.name == "广告策划与创意" && $0.room == "Z5-117" }
+        let ad103 = courses.filter { $0.name == "广告策划与创意" && $0.room == "Z5-103" }
+        XCTAssertFalse(ad117.isEmpty, "Z5-117 行保留")
+        XCTAssertFalse(ad103.isEmpty, "Z5-103 行保留 (只在 7-15 周响应出现)")
+        XCTAssertEqual(ad103.first?.startWeek, 7)
+        XCTAssertEqual(ad103.first?.endWeek, 15)
+    }
+
     // MARK: - 辅助函数
 
     func testParseWeekSpecHandlesRangeSingleAndMixedTokens() {
@@ -211,6 +290,11 @@ final class JwQzAppParserTests: XCTestCase {
         XCTAssertEqual(JwQzAppParser.parseWeekSpec("abc"), [])
         XCTAssertEqual(JwQzAppParser.parseWeekSpec("9-3"), [], "end<start 拒")
         XCTAssertEqual(JwQzAppParser.parseWeekSpec("0,31"), [], "域外拒")
+        // ← Android `parseWeekSpec handles range single and mixed tokens` 域外/倒序案
+        XCTAssertEqual(JwQzAppParser.parseWeekSpec("1,30,31,0,-1,abc,1-"), [1, 30], "域外/非法 token 忽略")
+        XCTAssertEqual(JwQzAppParser.parseWeekSpec("1-3,5-2"), [1, 2, 3], "倒序区间忽略, 合法段保留")
+        // ← Android 锚定正则: 多段 token "1-2-3" 整串不匹配 ^(\d+)-(\d+)$ → 忽略
+        XCTAssertEqual(JwQzAppParser.parseWeekSpec("1-2-3"), [], "三段 token 整串拒")
     }
 
     func testWeekRunsContiguousStep2AndMultiSplit() {
