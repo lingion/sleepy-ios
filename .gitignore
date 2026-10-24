@@ -25,3 +25,6 @@ SPEC.md
 BRANCHING.md
 docs/sop/commit-sop.md
 docs/sop/release-sop.md
+
+# IDE user state (XcodeGen 再生成时随机漂移, 不入库)
+xcuserdata/
