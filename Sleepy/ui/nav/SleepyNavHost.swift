@@ -25,20 +25,20 @@
 //   Main                    — (根 tab 栏: currentTab)
 //   AddCourse               .addCourse
 //   AllTables               .allTables
-//   CourseList              (未落地)
+//   CourseList              .courseList
 //   EditTable               .editTable (editTableId/pendingNew/prevDefault 参数在 VM)
 //   Appearance              .theme
-//   PeriodHeaderSettings    (未落地)
+//   PeriodHeaderSettings    .periodHeaderSettings
 //   General                 .general
-//   Holiday                 内嵌 GeneralSettings 内部 sheet (不出现在根 enum)
+//   Holiday                 内嵌 GeneralSettingsScreen sheet (by design, 不出现在根 enum)
 //   Export                  .export
 //   Reminder                .reminder
 //   About                   .about
 //   License                 .license
-//   WidgetManagement        (未落地)
-//   WidgetEdit              (未落地)
-//   PeriodTables            (未落地)
-//   PeriodEdit              (未落地; 期编辑走 VM.createNewTableThenEdit 通道)
+//   WidgetManagement        内嵌 GeneralSettingsScreen sheet (by design)
+//   WidgetEdit              内嵌 WidgetManagementScreen→GeneralSettings 链 (by design)
+//   PeriodTables            .periodTables
+//   PeriodEdit              .periodEdit (periodEditId/pendingNewPeriodTableId 参数在 VM)
 //
 // 每路由返回不变量 (与 Android BackHandler 契约一致):
 //   • EditTable + pendingNew: 返回/侧滑 → 丢弃新表, 回退到 previousDefault (handleBack 已实现)
@@ -77,6 +77,18 @@ extension AppRootViewModel {
             overlayScreen = .about
         case .license:
             overlayScreen = .license
+        case .courseList:
+            overlayScreen = .courseList
+        case .periodTables:
+            overlayScreen = .periodTables
+        case .periodEdit(let periodId, let isNew):
+            // 绑定 = 生产 onOpenPeriodEdit 同式 (SleepyApp PresentOverlay 接线) —
+            // facade 桥接收编于此, 单一真源恢复。
+            periodEditId = periodId
+            pendingNewPeriodTableId = isNew ? periodId : nil
+            overlayScreen = .periodEdit
+        case .periodHeaderSettings:
+            overlayScreen = .periodHeaderSettings
         default:
             return false
         }

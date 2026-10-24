@@ -34,7 +34,8 @@ extension SleepyRoute {
     static let NO_ID: Int64 = -1
 
     /// 路由 → iOS 导航态映射 (AppRootViewModel: Tab + OverlayScreen).
-    /// unported 路由尚无 iOS 页面 → 映射为文档, 待对应切片落地.
+    /// nil 有两种语义: .main = 根 tab 栏无 overlay; holiday/widget* = 内嵌 sheet 链
+    /// 无根 overlay 承载 (平台忠实映射, by design). 各自注释留痕, 🚫silent skip.
     var iosNavigation: AppRootViewModel.OverlayScreen? {
         switch self {
         case .main:
@@ -57,22 +58,33 @@ extension SleepyRoute {
             return .about
         case .license:
             return .license
-        // 以下 iOS 尚无对应页面 (holiday 内嵌在 GeneralSettings sheet):
-        case .courseList: return nil
-        case .periodHeaderSettings: return nil
+        // 1.0.61 屏已落地 (OverlayScreen 已有对应 case, 见 SleepyApp.swift):
+        case .courseList:
+            return .courseList
+        case .periodTables:
+            return .periodTables
+        case .periodEdit:
+            return .periodEdit
+        case .periodHeaderSettings:
+            return .periodHeaderSettings
+        // 以下无根 overlay 承载 = 平台忠实映射, by design (非缺口):
+        //   holiday 内嵌 GeneralSettings 内部 sheet;
+        //   widgetManagement/widgetEdit 内嵌 GeneralSettings→WidgetManagement 链。
         case .holiday: return nil
         case .widgetManagement: return nil
         case .widgetEdit: return nil
-        case .periodTables: return nil
-        case .periodEdit: return nil
         }
     }
 
     /// 是否已有 iOS 页面承接 (SleepyNavigator facade 放行条件).
+    /// 1.0.61 新放行: .courseList / .periodTables / .periodEdit / .periodHeaderSettings
+    /// (屏均已落地, OverlayScreen 有对应 case); holiday / widgetManagement / widgetEdit
+    /// 保持未放行 = 内嵌 sheet 链, 无根 overlay 路由 (by design, 非缺口).
     var isIOSPorted: Bool {
         switch self {
         case .addCourse, .allTables, .editTable, .appearance,
-             .general, .export, .reminder, .about, .license:
+             .general, .export, .reminder, .about, .license,
+             .courseList, .periodTables, .periodEdit, .periodHeaderSettings:
             return true
         default:
             return false
