@@ -1,12 +1,21 @@
 // MigrationDatabaseCodec.swift — ← data/migration/MigrationDatabaseCodec.kt
 // database 模块 codec — GRDB 四表结构化快照。
-// DTO 与实体字段一一对应(列名稳定, Codable 缺省字段向前兼容);
+// DTO 与实体字段一一对应(列名稳定, 缺省字段向前兼容见下方 init(from:) 手写解码);
 // 导出冻结一次快照, 导入先完整解码再写库。
+//
+// 向前兼容契约(对齐 Android Json{ignoreUnknownKeys=true} + Kotlin 构造默认值):
+// 各带默认值字段缺键时回落到默认值, 未知键忽略; 无默认值字段(id/courseName/…)
+// 缺键仍抛 keyNotFound(与 Kotlin 无默认参数解码必失败一致); 存在但类型不符 → 抛错
+// (decodeIfPresent 语义, 不吞类型错误回落默认值)。encodeDefaults=true → encode
+// 写全字段(Swift 合成 encode 已如此), 无自定义 encode。
 //
 // Swift 适配注: GRDB 实体用合成 init,字段顺序按声明序;id 在最后。
 // credit 字段 Swift 端为 Double(GRDB 持久化层精度),与 Kotlin Float 跨端时
 // 接受双精度 — 数据库列类型 .double 与之对应。
 // 实体 struct 没有 .copy() 方法 — 用临时 var 改字段后整体 re-init。
+//
+// 注: 手写 init(from:) 一律放在 extension 里 — 若写进 struct 主体会抑制编译器
+// 合成的成员初始化器(toRow(...) 依赖它)。extension 里的自定义解码 init 不会。
 
 import Foundation
 import GRDB
@@ -16,7 +25,7 @@ enum MigrationDatabaseCodec {
 
     // MARK: - DTO row 类型(Codable, JSON 协议稳定)
 
-    struct CourseRow: Codable {
+    struct CourseRow: Codable, Equatable {
         var id: Int64
         var groupId: String
         var tableId: Int64
@@ -42,7 +51,7 @@ enum MigrationDatabaseCodec {
         var level: Int = 0
     }
 
-    struct TimeTableRow: Codable {
+    struct TimeTableRow: Codable, Equatable {
         var id: Int64
         var name: String
         var startDate: String
@@ -57,7 +66,7 @@ enum MigrationDatabaseCodec {
         var preBindSnapshotJson: String = ""
     }
 
-    struct PeriodTableRow: Codable {
+    struct PeriodTableRow: Codable, Equatable {
         var id: Int64
         var name: String
         var nodesPerDay: Int = 12
@@ -67,7 +76,7 @@ enum MigrationDatabaseCodec {
         var updatedAt: Int64
     }
 
-    struct ImportDraftRow: Codable {
+    struct ImportDraftRow: Codable, Equatable {
         var id: String
         var sourceType: String = ""
         var sourceUrl: String = ""
@@ -76,7 +85,7 @@ enum MigrationDatabaseCodec {
         var updatedAt: Int64
     }
 
-    struct DatabaseSnapshot: Codable {
+    struct DatabaseSnapshot: Codable, Equatable {
         var periodTables: [PeriodTableRow] = []
         var timeTables: [TimeTableRow] = []
         var courses: [CourseRow] = []
@@ -322,5 +331,115 @@ private extension PeriodTableEntity {
             smartConfigJson: smartConfigJson, createdAt: createdAt, updatedAt: updatedAt,
             id: newId
         )
+    }
+}
+
+// MARK: - 手写解码 (向前兼容: 缺省字段回落构造默认值)
+
+/// Swift 合成 init(from:) 对非 Optional 键缺失抛 keyNotFound — 结构体默认值不参与解码。
+/// Kotlin 端 `Json { ignoreUnknownKeys = true }` + 构造默认值使缺键回落默认值,
+/// 故各 DTO 手写解码: 带默认值字段 `decodeIfPresent(...) ?? default`,
+/// 无默认值字段保持必解(缺键抛错, 与 Kotlin 无默认参数行为一致)。
+/// 未知键: JSONDecoder 天然忽略, 与 ignoreUnknownKeys=true 等价。
+
+extension MigrationDatabaseCodec.CourseRow {
+    enum CodingKeys: String, CodingKey {
+        case id, groupId, tableId, courseName, teacher, room, note, alias,
+             day, startNode, step, startWeek, endWeek, type, color, colorMode,
+             ownTime, isIrregularNode, isIrregularTime, startTime, endTime,
+             credit, level
+    }
+    init(from decoder: Decoder) throws {
+        let k = try decoder.container(keyedBy: CodingKeys.self)
+        id = try k.decode(Int64.self, forKey: .id)
+        groupId = try k.decode(String.self, forKey: .groupId)
+        tableId = try k.decode(Int64.self, forKey: .tableId)
+        courseName = try k.decode(String.self, forKey: .courseName)
+        teacher = try k.decodeIfPresent(String.self, forKey: .teacher) ?? ""
+        room = try k.decodeIfPresent(String.self, forKey: .room) ?? ""
+        note = try k.decodeIfPresent(String.self, forKey: .note) ?? ""
+        alias = try k.decodeIfPresent(String.self, forKey: .alias) ?? ""
+        day = try k.decode(Int.self, forKey: .day)
+        startNode = try k.decode(Int.self, forKey: .startNode)
+        step = try k.decode(Int.self, forKey: .step)
+        startWeek = try k.decode(Int.self, forKey: .startWeek)
+        endWeek = try k.decode(Int.self, forKey: .endWeek)
+        type = try k.decodeIfPresent(Int.self, forKey: .type) ?? 0
+        color = try k.decode(String.self, forKey: .color)
+        colorMode = try k.decodeIfPresent(Int.self, forKey: .colorMode) ?? 0
+        ownTime = try k.decodeIfPresent(Bool.self, forKey: .ownTime) ?? false
+        isIrregularNode = try k.decodeIfPresent(Bool.self, forKey: .isIrregularNode) ?? false
+        isIrregularTime = try k.decodeIfPresent(Bool.self, forKey: .isIrregularTime) ?? false
+        startTime = try k.decodeIfPresent(String.self, forKey: .startTime) ?? ""
+        endTime = try k.decodeIfPresent(String.self, forKey: .endTime) ?? ""
+        credit = try k.decodeIfPresent(Double.self, forKey: .credit) ?? 0
+        level = try k.decodeIfPresent(Int.self, forKey: .level) ?? 0
+    }
+}
+
+extension MigrationDatabaseCodec.TimeTableRow {
+    enum CodingKeys: String, CodingKey {
+        case id, name, startDate, maxWeek, nodesPerDay, timeJson, color,
+             isDefault, smartConfigJson, createdAt, periodTableId,
+             preBindSnapshotJson
+    }
+    init(from decoder: Decoder) throws {
+        let k = try decoder.container(keyedBy: CodingKeys.self)
+        id = try k.decode(Int64.self, forKey: .id)
+        name = try k.decode(String.self, forKey: .name)
+        startDate = try k.decode(String.self, forKey: .startDate)
+        maxWeek = try k.decodeIfPresent(Int.self, forKey: .maxWeek) ?? 20
+        nodesPerDay = try k.decodeIfPresent(Int.self, forKey: .nodesPerDay) ?? 12
+        timeJson = try k.decode(String.self, forKey: .timeJson)
+        color = try k.decodeIfPresent(String.self, forKey: .color) ?? "#FF6750A4"
+        isDefault = try k.decodeIfPresent(Bool.self, forKey: .isDefault) ?? false
+        smartConfigJson = try k.decodeIfPresent(String.self, forKey: .smartConfigJson) ?? ""
+        createdAt = try k.decode(Int64.self, forKey: .createdAt)
+        periodTableId = try k.decodeIfPresent(Int64.self, forKey: .periodTableId) ?? nil
+        preBindSnapshotJson = try k.decodeIfPresent(String.self, forKey: .preBindSnapshotJson) ?? ""
+    }
+}
+
+extension MigrationDatabaseCodec.PeriodTableRow {
+    enum CodingKeys: String, CodingKey {
+        case id, name, nodesPerDay, timeJson, smartConfigJson, createdAt, updatedAt
+    }
+    init(from decoder: Decoder) throws {
+        let k = try decoder.container(keyedBy: CodingKeys.self)
+        id = try k.decode(Int64.self, forKey: .id)
+        name = try k.decode(String.self, forKey: .name)
+        nodesPerDay = try k.decodeIfPresent(Int.self, forKey: .nodesPerDay) ?? 12
+        timeJson = try k.decode(String.self, forKey: .timeJson)
+        smartConfigJson = try k.decodeIfPresent(String.self, forKey: .smartConfigJson) ?? ""
+        createdAt = try k.decode(Int64.self, forKey: .createdAt)
+        updatedAt = try k.decode(Int64.self, forKey: .updatedAt)
+    }
+}
+
+extension MigrationDatabaseCodec.ImportDraftRow {
+    enum CodingKeys: String, CodingKey {
+        case id, sourceType, sourceUrl, payloadJson, createdAt, updatedAt
+    }
+    init(from decoder: Decoder) throws {
+        let k = try decoder.container(keyedBy: CodingKeys.self)
+        id = try k.decode(String.self, forKey: .id)
+        sourceType = try k.decodeIfPresent(String.self, forKey: .sourceType) ?? ""
+        sourceUrl = try k.decodeIfPresent(String.self, forKey: .sourceUrl) ?? ""
+        payloadJson = try k.decode(String.self, forKey: .payloadJson)
+        createdAt = try k.decode(Int64.self, forKey: .createdAt)
+        updatedAt = try k.decode(Int64.self, forKey: .updatedAt)
+    }
+}
+
+extension MigrationDatabaseCodec.DatabaseSnapshot {
+    enum CodingKeys: String, CodingKey {
+        case periodTables, timeTables, courses, importDrafts
+    }
+    init(from decoder: Decoder) throws {
+        let k = try decoder.container(keyedBy: CodingKeys.self)
+        periodTables = try k.decodeIfPresent([MigrationDatabaseCodec.PeriodTableRow].self, forKey: .periodTables) ?? []
+        timeTables = try k.decodeIfPresent([MigrationDatabaseCodec.TimeTableRow].self, forKey: .timeTables) ?? []
+        courses = try k.decodeIfPresent([MigrationDatabaseCodec.CourseRow].self, forKey: .courses) ?? []
+        importDrafts = try k.decodeIfPresent([MigrationDatabaseCodec.ImportDraftRow].self, forKey: .importDrafts) ?? []
     }
 }

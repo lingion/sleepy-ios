@@ -82,7 +82,10 @@ enum MigrationExecutor {
         }
         let manifest = MigrationBackup.Manifest(
             createdAt: createdAt,
-            modules: payloads.keys.map { $0.entryName }
+            // MigrationModule 的 Comparable 按 Android ordinal 排序 (DATABASE,PREFERENCES,
+            // WIDGETS,PERSISTED_STATE);Dictionary.keys 无序,必须显式 .sorted() 才与
+            // Android LinkedHashMap 插入序 (=ordinal 序) 一致, manifest.modules 确定性输出。
+            modules: payloads.keys.sorted().map { $0.entryName }
         )
         let bytes = try MigrationPackageCodec.write(modules: payloads, createdAt: createdAt)
         return ExportResult(
@@ -97,9 +100,23 @@ enum MigrationExecutor {
     private static func collectPrefs(_ store: MigrationPrefsStoreProtocol, module: MigrationModule) -> MigrationPrefsCodec.PrefsSnapshot {
         var files: [String: MigrationPrefsCodec.PrefsFileSnapshot] = [:]
         for fileName in MigrationPrefsFileMap.files(of: module) {
-            // 空 prefs 文件不进包: 无信息量, 且让接收端保留自有设置 (设备设置优先于默认)
-            let defaults = store.open(fileName: fileName)
-            let snapshot = MigrationPrefsCodec.collect(defaults)
+            // 空 prefs 文件不进包: 无信息量, 且让接收端保留自有设置 (设备设置优先于默认)。
+            // Android 判据 prefs.all.isNotEmpty() 中 prefs.all == "真正写进该文件" 的键,
+            // 且 Android SharedPreferences 只允许 collect 全认识的类型 →
+            // "该文件的导出快照 entries 非空" 与 "prefs.all 非空" 对 Android 可表示的
+            // 数据严格等价, 故 iOS 直接以 collect 结果为唯一判据。
+            // 不能用 dictionaryRepresentation() 弱过滤(NS/Apple 前缀)判非空: 它为
+            // UserDefaults(suiteName:) 实例合并全局域, 本机探测空 suite 也带 41 个
+            // com.apple.*/AK*/KB_*/Country/646F6E7A_* 全局键存活弱过滤 — 空文件会
+            // 被当非空进包, OVERWRITE 导入即误清接收端自有数据 (Android 从不进空文件),
+            // 且 prefFiles/prefKeys 计数虚高。
+            // suiteName 一律传 nil (Android collect(prefs) 不传任何域名): 执行器拿到
+            // 的只是不透明 UserDefaults 实例, 文件名 ≠ 实例真实域名 (Fake store 用
+            // "prefix.fileName", 生产用裸 fileName) — 传 fileName 会让
+            // CFPreferencesCopyKeyList(裸名) 命中另一条真实域 (生产运行残留的
+            // widget_bindings 等), 把别处的键当本文件导出/清空。standard 主 prefs
+            // 实例在 nil 下仍自动回落 app 域精确键清单, 与 Android prefs.all 等价。
+            let snapshot = MigrationPrefsCodec.collect(store.open(fileName: fileName))
             if !snapshot.entries.isEmpty {
                 files[fileName] = snapshot
             }
@@ -158,11 +175,18 @@ enum MigrationExecutor {
 
             case .PREFERENCES, .WIDGETS, .PERSISTED_STATE:
                 let snapshot = try MigrationPrefsCodec.decode(payload)
-                // 包内缺失的 prefs 文件不动本机; 包内文件按 mode 决定整文件替换或同名覆盖
+                // 包内缺失的 prefs 文件不动本机; 包内文件按 mode 决定整文件替换或同名覆盖。
+                // suiteName 一律省略 (Android apply(prefs, snapshot, merge) 不传域名):
+                // 执行器只见不透明实例, 文件名 ≠ 实例真实域名 — 传裸文件名会让
+                // CFPreferencesCopyKeyList 命中另一条真实域(生产残留同名 suite),
+                // OVERWRITE 清错键、漏清本域键 (per-suite vs global 语义错位)。
+                // nil 解析见 MigrationPrefsCodec.persistedKeys 三层路径: standard
+                // 实例回落 app 域精确清单; 其余实例走对照域差分, 只清该实例本域
+                // 真正写过的键 — 全局域经弱合并带出的键既不删除、也不影响其全局值,
+                // 与 Android "editor.clear() 只清本文件" 等价。
                 for (fileName, fileSnapshot) in snapshot.files {
                     let defaults = prefsStore.open(fileName: fileName)
-                    try MigrationPrefsCodec.apply(defaults, fileSnapshot,
-                                                  merge: mode == .MERGE)
+                    MigrationPrefsCodec.apply(defaults, fileSnapshot, merge: mode == .MERGE)
                 }
                 let newPrefFiles = counts.prefFiles + snapshot.files.count
                 let newPrefKeys = counts.prefKeys + snapshot.files.values.reduce(0) { $0 + $1.entries.count }

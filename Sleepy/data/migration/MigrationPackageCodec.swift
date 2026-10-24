@@ -84,8 +84,13 @@ enum MigrationPackageCodec {
                 throw MigrationPackageException(message: "duplicate zip entry: \(name)")
             }
             if name == MigrationBackup.ENTRY_MANIFEST {
-                guard let text = try? readEntryAsString(archive: archive, entry: entry) else {
-                    throw MigrationPackageException(message: "manifest unreadable")
+                // Android: entry 解压异常走外层 catch → "backup ZIP unreadable" 整体失败;
+                // 仅 decode 失败才是 "manifest unreadable"。fail-fast, 不留半成品。
+                let text: String
+                do {
+                    text = try readEntryAsString(archive: archive, entry: entry)
+                } catch {
+                    throw MigrationPackageException(message: "backup ZIP unreadable", cause: error)
                 }
                 do {
                     manifest = try MigrationBackup.decodeManifest(text)
@@ -95,8 +100,13 @@ enum MigrationPackageCodec {
             } else if name.hasPrefix("\(MigrationBackup.ENTRY_MODULES_DIR)/") && name.hasSuffix(".json") {
                 let prefix = "\(MigrationBackup.ENTRY_MODULES_DIR)/"
                 let base = String(name.dropFirst(prefix.count).dropLast(".json".count))
-                guard let text = try? readEntryAsString(archive: archive, entry: entry) else {
-                    continue   // skip 不可读 entry
+                // 与 Android fail-fast 对齐: 坏 entry 必须中止整个 read(),
+                // 禁止 `try? ... else { continue }` 静默丢模块后半包导入(坏包在写入本机数据前被拒绝)。
+                let text: String
+                do {
+                    text = try readEntryAsString(archive: archive, entry: entry)
+                } catch {
+                    throw MigrationPackageException(message: "backup ZIP unreadable", cause: error)
                 }
                 if let module = MigrationModule.fromEntryName(base) {
                     known[module] = text
