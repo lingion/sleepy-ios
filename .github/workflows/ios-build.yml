@@ -1,0 +1,65 @@
+# 白嫖 GitHub 的 macOS runner: 本机是 Linux, 没有 Xcode, iOS 构建只能靠 CI。
+# 产物为无签名 IPA (scripts/build-ipa.sh 管线), 供 AltStore/Sideloadly 重签安装。
+name: iOS Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "要构建的分支/标签/commit (默认 main)"
+        required: false
+        default: "master"
+      config:
+        description: "构建配置"
+        required: false
+        default: "Release"
+        type: choice
+        options:
+          - Release
+          - Debug
+      tests:
+        description: "跑 iOS 模拟器测试"
+        required: false
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unsigned-ipa:
+    # xcodegen 新版生成的 pbxproj 是 format 77 (Xcode 16), macos-14 镜像的
+    # Xcode 15.4 读不了 — 必须用 macos-15
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Install xcodegen / xcbeautify
+        run: brew install xcodegen xcbeautify
+      - name: Build unsigned IPA
+        run: ./scripts/build-ipa.sh "${{ inputs.config }}"
+      - name: Show IPA info
+        run: ls -lh build/*.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sleepy-ios-${{ inputs.config }}-${{ github.run_number }}
+          path: build/Sleepy-*.ipa
+          if-no-files-found: error
+          retention-days: 7
+      - name: Run simulator tests
+        if: inputs.tests == 'yes'
+        run: |
+          xcodebuild test \
+            -project Sleepy.xcodeproj \
+            -scheme Sleepy \
+            -destination "platform=iOS Simulator,name=iPhone 15" \
+            | xcbeautify
