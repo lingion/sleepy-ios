@@ -1,6 +1,7 @@
 // ShareScheduleSheet.swift — ← ui/component/ShareScheduleSheet.kt (v7.10.7)
-// 顶栏分享按钮的格式选择底部弹层 — 沿用导出页三种格式:
-// WakeUp JSON / WakeUp 分享文本 / ICS 日历。条目视觉与导出操作全部复用
+// 顶栏分享按钮的格式选择底部弹层 — 沿用导出页格式:
+// WakeUp JSON / 分享文本(原生 marker 格式,同第 4 项) / ICS 日历。条目视觉与
+// 导出操作全部复用
 // ExportScreen 的现成实现,选中即走系统分享,弹层保持展开(用户下滑关闭)。
 
 import SwiftUI
@@ -34,8 +35,13 @@ struct ShareScheduleSheet: View {
                 ShareRow(icon: "square.and.arrow.up",
                          title: L10n.format("export_share_title"),
                          subtitle: L10n.format("export_share_subtitle")) {
+                    // ← Android ShareScheduleSheet.kt:95 — 与第 4 项同为原生分享文本
+                    //   (Android v1.0.61 弹层从不提供 WakeUp URL 编码 JSON 这一格式)
                     shareSheet = SharePayload(
-                        text: ScheduleExporter.exportWakeUpShareText(table, courses),
+                        text: SleepyNativeExporter.exportShareText(
+                            tableName: table.name, startDate: table.startDate,
+                            maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
+                            timeJson: table.timeJson, courses: courses),
                         subject: table.name, url: nil)
                 }
                 ShareRowDivider()

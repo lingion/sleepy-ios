@@ -12,25 +12,50 @@ struct ScheduleState {
     var courses: [CourseEntity] = []
     var currentWeek: Int = 1
     var selectedWeek: Int = 1
+    var weekDisplayContext: WeekDisplayContext? = nil
+    /// true = 用户手动选周；false = 跟随自动展示周。
+    var weekSelectionManual: Bool = false
     /// false=首次加载(本周), true=用户/系统已选定周 — 课程变更时 selectedWeek 不再被重置
     var initialWeekSettled: Bool = false
     var nodesPerDay: Int = 12
     var selectedCourseId: Int64? = nil
     var showCourseDialog: Bool = false
     var error: String? = nil
+    /// issue#40: 当前表绑定的独立时间节次表(null=未绑定/悬空, 渲染回退旧兼容列)
+    var effectivePeriodTable: PeriodTableEntity? = nil
+    /// issue#44: 当前表的调休映射; 切换课表/写盘后由 VM 刷新
+    var transfers: [HolidayTransferEntry] = []
 
+    /// 原始行(库内数据, timeJson 兼容列可能过期)
     var currentTable: TimeTableEntity? { tables.first { $0.id == selectedTableId } }
+
+    /// issue#40: 水合后的当前表 — 节次时间域一律从这里读, 不得直接读 currentTable.timeJson
+    var effectiveCurrentTable: TimeTableEntity? {
+        currentTable.map { $0.hydratedWith(effectivePeriodTable) }
+    }
 
     var currentWeekCourses: [CourseEntity] {
         let list = courses.filter { $0.inWeek(selectedWeek) }
-        guard let tj = currentTable?.timeJson else { return list }
+        // issue#40: 节次→时间 的解释真源 = 水合后的 effectiveCurrentTable,
+        // 绑定作息表被编辑后立即生效(设计 §5.2 立即全部同步)。
+        guard let tj = effectiveCurrentTable?.timeJson else { return list }
         return list.map { $0.normalizeNode(timeJson: tj) }
+    }
+
+    /// issue#44: 给定日期实际应"按星期几取课"; 命中映射=targetDate 星期, 未命中=自然星期
+    func transferDayFor(_ date: Date) -> Int {
+        HolidayTransferOps.effectiveDayOfWeek(date, transfers)
     }
 }
 
 @MainActor
 final class ScheduleViewModel: ObservableObject {
     @Published private(set) var state = ScheduleState()
+
+    /// issue#40: 全部独立时间节次表(管理页列表) — 实时发布, 库内变化即刷新列表。
+    /// ← Android repo.observeAllPeriodTables().stateIn(WhileSubscribed(5000));
+    /// GRDB ValueObservation 常驻观察, 语义等价(订阅即推最新值)。
+    @Published private(set) var allPeriodTables: [PeriodTableEntity] = []
 
     private let repo: ScheduleRepository
     /// 数据变更 → 刷 WidgetKit timeline(← WidgetUpdater.notifyDataChanged)
@@ -40,11 +65,138 @@ final class ScheduleViewModel: ObservableObject {
     private var manualSelectDone = false
     private var tablesCancellable: AnyCancellable?
     private var coursesCancellable: AnyCancellable?
+    private var periodTablesCancellable: AnyCancellable?
+
+    /// ← coursesJob: 切换表时取消上一个课程观察, 避免多订阅互相覆盖 state.courses
+    /// (iOS 侧用单一 coursesCancellable + loadCourses 先 cancel, 同名守卫见 sink 内 tableId 比对)
+
+    /// 甲案 (设计文档 §2.1): 每张课表一个作息编辑会话状态, 按 tableId 缓存。
+    /// EditTableScreen 打开时经 editStateFor 拿到; 弹窗/再次保存逻辑全走它。
+    /// 表被删除时对应条目一并清理 (见 removeEditState), 避免长会话堆积。
+    private var editStates: [Int64: ScheduleEditPolicyState] = [:]
 
     init(repo: ScheduleRepository, onWidgetsNeedReload: @escaping () -> Void = {}) {
         self.repo = repo
         self.onWidgetsNeedReload = onWidgetsNeedReload
         loadTables()
+        observePeriodTables()
+    }
+
+    // ← allPeriodTables = observeAllPeriodTables().stateIn(...): 管理页列表实时刷新
+    private func observePeriodTables() {
+        periodTablesCancellable = repo.observeAllPeriodTables()
+            .catch { _ in Just<[PeriodTableEntity]>([]) }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] tables in
+                self?.allPeriodTables = tables
+            }
+    }
+
+    // MARK: - 甲案 §2.1 编辑会话 API (← ScheduleViewModel.kt editStates)
+
+    /// 取 (必要时建) 该课表的作息编辑会话状态。
+    /// 同会话内视图反复调用返回同一实例 (策略/草稿得以存活)。
+    /// 进入编辑页时须走 startEditSession 重建, 保证 original 是"本次进入"的快照。
+    func editStateFor(tableId: Int64, originalEffectiveSchedule: PeriodTableEntity?) -> ScheduleEditPolicyState {
+        if let existing = editStates[tableId] { return existing }
+        let created = ScheduleEditPolicyState(tableId: tableId, originalEffectiveSchedule: originalEffectiveSchedule)
+        editStates[tableId] = created
+        return created
+    }
+
+    /// 开始一次新的编辑会话 (EditTableScreen 每次进入调用一次, 按 tableId keyed):
+    /// originalEffectiveSchedule = 进入编辑时刻的实际生效作息快照
+    /// (绑定 → 水合源 periodTable; 未绑定 → null)。旧会话残留策略一并作废。
+    @discardableResult
+    func startEditSession(tableId: Int64, originalEffectiveSchedule: PeriodTableEntity?) -> ScheduleEditPolicyState {
+        let session = ScheduleEditPolicyState(tableId: tableId, originalEffectiveSchedule: originalEffectiveSchedule)
+        editStates[tableId] = session
+        return session
+    }
+
+    /// 该课表当前是否有已登记未执行的策略 (UI 待执行提醒 banner 依据)。
+    func hasPendingPolicy(tableId: Int64) -> Bool {
+        guard let policy = editStates[tableId]?.pendingSchedulePolicy else { return false }
+        return policy != .none
+    }
+
+    /// 表删除/退出编辑时清理会话状态, 防止跨会话残留策略。
+    func removeEditState(tableId: Int64) {
+        editStates.removeValue(forKey: tableId)
+    }
+
+    /// 甲案 §4.1: 弹窗"另有 N 张课表绑定"提示 — 绑定到指定作息表的课表数。
+    func repoTablesBoundToCount(periodTableId: Int64) -> Int {
+        return ((try? repo.getTablesBoundTo(periodTableId)) ?? []).count
+    }
+
+    /// 甲案 (设计文档 §3.1-§3.3, §3.5): 执行已登记的作息策略 + 完成普通保存。
+    /// 三选项共用同一份草稿源 (§3.4) = 用户编辑后的 draftEffectiveSchedule。
+    /// 全程 UndoManager 批内 = 单撤回单元(§7: 绑定关系+作息内容一次回退)。
+    /// 策略执行完清 pendingSchedulePolicy — 下次保存不再弹窗(invariant ④)。
+    ///
+    /// - Parameters:
+    ///   - editedTable: 普通字段(名称/日期/周次)+本表节次兼容列写值, 由 UI 层构建
+    ///   - onFinish: 普通保存(策略写库)完成后的 UI 回调(导航返回)
+    func executePolicyAndSave(
+        tableId: Int64,
+        editedTable: TimeTableEntity,
+        newTimeJson: String,
+        smartConfigJson: String,
+        nodesPerDay: Int,
+        onFinish: @escaping () -> Void = {}
+    ) {
+        guard let editState = editStates[tableId] else { return }
+        let policy = editState.pendingSchedulePolicy
+        guard let draft = editState.draftEffectiveSchedule, policy != .none else { return }
+        Task {
+            UndoManager.shared.beginBatch()
+            defer { UndoManager.shared.endBatch() }
+            guard let current = try? repo.getTable(tableId) else { return }
+            switch policy {
+            case .detachCopy:
+                // ① 写本表内置作息(兼容列) + 解绑; X 与其他绑定课表零改动
+                // bindPeriodTable 内部走 restoredForUnbind 会把兼容列回滚到旧快照,
+                // 所以先 updateTable 写入新内置作息, 再解绑会把快照值覆盖回去 —
+                // 顺序必须反过来: 先解绑(恢复快照)再写内置列(草稿), 写入在最后保赢。
+                try? repo.bindPeriodTable(timeTableId: tableId, periodTableId: nil)
+                var detached = editedTable
+                detached.periodTableId = nil
+                detached.timeJson = newTimeJson
+                detached.smartConfigJson = smartConfigJson
+                detached.nodesPerDay = nodesPerDay
+                try? repo.updateTableRemappingCourses(detached)
+            case .createNew:
+                // ② 按课表名新建独立作息表(全局唯一名顺延, §3.2) + 改绑; X 零改动
+                let newId = insertPeriodTableWithUniqueName(
+                    name: current.name,
+                    defaultName: current.name,
+                    timeJson: newTimeJson,
+                    nodesPerDay: nodesPerDay,
+                    smartConfigJson: smartConfigJson
+                )
+                guard newId > 0 else { return }   // insert 失败 = 整个策略中止(不动绑定)
+                try? repo.bindPeriodTable(timeTableId: tableId, periodTableId: newId)
+                var rebound = editedTable
+                rebound.periodTableId = newId
+                try? repo.updateTableRemappingCourses(rebound)
+            case .sync:
+                // ③ 写回共享作息表 X, 保持绑定; 全部绑定课表读到新作息
+                if let boundId = current.periodTableId {
+                    var synced = draft
+                    synced.id = boundId
+                    synced.timeJson = newTimeJson
+                    synced.smartConfigJson = smartConfigJson
+                    synced.nodesPerDay = nodesPerDay
+                    try? repo.updatePeriodTable(synced)
+                    try? repo.updateTable(editedTable)
+                }
+            case .none:
+                break // unreachable — 前置 guard 已拦截
+            }
+            editState.selectPolicy(.none)
+            onFinish()
+        }
     }
 
     // ← loadTables: observeAllTables → 选表逻辑
@@ -58,6 +210,8 @@ final class ScheduleViewModel: ObservableObject {
                     // 没有课表就老实空着,不强行造占位表
                     self.state.tables = []
                     self.state.selectedTableId = nil
+                    self.state.weekDisplayContext = nil
+                    self.state.weekSelectionManual = false
                     return
                 }
                 let selectedId = self.state.selectedTableId
@@ -79,28 +233,66 @@ final class ScheduleViewModel: ObservableObject {
     // ← loadCourses: 取消旧观察,避免多 observeCourses 同时写 state.courses 互相覆盖
     private func loadCourses(_ tableId: Int64) {
         coursesCancellable?.cancel()
-        coursesCancellable = repo.observeCourses(tableId)
-            .catch { _ in Just<[CourseEntity]>([]) }
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] courses in
-                guard let self = self else { return }
-                let table = self.state.tables.first { $0.id == tableId }
-                let week = table.map { DateUtils.currentWeek(startDate: $0.startDate) } ?? 1
-                self.state.courses = courses
-                self.state.currentWeek = week
-                self.state.selectedWeek = self.state.initialWeekSettled ? self.state.selectedWeek : week
-                self.state.initialWeekSettled = true
-                self.state.nodesPerDay = table?.nodesPerDay ?? 12
-                // 课程数据变更后刷新所有 widget
-                self.onWidgetsNeedReload()
+        // issue#44: 拉一次该表调休映射; 设置页改完走 refreshTransfer 主动刷
+        state.transfers = AppPrefs.shared.getHolidayTransfers(tableId)
+        // issue#40: 课程流与绑定时间节次表流合并 — 时间节次表改动会 emit 新值,
+        // 所有绑定课表立即按新作息解释节次(设计 §5.2 立即全部同步), 课程行不重算
+        coursesCancellable = Publishers.CombineLatest(
+            repo.observeCourses(tableId)
+                .catch { _ in Just<[CourseEntity]>([]) },
+            repo.observeEffectivePeriodTable(tableId: tableId)
+                .catch { _ in Just<PeriodTableEntity?>(nil) }
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] courses, periodTable in
+            guard let self = self else { return }
+            let rawTable = self.state.tables.first { $0.id == tableId }
+            // 水合: 绑定存在时 nodesPerDay/timeJson/smartConfigJson 以时间节次表为准
+            let table = rawTable.map { $0.hydratedWith(periodTable) }
+            let displayContext = table.map {
+                WeekDisplayResolver.resolve(
+                    startDate: $0.startDate,
+                    maxWeek: $0.maxWeek,
+                    now: Date(),
+                    courses: courses,
+                    timeJson: $0.timeJson,
+                    enabled: AppPrefs.shared.isNearestBusyDay()
+                )
             }
+            let week = displayContext?.actualWeek ?? 1
+            // v7.10.16s: 只更新真实周(currentWeek, 供"回到本周"), 不再重置 selectedWeek —
+            // 用户在第 x 周编辑/删课, 保存回来仍停在 x 周(此前被拽回真实周=跳回第一周体验)。
+            // 首次加载(initial=true)仍落目标周, 保持原行为
+            self.state.courses = courses
+            self.state.currentWeek = week
+            self.state.selectedWeek = self.weekForNextTick(week: week, targetWeek: displayContext?.targetWeek)
+            self.state.weekDisplayContext = displayContext
+            self.state.initialWeekSettled = true
+            self.state.nodesPerDay = table?.nodesPerDay ?? 12
+            self.state.effectivePeriodTable = periodTable
+            // 课程数据变更后刷新所有 widget
+            self.onWidgetsNeedReload()
+        }
+    }
+
+    /// ← Android when { !initialWeekSettled -> targetWeek ?: week
+    ///                  !weekSelectionManual -> targetWeek ?: week
+    ///                  else -> selectedWeek }
+    private func weekForNextTick(week: Int, targetWeek: Int?) -> Int {
+        if !state.initialWeekSettled || !state.weekSelectionManual {
+            return targetWeek ?? week
+        }
+        return state.selectedWeek
     }
 
     // ← selectTable: 切表 + setDefault(小组件严格跟随 App 当前选中表)
     func selectTable(_ id: Int64) {
         manualSelectDone = true
+        // 切表 = 新学期语境, 周选择回到该表真实周(initialWeekSettled 复位, loadCourses 重新落周)
         state.selectedTableId = id
         state.initialWeekSettled = false
+        state.weekSelectionManual = false
+        state.weekDisplayContext = nil
         loadCourses(id)
         Task {
             try? repo.setDefault(id)
@@ -115,6 +307,18 @@ final class ScheduleViewModel: ObservableObject {
         let ok = (try? repo.restoreLastSnapshot()) ?? false
         if ok {
             manualSelectDone = false   // 恢复后选中态交回 default 表
+            onWidgetsNeedReload()
+        }
+        return ok
+    }
+
+    /// 2026-09-21 用户令: 取消最近一次撤回(单级 redo)。
+    /// 返回 false = 没有可取消的撤回(调用方 toast 提示)。
+    @discardableResult
+    func redoLastUndo() -> Bool {
+        let ok = (try? repo.redoLastUndo()) ?? false
+        if ok {
+            manualSelectDone = false   // 恢复后选中态交回 default 表(与 undo 同语义)
             onWidgetsNeedReload()
         }
         return ok
@@ -210,6 +414,7 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     func deleteTable(_ id: Int64) {
+        editStates.removeValue(forKey: id)
         Task {
             try? repo.deleteTable(id)
             self.manualSelectDone = false
@@ -218,6 +423,7 @@ final class ScheduleViewModel: ObservableObject {
 
     /// Discard a newly-created table that was never saved. ← discardNewTable
     func discardNewTable(_ newId: Int64, fallbackId: Int64?) {
+        editStates.removeValue(forKey: newId)
         Task {
             try? self.repo.deleteTable(newId)
             self.manualSelectDone = false
@@ -237,9 +443,37 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     func changeWeek(_ week: Int) {
+        // 防呆: 下限 1, 上限 maxWeek — 之前只有下限, 右箭头可以无限翻出学期范围外
         let maxWeek = state.currentTable?.maxWeek ?? 20
         guard week >= 1, week <= maxWeek else { return }
+        // 甲案语境: 用户手动翻周 = 停止自动跟随 targetWeek
         state.selectedWeek = week
+        state.weekSelectionManual = true
+    }
+
+    /// issue#44: 设置页保存调休映射后, 通知 VM 重新拉当前表的映射。
+    /// 现有 courses 列表不需重查, 只需刷新 dayFor() 的真源, 一次 reload 即生效。
+    func refreshTransfer() {
+        guard let id = state.selectedTableId else { return }
+        state.transfers = AppPrefs.shared.getHolidayTransfers(id)
+    }
+
+    /// ← recalculateWeekDisplay (Android): 外部语境变化(如回到本周)后重算展示周。
+    /// weekSelectionManual=true 时保留用户所选周, 否则跟随 targetWeek。
+    func recalculateWeekDisplay() {
+        guard let table = state.effectiveCurrentTable else { return }
+        let context = WeekDisplayResolver.resolve(
+            startDate: table.startDate,
+            maxWeek: table.maxWeek,
+            now: Date(),
+            courses: state.courses,
+            timeJson: table.timeJson,
+            enabled: AppPrefs.shared.isNearestBusyDay()
+        )
+        let selected = state.weekSelectionManual ? state.selectedWeek : context.targetWeek
+        state.currentWeek = context.actualWeek
+        state.weekDisplayContext = context
+        state.selectedWeek = selected
     }
 
     func openCourse(_ id: Int64) {
@@ -287,7 +521,11 @@ final class ScheduleViewModel: ObservableObject {
 extension ScheduleViewModel {
 
     /// 全部作息表(管理页列表)。
+    /// ← Android allPeriodTables.value (ScheduleViewModel.kt L77 StateFlow):
+    /// 返回实时发布缓存, 库内变化后调用方读到最新值(§5.2 立即全部同步)。
+    /// 冷启动首次 emit 未到达时缓存为空 → 回落一次同步读库, 防止调用方拿到假空列表。
     func loadAllPeriodTables() -> [PeriodTableEntity] {
+        if !allPeriodTables.isEmpty { return allPeriodTables }
         return (try? repo.getAllPeriodTables()) ?? []
     }
 
@@ -349,6 +587,41 @@ extension ScheduleViewModel {
     /// 失败吞(→ repo update 抛错时上层按 updateTable 同语义吞掉, 数据层不会半写)。
     func updatePeriodTableContent(_ table: PeriodTableEntity) {
         Task { try? repo.savePeriodTable(table) }
+    }
+
+    /// issue#40: 换绑课程表的时间节次表(只写 periodTableId, 课程行零改动)
+    func bindPeriodTable(timeTableId: Int64, periodTableId: Int64?) {
+        Task { try? repo.bindPeriodTable(timeTableId: timeTableId, periodTableId: periodTableId) }
+    }
+
+    /// issue#40: 复制时间节次表, 返回新副本 id (-1 = 源不存在)
+    @discardableResult
+    func copyPeriodTable(sourceId: Int64) -> Int64 {
+        return (try? repo.copyPeriodTable(sourceId: sourceId)) ?? -1
+    }
+
+    /// 2026-09-23 症状3修复: 仅写课程表元数据, 不动绑定关系。
+    func updateTableMetadata(_ table: TimeTableEntity, writeTimeDomain: Bool = false) {
+        Task { try? repo.updateTableMetadata(table, writeTimeDomain: writeTimeDomain) }
+    }
+
+    /// 2026-09-23 症状3修复: 元数据 + 共享作息表内容, 单事务原子双写。
+    func updateTableMetadataWithPeriodTable(table: TimeTableEntity, periodTable: PeriodTableEntity) {
+        Task { try? repo.updateTableMetadataWithPeriodTable(table: table, periodTable: periodTable) }
+    }
+
+    /// 2026-09-23 症状3修复: 元数据 + 换绑/解绑(+目标作息表内容), 单事务原子完成。
+    func updateTableMetadataAndBind(
+        table: TimeTableEntity,
+        periodTableId: Int64?,
+        periodContent: PeriodTableEntity? = nil
+    ) {
+        Task { try? repo.updateTableMetadataAndBind(table: table, periodTableId: periodTableId, periodContent: periodContent) }
+    }
+
+    /// issue#28 P3: 保存课表编辑 — timeJson 变更时课程节次按绝对时间自适应
+    func updateTableRemappingCourses(_ table: TimeTableEntity) {
+        Task { try? repo.updateTableRemappingCourses(table) }
     }
 
     /// 删除时间节次表(被引用时 false, UI 提示先改绑)。

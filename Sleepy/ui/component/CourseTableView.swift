@@ -1,12 +1,25 @@
-// CourseTableView.swift — ← ui/component/CourseTableView.kt (733 行)
+// CourseTableView.swift — ← ui/component/CourseTableView.kt (1643 行, v1.0.61)
 // Cards 网格视图 + FullWeekView(7days) + 公共小组件。
 //
 // 架构(逐行对齐):
 //   BoxWithConstraints → colW(dp) → Column(verticalScroll) → 表头 Row + 固定高 grid Box
 //   时间栏/课程卡全用 offset 绝对定位 → 滚动同步。
-// 布局常量: headH 52 / timeW 68 / slotH 52 / gapH 4 / gapW 5 / rowH 56。
+// 布局常量: headH 52 / gapH 4 / gapW 5; timeW 实测(三行式/老式 dash 轴, 下限 46×scale);
+// 行高 = TimetableViewportPolicy (固定基座 52×scale / 实验室自适应拟合 / 双指缩放 36~96)。
+// 表头渲染 = PeriodHeaderCellContent(三行式/老式 + 整列统一字号 columnFont + 整列统一
+// 中点 columnPlacements + legacy 列级 dash 轴), 与设置页预览同一事实来源。
+//
+// 平台偏差(有意保留):
+//   - Android changeBus 订阅 → iOS 渲染层 body 直读 AppPrefs(兄弟文件同模式)。
+//   - Android verticalResizeGesture(pointerInput 双指) → iOS 自定义
+//     UIPinchGestureRecognizer 挂到 grid 祖先视图; 手势期间 cancelsTouchesInView=false
+//     保点击穿透, 横向主导时与 Pager 并存(Android 直接 consume 屏蔽 pager — 无法 1:1 复刻)。
+//   - LocalConfiguration.fontScale → UIFont.body 实测比例近似。
+//   - Android selectVisibleSlots 在 List<TimeSlot> 上原位过滤; iOS 策略层用同构
+//     SlotRef(无 widget 依赖), 回映按 nodeStart 唯一性取原 TimeSlot。
 
 import SwiftUI
+import UIKit
 
 /// 时段定义 — 5 个时段(WakeUp 默认 12 节对应 1-2/3-5/6-7/8-10/11-13) ← TimeSlot
 struct TimeSlot {
@@ -24,6 +37,9 @@ struct TimeSlot {
 
     /// 渲染期占位节次(buildRenderSlotPlan 生成的空档): label 空 = 占位行 ← isPlaceholder
     var isPlaceholder: Bool { label.isEmpty }
+
+    var startMinutes: Int { startHour * 60 + startMinute }
+    var endMinutes: Int { endHour * 60 + endMinute }
 }
 
 // MARK: - TimeTableUtils 渲染槽位扩展(App target 专属 — 依赖 TimeSlot, Widget target 无)
@@ -86,6 +102,26 @@ extension TimeTableUtils {
     static let PLACEHOLDER_MIN_WEIGHT = 0.36
 
     /**
+     * 用户反馈 2026-09-16: 占位节次**文字适配检测**(纯几何函数, 与 rowHeight/scale 联动)。
+     * 行内容区高 = rowHeightDp * rowWeight − gapDp; 放不下 requiredTextHeightDp
+     * (= 时间文字行高 11dp + 上下 padding 8dp) → 该占位行渲染为灰块(不显示文字),
+     * 点击可展开到正好显示完文字。
+     */
+    static func placeholderTextFits(rowWeight: CGFloat, rowHeightDp: CGFloat,
+                                    gapDp: CGFloat, requiredTextHeightDp: CGFloat) -> Bool {
+        rowHeightDp * rowWeight - gapDp >= requiredTextHeightDp
+    }
+
+    /**
+     * 占位行展开权重 = 正好显示完时间文字((text+gap)/rowHeight)。
+     * 展开只增不减(与原权重无关, 调用方保证 max), 且恒 < 1 不占满整行。
+     */
+    static func placeholderExpandedWeight(rowHeightDp: CGFloat, gapDp: CGFloat,
+                                          requiredTextHeightDp: CGFloat) -> CGFloat {
+        min((requiredTextHeightDp + gapDp) / max(rowHeightDp, 0.001), 0.99)
+    }
+
+    /**
      * 渲染期槽位方案 — 标准槽位 + 按当前课程集合合成的**占位节次**(渲染期产物,
      * 绝不写回 timeJson; 与用户手建边缘节点 insertEdgeNode 机制严格无关)。
      *
@@ -110,7 +146,18 @@ extension TimeTableUtils {
      * 渲染期合成物, 绝不写回 timeJson。
      */
     static func buildRenderSlotPlan(courses: [CourseEntity], timeJson: String) -> RenderSlotPlan {
-        let base = renderSlots(timeJson: timeJson)
+        buildRenderSlotPlan(courses: courses, timeJson: timeJson,
+                            baseSlots: renderSlots(timeJson: timeJson))
+    }
+
+    /**
+     * Same render-plan construction, but with a caller-selected base slot list.
+     * The cards view uses this to apply viewport policies (such as hiding empty
+     * evening slots) before synthesising irregular-time placeholder rows.
+     * ← Android buildRenderSlotPlan(courses, timeJson, baseSlots)
+     */
+    static func buildRenderSlotPlan(courses: [CourseEntity], timeJson: String,
+                                    baseSlots base: [TimeSlot]) -> RenderSlotPlan {
         if base.isEmpty { return RenderSlotPlan(slots: base) }
         func slotStart(_ s: TimeSlot) -> Int { s.startHour * 3600 + s.startMinute * 60 }
         func slotEnd(_ s: TimeSlot) -> Int { s.endHour * 3600 + s.endMinute * 60 }
@@ -160,6 +207,228 @@ extension TimeTableUtils {
     }
 }
 
+extension TimetableViewportPolicy.SlotRef {
+    /// TimeSlot → SlotRef 同构投影 ← Android 策略层直接吃 List<TimeSlot>
+    init(_ slot: TimeSlot) {
+        self.init(nodeStart: slot.nodeStart, startMinutes: slot.startMinutes, endMinutes: slot.endMinutes)
+    }
+}
+
+// MARK: - 实验室开关读取(← AppPrefs.swift KEY_GRID_* 正式 getter 组, 已上收)
+// 此前 GridLabPrefs 直读 UserDefaults.standard 的临时层已删 — AppPrefs.swift 的
+// isGridAdaptiveHeight/isGridAutoHideEmptyEvening/getGridEveningStart/
+// isGridShowSeparators/isGridLongBreakSpacing/isGridPinchZoom 即正式归属地。
+
+/// 用户反馈 2026-09-16: 占位行时间文字适配的最小内容区需求 = micro 一行 lineHeight 11dp
+/// + SingleTimeHeadCell 上下 padding 8dp。放不下 → 只显示灰块(文字隐藏), 点击展开。
+/// ← PLACEHOLDER_TEXT_REQUIRED_DP
+let placeholderTextRequiredDp: CGFloat = 19
+
+/// Android LocalConfiguration.fontScale 近似 — UIFontMetrics 动态字号比例。
+private var systemFontScaleProxy: CGFloat {
+    let base = UIFont.preferredFont(forTextStyle: .body).pointSize
+    let standard = UIFont.systemFont(ofSize: 17).pointSize
+    guard standard > 0, base.isFinite, base > 0 else { return 1 }
+    return max(min(base / standard, 2.0), 0.8)
+}
+
+/// 周视图某星期在该页(startDate/currentWeek)的真实日期是否 = 今天
+/// ← startDate.isNotBlank() && DateUtils.isDateToday(DateUtils.dateOfWeek(...), todayDate)
+private func isDateTodayOfWeek(startDate: String, week: Int, day: Int, todayDate: Date) -> Bool {
+    guard !startDate.isEmpty,
+          let date = DateUtils.dateOfWeek(startDate: startDate, week: week, dayOfWeek: day) else { return false }
+    return DateUtils.isDateToday(date, todayDate)
+}
+
+// MARK: - 双指纵向缩放行高 ← Modifier.verticalResizeGesture
+// v1.0.56 T3: pinchZoomEnabled=false 时手势不挂(存量缩放值不清)。
+// 阈值/主导比/上下限求解全走 TimetableViewportPolicy(与 Android 同一纯函数)。
+private final class GridPinchResizeUIView: UIView {
+    /// 实验室总开关。开关在页面存活期间被翻成 true(设置页返回/同帧重算)时,
+    /// didMoveToWindow 不会再次触发 → 必须即时挂手势, 否则开关"看起来开了但捏不动"。
+    /// (← Android `if (pinchZoomEnabled) Modifier.verticalResizeGesture(...) else Modifier`
+    ///  每次 recompose 重建 pointerInput, 开关即时生效。)
+    var enabled = false { didSet { if oldValue != enabled { syncGesture() } } }
+    var baseRowHeightDp: CGFloat = 52
+    var currentRowHeightDp: CGFloat = 52
+    var contentScale: CGFloat = 1
+    var onScaleChange: (CGFloat) -> Void = { _ in }
+
+    private var pinch: UIPinchGestureRecognizer?
+    private weak var attachedTo: UIView?
+    private var startVerticalSpan: CGFloat?
+    private var startHorizontalSpan: CGFloat = 0
+    private var startRowHeightDp: CGFloat = 0
+    private var locked = false
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        syncGesture()
+    }
+
+    /// 依据当前 window + enabled 同步识别器挂载状态(幂等)。
+    private func syncGesture() {
+        if window == nil {
+            detachGesture()
+            return
+        }
+        guard enabled, let host = superview else {
+            detachGesture()
+            return
+        }
+        if attachedTo === host, pinch != nil { return }
+        detachGesture()
+        let g = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        g.cancelsTouchesInView = false   // 平台偏差: 不劫持单指点击/滚动
+        host.addGestureRecognizer(g)
+        attachedTo = host; pinch = g
+    }
+
+    private func detachGesture() {
+        if let g = pinch { attachedTo?.removeGestureRecognizer(g) }
+        pinch = nil; attachedTo = nil
+    }
+
+    @objc private func handlePinch(_ g: UIPinchGestureRecognizer) {
+        guard enabled, g.state == .began || g.state == .changed, g.numberOfTouches >= 2 else {
+            startVerticalSpan = nil
+            locked = false
+            return
+        }
+        let p0 = g.location(ofTouch: 0, in: self)
+        let p1 = g.location(ofTouch: 1, in: self)
+        let verticalSpan = abs(p0.y - p1.y)
+        let horizontalSpan = abs(p0.x - p1.x)
+        if startVerticalSpan == nil {
+            startVerticalSpan = max(verticalSpan, 1)
+            startHorizontalSpan = horizontalSpan
+            startRowHeightDp = currentRowHeightDp
+        }
+        guard let sv0 = startVerticalSpan else { return }
+        if !locked,
+           TimetableViewportPolicy.locksVerticalResize(startVerticalSpan: sv0,
+                                                       currentVerticalSpan: verticalSpan,
+                                                       startHorizontalSpan: startHorizontalSpan,
+                                                       currentHorizontalSpan: horizontalSpan) {
+            locked = true
+        }
+        if locked {
+            let clampedScale = min(max(contentScale, 0.7), 1.3)
+            let next = TimetableViewportPolicy.rowHeightFromVerticalSpan(
+                startRowHeightDp: startRowHeightDp,
+                startVerticalSpan: sv0,
+                currentVerticalSpan: verticalSpan,
+                minRowHeightDp: TimetableViewportPolicy.MIN_ROW_DP * clampedScale,
+                maxRowHeightDp: TimetableViewportPolicy.MAX_ROW_DP * clampedScale)
+            onScaleChange(next / max(baseRowHeightDp, 1))
+        }
+        // 未锁定且横向明确展开/合拢 → 不改变高度也不接管(Android consume 屏蔽 pager;
+        // iOS 靠 Pager 自身手势竞争, 纵向意图未锁定前本识别器不输出)。
+    }
+}
+
+private struct GridPinchResizer: UIViewRepresentable {
+    var enabled: Bool
+    var baseRowHeightDp: CGFloat
+    var currentRowHeightDp: CGFloat
+    var contentScale: CGFloat
+    var onScaleChange: (CGFloat) -> Void
+
+    func makeUIView(context: Context) -> GridPinchResizeUIView {
+        let v = GridPinchResizeUIView()
+        v.backgroundColor = .clear
+        v.isUserInteractionEnabled = false   // 本视图不吃触摸, 识别器挂在祖先
+        v.enabled = enabled
+        v.baseRowHeightDp = baseRowHeightDp
+        v.currentRowHeightDp = currentRowHeightDp
+        v.contentScale = contentScale
+        v.onScaleChange = onScaleChange
+        return v
+    }
+
+    func updateUIView(_ v: GridPinchResizeUIView, context: Context) {
+        v.enabled = enabled
+        v.baseRowHeightDp = baseRowHeightDp
+        v.currentRowHeightDp = currentRowHeightDp
+        v.contentScale = contentScale
+        v.onScaleChange = onScaleChange
+    }
+}
+
+// MARK: - 网格列级表头几何 ← CardsGridView 内 columnFont/columnPlacements/legacyAxis 计算
+
+/// 三行式列级统一字号输入行约束(墨迹包络), UIKit 实测口径与 PeriodHeaderCellContent 渲染同源。
+private struct HeaderColumnGeometry {
+    let columnFont: PeriodHeaderAdaptiveFont?
+    let columnPlacements: [PeriodHeaderPlacement]?
+    let legacyAxis: CGFloat?
+
+    /// ← Android CardsGridView BoxWithConstraints 段: columnFont(整列统一字号)/
+    /// columnPlacements(整列统一中点)/ legacyAxis(列级 dash 轴)。
+    /// headerContentHeightSp = 最矮非占位行内容高(真实行高输入 — 用户令 2026-10-03,
+    /// 双指缩行/自适应行高联动;假 52f*scale 输入曾使矮卡字号过大 → 三行行盒互叠)。
+    init(renderSlots: [TimeSlot], layout: String, style: String, hanging: CGFloat, showX: Bool,
+         scale: CGFloat, rowHeightAt: (Int) -> CGFloat, gapH: CGFloat, rowHeightDp: CGFloat) {
+        let padDp = 2 * periodHeaderCardPadDp * scale
+        let minRowDp = renderSlots.enumerated()
+            .filter { !$0.element.isPlaceholder }
+            .map { max(rowHeightAt($0.offset) - gapH, 0) }
+            .min() ?? max(rowHeightDp - gapH, 0)
+        let headerContentHeightSp = max(minRowDp - padDp, 1)
+
+        let timeFont = UIFont.systemFont(ofSize: 11 * scale)   // ← headerTimeStyle(scale)
+        let labelFont = UIFont.systemFont(ofSize: 12 * scale, weight: .semibold) // ← headerLabelStyle(scale)
+
+        func label(of slot: TimeSlot) -> String {
+            (showX && slot.nodeStart == slot.nodeEnd)
+                ? PeriodHeaderFormatter.fullLabel(slot.nodeStart, style)
+                : PeriodHeaderFormatter.range(slot.nodeStart, slot.nodeEnd, style)
+        }
+
+        if layout != "three_line" {
+            // legacy: 列级 dash 轴 — 几何与 legacyLineWidthDp 同一解(pad 已在列宽, 轴不含 pad)
+            columnFont = nil
+            columnPlacements = nil
+            let rows = renderSlots.filter { !$0.isPlaceholder }.map { slot -> LegacyDashRowInk in
+                LegacyDashRowInk(
+                    labelPx: textWidth(label(of: slot), font: labelFont),
+                    timeLeftPx: textWidth(slot.displayStart, font: timeFont),
+                    dashPx: textWidth("-", font: timeFont),
+                    timeRightPx: textWidth(slot.displayEnd, font: timeFont))
+            }
+            legacyAxis = legacyDashColumnPx(rows: rows, padPx: 0).dashCenterX
+        } else {
+            let metricsRows = renderSlots.filter { !$0.isPlaceholder }.map { slot -> PeriodHeaderMetrics in
+                PeriodHeaderMetrics(
+                    startWidth: textWidth(slot.displayStart, font: timeFont),
+                    endWidth: textWidth(slot.displayEnd, font: timeFont),
+                    labelWidth: textWidth(label(of: slot), font: labelFont),
+                    showX: showX && slot.nodeStart == slot.nodeEnd)
+            }
+            // 整列统一字号: 全列行约束由最紧约束算一次(用户 2026-09-29 令: 禁逐行独立自适应)
+            let constraints = metricsRows.map { m -> PeriodHeaderAdaptiveFont.RowConstraint in
+                let timeMaxW = max(m.startWidth, m.endWidth)
+                return PeriodHeaderAdaptiveFont.RowConstraint(
+                    inkWidthSp: timeMaxW + m.labelWidth,   // 联合包络(端点异锚中点)
+                    timeMaxWidthSp: timeMaxW,
+                    labelWidthSp: m.labelWidth)
+            }
+            columnFont = PeriodHeaderAdaptiveFont.forColumn(
+                cardWidthSp: 240, cardHeightSp: headerContentHeightSp, rows: constraints)
+            // 整列统一中点: 与渲染自适应字号同一 16sp 投影口径(用户令 2026-09-30: 卡宽恒等, 禁参差)
+            let projection = PeriodHeaderAdaptiveFont.MAX_LABEL_SP / PeriodHeaderAdaptiveFont.BASE_LABEL_SP
+            let projected = metricsRows.map { m in
+                PeriodHeaderMetrics(startWidth: m.startWidth * projection,
+                                    endWidth: m.endWidth * projection,
+                                    labelWidth: m.labelWidth * projection,
+                                    showX: m.showX)
+            }
+            columnPlacements = solveColumnPlacement(rows: projected, u: hanging)
+            legacyAxis = nil
+        }
+    }
+}
+
 // MARK: - CardsGridView ← CardsGridView
 
 struct CardsGridView: View {
@@ -177,128 +446,304 @@ struct CardsGridView: View {
     var today: Int = DateUtils.todayDayOfWeek()
     let onCourseClick: (CourseEntity) -> Void
     var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7) — 节假日/周末灰显
+    /// 全学期课程(跨周) — 晚间自动收起判据("整学期没有晚间课才收") ← allCourses
+    var allCourses: [CourseEntity]? = nil
+    var todayDate: Date = Date()
+    /// v7.10.5 会话级置顶 override — ScheduleScreen 持有, radio 与网格同真相源 ← topOverrides
+    var topOverrides: [String: Int64] = [:]
+    var onSetTopOverride: (String, Int64?) -> Void = { _, _ in }
+    /// v7.10.16r 轮换态(issue#10): 与 topOverrides 同级持有(ScheduleScreen) —
+    /// 页内 remember 会在周翻页时销毁("周切换一次轮换态即丢")。
+    var rotationSteps: [String: Int] = [:]
+    var onRotationStep: (String, Int) -> Void = { _, _ in }
+    /// 双指行高缩放(相对基座; tick 落盘 / 撤回回退由持有方负责) ← rowHeightScale
+    var rowHeightScale: CGFloat = 1
+    var onRowHeightScaleChange: (CGFloat) -> Void = { _ in }
+    /// v1.0.56 T3(实验室): 双指捏放行高总开关, 默认 false = 手势整个不挂 ← pinchZoomEnabled
+    var pinchZoomEnabled: Bool = false
+
+    // 用户反馈 2026-09-16: 占位行展开态(会话级, 键=时间串, 周内多天共享同一空隙 → 同键联动)。
+    // ← Android remember(mutableStateOf) — 翻周/离开页面复位由持有方视图生命周期承担。
+    @State private var expandedPlaceholders: Set<String> = []
 
     var body: some View {
-        // 渲染槽位方案: 标准槽位 + 非常规课跨空隙占位节次(渲染期产物, 不写回 timeJson)
-        let renderPlan: TimeTableUtils.RenderSlotPlan? = timeJson.isEmpty
-            ? nil
-            : TimeTableUtils.buildRenderSlotPlan(courses: courses, timeJson: timeJson)
-        let renderSlots = renderPlan?.slots ?? timeSlots
-        let slotWeights = renderPlan?.slotWeights
+        let scale = CGFloat(AppPrefs.shared.getGridScale())          // issue#8 0.7~1.3
+        let cornerRatio = CGFloat(AppPrefs.shared.getGridCornerRatio())
+        let d: (CGFloat) -> CGFloat = { $0 * scale }
+        let timeJsonOpt: String? = timeJson.isEmpty ? nil : timeJson
+
+        // 实验室开关(默认全关) — body 直读(AppPrefs 兄弟文件同模式, 无需 changeBus)
+        let adaptiveHeight = AppPrefs.shared.isGridAdaptiveHeight()
+        let autoHideEmptyEvening = AppPrefs.shared.isGridAutoHideEmptyEvening()
+        let eveningStart = TimetableViewportPolicy.parseEveningStart(AppPrefs.shared.getGridEveningStart())
+        let showSeparators = AppPrefs.shared.isGridShowSeparators()
+        let longBreakSpacing = AppPrefs.shared.isGridLongBreakSpacing()
+
+        // 视口策略: 先裁剪稳定的学期级基础槽位(晚间自动收起), 再为当前周合成占位行
+        let baseSlots: [TimeSlot]
+        if autoHideEmptyEvening {
+            let visible = TimetableViewportPolicy.selectVisibleSlots(
+                allCourses: allCourses ?? courses,
+                timeSlots: timeSlots.map(TimetableViewportPolicy.SlotRef.init),
+                visibleDays: visibleDays,
+                timeJson: timeJsonOpt,
+                autoHideEmptyEvening: true,
+                eveningStartMinutes: eveningStart)
+            // 回映: SlotRef 按 nodeStart 唯一性取原 TimeSlot(逐节行 nodeStart 不重复)
+            baseSlots = visible.slots.compactMap { ref in
+                timeSlots.first { $0.nodeStart == ref.nodeStart }
+            }
+        } else {
+            baseSlots = timeSlots
+        }
+        let renderPlan: TimeTableUtils.RenderSlotPlan = timeJsonOpt != nil
+            ? TimeTableUtils.buildRenderSlotPlan(courses: courses, timeJson: timeJson, baseSlots: baseSlots)
+            : TimeTableUtils.RenderSlotPlan(slots: baseSlots)
+        let renderSlots = renderPlan.slots
         let maxNode = renderSlots.map { $0.nodeEnd }.max() ?? 12
         let sortedDays = visibleDays.sorted()
-        let dayCount = sortedDays.count
-        // issue#23: 边缘节次节点的"行号"按 timeSlots 自然顺序取(已按 node ASC 排序);
-        // 前置节点(-1, 0)排到 grid 顶部, 后置节点(N+1, N+2)排到 grid 底部。
-        // 返回 -1 = 该节点不在 timeSlots(数据脏); 调用方判 >= 0 再绘。
-        let slotIndexOf: (Int) -> Int = { node in
-            renderSlots.firstIndex { $0.nodeStart == node } ?? -1
-        }
+        let dayCount = max(sortedDays.count, 1)
 
-        // 布局常量(全 dp) — issue#8: 整体缩放(0.7~1.3) 字号/行高/间距/圆角/内边距等比联动
-        // (← Android CourseTableView.kt d(v) = v*scale)
-        let gridScale = CGFloat(AppPrefs.shared.getGridScale())
-        let gridCornerRatio = CGFloat(AppPrefs.shared.getGridCornerRatio())
-        let d: (CGFloat) -> CGFloat = { $0 * gridScale }
+        // 布局常量 — timeW 实测(三行式墨迹包络 / 老式 dash 轴, 下限 d(46) 防极窄机型挤压;
+        // 上限不死钉 68dp — "第 X 节"长标签交给实测回传) ← Android timeW
+        let headerStyle = AppPrefs.shared.getPeriodHeaderStyle()
+        let headerLayout = AppPrefs.shared.getPeriodHeaderLayout()
+        let headerHanging = CGFloat(AppPrefs.shared.getPeriodHeaderHanging())
+        let headerShowX = AppPrefs.shared.isPeriodHeaderShowX()
+        let timeW: CGFloat
+        if headerLayout == "three_line" {
+            timeW = max(threeLineWidthDp(slots: renderSlots, headerStyle: headerStyle, scale: scale,
+                                         hangingUnits: headerHanging, showX: headerShowX), d(46))
+        } else {
+            timeW = max(legacyLineWidthDp(slots: renderSlots, headerStyle: headerStyle, scale: scale,
+                                          showX: headerShowX), d(46))
+        }
         let headH = d(52)
-        let slotH = d(52)
         let gapH = d(4)
-        let rowH = slotH + gapH
-        // 分数行 → y 像素: 加权前缀和(占位行按分钟占比, 标准行权重 1);无权重 = 等高回落
-        let yOfRows: (Double) -> CGFloat = { r in
-            guard let ws = slotWeights else { return rowH * CGFloat(r) }
-            let i = Int(r)
-            var acc = 0.0
-            for k in 0..<min(max(i, 0), ws.count) { acc += ws[k] }
-            if i >= 0 && i < ws.count { acc += ws[i] * (r - Double(i)) }
-            return rowH * CGFloat(acc)
-        }
-        let rowHeightAt: (Int) -> CGFloat = { i in
-            guard let ws = slotWeights, i >= 0, i < ws.count else { return rowH }
-            return rowH * CGFloat(ws[i])
-        }
-        // 行跨度 → 像素高(供簇卡/单卡 frac 落位;起点恒为网格顶 0 行)
-        let spanDpOf: ((Double, Double) -> Double)? = slotWeights == nil ? nil : { f, t in
-            Double(yOfRows(t) - yOfRows(f))
-        }
+        let gapW = d(5)
 
-        GeometryReader { geo in
-            // 列宽计算: 侧边留白 16(= Android 外层 padding 8×2) + 固定 timeW 68 / gapW 5
-            // (× scale, ← Android d(68f)/d(5f), 不做窄屏自适应压缩)
-            let sideInset: CGFloat = 16
-            let timeW = 68 * gridScale
-            let gapW = 5 * gridScale
-            let contentW = max(geo.size.width - sideInset - timeW - gapW * CGFloat(dayCount), 0)
-            let colW = max(contentW / CGFloat(dayCount), 28)
-            // issue#23: grid 高度按 timeSlots 行数算(maxNode 已不反映边缘节点总数);
-            // 占位节次行按分钟权重计入总高(时间轴与卡片同一前缀和, 自洽)
+        // 长课间留白: 固定薄带(24dp×gridScale×fontScale), 行高保持刚性不缩放
+        // — 用户反馈 2026-10: 旧 6dp 带宽+行等比压缩累积成整行空隙(#118 原语再定义)
+        let mealBreakAfterRows: Set<Int> = (longBreakSpacing && timeJsonOpt != nil)
+            ? MealBreakDetector.detectDisplayRowIndexes(timeJson: timeJson, courses: courses,
+                                                        displayedNodeEnds: renderSlots.map { $0.nodeEnd })
+            : []
+        let mealGapExtra: CGFloat = longBreakSpacing ? d(24) * systemFontScaleProxy : 0
+
+        return GeometryReader { geo in
+            // 外层 padding d(8) 每边 — 可用宽/高都已扣除(← BoxWithConstraints maxWidth/maxHeight)
+            let boxPad = d(8)
+            let availableW = max(geo.size.width - 2 * boxPad, 0)
+            // 行高基座: 自适应只改纵向; 长课间带不进可用高度预算(行高刚性, 带悬浮行间)
+            let availableGridHeight = max(geo.size.height - 2 * boxPad - headH - gapH - navExtra, 0)
+            let weightsForFit = renderPlan.slotWeights.map { $0.map { CGFloat($0) } }
+            let baseRowHeight = TimetableViewportPolicy.baseRowHeightDp(
+                adaptive: adaptiveHeight,
+                fitRowHeightDp: TimetableViewportPolicy.fitRowHeightDp(
+                    availableGridHeightDp: availableGridHeight,
+                    slotWeights: weightsForFit,
+                    slotCount: renderSlots.count,
+                    contentScale: scale),
+                contentScale: scale)
+            let clampedScale = min(max(scale, 0.7), 1.3)
+            let rowHeightDp = TimetableViewportPolicy.manualRowHeightDp(
+                baseRowHeightDp: baseRowHeight,
+                verticalScale: rowHeightScale,
+                minRowHeightDp: TimetableViewportPolicy.MIN_ROW_DP * clampedScale,
+                maxRowHeightDp: TimetableViewportPolicy.MAX_ROW_DP * clampedScale)
+            let rowH = rowHeightDp
+
+            // 展开的占位行权重 = "正好显示完文字"的展开权重 — yOfRows/rowHeightAt/gridH
+            // 都读 effectiveWeights 同一张表, 行高与 y 前缀和天然同源(时间轴不破)。
+            let effectiveWeights: [CGFloat]? = renderPlan.slotWeights.map { base in
+                base.enumerated().map { i, w in
+                    let slot = i < renderSlots.count ? renderSlots[i] : nil
+                    if let slot, slot.isPlaceholder, expandedPlaceholders.contains(slot.timeString) {
+                        return max(CGFloat(w), TimeTableUtils.placeholderExpandedWeight(
+                            rowHeightDp: rowHeightDp,
+                            gapDp: TimetableViewportPolicy.ROW_GAP_DP,
+                            requiredTextHeightDp: placeholderTextRequiredDp))
+                    }
+                    return CGFloat(w)
+                }
+            }
+
+            // yOfRows(r) — 加权行坐标 r(0.0=网格顶, 1.0=一标准行) → pt; 穿过的长课间带同帧计入
+            let ws = effectiveWeights ?? Array(repeating: CGFloat(1), count: renderSlots.count)
+            let yOfRows: (Double) -> CGFloat = { r in
+                let full = Int(min(max(r, 0), Double(ws.count)))
+                var acc: CGFloat = 0
+                for i in 0..<full { acc += ws[i] }
+                if full < ws.count && r > Double(full) { acc += ws[full] * CGFloat(r - Double(full)) }
+                let crossedBreaks = mealBreakAfterRows.filter { Double($0 + 1) <= r }.count
+                return rowH * acc + mealGapExtra * CGFloat(crossedBreaks)
+            }
+            let rowHeightAt: (Int) -> CGFloat = { i in
+                rowH * (i >= 0 && i < ws.count ? ws[i] : 1)
+            }
+            let gapAfterRow: (Int) -> CGFloat = { i in
+                gapH + (mealBreakAfterRows.contains(i) ? mealGapExtra : 0)
+            }
+
+            // 整列统一字号/中点/dash 轴 — 真实行高输入(双指缩行/自适应联动)
+            let headerGeo = HeaderColumnGeometry(
+                renderSlots: renderSlots, layout: headerLayout, style: headerStyle,
+                hanging: headerHanging, showX: headerShowX, scale: scale,
+                rowHeightAt: rowHeightAt, gapH: gapH, rowHeightDp: rowHeightDp)
+
+            // 列宽: (可用宽 − timeW − gapW*(dayCount+1)) / dayCount ← colW
+            let colW = max((availableW - timeW - gapW * CGFloat(dayCount + 1)) / CGFloat(dayCount), 28)
+            // grid 高按 renderSlots 行数算(边缘/占位行按分钟加权计入) ← gridH
             let gridH = yOfRows(Double(max(renderSlots.count, 1)))
+
+            // 行 → sharedPlacement 索引 = 该行之前(含本行前缀)非占位行数 ← subList(0,i).count{!isPlaceholder}
+            let placementIndexOf: (Int) -> Int = { i in
+                renderSlots[0..<max(min(i, renderSlots.count), 0)].filter { !$0.isPlaceholder }.count
+            }
 
             ScrollView(.vertical) {
                 VStack(spacing: 0) {
-                    // ---- 表头 ----
-                    // 首列留白 = timeW + gapW，与下方 grid 的 cardX 对齐；高度恒 headH
-                    // (← Android Row height(headH), 含日期行也是 52 — cell 自身 56 被 Row 约束收平)
+                    // ---- 表头: 自然排布 Row(高 headH, spacedBy gapW) ----
                     HStack(spacing: gapW) {
-                        Spacer().frame(width: timeW + gapW)
+                        Spacer().frame(width: timeW)
                         ForEach(sortedDays, id: \.self) { day in
                             let dateStr: String? = {
                                 guard showDate, !startDate.isEmpty,
-                                      let d = DateUtils.dateOfWeek(startDate: startDate, week: currentWeek, dayOfWeek: day) else { return nil }
-                                return DateUtils.shortDate(d)
+                                      let dd = DateUtils.dateOfWeek(startDate: startDate, week: currentWeek, dayOfWeek: day) else { return nil }
+                                return DateUtils.shortDate(dd)
                             }()
-                            DayHeadCell(day: day, isToday: day == today,
+                            DayHeadCell(day: day,
+                                        isToday: isDateTodayOfWeek(startDate: startDate, week: currentWeek,
+                                                                   day: day, todayDate: todayDate),
                                         isGrey: greyDays.contains(day),
                                         courseCount: courses.filter { $0.day == day }.count,
                                         dateStr: dateStr,
-                                        scale: gridScale, cornerRatio: gridCornerRatio)
+                                        scale: scale, cornerRatio: cornerRatio)
                                 .frame(width: colW)
                                 .frame(maxHeight: .infinity)
                         }
                     }
-                    .frame(height: headH)
+                    .frame(width: availableW, height: headH, alignment: .leading)
 
                     Spacer().frame(height: gapH)
 
-                    // ---- Grid 主体: 固定高度, 内部绝对定位 ----
+                    // ---- Grid 主体: 固定高度, 内部绝对定位 + drawBehind 分隔线 ----
                     ZStack(alignment: .topLeading) {
-                        // 时间栏(占位行按权重行高, 与卡片落位同源)
+                        if showSeparators {
+                            // ← drawBehind: outlineVariant α0.42, stroke 0.7; 长课间带断开竖线
+                            Canvas { ctx, size in
+                                let lineColor = colors.outlineVariant.opacity(0.42)
+                                let stroke: CGFloat = 0.7
+                                let firstColumn = timeW + gapW / 2
+                                var breakBands: [GridSeparatorGeometry.Span] = []
+                                for row in mealBreakAfterRows.sorted() {
+                                    guard renderSlots.indices.contains(row), row + 1 < renderSlots.count else { continue }
+                                    let bandBottom = yOfRows(Double(row + 1))
+                                    let bandTop = bandBottom - gapAfterRow(row)
+                                    breakBands.append(GridSeparatorGeometry.Span(start: bandTop, end: bandBottom))
+                                }
+                                for column in 0...dayCount {
+                                    let x = firstColumn + CGFloat(column) * (colW + gapW)
+                                    for seg in GridSeparatorGeometry.verticalSegments(
+                                        start: 0, end: size.height, excluded: breakBands) {
+                                        var p = Path()
+                                        p.move(to: CGPoint(x: x, y: seg.start))
+                                        p.addLine(to: CGPoint(x: x, y: seg.end))
+                                        ctx.stroke(p, with: .color(lineColor), lineWidth: stroke)
+                                    }
+                                }
+                                for boundary in 0...renderSlots.count {
+                                    let y = yOfRows(Double(boundary))
+                                    var p = Path()
+                                    p.move(to: CGPoint(x: timeW, y: y))
+                                    p.addLine(to: CGPoint(x: size.width, y: y))
+                                    ctx.stroke(p, with: .color(lineColor), lineWidth: stroke)
+                                }
+                                for band in breakBands {
+                                    var p = Path()
+                                    p.move(to: CGPoint(x: timeW, y: band.start))
+                                    p.addLine(to: CGPoint(x: size.width, y: band.start))
+                                    ctx.stroke(p, with: .color(lineColor), lineWidth: stroke)
+                                }
+                            }
+                            .frame(width: availableW, height: gridH)
+                        }
+
+                        // 时间栏: 每节一行, offset 定位(分钟加权)
                         ForEach(Array(renderSlots.enumerated()), id: \.offset) { i, slot in
-                            SingleTimeHeadCell(slot: slot, scale: gridScale, cornerRatio: gridCornerRatio)
+                            let phFitsText = !slot.isPlaceholder || TimeTableUtils.placeholderTextFits(
+                                rowWeight: (i < ws.count ? ws[i] : 1),
+                                rowHeightDp: rowHeightDp,
+                                gapDp: TimetableViewportPolicy.ROW_GAP_DP,
+                                requiredTextHeightDp: placeholderTextRequiredDp)
+                            SingleTimeHeadCell(
+                                slot: slot,
+                                scale: scale,
+                                cornerRatio: cornerRatio,
+                                textFits: phFitsText,
+                                onToggleExpand: (slot.isPlaceholder && !phFitsText)
+                                    ? { togglePlaceholder(slot.timeString) } : nil,
+                                sharedFont: headerGeo.columnFont,
+                                sharedPlacement: headerGeo.columnPlacements.map {
+                                    $0.indices.contains(placementIndexOf(i)) ? $0[placementIndexOf(i)] : nil
+                                } ?? nil,
+                                sharedLegacyAxis: headerGeo.legacyAxis)
                                 .frame(width: timeW, height: max(rowHeightAt(i) - gapH, 0))
                                 .offset(y: yOfRows(Double(i)))
                         }
-                        // 课程卡片: 冲突簇整簇走 ConflictClusterCard, 非簇课保持原
-                        // CourseOverlayCard 单卡路径(回归保护)(← CourseTableView.kt Grid 主体)
+
+                        // 课程卡片: 冲突簇整簇 ConflictClusterCard, 非簇课单卡路径(回归保护)
                         GridConflictLayer(
                             courses: courses, visibleDays: visibleDays, sortedDays: sortedDays,
                             maxNode: maxNode, timeSlots: renderSlots,
-                            timeJson: timeJson, spanDpOf: spanDpOf,
+                            timeJson: timeJson,
+                            spanDpOf: { f, t in Double(yOfRows(t) - yOfRows(f)) },
                             timeW: timeW, colW: colW, rowH: rowH,
                             gapW: gapW, gapH: gapH, greyDays: greyDays,
-                            scale: gridScale, cornerRatio: gridCornerRatio,
+                            scale: scale, cornerRatio: cornerRatio,
                             isDark: CourseColorUtil.isPaletteDark(palette),
-                            onCourseClick: onCourseClick)
+                            onCourseClick: onCourseClick,
+                            topOverrides: topOverrides,
+                            onSetTopOverride: onSetTopOverride,
+                            rotationSteps: rotationSteps,
+                            onRotationStep: onRotationStep,
+                            yOfRows: yOfRows,
+                            gapAfterRow: gapAfterRow)
                     }
-                    .frame(width: max(geo.size.width - sideInset, 0),
-                           height: gridH, alignment: .topLeading)
-                    // 悬浮底栏额外余量(→ Android LocalNavExtraBottomPadding Spacer):
-                    //   镜像 Android CourseTableView.kt "Spacer(height = navExtra)" 末行追加,
-                    //   网格内最末一行课不被悬浮药丸遮住。
-                    Color.clear.frame(height: navExtra)
+                    .frame(width: availableW, height: gridH, alignment: .topLeading)
+                    // 双指纵向缩放行高(实验室开关默认关 = 手势不挂) ← verticalResizeGesture
+                    .background(GridPinchResizer(
+                        enabled: pinchZoomEnabled,
+                        baseRowHeightDp: baseRowHeight,
+                        currentRowHeightDp: rowHeightDp,
+                        contentScale: scale,
+                        onScaleChange: onRowHeightScaleChange)
+                        .allowsHitTesting(false))
+
+                    // Dock 悬浮底栏余量(同 FullWeekView)
+                    if navExtra > 0 { Spacer().frame(height: navExtra) }
                 }
-                .padding(8 * gridScale)
+                .frame(width: availableW, alignment: .topLeading)
             }
+            .padding(boxPad)
         }
         .background(colors.surfaceContainerHigh)
         .cornerRadius(SleepyShapes.large)
     }
 
+    /// 占位行展开/折叠: 键=时间串(周内多天共享同一空隙 → 同键联动展开) ← togglePlaceholder
+    private func togglePlaceholder(_ key: String) {
+        if expandedPlaceholders.contains(key) { expandedPlaceholders.remove(key) }
+        else { expandedPlaceholders.insert(key) }
+    }
 }
 
-/// 冲突簇渲染层(← CourseTableView.kt Grid 内联逻辑, v7.10.16r 终态)
-/// 引擎聚簇后: 簇 → ConflictClusterCard(轮换/置顶 override 通道), 非簇课 → 原单卡路径。
-/// topOverrides=会话级切换态(内存), defaultTopMap=持久偏好(radio), rotationSteps=纯会话轮换。
+// MARK: - GridConflictLayer ← CourseTableView.kt Grid 主体内联簇/单卡绘制(v7.10.16r 终态)
+
+/// 冲突簇渲染层: 引擎聚簇后 簇 → ConflictClusterCard(轮换/置顶 override 通道),
+/// 非簇课 → CourseOverlayCard 单卡路径。
+/// topOverrides/rotationSteps = ScheduleScreen 持有(v7.10.16r: 页内态翻页即丢),
+/// defaultTopMap = 持久偏好(radio), 作 topOverride fallback。
 struct GridConflictLayer: View {
     @Environment(\.localWakeUpColors) private var colors
     @ObservedObject private var defaultTopStore = AppPrefs.sharedConflictDefaultTopStore
@@ -306,11 +751,11 @@ struct GridConflictLayer: View {
     let visibleDays: Set<Int>
     let sortedDays: [Int]
     let maxNode: Int
-    /// issue#23: 边缘节点行号/步长按 timeSlots 真实行序; 空 = 旧 startNode ∈ [1,maxNode] 行为
+    /// issue#23: 边缘节点行号/步长按 renderSlots 真实行序; 空 = 旧 startNode ∈ [1,maxNode] 行为
     let timeSlots: [TimeSlot]
     /// issue#23 §5: 非空 → 时间域聚簇 + ownTime 课分数行落位
     var timeJson: String = ""
-    /// 行跨度(分数行) → 像素高; nil = 等高网格回落 rowH*行数
+    /// 行跨度(分数行) → 像素高(加权); 网格恒传(含占位行/长课间带的同源映射)
     var spanDpOf: ((Double, Double) -> Double)? = nil
     let timeW: CGFloat
     let colW: CGFloat
@@ -318,17 +763,22 @@ struct GridConflictLayer: View {
     let gapW: CGFloat
     let gapH: CGFloat
     let greyDays: Set<Int>
-    /// issue#8: 网格缩放/圆角比例 — 透传给单卡路径(簇卡内部几何已由缩放后的 colW/rowH 驱动)
+    /// issue#8: 网格缩放/圆角比例 — 透传给单卡路径
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
-    /// 深色判定(GridConflictLayer 无 palette 环境注入,由 CardsGridView 传入)
+    /// 深色判定(本层无 palette 环境注入,由 CardsGridView 传入)
     let isDark: Bool
     let onCourseClick: (CourseEntity) -> Void
-
-    /// 会话级置顶切换(簇键 → courseId);App 重启清空(← topOverrides rememberSaveable 语义)
-    @State private var topOverrides: [String: Int64] = [:]
-    /// v7.10.16r 轮换态: 簇键 → 轮换步数,纯会话级不落盘
-    @State private var rotationSteps: [String: Int] = [:]
+    /// v7.10.5: 置顶 override 通道上提 — 网格 onPickTop 与详情 radio 写同一真相源
+    var topOverrides: [String: Int64] = [:]
+    var onSetTopOverride: (String, Int64?) -> Void = { _, _ in }
+    /// v7.10.16r 轮换态: 簇键 → 步数,同持有方(翻页不丢)
+    var rotationSteps: [String: Int] = [:]
+    var onRotationStep: (String, Int) -> Void = { _, _ in }
+    /// 加权行坐标 → y(锚点/单卡同一前缀和) ← yOfRows
+    var yOfRows: (Double) -> CGFloat = { _ in 0 }
+    /// 行后间距(含长课间带) ← gapAfterRow
+    var gapAfterRow: (Int) -> CGFloat = { _ in 4 }
 
     var body: some View {
         let conflictStyle = AppPrefs.shared.getConflictStyle()
@@ -336,34 +786,34 @@ struct GridConflictLayer: View {
         let clusters = ConflictLayoutEngine.findClusters(
             courses, timeJson: timeJson.isEmpty ? nil : timeJson)
         let clusteredIds = Set(clusters.flatMap { $0.courses.map { $0.id } })
-        // issue#23: 边缘节点用 slotIndexOf 兜底,数据脏返回 -1 直接过滤
+        // issue#23: 边缘节点用 slotIndexOf 兜底, 数据脏返回 -1 直接过滤
         let slotIndexOf: (Int) -> Int = timeSlots.isEmpty
-            ? { node in (1...maxNode).contains(node) ? node - 1 : -1 }
+            ? { node in (1...max(maxNode, 1)).contains(node) ? node - 1 : -1 }
             : { node in timeSlots.firstIndex { $0.nodeStart == node } ?? -1 }
 
         ZStack(alignment: .topLeading) {
-            let clusterItems = Array(clusters.enumerated())
-            ForEach(clusterItems, id: \.offset) { item in
+            ForEach(Array(clusters.enumerated()), id: \.offset) { item in
                 let cluster = item.element
-                // 簇内课若因 visibleDays 过滤或节点不在 timeJson 则整簇跳过
+                // 簇内课若因 visibleDays 过滤或节点不在 renderSlots 则整簇跳过
                 if visibleDays.contains(cluster.day) {
                     let inGrid = cluster.courses.filter { slotIndexOf($0.startNode) >= 0 }
                     if !inGrid.isEmpty {
                         let anchor = cluster.courses.first! // 主课判定序首位,决定簇基点
                         let dayIdx = sortedDays.firstIndex(of: cluster.day) ?? 0
                         let cardX = timeW + gapW + (colW + gapW) * CGFloat(dayIdx)
-                        // issue#23 §5: ownTime 锚课按真实分钟比例落位, 常规课整格吸附
+                        // 用户报障 2026-09-10: 簇锚点用锚课小数行坐标(ownTime 锚课不再
+                        // 被 slotIndexOf 整格吸附丢掉本体偏移);加权 dp 与簇内 spanDpOf 同一真值。
                         let anchorFrac = (anchor.ownTime && !anchor.startTime.isEmpty && !anchor.endTime.isEmpty)
                             ? TimeTableUtils.timeToFractionalRows(anchor.startTime, anchor.endTime, slots: timeSlots)
                             : nil
                         let anchorRow = anchorFrac?.0 ?? Double(max(slotIndexOf(anchor.startNode), 0))
-                        let cardY = spanDpOf.map { $0(0, anchorRow) }.map { CGFloat($0) } ?? rowH * CGFloat(anchorRow)
+                        let cardY = yOfRows(anchorRow)
                         let clusterKey = ConflictLayoutEngine.conflictClusterKey(cluster)
                         ConflictClusterCard(
                             cluster: cluster,
                             style: conflictStyle,
                             topOverrideId: topOverrides[clusterKey] ?? defaultTopMap[clusterKey],
-                            onPickTop: { id in setTopOverride(clusterKey, id) },
+                            onPickTop: { id in onSetTopOverride(clusterKey, id) },
                             onCourseClick: onCourseClick,
                             colW: colW, rowH: rowH, maxNode: maxNode,
                             gapW: gapW, gapH: gapH,
@@ -372,11 +822,11 @@ struct GridConflictLayer: View {
                             isGrey: greyDays.contains(cluster.day),
                             rotationStep: rotationSteps[clusterKey],
                             onRotate: {
-                                rotationSteps[clusterKey, default: (rotationSteps[clusterKey] ?? 0)] += 1
+                                onRotationStep(clusterKey, (rotationSteps[clusterKey] ?? 0) + 1)
                             },
                             onPickFromBadge: { layerPos in
-                                // 气泡选课 = 换来看: 轮换步数使目标层转到首位(会话态)
-                                rotationSteps[clusterKey] = layerPos
+                                // 气泡选课 = 换来看: 步数使目标层转到基准序首位(会话态)
+                                onRotationStep(clusterKey, layerPos)
                             })
                             .offset(x: cardX, y: cardY)
                     }
@@ -388,7 +838,7 @@ struct GridConflictLayer: View {
                    !clusteredIds.contains(course.id) { // 簇内课已由 ConflictClusterCard 绘制
                     let dayIdx = sortedDays.firstIndex(of: course.day) ?? 0
                     let nodeIdx = slotIndexOf(course.startNode)
-                    // 步长上限按剩余行数算(边缘节点也按 timeSlots 总行数取模)
+                    // 步长上限按剩余行数算(边缘节点也按 renderSlots 总行数取模)
                     let steps = min(max(course.step, 1), timeSlots.count - nodeIdx)
                     let cardX = timeW + gapW + (colW + gapW) * CGFloat(dayIdx)
                     // issue#23 §5: ownTime 单卡按真实分钟比例落位(可落在占位行内),
@@ -396,16 +846,20 @@ struct GridConflictLayer: View {
                     let frac = (course.ownTime && !course.startTime.isEmpty && !course.endTime.isEmpty)
                         ? TimeTableUtils.timeToFractionalRows(course.startTime, course.endTime, slots: timeSlots)
                         : nil
-                    let cardGeom: (y: CGFloat, h: CGFloat) = {
+                    // ViewBuilder 不接受「先声明后分支赋值」(let 赋值语句不是 View) — 用即时闭包算出 (cardY, cardH)
+                    let (cardY, cardH): (CGFloat, CGFloat) = {
                         guard let frac else {
-                            return (rowH * CGFloat(nodeIdx), rowH * CGFloat(steps) - gapH)
+                            return (yOfRows(Double(nodeIdx)),
+                                    yOfRows(Double(nodeIdx + steps)) - yOfRows(Double(nodeIdx)) - gapAfterRow(nodeIdx + steps - 1))
                         }
-                        let y = CGFloat(spanDpOf?(0, frac.0) ?? Double(rowH) * frac.0)
-                        let spanPx = CGFloat(spanDpOf?(frac.0, frac.1) ?? Double(rowH) * (frac.1 - frac.0))
-                        return (y, max(spanPx, rowH * 0.3) - gapH)
+                        // 按比例(分钟加权), 保底 0.3 标准行避免过短课胶囊塌缩到不可点;
+                        // 整行结束(frac.1 为整数且 >0)→ 扣该行 gapAfterRow, 否则扣 gapH
+                        let span = max(yOfRows(frac.1) - yOfRows(frac.0), rowH * 0.3)
+                        let r2 = Int(frac.1.rounded())
+                        let subtract = (frac.1 == Double(r2) && frac.1 > 0)
+                            ? gapAfterRow(r2 - 1) : gapH
+                        return (yOfRows(frac.0), span - subtract)
                     }()
-                    let cardY = cardGeom.y
-                    let cardH = cardGeom.h
                     CourseOverlayCard(course: course, cardHeight: cardH,
                                       isDark: isDark,
                                       isGrey: greyDays.contains(course.day),
@@ -418,19 +872,17 @@ struct GridConflictLayer: View {
                 }
             }
         }
-        // v7.10.16r(评审#4): 详情弹窗 radio 落盘 → 本层会话态跟随 —
-        // 显式选默认置顶 = 会话 override 同步为 radio 值(同帧换层) + 同簇临时轮换让位。
-        // ← Android ScheduleScreen.onDefaultTopChanged
+        // v7.10.16r(评审#4): 详情 radio 落盘 → 会话态跟随(持有方负责):
+        // 显式选默认置顶 = 会话 override 同步(radio 通道) + 同簇临时轮换让位。
+        // ← Android ScheduleScreen.onDefaultTopChanged: rotationSteps -= key; setTopOverride(key, repId)
         .onChange(of: defaultTopStore.map) { newMap in
-            // radio 落盘新值/改值 → 会话 override 同步 + 同簇临时轮换让位
             for (k, v) in newMap where lastDefaultTopMap[k] != v {
-                topOverrides[k] = v
-                rotationSteps[k] = nil
+                onSetTopOverride(k, v)
+                onRotationStep(k, 0)
             }
-            // radio 清除默认置顶(map 移除键) → 会话 override 同步清除
             for k in lastDefaultTopMap.keys where newMap[k] == nil {
-                topOverrides.removeValue(forKey: k)
-                rotationSteps[k] = nil
+                onSetTopOverride(k, nil)
+                onRotationStep(k, 0)
             }
             lastDefaultTopMap = newMap
         }
@@ -438,47 +890,85 @@ struct GridConflictLayer: View {
 
     /// onChange 需要旧值对比 — 只处理真正被 radio 触碰的簇键
     @State private var lastDefaultTopMap: [String: Int64] = [:]
-
-    private func setTopOverride(_ key: String, _ courseId: Int64?) {
-        if let id = courseId { topOverrides[key] = id } else { topOverrides.removeValue(forKey: key) }
-    }
 }
 
-// ← SingleTimeHeadCell
+// MARK: - SingleTimeHeadCell ← SingleTimeHeadCell
+
+/// 时间栏单元: 三行式/老式表头委托 PeriodHeaderCellContent(整列统一字号/中点/dash 轴),
+/// 渲染期占位节次 = 更低调呈现(半透明底只显时间); 文字放不下的占位行 = 纯灰块,
+/// 点击展开(用户反馈 2026-09-16)。
 private struct SingleTimeHeadCell: View {
     @Environment(\.localWakeUpColors) private var colors
     let slot: TimeSlot
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
+    var textFits: Bool = true
+    var onToggleExpand: (() -> Void)? = nil
+    var sharedFont: PeriodHeaderAdaptiveFont? = nil
+    var sharedPlacement: PeriodHeaderPlacement? = nil
+    var sharedLegacyAxis: CGFloat? = nil
 
     var body: some View {
+        let headerLayout = AppPrefs.shared.getPeriodHeaderLayout()
+        let headerStyle = AppPrefs.shared.getPeriodHeaderStyle()
         let isPh = slot.isPlaceholder
-        return VStack(spacing: 1 * scale) {
-            if !isPh {
-                Text(L10n.format("period_format_node", slot.label))
-                    .font(.system(size: 10 * scale, weight: .semibold))
-                    .foregroundColor(colors.onSurface)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .allowsTightening(true)
+        // 用户反馈 2026-09-16: 文字放不下的占位行 = 纯灰块(不显示文字), 点击展开/折叠。
+        // 只灰置占位卡片本身, 课程卡片照常渲染(几何由课程卡自身比例定位, 不受此影响)。
+        let phCollapsed = isPh && !textFits
+        let shape = RoundedRectangle(cornerRadius: 8 * scale * min(cornerRatio, 1))
+
+        ZStack {
+            Group {
+                if phCollapsed {
+                    // 灰块形态: 无文字 — 信息靠点击展开
+                    Color.clear
+                } else if isPh {
+                    Text(slot.timeString)
+                        .font(.system(size: 9 * scale))
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                } else {
+                    PeriodHeaderCellContent(
+                        displayStart: slot.displayStart,
+                        displayEnd: slot.displayEnd,
+                        nodeStart: slot.nodeStart,
+                        nodeEnd: slot.nodeEnd,
+                        isPlaceholder: false,
+                        layout: headerLayout,
+                        style: headerStyle,
+                        scale: CGFloat(scale),
+                        sharedFont: sharedFont,
+                        sharedPlacement: sharedPlacement,
+                        sharedLegacyAxis: sharedLegacyAxis)
+                }
             }
-            Text(slot.timeString)
-                .font(.system(size: 9 * scale))
-                .foregroundColor(colors.onSurfaceVariant)
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
-                .allowsTightening(true)
         }
-        .padding(4 * scale)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // ← Android: 占位节次 α0.5(只显时间,节号隐藏)
+        .contentShape(Rectangle())
+        // 与设置页预览逐层相等(PERIOD_HEADER_CARD_PAD_DP, 用户 2026-09-28 令):
+        // 之前 2dp 外 + 3dp 内 = 5dp, 预览只有 3dp → 周视图卡片比预览小一圈。
+        .padding(periodHeaderCardPadDp * scale)
         .background(colors.surfaceContainerLow.opacity(isPh ? 0.5 : 1))
-        .cornerRadius(12 * scale * cornerRatio)
-        .padding(2 * scale)
+        .clipShape(shape)
+        .modifier(TapExpandModifier(onToggleExpand: onToggleExpand))
     }
 }
 
-// ← CourseOverlayCard
+/// 占位灰块点击展开(仅 onToggleExpand 非空时挂 tap) ← noRippleClickable 条件链
+private struct TapExpandModifier: ViewModifier {
+    let onToggleExpand: (() -> Void)?
+    func body(content: Content) -> some View {
+        if let onToggleExpand {
+            content.onTapGesture(perform: onToggleExpand)
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - CourseOverlayCard ← CourseOverlayCard
+
 private struct CourseOverlayCard: View {
     @Environment(\.localWakeUpColors) private var colors
     let course: CourseEntity
@@ -494,18 +984,19 @@ private struct CourseOverlayCard: View {
 
     var body: some View {
         let effRows = groupRows.isEmpty ? [course] : groupRows
+        // 统一取色入口(决策 D3)— 中性色 secondaryContainer ← Android neutralColor
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
-            neutralColor: colors.surfaceVariant,
+            neutralColor: colors.secondaryContainer,
             colorless: AppPrefs.shared.isCourseColorless())
+        // 文字色亮度自适应(决策 D5-13)
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
-        // 节假日灰显：色块叠 alpha + 文字应用 strikethrough 样式 ← effectiveBg/effectiveFg/textDecoration
+        // 节假日灰显: 色块叠 alpha + 文字 strikethrough
         let effectiveBg = isGrey ? bg.opacity(SleepyTheme.Alpha.inactive) : bg
         let effectiveFg = isGrey ? fg.opacity(SleepyTheme.Alpha.inactive) : fg
         let strikethrough = isGrey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
-        // 副信息(教室/教师/无) — grid_sub_info 设置决定
-        // 课程名字号恒 10(× scale)(← Android fontSize = (10*scale).sp, 两分支同值, 无卡高档位)
-        let bodyFont = 10.0 * scale
+        // 副信息(教室/教师/无) — grid_sub_info 设置决定; 卡片 y 位置本身编码节次,
+        // 卡内不再显示节次/时间
         let subInfo = AppPrefs.shared.getGridSubInfo()
         // issue#26: 网格场景别名 — 网格设置开且别名非空才显示别名, 否则原名
         let name = CourseDisplayUtil.displayName(course, AppPrefs.shared.isGridUseAlias())
@@ -520,34 +1011,28 @@ private struct CourseOverlayCard: View {
         Button(action: onClick) {
             Group {
                 if subText.isEmpty {
-                    // 无副信息: 课程名整体居中(原行为); 名字长时压缩字体防横向溢出
+                    // 无副信息: 课程名整体居中(原行为)
                     Text(name)
-                        .font(.system(size: bodyFont, weight: .semibold))
+                        .font(.system(size: 10 * scale, weight: .semibold))
                         .foregroundColor(effectiveFg)
                         .strikethrough(strikethrough)
                         .lineLimit(6)
-                        .minimumScaleFactor(0.6)
-                        .allowsTightening(true)
                         .multilineTextAlignment(.center)
                 } else {
-                    // 有副信息: 课程名在上半区居中, 副信息贴卡底; 两者都允许缩放
-                    VStack(spacing: 2 * scale) {
+                    // 有副信息: 课程名在上半区居中(剩余空间), 副信息贴卡底 — 主文字不紧贴副文字
+                    VStack(spacing: 0) {
                         Text(name)
-                            .font(.system(size: bodyFont, weight: .semibold))
+                            .font(.system(size: 10 * scale, weight: .semibold))
                             .foregroundColor(effectiveFg)
                             .strikethrough(strikethrough)
                             .lineLimit(6)
-                            .minimumScaleFactor(0.6)
-                            .allowsTightening(true)
                             .multilineTextAlignment(.center)
-                            .frame(maxHeight: .infinity)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         Text(subText)
                             .font(.system(size: 9 * scale))
                             .foregroundColor(effectiveFg.opacity(SleepyTheme.Alpha.highContent))
                             .strikethrough(strikethrough)
                             .lineLimit(2)
-                            .minimumScaleFactor(0.7)
-                            .allowsTightening(true)
                             .multilineTextAlignment(.center)
                     }
                 }
@@ -563,15 +1048,17 @@ private struct CourseOverlayCard: View {
     }
 }
 
-// ← DayHeadCell
+// MARK: - DayHeadCell ← DayHeadCell
+
 private struct DayHeadCell: View {
     @Environment(\.localWakeUpColors) private var colors
     let day: Int
+    /// 该周页真实日期 = 今天(← DateUtils.dateOfWeek + isDateToday, 非 day == today)
     let isToday: Bool
     var isGrey: Bool = false
     let courseCount: Int
     var dateStr: String? = nil
-    /// issue#8: 缩放(字号/内边距联动) + 圆角比例(← Android 16*scale*cornerRatio)
+    /// issue#8: 缩放(字号/内边距联动) + 圆角比例(← Android 10*scale*cornerRatio.coerceAtMost(1))
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
 
@@ -584,7 +1071,7 @@ private struct DayHeadCell: View {
                                       : colors.onSurfaceVariant)
 
         VStack(spacing: 1 * scale) {
-            // ← Android fontSize = (14*scale).sp(dayLabel 13→14 与安卓对齐)
+            // ← Android fontSize = (14*scale).sp lineHeight 20
             Text(DateUtils.localizedDay(day))
                 .font(.system(size: 14 * scale, weight: .semibold))
                 .foregroundColor(fg)
@@ -592,6 +1079,7 @@ private struct DayHeadCell: View {
                 .minimumScaleFactor(0.75)
                 .allowsTightening(true)
             if let dateStr = dateStr {
+                // ← micro 10*scale/11
                 Text(dateStr)
                     .font(.system(size: 10 * scale))
                     .foregroundColor(subFg)
@@ -599,6 +1087,7 @@ private struct DayHeadCell: View {
                     .minimumScaleFactor(0.7)
                     .allowsTightening(true)
             } else {
+                // ← micro 9*scale/11
                 Text(courseCount == 0 ? L10n.format("no_course")
                                       : L10n.format("course_count_format", courseCount))
                     .font(.system(size: 9 * scale))
@@ -609,9 +1098,11 @@ private struct DayHeadCell: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.vertical, 6 * scale)
+        // ← Android padding(vertical = if (dateStr != null) 4f else 3f) ×scale
+        .padding(.vertical, (dateStr != nil ? 4 : 3) * scale)
         .background(bg)
-        .cornerRadius(16 * scale * cornerRatio)
+        // ← Android RoundedCornerShape((10 * scale * cornerRatio.coerceAtMost(1f)).dp)
+        .cornerRadius(10 * scale * min(cornerRatio, 1))
     }
 }
 
@@ -628,30 +1119,40 @@ struct FullWeekView: View {
     var displayMode: String = "node"
     var timeJson: String = ""
     var today: Int = DateUtils.todayDayOfWeek()
+    var todayDate: Date = Date()
+    /// 周页上下文: isToday 按该页(week, day)真实日期判定, 非"星期号 = 今天星期号" —
+    /// 浏览非当前周高亮错天(v7.10.x Android 同构: cards header/WeekStrip/DetailPanel/DayColumn 全链路线程化)
+    var startDate: String = ""
+    var currentWeek: Int = 1
     let onCourseClick: (CourseEntity) -> Void
     var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7)
 
     var body: some View {
         let byDay = Dictionary(grouping: courses, by: { $0.day })
         // ← Android FullWeekView: 设置页改 weekScale/cornerRatio/twoColumn/hideEmptyDays/别名后即时生效
-        let weekScale = AppPrefs.shared.getWeekScale()
-        let cornerRatio = AppPrefs.shared.getGridCornerRatio()
+        let weekScale = CGFloat(AppPrefs.shared.getWeekScale())
+        let cornerRatio = CGFloat(AppPrefs.shared.getGridCornerRatio())
         let useAlias = AppPrefs.shared.isWeekUseAlias()
 
         ScrollView(.vertical) {
             VStack(spacing: 0) {
-                WeekStrip(byDay: byDay, visibleDays: visibleDays, today: today, greyDays: greyDays,
+                WeekStrip(byDay: byDay, visibleDays: visibleDays,
+                          today: today, todayDate: todayDate,
+                          startDate: startDate, currentWeek: currentWeek,
+                          greyDays: greyDays,
                           scale: weekScale, cornerRatio: cornerRatio, useAlias: useAlias)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                 DetailPanel(byDay: byDay, visibleDays: visibleDays, displayMode: displayMode,
-                            timeJson: timeJson, today: today, greyDays: greyDays,
-                            scale: weekScale, cornerRatio: cornerRatio, useAlias: useAlias,
+                            timeJson: timeJson,
+                            today: today, todayDate: todayDate,
+                            startDate: startDate, currentWeek: currentWeek,
+                            greyDays: greyDays,
+                            scale: weekScale, cornerRatio: cornerRatio,
                             twoColumn: AppPrefs.shared.isWeekTwoColumn(),
                             twoColumnMode: AppPrefs.shared.getWeekTwoColumnMode(),
                             hideEmptyDays: AppPrefs.shared.isWeekHideEmptyDays(),
                             onCourseClick: onCourseClick)
-                // (参数顺序: byDay/visibleDays/displayMode/timeJson/today/onCourseClick)
                 // 悬浮底栏额外余量(→ Android LocalNavExtraBottomPadding Spacer):
                 //   镜像 Android FullWeekView 末行追加 Spacer(height = navExtra),
                 //   最后一张课不被悬浮药丸遮住。
@@ -663,10 +1164,12 @@ struct FullWeekView: View {
 
 // ← WeekStrip
 private struct WeekStrip: View {
-    @Environment(\.localWakeUpColors) private var colors
     let byDay: [Int: [CourseEntity]]
     let visibleDays: Set<Int>
     let today: Int
+    let todayDate: Date
+    let startDate: String
+    let currentWeek: Int
     var greyDays: Set<Int> = []
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
@@ -675,7 +1178,9 @@ private struct WeekStrip: View {
     var body: some View {
         HStack(spacing: 6 * scale) {
             ForEach(visibleDays.sorted(), id: \.self) { day in
-                DaySummaryCell(day: day, courses: byDay[day] ?? [], isToday: day == today,
+                DaySummaryCell(day: day, courses: byDay[day] ?? [],
+                               isToday: isDateTodayOfWeek(startDate: startDate, week: currentWeek,
+                                                          day: day, todayDate: todayDate),
                                isGrey: greyDays.contains(day),
                                scale: scale, cornerRatio: cornerRatio, useAlias: useAlias)
             }
@@ -700,7 +1205,7 @@ private struct DaySummaryCell: View {
                         : (isToday ? colors.onPrimaryContainer : colors.onSurface)
 
         VStack(spacing: 0) {
-            // 日期
+            // 日期 (← Android 13*scale / lineHeight 18*scale)
             Text(DateUtils.localizedDay(day))
                 .font(.system(size: 13 * scale, weight: .semibold))
                 .foregroundColor(fg)
@@ -749,7 +1254,7 @@ private struct DaySummaryCell: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 132 * scale)
+        .frame(minHeight: 132 * scale)   // ← Android heightIn(min = 132*scale)
         .padding(.horizontal, 6 * scale)
         .padding(.vertical, 8 * scale)
         .background(bg)
@@ -765,10 +1270,12 @@ private struct DetailPanel: View {
     let displayMode: String
     let timeJson: String
     let today: Int
+    let todayDate: Date
+    let startDate: String
+    let currentWeek: Int
     var greyDays: Set<Int> = []
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
-    var useAlias: Bool = false
     /// issue#8 周视图两栏 + 分栏标准(days=按天对半 / balance=按课程数动态平衡) + 隐藏无课日
     var twoColumn: Bool = false
     var twoColumnMode: String = "days"
@@ -777,11 +1284,14 @@ private struct DetailPanel: View {
 
     var body: some View {
         let sd: (Double) -> CGFloat = { CGFloat($0 * scale) }
-        // issue#8 隐藏无课日 — 两栏分栏前先过滤(Android single-column 不吃过滤: 全空周仍显示全部所选星期)
-        let sortedDays = visibleDays.sorted().filter { hideEmptyDays ? !(byDay[$0] ?? []).isEmpty : true }
+        // issue#8 隐藏无课日 — 单栏/两栏都生效(过滤一次, 两分支同吃过滤后的列表)
+        let sortedDays = visibleDays.sorted().filter {
+            !hideEmptyDays || !(byDay[$0] ?? []).isEmpty
+        }
 
         // issue#8 周视图两栏, 省纵向滚动:
-        //   days    = 按天对半分 — 前半周左/后半周右, 天数固定
+        //   days    = 按天对半分 — 前半周左/后半周右, 天数固定(隐藏无课日后按剩余天数平分,
+        //             奇数天多的一天落左栏)
         //   balance = 按课程数动态平衡 — 逐天放进当天卡片(约)更矮的栏, 两栏高度接近
         if twoColumn && sortedDays.count >= 2 {
             let split: ([Int], [Int]) = {
@@ -799,29 +1309,35 @@ private struct DetailPanel: View {
                 return (Array(sortedDays[..<splitIdx]), Array(sortedDays[splitIdx...]))
             }()
             HStack(alignment: .top, spacing: sd(10)) {
-                DetailDayColumn(days: split.0, byDay: byDay, today: today,
+                DetailDayColumn(days: split.0, byDay: byDay,
+                                today: today, todayDate: todayDate,
+                                startDate: startDate, currentWeek: currentWeek,
                                 displayMode: displayMode, timeJson: timeJson,
                                 greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
-                                useAlias: useAlias, onCourseClick: onCourseClick)
+                                onCourseClick: onCourseClick)
                     .frame(maxWidth: .infinity)
                 if !split.1.isEmpty {
-                    DetailDayColumn(days: split.1, byDay: byDay, today: today,
+                    DetailDayColumn(days: split.1, byDay: byDay,
+                                    today: today, todayDate: todayDate,
+                                    startDate: startDate, currentWeek: currentWeek,
                                     displayMode: displayMode, timeJson: timeJson,
                                     greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
-                                    useAlias: useAlias, onCourseClick: onCourseClick)
+                                    onCourseClick: onCourseClick)
                         .frame(maxWidth: .infinity)
                 }
             }
             .padding(sd(12))
         } else {
-            // 单栏(或两栏下过滤后不足 2 天) — 显示剩余星期(全空周时=全部所选星期, 不吃掉无课日)
+            // 单栏(或两栏下过滤后不足 2 天) — 显示过滤后剩余星期
             VStack(spacing: sd(10)) {
-                ForEach(visibleDays.sorted(), id: \.self) { day in
+                ForEach(sortedDays, id: \.self) { day in
                     let dayCourses = (byDay[day] ?? []).sorted { $0.startNode < $1.startNode }
-                    DetailDayCard(day: day, courses: dayCourses, isToday: day == today,
+                    DetailDayCard(day: day, courses: dayCourses,
+                                  isToday: isDateTodayOfWeek(startDate: startDate, week: currentWeek,
+                                                             day: day, todayDate: todayDate),
                                   displayMode: displayMode, timeJson: timeJson,
                                   isGrey: greyDays.contains(day),
-                                  scale: scale, cornerRatio: cornerRatio, useAlias: useAlias,
+                                  scale: scale, cornerRatio: cornerRatio,
                                   onCourseClick: onCourseClick)
                 }
             }
@@ -838,22 +1354,26 @@ private struct DetailDayColumn: View {
     let days: [Int]
     let byDay: [Int: [CourseEntity]]
     let today: Int
+    let todayDate: Date
+    let startDate: String
+    let currentWeek: Int
     let displayMode: String
     let timeJson: String
     var greyDays: Set<Int> = []
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
-    var useAlias: Bool = false
     let onCourseClick: (CourseEntity) -> Void
 
     var body: some View {
         VStack(spacing: 10 * scale) {
             ForEach(days, id: \.self) { day in
                 let dayCourses = (byDay[day] ?? []).sorted { $0.startNode < $1.startNode }
-                DetailDayCard(day: day, courses: dayCourses, isToday: day == today,
+                DetailDayCard(day: day, courses: dayCourses,
+                              isToday: isDateTodayOfWeek(startDate: startDate, week: currentWeek,
+                                                         day: day, todayDate: todayDate),
                               displayMode: displayMode, timeJson: timeJson,
                               isGrey: greyDays.contains(day),
-                              scale: scale, cornerRatio: cornerRatio, useAlias: useAlias,
+                              scale: scale, cornerRatio: cornerRatio,
                               onCourseClick: onCourseClick)
             }
         }
@@ -874,7 +1394,6 @@ private struct DetailDayCard: View {
     var isGrey: Bool = false
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
-    var useAlias: Bool = false
     let onCourseClick: (CourseEntity) -> Void
 
     // v7.10.4 冲突栏字体压缩: lane 实宽按内容区宽算(行满宽 → 与卡内边距对齐)
@@ -908,8 +1427,7 @@ private struct DetailDayCard: View {
                         if row.laneCount == 1, let only = row.courses.first {
                             LessonRow(course: only, displayMode: displayMode, timeJson: timeJson,
                                       isGrey: isGrey, groupRows: courses.filter { $0.groupId == only.groupId },
-                                      scale: scale, cornerRatio: cornerRatio,
-                                      useAlias: useAlias) {
+                                      scale: scale, cornerRatio: cornerRatio) {
                                 onCourseClick(only)
                             }
                         } else {
@@ -920,8 +1438,8 @@ private struct DetailDayCard: View {
                             let laneW = contentW > 0
                                 ? (contentW - laneGap * CGFloat(row.laneCount - 1)) / CGFloat(row.laneCount)
                                 : 0
-                            let laneScale = laneW >= 150 ? 1.0 : (laneW > 0 ? max(laneW / 150, 0.6) : 1.0)
-                            let hideSide = laneW > 0 && laneW < 110
+                            let laneScale = weekLaneFontScale(laneW: CGFloat(laneW))
+                            let hideSide = weekLaneHideSideLabel(laneW: CGFloat(laneW))
                             HStack(alignment: .top, spacing: laneGap) {
                                 ForEach(0..<row.laneCount, id: \.self) { li in
                                     if li > 0 {
@@ -937,8 +1455,7 @@ private struct DetailDayCard: View {
                                                       timeJson: timeJson, isGrey: isGrey,
                                                       groupRows: courses.filter { $0.groupId == laneCourse.groupId },
                                                       scale: scale, cornerRatio: cornerRatio,
-                                                      laneScale: laneScale, hideSideLabel: hideSide,
-                                                      useAlias: useAlias) {
+                                                      laneScale: laneScale, hideSideLabel: hideSide) {
                                                 onCourseClick(laneCourse)
                                             }
                                         }
@@ -953,7 +1470,7 @@ private struct DetailDayCard: View {
         }
         .padding(10 * scale)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // 空课 surfaceContainerLow(← DetailDayCard L597), 无描边
+        // 空课 surfaceContainerLow(← DetailDayCard), 无描边
         .background(courses.isEmpty ? colors.surfaceContainerLow : colors.surface)
         .cornerRadius(12 * scale * cornerRatio)
         .background(
@@ -971,6 +1488,25 @@ private struct DetailDayCardWidthKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
+// =====================================================================================
+// v7.10.4 冲突栏字号/间距压缩 — 用户 2026-09-02: 两栏模式下分栏字全挤到一起,
+// 需按 lane 实宽调画面比例。(← Android weekLaneFontScale/weekLaneHideSideLabel)
+// =====================================================================================
+
+/// lane 宽压缩基准: 单栏半宽量级(用户实测"比较好"的现状), 低于它开始线性缩。
+let WEEK_LANE_SCALE_BASE: CGFloat = 150
+/// 压缩下限 — 再窄也不无限缩, 可读性由隐藏侧栏标签/副信息兜底。
+let WEEK_LANE_SCALE_FLOOR: CGFloat = 0.6
+
+/// 冲突栏内 LessonRow 的缩放比(纯函数可测): laneW ≥ 150dp → 1.0; 以下线性压缩; 0.6 封底。
+func weekLaneFontScale(laneW: CGFloat) -> Double {
+    if laneW >= WEEK_LANE_SCALE_BASE { return 1 }
+    return Double(max(laneW / WEEK_LANE_SCALE_BASE, WEEK_LANE_SCALE_FLOOR))
+}
+
+/// 极窄 lane 判定: 侧栏节次/时间标签(42dp+8dp 间距)挤占正文 → 隐藏它。
+func weekLaneHideSideLabel(laneW: CGFloat) -> Bool { laneW < 110 }
+
 // ← LessonRow
 private struct LessonRow: View {
     @Environment(\.localWakeUpColors) private var colors
@@ -987,16 +1523,15 @@ private struct LessonRow: View {
     var laneScale: Double = 1.0
     /// 极窄 lane: 侧栏节次/时间标签(42+8)挤占正文 → 隐藏(← weekLaneHideSideLabel)
     var hideSideLabel: Bool = false
-    /// issue#26: 周视图别名
-    var useAlias: Bool = false
     let onClick: () -> Void
 
     var body: some View {
         let isDark = CourseColorUtil.isPaletteDark(palette)
         let effRows = groupRows.isEmpty ? [course] : groupRows
+        // 统一取色入口(决策 D3) — 中性色 secondaryContainer ← Android neutralColor
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
-            neutralColor: colors.surfaceVariant,
+            neutralColor: colors.secondaryContainer,
             colorless: AppPrefs.shared.isCourseColorless())
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         // 节假日灰显 ← effectiveBg/effectiveFg/textDecoration
@@ -1004,7 +1539,8 @@ private struct LessonRow: View {
         let effectiveFg = isGrey ? fg.opacity(SleepyTheme.Alpha.inactive) : fg
         let strikethrough = isGrey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
         let effScale = scale * laneScale
-        let name = CourseDisplayUtil.displayName(course, useAlias)
+        // issue#26: 周视图场景别名 — 与 colorless 同模式, 叶子直接读场景开关
+        let name = CourseDisplayUtil.displayName(course, AppPrefs.shared.isWeekUseAlias())
 
         // time 模式: 时间段在连字符后折行; node 模式: 节次标签
         let timeParts: (String, String)? = displayMode == "time" && !timeJson.isEmpty

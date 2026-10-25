@@ -1,6 +1,7 @@
 // ScheduleScreen.swift — ← ui/screen/schedule/ScheduleScreen.kt
-// 课表页: TopBar(周导航+跳周菜单) + 视图切换(周视图/网格) + 左右滑翻周(TabView pager) +
-// 详情 BottomSheet。空态两分支: 无表 → EmptyState; 有表无课 → NoCourseState。
+// 课表页: TopBar(周导航+跳周菜单+撤回/取消撤回胶囊+行高缩放 tick) + 视图切换(周视图/网格, 可隐藏) +
+// 左右滑翻周(TabView pager, 含 issue#44 调休渲染期换日) + 详情 BottomSheet。
+// 空态两分支: 无表 → EmptyState; 有表无课 → NoCourseState。
 
 import SwiftUI
 
@@ -20,15 +21,43 @@ struct ScheduleScreen: View {
     var onCreateTable: () -> Void = {}
     var onEditCourse: (CourseEntity) -> Void = { _ in }
 
+    // 2026-09-21 用户令: 撤回/取消撤回按钮显隐实时订阅 ← Android TopBar 内直读
+    // UndoManager.hasSnapshot/hasRedoSnapshot(Compose mutableStateOf → ObservableObject,
+    // 槽变 objectWillChange 即刷顶栏, 不必等其他状态变化带动重算)
+    @ObservedObject private var undoManager = UndoManager.shared
+
     @State private var selectedCourse: CourseEntity? = nil
-    // v7.10.16: 无可撤回时 toast 提示(按钮不隐藏保持布局稳定)
-    @State private var showUndoNoneToast = false
+    // v7.10.16 / 2026-09-21: 无可撤回/无可重做时 toast(按钮不隐藏保持布局稳定)。
+    // 文案 + 单调 token: 连点同款文案也能重启消失计时(← Android Toast 每次重发)
+    @State private var toastMessage: String? = nil
+    @State private var toastToken = 0
     // v7.10.14 顶栏 logo → 课表切换弹窗
     @State private var showTableSwitcher = false
     // v7.10.7 顶栏分享 → 格式选择弹层
     @State private var showShareSheet = false
     // ← Android 跳周 DropdownMenu(menuOpen): 自绘 ZStack 浮层呈现 280pt chip 网格
     @State private var showWeekJumpMenu = false
+
+    // v7.10.5 + v7.10.16r(评审#4): 会话级置顶 override / 簇轮换步数 — 与 Android
+    // ScheduleScreen.kt L106-112 同级持有点(本视图), HorizontalPager 翻页/周切换不丢,
+    // 纯会话级不落盘, 离开课表页即重置。此前 iOS 压在每页 CardsGridView 缺省参数上,
+    // 同簇换层/轮换步数翻页即丢(issue F106-9)。
+    @State private var topOverrides: [String: Int64] = [:]
+    @State private var rotationSteps: [String: Int] = [:]
+    func setTopOverride(key: String, courseId: Int64?) {
+        if let courseId { topOverrides[key] = courseId } else { topOverrides.removeValue(forKey: key) }
+    }
+    func setRotationStep(key: String, step: Int) {
+        if step <= 0 { rotationSteps.removeValue(forKey: key) } else { rotationSteps[key] = step }
+    }
+
+    // 双指行高缩放 (2026-09-16 用户令, ← ScheduleScreen.kt L126-130): 初始=上次 tick 确认的
+    // 持久值; 捏合只改会话值, 顶栏 tick=落盘长期生效, 切表时回到该表确认值
+    // (← Android remember(state.selectedTableId) { AppPrefs.getGridRowScale } 语义)。
+    @State private var rowHeightScale: CGFloat = AppPrefs.shared.getGridRowScale()
+    @State private var savedRowScale: CGFloat = AppPrefs.shared.getGridRowScale()
+    // scaleUncommitted = abs(rowHeightScale - savedRowScale) > 0.001f ← L130
+    private var scaleUncommitted: Bool { abs(rowHeightScale - savedRowScale) > 0.001 }
 
     var body: some View {
         let state = viewModel.state
@@ -56,6 +85,10 @@ struct ScheduleScreen: View {
                     currentWeek: state.selectedWeek,
                     maxWeek: state.currentTable?.maxWeek ?? 20,
                     startDate: state.currentTable?.startDate ?? "",
+                    // ← Android TopBar(displayContext = state.weekDisplayContext):
+                    // actualWeek/semesterStatus 优先取 VM 展示上下文(最近有课日逻辑),
+                    // 表头不再与 VM 判定分叉(issue F106-8)
+                    displayContext: state.weekDisplayContext,
                     onPrevWeek: { viewModel.changeWeek(state.selectedWeek - 1) },
                     onNextWeek: { viewModel.changeWeek(state.selectedWeek + 1) },
                     onJumpToActual: {
@@ -65,28 +98,49 @@ struct ScheduleScreen: View {
                     onSelectWeek: { week in viewModel.changeWeek(week) },
                     onUndo: {
                         // v7.10.16: 任何课表数据改动可一键撤销一次
-                        if !viewModel.undoLastChange() {
-                            showUndoNoneToast = true
-                        }
+                        if !viewModel.undoLastChange() { showToast(L10n.format("schedule_undo_none")) }
+                    },
+                    onRedo: {
+                        // 2026-09-21 用户令: 取消最近一次撤回; 无可重做 → schedule_redo_none
+                        if !viewModel.redoLastUndo() { showToast(L10n.format("schedule_redo_none")) }
                     },
                     onSwitchTable: { showTableSwitcher = true },
                     onAddCourse: onManualAdd,
                     onShare: { showShareSheet = true },
-                    hasUndoSnapshot: UndoManager.shared.hasSnapshot,
+                    hasUndoSnapshot: undoManager.hasSnapshot,
+                    hasRedoSnapshot: undoManager.hasRedoSnapshot,
+                    scaleUncommitted: scaleUncommitted,
+                    onScaleCommit: {
+                        // 2026-09-16 用户令: tick=落盘长期生效, 会话确认值同步抬齐 → tick 熄灭
+                        AppPrefs.shared.setGridRowScale(Double(rowHeightScale))
+                        savedRowScale = rowHeightScale
+                    },
                     onOpenWeekJump: { showWeekJumpMenu = true })
 
-                // Segmented Switcher
-                SegmentedSwitcher(
-                    options: [(ViewMode.full, L10n.format("view_full")),
-                              (ViewMode.cards, L10n.format("view_cards"))],
-                    selected: viewMode) { viewMode = $0 }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                // Segmented Switcher — 用户令 2026-09-23: 切换栏可隐藏(AppPrefs show_view_switcher,
+                // 默认 true)。隐藏只释放这根 Bar 的空间, 不改 viewMode 与启动默认页。
+                // iOS 无 changeBus: 设置页返回后父级重建 → body 重算即生效(AppPrefs.swift:349 同模式)。
+                if AppPrefs.shared.isShowViewSwitcher() {
+                    SegmentedSwitcher(
+                        options: [(ViewMode.full, L10n.format("view_full")),
+                                  (ViewMode.cards, L10n.format("view_cards"))],
+                        selected: viewMode,
+                        onSelect: { viewMode = $0 })
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                }
 
                 // 主体视图 — 左右滑动切换周次(TabView pager)
                 let pagerMaxWeek = max(state.currentTable?.maxWeek ?? 20, 1)
                 WeekPager(viewModel: viewModel, viewMode: viewMode, pagerMaxWeek: pagerMaxWeek,
-                          displayMode: displayMode, showDate: showDate, visibleDays: visibleDays) {
+                          displayMode: displayMode, showDate: showDate, visibleDays: visibleDays,
+                          topOverrides: $topOverrides,
+                          onSetTopOverride: setTopOverride(key:courseId:),
+                          rotationSteps: $rotationSteps,
+                          onRotationStep: setRotationStep(key:step:),
+                          rowHeightScale: rowHeightScale,
+                          onRowHeightScaleChange: { rowHeightScale = $0 },
+                          pinchZoomEnabled: AppPrefs.shared.isGridPinchZoom()) {
                     selectedCourse = $0
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -111,10 +165,10 @@ struct ScheduleScreen: View {
                                    onDismiss: { showShareSheet = false })
             }
         }
-        // ← Android Toast schedule_undo_none
+        // ← Android Toast schedule_undo_none / schedule_redo_none(同一浮层位, 文案随触发源变)
         .overlay(alignment: .bottom) {
-            if showUndoNoneToast {
-                Text(L10n.format("schedule_undo_none"))
+            if let toastMessage {
+                Text(toastMessage)
                     .font(.system(size: 14, weight: .medium)) // ← Android Snackbar bodyMedium 14
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
@@ -123,13 +177,21 @@ struct ScheduleScreen: View {
                     .cornerRadius(SleepyShapes.large)
                     .padding(.bottom, 24)
                     .transition(.opacity)
-                    // 原生并发取消语义: id 变化自动取消旧计时,连发不误杀(← asyncAfter)
-                    .task(id: showUndoNoneToast) {
+                    // 原生并发取消语义: id 变化自动取消旧计时,连发不误杀(← asyncAfter)。
+                    // id=toastToken(单调递增)而非文案: 连点撤回两次同款文案也要重起计时
+                    .task(id: toastToken) {
                         try? await Task.sleep(nanoseconds: 1_800_000_000)
                         guard !Task.isCancelled else { return }
-                        withAnimation { showUndoNoneToast = false }
+                        withAnimation { self.toastMessage = nil }
                     }
             }
+        }
+        // ← Android remember(state.selectedTableId) { AppPrefs.getGridRowScale }:
+        // 切表回到持久确认值(会话未落盘捏合不跨表携带)
+        .onChange(of: state.selectedTableId) { _ in
+            let persisted = CGFloat(AppPrefs.shared.getGridRowScale())
+            savedRowScale = persisted
+            rowHeightScale = persisted
         }
         // ← Android 跳周 DropdownMenu: 自绘 ZStack 浮层(与仓库浮层容器同款模式),
         //   280pt 面板 + 圆形周 chip 网格, 点击即选即关, 点面板外任意处关闭。
@@ -157,37 +219,138 @@ struct ScheduleScreen: View {
                     selectedCourse = nil
                     onEditCourse(c)
                 },
-                timeJson: state.currentTable?.timeJson)
+                // issue#40: 详情页时间域与网格同源 = 水合表 effectiveCurrentTable
+                timeJson: state.effectiveCurrentTable?.timeJson)
         }
+    }
+
+    private func showToast(_ message: String) {
+        toastMessage = message
+        toastToken += 1   // 单调 token: 同款文案连点也能重启消失计时
+    }
+}
+
+// 胶囊挤压测量坐标系 ← Android onGloballyPositioned/positionInParent
+private enum CapsuleMeasureSpace { static let name = "scheduleTopBar" }
+
+private struct TripleOriginXKey: PreferenceKey {
+    static var defaultValue: CGFloat = .greatestFiniteMagnitude   // 未测得 = 不挤压
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// 2026-09-21 用户令: 撤回/取消撤回一体胶囊 ← UndoRedoCapsule — 体育场形状(左右半圆+中间矩形),
+/// 撤回左半·取消撤回右半, 中间一条淡淡竖线。两半同现同隐(调用方 hasUndo||hasRedo 才挂载),
+/// 各半按有无快照 enabled/禁用(alpha 0.38 占位保形)。scale=动态挤压系数(周三件套逼近时缩)。
+private struct UndoRedoCapsule: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let showUndo: Bool
+    let showRedo: Bool
+    let scale: CGFloat
+    let onUndo: () -> Void
+    let onRedo: () -> Void
+
+    var body: some View {
+        // 几何 ← Android: halfSize=32*scale / dividerHeight=14*scale / icon=20*scale
+        let halfSize = 32 * scale
+        let dividerHeight = 14 * scale
+        return HStack(spacing: 0) {
+            // 左半: 撤回 — 无可撤回时半透明禁用(占位保形, 双侧共存才像一体胶囊)
+            Button(action: onUndo) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 20 * scale))
+                    .foregroundColor(colors.onSurfaceVariant.opacity(showUndo ? 1 : 0.38))
+                    .frame(width: halfSize, height: halfSize)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(SleepyButtonStyle())
+            .disabled(!showUndo)
+            .accessibilityLabel(L10n.format("schedule_undo"))
+            .accessibilityIdentifier("undo_button")
+
+            // 中缝: 淡淡竖线 — 与图标同色调降透明度, 视觉上"一体两半"
+            Rectangle()
+                .fill(colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive))
+                .frame(width: 1, height: dividerHeight)
+
+            // 右半: 取消撤回 — 无可重做时半透明禁用
+            Button(action: onRedo) {
+                Image(systemName: "arrow.uturn.forward")
+                    .font(.system(size: 20 * scale))
+                    .foregroundColor(colors.onSurfaceVariant.opacity(showRedo ? 1 : 0.38))
+                    .frame(width: halfSize, height: halfSize)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(SleepyButtonStyle())
+            .disabled(!showRedo)
+            .accessibilityLabel(L10n.format("schedule_redo"))
+            .accessibilityIdentifier("redo_button")
+        }
+        .frame(height: halfSize)
+        .background(colors.surfaceContainerHigh)
+        .clipShape(Capsule())
     }
 }
 
 // HorizontalPager → TabView(.page): 双向同步(手势→VM / VM→pager)
-// Cards 网格的 TimeSlot: parseNodes 每节一行(node/nodeStart 单节, Android 同为逐节行)
+// Cards 网格的 TimeSlot: 每节一行(node/nodeStart 单节, Android 同为逐节行)
+// ← Android TimeTableUtils.timeSlotsFor(state.effectiveCurrentTable): 时间域真源=水合表,
+//   表为 nil → 空表(禁 DEFAULT_TIME_JSON 兜底 — 有表无课才进得本页, 语义与 Android 对齐)
 private func cardTimeSlots(table: TimeTableEntity?) -> [TimeSlot] {
-    let nodes = TimeTableUtils.parseNodes(table?.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON)
-    return nodes.map { n in
-        let sc = Calendar.current.dateComponents([.hour, .minute], from: n.start)
-        let ec = Calendar.current.dateComponents([.hour, .minute], from: n.end)
-        return TimeSlot(label: "\(n.node)", startHour: sc.hour ?? 0, startMinute: sc.minute ?? 0,
-                        endHour: ec.hour ?? 0, endMinute: ec.minute ?? 0, nodeStart: n.node)
+    guard let table else { return [] }
+    return TimeTableUtils.renderSlots(timeJson: table.timeJson)
+}
+
+// issue#44 调休渲染期换日 ← ScheduleScreen.kt L290-314:
+// 本页各天日期命中调休映射 → 该天列改按映射目标星期渲染(周日补周四 → 周四列显示周日该上课的课),
+// 渲染期替身不写库; 未命中日期原样。
+func remapCoursesForTransfers(_ courses: [CourseEntity],
+                              startDate: String,
+                              week: Int,
+                              transfers: [HolidayTransferEntry]) -> [CourseEntity] {
+    guard !startDate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+          !transfers.isEmpty else { return courses }
+    // natural→display 仅收录被映射改写的天
+    var daySwap: [Int: Int] = [:]
+    for day in 1...7 {
+        guard let date = DateUtils.dateOfWeek(startDate: startDate, week: week, dayOfWeek: day) else { continue }
+        let natural = DateUtils.todayDayOfWeek(today: date)
+        let display = HolidayTransferOps.effectiveDayOfWeek(date, transfers)
+        if display != natural { daySwap[natural] = display }
+    }
+    guard !daySwap.isEmpty else { return courses }
+    return courses.map { c in
+        guard let mapped = daySwap[c.day], mapped != c.day else { return c }
+        var copy = c
+        copy.day = mapped
+        return copy
     }
 }
-private struct WeekPager: View {
-    @ObservedObject var viewModel: ScheduleViewModel
+
+private struct WeekPager: View {    @ObservedObject var viewModel: ScheduleViewModel
     let viewMode: ViewMode
     let pagerMaxWeek: Int
     let displayMode: String
     let showDate: Bool
     let visibleDays: Set<Int>
+    // v7.10.5/v7.10.16r: 会话真相源在 ScheduleScreen 持有, 透传到每页网格 ← topOverrides/rotationSteps
+    @Binding var topOverrides: [String: Int64]
+    let onSetTopOverride: (String, Int64?) -> Void
+    @Binding var rotationSteps: [String: Int]
+    let onRotationStep: (String, Int) -> Void
+    // 双指行高缩放(2026-09-16): 会话 scale 与实验室总开关(默认关=手势不挂, tick 恒不亮)透传
+    let rowHeightScale: CGFloat
+    let onRowHeightScaleChange: (CGFloat) -> Void
+    let pinchZoomEnabled: Bool
     let onCourseClick: (CourseEntity) -> Void
 
     // 每个 pager 页独立缓存灰显星期 ← Android produceState(greyDays, page, startDate)
     @State private var greyDaysByWeek: [Int: Set<Int>] = [:]
+    // 灰显缓存失效闸 ← produceState 键含 state.transfers: 调休映射变 → 全周重算
+    @State private var greyCacheSignature = ""
 
     var body: some View {
         let state = viewModel.state
-        // VM 变化(TopBar 点击) → 同步 pager(binding 直写, 防双向打架由 onChange 用户手势分支承担)
+        // VM 变化(TopBar 点击) → 同步 pager(直写 selection); 手势滑动 → changeWeek 回写 VM
         TabView(selection: Binding(
             get: { min(max(state.selectedWeek, 1), pagerMaxWeek) },
             set: { newWeek in viewModel.changeWeek(newWeek) }   // 手势滑动 → VM
@@ -196,28 +359,50 @@ private struct WeekPager: View {
                 // page 是 1-based 周索引,独立于 state.currentWeek 过滤课程
                 let weekCourses: [CourseEntity] = {
                     let list = state.courses.filter { $0.inWeek(page) }
-                    guard let tj = state.currentTable?.timeJson else { return list }
+                    // issue#40: normalizeNode 时间域真源 = 水合表 effectiveCurrentTable
+                    // (绑定作息表编辑后立即生效), 不得再读 currentTable.timeJson 旧兼容列
+                    guard let tj = state.effectiveCurrentTable?.timeJson else { return list }
                     return list.map { $0.normalizeNode(timeJson: tj) }
                 }()
+                // issue#44 调休渲染期换日 ← ScheduleScreen.kt L290-314
+                let renderCourses = remapCoursesForTransfers(weekCourses,
+                                                             startDate: state.currentTable?.startDate ?? "",
+                                                             week: page,
+                                                             transfers: state.transfers)
                 Group {
                     switch viewMode {
                     case .full:
-                        FullWeekView(courses: weekCourses,
+                        FullWeekView(courses: renderCourses,
                                      visibleDays: visibleDays,
                                      displayMode: displayMode,
-                                     timeJson: state.currentTable?.timeJson ?? "",
+                                     // issue#40: 时间域读水合表 ← Android effectiveCurrentTable?.timeJson ?: ""
+                                     timeJson: state.effectiveCurrentTable?.timeJson ?? "",
+                                     startDate: state.currentTable?.startDate ?? "",
+                                     currentWeek: page,
                                      onCourseClick: onCourseClick,
                                      greyDays: greyDaysByWeek[page] ?? [])
                     case .cards:
-                        CardsGridView(courses: weekCourses,
-                                      timeSlots: cardTimeSlots(table: state.currentTable),
-                                      timeJson: state.currentTable?.timeJson ?? "",
+                        CardsGridView(courses: renderCourses,
+                                      timeSlots: cardTimeSlots(table: state.effectiveCurrentTable),
+                                      // issue#40 §5: 时间域(含非常规课占位合成)同样以水合表为准
+                                      timeJson: state.effectiveCurrentTable?.timeJson ?? "",
                                       visibleDays: visibleDays,
                                       showDate: showDate,
                                       startDate: state.currentTable?.startDate ?? "",
                                       currentWeek: page,
                                       onCourseClick: onCourseClick,
-                                      greyDays: greyDaysByWeek[page] ?? [])
+                                      greyDays: greyDaysByWeek[page] ?? [],
+                                      // ← Android allCourses = state.courses(晚间自动收起按全学期判)
+                                      allCourses: state.courses,
+                                      // 会话级置顶/轮换真相源在 ScheduleScreen — 翻页不丢(v7.10.16r)
+                                      topOverrides: topOverrides,
+                                      onSetTopOverride: onSetTopOverride,
+                                      rotationSteps: rotationSteps,
+                                      onRotationStep: onRotationStep,
+                                      // 双指行高缩放(2026-09-16)+ 实验室开关(v1.0.56 T3)
+                                      rowHeightScale: rowHeightScale,
+                                      onRowHeightScaleChange: onRowHeightScaleChange,
+                                      pinchZoomEnabled: pinchZoomEnabled)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -226,18 +411,28 @@ private struct WeekPager: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tabViewStyle(.page(indexDisplayMode: .never))
-        // 每页独立计算灰显星期(节假日/周末) ← Android produceState(greyDays, page, startDate)
+        // 每页独立计算灰显星期(节假日/周末) ← Android produceState(greyDays, page, startDate, transfers)
         .task(id: "\(state.currentTable?.startDate ?? "")-\(state.selectedWeek)-\(pagerMaxWeek)") {
             let start = state.currentTable?.startDate ?? ""
+            // issue#44: 灰显要查当前表调休映射(命中映射的放假日那天要上课, 永不灰) ← ScheduleScreen.kt:326
+            // issue F106-7: 表 ID 取水合表(effectiveCurrentTable?.id) ← Android 同口径
+            let tableId = state.effectiveCurrentTable?.id
             guard !start.isEmpty else {
                 greyDaysByWeek = [:]
                 return
+            }
+            // ← produceState 键含 state.transfers: 映射变(设置页改完 refreshTransfer)缓存整体作废重算
+            let signature = state.transfers.map { DateUtils.fullDate($0.sourceDate) + ">" + DateUtils.fullDate($0.targetDate) }
+                .joined(separator: ",")
+            if signature != greyCacheSignature {
+                greyDaysByWeek = [:]
+                greyCacheSignature = signature
             }
             for week in 1...pagerMaxWeek where greyDaysByWeek[week] == nil {
                 var grey: Set<Int> = []
                 for day in 1...7 {
                     if let date = DateUtils.dateOfWeek(startDate: start, week: week, dayOfWeek: day),
-                       await HolidayManager.shouldGrey(date) {
+                       await HolidayManager.shouldGrey(date, tableId: tableId) {
                         grey.insert(day)
                     }
                 }
@@ -253,41 +448,75 @@ private struct ScheduleTopBar: View {
     let currentWeek: Int
     let maxWeek: Int
     let startDate: String
+    // ← Android displayContext: actualWeek/semesterStatus 优先 VM 展示上下文
+    var displayContext: WeekDisplayContext? = nil
     let onPrevWeek: () -> Void
     let onNextWeek: () -> Void
     let onJumpToActual: () -> Void
     let onSelectWeek: (Int) -> Void
     var onUndo: () -> Void = {}
+    var onRedo: () -> Void = {}
     var onSwitchTable: () -> Void = {}
     var onAddCourse: () -> Void = {}
     var onShare: () -> Void = {}
-    /// v7.10.16g: 撤回按钮仅有可撤回快照时显示(UndoManager.hasSnapshot 订阅)
+    /// 2026-09-21 用户令: 胶囊两半的有无快照(UndoManager 槽订阅) ← hasUndo/hasRedo
     var hasUndoSnapshot: Bool = false
+    var hasRedoSnapshot: Bool = false
+    /// 2026-09-16 用户令: 捏合未确认时独立 tick 圆钮 ← scaleUncommitted/onScaleCommit
+    var scaleUncommitted: Bool = false
+    var onScaleCommit: () -> Void = {}
     // ← Android menuOpen=true: 打开跳周 DropdownMenu(浮层由 ScheduleScreen 呈现)
     var onOpenWeekJump: () -> Void = {}
 
+    // 胶囊动态挤压 ← Android centerLeftPx/onGloballyPositioned:
+    // 翻页三件套左缘实测 x(初始 +∞ = 未测得不挤压), 与 iOS 仓库同模式(PreferenceKey 测量)
+    @State private var tripleOriginX: CGFloat = .greatestFiniteMagnitude
+
     var body: some View {
-        let actualWeek = startDate.isEmpty ? 1 : DateUtils.currentWeek(startDate: startDate)
+        // ← Android: actualWeek = displayContext?.actualWeek ?: currentWeek(startDate);
+        //   semesterStatus = displayContext?.semesterStatus ?: semesterStatus(startDate, maxWeek)
+        let actualWeek = displayContext?.actualWeek
+            ?? (startDate.isEmpty ? 1 : DateUtils.currentWeek(startDate: startDate))
         let isOnActual = currentWeek == actualWeek
-        let semesterStatus = DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek)
+        let semesterStatus = displayContext?.semesterStatus
+            ?? DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek)
+        // capsuleScale = ((centerLeftPx − 32 − 6 − (scaleUncommitted ? 38 : 0) − 6) / 65).coerceIn(0.65,1)
+        // — 周三件套把胶囊挤到左边时按剩余空间缩, 0.65 封底(TopBar 空间紧张)
+        let capsuleScale = min(max((tripleOriginX - 32 - 6 - (scaleUncommitted ? 38 : 0) - 6) / 65, 0.65), 1.0)
 
         // v7.10.12: 三件套改 ZStack 叠加实现屏幕正中 —
         // 旧 Spacer 平衡是在"扣除两侧按钮后的剩余空间"里居中, 视觉偏移;
         // ZStack 叠加让三件套对齐全宽正中, 两侧操作区绝对定位(← Android Box 叠加)。
         ZStack {
-            // 翻页三件套(箭头+胶囊+箭头) — 箭头紧贴胶囊, 全宽正中
+            // 翻页三件套(箭头+胶囊+箭头) — 箭头紧贴胶囊, 全宽正中;
+            // background 挂在 hug-content HStack 上(在 frame 撑满之前), GeometryReader 上报
+            // 居中内容簇左缘 x ← Android onGloballyPositioned{ positionInParent().x }(非撑满后的 0)
             HStack(spacing: 8) {
-                pagerTriple   // 见下(week label sheet 挂在胶囊上)
+                pagerTriple(isOnActual: isOnActual, semesterStatus: semesterStatus)   // 见下(week label sheet 挂在胶囊上)
             }
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: TripleOriginXKey.self,
+                                       value: proxy.frame(in: .named(CapsuleMeasureSpace.name)).minX)
+            })
             .frame(maxWidth: .infinity)
 
-            // 最左操作区: logo(课表切换) + 撤回(仅有可撤回快照时显示)
+            // 最左操作区: logo + 撤回/取消撤回胶囊 + 行高 tick(各自有则现)
             HStack(spacing: 6) {
                 WeekNavButton(icon: "calendar", a11yLabel: L10n.format("schedule_switch_table"), onClick: onSwitchTable)
                     .accessibilityIdentifier("switch_table")
-                if hasUndoSnapshot {
-                    WeekNavButton(icon: "arrow.uturn.backward", a11yLabel: L10n.format("schedule_undo"), onClick: onUndo)
-                        .accessibilityIdentifier("undo_button")
+                // 2026-09-21 用户令: 一起出现一起消失 — 无 undo 也无 redo 时整胶囊隐藏
+                if hasUndoSnapshot || hasRedoSnapshot {
+                    UndoRedoCapsule(showUndo: hasUndoSnapshot,
+                                    showRedo: hasRedoSnapshot,
+                                    scale: capsuleScale,
+                                    onUndo: onUndo,
+                                    onRedo: onRedo)
+                }
+                // 2026-09-16 用户令: tick 单列圆形按钮, 与数据撤回胶囊语义不同互不干涉;
+                // tick=落盘长期生效, 胶囊撤回=回到上次确认值
+                if scaleUncommitted {
+                    WeekNavButton(icon: "checkmark", a11yLabel: L10n.format("schedule_scale_keep"), onClick: onScaleCommit)
+                        .accessibilityIdentifier("scale_keep")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -301,6 +530,8 @@ private struct ScheduleTopBar: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        .coordinateSpace(name: CapsuleMeasureSpace.name)
+        .onPreferenceChange(TripleOriginXKey.self) { tripleOriginX = $0 }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -308,10 +539,9 @@ private struct ScheduleTopBar: View {
     }
 
     // 翻页三件套(箭头+胶囊+箭头); 胶囊点击 = 跳周菜单/一键跳回
-    private var pagerTriple: some View {
-        let actualWeek = startDate.isEmpty ? 1 : DateUtils.currentWeek(startDate: startDate)
-        let isOnActual = currentWeek == actualWeek
-        let semesterStatus = DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek)
+    // isOnActual/semesterStatus 由 body 统一算(优先 displayContext)传入 —
+    // ← Android TopBar 单点计算, 三件套与表头点击行为共用同一真值
+    private func pagerTriple(isOnActual: Bool, semesterStatus: DateUtils.SemesterStatus) -> some View {
         return HStack(spacing: 8) {
             WeekNavButton(icon: "chevron.left", onClick: onPrevWeek)
 

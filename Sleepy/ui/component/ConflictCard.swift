@@ -2,8 +2,8 @@
 // Sleepy iOS — 100% port of sleepy Android
 // 冲突簇整卡渲染: STACK 等大双卡左上/右下 / FOLD 折角 / RAIL 顶卡收窄。
 // 引擎与几何纯函数在 ConflictLayoutEngine.swift(绘制序/命中区/簇级形态)。
-// 偏差: layoutCluster 仅收 topOverrideId(置顶→基准首位),不支持完整 layerOrderOverride;
-//   轮换序完整重排在 ConflictCard 侧回退(旋转后首位=轮换首位)。
+// 轮换完整重排(v7.10.16r 对齐): 经引擎 layoutCluster 的 layerOrderOverride 通道落地,
+//   与 Android ConflictCard.kt:478-480 同一逻辑(引擎侧参数已接线, 见 ConflictLayoutEngine.swift)。
 
 import SwiftUI
 
@@ -139,28 +139,24 @@ struct ConflictClusterCard: View {
         let isDark = CourseColorUtil.isPaletteDark(palette)
         // v7.10.16r 轮换(issue#10, N≥3): 换层落地 = 层代表 id 作为 topOverrideId;
         // 轮换是会话态,不落盘;两节簇 rotationStep 恒 null 走原 topOverride 通道
-        let defaultLayerOrderIds = ConflictLayoutEngine.defaultLayerIdOrder(cluster.courses)
         let layerRepIdOfCourse = ConflictLayoutEngine.memberToLayerRep(cluster.courses)
         // ← overrideAwareLayerOrder: 置顶感知基准序 — 用户置顶层恒在基准首位(整层),
         //   整周期(步数≡0 mod N)轮换序===基准序 → 置顶自动还原(评审 #4)
-        let baselineOrderIds: [Int64] = {
-            guard let top = topOverrideId, defaultLayerOrderIds.contains(top) else {
-                return defaultLayerOrderIds
-            }
-            return [top] + defaultLayerOrderIds.filter { $0 != top }
-        }()
+        let baselineOrderIds: [Int64] =
+            ConflictLayoutEngine.overrideAwareLayerOrder(cluster.courses, topRepId: topOverrideId)
         let clusterLayerCount = baselineOrderIds.count
         let rotationActive = clusterLayerCount >= 3 && (rotationStep ?? 0) > 0
-        // ← 完整轮换层序;引擎 layoutCluster 仅收 topOverrideId,故取轮换序首位落地
-        //   (整层序完整重排需引擎 layerOrderOverride 通道 — 已知偏差,见文件头注释)
+        // ← 完整轮换层序(Android :472-474 同源);整层序完整重排经引擎 layerOrderOverride
+        //   通道落地(评审 #2: 第 3 层能到第二可见位)。
         let rotationLayerOrder: [Int64]? = rotationActive
             ? ConflictLayoutEngine.applyLayerRotation(baselineOrderIds, rotationStep!)
             : nil
-        let rotationTopId: Int64? = rotationLayerOrder?.first
-        let effectiveTopId = rotationTopId ?? topOverrideId
-        // 布局现算(引擎零缓存承诺)——override 变化即重排;hidden 与渲染同一裁剪空间
+        // 布局现算(引擎零缓存承诺)——override 变化即重排;hidden 与渲染同一裁剪空间。
+        // ← Android :478-480: topOverrideId 原样传, layerOrderOverride 非空时引擎内
+        //   优先生效(两通道互斥), 轮换激活时不折叠成单一 topId。
         let laid = ConflictLayoutEngine.layoutCluster(
-            cluster, style: style, topOverrideId: effectiveTopId, maxNode: maxNode)
+            cluster, style: style, topOverrideId: topOverrideId, maxNode: maxNode,
+            layerOrderOverride: rotationLayerOrder)
         // 绘制集: 与原单卡循环同一过滤 — issue#23: 边缘节点用 slotIndexOf ≥ 0 替代
         // 旧 startNode ∈ [1, maxNode],否则 第 0 节 / 第 N+1 节 课会在簇内被静默吞掉。
         // timeSlots 为空(旧调用方)= 退回旧行为,数据脏课被显式过滤仍兜底。
@@ -168,11 +164,18 @@ struct ConflictClusterCard: View {
             ? { node in (1...maxNode).contains(node) ? node - 1 : -1 }
             : { node in timeSlots.firstIndex { $0.nodeStart == node } ?? -1 }
         let drawList = laid.filter { slotIndexOf($0.course.startNode) >= 0 }
+        // ← Kotlin ConflictCard.kt:491 `if (drawList.isEmpty()) return` — 必须在
+        //   topLaid/drawList[0] 求值之前: 全簇出界(边缘节点过滤后)时整簇安全跳过,
+        //   否则下方 `?? drawList[0]` 触发 Array index out of range trap。
+        if drawList.isEmpty {
+            // Kotlin return@Composable → EmptyView;外层 ZStack 空占位无害
+            return AnyView(EmptyView())
+        }
         // v7.10.16r 图层模型统一(评审 #5): 轮换/徽标/切换闸门共用「全量簇的层数」,
         // 不再从 drawList 重算 chainGroups(出界过滤会让两模型分歧)。徽标「+N」= 层数-2
         // (评审 #3: 按层计,轮换中恒定;默认两层已显示,三层 +1 / 四层 +2)。
         let layerCount = clusterLayerCount
-        let hiddenLayerN = max(layerCount - 2, 0)   // ← ConflictLayoutEngine.hiddenLayerCount
+        let hiddenLayerN = ConflictLayoutEngine.hiddenLayerCount(layerCount)   // ← Android :497
         let showBadgeV = ConflictLayoutEngine.conflictShowBadge(layerCount, hiddenLayerN)
         // ← chainGroups 从簇全量课推导(评审 #5): 层归属/层代表/折角资格同一模型
         let chainGroups = ConflictLayoutEngine.chainGroups(cluster.courses)
@@ -358,11 +361,6 @@ struct ConflictClusterCard: View {
             }
         }
 
-        if drawList.isEmpty {
-            // Kotlin return@Composable → EmptyView;外层 ZStack 空占位无害
-            return AnyView(EmptyView())
-        }
-
         // ZStack 整簇渲染。绘制序消费: 先非顶卡 → 顶卡 → Mark → flap/虚线/徽标 overlay
         return AnyView(
             ZStack(alignment: .topLeading) {
@@ -518,6 +516,9 @@ private struct ConflictCourseCard: View {
         let effectiveFg = isGrey ? fg.opacity(SleepyTheme.Alpha.inactive) : fg
         let textDecoration = isGrey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
         let subInfo = AppPrefs.shared.getGridSubInfo()
+        // issue#26: 冲突卡属网格场景 — 跟随网格别名开关(与 CourseOverlayCard 同步)
+        // ← Android ConflictCard.kt:996 CourseDisplayUtil.displayName(course, isGridUseAlias)
+        let name = CourseDisplayUtil.displayName(course, AppPrefs.shared.isGridUseAlias())
         let subText: String = {
             switch subInfo {
             case "room": return course.room
@@ -529,8 +530,9 @@ private struct ConflictCourseCard: View {
         Button(action: onClick) {
             Group {
                 if subText.isBlank {
-                    Text(course.courseName)
-                        // ← Android labelSmall.copy(SemiBold, 10sp, lineHeight 13sp), textAlign 默认 Start
+                    Text(name)
+                        // ← Android labelSmall.copy(SemiBold, 10sp, lineHeight 13sp)
+                        //   + textAlign = Center + align(Center)(:1016-1021): 多行逐行居中
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(effectiveFg)
                         .strikethrough(textDecoration)
@@ -538,10 +540,12 @@ private struct ConflictCourseCard: View {
                         .lineLimit(6)
                         .minimumScaleFactor(0.6)
                         .allowsTightening(true)
+                        .multilineTextAlignment(.center)
                 } else {
                     VStack(spacing: 0) {
-                        Text(course.courseName)
+                        Text(name)
                             // ← Android labelSmall.copy(SemiBold, 10sp, lineHeight 13sp), textAlign 默认 Start
+                            //   (有副信息分支: 无 textAlign=Center、无 align(Center),:1028-1040 —— 多行逐行左对齐)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(effectiveFg)
                             .strikethrough(textDecoration)
@@ -612,10 +616,14 @@ private struct ConflictCoursePickerSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(L10n.format("import_conflicts"))
-                .font(.system(size: 24)) // ← Android AlertDialog headlineSmall 24
+                // ← Android M3 AlertDialog title 默认走 titleLarge;SleepyTypography
+                //   覆写 titleLarge = 22sp(Theme.kt:268)。此前 24(headlineSmall 误标)。
+                .font(.system(size: 22))
                 .foregroundColor(colors.onSurface)
                 .padding(.bottom, 8)
             ScrollView {
+                // ← Android Column .heightIn(max = 360.dp).verticalScroll(:1113-1117)
+                //   — 内容高上限 360dp,课程多时可视列表高度与 Android 一致
                 VStack(spacing: 4) {
                     ForEach(courses) { course in
                         Button {
@@ -645,12 +653,8 @@ private struct ConflictCoursePickerSheet: View {
                     }
                 }
             }
-            HStack {
-                Spacer()
-                Button(L10n.format("cancel")) { onDismiss() }
-                    .foregroundColor(colors.primary)
-                    .buttonStyle(SleepyButtonStyle())
-            }
+            // ← Android .heightIn(max = 360.dp) — ScrollView 可视高度上限 360
+            .frame(maxHeight: 360, alignment: .top)
         }
         .padding(20)
         .background(colors.surface)

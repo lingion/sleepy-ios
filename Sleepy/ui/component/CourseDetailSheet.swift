@@ -4,6 +4,16 @@
 
 import SwiftUI
 
+/// Kotlin `String.isBlank()` 语义: 纯空白(含换行/制表符)也算空 — iOS 侧 .isEmpty 会把
+/// "  " 当非空, 与 Android ifBlank/isNotBlank 分叉 (← CourseDetailSheet.kt:98/112/113/192)。
+private func isNotBlank(_ text: String) -> Bool {
+    !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+}
+
+private func orBlank(_ text: String, _ fallback: String) -> String {
+    isNotBlank(text) ? text : fallback
+}
+
 struct CourseDetailSheet: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.dismiss) private var dismiss
@@ -23,77 +33,83 @@ struct CourseDetailSheet: View {
             // 冲突簇上下文(仅当 day 下 ≥2 课区间相交时才存在) — ← ConflictLayoutEngine.findClusters
             let clusterInfo = clusterOf(course)
 
-            VStack(alignment: .leading, spacing: 0) {
-                // Header ← SheetHeader (surface-container) — Android Row verticalAlignment = Top
-                HStack(alignment: .top) {
-                    Text(course.courseName.isEmpty ? L10n.format("course_detail_title") : course.courseName)
-                        .font(SleepyTypography.titleLarge)
-                        .foregroundColor(colors.onSurface)
-                        .lineLimit(3)
-                    Spacer()
-                    // 有意差异: Android 无关闭按钮(下滑手势/点遮罩关闭), iOS 补充 ✕
-                    Button {
-                        onDismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .foregroundColor(colors.onSurfaceVariant)
-                    }
-                    .buttonStyle(SleepyButtonStyle())
-                    .accessibilityIdentifier("detail_close")
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(colors.surfaceContainer)
-
-                // Body
-                VStack(alignment: .leading, spacing: 12) {
-                    if let timeString = timeString {
-                        TimeChip(text: timeString)
-                    }
-
-                    DetailRow(key: L10n.format("course_field_name"),
-                              value: course.courseName.isEmpty ? "—" : course.courseName)
-                    if !course.teacher.isEmpty {
-                        DetailRow(key: L10n.format("course_field_teacher"), value: course.teacher)
-                    }
-                    if !course.room.isEmpty {
-                        DetailRow(key: L10n.format("course_field_room"), value: course.room)
-                    }
-                    DetailRow(key: L10n.format("course_field_week"),
-                              value: L10n.format("course_week_range", course.nodeString(isShort: true),
-                                                 course.startWeek, course.endWeek))
-                    if !course.note.isEmpty {
-                        DetailRow(key: L10n.format("course_field_note"), value: course.note)
-                    }
-
-                    if let cluster = clusterInfo {
-                        DefaultTopPickerSection(cluster: cluster,
-                                                selectedCourseId: course.id)
-                    }
-
-                    if let onEdit = onEdit {
+            // ← Android rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            //   (CourseDetailSheet.kt:75): 弹层直接全高展开, 内容超长时自带滚动。
+            // iOS 此前 .sheetDetents([.medium]) 且无 ScrollView, 小屏设备"编辑课程"
+            // 按钮被裁掉不可达 — 改 .large + ScrollView 镜像该行为。
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Header ← SheetHeader (surface-container) — Android Row verticalAlignment = Top
+                    HStack(alignment: .top) {
+                        Text(orBlank(course.courseName, L10n.format("course_detail_title")))
+                            .font(SleepyTypography.titleLarge)
+                            .foregroundColor(colors.onSurface)
+                            .lineLimit(3)
+                        Spacer()
+                        // 有意差异: Android 无关闭按钮(下滑手势/点遮罩关闭), iOS 补充 ✕
                         Button {
-                            onEdit(course)
+                            onDismiss()
                         } label: {
-                            Text(L10n.format("course_detail_edit_course"))
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(colors.onPrimary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 40)
-                                .background(colors.primary)
-                                .cornerRadius(SleepyShapes.large)
+                            Image(systemName: "xmark")
+                                .foregroundColor(colors.onSurfaceVariant)
                         }
                         .buttonStyle(SleepyButtonStyle())
-                        .accessibilityIdentifier("detail_edit")
+                        .accessibilityIdentifier("detail_close")
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(colors.surfaceContainer)
+
+                    // Body
+                    VStack(alignment: .leading, spacing: 12) {
+                        if let timeString = timeString {
+                            TimeChip(text: timeString)
+                        }
+
+                        DetailRow(key: L10n.format("course_field_name"),
+                                  value: orBlank(course.courseName, "—"))
+                        if isNotBlank(course.teacher) {
+                            DetailRow(key: L10n.format("course_field_teacher"), value: course.teacher)
+                        }
+                        if isNotBlank(course.room) {
+                            DetailRow(key: L10n.format("course_field_room"), value: course.room)
+                        }
+                        DetailRow(key: L10n.format("course_field_week"),
+                                  value: L10n.format("course_week_range", course.nodeString(isShort: true),
+                                                     course.startWeek, course.endWeek))
+                        if isNotBlank(course.note) {
+                            DetailRow(key: L10n.format("course_field_note"), value: course.note)
+                        }
+
+                        if let cluster = clusterInfo {
+                            DefaultTopPickerSection(cluster: cluster,
+                                                    selectedCourseId: course.id)
+                        }
+
+                        if let onEdit = onEdit {
+                            Button {
+                                onEdit(course)
+                            } label: {
+                                Text(L10n.format("course_detail_edit_course"))
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(colors.onPrimary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 40)
+                                    .background(colors.primary)
+                                    .cornerRadius(SleepyShapes.large)
+                            }
+                            .buttonStyle(SleepyButtonStyle())
+                            .accessibilityIdentifier("detail_edit")
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .padding(.bottom, 24)   // ← Android 外层 Column padding(bottom = 24.dp),此前 12 少了 12pt
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .padding(.bottom, 24)   // ← Android 外层 Column padding(bottom = 24.dp),此前 12 少了 12pt
             }
-            .sheetDetents([.medium])
+            .sheetDetents([.large])
             // 有意差异: Android shape = RoundedCornerShape(topStart/topEnd 28dp),iOS 系统弹层自带圆角与把手交互
             // iOS 15 无 drag indicator API,iOS 16+ 隐藏把手(iOS15 默认无把手,行为一致)
             .modifier(HideDragIndicatorIfAvailable())
@@ -134,35 +150,36 @@ private struct DefaultTopPickerSection: View {
         Group {
             if layers.count >= 2 {
                 VStack(alignment: .leading, spacing: 2) {
-            Text(L10n.format("conflict_default_top_title"))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(colors.onSurface)
-                .padding(.top, 4)
-                .padding(.bottom, 4)
+                    Text(L10n.format("conflict_default_top_title"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(colors.onSurface)
+                        .padding(.top, 4)
+                        .padding(.bottom, 4)
 
-            ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
-                let layerRepId = layer.first!.id
-                let label = layer.map { $0.courseName.isEmpty ? "—" : $0.courseName }.joined(separator: "、")
-                let selected = savedRepId == layerRepId
-                Button {
-                    AppPrefs.shared.putConflictDefaultTop(clusterKey, selected ? nil : layerRepId)
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                            .font(.system(size: 20))
-                            .foregroundColor(selected ? colors.primary : colors.onSurfaceVariant)
-                        Text(label)
-                            .font(.system(size: 14))
-                            .foregroundColor(colors.onSurface)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
+                        let layerRepId = layer.first!.id
+                        // ← Android kt:192 `it.courseName.ifBlank { "—" }` — 纯空白名同样兜底 "—"
+                        let label = layer.map { orBlank($0.courseName, "—") }.joined(separator: "、")
+                        let selected = savedRepId == layerRepId
+                        Button {
+                            AppPrefs.shared.putConflictDefaultTop(clusterKey, selected ? nil : layerRepId)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(selected ? colors.primary : colors.onSurfaceVariant)
+                                Text(label)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(colors.onSurface)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(.vertical, 4)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(SleepyButtonStyle())
                     }
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(SleepyButtonStyle())
-            }
                 }
             }
         }

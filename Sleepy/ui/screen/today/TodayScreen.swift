@@ -16,7 +16,21 @@ struct TodayScreen: View {
     var body: some View {
         let state = viewModel.state
         let today = Date()
-        let dayOfWeek = DateUtils.todayDayOfWeek(today: today)
+        // issue#44 对齐: 调休日按映射目标星期取课, 未映射走自然星期
+        // (← Android `state.transferDayFor(today)`; HolidayTransferHelper 直读所选表在
+        // AppPrefs 的调休映射 = Android VM transfers 的同一数据源, 语义等价)。
+        let dayOfWeek = HolidayTransferHelper.effectiveDayOfWeek(state.selectedTableId, today)
+        // issue#40 对齐: 节次时间域一律走水合后的当前表(← Android
+        // `state.effectiveCurrentTable?.timeJson`)。绑定独立节次表 → 以所绑表 timeJson
+        // 为准; 悬空/未绑定 → 回退旧兼容列。ScheduleState 尚无 effectiveCurrentTable
+        // 计算属性(在他人任务文件 ScheduleViewModel.swift, 本 agent 禁改), 此处按
+        // AddCourseScreen.swift 同款本地解算; VM 侧字段已报集成者统一补。
+        let effectiveTimeJson: String? = {
+            guard let table = state.currentTable else { return nil }
+            let period = (try? ScheduleRepository(AppDatabase.getShared())
+                .effectivePeriodTable(tableId: table.id)) ?? nil
+            return table.hydratedWith(period).timeJson
+        }()
         let actualWeek = state.currentTable.map {
             DateUtils.currentWeek(startDate: $0.startDate, today: today)
         } ?? state.currentWeek
@@ -31,7 +45,7 @@ struct TodayScreen: View {
             }
             // 用户报障 2026-09-10: ownTime 课渲染前按真实时间归一化节点(与网格同一
             // 预处理), 落库的表单占位节点不再影响今日页分组与显示。
-            guard let tj = state.currentTable?.timeJson else {
+            guard let tj = effectiveTimeJson else {
                 return list.sorted { $0.startNode < $1.startNode }
             }
             return list.map { $0.normalizeNode(timeJson: tj) }.sorted { $0.startNode < $1.startNode }
@@ -41,7 +55,7 @@ struct TodayScreen: View {
         // 用户报障 2026-09-10: 分组走时间域(带 timeJson), 时间零交集的 ownTime 课对
         // 不再因节点占位值相同被并成假冲突行。
         let laneRows = ConflictLayoutEngine.weekLaneRows(
-            todayCourses, timeJson: state.currentTable?.timeJson)
+            todayCourses, timeJson: effectiveTimeJson)
 
         ScrollView {
             VStack(spacing: 16) {
@@ -56,12 +70,12 @@ struct TodayScreen: View {
                     // v7.10.10 冲突分栏: 单栏整宽; 多栏并排+栏间浅细竖线(与周视图同款)
                     ForEach(laneRows, id: \.courses.first!.id) { row in
                         if row.laneCount == 1, let only = row.courses.first {
-                            TodayCourseCard(course: only, timeJson: state.currentTable?.timeJson,
+                            TodayCourseCard(course: only, timeJson: effectiveTimeJson,
                                             groupRows: todayCourses.filter { $0.groupId == only.groupId }) {
                                 selectedCourse = only
                             }
                         } else {
-                            TodayLaneRow(row: row, timeJson: state.currentTable?.timeJson,
+                            TodayLaneRow(row: row, timeJson: effectiveTimeJson,
                                          todayCourses: todayCourses) { c in
                                 selectedCourse = c
                             }
@@ -80,13 +94,16 @@ struct TodayScreen: View {
             CourseDetailSheet(
                 course: course,
                 timeString: course.nodeString(),
-                // v7.10.16q 同周域: 今日页 actualWeek 过滤后再聚簇, 周次不相交行不成幽灵图层
-                allCourses: state.courses.filter { $0.inWeek(actualWeek) },
+                // 对齐 Android (TodayScreen.kt:169/274 `allCourses = todayCourses`):
+                // sheet 聚簇必须与今日列表同一份数据 — 已按 day+周过滤且 normalizeNode
+                // 后的今日子集。此前传整周未归一化行, ownTime 课带表单占位节点进 sheet
+                // 聚簇 = 2026-09-10 同类报障在 iOS sheet 路径的残留。
+                allCourses: todayCourses,
                 onEdit: { c in
                     selectedCourse = nil
                     onEditCourse?(c)
                 },
-                timeJson: state.currentTable?.timeJson)
+                timeJson: effectiveTimeJson)
         }
     }
 }
