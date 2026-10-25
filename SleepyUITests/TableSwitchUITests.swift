@@ -105,6 +105,16 @@ final class TableSwitchUITests: XCTestCase {
                       "返回后应在 Mine 页")
     }
 
+    /// 课程可见性锚点(视图模式无关): cards 模式课程名被 Button+SleepyButtonStyle
+    /// 合并为 button label, week 模式 DaySummaryCell 是 plain Text(staticText)。
+    /// 旧写法 staticTexts[名] 只在 week 树成立 → 起始视图(cards, AppPrefs 默认)
+    /// 且无前序用例切 week 时必假阴(2026-10-23 全量腐化根因, AX 树探针实证)。
+    /// descendants(.any)+label 谓词覆盖两种树形(ScheduleFlow/ManageImport 同款)。
+    private func courseElement(_ name: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", name)).firstMatch
+    }
+
     // MARK: 1. 新建表不保存 = discard(pendingNewTableId 语义, Android 同构)
 
     func testUnsavedNewTableIsDiscarded() {
@@ -140,14 +150,14 @@ final class TableSwitchUITests: XCTestCase {
         // 数据联动: B表 无课 → 离开 AllTables 回 Mine → Schedule 页不再显示种子课程
         backToMine()
         app.descendants(matching: .any)["pill_schedule"].tap()
-        XCTAssertFalse(app.staticTexts["高等数学"].firstMatch.waitForExistence(timeout: 3),
+        XCTAssertFalse(courseElement("高等数学").waitForExistence(timeout: 3),
                        "切到空表 B表 后 Schedule 不应显示种子课程")
         // 切回种子表, 课程恢复(就地选表 → 回 Mine → 手动回 Schedule)
         openAllTables()
         selectTableRowInPlace("我的课表")
         backToMine()
         app.descendants(matching: .any)["pill_schedule"].tap()
-        XCTAssertTrue(app.staticTexts["高等数学"].firstMatch.waitForExistence(timeout: 4),
+        XCTAssertTrue(courseElement("高等数学").waitForExistence(timeout: 8),
                       "切回种子表后课程应恢复")
     }
 
@@ -189,7 +199,7 @@ final class TableSwitchUITests: XCTestCase {
         XCTAssertTrue(delBtn.waitForExistence(timeout: 3))
         delBtn.tap()
         // onDeleted: overlay 全关 + currentTab = .schedule → Schedule 页
-        XCTAssertTrue(app.staticTexts["高等数学"].firstMatch.waitForExistence(timeout: 6),
+        XCTAssertTrue(courseElement("高等数学").waitForExistence(timeout: 8),
                       "删除 C表 后应回退默认表, 课程恢复")
         // 列表只剩种子表
         assertList(["我的课表"], current: "我的课表")

@@ -89,8 +89,10 @@ final class CourseEditorUITests: XCTestCase {
         if saveAnywayBtn.waitForExistence(timeout: 5) {
             saveAnywayBtn.tap()
         }
-        // 保存后回课表 Tab
-        XCTAssertTrue(app.staticTexts["数据结构"].firstMatch.waitForExistence(timeout: 8),
+        // 保存后回课表 Tab — 新课可能在冲突簇隐藏层(网格)或 Week 列表, 用 descendants 锚点
+        let newCourse = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS '数据结构'")).firstMatch
+        XCTAssertTrue(newCourse.waitForExistence(timeout: 8),
                       "保存后课表应显示新课(周视图或网格)")
     }
 

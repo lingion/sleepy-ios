@@ -29,7 +29,8 @@ final class IrregularOverflowTests: XCTestCase {
                          step: c.step, startWeek: c.startWeek, endWeek: c.endWeek,
                          type: c.type, ownTime: c.ownTime,
                          startTime: c.startTime, endTime: c.endTime,
-                         isIrregularTime: c.isIrregularTime)
+                         isIrregularTime: c.isIrregularTime,
+                         isIrregularNode: c.isIrregularNode)
     }
 
     // MARK: 加载链反算

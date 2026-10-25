@@ -92,20 +92,26 @@ final class ScheduleFlowUITests: XCTestCase {
     }
 
     // MARK: 视图切换 — seg_Week ↔ seg_Grid(SegmentedSwitcher)
+    // 出厂默认启动视图 = cards(网格, ← Android AppPrefs "cards"), 种子复位保证
+    // 起步即在网格 → 先断网格态, 切 Week 断周视图, 再切回网格。
 
-    func testViewModeSwitchFullToCards() {
+    func testViewModeSwitchCardsToWeekAndBack() {
         let grid = app.descendants(matching: .any)["seg_Grid"]
         XCTAssertTrue(grid.waitForExistence(timeout: 5), "网格切换按钮应存在")
+        // 起步 = 网格模式(默认 cards): 种子课"高等数学"应有 gridcell_ 卡
+        let startCell = app.descendants(matching: .any)["gridcell_1"]
+        XCTAssertTrue(startCell.waitForExistence(timeout: 5), "默认启动视图=网格, 应有课程卡")
+        // 切 Week(周视图)
+        let week = app.descendants(matching: .any)["seg_Week"]
+        XCTAssertTrue(week.exists)
+        week.tap()
+        // 周视图 DetailPanel 行锚点 lesson_1(种子固定 id)
+        XCTAssertTrue(app.descendants(matching: .any)["lesson_1"].waitForExistence(timeout: 5),
+                      "周视图应显示课程行")
+        // 切回网格
         grid.tap()
-        let gridCourse = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS '高等数学'")).firstMatch
-        XCTAssertTrue(gridCourse.waitForExistence(timeout: 5), "网格模式应显示课程卡")
-        let full = app.descendants(matching: .any)["seg_Week"]
-        XCTAssertTrue(full.exists)
-        full.tap()
-        // 周视图 DaySummaryCell 的 micro 名(staticText)
-        XCTAssertTrue(app.staticTexts["高等数学"].firstMatch.waitForExistence(timeout: 5)
-                      || lessonButton("高等数学").exists, "周视图模式也应显示课程")
+        XCTAssertTrue(app.descendants(matching: .any)["gridcell_1"].waitForExistence(timeout: 5),
+                      "切回网格应显示课程卡")
     }
 
     // MARK: 课程卡点击 → 详情 Sheet + 关闭(detail_close)
@@ -115,7 +121,17 @@ final class ScheduleFlowUITests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch
     }
 
+    /// 默认启动视图=网格(← Android "cards"), DetailPanel 只在周视图存在 →
+    /// 用到 lesson_ 锚点的用例先切 seg_Week(幂等: 已在周视图则空操作)。
+    private func switchToWeekMode() {
+        let week = app.descendants(matching: .any)["seg_Week"]
+        XCTAssertTrue(week.waitForExistence(timeout: 5))
+        week.tap()
+        sleep(1)
+    }
+
     func testCourseTapOpensDetailSheetAndClose() {
+        switchToWeekMode()
         // DetailPanel 在屏幕下半 — 先上滑
         app.swipeUp()
         let course = lessonButton("高等数学")
@@ -134,6 +150,7 @@ final class ScheduleFlowUITests: XCTestCase {
     // MARK: 详情 Sheet → 编辑入口(detail_edit → AddCourseScreen 编辑模式)
 
     func testDetailSheetEditButtonOpensEditor() {
+        switchToWeekMode()
         app.swipeUp()
         let course = lessonButton("高等数学")
         XCTAssertTrue(course.waitForExistence(timeout: 5))

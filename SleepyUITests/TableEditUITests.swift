@@ -39,20 +39,23 @@ final class TableEditUITests: XCTestCase {
         app.terminate()   // 隔离: 每用例杀进程重启, 防跨用例状态串扰
     }
 
-    // MARK: 2 个文本字段 + 周数 Stepper(field_Total Weeks 已被 d03c426 原生化
-    //       Stepper 取代 — 数字键盘 TextField 移除, 改断言步进控件)
+    // MARK: 2 个文本字段 + 周数数字输入
+    // (周数现态 = FieldTextField numberPad — d03c426 曾 Stepper 化, 后续按
+    //  Android maxWeekText 语义改回数字文本; 锚点 field_Total Weeks)
 
     func testBasicInfoFieldsAcceptInput() {
         let nameField = app.descendants(matching: .any)["field_Schedule Name"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 5), "名称字段锚点未找到")
         XCTAssertTrue(app.descendants(matching: .any)["field_Semester Start Date"].exists)
-        XCTAssertTrue(app.staticTexts["Total Weeks"].exists, "周数行应在")
+        // 周数字段: identifier 锚点(placeholder 不进 label 谓词 — probe 实证)
+        let weeksField = app.descendants(matching: .any)["field_Total Weeks"]
+        XCTAssertTrue(weeksField.waitForExistence(timeout: 3), "周数行应在")
+        XCTAssertEqual(weeksField.value as? String, "20", "周数字段应携带种子表当前值")
 
         nameField.tap()
         nameField.typeText("2")
-        let stepper = app.steppers.firstMatch
-        XCTAssertTrue(stepper.waitForExistence(timeout: 3), "周数应为 Stepper 控件")
-        stepper.tap()   // 步进不崩即可(增量由系统控件处理)
+        weeksField.tap()
+        weeksField.typeText("5")   // 数字键盘追加 → 不崩即可
     }
 
     // MARK: 日期非法 → 保存报校验错误

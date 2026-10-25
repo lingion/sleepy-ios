@@ -32,12 +32,18 @@ final class CourseColorUtilTests: XCTestCase {
     // 注:stableHue 的保证是「确定性 + 值域」,不保证不同 groupId 必异色(黄金角模 360 存在哈希碰撞)。
 
     func testStableHueMatchesKotlinJavaHash() {
-        // Java String.hashCode("grp-A") = 74319512(手工算: g=103,r=114,p=112,-=45,A=65)
-        // h = 103; h=103*31+114=3307; 3307*31+112=102629; 102629*31+45=3181744; 3181744*31+65=98634009...
+        // Java String.hashCode("grp-A") = 98627929(手工核验:
+        // h=103; 103*31+114=3307; 3307*31+112=102629; 102629*31+45=3181544; 3181544*31+65=98627929)
         // 验证 javaHash 本身正确性(与 JVM 一致),用已知值:
         XCTAssertEqual(0, CourseColorUtil.javaHash(""), "空串 hash=0 (Java 语义)")
         // "a" = 97
         XCTAssertEqual(97, CourseColorUtil.javaHash("a"))
+        // 非 ASCII 钉桩: Java/Kotlin hashCode 按 UTF-16 code unit 迭代(不是 UTF-8 字节)。
+        // "高等数学" = (((0x9AD8*31+0x7B49)*31+0x6570)*31+0x5B66) = 1212073767。
+        // 若误按 UTF-8 字节迭代,中文课名 groupId 两端哈希不同 → 同课跨端异色。
+        XCTAssertEqual(98627929, CourseColorUtil.javaHash("grp-A"))
+        XCTAssertEqual(1212073767, CourseColorUtil.javaHash("高等数学"),
+                       "UTF-16 code unit 语义钉桩(Java String.hashCode 同值)")
     }
 
     // ============================ hasCustomColor (哨兵色) ============================
@@ -57,6 +63,14 @@ final class CourseColorUtilTests: XCTestCase {
 
     func testHasCustomColorBlankIsFalse() {
         XCTAssertFalse(CourseColorUtil.hasCustomColor(course("")))
+    }
+
+    func testHasCustomColorFullWidthSpaceIsFalse() {
+        // ← Kotlin isNotBlank 按 Character.isWhitespace 视全角空格 U+3000 为空;
+        // Foundation .whitespacesAndNewlines 不覆盖 U+3000 → 必须用复刻谓词,否则同输入两端判定不同
+        XCTAssertFalse(CourseColorUtil.hasCustomColor(course("\u{3000}")))
+        XCTAssertFalse(CourseColorUtil.hasCustomColorHex("\u{3000}"))
+        XCTAssertTrue(CourseColorUtil.hasCustomColorHex("\u{3000}#FF5722"), "空白+色值仍判自定义")
     }
 
     // ============================ 4 态矩阵 ============================
@@ -134,7 +148,15 @@ final class CourseColorUtilTests: XCTestCase {
     func testCustomColorExactArgb() {
         // #FF5722 → r=0xFF,g=0x57,b=0x22
         XCTAssertEqual(0xFFFF5722, CourseColorUtil.parseColor("#FFFF5722"))
+        // 6 位补 alpha=FF(仍带 '#')
+        XCTAssertEqual(0xFFFF5722, CourseColorUtil.parseColor("#FF5722"))
         XCTAssertNil(CourseColorUtil.parseColor("notacolor"))
+        // ← android.graphics.Color.parseColor 对齐: 无 '#' 前缀必抛异常 → 落空回退分支。
+        // "FF5722" 照收会让坏 hex 自定义色两端走不同分支(GROUP/AUTO/CUSTOM 回落路径分歧)。
+        XCTAssertNil(CourseColorUtil.parseColor("FF5722"), "无 # 前缀必须判非法(Android 语义)")
+        XCTAssertNil(CourseColorUtil.parseColor("#FF57"), "位数不足")
+        XCTAssertNil(CourseColorUtil.parseColor("#GGHHIIJK"), "非 hex 字符")
+        XCTAssertNil(CourseColorUtil.parseColor(""), "空串")
     }
 
     func testLuminanceAndTextColorOn() {
@@ -212,5 +234,108 @@ final class CourseColorUtilTests: XCTestCase {
         // 组色源参与 baseHue: 换组色源 → hue 变(Android JVM 不可断言, iOS 真解析可断言)
         let hue1OtherSource = GoldenAngleColor.forRow(rows[0], rows, "#FF00FF00")
         XCTAssertNotEqual(hue1, hue1OtherSource, accuracy: 0.001)
+    }
+
+    // ============================ issue#22 3 态取色镜像用例(← CourseColorUtilTest.kt) ============================
+
+    /// ← Android multiCourse(): 同组 g1、按 id 区分行
+    private func multiCourse(_ id: Int64, color: String, mode: Int, groupId: String = "g1") -> CourseEntity {
+        var c = CourseEntity(groupId: groupId, tableId: 1, courseName: "x",
+                             day: 1, startNode: 1, step: 1, startWeek: 1, endWeek: 16,
+                             color: color)
+        c.id = id
+        c.colorMode = mode
+        return c
+    }
+
+    /// ← `WithGroupRows GROUP 模式回退到 stableHue(等价旧路径)`
+    func testWithGroupRowsGroupModeFallsBackToStableHue() {
+        let c = multiCourse(1, color: "#FF6750A4", mode: CourseColorMode.GROUP)
+        let color = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
+            c, groupRows: [c], isDark: false, neutralColor: neutral)
+        XCTAssertTrue(!colorsEqual(color, neutral), "GROUP 哨兵色应走 HSL stableHue(不为 neutral)")
+        let expected = CourseColorUtil.hslToColor(CourseColorUtil.stableHue("g1"), 0.55, 0.82)
+        XCTAssertTrue(colorsEqual(color, expected), "GROUP 回退与旧路径 stableHue 等价")
+    }
+
+    /// ← `WithGroupRows CUSTOM 模式用 row color(优先于 neutral)`
+    func testWithGroupRowsCustomUsesRowColor() {
+        let c = multiCourse(1, color: "#FF112233", mode: CourseColorMode.CUSTOM)
+        let color = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
+            c, groupRows: [c], isDark: false, neutralColor: neutral)
+        XCTAssertTrue(colorsEqual(color, Color(uiArgb: 0xFF112233)),
+                      "CUSTOM 应解析 row.color 精确值(iOS 无 JVM 桩, 可断精确 ARGB)")
+        XCTAssertTrue(!colorsEqual(color, neutral), "CUSTOM 分支优先于 neutral")
+    }
+
+    /// ← `WithGroupRows AUTO 模式 color 字段被忽略 — 即使填了色也按 row id 算`
+    func testWithGroupRowsAutoIgnoresRowColorField() {
+        let rows = [
+            multiCourse(1, color: "#FFFF0000", mode: CourseColorMode.GROUP),
+            multiCourse(2, color: "#FF00FF00", mode: CourseColorMode.AUTO),
+        ]
+        // AUTO 行 color 填了绿(恰与 neutral 同值),但应按组色源(红)+ golden angle 算 hue
+        let color = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
+            rows[1], groupRows: rows, isDark: false, neutralColor: neutral)
+        XCTAssertTrue(!colorsEqual(color, neutral), "AUTO 不应消费 row.color 字段")
+        let expected = CourseColorUtil.hslToColor(
+            GoldenAngleColor.forRow(rows[1], rows, "#FFFF0000"), 0.55, 0.82)
+        XCTAssertTrue(colorsEqual(color, expected), "AUTO 走组色源 + 黄金角 + HSL 路径")
+    }
+
+    /// ← `GoldenAngleColor AUTO 模式 idx 0_1_2 hue 按 golden angle 推进`(绝对值钉桩,含模 360 回绕)
+    func testGoldenAngleAutoAbsoluteHueProgression() {
+        // 组色源=红(hue 0°),AUTO 行按行序 idx 1/2/3 → 137.508 / 275.016 / 52.524
+        let rows = [
+            multiCourse(1, color: "#FFFF0000", mode: CourseColorMode.GROUP),
+            multiCourse(2, color: "", mode: CourseColorMode.AUTO),
+            multiCourse(3, color: "", mode: CourseColorMode.AUTO),
+            multiCourse(4, color: "", mode: CourseColorMode.AUTO),
+        ]
+        let h1 = GoldenAngleColor.forRow(rows[1], rows, "#FFFF0000")
+        let h2 = GoldenAngleColor.forRow(rows[2], rows, "#FFFF0000")
+        let h3 = GoldenAngleColor.forRow(rows[3], rows, "#FFFF0000")
+        XCTAssertEqual(h1, 137.508, accuracy: 0.5)
+        XCTAssertEqual(h2, 275.016, accuracy: 0.5)
+        XCTAssertEqual(h3, 52.524, accuracy: 0.5)  // 412.524 % 360 = 52.524 回绕钉桩
+    }
+
+    /// ← `GoldenAngleColor baseHue 边界 — baseHue idx 1 回绕`。
+    /// 注: Android 用例注释称 #FFFF00C8 hue≈350、期望落 (100,150),两处均与事实不符:
+    ///   1. androidx RGBToHSL 实算 #FFFF00C8 hue = 312.94(非 350);
+    ///   2. Android JVM 环境 parseColor 为 mockable 桩恒返 0 → baseHue 恒 0,
+    ///      其 (100,150) 断言靠 137.508 过,并未真正钉住组色 hue。
+    /// iOS 真解析,按事实值钉桩: baseHue=312.94, idx1=(312.94+137.508)%360=90.45,
+    /// 钉住 iOS rgbToHslHue 与 androidx colorToHSL 的 hue 值一致 + 值域 [0,360) 回绕正确。
+    func testGoldenAngleBaseHueWrapAroundBoundary() {
+        let rows = [
+            multiCourse(1, color: "#FFFF00C8", mode: CourseColorMode.GROUP),
+            multiCourse(2, color: "", mode: CourseColorMode.AUTO),
+        ]
+        let h0 = GoldenAngleColor.forRow(rows[0], rows, "#FFFF00C8")
+        let h1 = GoldenAngleColor.forRow(rows[1], rows, "#FFFF00C8")
+        XCTAssertEqual(h0, 312.941, accuracy: 0.05)
+        XCTAssertEqual(h1, 90.449, accuracy: 0.05)
+        XCTAssertTrue(h1 >= 0 && h1 < 360, "回绕后必须落在 [0,360): \(h1)")
+        XCTAssertEqual(137.508, Double((Double(h1) - Double(h0) + 360)
+            .truncatingRemainder(dividingBy: 360)), accuracy: 0.01)
+    }
+
+    /// ← `GROUP 行写入组色后渲染走 hasCustomColor 优先回落`(setGroupSourceColor 落库路径)
+    func testGroupRowColorChangeAffectsRendering() {
+        let rows = [
+            multiCourse(1, color: "#FF6750A4", mode: CourseColorMode.GROUP),
+            multiCourse(2, color: "#FF6750A4", mode: CourseColorMode.GROUP),
+        ]
+        // 改组色前: 哨兵值 → stableHue 路径
+        let before = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
+            rows[0], groupRows: rows, isDark: false, neutralColor: neutral)
+        // 模拟 setGroupSourceColor 落库后的行
+        let after = rows.map { var c = $0; c.color = "#FF123456"; return c }
+        let afterColor = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
+            after[0], groupRows: after, isDark: false, neutralColor: neutral)
+        XCTAssertTrue(!colorsEqual(before, afterColor), "改组色后 GROUP 行渲染色必须改变")
+        XCTAssertTrue(colorsEqual(afterColor, Color(uiArgb: 0xFF123456)),
+                      "落库后 GROUP 行走 hasCustomColor 解析优先,精确 #FF123456")
     }
 }

@@ -5,7 +5,6 @@
 
 import XCTest
 import UIKit
-import UIKit
 
 final class ManageImportUITests: XCTestCase {
 
@@ -249,17 +248,31 @@ final class ManageImportUITests: XCTestCase {
             confirmBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
         sleep(2)
-        // 导入完成 → Android 行为: 关导入框 → 打开新表编辑页(Edit Schedule overlay)
-        let nameField = app.descendants(matching: .any)["field_Schedule Name"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 8),
-                      "导入后应打开新表编辑页(onOpenEditTable 链)")
-        // 表名应为导入的表名
-        XCTAssertTrue(app.staticTexts["Edit Schedule"].exists)
-        // 返回编辑页 → 落在 Manage Tab(导入链从 Manage 发起, Android 同行为:
-        // 导入后留在管理页) → 切到课表 Tab 才可见新课
-        app.buttons.matching(NSPredicate(format: "label == 'Back'")).firstMatch.tap()
-        sleep(1)
-        app.descendants(matching: .any)["pill_schedule"].tap()
+        // 导入完成 → Android 行为(ImportSheet.kt v1.0.56 删跳编辑页 + NavHost onImported
+        // =「留在管理页, 摘要卡就地刷新」): 确认 sheet 关闭后 ImportSheet 仍开着(其
+        // importJustApplied 只弹 snackbar, 不关自己)→ 断言成功条 import_success_snackbar,
+        // 下滑关 sheet 回 Manage; 新表落库经 observeAllTables 反应流成当前表
+        // (applyImportPreview .importAsNew 走 setDefault)→ 摘要卡即显示导入表名。
+        // ★ 修复: snackbar 停留 2.5s, 用 descendants 锚点(与 ImportSheet.import_success_snackbar 对齐)
+        let snackbar = app.descendants(matching: .any)["import_success_snackbar"]
+        XCTAssertTrue(snackbar.waitForExistence(timeout: 5),
+                      "导入成功应弹 snackbar(import_success)")
+        // 关 ImportSheet: 循环 swipeDown 实测不可靠(2026-10-25 eprobe: 6 次全被
+        // sheet 内 ScrollView/文本区吞掉, 标题恒在)。改走确定性路径: 摘要卡断言
+        // 透过 sheet 树即可成立(exists 含遮挡元素), 末尾用「重启 App」验证导入
+        // 持久生效 —— 冷启动无 sheet 遮挡, 默认表=setDefault(导入表) → 课表 Tab
+        // 必渲染编译原理, 同时锁住"导入落库+设为默认+重启仍在"三件事。
+        XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 5),
+                      "导入后应留在管理页(不跳编辑页)")
+        // 摘要卡刷新: 表名 = 导入表名(唯一名顺延仅撞名时加后缀, 种子表名不同 → 原名)
+        XCTAssertTrue(app.staticTexts["测试导入表"].waitForExistence(timeout: 8),
+                      "管理页摘要卡应刷新为导入的课表")
+        app.terminate()
+        // 重启不带种子参数: 带 -SLEEPY_UI_TEST_SEED 会重跑 seeder 清库,
+        // 把刚导入的表删掉 → 这里要验证的恰是"导入持久化", 用裸参数重启。
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS '编译原理'")).firstMatch
             .waitForExistence(timeout: 8), "导入后课表应含编译原理")
