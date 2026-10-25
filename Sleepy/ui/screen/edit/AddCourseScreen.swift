@@ -5,13 +5,13 @@
 
 import SwiftUI
 
-enum MeetingInputMode: Hashable { case byNode, byClock }
-
-// ← MeetingBlockDraft(SnapshotStateList → @Published 手动管理)
+// ← MeetingBlockDraft(SnapshotStateList → 值类型 + Binding 回写)
+// 2026-10 对齐: 删除遗留 `mode: MeetingInputMode` — Android 1.0.61 在旧 ByClock 并入
+// isIrregularTime 开关时已移除该字段 (kt L127-181 无 mode); 开关 OFF 分支不再置 mode,
+// 卡形态只由 isIrregularNode / isIrregularTime 两个开关决定 (issue#23 §4)。
 struct MeetingBlockDraft: Identifiable {
     let id: Int
     var days: Set<Int>
-    var mode: MeetingInputMode
     var startNode: Int
     var step: Int
     var startTime: String
@@ -34,6 +34,11 @@ struct MeetingBlockDraft: Identifiable {
     var durationText: String = ""
     var clamped: Bool = false
 
+    /// ← Android `irregularOptionsExpanded by mutableStateOf(isIrregularNode || isIrregularTime)`:
+    /// 非常规选项折叠栏 — 编辑已启用任一非常规项的卡时自动展开, 否则默认收起
+    /// (普通课程主路径不被"非常规"字样干扰)。计算属性 = 构造派生语义, 可直测。
+    var shouldExpandIrregularOptions: Bool { isIrregularNode || isIrregularTime }
+
     /// §3.3 契约: 本卡生效起止 = 覆盖值 / 槽位默认 / 标准节次时间, 单一出口
     func effectiveRange(timeJson: String) -> (String, String)? {
         TimeTableUtils.effectiveCourseTime(
@@ -52,7 +57,7 @@ struct PendingEdgeInsert {
     let node: Int
     let start: String
     let end: String
-    let ownerBlockId: Int
+    var ownerBlockId: Int = 0
 }
 
 /// issue#23 逐卡: 已有槽位默认时间编辑暂存
@@ -111,6 +116,10 @@ struct AddCourseScreen: View {
     // issue#23 逐卡: 边缘槽位暂存 + 三个弹层目标
     @State private var pendingEdgeInserts: [PendingEdgeInsert] = []
     @State private var pendingEdgeEdits: [EdgeSlotEdit] = []
+    // ← 2026-09-23 对齐 Android state.effectiveCurrentTable: 水合后的节次时间域(绑定解算后),
+    // loadIfNeeded 写入, effectiveTimeJson/保存写回读取。currentTable.timeJson 兼容列
+    // 在绑定共享作息表时可能过期, 禁止直接当节次时间域用。
+    @State private var hydratedTimeJson: String = TimeTableUtils.DEFAULT_TIME_JSON
     @State private var edgePickTargetIndex: Int? = nil
     @State private var newSlotTarget: NewSlotTarget? = nil
     @State private var slotEditTarget: SlotEditTarget? = nil
@@ -128,8 +137,9 @@ struct AddCourseScreen: View {
 
     /// issue#9/issue#23: 生效时间表 = 课表 timeJson + 本次会话暂存的新建槽位 + 槽位时间编辑。
     /// 候选集合/槽位时间展示/校验/落库全部以它为唯一依据。
+    /// base 用水合域 (← Android state.effectiveCurrentTable): 绑定共享作息表时兼容列可能已过期。
     private var effectiveTimeJson: String {
-        let base = viewModel.state.currentTable?.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON
+        let base = hydratedTimeJson
         var json = base
         for insert in pendingEdgeInserts {
             json = TimeTableUtils.insertEdgeNode(timeJson: json, edgeClass: insert.edgeClass,
@@ -181,7 +191,6 @@ struct AddCourseScreen: View {
                             canRemove: meetingBlocks.count > 1,
                             issues: validationIssues.filter { $0.blockId == meetingBlocks[index].id }.map { $0.message },
                             groupSourceColorHex: groupSourceColorHex,
-                            onChangeGroupColor: { showGroupColorPicker = true },
                             onRemove: { meetingBlocks.remove(at: index) },
                             onPickEdge: { edgePickTargetIndex = index },
                             onEditSlot: { node, s, e in slotEditTarget = SlotEditTarget(node: node, start: s, end: e) },
@@ -191,9 +200,11 @@ struct AddCourseScreen: View {
                     // 新增时段按钮 (← Android: LazyColumn 独立 item, spacing 14)
                     Button {
                         meetingBlocks.append(MeetingBlockDraft(
-                            id: nextBlockId, days: [2], mode: .byNode,
+                            id: nextBlockId, days: [2],
                             startNode: 3, step: 2, startTime: "10:00", endTime: "11:40",
-                            startWeek: min(startWeek, endWeek), endWeek: max(startWeek, endWeek), weekType: 0))
+                            // ← Android: 新卡默认固定 1..16, 不做 min/max 交换 (周次卡顶部值
+                            // 经「应用到全部时段」显式下发, 倒挂交 slot_week_order 校验)
+                            startWeek: 1, endWeek: 16, weekType: 0))
                         nextBlockId += 1
                     } label: {
                         HStack(spacing: 8) {
@@ -368,6 +379,12 @@ struct AddCourseScreen: View {
                 FieldTextField(text: $courseName, label: L10n.format("course_name_required"))
                 // issue#26: 别名输入(可选) — 空 = 原名; 语义是"展示名", 不参与身份/匹配
                 FieldTextField(text: $courseAlias, label: L10n.format("course_alias"))
+                // 组色 — 前置课程级色源 (2026-09-15 用户令二次修正): 基础信息卡
+                // 只放整组组色编辑; 各时段卡保留自己的颜色行(见 ColorSection)
+                if !meetingBlocks.isEmpty {
+                    GroupColorSection(groupSourceColorHex: groupSourceColorHex,
+                                      onChangeGroupColor: { showGroupColorPicker = true })
+                }
                 // issue#22: teacher/room/note/color 已下沉到每个 MeetingBlockDraft(同名多地点独立编辑)
             }
         }
@@ -384,10 +401,11 @@ struct AddCourseScreen: View {
                     .frame(maxWidth: .infinity)
             }
             // ← Android 周次卡内「显式应用」按钮 (无图标, regularHeight 48, 卡内 spacing 12)
+            // 原样下发起止周次 (倒挂由 slot_week_order 校验拦截), 不做静默 min/max 交换
             Button {
                 for index in meetingBlocks.indices {
-                    meetingBlocks[index].startWeek = min(startWeek, endWeek)
-                    meetingBlocks[index].endWeek = max(startWeek, endWeek)
+                    meetingBlocks[index].startWeek = startWeek
+                    meetingBlocks[index].endWeek = endWeek
                 }
             } label: {
                 Text(L10n.format("apply_to_all_slots"))
@@ -425,30 +443,38 @@ struct AddCourseScreen: View {
         pendingEdgeEdits = []
         meetingBlocks = [Self.initialMeetingBlock(editingCourse)]
 
+        // 2026-09-23 对齐: 本地解析有效水合表(← Android state.effectiveCurrentTable)。
+        // 绑定 periodTable 存在 → 所绑表 timeJson 为节次时间域; 悬空/未绑定 → 兼容列。
+        if let table = state.currentTable {
+            let period = (try? ScheduleRepository(AppDatabase.getShared())
+                .effectivePeriodTable(tableId: table.id)) ?? nil
+            hydratedTimeJson = table.hydratedWith(period).timeJson
+        } else {
+            hydratedTimeJson = TimeTableUtils.DEFAULT_TIME_JSON
+        }
+
         // LaunchedEffect(editingCourse?.groupId): 查同 groupId 分组回填
         if let eg = editingCourse, !eg.groupId.isEmpty, let tid = state.selectedTableId {
             let repo = ScheduleRepository(AppDatabase.getShared())
             if let groupCourses = try? repo.getGroupCourses(tid, eg.groupId), !groupCourses.isEmpty {
                 // 组色源: 同组 colorMode=GROUP 中 id 最小行的 color (CourseColorUtil 单点)
                 groupSourceColorHex = CourseColorUtil.groupSourceColorHex(groupCourses)
-                // 按完整时段特征分组; issue#22: room/teacher 进分组 key
-                let slots = Dictionary(grouping: groupCourses) {
-                    "\($0.ownTime)-\($0.startNode)-\($0.step)-\($0.startTime)-\($0.endTime)-\($0.startWeek)-\($0.endWeek)-\($0.type)-\($0.room)-\($0.teacher)"
-                }
+                // 按完整时段特征分组(保序: Android groupBy 的 LinkedHashMap 首次出现序);
+                // issue#22: room/teacher 进分组 key
+                let slots = Self.groupSlotsForEdit(groupCourses)
                 // issue#23 §4.3: startNode 落在边缘槽位 → 点亮该卡「非常规节次」;
                 // ownTime=true → 点亮「非常规时间」并预填课程起止 (旧 ByClock 并入此开关)
                 let edgeNodes = Set(TimeTableUtils.parseTimeSlotRows(
-                    state.currentTable?.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON
+                    hydratedTimeJson
                 ).filter { $0.edgeClass != nil }.map { $0.node })
                 var blocks: [MeetingBlockDraft] = []
                 var bid = 1
-                for (_, courses) in slots {
+                for courses in slots {
                     let first = courses[0]
                     let isEdge = edgeNodes.contains(first.startNode)
                     var b = MeetingBlockDraft(
                         id: bid,
                         days: Set(courses.map { $0.day }),
-                        mode: first.ownTime ? .byClock : .byNode,
                         startNode: first.startNode,
                         step: first.step,
                         startTime: first.startTime.isEmpty ? "08:00" : first.startTime,
@@ -498,27 +524,34 @@ struct AddCourseScreen: View {
 
         let draftTableId = state.selectedTableId ?? 0
         // issue#22: color/teacher/room/note 从 block 取(每时段独立); issue#26: alias 组级
+        // 用户报障 2026-09-10: ownTime 课落库即反算真实节点 —
+        // 裸节点消费方(今日页/小组件/详情页)不再拿到表单占位节点。
         let drafts = meetingBlocks.flatMap { block in
             block.days.sorted().map { day in
                 Self.buildCourseEntity(
                     tableId: draftTableId, groupId: "",
                     courseName: courseName.trimmingCharacters(in: .whitespaces),
                     day: day, block: block,
-                    alias: courseAlias.trimmingCharacters(in: .whitespaces))
+                    alias: courseAlias.trimmingCharacters(in: .whitespaces),
+                    timeJson: timeJson)
             }
         }
 
         let repo = ScheduleRepository(AppDatabase.getShared())
-        // 冲突检测(新建 / 编辑同一 groupId 的草稿都不算 — 用 groupId 排除被编辑的自己)
-        if !forceAfterConflict, draftTableId != 0, let table = state.currentTable {
-            let stored = ((try? repo.getCourses(draftTableId)) ?? [])
+        // 没表就自动建一张 (← Android performSave: 先解 tableId, 再冲突检查, 后落库)
+        let tableId = state.selectedTableId ?? viewModel.createEmptyTable()
+        // 冲突检测(新建 / 编辑同一 groupId 的草稿都不算 — 用 groupId 排除被编辑的自己)。
+        // 基准 = effectiveTimeJson(含本次会话 pendingEdgeInserts/Edits, ← Android kt L362-364);
+        // 无表时 createEmptyTable 后仍检查 (Android 同序)。
+        if !forceAfterConflict {
+            let stored = ((try? repo.getCourses(tableId)) ?? [])
                 .filter { editingCourse?.groupId != $0.groupId }
-                .map { Self.conflictLite($0.normalizeNode(timeJson: table.timeJson)) }
+                .map { Self.conflictLite($0.normalizeNode(timeJson: timeJson)) }
             let draftLites = drafts.map(Self.conflictLite)
             let dayNames = (1...7).map { DateUtils.localizedDay($0) }
             let details = ConflictDetailReporter.draftConflictDetails(
                 drafts: draftLites, stored: stored, dayNames: dayNames,
-                timeJson: table.timeJson)
+                timeJson: timeJson)
                 .map { ConflictDetailReporter.formatDetail($0, template: L10n.format("conflict_detail_line")) }
             if !details.isEmpty {
                 pendingConflictDetails = details
@@ -527,8 +560,6 @@ struct AddCourseScreen: View {
             }
         }
 
-        // 没表就自动建一张
-        let tableId = state.selectedTableId ?? viewModel.createEmptyTable()
         var fixedDrafts = drafts
         for i in fixedDrafts.indices { fixedDrafts[i].tableId = tableId }
         if let eg = editingCourse {
@@ -548,38 +579,66 @@ struct AddCourseScreen: View {
         // 顺序串接保证一次添加多个槽位时编号连续且方向元数据不丢失。
         // v7.10.16v 撤回: 课程行 + timeJson 写回是一个动作 — beginBatch 让快照
         // 固定在动作前, 撤回一次整步回退(否则第二写覆盖快照, 只回退一半)。
+        // 2026-09-23 对齐 Android kt L388-406: 基准用水合表(兼容列可能过期);
+        // 绑定共享作息表时槽位变更必须写回 period_tables(真正 owner),
+        // 写兼容列既不生效也违反 issue#40 不污染原则。
         if !pendingEdgeInserts.isEmpty || !pendingEdgeEdits.isEmpty {
             let repo2 = ScheduleRepository(AppDatabase.getShared())
-            let base = ((try? repo2.getTable(tableId))?.timeJson) ?? TimeTableUtils.DEFAULT_TIME_JSON
-            UndoManager.shared.beginBatch()
-            defer { UndoManager.shared.endBatch() }
-            var updated = base
-            for insert in pendingEdgeInserts {
-                updated = TimeTableUtils.insertEdgeNode(timeJson: updated, edgeClass: insert.edgeClass,
-                                                        start: insert.start, end: insert.end)
-            }
-            for edit in pendingEdgeEdits {
-                updated = TimeTableUtils.updateEdgeNodeTimes(timeJson: updated, node: edit.node,
-                                                             start: edit.start, end: edit.end)
-            }
-            if let table = try? repo2.getTable(tableId), updated != table.timeJson {
-                var copy = table
-                copy.timeJson = updated
-                try? repo2.updateTable(copy)
+            let storedTable = (try? repo2.getTable(tableId)) ?? nil
+            let boundPeriodTable = (try? repo2.effectivePeriodTable(tableId: tableId)) ?? nil
+            // ← Android `val table = currentTable ?: repo.getTable(tableId)` (currentTable=水合表)
+            let hydrated = state.currentTable.map { $0.hydratedWith(boundPeriodTable) } ?? storedTable
+            if let table = hydrated {
+                UndoManager.shared.beginBatch()
+                defer { UndoManager.shared.endBatch() }
+                var updated = table.timeJson
+                for insert in pendingEdgeInserts {
+                    updated = TimeTableUtils.insertEdgeNode(timeJson: updated, edgeClass: insert.edgeClass,
+                                                            start: insert.start, end: insert.end)
+                }
+                for edit in pendingEdgeEdits {
+                    updated = TimeTableUtils.updateEdgeNodeTimes(timeJson: updated, node: edit.node,
+                                                                 start: edit.start, end: edit.end)
+                }
+                if updated != table.timeJson {
+                    if let pt = boundPeriodTable {
+                        var ptCopy = pt
+                        ptCopy.timeJson = updated
+                        viewModel.updatePeriodTableContent(ptCopy)
+                    } else {
+                        var copy = table
+                        copy.timeJson = updated
+                        viewModel.updateTable(copy)
+                    }
+                }
             }
         }
         onSaved()
     }
 
+    // ← groupSlotsForEdit (编辑回填: 按完整时段特征分组, 周次/单双周/地点/老师进 key)
+    /// issue#22: room/teacher 进分组 key — 同名同周次不同地点/老师 → 独立编辑块。
+    /// 顺序契约: Android `groupBy{}.values` 走 LinkedHashMap 保持首次出现顺序,
+    /// Dictionary(grouping:) 遍历序无保证 → 这里手写保序分组, 时段卡顺序跨会话稳定。
+    static func groupSlotsForEdit(_ courses: [CourseEntity]) -> [[CourseEntity]] {
+        var order: [String] = []
+        var groups: [String: [CourseEntity]] = [:]
+        for c in courses {
+            let key = "\(c.ownTime)|\(c.startNode)|\(c.step)|\(c.startTime)|\(c.endTime)|\(c.startWeek)|\(c.endWeek)|\(c.type)|\(c.room)|\(c.teacher)"
+            if groups[key] == nil { order.append(key) }
+            groups[key, default: []].append(c)
+        }
+        return order.map { groups[$0]! }
+    }
+
     // ← initialMeetingBlock
     static func initialMeetingBlock(_ course: CourseEntity?) -> MeetingBlockDraft {
         guard let course = course else {
-            return MeetingBlockDraft(id: 1, days: [1], mode: .byNode, startNode: 1, step: 2,
+            return MeetingBlockDraft(id: 1, days: [1], startNode: 1, step: 2,
                                      startTime: "08:00", endTime: "09:40",
                                      startWeek: 1, endWeek: 16, weekType: 0)
         }
         return MeetingBlockDraft(id: 1, days: [course.day],
-                                 mode: course.ownTime ? .byClock : .byNode,
                                  startNode: course.startNode, step: course.step,
                                  startTime: course.startTime.isEmpty ? "08:00" : course.startTime,
                                  endTime: course.endTime.isEmpty ? "09:40" : course.endTime,
@@ -591,10 +650,14 @@ struct AddCourseScreen: View {
                                  isIrregularTime: course.ownTime)
     }
 
-    // ← buildCourseEntity (issue#26 alias 参数)
+    // ← buildCourseEntity (issue#26 alias 参数; 用户报障 2026-09-10: ownTime 落库前反算真实节点)
     static func buildCourseEntity(tableId: Int64, groupId: String, courseName: String,
                                   day: Int, block: MeetingBlockDraft,
-                                  alias: String = "") -> CourseEntity {
+                                  alias: String = "",
+                                  // 用户报障 2026-09-10: 落库前把 ownTime 课的占位节点反算成真实节点
+                                  // (timeToNode), 时间零交集的 ownTime 课对不再共享相同节点区间 —
+                                  // 裸节点消费方(今日页/小组件/详情页/prune)从此拿到自洽坐标。
+                                  timeJson: String = "") -> CourseEntity {
         // issue#22: color/colorMode 从 block 取;AUTO 模式 color 留空(渲染时按 hash 取)
         let finalColor: String
         switch block.colorMode {
@@ -607,6 +670,17 @@ struct AddCourseScreen: View {
         }
         // issue#23 逐卡: 边缘槽位卡 → startNode=槽位号, step 锁 1;
         // 覆盖时间卡 → ownTime=isIrregularTime 且起止为覆盖值 (§5 同值契约)
+        let rawStartNode = block.isIrregularNode ? block.selectedEdgeNode : block.startNode
+        let rawStep = block.isIrregularNode ? 1 : block.step
+        // ownTime 反算: 时间可解析且非边缘槽位卡 → 真实节点; 失败/边缘卡保持原值
+        let finalPair: (Int, Int)
+        if block.isIrregularTime && !block.isIrregularNode && !timeJson.isEmpty {
+            finalPair = TimeTableUtils.timeToNode(block.startTime.trimmingCharacters(in: .whitespaces),
+                                                  block.endTime.trimmingCharacters(in: .whitespaces),
+                                                  timeJson) ?? (rawStartNode, rawStep)
+        } else {
+            finalPair = (rawStartNode, rawStep)
+        }
         let ownTime = block.isIrregularTime
         return CourseEntity(
             groupId: groupId, tableId: tableId, courseName: courseName,
@@ -614,10 +688,11 @@ struct AddCourseScreen: View {
             room: block.room.trimmingCharacters(in: .whitespaces),
             note: block.note.trimmingCharacters(in: .whitespaces),
             day: day,
-            startNode: block.isIrregularNode ? block.selectedEdgeNode : block.startNode,
-            step: block.isIrregularNode ? 1 : block.step,
-            startWeek: min(block.startWeek, block.endWeek),
-            endWeek: max(block.startWeek, block.endWeek), type: block.weekType,
+            startNode: finalPair.0,
+            step: finalPair.1,
+            // 「应用到全部时段」原样下发, 倒挂由 slot_week_order 校验拦截 (对齐 Android)
+            startWeek: block.startWeek,
+            endWeek: block.endWeek, type: block.weekType,
             color: finalColor, colorMode: block.colorMode,
             isIrregularNode: block.isIrregularNode,
             isIrregularTime: block.isIrregularTime,
@@ -657,7 +732,7 @@ struct AddCourseScreen: View {
                     issues.append(ValidationIssue(blockId: block.id,
                                                   message: L10n.format("irregular_node_required", index + 1)))
                 }
-            } else if block.mode == .byNode {
+            } else {
                 if block.startNode < 1 {
                     issues.append(ValidationIssue(blockId: block.id, message: L10n.format("slot_start_node_positive", index + 1)))
                 }
@@ -722,7 +797,8 @@ struct AddCourseScreen: View {
                          startWeek: course.startWeek, endWeek: course.endWeek,
                          type: course.type,
                          ownTime: course.ownTime, startTime: course.startTime,
-                         endTime: course.endTime, isIrregularTime: course.isIrregularTime)
+                         endTime: course.endTime, isIrregularTime: course.isIrregularTime,
+                         isIrregularNode: course.isIrregularNode)
     }
 
     // ← blockRangeMinutes (§3.3 契约的分钟化: 本卡生效起止 → [startMin, endMin))
@@ -736,6 +812,77 @@ struct AddCourseScreen: View {
     static func minutesBetween(_ start: String, _ end: String) -> Int? {
         guard let s = parseHm(start), let e = parseHm(end) else { return nil }
         return e - s
+    }
+
+    /// 非常规选项折叠态摘要 — 收起但已启用选项时, 栏头露出启用了什么 (← Android irregularOptionsSummary)。
+    /// 纯函数便于 XCTest 直测; 参数都是已解析的文案/值, 不触 SwiftUI。
+    static func irregularOptionsSummary(isIrregularNode: Bool, isIrregularTime: Bool,
+                                        startTime: String, endTime: String,
+                                        nodeSwitchLabel: String, edgeNodeLabel: String,
+                                        timeSwitchLabel: String) -> String {
+        var parts: [String] = []
+        if isIrregularNode {
+            parts.append([nodeSwitchLabel, edgeNodeLabel].joined(separator: " · "))
+        }
+        if isIrregularTime {
+            // 起止齐全才拼区间; 缺一(如跨午夜回退清空)只显示开关名, 不露半截区间
+            let startBlank = startTime.trimmingCharacters(in: .whitespaces).isEmpty
+            let endBlank = endTime.trimmingCharacters(in: .whitespaces).isEmpty
+            if !startBlank && !endBlank {
+                parts.append([timeSwitchLabel, "\(startTime)–\(endTime)"].joined(separator: " · "))
+            } else {
+                parts.append(timeSwitchLabel)
+            }
+        }
+        return parts.joined(separator: " / ")
+    }
+
+    /// 卡头两行摘要 (← Android MeetingBlockSummary): 1) 上课日 + 周次范围 + 周次类型;
+    /// 2) 节次/自定时间 + 已填写的老师和地点。纯函数直测, View 只负责渲染。
+    /// 直接读取 block 实时状态 → 用户改任一字段时摘要立即更新。
+    static func meetingBlockSummary(block: MeetingBlockDraft, timeJson: String) -> (calendar: String, detail: String) {
+        let daysText = block.days.isEmpty
+            ? L10n.format("select_at_least_one_day")
+            : block.days.sorted().map { DateUtils.localizedDay($0) }.joined(separator: " / ")
+        let weekRangeText = block.startWeek == block.endWeek
+            ? L10n.format("slot_summary_week_single", block.startWeek)
+            : L10n.format("slot_summary_week_range", block.startWeek, block.endWeek)
+        let weekTypeText: String
+        switch block.weekType {
+        case 1: weekTypeText = L10n.format("week_odd")
+        case 2: weekTypeText = L10n.format("week_even")
+        case 3: weekTypeText = L10n.format("week_custom")
+        default: weekTypeText = L10n.format("week_every")
+        }
+        let calendarSummary = [daysText, weekRangeText, weekTypeText].joined(separator: " · ")
+
+        let effectiveRange = block.effectiveRange(timeJson: timeJson)
+        let timingSummary: String
+        if block.isIrregularTime {
+            timingSummary = L10n.format("slot_summary_time_range",
+                                        block.startTime.isEmpty ? "--:--" : block.startTime,
+                                        block.endTime.isEmpty ? "--:--" : block.endTime)
+        } else if block.isIrregularNode {
+            let nodeText = L10n.format("edge_node_label", block.selectedEdgeNode)
+            if let r = effectiveRange {
+                timingSummary = nodeText + " · " + L10n.format("slot_summary_time_range", r.0, r.1)
+            } else {
+                timingSummary = nodeText
+            }
+        } else if block.step <= 1 {
+            timingSummary = L10n.format("slot_summary_period_single", block.startNode)
+        } else {
+            timingSummary = L10n.format("slot_summary_period_range",
+                                        block.startNode, block.startNode + block.step - 1, block.step)
+        }
+        // 老师/地点只在已填写时出现 (EditCourseSlotSummaryContractTest 契约)
+        let teacherSummary = block.teacher.trimmingCharacters(in: .whitespaces).isEmpty
+            ? nil : L10n.format("slot_summary_teacher", block.teacher.trimmingCharacters(in: .whitespaces))
+        let roomSummary = block.room.trimmingCharacters(in: .whitespaces).isEmpty
+            ? nil : L10n.format("slot_summary_room", block.room.trimmingCharacters(in: .whitespaces))
+        let detailSummary = [timingSummary, teacherSummary, roomSummary]
+            .compactMap { $0 }.joined(separator: " · ")
+        return (calendarSummary, detailSummary)
     }
 
     // ← parseHm("HH:mm" → 当日分钟数)
@@ -838,7 +985,6 @@ private struct MeetingBlockEditor: View {
     let canRemove: Bool
     let issues: [String]
     let groupSourceColorHex: String
-    let onChangeGroupColor: () -> Void
     let onRemove: () -> Void
     let onPickEdge: () -> Void
     let onEditSlot: (_ node: Int, _ start: String, _ end: String) -> Void
@@ -860,19 +1006,25 @@ private struct MeetingBlockEditor: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(colors.onErrorContainer)
             }
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(colors.onSurface)
-                    Text(block.days.isEmpty
-                         ? L10n.format("select_at_least_one_day")
-                         : L10n.format("selected_days",
-                                       block.days.sorted().map { DateUtils.localizedDay($0) }.joined(separator: " / ")))
+                    // ← Android MeetingBlockSummary: 两行可扫读摘要(上课日+周次+类型 / 节次或时间+老师+地点)
+                    let summary = AddCourseScreen.meetingBlockSummary(block: block, timeJson: timeJson)
+                    Text(summary.calendar)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(colors.onSurfaceVariant)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                    Text(summary.detail)
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
                 if canRemove {
                     Button(action: onRemove) {
                         Image(systemName: "xmark")
@@ -891,12 +1043,12 @@ private struct MeetingBlockEditor: View {
             IrregularOptionsSection(
                 block: $block,
                 timeJson: timeJson,
-                initiallyExpanded: block.isIrregularNode || block.isIrregularTime,
+                initiallyExpanded: block.shouldExpandIrregularOptions,
                 onPickEdge: onPickEdge,
                 onEditSlot: onEditSlot,
                 onDeselectEdge: onDeselectEdge)
 
-            if !block.isIrregularNode && block.mode == .byNode {
+            if !block.isIrregularNode {
                 // 标准卡: startNode/step, 1..maxStd
                 HStack(spacing: 12) {
                     NumberStepperField(label: L10n.format("start_node"), value: Binding(
@@ -930,7 +1082,7 @@ private struct MeetingBlockEditor: View {
                 (1, L10n.format("week_odd")),
                 (2, L10n.format("week_even")),
                 (3, L10n.format("week_custom"))
-            ], selected: block.weekType) { block.weekType = $0 }
+            ], selected: block.weekType, onSelect: { block.weekType = $0 })
 
             // issue#22: 老师/地点/备注下沉到每时段独立编辑
             // (嵌套 Group — ViewBuilder 单 builder 10 子视图上限)
@@ -943,8 +1095,9 @@ private struct MeetingBlockEditor: View {
                     .background(colors.surfaceContainerHighest)   // ← fieldColors 容器色 surfaceContainerHighest
                     .cornerRadius(SleepyTheme.fieldShape)
                     // ← Android filled TextField, 无描边
-                ColorSection(block: $block, groupSourceColorHex: groupSourceColorHex,
-                             onChangeGroupColor: onChangeGroupColor)
+                // 颜色 — 三态(GROUP 跟组 / AUTO 自动 / CUSTOM 自定义); 改组色入口在
+                // 基础信息卡组色节, 逐卡 OFF 态仅显示组色色块+hex (2026-09-15 用户令二次修正)
+                ColorSection(block: $block, groupSourceColorHex: groupSourceColorHex)
             }
 
             // 尾部 if 合并进 Group, 防外层 builder 超 10 子视图
@@ -1080,7 +1233,6 @@ private struct IrregularOptionsSection: View {
                                 set: { on in
                                     if on {
                                         block.isIrregularTime = true
-                                        block.mode = .byClock
                                         if block.startTime.isEmpty || block.endTime.isEmpty {
                                             // 首次开启: 预填本卡生效时间 (槽位默认 / 标准节次时间), §4 B 规则
                                             if let r = block.effectiveRange(timeJson: timeJson) {
@@ -1095,7 +1247,6 @@ private struct IrregularOptionsSection: View {
                                     } else {
                                         // 关闭覆盖时间 → 回落槽位默认 / 标准节次时间
                                         block.isIrregularTime = false
-                                        block.mode = .byNode
                                         block.startTime = ""
                                         block.endTime = ""
                                         block.durationText = ""
@@ -1178,11 +1329,13 @@ private struct IrregularOptionsSection: View {
 }
 
 // issue#22: 颜色三态 — 开关 OFF = 跟组色(GROUP);开关 ON 后可切 AUTO/CUSTOM
+// 2026-09-15 用户令二次修正: 每张节次卡保留自己的颜色行; 改组色入口上移基础信息卡
+// GroupColorSection, 逐卡 OFF 态仅显示组色色块+hex(无按钮)。
+// 开关左侧文案固定「自定义颜色」(color_custom_switch, 只描述开=什么, 不随开关态变)。
 private struct ColorSection: View {
     @Environment(\.localWakeUpColors) private var colors
     @Binding var block: MeetingBlockDraft
     let groupSourceColorHex: String
-    let onChangeGroupColor: () -> Void
     @State private var showColorPicker = false
 
     private var useDifferent: Bool { block.colorMode != CourseColorMode.GROUP }
@@ -1194,7 +1347,8 @@ private struct ColorSection: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSurfaceVariant)
                 Spacer()
-                Text(L10n.format(useDifferent ? "color_use_different" : "color_follow_group"))
+                // 文案只描述开=什么 (2026-09-15 用户令): 静态「自定义颜色」, 不随开关态变
+                Text(L10n.format("color_custom_switch"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(colors.onSurfaceVariant)
                 Toggle("", isOn: Binding(
@@ -1207,7 +1361,7 @@ private struct ColorSection: View {
                 .labelsHidden()
             }
             if !useDifferent {
-                // spec §6.1 GROUP 模式行: 跟随组色 [色块] [改组色]
+                // OFF = 跟随组色: 仅显示组色 (改组色入口在基础信息卡组色节, 此处无按钮)
                 HStack(spacing: 8) {
                     GroupColorSwatch(hex: groupSourceColorHex)
                     Text(CourseColorUtil.hasCustomColorHex(groupSourceColorHex)
@@ -1215,12 +1369,6 @@ private struct ColorSection: View {
                          : L10n.format("color_group_auto"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(colors.onSurfaceVariant)
-                    Spacer()
-                    Button(action: onChangeGroupColor) {
-                        Text(L10n.format("change_group_color"))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(colors.primary)
-                    }
                 }
             }
             if useDifferent {
@@ -1248,6 +1396,43 @@ private struct ColorSection: View {
                 block.color = hex
                 block.colorMode = CourseColorMode.CUSTOM
                 showColorPicker = false
+            }
+        }
+    }
+}
+
+/// 组色 — 课程级色源(基础信息卡): 整组统一色的唯一编辑入口
+/// (弹调色盘+全组确认, 只写组色源; 跟随组色的节次渲染随之更新)。
+/// 2026-09-15 用户令二次修正: 前面放组色一档, 各节次卡保留自己的颜色行。
+/// ← GroupColorSection (kt L1811-1851)
+private struct GroupColorSection: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let groupSourceColorHex: String
+    let onChangeGroupColor: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.format("course_group_color"))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(colors.onSurfaceVariant)
+            HStack(spacing: 8) {
+                GroupColorSwatch(hex: groupSourceColorHex)
+                Text(CourseColorUtil.hasCustomColorHex(groupSourceColorHex)
+                     ? groupSourceColorHex
+                     : L10n.format("color_group_auto"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(colors.onSurfaceVariant)
+                Spacer()
+                Button(action: onChangeGroupColor) {
+                    Text(L10n.format("change_group_color"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(colors.onSecondaryContainer)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(colors.secondaryContainer)
+                        .cornerRadius(SleepyShapes.medium)
+                }
+                .buttonStyle(SleepyButtonStyle())
             }
         }
     }
@@ -1312,6 +1497,8 @@ private struct MultiDayPicker: View {
 }
 
 // ← NumberField(数字输入, 外部值同步 + 空回退 min)
+// 空态契约 (kt L2031-2064): 清空 → 文本保持空呈现空态, model 收 min;
+// LaunchedEffect(value) 只在 text.isNotEmpty() 时回填 → 外部程序改值不覆盖用户编辑中的文本。
 struct NumberStepperField: View {
     @Environment(\.localWakeUpColors) private var colors
     let label: String
@@ -1321,21 +1508,30 @@ struct NumberStepperField: View {
     var onClamp: (() -> Void)? = nil
 
     @State private var text: String = ""
+    /// 上一次观测到的外部 value — 区分"用户自己输入"与"外部程序改值"
+    /// (SwiftUI 无 LaunchedEffect(key) 对等物, onChange(of: value) + 前值比较语义等价)
+    @State private var lastValue: Int? = nil
 
     var body: some View {
         HStack(spacing: 4) {
             TextField(label, text: Binding(
-                get: { text.isEmpty ? "\(value)" : text },
+                get: { text },
                 set: { txt in
                     text = txt
                     if txt.isEmpty {
-                        value = minV   // 清空时回退最小值
+                        // 清空时回调最小值，保证 model 有合法值; 文本留空 = 空态可见
+                        value = minV
                     } else if let v = Int(txt) {
                         let clamped = Swift.min(Swift.max(v, minV), maxV)
-                        if clamped != v { onClamp?() }
+                        if clamped != v {
+                            onClamp?()
+                            // ← Android 越界: onChange(coerced) 后 LaunchedEffect 回填钳位值;
+                            //   binding 写回是同步的, onChange 不会重触发, 直接回写文本
+                            text = "\(clamped)"
+                        }
                         value = clamped
-                        text = "\(clamped)"
                     }
+                    // 非数字字符不回调，但保留 text 让用户继续编辑
                 }
             ))
             .keyboardType(.numberPad)
@@ -1346,7 +1542,19 @@ struct NumberStepperField: View {
             .cornerRadius(SleepyTheme.fieldShape)
             // ← Android filled TextField, 无描边
         }
-        .onAppear { text = "\(value)" }
+        .onAppear {
+            lastValue = value
+            text = "\(value)"
+        }
+        .onChange(of: value) { newValue in
+            // ← LaunchedEffect(value) { if (parsed != value && text.isNotEmpty()) text = value.toString() }
+            //   逐分支对齐: ①外部程序改值且文本非空/不匹配 → 回填(含用户输入越界被钳位后的回写);
+            //   ②文本为空 → 保持空态, 用户清空后不弹出 min 值;
+            //   ③文本已与 value 一致 → 不动文本, 不干扰用户继续编辑。
+            defer { lastValue = newValue }
+            guard lastValue != newValue, !text.isEmpty, Int(text) != newValue else { return }
+            text = "\(newValue)"
+        }
     }
 }
 
