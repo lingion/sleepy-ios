@@ -10,6 +10,7 @@
 // v1.0.56 T8: 复制先命名, 确认后才建; 成功后回管理页
 // v1.0.56 T11: 分享底部弹窗(原生格式/JSON 二选一)
 
+import Combine
 import SwiftUI
 
 struct PeriodTableEditScreen: View {
@@ -21,7 +22,15 @@ struct PeriodTableEditScreen: View {
     var isNewUnsaved: Bool = false
     let onBack: () -> Void
 
-    @State private var loadedTableId: Int64? = nil
+    // ← Android remember 键控三段式:
+    //   name/unsavedNew   ← remember(periodTable.id)                (ktl L107/L114)
+    //   slotRows          ← remember(id, updatedAt, timeJson)       (ktl L126)
+    //   smartConfig       ← remember(id, smartConfigJson)           (ktl L133)
+    // 同 id 表的行/配置被外部更新(timeJson/smartConfigJson/updatedAt 任一变化)时随重载种子,
+    // 对齐 Android collectAsState 流刷新; 未保存的本地编辑因键未变而保留。
+    @State private var seededTableId: Int64? = nil
+    @State private var seededRowsKey: String? = nil
+    @State private var seededSmartKey: String? = nil
     @State private var name = ""
     @State private var timeSlotsExpanded = true
     @State private var error: String? = nil
@@ -45,16 +54,41 @@ struct PeriodTableEditScreen: View {
     /// 全部作息表(名字查重 / 源表查找)
     @State private var allPeriodTables: [PeriodTableEntity] = []
 
+    /// ← Android viewModel.allPeriodTables.collectAsState() — GRDB 观察流(订阅即发当前值,
+    /// 之后 period_tables 每次写库自动 emit; onReceive 随视图下屏自动取消订阅)。
+    /// 同 id 外部更新(他页保存/复制/删除)时本屏行数据与表列表随之刷新。
+    private static let periodTableUpdates = ScheduleRepository(AppDatabase.getShared())
+        .observeAllPeriodTables()
+        .catch { _ in Empty<[PeriodTableEntity], Never>() }   // ← ScheduleViewModel.loadTables 同法吞流错误
+        .receive(on: DispatchQueue.main)
+        .eraseToAnyPublisher()
+
     var body: some View {
         let periodTable = resolvePeriodTable()
-        if let periodTable = periodTable {
-            content(periodTable: periodTable)
-        } else {
-            VStack {
-                Text(L10n.format("edit_table_not_found"))
-                    .foregroundColor(colors.onBackground)
+        // 数据装载修饰符挂在总根(而非 content): 表列表首次为空时本屏走 not-found 分支,
+        // 但 .onAppear/.onReceive 仍须随视图一存在即订阅 + 同步查库 — 若挂在 content 上,
+        // content 不渲染 → 装载永不触发 → allPeriodTables 无种子 → 永久 not-found(引导死锁)。
+        // ← Android viewModel.allPeriodTables.collectAsState() 首帧即订阅, 数据到位自动重组。
+        Group {
+            if let periodTable = periodTable {
+                content(periodTable: periodTable)
+            } else {
+                VStack {
+                    Text(L10n.format("edit_table_not_found"))
+                        .foregroundColor(colors.onBackground)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onAppear { reloadTables() }
+        // ← allPeriodTables collectAsState(ktl L91): 表列表实时刷新(同 id timeJson 外部更新
+        // 时 rows/smartConfig 也经 loadIfNeeded 键控重载)。not-found 阶段尚无本表 → 只播种列表,
+        // 待 resolvePeriodTable 命中后由 content 名卡 onAppear 触发首次 loadIfNeeded。
+        .onReceive(Self.periodTableUpdates) { tables in
+            allPeriodTables = tables
+            if let fresh = tables.first(where: { $0.id == periodTableId }) {
+                loadIfNeeded(periodTable: fresh)
+            }
         }
     }
 
@@ -171,7 +205,8 @@ struct PeriodTableEditScreen: View {
             }
         }
         .background(colors.background)
-        .onAppear { reloadTables() }
+        // 数据装载(.onAppear reloadTables + .onReceive 观察流)改挂 body 总根, 见 body 注释 —
+        // 挂此处会随 not-found 分支不渲染而永不触发, 引导死锁。本函数只管渲染已解析的表。
         // 保存前预览确认弹窗(§9 决策 3): 取消 = 零写库零快照
         .sheet(isPresented: Binding(
             get: { pendingPreview != nil && pendingSave != nil },
@@ -250,23 +285,31 @@ struct PeriodTableEditScreen: View {
         allPeriodTables = viewModel.loadAllPeriodTables()
     }
 
-    // ← remember(periodTable.id) 状态初始化(表切换时重载)
+    // ← Android remember 键控初始化(表切换/同 id 外部更新时重载; 未保存本地编辑因键不变而保留)
     private func loadIfNeeded(periodTable: PeriodTableEntity) {
-        guard loadedTableId != periodTable.id else { return }
-        loadedTableId = periodTable.id
-        name = periodTable.name
-        unsavedNew = isNewUnsaved
-        slotRows = TimeTableUtils.parseTimeSlotRows(periodTable.timeJson)
-        // smartConfig: 已存 JSON 反序列化; 否则最简默认兜底(旧行为)
-        if !periodTable.smartConfigJson.isEmpty,
-           let data = periodTable.smartConfigJson.data(using: .utf8),
-           let cfg = try? JSONDecoder().decode(SmartPeriodConfig.self, from: data) {
-            smartConfig = cfg
-        } else {
-            smartConfig = SmartPeriodConfig(
-                startTime: slotRows.first.flatMap { $0.start.isEmpty ? nil : $0.start } ?? "08:00",
-                totalPeriods: max(slotRows.count, 1))
+        let rowsKey = "\(periodTable.id)|\(periodTable.updatedAt)|\(periodTable.timeJson)"
+        let smartKey = "\(periodTable.id)|\(periodTable.smartConfigJson)"
+        let tableSwitched = seededTableId != periodTable.id
+        if seededTableId != periodTable.id || seededRowsKey != rowsKey {
+            seededTableId = periodTable.id
+            seededRowsKey = rowsKey
+            if tableSwitched { name = periodTable.name }   // ← remember(periodTable.id)
+            slotRows = TimeTableUtils.parseTimeSlotRows(periodTable.timeJson)
         }
+        if tableSwitched || seededSmartKey != smartKey {
+            seededSmartKey = smartKey
+            // issue#23 Task 4(← ktl L133-142): 已存配置仍能 derive 出当前行 → 原样保留;
+            // 否则从当前行重推断(infer 以 stored 为 previous 承接分组标签);
+            // 行不可推断 → 最简默认兜底(旧行为)。
+            let stored = decodeSmartPeriodConfig(periodTable.smartConfigJson)
+            smartConfig = resolveAutoPeriodConfig(rows: slotRows, stored: stored)
+                ?? SmartPeriodConfig(
+                    startTime: slotRows.first.flatMap {
+                        $0.start.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0.start
+                    } ?? "08:00",
+                    totalPeriods: max(slotRows.count, 1))
+        }
+        if tableSwitched { unsavedNew = isNewUnsaved }
     }
 
     // MARK: - 保存(先预览)
@@ -287,7 +330,8 @@ struct PeriodTableEditScreen: View {
             .flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let newTimeJson = TimeTableUtils.buildTimeJsonFromRows(slotRows)
         var updated = periodTable
-        updated.name = name.trimmingCharacters(in: .whitespaces).isEmpty ? periodTable.name : name
+        // ← ktl L299 name.ifBlank: Kotlin isBlank 覆盖 \n/\r 等全部空白符, .whitespacesAndNewlines 等价
+        updated.name = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? periodTable.name : name
         updated.timeJson = newTimeJson
         updated.smartConfigJson = smartConfigJson
         updated.nodesPerDay = max(slotRows.count, 1)
@@ -426,6 +470,17 @@ struct PeriodTableEditScreen: View {
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(colors.onSurface)
             FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
+                // ← Android TextField(isError = nameTaken) (ktl L494): 输入框本体错误态。
+                //   FieldTextField 在 EditTableScreen.swift(本任务禁改), 按 DatePickerField
+                //   同款先例在调用处补 M3 active indicator 底线; supportingText 红色说明行紧随其下。
+                .overlay(alignment: .bottom) {
+                    if nameTaken {
+                        Rectangle()
+                            .fill(colors.error)
+                            .frame(height: 1)
+                            .padding(.horizontal, 12)
+                    }
+                }
             if nameTaken {
                 Text(L10n.t("period_table_name_taken"))
                     .font(.system(size: 12))

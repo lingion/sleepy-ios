@@ -55,7 +55,9 @@ struct ScheduleConflictBottomSheet: View {
             .padding(.bottom, 32)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(colors.background)
+        // ← Android ModalBottomSheet 未覆写 containerColor → M3 默认 surfaceContainerLow
+        //   (同仓 TimeSlotEditor.swift:300 / SmartPeriodEditor.swift:284 同惯例)
+        .background(colors.surfaceContainerLow)
     }
 
     // ← 标题(titleMedium 16 SemiBold) + 摘要(bodyMedium 14, 共享表名 + 影响数)

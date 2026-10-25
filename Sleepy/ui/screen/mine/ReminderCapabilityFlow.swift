@@ -1,7 +1,7 @@
 // ReminderCapabilityFlow.swift — ← ui/screen/mine/ReminderCapabilityFlow.kt
 // 纯决定函数: 通知设置 UI 与 JVM 测试共享同一份判定逻辑。
-// iOS 端能力枚举与 Android 不完全同构(VendorLiveNotificationCapability 对应
-// VendorCapabilityState.notApplicable), 仅保留语义可移植的子集。
+// iOS 端能力枚举与 Android 命名不完全同构(notApplicable ↔ NOTIFICATION_PERMISSION_REQUIRED),
+// 语义一一对应, Android 四个纯函数全部 1:1 移植。
 
 import Foundation
 
@@ -26,4 +26,17 @@ func lastResolvableActionFor(unavailableActions: Set<String>) -> String? {
 /// iOS 端 VendorCapabilityState 没有这个 case, 但语义对应关系成立, 函数保留。
 func standardNotificationAllowed(_ state: VendorCapabilityState) -> Bool {
     state != .notApplicable  // ← iOS 端:notApplicable 等价 Android 的 NOTIFICATION_PERMISSION_REQUIRED
+}
+
+/// 能力状态文案 — ← Android capabilityStatusText(): 六分支 1:1 映射。
+/// iOS .notApplicable 对应 Android NOTIFICATION_PERMISSION_REQUIRED, 文案沿用 Android 端字符串。
+func capabilityStatusText(state: VendorCapabilityState) -> String {
+    switch state {
+    case .enabled: return "enabled"
+    case .disabled: return "disabled"
+    case .notApplicable: return "notification_permission_required"
+    case .settingsRequired: return "settings_required"
+    case .notSupported: return "not_supported"
+    case .unknown: return "unknown"
+    }
 }

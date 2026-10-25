@@ -6,10 +6,13 @@
 import SwiftUI
 
 /// 课程组 — 名+老师归组; 组内再按地点分组。
-private struct CourseGroup {
+private struct CourseGroup: Identifiable {
     let name: String
     let teacher: String
     let locations: [CourseLocation]
+
+    // ← 复合 ID: 同名不同老师会产生两张卡, id 必须含 teacher 才不重复
+    var id: String { name + "\u{1F}" + teacher }
 }
 
 private struct CourseLocation {
@@ -57,21 +60,23 @@ struct CourseListScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            // ← Android TopAppBar(containerColor=background, titleContentColor/navigationIconContentColor
+            //   =onBackground, titleLarge 22 左对齐, 高度 64): 复用兄弟页同款 SettingsTopBar
+            SettingsTopBar(title: L10n.t("course_list_title"), onBack: onBack)
             if grouped.isEmpty {
                 Spacer()
                 Text(L10n.t("course_list_empty"))
-                    .font(.body)
+                    .font(.system(size: 16)) // ← bodyLarge(16sp)
                     .foregroundColor(colors.onSurfaceVariant)
                 Spacer()
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         Text(L10n.t("course_list_subtitle"))
-                            .font(.subheadline)
+                            .font(.system(size: 14)) // ← bodyMedium(14sp)
                             .foregroundColor(colors.onSurfaceVariant)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        ForEach(grouped, id: \.name) { group in
+                        ForEach(grouped) { group in
                             CourseGroupCard(group: group)
                         }
                     }
@@ -81,24 +86,8 @@ struct CourseListScreen: View {
                 }
             }
         }
+        .background(colors.background) // ← Android Scaffold containerColor = colors.background
         .navigationBarHidden(true)
-    }
-
-    private var header: some View {
-        HStack {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .medium))
-            }
-            .accessibilityLabel(Text(L10n.t("back")))
-            Spacer()
-            Text(L10n.t("course_list_title"))
-                .font(.headline)
-            Spacer()
-            Color.clear.frame(width: 30, height: 30)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
     }
 }
 
@@ -109,7 +98,8 @@ private struct CourseGroupCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(group.name.isBlank ? L10n.t("course_detail_title") : group.name)
-                .font(.subheadline.weight(.semibold))
+                .font(.system(size: 16, weight: .semibold)) // ← titleMedium(16).copy(SemiBold)
+                .foregroundColor(colors.onSurface)
             if !group.teacher.isBlank {
                 MetaRow(icon: "person", text: group.teacher)
             }
@@ -118,7 +108,7 @@ private struct CourseGroupCard: View {
                     MetaRow(icon: "mappin.and.ellipse", text: location.room)
                 }
                 Text(L10n.format("course_list_arrangements", location.rows.count))
-                    .font(.caption2)
+                    .font(SleepyTypography.labelSmall) // ← labelSmall(11sp Medium)
                     .foregroundColor(colors.onSurfaceVariant)
                 // 每个地点单独列出该地点的全部上课安排。
                 VStack(spacing: 2) {
@@ -131,7 +121,7 @@ private struct CourseGroupCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(colors.surfaceContainer)
-        .cornerRadius(14)
+        .cornerRadius(SleepyShapes.large) // ← 16, 对齐 Android shapes.large 及兄弟文件惯例
     }
 }
 
@@ -143,10 +133,11 @@ private struct MetaRow: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 12))
+                .font(.system(size: 14)) // ← Android Modifier.size(14.dp)
                 .foregroundColor(colors.onSurfaceVariant)
             Text(text)
-                .font(.footnote)
+                .font(.system(size: 12)) // ← bodySmall(12sp)
+                .foregroundColor(colors.onSurface) // ← Android 显式 onSurface
         }
     }
 }
@@ -156,15 +147,17 @@ private struct ArrangementRowView: View {
     let row: CourseEntity
 
     var body: some View {
-        let dayLabel = L10n.t("day_short_\(row.day)")
+        // ← Android when(row.day) 1..7 else 回落 day_short_1(非法 day 不显示键名)
+        let dayNum = (1...7).contains(row.day) ? row.day : 1
+        let dayLabel = L10n.t("day_short_\(dayNum)")
         let nodeLabel = row.nodeString(isShort: true)
         let weekRangeLabel = L10n.format("course_week_range", nodeLabel, row.startWeek, row.endWeek)
         return HStack(spacing: 4) {
             Image(systemName: "book")
-                .font(.system(size: 10))
+                .font(.system(size: 12)) // ← Android Modifier.size(12.dp)
                 .foregroundColor(colors.onSurfaceVariant)
             Text("\(dayLabel) · \(weekRangeLabel)")
-                .font(.footnote)
+                .font(.system(size: 12)) // ← bodySmall(12sp)
                 .foregroundColor(colors.onSurfaceVariant)
         }
     }

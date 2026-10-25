@@ -25,6 +25,13 @@ struct PeriodTablesScreen: View {
             list
             newButton
         }
+        // ← Android Scaffold(containerColor = colors.background) + TopAppBar
+        //   containerColor(background)(PeriodTablesScreen.kt:81-97)。浮层容器
+        //   PresentOverlay 不给页面铺底, 每页必须自带不透明根背景 — 与
+        //   CourseListScreen/PeriodHeaderSettingsScreen 等兄弟页同式, 否则
+        //   页面透出下层 Tab 内容(iPhone 6 真机复现: 作息表页透明悬浮)。
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(colors.background)
         .accessibilityIdentifier("period_tables_screen")
         .navigationBarHidden(true)
         .onAppear { reload() }
@@ -68,7 +75,8 @@ struct PeriodTablesScreen: View {
         return HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(pt.name)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(colors.onSurface)
                 Text(L10n.format("period_table_bound_count", bound))
                     .font(.caption)
                     .foregroundColor(colors.onSurfaceVariant)
@@ -95,7 +103,7 @@ struct PeriodTablesScreen: View {
         }
         .padding(16)
         .background(colors.surfaceContainer)
-        .cornerRadius(20)
+        .cornerRadius(SleepyShapes.extraLarge)
     }
 
     private var newButton: some View {
@@ -107,10 +115,14 @@ struct PeriodTablesScreen: View {
                 Image(systemName: "plus")
                 Text(L10n.t("period_table_new"))
             }
+            .font(.system(size: 14, weight: .medium))
+            .foregroundColor(colors.onPrimary)
             .frame(maxWidth: .infinity)
-            .frame(height: 48)
+            .frame(height: 56)   // ← SleepyTheme.Buttons.ctaHeight
+            .background(colors.primary)
+            .cornerRadius(SleepyShapes.large)   // ← SleepyTheme.Buttons.shape
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(SleepyButtonStyle())
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
@@ -124,36 +136,35 @@ struct PeriodTablesScreen: View {
             courseTableNames: courseTables.map { $0.name },
             periodTableNames: periodTables.map { $0.name }
         )
-        return VStack(spacing: 16) {
+        return VStack(alignment: .leading, spacing: 8) {
             Text(L10n.t("period_table_copy_dialog_title"))
-                .font(.headline)
-            TextField(L10n.t("period_table_name_label"), text: $copyName)
-                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(colors.onSurface)
+            FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
                 .disableAutocorrection(true)
             if nameTaken {
                 Text(L10n.t("period_table_name_taken"))
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .foregroundColor(colors.error)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            HStack(spacing: 10) {
-                Button(L10n.t("cancel")) {
-                    copyTarget = nil
-                }
-                .buttonStyle(.bordered)
-                Button(L10n.t("ok")) {
+            Spacer().frame(height: 12)
+            // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
+            DialogActionButtons(
+                confirmText: L10n.t("ok"),
+                onConfirm: {
                     // 二次查重: 列表可能在弹窗打开期间变化, 不能只信预览态
                     let newId = viewModel.copyPeriodTableAs(sourceId: target.id, newName: candidate)
                     if newId > 0 {
                         copyTarget = nil
                         reload()
                     }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(candidate.isEmpty || nameTaken)
-            }
+                },
+                dismissText: L10n.t("cancel"),
+                onDismiss: { copyTarget = nil },
+                confirmEnabled: !candidate.isEmpty && !nameTaken)
         }
         .padding(24)
+        .background(colors.surface)
     }
 
     private func reload() {

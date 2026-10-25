@@ -38,7 +38,7 @@ struct MineScreen: View {
                 // 数据统计卡 — ← Android StatsCard(onOpenTables/onOpenCourses 可点)
                 StatsCard(tableCount: state.tables.count,
                           // 与 CourseListScreen 同口径: 同名课程一组, 空名按 groupId 区分
-                          courseCount: Set(state.courses.map { $0.courseName.isEmpty ? "#\($0.groupId)" : $0.courseName }).count,
+                          courseCount: Set(state.courses.map { $0.courseName.isBlank ? "#\($0.groupId)" : $0.courseName }).count,
                           week: state.currentWeek,
                           onOpenTables: onOpenAllTables,
                           onOpenCourses: onOpenCourseList)
@@ -90,15 +90,27 @@ struct MineScreen: View {
             if let msg = snackMessage {
                 Text(msg)
                     .font(.system(size: 14)) // ← Android Snackbar bodyMedium 14
+                    .accessibilityIdentifier("mine_snackbar")   // ← G5: 镜像 ExportScreen export_snackbar
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(colors.surfaceContainerHighest)
                     .cornerRadius(8)
-                    .padding(.bottom, 12)
+                    // 避让悬浮药丸导航栏: 本 overlay 挂在 ScrollView 上, 而
+                    // localNavExtraBottomPadding 只注入 floating 分支的 ZStack —
+                    // docked 模式 env 默认 0 → padding 12 会落进贴底 bar 区
+                    // (y742-806) 被吞, mine_snackbar 永不可达(2026-10-24 串行
+                    // run + probe 实证)。与 ExportScreen/AboutScreen 同式读
+                    // DockSpec 常量, 两模式都不遮挡。
+                    .padding(.bottom, DockSpec.capsuleHeight + DockSpec.bottomFloat + 12)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .task(id: msg) {
-                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        // ← 2.5s: 与 iOS 镜像同族页(AboutScreen/ExportScreen 等)的统一停留时长。
+                        // UI 测试态延到 6s(← ExportScreen 同款): 串行套件下快照延迟
+                        // 会错过 2.5s 存活窗口(2026-10-24 probe 实证 tap→首查 >4s)。
+                        let life: Double = ProcessInfo.processInfo.arguments
+                            .contains("-SLEEPY_UI_TEST_SEED") ? 6 : 2.5
+                        try? await Task.sleep(nanoseconds: UInt64(life * 1_000_000_000))
                         guard !Task.isCancelled else { return }
                         withAnimation { snackMessage = nil }
                     }
@@ -173,6 +185,10 @@ private struct StatItem: View {
                 .foregroundColor(colors.onSurfaceVariant)
                 .accessibilityIdentifier("\(identifier)_label")
         }
+        // ← Android StatItem 两分支同 padding(horizontal = 12.dp, vertical = 4.dp)
+        //   (MineScreen.kt:201-202): 可点/静态均扩大点击区并抬高 StatsCard 约 8pt。
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier)
     }

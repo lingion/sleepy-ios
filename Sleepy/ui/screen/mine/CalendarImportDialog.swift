@@ -80,6 +80,8 @@ struct CalendarImportDialog: View {
             }
         }
         .alert(L10n.t("calendar_final_confirm_title"), isPresented: $showFinalConfirm) {
+            // ← Android TextButton(enabled = !busy): iOS 15 alert 按钮无 disabled API,
+            //   busy 屏蔽下沉到动作本体 (runImport/runDelete 首行 guard !busy)。
             Button(L10n.t("calendar_final_import_action")) { runImport() }
             Button(L10n.t("cancel"), role: .cancel) {}
         } message: {
@@ -95,10 +97,16 @@ struct CalendarImportDialog: View {
 
     // MARK: - 段落
 
+    // ← Android SettingsFlatCard(title = calendar_target_label, subtitle = calendar_choose_target):
+    //   副标题恒可见; 按钮标签 = 已选日历或占位文案(↔ TextButton 双写)。
+    //   options 为空 = 单开关卡, 控件由 content 露出(↔ Android content 尾槽)。
     private var targetPicker: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(L10n.t("calendar_target_label"))
-                .font(.subheadline.weight(.semibold))
+        SettingsFlatCard(
+            title: L10n.t("calendar_target_label"),
+            subtitle: L10n.t("calendar_choose_target"),
+            options: [],
+            selectedIndex: .constant(0)
+        ) {
             Button {
                 calendarMenu = true
             } label: {
@@ -112,14 +120,10 @@ struct CalendarImportDialog: View {
                         .font(.caption)
                         .foregroundColor(colors.onSurfaceVariant)
                 }
-                .padding(12)
-                .background(colors.surfaceContainer)
-                .cornerRadius(10)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
         }
-        .padding(12)
-        .background(colors.surfaceContainer)
-        .cornerRadius(12)
     }
 
     private var rangePicker: some View {
@@ -274,7 +278,10 @@ struct CalendarImportDialog: View {
                         .font(.caption)
                         .foregroundColor(colors.onSurfaceVariant)
                 }
-                ForEach(Array(p.rows.prefix(8)), id: \.date) { row in
+                // ← Android p.rows.take(8).forEach 位置迭代。date 可重复(同日多课=常态),
+                //   id: \.date 会因重复 id 产生 SwiftUI 未定义行为(丢行/错行更新),
+                //   用 enumerated offset 作位置 id。
+                ForEach(Array(p.rows.prefix(8).enumerated()), id: \.offset) { _, row in
                     Text("\(Self.previewDateFormatter.string(from: row.date))  \(row.start)–\(row.end)  \(row.courseName)\(Self.marks(for: row))")
                         .font(.caption)
                 }
@@ -332,13 +339,15 @@ struct CalendarImportDialog: View {
         }
     }
 
+    // ← Android DialogActionButtons(ok/cancel): 全 app 弹窗动作行唯一入口,
+    //   替代手写 .bordered/.borderedProminent(视觉语言不一致 + 无换行布局策略)。
     private var doneButtons: some View {
-        HStack(spacing: 10) {
-            Button(L10n.t("cancel")) { onDismiss() }
-                .buttonStyle(.bordered)
-            Button(L10n.t("ok")) { onDismiss() }
-                .buttonStyle(.borderedProminent)
-        }
+        DialogActionButtons(
+            confirmText: L10n.t("ok"),
+            onConfirm: onDismiss,
+            dismissText: L10n.t("cancel"),
+            onDismiss: onDismiss
+        )
     }
 
     // MARK: - 动作
@@ -357,7 +366,10 @@ struct CalendarImportDialog: View {
     private func loadState() {
         selectedCalendarId = prefs.getCalendarTargetId() ?? ""
         range = CalendarImportRange(rawValue: prefs.getCalendarImportRange()) ?? .NEXT_WEEK
-        transfersEnabled = prefs.isCalendarApplyTransfers()
+        // ← Android AppPrefs.isCalendarApplyTransfers 默认 true (AppPrefs.kt getBoolean(KEY, true))。
+        //   iOS UserDefaults.bool(forKey:) 未设置恒 false → 首运行开关状态漂移, 此处直读原始键补 true 默认。
+        //   根修在 AppPrefs.isCalendarApplyTransfers()(共享文件, 本任务禁改, 已报 needs_shared_wiring)。
+        transfersEnabled = (prefs.sharedBackedStore.object(forKey: AppPrefs.KEY_CALENDAR_APPLY_TRANSFERS) as? Bool) ?? true
         reminderEnabled = prefs.getCalendarReminderMinutes() != nil
         reminderMinutes = String(prefs.getCalendarReminderMinutes() ?? 15)
         alarmEnabled = prefs.isCalendarFirstAlarmEnabled()
@@ -394,6 +406,9 @@ struct CalendarImportDialog: View {
     }
 
     private func runImport() {
+        // ← Android TextButton(enabled = !busy): iOS 15 alert 按钮无法置灰,
+        //   busy 屏蔽落在动作入口 — busy 期间再次确认直接忽略。
+        guard !busy else { return }
         busy = true
         let options = currentOptions()
         Task {
@@ -409,6 +424,8 @@ struct CalendarImportDialog: View {
     }
 
     private func runDelete() {
+        // ← Android TextButton(enabled = !busy): 同上, busy 期间再次确认直接忽略。
+        guard !busy else { return }
         busy = true
         Task {
             let deleted = await SystemCalendarManager.deleteManagedForTable(tableId: table.id)

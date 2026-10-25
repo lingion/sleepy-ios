@@ -35,7 +35,8 @@ struct UpdateChangelogDialog: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    if isFailed && !failMsg.isEmpty {
+                    if isFailed {
+                        // ← Android L94: 每个 Failed 态都渲染错误行, message 为空也照写
                         Text(L10n.format("update_download_failed", failMsg))
                             .font(.system(size: 14))
                             .foregroundColor(colors.error)
@@ -102,11 +103,9 @@ struct UpdateChangelogDialog: View {
                         .cornerRadius(SleepyShapes.large)
                     }
                 case .installing:
-                    Button(L10n.t("ok"), action: onDismiss)
-                        .foregroundColor(colors.onPrimary)
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                        .background(colors.primary)
-                        .cornerRadius(SleepyShapes.large)
+                    // ← Android L194「无按钮,等系统安装器」; iOS 侧由侧载提示 + 下滑关闭承载,
+                    //   与 Android 返回键/背板关闭等价(SPEC #2 平台翻译只针对文案)。
+                    EmptyView()
                 case .idle, .checking, .noUpdate:
                     EmptyView()
                 }
@@ -116,6 +115,14 @@ struct UpdateChangelogDialog: View {
         }
         .padding(24)   // ← M3 AlertDialog dialogPadding 24dp
         .background(colors.surface)
+        // ← Android L78-80: Downloading 态屏蔽下滑关闭(onDismissRequest 空操作),
+        //   取消只能走「取消」按钮 onCancelDownload。
+        .interactiveDismissDisabled(isDownloading)
+    }
+
+    private var isDownloading: Bool {
+        if case .downloading = state { return true }
+        return false
     }
 
     // MARK: - state 派生
@@ -202,7 +209,9 @@ private struct MarkdownChangelog: View {
     @ViewBuilder
     private func headingView(level: Int, text: String) -> some View {
         let size = level == 1 ? 22.0 : (level == 2 ? 16.0 : 14.0)
-        Text(inlineText(text))
+        // ← Android L216-217: 标题走原始 block.text(粗体已由字重承担), 不做行内 markdown 解析,
+        //   '**x**' 在标题里按字面显示, 与 Android 一致。
+        Text(text)
             .font(.system(size: size, weight: .bold))
             .foregroundColor(colors.onSurfaceVariant)
             .padding(.top, 10)
@@ -224,15 +233,24 @@ private struct MarkdownChangelog: View {
         .padding(.vertical, 2)
     }
 
-    /// ← inlineText: 链接 accent+下划线; 粗体/行内代码由 AttributedString(markdown:) 原生呈现
+    /// ← Android UpdateChangelogDialog.kt:250-272 inlineAnnotated(): 行内 span 由
+    ///   MarkdownBlocks.parseInline 确定性切分, 每种 span 的视觉由本函数显式排版。
+    ///   禁 AttributedString(markdown:) 黑盒(嵌套括号 URL 平衡进链接、try? 静默降级),
+    ///   链接截断语义随 Android 正则(首 ')' 截止)。
     private func inlineText(_ text: String) -> AttributedString {
-        var attr = (try? AttributedString(
-            markdown: text,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
-        for run in attr.runs where run.link != nil {
-            attr[run.range].foregroundColor = colors.primary
-            attr[run.range].underlineStyle = .single
+        var out = AttributedString()
+        for span in MarkdownBlocks.parseInline(text) {
+            var a: AttributedString
+            switch span {
+            case .text(let s): a = AttributedString(s)
+            case .bold(let s): a = AttributedString(s); a.font = .system(size: 12, weight: .bold)
+            case .code(let s): a = AttributedString(s); a.font = .system(size: 12, design: .monospaced)
+            case .link(let s, _): a = AttributedString(s); a.foregroundColor = colors.primary; a.underlineStyle = .single
+            }
+            a.font = a.font ?? .system(size: 12)
+            a.foregroundColor = a.foregroundColor ?? colors.onSurfaceVariant
+            out.append(a)
         }
-        return attr
+        return out
     }
 }

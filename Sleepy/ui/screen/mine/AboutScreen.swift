@@ -40,13 +40,23 @@ struct AboutScreen: View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("about_title"), onBack: onDismiss)
             ScrollView {
-                VStack(spacing: 12) {
-                    // ← 1.0.51 UpdateBanner: 检查到新版时顶部横幅, 点击跳 Releases tag 页
-                    if let banner = updateNotifier.updateAvailable {
-                        UpdateBanner(version: banner.version) {
-                            openURL("https://gh.qdp.qzz.io/lingion/sleepy-ios/releases/tag/v\(banner.version)")
-                        }
+                VStack(spacing: 0) {
+                    // ← 1.0.51 UpdateBanner: 仅提醒可见(未被该版本叉掉)时渲染, 点击跳 GitHub Releases tag 页
+                    //   (镜像站只代理下载, 网页 UI 渲染不全, 浏览器入口一律走主站; iOS 更新源=lingion/sleepy-ios),
+                    //   叉号按版本关闭提醒 ← UpdateNotifier.dismiss(version)
+                    if updateNotifier.noticeVisible, let banner = updateNotifier.updateAvailable {
+                        Spacer().frame(height: 12)
+                        UpdateBanner(
+                            version: banner.version,
+                            onTap: {
+                                openURL("https://github.com/lingion/sleepy-ios/releases/tag/v\(banner.version)")
+                            },
+                            onDismiss: { updateNotifier.dismiss(version: banner.version) }
+                        )
+                        Spacer().frame(height: 8)
                     }
+                    // ← Android 无横幅时也恒有 Spacer(24): 名字上方 8+24=32, 有横幅时 12+banner+8+24
+                    Spacer().frame(height: 24)
 
                     appNameHeader
 
@@ -67,6 +77,7 @@ struct AboutScreen: View {
                             }
                         }
                     }
+                    Spacer().frame(height: 12)
 
                     // One-click update
                     InfoCard {
@@ -102,6 +113,7 @@ struct AboutScreen: View {
                             .accessibilityIdentifier("about_check_update")
                         }
                     }
+                    Spacer().frame(height: 12)
 
                     // Author card
                     InfoCard {
@@ -128,7 +140,9 @@ struct AboutScreen: View {
                             .buttonStyle(SleepyButtonStyle())
                         }
                     }
+                    Spacer().frame(height: 12)
 
+                    Group {  // ViewBuilder 上限 10 — 后半段卡片分组(Group 不改变 VStack 布局)
                     // Source code card
                     InfoCard {
                         HStack(spacing: 12) {
@@ -160,6 +174,7 @@ struct AboutScreen: View {
                             .buttonStyle(SleepyButtonStyle())
                         }
                     }
+                    Spacer().frame(height: 12)
 
                     // Feedback card — ← 1.0.51 反馈卡: GitHub Issue / 邮件两个入口
                     //   (FeedbackComposer 已 1:1 移植, 这里只是接上 UI)
@@ -193,6 +208,41 @@ struct AboutScreen: View {
                             .accessibilityLabel(L10n.format("about_feedback_email"))
                         }
                     }
+                    Spacer().frame(height: 12)
+
+                    // QQ 群入口: 点卡复制群号并拉起 QQ(群资料卡 → ALT → TIM → QQ 首页 → 加群页 五级降级) ← AboutScreen.kt joinQqGroup
+                    InfoCard {
+                        HStack(spacing: 0) {
+                            Button(action: joinQqGroup) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "person.3") // ← Icons.Outlined.Groups 24dp
+                                        .font(.system(size: 24))
+                                        .foregroundColor(colors.primary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.format("about_qq_title"))
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(colors.onSurface)
+                                        Text(L10n.format("about_qq_detail", L10n.format("about_qq_group_number")))
+                                            .font(.system(size: 12)) // ← bodySmall
+                                            .foregroundColor(colors.onSurfaceVariant)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(SleepyButtonStyle())
+                            Button(action: joinQqGroup) { // ← 尾随 ContentCopy IconButton 20dp
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(colors.primary)
+                                    .padding(8)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(SleepyButtonStyle())
+                            .accessibilityLabel(L10n.format("about_qq_copy_action"))
+                        }
+                    }
+                    Spacer().frame(height: 12)
 
                     // License 入口行(v1.0.46 用户令): 长卡拆独立二级页, 这里只留入口
                     InfoCard {
@@ -215,6 +265,7 @@ struct AboutScreen: View {
                         }
                         .buttonStyle(SleepyButtonStyle())
                     }
+                    Spacer().frame(height: 12)
 
                     // ← 1.0.51 自动检查更新 Toggle: 关闭后冷启动不拉远端, 高亮也立即消失
                     InfoCard {
@@ -239,12 +290,13 @@ struct AboutScreen: View {
                     }
 
                     Spacer().frame(height: 32)
+                    }
                 }
                 .padding(.horizontal, 20)
             }
         }
-        // ← 1.0.51: 有更新可用时页面底色高亮 primary 5%
-        .background(updateNotifier.updateAvailable != nil ? colors.primary.opacity(0.05) : colors.background)
+        // ← 1.0.51: 有更新可用且提醒未被该版本叉掉时页面底色高亮 primary 5% (门控同横幅 = noticeVisible)
+        .background(updateNotifier.noticeVisible ? colors.primary.opacity(0.05) : colors.background)
         // Android 在 MainActivity.onCreate 检查; iOS 入口不可改, 由关于页触发(一次进程最多一次)
         .task { updateNotifier.maybeCheckOnStart() }
         .overlay(alignment: .bottom) {
@@ -296,13 +348,15 @@ struct AboutScreen: View {
     }
 
     // App name(← 1.0.51: 纯文字, 无 logo 图; headlineMedium bold 28sp)
+    //   间距 1:1 Android 头部 Column: Spacer(8)+name+Spacer(4)+version+Spacer(24)
     @ViewBuilder
     private var appNameHeader: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 0) {
             Spacer().frame(height: 8)
             Text(L10n.format("app_name"))
                 .font(.system(size: 28, weight: .bold))
                 .foregroundColor(colors.onSurface)
+            Spacer().frame(height: 4)
             Text("v\(UpdateManager.currentVersionName)")
                 .font(.system(size: 14))
                 .foregroundColor(colors.onSurfaceVariant)
@@ -312,6 +366,40 @@ struct AboutScreen: View {
 
     private func openURL(_ s: String) {
         if let url = URL(string: s) { UIApplication.shared.open(url) }
+    }
+
+    // ← Android `e.message ?: unknownErrorMessage`: 错误无有效信息时兜底 error_unknown
+    private func errorMessage(_ error: Error) -> String {
+        let raw = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return raw.isEmpty ? L10n.format("error_unknown") : raw
+    }
+
+    // ← joinQqGroup: 复制群号 → 五级拉起降级链(群资料卡 → ALT → TIM → QQ 首页 → 浏览器加群页)。
+    //   Android 用 getPackageInfo 判定 TIM/QQ 是否安装; iOS canOpenURL 需 QQ scheme 在
+    //   Info.plist LSApplicationQueriesSchemes(未配置则恒 false), 失败继续 web 兜底, 语义等价。
+    //   全失败(连浏览器都打不开)只提示已复制 ← about_qq_no_qq。
+    private func joinQqGroup() {
+        let group = L10n.format("about_qq_group_number")
+        UIPasteboard.general.string = group
+        func canOpen(_ s: String) -> Bool {
+            guard let url = URL(string: s) else { return false }
+            return UIApplication.shared.canOpenURL(url)
+        }
+        var launched = false
+        // 旧实现的 mqqopensdkapi 通道因缺少官方 key 被 QQ 拒解析, 不启用 ← QqJoin.officialJoinComponentUri
+        if canOpen(QqJoin.groupCardUri(group)) {
+            openURL(QqJoin.groupCardUri(group)); launched = true
+        } else if canOpen(QqJoin.groupCardUriAlt(group)) {
+            openURL(QqJoin.groupCardUriAlt(group)); launched = true
+        } else if canOpen("tim://") {
+            openURL("tim://"); launched = true // ← Android getLaunchIntentForPackage("com.tencent.tim")
+        } else if canOpen("mqq://") {
+            openURL("mqq://"); launched = true // ← Android getLaunchIntentForPackage("com.tencent.mobileqq")
+        }
+        if !launched, canOpen(QqJoin.webFallbackUri(group)) {
+            openURL(QqJoin.webFallbackUri(group)); launched = true
+        }
+        snackMessage = launched ? L10n.format("about_qq_copied") : L10n.format("about_qq_no_qq")
     }
 
     // ← diagnostic(): Android FeedbackComposer.Diagnostic 的 iOS 填实
@@ -375,7 +463,8 @@ struct AboutScreen: View {
                     uiState = .idle
                 }
             } catch {
-                uiState = .failed(message: error.localizedDescription, version: "", changelog: "",
+                // ← Android `e.message ?: unknownErrorMessage`: 空/无信息错误兜底 error_unknown
+                uiState = .failed(message: errorMessage(error), version: "", changelog: "",
                                   url: "", isCheckFailure: true)
             }
         }
@@ -395,7 +484,8 @@ struct AboutScreen: View {
             } catch is CancellationError {
                 uiState = .updateAvailable(version: version, changelog: changelog, url: url)
             } catch {
-                uiState = .failed(message: error.localizedDescription, version: version,
+                // ← Android `e.message ?: unknownErrorMessage`
+                uiState = .failed(message: errorMessage(error), version: version,
                                   changelog: changelog, url: url, isCheckFailure: false)
             }
         }
@@ -408,33 +498,45 @@ struct AboutScreen: View {
 
 // ← InfoCard 已迁移到 Sleepy/ui/component/SettingsCards.swift 共享
 
-// ← UpdateBanner(1.0.51): primary 12% 底色横幅, 点击跳 Releases tag 页
+// ← UpdateBanner(1.0.51): primary 12% 底色横幅, 左整行点击跳 Releases tag 页(主站), 右叉号按版本关闭提醒
 private struct UpdateBanner: View {
     @Environment(\.localWakeUpColors) private var colors
     let version: String
     let onTap: () -> Void
+    let onDismiss: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles.rectangle.stack") // ← Icons.Outlined.NewReleases 20dp
-                    .font(.system(size: 20))
-                    .foregroundColor(colors.primary)
-                Text(L10n.format("about_update_available", "v\(version)"))
-                    .font(.system(size: 14, weight: .semibold)) // ← bodyMedium SemiBold primary
-                    .foregroundColor(colors.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "arrow.up.right.square") // ← Icons.AutoMirrored.OpenInNew 18dp
-                    .font(.system(size: 18))
-                    .foregroundColor(colors.primary)
+        HStack(spacing: 0) {
+            Button(action: onTap) {
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkles.rectangle.stack") // ← Icons.Outlined.NewReleases 20dp
+                        .font(.system(size: 20))
+                        .foregroundColor(colors.primary)
+                    Text(L10n.format("about_update_available", "v\(version)"))
+                        .font(.system(size: 14, weight: .semibold)) // ← bodyMedium SemiBold primary
+                        .foregroundColor(colors.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "arrow.up.right.square") // ← Icons.AutoMirrored.OpenInNew 18dp
+                        .font(.system(size: 18))
+                        .foregroundColor(colors.primary)
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(colors.primary.opacity(0.12))
-            .cornerRadius(SleepyShapes.large) // ← clip(shapes.large) = 16dp
+            .buttonStyle(SleepyButtonStyle())
+            Button(action: onDismiss) { // ← Icons.Outlined.Close IconButton, 默认图标 24dp, contentDescription about_update_dismiss
+                Image(systemName: "xmark")
+                    .font(.system(size: 24)) // ← Android Icon 无 size modifier = 默认 24dp
+                    .foregroundColor(colors.primary)
+                    .padding(8)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(SleepyButtonStyle())
+            .accessibilityLabel(L10n.format("about_update_dismiss"))
         }
-        .buttonStyle(SleepyButtonStyle())
+        .padding(.init(top: 8, leading: 16, bottom: 8, trailing: 4)) // ← Android padding(start16/end4/vert8)
+        .background(colors.primary.opacity(0.12))
+        .cornerRadius(SleepyShapes.large) // ← clip(shapes.large) = 16dp
     }
 }
 
@@ -476,8 +578,9 @@ private struct MarkdownChangelog: View {
     @ViewBuilder
     private func headingView(level: Int, text: String) -> some View {
         // ← titleLarge 22 / titleMedium 16 / titleSmall 14, 均 Bold
+        //   Android UpdateChangelogDialog.kt:216 标题用 raw block.text, 不做行内解析
         let size = level == 1 ? 22.0 : (level == 2 ? 16.0 : 14.0)
-        Text(inlineText(text))
+        Text(text)
             .font(.system(size: size, weight: .bold))
             .foregroundColor(colors.onSurfaceVariant)
             .padding(.top, 10)
@@ -499,15 +602,22 @@ private struct MarkdownChangelog: View {
         .padding(.vertical, 2)
     }
 
-    /// ← inlineAnnotated: 链接 accent+下划线; 粗体/行内代码由 AttributedString(markdown:) 原生呈现
+    /// ← inlineAnnotated: 确定性 span 渲染(对齐 Android inlineAnnotated), 不再走
+    ///   AttributedString(markdown:) 黑盒; 链接截断语义随 Android 正则(首 ')' 截止)
     private func inlineText(_ text: String) -> AttributedString {
-        var attr = (try? AttributedString(
-            markdown: text,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
-        for run in attr.runs where run.link != nil {
-            attr[run.range].foregroundColor = colors.primary
-            attr[run.range].underlineStyle = .single
+        var out = AttributedString()
+        for span in MarkdownBlocks.parseInline(text) {
+            var a: AttributedString
+            switch span {
+            case .text(let s): a = AttributedString(s)
+            case .bold(let s): a = AttributedString(s); a.font = .system(size: 12, weight: .bold)
+            case .code(let s): a = AttributedString(s); a.font = .system(size: 12, design: .monospaced)
+            case .link(let s, _): a = AttributedString(s); a.foregroundColor = colors.primary; a.underlineStyle = .single
+            }
+            a.font = a.font ?? .system(size: 12)
+            a.foregroundColor = a.foregroundColor ?? colors.onSurfaceVariant
+            out.append(a)
         }
-        return attr
+        return out
     }
 }
