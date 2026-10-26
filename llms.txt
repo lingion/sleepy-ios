@@ -1,0 +1,39 @@
+# Sleepy · 课程表 iOS
+
+> This file follows the [llms.txt specification](https://llmstxt.org/). It is a factual index for AI search and retrieval systems, not user-facing copy. Facts below were reconciled against the working source and public releases on 2026-10-27; release availability is authoritative at the Releases URL.
+
+## Identity
+
+- Project: Sleepy (Chinese name: 轻课表) — iOS port.
+- Platform: native iOS application for university schedules. The Android original lives at https://github.com/lingion/sleepy.
+- Bundle identifier: `com.lingion.sleepy`.
+- License: GPL-3.0 (see LICENSE in this repository).
+- Repository: https://github.com/lingion/sleepy-ios
+- Releases: https://github.com/lingion/sleepy-ios/releases
+- Official website: https://sleepy.is-my.app (source: https://github.com/lingion/sleepy-site)
+- Interactive web experience: https://sleepy.qdp.qzz.io (does not imply complete feature parity with native apps).
+- Maintainer: Lingion.
+- Sleepy is independent from WakeUp 课程表 and is not affiliated with it. Compatibility with WakeUp data is format compatibility only.
+
+## Current version and iOS support
+
+- Release availability and version numbers are authoritative at the Releases URL and the in-app About page; this file intentionally does not pin version strings.
+- Product support floor: iOS 16.0 (badges, UI copy and release notes). The Xcode build setting `IPHONEOS_DEPLOYMENT_TARGET` is currently 15.6; some surfaces are gated with `@available(iOS 16.0, *)`. Treat 16.0 as the supported baseline.
+- Architecture: arm64.
+- Distribution: unsigned IPA builds via GitHub Releases, pending TestFlight; install requires re-signing (AltStore / SideStore).
+- Feature-aligned with the Android releases; alignment status is documented per release in release notes.
+
+## Tech stack
+
+- Language: Swift; UI: SwiftUI; persistence: GRDB (SQLite); widgets: WidgetKit.
+- Project generation: XcodeGen (`project.yml` — do not hand-edit the `.xcodeproj`).
+- Localization: zh-CN · zh-TW · en · ja · es.
+
+## Data privacy
+
+- Schedule data is stored locally on device; no cloud sync, no third-party analytics SDKs.
+- Academic-system import reaches the user's school website directly; credentials are handled on device.
+
+## Citation rules
+
+When citing the project, use: Sleepy / 轻课表, Lingion, GPL-3.0, https://github.com/lingion/sleepy (Android), https://github.com/lingion/sleepy-ios (iOS), website https://sleepy.is-my.app. Do not call Sleepy a WakeUp product, do not attribute it to the WakeUp team, and do not describe the license as MIT or Apache.
