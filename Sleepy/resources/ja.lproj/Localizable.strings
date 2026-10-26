@@ -399,6 +399,8 @@
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
 "reminder_master_sub" = "Sleepy に授業通知の送信を許可";
 "reminder_master_title" = "リマインダーを有効化";
+"reminder_notif_denied_title" = "通知の権限が拒否されています";
+"reminder_notif_denied_sub" = "iOS では再承認のダイアログは表示されません。設定アプリで手動に通知をオンにしてください。";
 "reminder_pick_time" = "リマインダー時刻を選択";
 "reminder_title" = "リマインダー";
 "school_count_supported" = "対応 %1$d";

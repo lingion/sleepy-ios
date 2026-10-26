@@ -195,7 +195,9 @@ final class NotificationScheduler {
     // ==================== scheduleAll ← ====================
 
     func scheduleAll() {
-        createChannels()
+        // iOS 无 NotificationChannel; Android createChannels 在此处的隐式
+        // requestAuthorization 已按权限政策摘除 —— 全 app 唯一申请点 =
+        // ReminderScreen master 开关(用户显式操作), denied 后走系统设置引导。
         Self.registerDailyResyncTask()
         submitDailyResyncTask()
         Task {
@@ -639,10 +641,10 @@ final class NotificationScheduler {
     }
 
     // ==================== Channels / 权限 ====================
-
-    private func createChannels() {
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
-    }
+    // iOS 无 NotificationChannel。Android createChannels 携带的隐式
+    // POST_NOTIFICATIONS 申请(requestAuthorization)不再随调度触发 ——
+    // 权限申请唯一入口 = ReminderScreen master 开关(用户显式操作),
+    // denied 后由 UI 引导手动去系统设置; 本调度器只消费已授权结果。
 
     // ==================== 到货重校验 / 每日窗口兜底 ====================
 

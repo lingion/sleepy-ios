@@ -399,6 +399,8 @@
 "reminder_fluid_title" = "Nube Fluida / Súper Isla";
 "reminder_master_sub" = "Permitir que Sleepy envíe notificaciones de cursos";
 "reminder_master_title" = "Activar recordatorios";
+"reminder_notif_denied_title" = "Notificaciones denegadas";
+"reminder_notif_denied_sub" = "iOS no volverá a pedir permiso. Abre Ajustes y activa las notificaciones manualmente.";
 "reminder_pick_time" = "Elegir hora de recordatorio";
 "reminder_title" = "Recordatorios";
 "school_count_supported" = "%1$d compatibles";

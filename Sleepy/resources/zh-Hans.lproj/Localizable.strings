@@ -350,6 +350,8 @@
 "reminder_fluid_field_room" = "上课地点";
 "reminder_fluid_field_teacher" = "任课老师";
 "reminder_fluid_note" = "点击通知后可展开课程详情。具体是否显示为流体云/超级岛由手机系统、通知权限和厂商服务资格决定。";
+"reminder_notif_denied_title" = "通知权限已被拒绝";
+"reminder_notif_denied_sub" = "iOS 不会再次弹出授权请求，请前往系统设置手动开启通知。";
 "reminder_pick_time" = "选择提醒时间";
 "action_confirm" = "确定";
 "action_cancel" = "取消";

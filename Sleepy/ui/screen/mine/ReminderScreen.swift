@@ -2,6 +2,9 @@
 // 提醒设置: master 开关(通知权限) + 日期规则卡 + 每日提醒(当日/次日分闸+动态示例)
 // + 课前提醒(分钟/横幅/流体云字段+可靠性诊断) + 上课自动勿扰。
 // 平台映射: POST_NOTIFICATIONS 权限 → UNUserNotificationCenter.requestAuthorization;
+// 权限申请政策(2026-10): 全 app 唯一弹窗点 = master 开关 onMasterToggle(.notDetermined);
+// NotificationScheduler.createChannels 的隐式申请已摘除。denied 后系统不再弹框
+// (一次性弹窗语义), UI 显示手动设置引导行(NotifDeniedRow → 系统设置)。
 // 流体云(Fluid Cloud)行为 Android 独有(平台差异表#3), iOS 保留开关落 prefs
 // (banner 通道承担实际通知), 字段选择影响 banner 内容行文。
 // 可靠性诊断 5 行 → iOS 快照仅 3 个可观测事实(通知权限/时效性/低电量),
@@ -59,6 +62,12 @@ struct ReminderScreen: View {
     @State private var pickerTarget: DailyReminderTimeTarget? = nil
     @State private var pickerTime = Date()
     @State private var showHolidaySettings = false
+    /// 通知权限 denied 态 → master 卡内手动设置引导行。
+    /// iOS 语义: denied 后 requestAuthorization 不再弹系统框、静默返回 false
+    /// (一次性弹窗), 唯一恢复路径 = 用户手动去系统设置。仅在用户点 master
+    /// 开关触发申请且被拒/此前已拒时置位; 全页唯一 requestAuthorization
+    /// 调用点在 onMasterToggle(.notDetermined 分支) —— 权限申请政策(2026-10)。
+    @State private var notifDenied = false
 
     // ← reliabilitySnapshot: 诊断快照, ON_RESUME + fluidEnabled 变化时刷新
     @State private var reliabilitySnapshot: BackgroundReliabilitySnapshot? = nil
@@ -75,6 +84,12 @@ struct ReminderScreen: View {
                     ReminderCard {
                         MasterToggleRow(masterEnabled: $masterEnabled) { on in
                             onMasterToggle(on)
+                        }
+                        // denied 引导: iOS 弹窗一次性, 再调 requestAuthorization
+                        // 静默 false 不弹框 → 只能提示手动去系统设置开启通知。
+                        if notifDenied {
+                            SubDivider()
+                            NotifDeniedRow(onOpenSettings: { openNotificationSettings() })
                         }
                     }
 
@@ -129,7 +144,11 @@ struct ReminderScreen: View {
     }
 
     private func refreshReliabilitySnapshot() async {
-        reliabilitySnapshot = await BackgroundReliabilityProbe.shared.snapshot()
+        let snapshot = await BackgroundReliabilityProbe.shared.snapshot()
+        reliabilitySnapshot = snapshot
+        // 从系统设置手动开启通知后回前台(本函数同时挂 .task/didBecomeActive),
+        // 权限已授权 → 收起 denied 引导行(不自动开 master, 开关仍归用户操作)。
+        if snapshot.notificationPermissionGranted { notifDenied = false }
     }
 
     // MARK: - 日期规则卡 ← Android 第 2 张卡
@@ -622,26 +641,30 @@ struct ReminderScreen: View {
                 DispatchQueue.main.async {
                     switch settings.authorizationStatus {
                     case .authorized, .provisional, .ephemeral:
+                        notifDenied = false
                         masterEnabled = true
                         prefs.setReminderEnabled(true)
                         ReminderRescheduler.shared.request()
                     case .notDetermined:
-                        // ← requestNotificationPermission
+                        // ← 全 app 唯一系统权限弹窗点(用户显式开 master 才申请)
                         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
                             DispatchQueue.main.async {
                                 if granted {
+                                    notifDenied = false
                                     masterEnabled = true
                                     prefs.setReminderEnabled(true)
                                     ReminderRescheduler.shared.request()
                                 } else {
-                                    // Permission denied → revert to off
+                                    // Permission denied → revert to off + 手动设置引导
+                                    notifDenied = true
                                     masterEnabled = false
                                     prefs.setReminderEnabled(false)
                                 }
                             }
                         }
                     default:
-                        // denied → 引导去系统设置;先回退 off
+                        // denied: requestAuthorization 静默 false 不弹框 → 引导去系统设置;先回退 off
+                        notifDenied = true
                         masterEnabled = false
                         prefs.setReminderEnabled(false)
                     }
@@ -650,6 +673,7 @@ struct ReminderScreen: View {
         } else {
             // 关闭 master 只设 reminder_master=false + cancelAll(); scheduleAll 与各接收路径
             // 均双重检查 isReminderEnabled, 无需覆写子开关(否则重开 master 后配置全丢)。
+            notifDenied = false
             masterEnabled = false
             prefs.setReminderEnabled(false)
             // cancelAll 为 suspend, 后台执行避免主线程阻塞(← Android IO 协程)
@@ -659,12 +683,18 @@ struct ReminderScreen: View {
         }
     }
 
-    /// ← Android requestNotificationPermission(): 可靠性诊断行「通知权限未满足」的直达入口
+    /// ← Android requestNotificationPermission(): 可靠性诊断行「通知权限未满足」的直达入口。
+    /// iOS 权限政策(2026-10): 系统申请只允许发生在 master 开关 —— 本入口不另调
+    /// requestAuthorization, 直接复用 onMasterToggle(true) 状态机:
+    /// notDetermined → 弹窗申请; denied → 点亮系统设置引导行并回退开关; granted → 开。
+    /// granted/denied 终态后 .task + didBecomeActive 会重取诊断快照, 行状态自动同步。
     private func requestNotificationPermission() {
-        let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
-            Task { await refreshReliabilitySnapshot() }
-        }
+        onMasterToggle(true)
+    }
+
+    private func openNotificationSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     // MARK: - 动态示例(只读当前课表, 不参与调度)← loadReminderSchedulePreview
@@ -1053,6 +1083,41 @@ private struct ReminderToggleRow: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
+    }
+}
+
+/// 通知权限 denied 手动引导行 — iOS 系统弹窗一次性, denied 后代码无法再弹,
+/// 唯一恢复 = 用户去系统设置开启通知。文案 + 直达「设置」按钮(Scheme 2 色块行风格)。
+private struct NotifDeniedRow: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let onOpenSettings: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L10n.format("reminder_notif_denied_title"))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.primary)
+                Text(L10n.format("reminder_notif_denied_sub"))
+                    .font(.system(size: 12))
+                    .foregroundColor(colors.onSurfaceVariant)
+            }
+            Spacer(minLength: 8)
+            Button(action: onOpenSettings) {
+                Text(L10n.format("action_settings"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(colors.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(colors.primaryContainer)
+                    .cornerRadius(SleepyShapes.small)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("reminder_notif_open_settings")
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
+        .accessibilityIdentifier("reminder_notif_denied_row")
     }
 }
 

@@ -399,6 +399,8 @@
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
 "reminder_master_sub" = "Allow Sleepy to send course notifications";
 "reminder_master_title" = "Enable Reminders";
+"reminder_notif_denied_title" = "Notifications are denied";
+"reminder_notif_denied_sub" = "iOS won't ask again. Please open Settings and turn notifications on manually.";
 "reminder_pick_time" = "Pick Reminder Time";
 "reminder_title" = "Reminders";
 "school_count_supported" = "%1$d supported";

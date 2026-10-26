@@ -399,6 +399,8 @@
 "reminder_fluid_title" = "流體雲 / 超級島";
 "reminder_master_sub" = "允許 Sleepy 發送課程通知";
 "reminder_master_title" = "開啟提醒";
+"reminder_notif_denied_title" = "通知權限已被拒絕";
+"reminder_notif_denied_sub" = "iOS 不會再次彈出授權請求，請前往系統設定手動開啟通知。";
 "reminder_pick_time" = "選擇提醒時間";
 "reminder_title" = "提醒";
 "school_count_supported" = "已支援 %1$d";
