@@ -66,6 +66,30 @@ enum HolidayManager {
     /// 各年数据是否拉取成功过(空结果+成功=false => 网络失败)
     private static var yearFetchFailed: [Int: Bool] = [:]
 
+    /// ★ 线程安全(2026-10-26 崩溃修复): iOS 26 原生 TabView 同时实例化 4 页,
+    ///   多 async 任务并发读写上面两个 static 字典 → SIGSEGV(objc_msgSend 野指针,
+    ///   崩在 Dictionary._Variant.setValue)。两字典一切读写必须走锁封装访问器,
+    ///   禁止直访。yearFetchFailed 旧写法的 await MainActor.run 只统一了写线程,
+    ///   与任意线程的读(isYearFetchFailed)仍是数据竞争, 一并收进锁内。
+    private static let cacheLock = NSLock()
+
+    private static func cacheGet(_ year: Int) -> [HolidayEntry]? {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        return entriesCache[year]
+    }
+    private static func cachePut(_ year: Int, _ entries: [HolidayEntry]) {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        entriesCache[year] = entries
+    }
+    private static func failedGet(_ year: Int) -> Bool {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        return yearFetchFailed[year] == true
+    }
+    private static func failedPut(_ year: Int, _ failed: Bool) {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        if failed { yearFetchFailed[year] = true } else { yearFetchFailed.removeValue(forKey: year) }
+    }
+
     /**
      * 磁盘缓存 — 拉成功一次即落盘, 进程重启后仍有效。
      * 刷新走 refreshYearEntries 强制绕过内存+磁盘。
@@ -120,7 +144,7 @@ enum HolidayManager {
     /// [tableId] 给定时同时查该表调休映射(命中 = 那天要上课, 不跳过)。
     static func isPublicHolidayCached(_ date: Date, tableId: Int64? = nil) -> Bool {
         guard AppPrefs.shared.isHolidayGreyHoliday() else { return false }
-        let networkEntries = entriesCache[date.year] ?? diskCache(date.year) ?? []
+        let networkEntries = cacheGet(date.year) ?? diskCache(date.year) ?? []
         let ranges = AppPrefs.shared.getHolidayRanges()
         let merged = HolidayRangeOps.mergeSegments(networkEntries, ranges)
         let (holidays, _) = HolidayRangeOps.toSets(merged.active)
@@ -158,15 +182,15 @@ enum HolidayManager {
      * 空列表 + yearFetchFailed == true 表示网络失败而非"该年无数据"。
      */
     static func getYearEntries(_ year: Int) async -> [HolidayEntry] {
-        if let hit = entriesCache[year] { return hit }
+        if let hit = cacheGet(year) { return hit }
         if let hit = diskCache(year) {
-            entriesCache[year] = hit
+            cachePut(year, hit)
             return hit
         }
         let entries = await fetchEntries(year)
         if !entries.isEmpty || !isYearFetchFailed(year) {
             // 成功(含空年份, loaded 标记保证空数据也算已缓存)才落盘; 网络失败不缓存失败态
-            entriesCache[year] = entries
+            cachePut(year, entries)
             writeDiskCache(year, entries)
         }
         return entries
@@ -174,7 +198,7 @@ enum HolidayManager {
 
     /// 某年生效数据(含用户覆盖展开) + 可用性 ← getYearData
     static func getYearData(_ year: Int) async -> HolidayYearData {
-        let cacheEntries = entriesCache[year] ?? diskCache(year)
+        let cacheEntries = cacheGet(year) ?? diskCache(year)
         // ?? 右操作数是 autoclosure 不支持 await, 拆成显式分支
         let entries: [HolidayEntry]
         if let cacheEntries {
@@ -182,7 +206,7 @@ enum HolidayManager {
         } else {
             entries = await getYearEntries(year)
         }
-        if let cacheEntries { entriesCache[year] = cacheEntries }
+        if let cacheEntries { cachePut(year, cacheEntries) }
         let effective = HolidayRangeOps.mergeSegments(entries, AppPrefs.shared.getHolidayRanges()).active
         // 段按日逐天展开 ← generateSequence(segment.startDate){...}
         var effectiveEntries: [HolidayEntry] = []
@@ -220,19 +244,19 @@ enum HolidayManager {
     }
 
     /// 某年数据是否因网络原因拉取失败 ← isYearFetchFailed
-    static func isYearFetchFailed(_ year: Int) -> Bool { yearFetchFailed[year] == true }
+    static func isYearFetchFailed(_ year: Int) -> Bool { failedGet(year) }
 
     /// 强制重新拉取某年条目(设置页"刷新"按钮用): 绕过内存+磁盘缓存 ← refreshYearEntries
     static func refreshYearEntries(_ year: Int) async -> [HolidayEntry] {
-        let cached = entriesCache[year] ?? diskCache(year)
-        if let cached { entriesCache[year] = cached }
-        yearFetchFailed.removeValue(forKey: year)
+        let cached = cacheGet(year) ?? diskCache(year)
+        if let cached { cachePut(year, cached) }
+        failedPut(year, false)
 
         let fetched = await fetchEntries(year)
         let fetchFailed = isYearFetchFailed(year)
         let result = refreshedEntries(cached: cached, fetched: fetched, fetchFailed: fetchFailed)
         if !fetchFailed {
-            entriesCache[year] = fetched
+            cachePut(year, fetched)
             writeDiskCache(year, fetched)
         }
         return result
@@ -241,7 +265,7 @@ enum HolidayManager {
     /// 拉取并解析某年全部条目(带名称), 供二级页展示 ← fetchEntries
     private static func fetchEntries(_ year: Int) async -> [HolidayEntry] {
         guard let url = URL(string: BASE_URL + "\(year).json") else {
-            await MainActor.run { yearFetchFailed[year] = true }
+            failedPut(year, true)
             return []
         }
         var request = URLRequest(url: url)
@@ -250,22 +274,22 @@ enum HolidayManager {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                await MainActor.run { yearFetchFailed[year] = true }
+                failedPut(year, true)
                 return []
             }
             let json = String(data: data, encoding: .utf8) ?? ""
             let entries = parseEntries(json)
             if entries.isEmpty && !json.contains("\"dates\"") {
                 // 返回体异常(非预期结构)视为失败
-                await MainActor.run { yearFetchFailed[year] = true }
+                failedPut(year, true)
             } else {
                 // 解析成功 → 清除失败标记(← Android else { yearFetchFailed.remove(year) }):
                 // 否则先前失败的年份在后续成功后仍被 isYearFetchFailed 判失败
-                await MainActor.run { yearFetchFailed.removeValue(forKey: year) }
+                failedPut(year, false)
             }
             return entries
         } catch {
-            await MainActor.run { yearFetchFailed[year] = true }
+            failedPut(year, true)
             return []
         }
     }
