@@ -647,13 +647,17 @@ private struct WeekNavButton: View {
     }
 
     private var button: some View {
+        // ← Android: Box.size(32.dp).clip.background.clickable.padding(6.dp) — padding 在框内
+        //   (只缩图标槽 32−2×6=20), 占位恒 32。旧 iOS 把 padding 挂在 frame 外 → 占位 44,
+        //   比 capsuleScale 公式(← Android 按 32+6+38+6 预留)每钮多挤 12pt,
+        //   撤回胶囊/tick 会压到居中翻页三件套(issue: 顶栏重叠/与安卓不一致)。
+        //   图标由 frame 32 居中渲染, 不受 padding 位置影响; 热区 32×32 ← SleepyButtonStyle。
         Button(action: onClick) {
             Image(systemName: icon)
                 .foregroundColor(colors.onSurfaceVariant)
                 .frame(width: 32, height: 32)
                 .background(colors.surfaceContainerHigh)
                 .clipShape(Circle())
-                .padding(6)
         }
         .buttonStyle(SleepyButtonStyle())
         // ← G5: 周导航箭头锚点(chevron.left → week_prev / chevron.right → week_next)

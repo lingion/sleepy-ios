@@ -295,6 +295,9 @@
 "settings_nav_style" = "ナビバーのスタイル";
 "settings_nav_style_docked" = "下部に固定";
 "settings_nav_style_floating" = "フローティング";
+"settings_nav_style_auto" = "自動";
+"settings_nav_style_native" = "ネイティブ";
+"settings_nav_style_auto_subtitle" = "現在：%1$@";
 "about_update_latest" = "最新バージョン v%1$@ です";
 "update_found_title" = "新しいバージョン v%1$@ があります";
 "update_download" = "ダウンロード";

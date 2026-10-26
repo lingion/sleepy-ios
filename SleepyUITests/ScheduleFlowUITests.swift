@@ -14,7 +14,7 @@ final class ScheduleFlowUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED"]
-        app.launch()
+        app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
         // 种子后课表非空 → 等周标签就绪
         XCTAssertTrue(app.descendants(matching: .any)["week_label"].waitForExistence(timeout: 8),

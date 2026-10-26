@@ -37,7 +37,7 @@ final class UIElementAuditUITests: XCTestCase {
             "-UILaunchScreen_Generation", "YES", // 防止首屏黑屏
             "-theme_mode", appearance == "dark" ? "dark" : "light"
         ]
-        app.launch()
+        app.sleepyLaunch()
 
         // 等待 Pill 栏出现(种子后)
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10),

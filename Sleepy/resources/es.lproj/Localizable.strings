@@ -295,6 +295,9 @@
 "settings_nav_style" = "Estilo de la barra de navegación";
 "settings_nav_style_docked" = "Acoplada";
 "settings_nav_style_floating" = "Flotante";
+"settings_nav_style_auto" = "Automática";
+"settings_nav_style_native" = "Nativa";
+"settings_nav_style_auto_subtitle" = "Actual: %1$@";
 "about_update_latest" = "Ya tienes la última versión v%1$@";
 "update_found_title" = "Nueva versión v%1$@ disponible";
 "update_download" = "Descargar";

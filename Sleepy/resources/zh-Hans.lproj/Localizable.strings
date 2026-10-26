@@ -250,6 +250,9 @@
 "settings_nav_style" = "底栏样式";
 "settings_nav_style_docked" = "贴底";
 "settings_nav_style_floating" = "悬浮";
+"settings_nav_style_auto" = "自动";
+"settings_nav_style_native" = "原生";
+"settings_nav_style_auto_subtitle" = "当前为：%1$@";
 "theme_system" = "跟随系统";
 "theme_system_desc" = "Material You 动态取色（Android 12+）";
 "view_full" = "周视图";

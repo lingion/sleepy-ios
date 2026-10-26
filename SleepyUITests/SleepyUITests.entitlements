@@ -4,7 +4,7 @@
 <dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.lingion.sleepy.ios</string>
+		<string>group.com.lingion.sleepy</string>
 	</array>
 </dict>
 </plist>

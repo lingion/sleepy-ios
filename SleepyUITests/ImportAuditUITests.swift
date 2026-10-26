@@ -11,7 +11,7 @@ final class ImportAuditUITests: XCTestCase {
     private func launchSeeded() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-SLEEPY_UI_TEST_SEED", "1"]
-        app.launch()
+        app.sleepyLaunch()
         return app
     }
 

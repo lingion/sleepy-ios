@@ -1,4 +1,4 @@
-// AppGroupResolver.swift — AltStore 重签后 App Group ID 解析
+// AppGroupResolver.swift — App Group ID 解析(付费账号直用声明 ID;AltStore 重签读 ALTAppGroups)
 // 证据: AltStore 源码 FetchProvisioningProfilesOperation.swift:447 (group ID 加 team 后缀)
 //      ResignAppOperation.swift:126 (真实 ID 写入 Info.plist ALTAppGroups key)
 // 行为: Xcode 直跑(开发签名)→ 用声明的 group ID;AltStore 侧载 → 读 ALTAppGroups[0]
@@ -8,7 +8,7 @@ import Foundation
 
 enum AppGroupResolver {
     /// 声明的 group ID(与 entitlements 一致)
-    static let declaredID = "group.com.lingion.sleepy.ios"
+    static let declaredID = "group.com.lingion.sleepy"
 
     /// 运行时真实可用的 group ID。解析失败(无 entitlement)→ nil,调用方回退到沙箱内路径
     static func resolve() -> String? {

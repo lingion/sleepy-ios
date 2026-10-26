@@ -12,17 +12,16 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.8"
-    # 真机调试走自动签名(Personal Team GU39QS224C);模拟器也兼容
-    # 无此设置 → "Ad Hoc code signing is not allowed with SDK 'iOS 16.4'"
+    # 真机调试走自动签名;2026-10-26 起用付费开发者账号团队 D9UP75W466
+    # (旧 Personal Team GU39QS224C 免费证书 7 天过期且不支持 App Groups)
     CODE_SIGN_STYLE: Automatic
-    DEVELOPMENT_TEAM: GU39QS224C
-    # Personal Team 免费证书,7 天过期,重连 Xcode 自动续
+    DEVELOPMENT_TEAM: D9UP75W466
     CODE_SIGN_IDENTITY: "Apple Development"
     # xcodegen 不默认注入这批标准设置 — 缺 PRODUCT_NAME 产物名变空(.app/.appex 冲突)
     PRODUCT_NAME: "$(TARGET_NAME)"
     PRODUCT_BUNDLE_IDENTIFIER: "$(PRODUCT_BUNDLE_IDENTIFIER)"
-    CURRENT_PROJECT_VERSION: "61"
-    MARKETING_VERSION: "1.0.61"
+    CURRENT_PROJECT_VERSION: "62"
+    MARKETING_VERSION: "1.0.62"
   configs:
     Debug:
       ONLY_ACTIVE_ARCH: YES
@@ -70,8 +69,8 @@ targets:
       path: Sleepy/Info.plist
       properties:
         CFBundleDisplayName: Sleepy 课程表
-        CFBundleShortVersionString: "1.0.43"
-        CFBundleVersion: "36"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchStoryboardName: LaunchScreen
         # ★ 城市定位推荐同城学校入口 — 缺此键 → CLLocationManager 授权弹窗直接崩溃
         NSLocationWhenInUseUsageDescription: 用于根据当前位置推荐同城学校入口
@@ -86,7 +85,7 @@ targets:
         # ★ widget 深链(widgetURL sleepy://open)+ 课程/导入深链(sleepy://course|import)
         #   依赖 scheme 注册;缺此键 → simctl openurl 报 -10814,真机 widget 点击无响应
         CFBundleURLTypes:
-          - CFBundleURLName: com.lingion.sleepy.ios
+          - CFBundleURLName: com.lingion.sleepy
             CFBundleURLSchemes: [sleepy]
         CFBundleDocumentTypes:
           - CFBundleTypeName: Schedule JSON
@@ -101,13 +100,14 @@ targets:
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: Sleepy/Sleepy.entitlements
-      # App Group 键已剥:免费 Personal Team 的 profile 装不下 group
-      # (门户 "not available"),带此键真机签名必失败。AppGroupResolver 回退沙箱。
-      # AltStore 侧载路径不受影响(重签时 AltStore 自己注入 group + ALTAppGroups)
-      properties: {}
+      # 2026-10-26 付费开发者账号(D9UP75W466)注册 App ID 后恢复:
+      # 门户 Sleepy Schedule=com.lingion.sleepy / Sleepy Shared=group.com.lingion.sleepy
+      # (旧 .ios 后缀 ID 被他人团队占用)。AltStore 侧载路径不受影响(重签自注入 group + ALTAppGroups)
+      properties:
+        com.apple.security.application-groups: [group.com.lingion.sleepy]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: "NO"
@@ -123,9 +123,12 @@ targets:
       # widget 用不到屏层, 渲染逻辑已抽到 widget/ 与 util/)
       # + notification 下 BatterySettingsLauncher(UIApplication.shared,
       #   extension 里禁用 — Swift 无 per-target 编译旗标, 走文件级排除)
+      # + util/NavStyleResolver(UIApplication.shared.connectedScenes 探测设备形态,
+      #   extension 里禁用; 仅 SleepyApp/AppPrefs 消费, widget 无引用)
       - path: Sleepy
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
-                   "widget/notification/BatterySettingsLauncher.swift"]
+                   "widget/notification/BatterySettingsLauncher.swift",
+                   "util/NavStyleResolver.swift"]
       - path: Sleepy/resources
         buildPhase: resources
     dependencies:
@@ -136,17 +139,18 @@ targets:
       path: SleepyWidget/Info.plist
       properties:
         CFBundleDisplayName: Sleepy Widget
-        CFBundleShortVersionString: "1.0.43"
-        CFBundleVersion: "36"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
       path: SleepyWidget/SleepyWidget.entitlements
-      # 同主 app:剥 group(免费账号限制);AltStore 重签路径自会注入
-      properties: {}
+      # 同主 app:2026-10-26 付费账号后恢复 group;AltStore 重签路径自会注入
+      properties:
+        com.apple.security.application-groups: [group.com.lingion.sleepy]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios.widget
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.widget
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: "NO"
         # 共源编译条件: Sleepy/widget/** 双 target 均编, extension 进程内禁 app-only 分支
@@ -166,16 +170,16 @@ targets:
     info:
       path: SleepyTests/Info.plist
       properties:
-        CFBundleIdentifier: com.lingion.sleepy.ios.tests
+        CFBundleIdentifier: com.lingion.sleepy.tests
         CFBundleName: SleepyTests
         CFBundlePackageType: BNDL
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
-        CFBundleShortVersionString: "1.0.43"
-        CFBundleVersion: "36"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
 
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.tests
         GENERATE_INFOPLIST_FILE: "NO"
         # unit test 注入宿主 app 进程(xcodegen 2.38 不自动生成, 必须显式)
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Sleepy.app/Sleepy"
@@ -192,19 +196,19 @@ targets:
       path: SleepyUITests/SleepyUITests.entitlements
       properties:
         # runner 需要同组权限才能读 widget 写的 widget_archive.log
-        com.apple.security.application-groups: [group.com.lingion.sleepy.ios]
+        com.apple.security.application-groups: [group.com.lingion.sleepy]
     info:
       path: SleepyUITests/Info.plist
       properties:
-        CFBundleIdentifier: com.lingion.sleepy.ios.uitests
+        CFBundleIdentifier: com.lingion.sleepy.uitests
         CFBundleName: SleepyUITests
         CFBundlePackageType: BNDL
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
-        CFBundleShortVersionString: "1.0.43"
-        CFBundleVersion: "36"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.ios.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingion.sleepy.uitests
         GENERATE_INFOPLIST_FILE: "NO"
 
 schemes:

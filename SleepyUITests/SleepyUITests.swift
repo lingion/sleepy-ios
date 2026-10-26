@@ -20,7 +20,7 @@ final class SleepyUITests: XCTestCase {
         app = XCUIApplication()
         // 强制英文环境 → 文本断言稳定
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        app.launch()
+        app.sleepyLaunch()
     }
 
     // MARK: - 启动
@@ -149,7 +149,7 @@ final class SleepyUITests: XCTestCase {
         // Xcode14/iOS16.4 丢 URL, 见 DeepLinkUITests 头注), 断言 scheme 注册 +
         // onOpenURL 处理后主界面完好。
         app.launchEnvironment["SLEEPY_UI_TEST_OPENURL"] = "sleepy://open"
-        app.launch()
+        app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10),
                       "sleepy://open 深链后 app 应回主界面")
         XCTAssertTrue(app.descendants(matching: .any)["pill_mine"].exists,

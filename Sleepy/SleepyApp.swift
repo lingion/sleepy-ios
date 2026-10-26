@@ -141,7 +141,11 @@ final class AppRootViewModel: ObservableObject {
     @Published var languageReload = 0
     // ★ v1.0.45 底栏 dock 样式: false=贴底, true=悬浮药丸
     //   ← Android v1.0.45 b0f8280;状态由 AppPrefs 持有, 监听 .didChange 自动反向同步
-    @Published var navFloating: Bool = AppPrefs.shared.isNavDocked()
+    // ★ 2026-10-26 设备自适应: 初值走 NavStyleResolver(未显式设置=按设备形态/系统能力自判)
+    @Published var navFloating: Bool = NavStyleResolver.effectiveFloating()
+    // ★ 渲染模式快照(native/floating/docked 三态) — tabs 分流真源;
+    //   navFloating 仅表达"悬浮语义"(原生=内容直通屏底+底部余量), 形态分流看这里。
+    @Published var navMode: NavBarRenderMode = NavStyleResolver.effectiveMode()
     // ← Android MainActivity.kt:342-351 RightHalfContent: importDraftRepository.observeAll()
     //   经 JwImportDraftCodec 映射成 UI 行模型; iOS getAll() 是同步等价(无 Flow)
     @Published var importDrafts: [ImportDraftRowModel] = []
@@ -175,15 +179,25 @@ final class AppRootViewModel: ObservableObject {
         prefsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: UserDefaults.standard, queue: .main
         ) { [weak self] _ in
-            guard let self = self else { return }
-            let floating = AppPrefs.shared.isNavDocked()
-            if self.navFloating != floating { self.navFloating = floating }
+            // 2026-10-26: 生效值统一经 NavStyleResolver — 用户显式写 prefs 后
+            // (hasExplicitNavStyle 变 true)这里即切到"设置优先"分支;
+            // 「自动」档清盘同样走 .didChange → refreshNavMode 回到自适应。
+            self?.refreshNavMode()
         }
     }
 
     deinit {
         if let langObserver { NotificationCenter.default.removeObserver(langObserver) }
         if let prefsObserver { NotificationCenter.default.removeObserver(prefsObserver) }
+    }
+
+    /// 底栏形态重判单一入口 — prefs 变更(设置页/清盘)与 scenePhase.active
+    /// (冷启兜底)都汇到这里;navMode 与 navFloating 同步,永不各说各话。
+    func refreshNavMode() {
+        let mode = NavStyleResolver.effectiveMode()
+        let floating = mode != .docked
+        if navMode != mode { navMode = mode }
+        if navFloating != floating { navFloating = floating }
     }
 
     // ← BackHandler: overlay 返回(pendingNewTable 丢弃链)
@@ -289,6 +303,10 @@ struct AppRoot: View {
     // ← MainActivity.kt:171 CustomThemeStore.changes() 订阅: 同 id 就地改自定义主题时
     //   themeKey 不变, 只有这份文档串变化能让 SleepyThemeProvider 重跑并回读 getById。
     @State private var customThemesJson: String = ""
+    // ★ 底栏形态冷启兜底刷新: 自适应只在"未显式设置"路径生效, 而该判定依赖
+    //   keyWindow.safeAreaInsets — 冷启极早窗口未就绪时 resolver 保守按悬浮。
+    //   回前台(active)必然有窗口 → 重判一次纠偏(悬浮↔贴底切换仅非全面屏设备可见)。
+    @Environment(\.scenePhase) private var scenePhase
     @State private var jwImportActive = false
     // ★ iOS 16 sheet 冲突修复: ImportSheet 关闭动画中直接 present JwImportFlow
     //   会被 SwiftUI 丢弃(同一 runloop 两个 sheet 状态翻转)→ 延到 dismiss 完成。
@@ -334,6 +352,13 @@ struct AppRoot: View {
             Task { await HolidayManager.preload() }
             // ← Android observeAll() 常驻订阅的等价: 进入即读一次草稿列表
             root.refreshDrafts()
+            // 冷启兜底: onAppear 时窗口已就位, 重判一次(inset 判定不再可能 nil)
+            root.refreshNavMode()
+        }
+        // ★ 回前台重判底栏形态(仅"未显式设置"自适应路径有意义; 显式选择时
+        //   resolver 设置优先, 重判结果不变)。
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { root.refreshNavMode() }
         }
         // 深链课程 → 编辑(← LaunchedEffect(deepLinkCourse?.id))
         .onChange(of: root.deepLinkCourse?.id) { courseId in
@@ -459,19 +484,23 @@ struct AppRoot: View {
     }
 
     // ← Scaffold + PillNavigationBar + 4 Tab
-    // ★ v2.7 dock 模式二态:
-    //   - docked:  VStack(content + bar) → bar 贴底 76pt 占用下方(老行为)
+    // ★ 2026-10-26 设备自适应三态分流(NavStyleResolver 单一真源):
+    //   - native:   iOS 26+ 未显式设置 → 系统 TabView(Liquid Glass 原生悬浮玻璃)
     //   - floating: ZStack(alignment: .bottom) + content fillMaxSize 直通屏底 +
     //              bar 作为 overlay 浮在底部 12pt 上(背景延续,无空缺)。
     //              ← Android ff66ddd "dock 模式弃 Scaffold bottomBar 占位, Box overlay
     //                Align.BottomCenter 叠加; 内容 fillMaxSize 直通屏幕底" 1:1。
-    //   scroll padding 补偿 floatingScrollBottomPadding pt(FAB 式滚动余量),
-    //   保证最后一行课程不被悬浮 bar 遮住(Android 同位 LocalNavExtraBottomPadding)。
+    //   - docked:  VStack(content + bar) → bar 贴底 76pt 占用下方(非全面屏/Home 键设备)
+    //   floating/docked = 自绘二态(用户显式选择或 iOS<26); scroll padding 补偿
+    //   floatingScrollBottomPadding(FAB 式滚动余量, Android LocalNavExtraBottomPadding 同位)。
     private var tabs: some View {
         Group {
-            if root.navFloating {
+            switch root.navMode {
+            case .native:
+                nativeTabs
+            case .floating:
                 floatingTabs
-            } else {
+            case .docked:
                 dockedTabs
             }
         }
@@ -480,32 +509,52 @@ struct AppRoot: View {
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
-    // 4 个 tab 的数据:共用于 docked / floating 两个分支,避免重复
-    // ← v1.0.60 差量: Mine tab badge = UpdateNotifier.noticeVisible (更新红点,
-    //   与 Android SleepyNavHost badge = updateNoticeVisible && tab == Mine 同一状态源)
-    @ObservedObject private var updateNotifier = UpdateNotifier.shared
-    private var navItems: [PillNavItemData] {
-        [
-            PillNavItemData(id: "schedule", icon: "calendar",
-                            label: L10n.format("tab_schedule"),
-                            selected: root.currentTab == .schedule) { root.currentTab = .schedule },
-            PillNavItemData(id: "today", icon: "doc.on.doc",
-                            label: L10n.format("tab_today"),
-                            selected: root.currentTab == .today) { root.currentTab = .today },
-            PillNavItemData(id: "manage", icon: "gearshape",
-                            label: L10n.format("tab_manage"),
-                            selected: root.currentTab == .manage) { root.currentTab = .manage },
-            PillNavItemData(id: "mine", icon: "person",
-                            label: L10n.format("tab_mine"),
-                            selected: root.currentTab == .mine,
-                            badge: updateNotifier.noticeVisible) { root.currentTab = .mine },
-        ]
+    // ★ native 分支(ios26 起生效 — 部署目标 15.6 下此分支永不触达, iOS15/16
+    //   设备由 resolver 判 floating/docked): 系统 TabView = 原生悬浮玻璃胶囊,
+    //   选中动效/长按交互/无障碍/横屏收敛全部交系统。
+    //   - 不再注入 localNavExtraBottomPadding(默认 0): 系统 tab bar 自动加 content
+    //     bottom inset, 无 FAB 遮挡问题(自绘 floating 才需要直通屏底+手动余量)。
+    //   - tabItem 图标沿用 PillNavigationBar 同款 SF Symbols, 文案沿用 tab_* 键。
+    //   - Mine 红点: badge("") = UITabBarItem 空串小圆点语义(iOS16+ API;
+    //     iOS15 编译兜底 .badge(0/1), 实际永不执行)。
+    //   - 4 屏无 onAppear 副作用(数据经 root/scheduleViewModel 常驻订阅),
+    //     TabView 懒实例化其余 tab 安全。
+    private var nativeTabs: some View {
+        TabView(selection: Binding(
+            get: { root.currentTab },
+            set: { root.currentTab = $0 })) {
+            screen(for: .schedule)
+                .tabItem { Label(L10n.t("tab_schedule"), systemImage: "calendar") }
+                .tag(AppRootViewModel.Tab.schedule)
+            screen(for: .today)
+                .tabItem { Label(L10n.t("tab_today"), systemImage: "doc.on.doc") }
+                .tag(AppRootViewModel.Tab.today)
+            screen(for: .manage)
+                .tabItem { Label(L10n.t("tab_manage"), systemImage: "gearshape") }
+                .tag(AppRootViewModel.Tab.manage)
+            nativeMineScreen
+                .tabItem { Label(L10n.t("tab_mine"), systemImage: "person") }
+                .tag(AppRootViewModel.Tab.mine)
+        }
+        .tint(colors.primary)
     }
 
-    // 当前 Tab 对应屏(ScheduleScreen / TodayScreen / ManagementPage / MineScreen)
     @ViewBuilder
-    private var tabContent: some View {
-        switch root.currentTab {
+    private var nativeMineScreen: some View {
+        let dot: String? = updateNotifier.noticeVisible ? "" : nil
+        if #available(iOS 16.0, *) {
+            screen(for: .mine).badge(dot)
+        } else {
+            screen(for: .mine).badge(updateNotifier.noticeVisible ? 1 : 0)
+        }
+    }
+
+    /// 4 屏内容工厂(← v1.0.60 差量: Mine badge 走 UpdateNotifier.noticeVisible,
+    /// 与 Android SleepyNavHost 同一状态源) — docked/floating 单屏渲染与
+    /// native TabView 多屏实例化共用, 页面接线零重复。
+    @ViewBuilder
+    private func screen(for tab: AppRootViewModel.Tab) -> some View {
+        switch tab {
         case .schedule:
             ScheduleScreen(
                 viewModel: root.scheduleViewModel,
@@ -528,38 +577,7 @@ struct AppRoot: View {
                             root.navigator.openAddCourse(courseId: course.id, editing: true)
                         })
         case .manage:
-            ManagementPage(
-                viewModel: root.scheduleViewModel,
-                autoShowImportSheet: PendingImportText.value != nil,
-                onJwImportRequested: { jwImportRequested = true },
-                // ← Android MainTabs:352 onCreateNewTableRequested = onCreateNewTable
-                //   (MainActivity 闭包 = createEmptyTable + openEditTable; iOS 状态机
-                //   封装在 createNewTableThenEdit, 含 allTables-cover 换页时序, 保持直调)
-                onCreateNewTableRequested: { root.createNewTableThenEdit() },
-                // ← Android MainTabs:355 onManualAdd = navigator.openAddCourse()
-                onManualAdd: { root.navigator.openAddCourse() },
-                // ← Android MainTabs:355 onEditCurrentTable = navigator.openEditTable()
-                onEditCurrentTable: { root.navigator.openEditTable() },
-                // ← Android MainTabs:355 onExportRequested = navigator.openExport()
-                onExportRequested: { root.navigator.openExport() },
-                // ★ 导入完成链(← Android onImported: 留在管理页, 摘要卡就地刷新)
-                onImported: {
-                    // ← Android ce7f7924: 导入完成留在管理页(摘要卡就地刷新), 不再硬跳课表 Tab
-                    PendingImportText.value = nil
-                },
-                // ← Android SleepyNavHost: onOpenAllTables = navigator.openAllTables()
-                onOpenAllTables: { root.navigator.openAllTables() },
-                // ← Android MainTabs:354 createPeriodTableAndEdit(newId) =
-                //   navigator.createPeriodTableAndEdit(newId) (内部 openPeriodEdit(newId, isNew=true))
-                onCreateNewPeriodTableRequested: { newId in
-                    root.navigator.createPeriodTableAndEdit(newId: newId)
-                },
-                // ← Android MainActivity.kt:353-364 drafts/onRestoreDraft/onDeleteDraft
-                //   (onRestoreDraft = startActivity(JwImportActivity + EXTRA_DRAFT_ID) —
-                //   iOS 无 Activity 通道, restoreImportDraft → pendingDraftId 等价 plumbing)
-                drafts: root.importDrafts,
-                onRestoreDraft: { id in root.restoreImportDraft(id) },
-                onDeleteDraft: { id in root.deleteDraft(id) })
+            managementPage
         case .mine:
             // ← Android MainTabs:370-377 MineScreen 八入口全部 navigator.openXxx()
             MineScreen(
@@ -573,6 +591,70 @@ struct AppRoot: View {
                 onOpenReminder: { root.navigator.openReminder() },
                 onOpenAbout: { root.navigator.openAbout() })
         }
+    }
+
+    // 4 个 tab 的数据:共用于 docked / floating 两个自绘分支,避免重复
+    // ← v1.0.60 差量: Mine tab badge = UpdateNotifier.noticeVisible (更新红点,
+    //   与 Android SleepyNavHost badge = updateNoticeVisible && tab == Mine 同一状态源)
+    @ObservedObject private var updateNotifier = UpdateNotifier.shared
+    private var navItems: [PillNavItemData] {
+        [
+            PillNavItemData(id: "schedule", icon: "calendar",
+                            label: L10n.format("tab_schedule"),
+                            selected: root.currentTab == .schedule) { root.currentTab = .schedule },
+            PillNavItemData(id: "today", icon: "doc.on.doc",
+                            label: L10n.format("tab_today"),
+                            selected: root.currentTab == .today) { root.currentTab = .today },
+            PillNavItemData(id: "manage", icon: "gearshape",
+                            label: L10n.format("tab_manage"),
+                            selected: root.currentTab == .manage) { root.currentTab = .manage },
+            PillNavItemData(id: "mine", icon: "person",
+                            label: L10n.format("tab_mine"),
+                            selected: root.currentTab == .mine,
+                            badge: updateNotifier.noticeVisible) { root.currentTab = .mine },
+        ]
+    }
+
+    // 当前 Tab 对应屏 — 工厂 screen(for:) 单源, 本壳仅供自绘 docked/floating 分支取当前页。
+    @ViewBuilder
+    private var tabContent: some View {
+        screen(for: root.currentTab)
+    }
+
+    // 管理页(AppRoot 私有状态绑定最重的一屏) — docked/floating/native 共用。
+    private var managementPage: some View {
+        ManagementPage(
+            viewModel: root.scheduleViewModel,
+            autoShowImportSheet: PendingImportText.value != nil,
+            onJwImportRequested: { jwImportRequested = true },
+            // ← Android MainTabs:352 onCreateNewTableRequested = onCreateNewTable
+            //   (MainActivity 闭包 = createEmptyTable + openEditTable; iOS 状态机
+            //   封装在 createNewTableThenEdit, 含 allTables-cover 换页时序, 保持直调)
+            onCreateNewTableRequested: { root.createNewTableThenEdit() },
+            // ← Android MainTabs:355 onManualAdd = navigator.openAddCourse()
+            onManualAdd: { root.navigator.openAddCourse() },
+            // ← Android MainTabs:355 onEditCurrentTable = navigator.openEditTable()
+            onEditCurrentTable: { root.navigator.openEditTable() },
+            // ← Android MainTabs:355 onExportRequested = navigator.openExport()
+            onExportRequested: { root.navigator.openExport() },
+            // ★ 导入完成链(← Android onImported: 留在管理页, 摘要卡就地刷新)
+            onImported: {
+                // ← Android ce7f7924: 导入完成留在管理页(摘要卡就地刷新), 不再硬跳课表 Tab
+                PendingImportText.value = nil
+            },
+            // ← Android SleepyNavHost: onOpenAllTables = navigator.openAllTables()
+            onOpenAllTables: { root.navigator.openAllTables() },
+            // ← Android MainTabs:354 createPeriodTableAndEdit(newId) =
+            //   navigator.createPeriodTableAndEdit(newId) (内部 openPeriodEdit(newId, isNew=true))
+            onCreateNewPeriodTableRequested: { newId in
+                root.navigator.createPeriodTableAndEdit(newId: newId)
+            },
+            // ← Android MainActivity.kt:353-364 drafts/onRestoreDraft/onDeleteDraft
+            //   (onRestoreDraft = startActivity(JwImportActivity + EXTRA_DRAFT_ID) —
+            //   iOS 无 Activity 通道, restoreImportDraft → pendingDraftId 等价 plumbing)
+            drafts: root.importDrafts,
+            onRestoreDraft: { id in root.restoreImportDraft(id) },
+            onDeleteDraft: { id in root.deleteDraft(id) })
     }
 
     // ★ docked 模式:bar 占用 76pt(老行为)

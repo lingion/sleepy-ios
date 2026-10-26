@@ -18,7 +18,7 @@ final class ReminderPermissionUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED"]
-        app.launch()
+        app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
     }
 
@@ -152,7 +152,7 @@ final class ReminderPermissionUITests: XCTestCase {
 }
 
 // denied 路径: 需要 notDetermined 前提(权限被系统记住, 无法在 granted 会话内重演)。
-// 专项批跑: xcrun simctl uninstall <udid> com.lingion.sleepy.ios 后立即单跑本类。
+// 专项批跑: xcrun simctl uninstall <udid> com.lingion.sleepy 后立即单跑本类。
 final class ReminderPermissionDeniedTests: XCTestCase {
 
     var app: XCUIApplication!
@@ -163,7 +163,7 @@ final class ReminderPermissionDeniedTests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED"]
-        app.launch()
+        app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
     }
 
@@ -178,7 +178,7 @@ final class ReminderPermissionDeniedTests: XCTestCase {
             NSPredicate(format: "label CONTAINS 'Don' OR label CONTAINS '不允'")).firstMatch
         if !denyBtn.waitForExistence(timeout: 6) {
             // 权限已被固化(granted/denied), 弹窗不会出现 → skip 而非 fail。
-            // 完整重演: xcrun simctl uninstall <udid> com.lingion.sleepy.ios 后单跑本类。
+            // 完整重演: xcrun simctl uninstall <udid> com.lingion.sleepy 后单跑本类。
             throw XCTSkip("权限非 notDetermined, 弹窗不出现(专项批另行重演)")
         }
         denyBtn.tap()

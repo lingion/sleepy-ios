@@ -12,7 +12,7 @@ final class NewScreensWiringUITests: XCTestCase {
 
     func testMinePeriodTablesEntryOpensScreen() {
         let app = XCUIApplication()
-        app.launch()
+        app.sleepyLaunch()
 
         // 我的 tab(PillNavigationBar 的 id 约定 = pill_<item.id>)
         let mineTab = app.descendants(matching: .any)["pill_mine"]

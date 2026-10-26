@@ -15,7 +15,7 @@ final class MineSettingsUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED"]
-        app.launch()
+        app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
         app.descendants(matching: .any)["pill_mine"].tap()
         XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 5))

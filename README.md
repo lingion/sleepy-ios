@@ -119,7 +119,7 @@ iOS 版课程表工具。主旨：**轻、快、准**。零壳依赖，支持手
 
 实现要点：
 - 纯 WidgetKit 实现，无 Glance
-- App Group：`group.com.lingion.sleepy.ios`
+- App Group：`group.com.lingion.sleepy`
 - 配色与 app 主题实时同步（深色模式）
 - 课程色按黄金角 (137.508°) HSL 分布
 

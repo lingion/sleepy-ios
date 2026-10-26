@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -219,6 +219,7 @@
 		6AD52E7F43DBCB0EDE8839AA /* WidgetArchiveLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361943C96AEED91260036E34 /* WidgetArchiveLog.swift */; };
 		6BBB2B69C29DFE42F6E555BD /* SmartPeriodConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F623ECECCA2E2A91223E72C /* SmartPeriodConfig.swift */; };
 		6C674F87490B5F9F9E5A8EB0 /* SchoolDomainMatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3406352597357F14F585C379 /* SchoolDomainMatch.swift */; };
+		6C8953C9D9137CB64BADA902 /* TopBarOverlapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E666B657065219FD1335EA /* TopBarOverlapUITests.swift */; };
 		6DBAC0D88FECC7F3CD92F43C /* CourseDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9605A27EE773F13A53F202 /* CourseDetailSheet.swift */; };
 		6E05CDFBB3E25A4B6BB095C9 /* WidgetCourseCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ACF85CE927A56FE05B7CABB /* WidgetCourseCard.swift */; };
 		6E3183613FB4C7F3BB24DBB4 /* CalendarImportRecordDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8A83BDF70AF60240387895 /* CalendarImportRecordDao.swift */; };
@@ -290,6 +291,7 @@
 		8E42C8EFE1AAC1372F4B27FE /* ExitDraftState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FEB37F6ED53F4F90389D3E4 /* ExitDraftState.swift */; };
 		8EECC95AA4B4692227082826 /* ScheduleDisplayScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = C221BBAE2EEB506EF4E1D090 /* ScheduleDisplayScreen.swift */; };
 		8F0DCCC39A23A9A6A7093EA5 /* JwCquParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C11210F0D929BD75517DDD5 /* JwCquParser.swift */; };
+		8F8E2B9C098E42D7DEF21A20 /* NavStyleResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4184711E3032D79F5EFBB8EA /* NavStyleResolverTests.swift */; };
 		8F8F9450E0CB0C388697DCFA /* WidgetSizeCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C9A3BE407EE0D37AF553C0A /* WidgetSizeCoreTests.swift */; };
 		902DD269F77279DB2BAC9BEB /* JwBoyaPpParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7717787BC54237EC484E5E5 /* JwBoyaPpParserTests.swift */; };
 		9235B99583013389D06A2934 /* Eams5PathPrefix.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2521BF901963D8A628CE921 /* Eams5PathPrefix.swift */; };
@@ -437,11 +439,13 @@
 		DD48E5B2003DF3AC0BCD904D /* SchoolCityIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE3D4154D8B09B67CD942EC /* SchoolCityIndex.swift */; };
 		DDA873DACCB0E068A5401B36 /* ScheduleParserTypeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A0AD0D0C5FA7C7D802C90AD /* ScheduleParserTypeTests.swift */; };
 		DDF0855DE843D230CA5BC500 /* ScheduleEditPolicyStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E90E5E329FD653EB6867546 /* ScheduleEditPolicyStateTests.swift */; };
+		DE47CE18A06D7D5C6E17F2AE /* NavStyleResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB7621E877F11EF914F4435 /* NavStyleResolver.swift */; };
 		DE54D9ABD789E271BD9CEB33 /* WeekDisplayResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81949E978A8725C92FCA42C2 /* WeekDisplayResolver.swift */; };
 		DEBE30D3C794C197EDF3464E /* TimeTableUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EB72448743A4CF5CF466C5 /* TimeTableUtils.swift */; };
 		DF3C38B397BF68B63560316F /* CourseDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D3AA9F8B115E2B804EBDA31 /* CourseDao.swift */; };
 		DF925D4C6706D4F3113C9F4C /* NewScreensWiringUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B242D6295A73E40C47DC92F3 /* NewScreensWiringUITests.swift */; };
 		DFFBB81BEE798AFA2850BF99 /* resources in Resources */ = {isa = PBXBuildFile; fileRef = F84E511E00AFD8247D4D4B07 /* resources */; };
+		E0C79D8919C1E4EE10294597 /* UITestLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7FEE8627F23A972326DD0C3 /* UITestLaunch.swift */; };
 		E0CED6FC72F5733EDEB8EDAF /* WidgetCourseCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ACF85CE927A56FE05B7CABB /* WidgetCourseCard.swift */; };
 		E248172D596FC443EEC2B39C /* JwQzAppParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6057944C03E91C59FC223358 /* JwQzAppParser.swift */; };
 		E29175C1AA20C1E91CED155C /* HolidayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C280149FF5701E57DD8E3418 /* HolidayManager.swift */; };
@@ -634,6 +638,7 @@
 		3FD5A52D7EC60F78D92780AF /* JwUcasParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwUcasParser.swift; sourceTree = "<group>"; };
 		4025E8D10A574C8F59C29E21 /* TodayWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayWidgetView.swift; sourceTree = "<group>"; };
 		40B0375B042F64DCB87DBE3F /* schools.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = schools.json; sourceTree = "<group>"; };
+		4184711E3032D79F5EFBB8EA /* NavStyleResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavStyleResolverTests.swift; sourceTree = "<group>"; };
 		41D143C07BACD39162E504CB /* WidgetThemeModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetThemeModeTests.swift; sourceTree = "<group>"; };
 		425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDaoChainTests.swift; sourceTree = "<group>"; };
 		42639D7BC617D1327A8DEF13 /* UpdateInfoMirrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInfoMirrorTests.swift; sourceTree = "<group>"; };
@@ -658,6 +663,7 @@
 		4D83A7A25FAA92EB0300C64A /* Ics28NeuPeriodsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ics28NeuPeriodsTests.swift; sourceTree = "<group>"; };
 		4DC15F72A71D1DC1C3370D6F /* PeriodTableDao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeriodTableDao.swift; sourceTree = "<group>"; };
 		4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyPlaceholderTests.swift; sourceTree = "<group>"; };
+		4EB7621E877F11EF914F4435 /* NavStyleResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavStyleResolver.swift; sourceTree = "<group>"; };
 		4F69E175915A92D0DDA63EC6 /* SheetDetentsCompat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetDetentsCompat.swift; sourceTree = "<group>"; };
 		51A86F82646BCD36EE693111 /* JwEams5Parser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwEams5Parser.swift; sourceTree = "<group>"; };
 		52A6E74309BB326A8378BC9A /* MarkdownBlocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlocks.swift; sourceTree = "<group>"; };
@@ -687,6 +693,7 @@
 		6264A390C22B85F9DD9F0CAC /* JwPekingParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwPekingParser.swift; sourceTree = "<group>"; };
 		6267C653C62742958073FDD7 /* JwBoyaPpParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwBoyaPpParser.swift; sourceTree = "<group>"; };
 		62CB68DB9B653E572BD941AC /* ClassDndScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassDndScheduler.swift; sourceTree = "<group>"; };
+		62E666B657065219FD1335EA /* TopBarOverlapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopBarOverlapUITests.swift; sourceTree = "<group>"; };
 		64A552952CA5208B8A961BF4 /* JwQzVariants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzVariants.swift; sourceTree = "<group>"; };
 		64BF7FAB38EE44A780C793BD /* CourseEditorUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseEditorUITests.swift; sourceTree = "<group>"; };
 		64CFB5B5DD63AC209144EEDD /* SleepyWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SleepyWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -777,6 +784,7 @@
 		A636CB3A1BF94C7389163283 /* AddCourseScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCourseScreen.swift; sourceTree = "<group>"; };
 		A7A77AF7764775265B10AE2B /* PeriodHeaderFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeriodHeaderFormatter.swift; sourceTree = "<group>"; };
 		A7DC9AA7E9C052C705251AA6 /* ScheduleParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleParser.swift; sourceTree = "<group>"; };
+		A7FEE8627F23A972326DD0C3 /* UITestLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestLaunch.swift; sourceTree = "<group>"; };
 		A92AD4732D1CB6F326DFEAED /* JwYethanParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwYethanParserTests.swift; sourceTree = "<group>"; };
 		A96BF262488C60DF32EE682F /* ImportDraftRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportDraftRepositoryTests.swift; sourceTree = "<group>"; };
 		AAA25C6698B82B80FF02AB1B /* SegmentedSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedSwitcher.swift; sourceTree = "<group>"; };
@@ -951,6 +959,7 @@
 				83F0807AB00ED93A168AD2C6 /* LocaleHelper.swift */,
 				52A6E74309BB326A8378BC9A /* MarkdownBlocks.swift */,
 				2A1DB6476DB4970E3D39BFC5 /* MealBreakDetector.swift */,
+				4EB7621E877F11EF914F4435 /* NavStyleResolver.swift */,
 				A7A77AF7764775265B10AE2B /* PeriodHeaderFormatter.swift */,
 				690DF83E91E199DFE66F9756 /* PinyinMatcher.swift */,
 				0425392AD82917108D3BB908 /* PlatformParityNotes.swift */,
@@ -1344,6 +1353,7 @@
 				533E6E3F3AB73AFB11C872D9 /* MigrationPrefsCodecTests.swift */,
 				CBB3F76D45AE7F613321DAFA /* MigrationV7toV10Tests.swift */,
 				D8594A29E16AA5CD4AA06BD6 /* MigrationV11Tests.swift */,
+				4184711E3032D79F5EFBB8EA /* NavStyleResolverTests.swift */,
 				DA5552387A1965D9D7A826FD /* NotificationSchedulerTests.swift */,
 				0509FB949FB47C89D3DF4D3F /* OfflineSchoolCityIndexTests.swift */,
 				1BCB8B72B49233D52340AB7A /* ParserAuditTests.swift */,
@@ -1465,9 +1475,9 @@
 		D2E90D2BDE85053EAAD43B10 /* resources */ = {
 			isa = PBXGroup;
 			children = (
-				74AAD82A6B74E4B619BC82EA /* SchoolCity */,
 				1205376525F575AF970B7CD4 /* Localizable.strings */,
 				B605BE92A8C8460374E8BA82 /* Localizable.stringsdict */,
+				74AAD82A6B74E4B619BC82EA /* SchoolCity */,
 				40B0375B042F64DCB87DBE3F /* schools.json */,
 			);
 			path = resources;
@@ -1495,7 +1505,9 @@
 				BC2745AD826F30FABAEB0D32 /* SwipeBackGestureUITests.swift */,
 				13A484DCBC349DF312302C65 /* TableEditUITests.swift */,
 				19EB2EA5882A1102A65170A9 /* TableSwitchUITests.swift */,
+				62E666B657065219FD1335EA /* TopBarOverlapUITests.swift */,
 				8CAD39D80DA896A487637E86 /* UIElementAuditUITests.swift */,
+				A7FEE8627F23A972326DD0C3 /* UITestLaunch.swift */,
 				3E7AD6CE77CFDEF12C064E61 /* WidgetArchivingUITests.swift */,
 			);
 			path = SleepyUITests;
@@ -1552,6 +1564,8 @@
 				E94E00D718A49F085F436234 /* PBXTargetDependency */,
 			);
 			name = SleepyTests;
+			packageProductDependencies = (
+			);
 			productName = SleepyTests;
 			productReference = 3CE7034F859FC0E80A0569C9 /* SleepyTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -1592,6 +1606,8 @@
 				0FE5592992480ECD14DC0918 /* PBXTargetDependency */,
 			);
 			name = SleepyUITests;
+			packageProductDependencies = (
+			);
 			productName = SleepyUITests;
 			productReference = 56B94B595CC8F831AE5AE3BC /* SleepyUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -1628,22 +1644,21 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					4E81C3F3A4B5518E77D9A340 = {
-						DevelopmentTeam = GU39QS224C;
+						DevelopmentTeam = D9UP75W466;
 					};
 					5292F54B11655E3F1B8096ED = {
-						DevelopmentTeam = GU39QS224C;
+						DevelopmentTeam = D9UP75W466;
 					};
 					8E90546735878A73D0A5A238 = {
-						DevelopmentTeam = GU39QS224C;
+						DevelopmentTeam = D9UP75W466;
 						TestTargetID = 5292F54B11655E3F1B8096ED;
 					};
 					DC378BF644C25C9AE77602E9 = {
-						DevelopmentTeam = GU39QS224C;
+						DevelopmentTeam = D9UP75W466;
 					};
 				};
 			};
 			buildConfigurationList = A9CD7C1A24E3D3AA9A18F53C /* Build configuration list for PBXProject "Sleepy" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -1655,18 +1670,21 @@
 				"zh-Hant",
 			);
 			mainGroup = 738D49DFFDA4A0E6B15C13D5;
+			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				781557E357F7D0E5647419BF /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				044CD492B0AAF0A309C16EA0 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
 				B9FD077C6682CECA5775628E /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 36402A5055750C390995F1BC /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				5292F54B11655E3F1B8096ED /* Sleepy */,
+				DC378BF644C25C9AE77602E9 /* SleepyWidget */,
 				4E81C3F3A4B5518E77D9A340 /* SleepyTests */,
 				8E90546735878A73D0A5A238 /* SleepyUITests */,
-				DC378BF644C25C9AE77602E9 /* SleepyWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -1838,6 +1856,7 @@
 				3D3B8694BDE026CE5918F110 /* MigrationPrefsCodec.swift in Sources */,
 				486E763FDB230519E148D20E /* MineScreen.swift in Sources */,
 				861AB6B5478DB2423D1323C2 /* NativeColorPicker.swift in Sources */,
+				DE47CE18A06D7D5C6E17F2AE /* NavStyleResolver.swift in Sources */,
 				9F9DD303AA9003E7D4137EE3 /* NoRippleClickable.swift in Sources */,
 				869D1AA60751414B1311B556 /* NotificationScheduler.swift in Sources */,
 				D311473A9A7123F30A470D13 /* OfflineSchoolCityIndex.swift in Sources */,
@@ -1956,7 +1975,9 @@
 				E8D7B76EF66FA5C3EEC79FFD /* SwipeBackGestureUITests.swift in Sources */,
 				2796FEB743582031203286AD /* TableEditUITests.swift in Sources */,
 				784FCA1EA5F582BC59BC844F /* TableSwitchUITests.swift in Sources */,
+				6C8953C9D9137CB64BADA902 /* TopBarOverlapUITests.swift in Sources */,
 				5BBFF48EE96BC7C8BFB2E820 /* UIElementAuditUITests.swift in Sources */,
+				E0C79D8919C1E4EE10294597 /* UITestLaunch.swift in Sources */,
 				76D1F3F2759F5FBE76A9D061 /* WidgetArchivingUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2172,6 +2193,7 @@
 				65B1F40F4C6052E987E212A9 /* MigrationPrefsCodecTests.swift in Sources */,
 				63EDBE68B99F1D51360FA085 /* MigrationV11Tests.swift in Sources */,
 				448F58E97EC4E4577A6888A8 /* MigrationV7toV10Tests.swift in Sources */,
+				8F8E2B9C098E42D7DEF21A20 /* NavStyleResolverTests.swift in Sources */,
 				D6A77838155D92547C7D6395 /* NotificationSchedulerTests.swift in Sources */,
 				2CBD595B07B651F609293D57 /* OfflineSchoolCityIndexTests.swift in Sources */,
 				F65B4753901D75DE1D367046 /* ParserAuditTests.swift in Sources */,
@@ -2258,10 +2280,18 @@
 		00DAE3EB1CB1976A595E8441 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_ENTITLEMENTS = SleepyUITests/SleepyUITests.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SleepyUITests/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.uitests;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Sleepy;
 			};
 			name = Debug;
@@ -2269,16 +2299,62 @@
 		348FC1E4BFD950C0BA267061 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 61;
-				DEVELOPMENT_TEAM = GU39QS224C;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 62;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = D9UP75W466;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 1.0.61;
+				MARKETING_VERSION = 1.0.62;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.8;
 			};
 			name = Release;
@@ -2286,10 +2362,18 @@
 		5032E51E1E763A0BBF7FB97B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_ENTITLEMENTS = SleepyUITests/SleepyUITests.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SleepyUITests/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.uitests;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Sleepy;
 			};
 			name = Release;
@@ -2300,7 +2384,14 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SleepyTests/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.tests;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sleepy.app/Sleepy";
 			};
 			name = Release;
@@ -2311,7 +2402,14 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SleepyTests/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.tests;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sleepy.app/Sleepy";
 			};
 			name = Debug;
@@ -2322,7 +2420,13 @@
 				CODE_SIGN_ENTITLEMENTS = SleepyWidget/SleepyWidget.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SleepyWidget/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.widget;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.widget;
+				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = WIDGET_EXT;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -2334,7 +2438,13 @@
 				CODE_SIGN_ENTITLEMENTS = SleepyWidget/SleepyWidget.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SleepyWidget/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios.widget;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.widget;
+				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = WIDGET_EXT;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -2343,17 +2453,68 @@
 		E869182FA6C7B32082175D12 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
-				DEVELOPMENT_TEAM = GU39QS224C;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 62;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = D9UP75W466;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 1.0.61;
+				MARKETING_VERSION = 1.0.62;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.8;
 			};
 			name = Debug;
@@ -2363,9 +2524,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sleepy/Sleepy.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sleepy/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy;
+				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
@@ -2375,9 +2542,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sleepy/Sleepy.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sleepy/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy.ios;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy;
+				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;

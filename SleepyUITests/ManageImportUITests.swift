@@ -28,7 +28,7 @@ final class ManageImportUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED"]
-        app.launch()
+        app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
         app.descendants(matching: .any)["pill_manage"].tap()
         XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 5))
@@ -271,7 +271,7 @@ final class ManageImportUITests: XCTestCase {
         // 重启不带种子参数: 带 -SLEEPY_UI_TEST_SEED 会重跑 seeder 清库,
         // 把刚导入的表删掉 → 这里要验证的恰是"导入持久化", 用裸参数重启。
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        app.launch()
+        app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS '编译原理'")).firstMatch

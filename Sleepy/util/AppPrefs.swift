@@ -147,8 +147,20 @@ final class AppPrefs {
         return sp().bool(forKey: Self.KEY_NAV_DOCK)
     }
 
+    /// 用户是否显式选过底栏样式(2026-10-26 设备自适应改造)。
+    /// 未写入 = 从未设置 → 生效值交给 NavStyleResolver 按设备形态/系统能力自判;
+    /// 写入过(含 false=贴底)即用户意志, 永久优先, 不再自适应。
+    func hasExplicitNavStyle() -> Bool {
+        sp().object(forKey: Self.KEY_NAV_DOCK) != nil
+    }
+
     func setNavDocked(_ floating: Bool) {
         sp().set(floating, forKey: Self.KEY_NAV_DOCK)
+    }
+
+    /// 撤销显式选择 → 回到"跟随设备自适应"(设置页「自动」档)。
+    func clearNavStyle() {
+        sp().removeObject(forKey: Self.KEY_NAV_DOCK)
     }
 
     // ===== 主题色 =====

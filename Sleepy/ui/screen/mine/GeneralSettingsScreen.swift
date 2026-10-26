@@ -48,8 +48,9 @@ struct GeneralSettingsScreen: View {
     @State private var weekTwoColumn: Bool = AppPrefs.shared.isWeekTwoColumn()
     @State private var weekTwoColumnMode: String = AppPrefs.shared.getWeekTwoColumnMode()
     @State private var weekHideEmptyDays: Bool = AppPrefs.shared.isWeekHideEmptyDays()
-    /// 底栏样式 — false=贴底(默认), true=悬浮药丸(与 Android v1.0.45 b0f8280 对齐)
-    @State private var navFloating: Bool = AppPrefs.shared.isNavDocked()
+    /// 底栏样式三档(2026-10-26 设备自适应): 0=自动(prefs 无键) / 1=贴底 / 2=悬浮。
+    /// 初值从 AppPrefs 读存在性 — 未写入即自动(缺省 false 不是用户意志)。
+    @State private var navStyleIdx: Int = DisplayNavigationSection.initialNavStyleIndex()
     // ★ v1.0.61 数据迁移组(← Android GeneralSettingsScreen.kt 分组⑥)
     @State private var migrationBusy = false
     @State private var pendingImportBytes: Data? = nil
@@ -217,11 +218,15 @@ struct GeneralSettingsScreen: View {
                                 //    高刷新率 = Android 专有, iOS 无公开刷率 API, 不移植)
                                 DisplayNavigationSection(
                                     startView: $startView,
-                                    navFloating: $navFloating,
-                                    onNavFloatingChange: { on in
-                                        navFloating = on
-                                        prefs.setNavDocked(on)
-                                        // 单源真值:AppRoot 监听 prefs 后即刻重渲底栏
+                                    navStyleIdx: $navStyleIdx,
+                                    onNavStyleChange: { idx in
+                                        // 单源真值:AppRoot 监听 prefs 后即刻重渲底栏。
+                                        // 0=自动 → 清盘回自适应;1/2=显式写盘永久优先。
+                                        switch idx {
+                                        case 0: prefs.clearNavStyle()
+                                        case 1: prefs.setNavDocked(false)
+                                        default: prefs.setNavDocked(true)
+                                        }
                                     })
 
                                 MajorDivider()
@@ -661,8 +666,11 @@ private struct WidgetSection: View {
 private struct DisplayNavigationSection: View {
     // 卡片样式由 SettingsFlatCard 自带(surfaceContainer + 内嵌 tab), 本组无需直读 colors
     @Binding var startView: String
-    @Binding var navFloating: Bool
-    let onNavFloatingChange: (Bool) -> Void
+    // ★ 2026-10-26 三档化(设备自适应): 自动 / 贴底 / 悬浮。
+    //   navStyleIdx: 0=自动(prefs 无键), 1=贴底(显式存 false), 2=悬浮(显式存 true)。
+    //   「自动」档 subtitle 显示当前实际生效形态(NavStyleResolver.currentModeLabel)。
+    @Binding var navStyleIdx: Int
+    let onNavStyleChange: (Int) -> Void
 
     private let prefs = AppPrefs.shared
 
@@ -687,32 +695,47 @@ private struct DisplayNavigationSection: View {
                 ),
                 onSelect: { _ in }
             )
-            // 底栏样式: 贴底 / 悬浮药丸 Dock — 贴右 SegmentedSwitcher 双 tab(用户 2026-09-04: 放「画面与导航」分组)
-            //   状态由 AppRoot 持有下传: 底栏与设置页同一真值, 切换即生效
-            //   ← Android SettingsFlatCard 全参对齐(2026-10-21 校正): 本页其余平铺卡(课程时间显示/
-            //   网格副信息/启动默认页)都走 SettingsFlatCard 内嵌 SegmentedSwitcher, 唯独这行曾用
-            //   系统 .pickerStyle(.segmented) —— 违 SettingsCards.swift 记的 2026-09-03 用户指令
-            //   「整块圆角矩形 + 色块在元素上滑动, 🚫系统 Picker」。现统一为同款 tab。
-            //   selectedKey ← if (navDock) 1 else 0: 选项索引 0=贴底(docked), 1=悬浮(floating)。
+            // 底栏样式: 自动 / 贴底 / 悬浮三档(用户 2026-09-04: 放「画面与导航」分组)。
+            //   ★ 2026-10-26 设备自适应改造: 双档(贴底/悬浮)升级为三档, 「自动」= 清盘
+            //   回 NavStyleResolver 按设备形态/系统能力自判, subtitle 展示当前生效形态。
+            //   布局变更: 由「标题+贴右双 tab」行内式改为「标题+全宽三 tab」独立行 —
+            //   贴右行内式在 320pt(SE)下 三档+日/西长标签(下部に固定/Flotante)必爆宽
+            //   (行内 tab 可用宽仅 ~176pt); 全宽独立行 ~256pt, 段宽 82pt, SegmentedSwitcher
+            //   自带 minimumScaleFactor 0.75 + allowsTightening 兜最宽标签, 5 语言全稳。
+            //   同款先例 = AppearanceView「显示模式」深色三档卡(标题下全宽 tab)。
+            //   状态由 AppRoot 持有下传: 底栏与设置页同一真值, 切换即生效。
             SettingsFlatCard(
                 title: L10n.format("settings_nav_style"),
+                subtitle: navStyleIdx == 0
+                    ? L10n.format("settings_nav_style_auto_subtitle",
+                                  NavStyleResolver.currentModeLabel())
+                    : nil,
                 options: [
+                    L10n.format("settings_nav_style_auto"),
                     L10n.format("settings_nav_style_docked"),
                     L10n.format("settings_nav_style_floating")
                 ],
                 selectedIndex: Binding(
-                    get: { navFloating ? 1 : 0 },
+                    get: { navStyleIdx },
                     set: { idx in
-                        let on = idx == 1
-                        // ← Android if (navDock != on) 守卫: 同值不回写、不重渲底栏
-                        guard on != navFloating else { return }
-                        onNavFloatingChange(on)
+                        // ← Android if (navDock != on) 守卫精神: 同值不回写、不重渲底栏
+                        guard idx != navStyleIdx else { return }
+                        navStyleIdx = idx
+                        onNavStyleChange(idx)
                     }
                 ),
                 onSelect: { _ in }
             )
             .accessibilityIdentifier("settings_nav_style")
         }
+    }
+
+    /// 初值映射: prefs 无键→0(自动); 存 false→1(贴底); 存 true→2(悬浮)。
+    /// 语义锚 = AppPrefs: isNavDocked() true=悬浮(2026-09-08 方向校正后),
+    /// hasExplicitNavStyle() = 键存在性(缺省 false ≠ 用户意志)。
+    static func initialNavStyleIndex() -> Int {
+        guard AppPrefs.shared.hasExplicitNavStyle() else { return 0 }
+        return AppPrefs.shared.isNavDocked() ? 2 : 1
     }
 }
 

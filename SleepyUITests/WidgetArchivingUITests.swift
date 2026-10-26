@@ -25,7 +25,7 @@ final class WidgetArchivingUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED", "1", "-SLEEPY_WIDGET_LOG_HOOK"]
-        app.launch()
+        app.sleepyLaunch()
         app.activate()
 
         // 切到 Mine 页(钩子元素在 Mine 页底部)

@@ -23,7 +23,7 @@ final class DeepLinkUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED"]
-        app.launch()
+        app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
     }
 
@@ -40,7 +40,7 @@ final class DeepLinkUITests: XCTestCase {
     private func openDeepLink(_ url: URL) throws {
         app.terminate()
         app.launchEnvironment["SLEEPY_UI_TEST_OPENURL"] = url.absoluteString
-        app.launch()
+        app.sleepyLaunch()
         // 深链会切走主界面(course→编辑页, import→Manage), 等 URL 送达即可,
         // 不能再等 pill_schedule(编辑页弹出后 pill 不在层级)
         _ = app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10)

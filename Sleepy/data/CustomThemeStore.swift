@@ -8,8 +8,8 @@
 //
 // ★ 平台差异(iOS 存储落点):Android 用独立 SharedPreferences 文件
 //   (PREFS_NAME="custom_themes")。iOS 侧 widget extension 读主题走的是
-//   AppPrefs.shared(其 UserDefaults 域 = themeKey 所在域;App Group entitlement
-//   已按 project.yml 注释剥除,AppGroupResolver 回退沙箱,全仓无 UserDefaults(suiteName:))。
+//   AppPrefs.shared(其 UserDefaults 域 = themeKey 所在域;2026-10-26 付费账号恢复
+//   App Group entitlement 后走共享容器,AppGroupResolver 优先解析 group,沙箱仅回退)。
 //   因此本 store 与 AppPrefs 共用同一 UserDefaults 域 —— themeKey 对 widget 可见,
 //   自定义主题就对 widget 可见;两者可见性严格同源,不会出现"widget 知道选中的是
 //   custom:<id> 却读不到该 id"的半截状态。未来 AppPrefs 迁 App Group suite,本 store 自动跟随。
