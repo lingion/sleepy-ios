@@ -295,9 +295,6 @@
 "settings_nav_style" = "底欄樣式";
 "settings_nav_style_docked" = "貼底";
 "settings_nav_style_floating" = "懸浮";
-"settings_nav_style_auto" = "自動";
-"settings_nav_style_native" = "原生";
-"settings_nav_style_auto_subtitle" = "目前為：%1$@";
 "about_update_latest" = "目前已是最新版本 v%1$@";
 "update_found_title" = "發現新版本 v%1$@";
 "update_download" = "下載";

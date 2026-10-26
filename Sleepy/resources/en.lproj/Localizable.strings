@@ -296,9 +296,6 @@
 "settings_nav_style" = "Navigation Bar Style";
 "settings_nav_style_docked" = "Docked";
 "settings_nav_style_floating" = "Floating";
-"settings_nav_style_auto" = "Auto";
-"settings_nav_style_native" = "Native";
-"settings_nav_style_auto_subtitle" = "Currently: %1$@";
 "about_update_latest" = "You\\'re on the latest version v%1$@";
 "update_found_title" = "New version v%1$@ available";
 "update_download" = "Download";

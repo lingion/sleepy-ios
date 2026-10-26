@@ -221,12 +221,9 @@ struct GeneralSettingsScreen: View {
                                     navStyleIdx: $navStyleIdx,
                                     onNavStyleChange: { idx in
                                         // 单源真值:AppRoot 监听 prefs 后即刻重渲底栏。
-                                        // 0=自动 → 清盘回自适应;1/2=显式写盘永久优先。
-                                        switch idx {
-                                        case 0: prefs.clearNavStyle()
-                                        case 1: prefs.setNavDocked(false)
-                                        default: prefs.setNavDocked(true)
-                                        }
+                                        // 两项制(2026-10-26 Kerry 定): 0=贴底(存 false),
+                                        // 1=悬浮(存 true; 内部自动适配原生/自绘由 resolver 判)。
+                                        prefs.setNavDocked(idx == 1)
                                     })
 
                                 MajorDivider()
@@ -666,9 +663,9 @@ private struct WidgetSection: View {
 private struct DisplayNavigationSection: View {
     // 卡片样式由 SettingsFlatCard 自带(surfaceContainer + 内嵌 tab), 本组无需直读 colors
     @Binding var startView: String
-    // ★ 2026-10-26 三档化(设备自适应): 自动 / 贴底 / 悬浮。
-    //   navStyleIdx: 0=自动(prefs 无键), 1=贴底(显式存 false), 2=悬浮(显式存 true)。
-    //   「自动」档 subtitle 显示当前实际生效形态(NavStyleResolver.currentModeLabel)。
+    // ★ 2026-10-26 Kerry 定稿两项制: 贴底 / 悬浮(默认悬浮)。无「自动」档 —
+    //   「悬浮」内部自动适配: 系统原生 TabBar 可用(iOS26+)→ 原生玻璃, 否则自绘药丸。
+    //   navStyleIdx: 0=贴底(存 false), 1=悬浮(存 true 或未写入缺省)。
     @Binding var navStyleIdx: Int
     let onNavStyleChange: (Int) -> Void
 
@@ -695,23 +692,16 @@ private struct DisplayNavigationSection: View {
                 ),
                 onSelect: { _ in }
             )
-            // 底栏样式: 自动 / 贴底 / 悬浮三档(用户 2026-09-04: 放「画面与导航」分组)。
-            //   ★ 2026-10-26 设备自适应改造: 双档(贴底/悬浮)升级为三档, 「自动」= 清盘
-            //   回 NavStyleResolver 按设备形态/系统能力自判, subtitle 展示当前生效形态。
-            //   布局变更: 由「标题+贴右双 tab」行内式改为「标题+全宽三 tab」独立行 —
-            //   贴右行内式在 320pt(SE)下 三档+日/西长标签(下部に固定/Flotante)必爆宽
-            //   (行内 tab 可用宽仅 ~176pt); 全宽独立行 ~256pt, 段宽 82pt, SegmentedSwitcher
-            //   自带 minimumScaleFactor 0.75 + allowsTightening 兜最宽标签, 5 语言全稳。
-            //   同款先例 = AppearanceView「显示模式」深色三档卡(标题下全宽 tab)。
+            // 底栏样式: 贴底 / 悬浮两项(用户 2026-09-04 定分组; 2026-10-26 Kerry 定稿两项制)。
+            //   ★ 无「自动」档 —— 设备/系统差异全部折叠进「悬浮」内部自适配:
+            //     iOS26+ 原生 TabBar 可用 → 原生玻璃悬浮; 不可用 → 自绘药丸兜底。
+            //     贴底恒自绘(Home 键老设备形态)。缺省(未写入)= 悬浮。
+            //   布局: 「标题+全宽双 tab」独立行(SE 320pt 下日/西长标签稳, SegmentedSwitcher
+            //   自带 minimumScaleFactor 0.75 + allowsTightening 兜最宽标签)。
             //   状态由 AppRoot 持有下传: 底栏与设置页同一真值, 切换即生效。
             SettingsFlatCard(
                 title: L10n.format("settings_nav_style"),
-                subtitle: navStyleIdx == 0
-                    ? L10n.format("settings_nav_style_auto_subtitle",
-                                  NavStyleResolver.currentModeLabel())
-                    : nil,
                 options: [
-                    L10n.format("settings_nav_style_auto"),
                     L10n.format("settings_nav_style_docked"),
                     L10n.format("settings_nav_style_floating")
                 ],
@@ -730,12 +720,11 @@ private struct DisplayNavigationSection: View {
         }
     }
 
-    /// 初值映射: prefs 无键→0(自动); 存 false→1(贴底); 存 true→2(悬浮)。
-    /// 语义锚 = AppPrefs: isNavDocked() true=悬浮(2026-09-08 方向校正后),
-    /// hasExplicitNavStyle() = 键存在性(缺省 false ≠ 用户意志)。
+    /// 初值映射(两项制): 存 false→0(贴底); 存 true 或未写入缺省→1(悬浮)。
+    /// 语义锚 = AppPrefs: isNavDocked() true=悬浮(2026-09-08 方向校正后);
+    /// 未写入 = 从未设置 = 缺省悬浮(Kerry 2026-10-26 定)。
     static func initialNavStyleIndex() -> Int {
-        guard AppPrefs.shared.hasExplicitNavStyle() else { return 0 }
-        return AppPrefs.shared.isNavDocked() ? 2 : 1
+        return NavStyleResolver.isFloatingRequested() ? 1 : 0
     }
 }
 

@@ -141,7 +141,7 @@ final class AppRootViewModel: ObservableObject {
     @Published var languageReload = 0
     // ★ v1.0.45 底栏 dock 样式: false=贴底, true=悬浮药丸
     //   ← Android v1.0.45 b0f8280;状态由 AppPrefs 持有, 监听 .didChange 自动反向同步
-    // ★ 2026-10-26 设备自适应: 初值走 NavStyleResolver(未显式设置=按设备形态/系统能力自判)
+    // ★ 2026-10-26 两项制(Kerry 定): 初值走 NavStyleResolver(未写入=缺省悬浮)
     @Published var navFloating: Bool = NavStyleResolver.effectiveFloating()
     // ★ 渲染模式快照(native/floating/docked 三态) — tabs 分流真源;
     //   navFloating 仅表达"悬浮语义"(原生=内容直通屏底+底部余量), 形态分流看这里。
@@ -179,9 +179,9 @@ final class AppRootViewModel: ObservableObject {
         prefsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: UserDefaults.standard, queue: .main
         ) { [weak self] _ in
-            // 2026-10-26: 生效值统一经 NavStyleResolver — 用户显式写 prefs 后
-            // (hasExplicitNavStyle 变 true)这里即切到"设置优先"分支;
-            // 「自动」档清盘同样走 .didChange → refreshNavMode 回到自适应。
+            // 2026-10-26 两项制: 生效值统一经 NavStyleResolver — 设置页写 prefs
+            // (贴底/悬浮)后这里即重判; 悬浮档内部自动适配(原生可用→native,
+            // 否则→自绘 floating 兜底)。
             self?.refreshNavMode()
         }
     }
@@ -484,8 +484,8 @@ struct AppRoot: View {
     }
 
     // ← Scaffold + PillNavigationBar + 4 Tab
-    // ★ 2026-10-26 设备自适应三态分流(NavStyleResolver 单一真源):
-    //   - native:   iOS 26+ 未显式设置 → 系统 TabView(Liquid Glass 原生悬浮玻璃)
+    // ★ 2026-10-26 两项制三态分流(NavStyleResolver 单一真源):
+    //   - native:   悬浮档 + iOS 26+ 原生可用 → 系统 TabView(Liquid Glass 原生悬浮玻璃)
     //   - floating: ZStack(alignment: .bottom) + content fillMaxSize 直通屏底 +
     //              bar 作为 overlay 浮在底部 12pt 上(背景延续,无空缺)。
     //              ← Android ff66ddd "dock 模式弃 Scaffold bottomBar 占位, Box overlay
@@ -512,8 +512,11 @@ struct AppRoot: View {
     // ★ native 分支(ios26 起生效 — 部署目标 15.6 下此分支永不触达, iOS15/16
     //   设备由 resolver 判 floating/docked): 系统 TabView = 原生悬浮玻璃胶囊,
     //   选中动效/长按交互/无障碍/横屏收敛全部交系统。
-    //   - 不再注入 localNavExtraBottomPadding(默认 0): 系统 tab bar 自动加 content
-    //     bottom inset, 无 FAB 遮挡问题(自绘 floating 才需要直通屏底+手动余量)。
+    //   - ★ 内容直通屏底(2026-10-26 Kerry 实机指出): iOS26 系统栏仍给子内容
+    //     加 bottom safe area → 课表容器在玻璃 dock 上方就被截断, dock 区露出
+    //     一条死白背景。修复 = 每屏 ignoresSafeArea(.container,.bottom) 铺到
+    //     屏底, 再注入 nativeScrollBottomPadding 作滚动余量(最后一行可滚离
+    //     玻璃遮挡) — 与自绘 floating 的"直通屏底+navExtra"同一语义。
     //   - tabItem 图标沿用 PillNavigationBar 同款 SF Symbols, 文案沿用 tab_* 键。
     //   - Mine 红点: badge("") = UITabBarItem 空串小圆点语义(iOS16+ API;
     //     iOS15 编译兜底 .badge(0/1), 实际永不执行)。
@@ -524,20 +527,35 @@ struct AppRoot: View {
             get: { root.currentTab },
             set: { root.currentTab = $0 })) {
             screen(for: .schedule)
+                    .nativeScreen(extraBottom: nativeScrollBottomPadding)
                 .tabItem { Label(L10n.t("tab_schedule"), systemImage: "calendar") }
                 .tag(AppRootViewModel.Tab.schedule)
             screen(for: .today)
+                    .nativeScreen(extraBottom: nativeScrollBottomPadding)
                 .tabItem { Label(L10n.t("tab_today"), systemImage: "doc.on.doc") }
                 .tag(AppRootViewModel.Tab.today)
             screen(for: .manage)
+                    .nativeScreen(extraBottom: nativeScrollBottomPadding)
                 .tabItem { Label(L10n.t("tab_manage"), systemImage: "gearshape") }
                 .tag(AppRootViewModel.Tab.manage)
             nativeMineScreen
+                    .nativeScreen(extraBottom: nativeScrollBottomPadding)
                 .tabItem { Label(L10n.t("tab_mine"), systemImage: "person") }
                 .tag(AppRootViewModel.Tab.mine)
         }
         .tint(colors.primary)
+        // ★ 视口直通屏底(2026-10-26 实机): 每屏子级 ignoresSafeArea 在 iOS26
+        // TabView 内被系统重新钳回安全区 → 提到 TabView 层打穿, 内容容器
+        // 铺到玻璃 dock 正下方(与 Android edge-to-edge 一致)。
+        .ignoresSafeArea(.container, edges: .bottom)
     }
+
+    /// ★ native 每屏统一处理(2026-10-26 实机修复): 内容容器直通屏底
+    /// (玻璃 dock 下透出课表背景, 不再截断成死白条), 同时注入滚动底部余量
+    /// = 玻璃 dock 占位高(胶囊 ~64 + 底隙 ~20 + 缓冲), 最后一行可滚离遮挡。
+    /// 余量走 .localNavExtraBottomPadding 与自绘 floating 同一注入点 —
+    /// CourseTableView/Today/Mine/Management 已统一读该 env, 零页面改动。
+    private var nativeScrollBottomPadding: CGFloat { 64 + 20 + 8 }
 
     @ViewBuilder
     private var nativeMineScreen: some View {
@@ -725,6 +743,93 @@ struct AppRoot: View {
 /// SleepyThemeProvider 之上的环境值(= WakeUpColorsKey.defaultValue = lightScheme),
 /// 直接 `.background(colors.background)` 会让暗黑模式透出 #FEF7FF 白底
 /// (切换控件行留白/卡片缝隙处可见)。子 View 在 provider 子树内解析 env → 主题正确。
+/// ★ native 每屏统一处理(2026-10-26 实机修复 — Kerry 指出课表没铺到 dock 下面):
+/// iOS26 系统 TabView 仍给子内容加 bottom safe area → 屏幕内容在玻璃 dock 上方
+/// 就截断, 露出 UITabBarController 的白底(死白条)。修复 = ignoresSafeArea 让
+/// 内容直通屏底(玻璃下透出课表背景), 并注入滚动底部余量(与自绘 floating 同
+/// 一点位 .localNavExtraBottomPadding, CourseTableView/Today/Mine/Management
+/// 已统一读该 env) → 最后一行可滚离玻璃遮挡。
+private struct NativeScreenModifier: ViewModifier {
+    let extraBottom: CGFloat
+    func body(content: Content) -> some View {
+        content
+            .ignoresSafeArea(.container, edges: .bottom)
+            .environment(\.localNavExtraBottomPadding, extraBottom)
+            // overlay 全屏坐标挂载(2026-10-26): background 探针被压缩 0×0 停在
+            // 视口底, 爬到的链不完整 → 改 overlay + ignoresSafeArea 让探针
+            // 铺满真实全屏 frame, 链 dump 才有意义。
+            .overlay(TabBarTransparentProbe().allowsHitTesting(false).ignoresSafeArea())
+    }
+}
+
+/// ★ iOS26 TabView 容器白底打透 + 视口下探(2026-10-26 红画布实验定位):
+/// SwiftUI TabView 底层 UITabBarController.view / wrapper 视图默认不透明
+/// systemBackground, 盖在 TabsCanvasBackground 之上 → 玻璃 dock 区露死白条;
+/// 且 iOS26 floating bar 注入 ~85pt bottom safe area, 子级/TabView 级
+/// ignoresSafeArea 均被重钳(两层实验皆无效)。修复 = 探针沿 superview 链:
+/// ① 沿途 wrapper 背景设 clear(画布从玻璃下透出);
+/// ② 链上首个 VC 设 additionalSafeAreaInsets.bottom = -(系统基础 inset),
+///    把视口推回真屏底(edge-to-edge, 与 Android 一致; 玻璃 bar 悬浮其上,
+///    滚动余量经 .localNavExtraBottomPadding=92pt 让最后一行可滚离遮挡)。
+private struct TabBarTransparentProbe: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let v = UIView(frame: .zero)
+        v.isUserInteractionEnabled = false
+        v.backgroundColor = .clear
+        DispatchQueue.main.async { Self.apply(from: v) }
+        return v
+    }
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async { Self.apply(from: uiView) }
+    }
+    static func apply(from v: UIView) {
+        var cur = v.superview
+        var fixedVC = false
+        var lines: [String] = ["probe frame=\(v.frame) win=\(String(describing: v.window?.frame))"]
+        while let c = cur, let w = c.window, c !== w {
+            c.backgroundColor = .clear
+            let vc = c.next as? UIViewController
+            lines.append("\(String(describing: type(of: c))) frame=\(c.frame) saBottom=\(c.safeAreaInsets.bottom) vc=\(vc.map { String(describing: type(of: $0)) } ?? "-") addSA=\(vc?.additionalSafeAreaInsets.bottom.description ?? "-")")
+            // ★ 目标 = UITabBarController 本体(2026-10-26 二次修正): iOS26 的
+            // 玻璃 bar 给其 view 注入 ~85pt bottom safe area, 子 tab 内容全部
+            // 继承该 inset → 视口死锁 bar 上沿。给 bar 自己加负 additional →
+            // 整棵内容树视口推到屏底。bar 悬浮位置由 bar 布局自管, 不随
+            // safe area 移动(实测验证)。子级 hosting VC 的 additional 无效
+            // (TabView 重钳), 不打。
+            if !fixedVC, let tbc = c.next as? UITabBarController {
+                fixedVC = true
+                // ★ 打的是 tab 子 VC(2026-10-26 三次修正): iOS26 玻璃 bar 把
+                // 自身高度(49pt)作为 safe area 注入每个 tab 内容 VC → 视口
+                // 死锁 bar 上沿, 内容滚不到屏底。TBC.additionalSafeAreaInsets
+                // 无效(实测 -34 只削掉 home indicator, 49 在子 VC 层另加)。
+                // → 逐子 VC 抵消其 bar 贡献量, 只保留 home indicator(34),
+                //   与 Android edge-to-edge + gesture inset 语义一致。
+                for child in tbc.children {
+                    let cs = child.view.safeAreaInsets.bottom - child.additionalSafeAreaInsets.bottom
+                    let target = -(max(cs - 34, 0))
+                    if abs(child.additionalSafeAreaInsets.bottom - target) > 0.5 {
+                        var i = child.additionalSafeAreaInsets
+                        i.bottom = target
+                        child.additionalSafeAreaInsets = i
+                    }
+                    lines.append("child \(String(describing: type(of: child))) saBottom=\(child.view.safeAreaInsets.bottom) → addSA=\(target)")
+                }
+            }
+            cur = c.superview
+        }
+        // TEMP DEBUG: dump chain to app Documents (simulator FS shared with Mac)
+        if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("chain.txt"), atomically: true, encoding: .utf8)
+        }
+    }
+}
+
+private extension View {
+    func nativeScreen(extraBottom: CGFloat) -> some View {
+        modifier(NativeScreenModifier(extraBottom: extraBottom))
+    }
+}
+
 private struct TabsCanvasBackground: View {
     @Environment(\.localWakeUpColors) private var colors
 
