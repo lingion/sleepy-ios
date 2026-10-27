@@ -371,6 +371,41 @@ enum WidgetWindows {
         weekList(days: days, heightDp: heightDp, tier: tier, statusH: statusH).map { $0.visible.count }
     }
 
+    // MARK: WeekView
+
+    /// WeekView 列可用高 = 容器高 − 固定扣减 56 − 状态行高 (← computeWeekViewWindows L170:
+    /// availH = hDp − 56 − statusH; 56 = 外pad6×2 + 标题12+14 + chip14+4 + 卡底6)
+    static func weekViewAvailH(heightDp: CGFloat, tier: WidgetLayoutTier, statusH: CGFloat = 0) -> CGFloat {
+        resolveHeightDp(heightDp, tier) - 56 - statusH
+    }
+
+    /// WeekView 逐列 FIXED 窗口 (设计 §4.3, ← computeWeekViewWindows L163-183):
+    /// HEAD 模式; heightOf = wrapMax2Lines 行数 × lineH + 3dp 尾 gap (与渲染同源),
+    /// 页脚 = lineH + 3; gapDp = 0 (3dp 尾 gap 已含进 heightOf)。
+    static func weekView(days: [DayData], heightDp: CGFloat, tier: WidgetLayoutTier,
+                         statusH: CGFloat, colW: CGFloat) -> [WidgetWindowCore.WindowResult] {
+        let lineH = WidgetTextWrap.lineH
+        let maxTextWidth = colW - 8  // textPad 4dp ×2 (Android (colW−8)*density px 同式)
+        let useAlias = AppPrefs.shared.isWidgetUseAlias()
+        return days.map { day in
+            let entries = day.courses.map { course -> WidgetWindowCore.WindowEntry in
+                let name = CourseDisplayUtil.displayName(course, useAlias)
+                let h = CGFloat(WidgetTextWrap.lineCount(name, maxWidth: maxTextWidth)) * lineH + 3
+                return WidgetWindowCore.WindowEntry(
+                    row: ConflictLayoutEngine.WeekLaneRow(courses: [course], laneOf: [:], laneCount: 1),
+                    heightDp: h, startMin: nil, endMin: nil)
+            }
+            return WidgetWindowCore.window(
+                entries: entries,
+                availH: weekViewAvailH(heightDp: heightDp, tier: tier, statusH: statusH),
+                mode: .head,
+                nowMin: nil,
+                gapDp: 0,
+                footerH: lineH + 3
+            )
+        }
+    }
+
     // MARK: 课程边界刷新 (← WidgetBoundaryScheduler.f7e80c84)
 
     /// 下一节课边界 = min(end+1 > now), 无则 nil

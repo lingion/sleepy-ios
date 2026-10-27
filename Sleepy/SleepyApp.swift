@@ -59,7 +59,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             guard let self = self else { return }
             WidgetCenter.shared.reloadAllTimelines()
             self.notificationScheduler.scheduleAll()
+            // ← 2026-10 watch 伴侣 App: 同一条 refresh 总线挂手表全量快照推送
+            // (scheduleSync 只持 Coordinator 单例, [weak self] 模式与本 hook 其余行一致)
+            WatchSyncCoordinator.shared.scheduleSync()
         }
+        WatchSyncCoordinator.shared.start()
         // ← Android SleepyApp.onCreate: classDndScheduler 注入 (F128 issue#2)
         ClassDndScheduler.shared.configure(repositoryProvider: { [weak self] in self?.repository })
         // ← Android ReminderRescheduler.init 块 (SleepyApp.kt:44-52) — 同时修复 init_ 从未被调用、
@@ -79,6 +83,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             guard self != nil else { return }
             // Android 侧此处还有 reconcileActiveFluidCloud — vendor platform-only, iOS 无等价
             ClassDndScheduler.shared.syncFromPrefs()
+            // watch 伴侣 App: 回前台兜底重推 (离线期间 onDataChanged 攒的改动追平)
+            WatchSyncCoordinator.shared.syncNow()
         }
     }
 
@@ -191,24 +197,25 @@ final class AppRootViewModel: ObservableObject {
         if let prefsObserver { NotificationCenter.default.removeObserver(prefsObserver) }
     }
 
-    /// 实时窗口宽度上报(AppRoot background GeometryReader → preference)。
-    /// rail 宽屏判定首选此值: 旋转/Split View/Stage Manager 缩放皆即时覆盖;
-    /// keyWindow 兜底只在冷启早期(回调未达)时保守按手机形态。
-    private(set) var windowWidth: CGFloat? = nil
+    /// 实时窗口尺寸上报(AppRoot background GeometryReader → preference)。
+    /// rail 双栏判定首选此值(宽≥600pt 且 宽≥高): 旋转/Split View/Stage Manager
+    /// 缩放皆即时覆盖; keyWindow 兜底只在冷启早期(回调未达)时保守按手机形态。
+    /// ← Android 版本 PR#235 口径: 横屏判定用逐帧真实几何, 不用 orientation 枚举。
+    private(set) var windowSize: CGSize? = nil
 
-    func updateWindowWidth(_ width: CGFloat) {
+    func updateWindowSize(_ size: CGSize) {
         // 0 = PreferenceKey 初值/零 frame(极早期布局), 不参与判定(回退 keyWindow 兜底)
-        guard width > 0, windowWidth != width else { return }
-        windowWidth = width
+        guard size.width > 0, size.height > 0, windowSize != size else { return }
+        windowSize = size
         refreshNavMode()
     }
 
     /// 底栏形态重判单一入口 — prefs 变更(设置页/清盘)、scenePhase.active
-    /// (冷启兜底)与窗口宽度变更都汇到这里;navMode 与 navFloating 同步,永不各说各话。
+    /// (冷启兜底)与窗口尺寸变更都汇到这里;navMode 与 navFloating 同步,永不各说各话。
     /// floating 语义统一走 NavStyleResolver.floating(for:) — rail 水平占位、
     /// 底部零遮挡归 false(不能用 mode != .docked, 会把 rail 误判成悬浮)。
     func refreshNavMode() {
-        let mode = NavStyleResolver.effectiveMode(windowWidth: windowWidth)
+        let mode = NavStyleResolver.effectiveMode(windowSize: windowSize)
         let floating = NavStyleResolver.floating(for: mode)
         if navMode != mode { navMode = mode }
         if navFloating != floating { navFloating = floating }
@@ -341,15 +348,16 @@ struct AppRoot: View {
         // ★ 键盘避让只在 tab 层忽略(旧 fullScreenCover 时代对整个 mainContent 忽略);
         //   浮层走自绘 ZStack 容器, 保留键盘避让 → AddCourse 输入框自动避开键盘。
         mainContent
-        // ★ 实时宽度通道(← Android 版本 Configuration.screenWidthDp 重算语义):
-        //   background GeometryReader 零布局侵入, 变更回灌 VM → rail↔手机形态
-        //   随旋转/分屏/Stage Manager 缩放即切。iPhone 恒竖屏, 回调值不变=空操作。
+        // ★ 实时尺寸通道(← Android 版本 Configuration.screenWidthDp/HeightDp 逐帧
+        //   重算语义 + PR#235 几何闸口径): background GeometryReader 零布局侵入,
+        //   变更回灌 VM → rail 双栏↔手机形态随旋转/分屏/Stage Manager 缩放即切。
+        //   iPhone 恒竖屏, 回调值不变=空操作。
         .background(GeometryReader { proxy in
-            Color.clear.preference(key: WindowWidthPreferenceKey.self,
-                                   value: proxy.size.width)
+            Color.clear.preference(key: WindowSizePreferenceKey.self,
+                                   value: proxy.size)
         })
-        .onPreferenceChange(WindowWidthPreferenceKey.self) { width in
-            root.updateWindowWidth(width)
+        .onPreferenceChange(WindowSizePreferenceKey.self) { size in
+            root.updateWindowSize(size)
         }
         // ← Activity.recreate(): 语言切换 → L10n.didChange → languageReload+1 → 全树重建
         .id(root.languageReload)
@@ -535,19 +543,125 @@ struct AppRoot: View {
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
-    // ★ rail 模式(iPad/横屏/分屏 ≥600pt): Row{侧栏, 内容} —
-    //   ← Android 版本 SleepyNavHost issue#45 ③ Row{NavigationRail, Box(weight=1f){MainTabs}}
-    //   逐行对齐。导航仍是 root.currentTab 单点真值(切 tab 不换容器, 与 Android 同)。
+    // ★ rail 模式(iPad 横屏/分屏宽侧 ≥600pt 且横屏几何): Row{侧栏, 双栏内容} —
+    //   ← Android 版本 SleepyNavHost issue#45 ③ PR#114 master-detail 终态:
+    //   Row{ NavigationRail(3 槽跑道胶囊), Row(padding h16/v12, spacedBy 16){
+    //     左 50% ScheduleScreen 永久固定(surfaceContainerLow 16 圆角卡),
+    //     12dp 暗色沟槽(background 色),
+    //     右 50% AnimatedContent(200ms 淡切) Today/Manage/Mine(同款卡) } }
+    //   导航仍是 root.currentTab 单点真值(切 tab 不换容器, 与 Android 同);
+    //   宽屏下 currentTab=.schedule(Compact 缺省)派生右半=.today(← Android
+    //   effectiveRightTab 同款), rail 点击只设 today/manage/mine。
     //   宽度通道: background GeometryReader 零布局侵入, .global 系分屏/Stage
-    //   Manager 缩放后的实际窗口宽; 变更即回灌 refreshNavMode 重判。
+    //   Manager 缩放后的实际窗口尺寸; 变更即回灌 refreshNavMode 重判。
     private var railTabs: some View {
         HStack(spacing: 0) {
-            NavigationRailBar(items: navItems)
+            NavigationRailBar(rightTabs: tabletRailItems,
+                              selectedTab: tabletRightTab,
+                              scheduleIcon: "calendar")
                 .ignoresSafeArea(edges: .bottom)
-            tabContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // ← Android 内容 Row: padding(horizontal=16, vertical=12) +
+            //   spacedBy(16){ 左卡; Box(width=12, background 沟槽); 右卡 }
+            //   → 两卡之间总间隔 = 16 + 12(沟槽盒) + 16 = 44dp, 沟槽盒 background
+            //   色整高(卡片同高, 含卡上下缘)。iOS HStack(spacing:16) + 12pt 盒逐字复刻。
+            HStack(spacing: 16) {
+                tabletPaneCard(content: tabletSchedulePane)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Rectangle()
+                    .fill(railGapColor)
+                    .frame(width: 12)
+                tabletPaneCard(content: tabletRightPane)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
     }
+
+    /// 双栏派生右半 tab(← Android effectiveRightTab: currentTab==Schedule → Today)。
+    private var tabletRightTab: AppRootViewModel.Tab {
+        root.currentTab == .schedule ? .today : root.currentTab
+    }
+
+    /// rail 三项数据(today/manage/mine 固定槽位, ← Android rail 无 Schedule 独立项)。
+    private var tabletRailItems: [PillNavItemData] {
+        [
+            PillNavItemData(id: "today", icon: "doc.on.doc",
+                            label: L10n.format("tab_today"),
+                            selected: tabletRightTab == .today) { root.currentTab = .today },
+            PillNavItemData(id: "manage", icon: "gearshape",
+                            label: L10n.format("tab_manage"),
+                            selected: tabletRightTab == .manage) { root.currentTab = .manage },
+            PillNavItemData(id: "mine", icon: "person",
+                            label: L10n.format("tab_mine"),
+                            selected: tabletRightTab == .mine,
+                            // ← Android: 普通项形态才吃 updateNoticeVisible(胶囊
+                            //   形态由 NavigationRailBar 内 tabShowUpdateDot 分支处理)
+                            badge: updateNotifier.noticeVisible) { root.currentTab = .mine },
+        ]
+    }
+
+    /// 左半课表 pane — ← Android tablet 分支 ScheduleScreen 直构(非 MainTabs 的
+    /// Tab.Schedule 包装): onGoImport = 切 Manage + 新建课表流(iOS 无 AddTable 路由,
+    /// createNewTableThenEdit = MainActivity 等价封装, SleepyApp:690 同款映射)。
+    private var tabletSchedulePane: some View {
+        ScheduleScreen(
+            viewModel: root.scheduleViewModel,
+            viewMode: $root.scheduleViewMode,
+            onGoImport: {
+                root.currentTab = .manage
+                root.createNewTableThenEdit()
+            },
+            onManualAdd: { root.navigator.openAddCourse() },
+            onCreateTable: { root.createNewTableThenEdit() },
+            onEditCourse: { course in
+                root.navigator.session.beginEditCourse(course)
+                root.navigator.openAddCourse(courseId: course.id, editing: true)
+            })
+    }
+
+    /// 右半 pane — ← Android RightHalfContent(AnimatedContent 200ms 淡切):
+    /// Today 用 compact 变体(← CompactTodayPane: 无背景/竖排紧凑/无底部药丸余量),
+    /// Manage/Mine 复用手机版原样(与 Android 右半直构 ManagementPage/MineScreen 同)。
+    @ViewBuilder
+    private var tabletRightPane: some View {
+        let tab = tabletRightTab
+        Group {
+            switch tab {
+            case .today:
+                TodayScreen(viewModel: root.scheduleViewModel,
+                            compact: true,
+                            onEditCourse: { course in
+                                root.navigator.session.beginEditCourse(course)
+                                root.navigator.openAddCourse(courseId: course.id, editing: true)
+                            })
+            case .manage:
+                managementPage
+            default:
+                screen(for: tab)
+            }
+        }
+        // .id 强制 tab 切换时重建视图身份 → 入场/离场各走 opacity 过渡(← fade 200ms)
+        .id(tab)
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.2), value: tab)
+    }
+
+    /// 双栏面板卡(← Android Box.clip(RoundedCornerShape(16.dp))
+    ///   .background(colors.surfaceContainerLow))
+    private func tabletPaneCard<Content: View>(content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(railCardColor)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // 主题色在计算属性内解析(AppRoot 已注入 @Environment colors)
+    private var railCardColor: Color { colors.surfaceContainerLow }
+    private var railGapColor: Color { colors.background }
 
     // ★ native 分支(ios26 起生效 — 部署目标 15.6 下此分支永不触达, iOS15/16
     //   设备由 resolver 判 floating/docked): 系统 TabView = 原生悬浮玻璃胶囊,
@@ -716,6 +830,8 @@ struct AppRoot: View {
     }
 
     // ★ docked 模式:bar 占用 76pt(老行为)
+    //   (注: ← Android 版 Compact 贴底已改官方 NavigationBar; iOS 维持自绘 docked =
+    //   2026-10-26 Kerry 两项制定稿的有意差异, 不随 Android 动)
     private var dockedTabs: some View {
         VStack(spacing: 0) {
             tabContent
@@ -870,11 +986,11 @@ private extension View {
     }
 }
 
-/// 实时窗口宽度上报通道(AppRoot background GeometryReader → root.updateWindowWidth)。
-/// 初值 0 = 未就绪(与 VM windowWidth=nil 区分开: 首个真实回调前不参与判定)。
-private struct WindowWidthPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+/// 实时窗口尺寸上报通道(AppRoot background GeometryReader → root.updateWindowSize)。
+/// 初值 .zero = 未就绪(与 VM windowSize=nil 区分开: 首个真实回调前不参与判定)。
+private struct WindowSizePreferenceKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
         value = nextValue()
     }
 }

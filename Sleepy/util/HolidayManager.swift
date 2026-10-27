@@ -159,7 +159,13 @@ enum HolidayManager {
         let ranges = AppPrefs.shared.getHolidayRanges()
         let networkEntries = await getYearEntries(date.year)
         let merged = HolidayRangeOps.mergeSegments(networkEntries, ranges)
-        let (holidays, workdays) = HolidayRangeOps.toSets(merged.active)
+        let (holidays, networkWorkdays) = HolidayRangeOps.toSets(merged.active)
+        // 补班日集合 = 网络法定补班日 + 用户自定义补班日(映射的 targetDate)
+        // ← Android L111-15: 周末调休补班当天 greyWeekend+ignoreWorkday 开启时不灰
+        let customWorkdays: Set<Date> = tableId != nil
+            ? Set(AppPrefs.shared.getHolidayTransfers(tableId!).map { $0.targetDate })
+            : []
+        let workdays = networkWorkdays.union(customWorkdays)
         let workdaysForWeekend: Set<Date> =
             (AppPrefs.shared.isHolidayGreyWeekend() && AppPrefs.shared.isHolidayIgnoreWorkday())
             ? workdays : []

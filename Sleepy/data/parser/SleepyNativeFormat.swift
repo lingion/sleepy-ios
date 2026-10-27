@@ -101,20 +101,23 @@ enum SleepyNativeFormat {
             i = 1
         }
         guard i < units.count else { return nil }
-        var acc = 0
+        // 累加/封顶走 Int64: 2_147_483_648 字面量与 acc*10 在 watchOS(arm64_32,
+        // Int=32 位)会溢 Int。末了 v 恒落 Int32 范围 → Int(v) 在 32 位亦安全,
+        // 64 位逐值不变。2026-10 watch 伴侣 App。
+        var acc: Int64 = 0
         while i < units.count {
             let u = units[i]
-            let digit: Int
-            if u >= 0x30 && u <= 0x39 { digit = Int(u - 0x30) }
-            else if let d = javaDigitValue(u) { digit = d }
+            let digit: Int64
+            if u >= 0x30 && u <= 0x39 { digit = Int64(u - 0x30) }
+            else if let d = javaDigitValue(u) { digit = Int64(d) }
             else { return nil }
             acc = acc * 10 + digit
-            if acc > 2_147_483_648 { return nil }  // 幅值早封顶(64 位下 acc*10 不会溢出)
+            if acc > 2_147_483_648 { return nil }  // 幅值早封顶(Int64 下 acc*10 不会溢出)
             i += 1
         }
         let v = negative ? -acc : acc
         guard v >= -2_147_483_648 && v <= 2_147_483_647 else { return nil }
-        return v
+        return Int(v)
     }
 
     /// Kotlin `t.length == 1 && t[0].isDigit()` → `t[0] - '0'` 的等价:

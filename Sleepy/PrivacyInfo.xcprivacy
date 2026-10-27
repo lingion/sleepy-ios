@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- PrivacyInfo.xcprivacy — App Privacy Manifest (2026-10 上架补齐)
+     required-reason 申报口径 (逐处审计, 只报真实触发且码可佐证项):
+     - UserDefaults (CA92.1 = app 自身容器数据): AppPrefs 全键 + NotificationScheduler
+       sleepy_alarm_ledger + ClassDnd DND 状态 + Migration 各 suite — 均本 App 自有
+       standard/suiteName 域, 从不读写他 App UserDefaults。CA92.1 与 Expo 文档 /
+       Donny Wals 教程 / Singular FAQ / Apple 系统框架 (AppRemoteAssets,
+       AppleMediaServicesKitInternal) 申报一致。
+     不申报 (核实后确认本 App 未触发或码无法本地佐证):
+     - FileTimestamp: 本 App 仅 attributesOfItem[.size] 读文件大小 (UpdateManager
+       空包校验 / WidgetArchiveLog 日志裁剪), 从不读修改时间戳 (fileModificationDate /
+       NSURLContentModificationDateKey / st_mtime) → 不属 FileTimestamp required-reason API。
+     - SystemBootTime: 仅 iPhone ui/JwDiagnosticSession 的 ProcessInfo.systemUptime 诊断
+       用; watch target 排除 ui/ 故手表无此 API。若 iPhone 上架扫描要求申报, 归人工按
+       TN3183 官方码表核对后补 (本地无网络权威源, 不臆造码以免校验拒收)。
+     无追踪 (NSPrivacyTracking=false), 无数据收集 (课表全本地, llms.txt 隐私段同源)。 -->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

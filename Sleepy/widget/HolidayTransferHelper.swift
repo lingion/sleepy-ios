@@ -5,6 +5,14 @@
 import Foundation
 
 enum HolidayTransferHelper {
+    /// ← Android L14-18: 某表某天实际上谁的课 (取课语义) — 补班日→sourceDate,
+    /// 放假日→nil(无课), 未映射/无表→原日期。
+    static func courseDateForDate(_ tableId: Int64?, _ date: Date) -> Date? {
+        guard let tableId = tableId else { return date }
+        let transfers = AppPrefs.shared.getHolidayTransfers(tableId)
+        return HolidayTransferOps.courseDateForDate(date, transfers)
+    }
+
     static func effectiveDayOfWeek(_ tableId: Int64?, _ date: Date) -> Int {
         guard let tableId = tableId else {
             let raw = DateUtils.isoCalendar.component(.weekday, from: date)

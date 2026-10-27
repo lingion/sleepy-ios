@@ -16,19 +16,26 @@ struct WeekGridWidgetEntry: TimelineEntry {
 struct WeekGridWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> WeekGridWidgetEntry {
         WidgetArchiveLog.append(kind: "WeekGridWidgetV19", family: context.family.description, result: "success")
-        return WeekGridWidgetEntry(date: Date(), data: WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19"))
+        // 占位脸不读 DB (异步装载不能同步等); 真实数据在 snapshot/timeline 到达。
+        return WeekGridWidgetEntry(date: Date(), data: WeekData(days: [], hasTable: false))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WeekGridWidgetEntry) -> Void) {
         WidgetArchiveLog.append(kind: "WeekGridWidgetV19", family: context.family.description, result: "success")
-        completion(WeekGridWidgetEntry(date: Date(), data: WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19")))
+        Task {
+            let data = await WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19")
+            completion(WeekGridWidgetEntry(date: Date(), data: data))
+        }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekGridWidgetEntry>) -> Void) {
-        let entry = WeekGridWidgetEntry(date: Date(), data: WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19"))
-        let refresh = Date().addingTimeInterval(6 * 3600)
-        WidgetArchiveLog.append(kind: "WeekGridWidgetV19", family: context.family.description, result: "success")
-        completion(Timeline(entries: [entry], policy: .after(refresh)))
+        Task {
+            let data = await WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19")
+            let entry = WeekGridWidgetEntry(date: Date(), data: data)
+            let refresh = Date().addingTimeInterval(6 * 3600)
+            WidgetArchiveLog.append(kind: "WeekGridWidgetV19", family: context.family.description, result: "success")
+            completion(Timeline(entries: [entry], policy: .after(refresh)))
+        }
     }
 }
 
@@ -196,7 +203,7 @@ struct WeekGridWidgetEntryView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(s.surfaceContainer)  // bgContainer
+        .sleepyWidgetBackground { s.surfaceContainer }  // bgContainer
         .cornerRadius(18)
         .widgetURL(URL(string: "sleepy://open"))
     }
@@ -611,5 +618,7 @@ struct WeekGridWidget: Widget {
         // 三档全开: Android 13 变体是「放置预设」(S/M/L),且全部 minResize 40dp + 自由拖拽,
         // 任何 widget 都能被拖成任意档 → iOS 三 family 全支持,档位由 WidgetLayoutTier 换算
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        // iOS 17+ 系统边距关闭, 维持既有自管 padding 布局 (iOS 16 及以下 no-op)
+        .contentMarginsDisabled()
     }
 }

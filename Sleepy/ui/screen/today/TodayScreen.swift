@@ -9,6 +9,11 @@ struct TodayScreen: View {
     @Environment(\.localNavExtraBottomPadding) private var navExtra
     @Environment(\.localCoursePalette) private var palette
     @ObservedObject var viewModel: ScheduleViewModel
+    /// ★ 平板双栏右半紧凑变体(← Android TodayScreen.kt CompactTodayPane, PR#114):
+    ///   无页面背景(surfaceContainerLow 卡片透出)、水平 16/垂直 12 内衬、
+    ///   卡间距 12、无底部药丸余量(rail 模式 env 缺省 0, 此处直接不挂)。
+    ///   手机版(默认 false)保持原样式逐字不变。
+    var compact: Bool = false
     var onEditCourse: ((CourseEntity) -> Void)? = nil
     // ← selectedCourse: 点课卡 → 详情 BottomSheet(与课表页同一组件同一交互)
     @State private var selectedCourse: CourseEntity? = nil
@@ -58,7 +63,7 @@ struct TodayScreen: View {
             todayCourses, timeJson: effectiveTimeJson)
 
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: compact ? 12 : 16) {
                 TodayHeader(date: today, week: actualWeek, count: todayCourses.count,
                             semesterStatus: semesterStatus)
 
@@ -83,12 +88,16 @@ struct TodayScreen: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(compact ? EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
+                             : EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
             // 悬浮底栏额外余量(→ Android LocalNavExtraBottomPadding): 镜像 Android
             //   padding(bottom = 16.dp + navExtra) 让最后一张课卡不被悬浮药丸遮住。
-            .padding(.bottom, navExtra)
+            //   compact(平板双栏右半)不挂 —— ← CompactTodayPane 无 navExtra padding。
+            .padding(.bottom, compact ? 0 : navExtra)
         }
-        .background(colors.background)
+        // compact: 无背景(← Android CompactTodayPane Column 无 background,
+        // surfaceContainerLow 卡片透出); 手机版原样 colors.background。
+        .background(compact ? Color.clear : colors.background)
         // 详情 Bottom Sheet — 与课表页同一组件同一交互(← TodayScreen.kt CourseDetailSheet)
         .sheet(item: $selectedCourse) { course in
             CourseDetailSheet(

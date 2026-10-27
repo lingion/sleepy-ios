@@ -1,7 +1,7 @@
 // WeekListWidgetView.swift — ← WeekListWidget.kt + WidgetBitmapRenderers.renderWeekList
 // 本周课表(列表) widget — 7 列日列(列数随 visibleDays)。
 // 列卡片: primaryContainer(今天) / surfaceContainer(其他), 14dp 圆角。
-// 课程: 彩色胶囊背景 + BOLD 课名。
+// 课程: 彩色胶囊背景 + 常规字重课名 (安卓 L899 Typeface.DEFAULT; bold 的是 chip 文字)。
 //
 // 对齐 Android 定稿语义 (2c937b11 / 895fe72f / ede839af):
 //  1. SMALL 档 = 最近 3 天「列脸」(renderWeekListCompact → 换列后走同一常规排版),
@@ -11,15 +11,16 @@
 //  3. 学期外顶部全宽状态行占位 16dp,同时从列可用高里扣掉。
 //
 // v1.0.61 对齐 (F125, ← WeekListWidget.kt L183-206 + Receiver 闸门 L60-64):
-//  4. 装载器走 WidgetWeekDataLoader.resolve(kind) — 展示周 = display.targetWeek,
-//     日期 = source.dateFor (钳制周=1 预习 / NEAREST_BUSY_DAY 跳周都随 display 走);
-//  5. AFTER_END 列内课程清空, 只画状态行 (Android L188);
-//  6. 取课星期 = HolidayTransferHelper.effectiveDayOfWeek 调休映射 (Android L187);
-//  7. isGrey = HolidayManager.shouldGrey(date, tableId) 灰显 0.6 alpha +
+//  4. 装载器走 WidgetWeekDataLoader.resolve(kind) — 日期 = source.dateFor (钳制周=1
+//     预习 / NEAREST_BUSY_DAY 跳周都随 display 走);
+//  5. 取课走 source.coursesOn(调休按日期反向查, 审计 [A]-1 修复): AFTER_END 清空仅当
+//     非补班日, 任一列有课 → 状态改写 IN_RANGE (Android L205);
+//     旧 effectiveDayOfWeek 正向映射为错位口径, 已弃用;
+//  6. isGrey = HolidayManager.shouldGrey(date, tableId) 灰显 0.6 alpha +
 //     「strikethrough」样式 (Android renderWeekListRegular L871-920);
-//  8. compactWindow = WidgetCompactWindow.build(...) 三天真实日期窗口 (2026-09-15 用户令,
+//  7. compactWindow = WidgetCompactWindow.build(...) 三天真实日期窗口 (2026-09-15 用户令,
 //     Android L199-205), SMALL 档日列 = compactShownDays 单一口径 (§9.1);
-//  9. statusH 闸门 = semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL
+//  8. statusH 闸门 = semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL
 //     (Android L60-61); 今天列高亮 = isDateToday(day.date) (Android L828, 展示周≠自然周
 //     时按星期判会错列)。
 // forceScroll 条带 (WidgetScrollStore/ScrollStripService) = Android 专有宿主,
@@ -42,7 +43,8 @@ struct WeekListWidgetEntry: TimelineEntry {
 /// (L188) → 调休映射 effectiveDayOfWeek 取课 (L187) → isGrey (L195) →
 /// compactWindow 三天真实日期窗口 (L199-205) → weekDisplayStatus (L206)。
 /// Android runBlocking → iOS async (TimelineProvider completion 允许异步回调),
-/// 与 TwoDayWidgetDataLoader 同模式; WidgetDataLoaders.swift 通用版保留给 WeekView。
+/// 与 TwoDayWidgetDataLoader 同模式; WeekView 共用本装载器
+/// (← WeekViewWidget.kt L186 注释「与 WeekListWidget.loadDataSync 完全一致」)。
 enum WeekListWidgetDataLoader {
 
     static func loadData(kind: String) async -> WeekData {
@@ -56,18 +58,21 @@ enum WeekListWidgetDataLoader {
         guard let source = await WidgetWeekDataLoader.resolve(kind),
               let repo = WidgetLoader.makeRepo() else { return fallback }
         let table = source.table
-        let week = source.display.targetWeek
         let status = source.display.semesterStatus
-        // 学期前: 钳制周=1, 第 1 周课照常显示(预习); 学期后: 课程清空, renderer 画状态行
+        // ← Android L183-197: 日期=source.dateFor(周1预习/跳周随 display), 取课=source.coursesOn
+        // (调休按日期反向查 — 补班日=source 星期的课并按 source 日反解周次, 放假日=无课;
+        // AFTER_END 清空且保留补班日列, 任一列有课 → 状态改写 IN_RANGE 不画状态行)。
+        // 旧版 effectiveDayOfWeek 正向映射为错位口径 (审计发现 [A]-1): 放假日列被填上
+        // "挪走那天该上的课", 补班日列显示自己星期的课, 周次也不随 source 日反解。
         var days: [DayData] = []
         for dayOfWeek in 1...7 {
             let date = source.dateFor(dayOfWeek: dayOfWeek)
-            let effectiveDay = HolidayTransferHelper.effectiveDayOfWeek(table.id, date)
-            let visible = status == .afterEnd ? [] : source.coursesFor(dayOfWeek: effectiveDay, week: week)
+            let visible = source.coursesOn(date, previewBeforeStart: true)
             days.append(DayData(date: date, dayOfWeek: dayOfWeek, courses: visible,
                                 timeJson: table.timeJson,
                                 isGrey: await HolidayManager.shouldGrey(date, tableId: table.id)))
         }
+        let effStatus = days.contains(where: { !$0.courses.isEmpty }) && status == .afterEnd ? .inRange : status
         // 最小档三天窗口 (2026-09-15 用户令): 真实日期, 上下周打通 (Android L199-205)
         let compactWindow = await WidgetCompactWindow.build(
             repo: repo, tableId: table.id, timeJson: table.timeJson,
@@ -76,7 +81,7 @@ enum WeekListWidgetDataLoader {
             displayDate: source.display.status == .nearestBusyDay ? source.display.targetDate : nil
         )
         return WeekData(days: days, hasTable: true, isDark: isDark, themeKey: themeKey,
-                        themeMode: themeMode, semesterStatus: status,
+                        themeMode: themeMode, semesterStatus: effStatus,
                         compactWindow: compactWindow, weekDisplayStatus: source.display.status)
     }
 }
@@ -132,17 +137,19 @@ struct WeekListWidgetEntryView: View {
         // issue#26: widget 全局一档别名开关
         let useAlias = AppPrefs.shared.isWidgetUseAlias()
         let todayDow = DateUtils.todayDayOfWeek(today: Date())
-        // ← renderWeekList: SMALL 变体走 compact(compactShownDays 单一口径 —
-        // compactWindow 优先三天真实日期窗口, 空才回退今天邻域 ≤3 列; §9.1)
-        let isCompact = widgetFamily == .systemSmall
-        let days = isCompact ? WidgetCompactHelpers.compactShownDays(data, AppPrefs.shared.getVisibleDays(), todayDow)
-                             : shownDays(data)
         let tier = WidgetLayoutTier(family: widgetFamily)
         // 状态行占位 16dp ← Android push() L60-61:
         // semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL (自动跳最近有课日时同样抬列顶)
         let statusH: CGFloat = (data.semesterStatus != .inRange || data.weekDisplayStatus != .normal) ? 16 : 0
 
         return GeometryReader { proxy in
+            // ← renderWeekList L786: SMALL 变体 + 容器 <150dp 才走 compact 脸,
+            // 容器被拖大 ≥150dp → 内部升档回全量排版 (iPad/大屏手机 systemSmall 实测
+            // ≥150pt 时与安卓平板同口径显示全周列)。
+            let isCompact = widgetFamily == .systemSmall && proxy.size.width < 150
+            let days = isCompact
+                ? WidgetCompactHelpers.compactShownDays(data, AppPrefs.shared.getVisibleDays(), todayDow)
+                : shownDays(data)
             // ← push() L62-64 闸门: hasTable && 列非空 && 任一天有课 (数据层 days 全量口径,
             // 非过滤后 shownDays — 安卓 any 读 data.days)。学期外不在此设闸:
             // BEFORE_START 钳周=1 预习照常叠窗口截断; AFTER_END 课程清空 → any=false 自然不成窗
@@ -186,7 +193,7 @@ struct WeekListWidgetEntryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(s.bg)
+        .sleepyWidgetBackground { s.bg }
         .widgetURL(URL(string: "sleepy://open"))
     }
 }
@@ -227,13 +234,15 @@ private struct WeekListDayColumn: View {
                 .padding(.bottom, 11) // chip 顶 colTop+26
 
             if !day.courses.isEmpty {
-                // 课程数量 chip
-                Text("\(day.courses.count) 门")
-                    .font(.system(size: 9))
+                // 课程数量 chip — 安卓 chip 文字继承标题 BOLD (L873 设 bold 后直到 L899
+                // 才重置, chip 在 L889 落在这段里); 宽 = 文本长度*6+12dp、高 14dp 固定公式
+                // (L884-885), 非自然字宽 — 逐字符 6dp 槽位。
+                let chipText = "\(day.courses.count) 门"
+                Text(chipText)
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundColor(s.onSurfaceVariant)
                     .opacity(greyAlpha)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .frame(width: CGFloat(chipText.count) * 6 + 12, height: 14)
                     .background(s.surfaceVariant.opacity(greyAlpha))
                     .cornerRadius(50)
                     .padding(.bottom, 6)
@@ -251,7 +260,9 @@ private struct WeekListDayColumn: View {
                             // color: nil = 删除线随正文主色 —— 与修复前行为逐字相同;
                             // 挂在 View 链上只会命中 iOS16 pattern 重载(extension 不可用)。
                             .strikethrough(strikethrough, color: nil)
-                            .font(.system(size: 9, weight: .bold))
+                            // 安卓课名走 Typeface.DEFAULT 常规字重 (L899 在课程循环前重置),
+                            // 与 drawCourse 的 BOLD 卡面不同 — 本渲染器是内联循环, 不继承 bold。
+                            .font(.system(size: 9))
                             .foregroundColor(CourseColorUtil.textColorOn(bg: bgColor, isDark: s.isDark,
                                                                          onSurface: s.onSurface))
                             .opacity(greyAlpha) // 安卓 applyAlpha(文字色, 153/255) (L917-920)
@@ -289,5 +300,7 @@ struct WeekListWidget: Widget {
         }
         .configurationDisplayName(L10n.format("widget_week_list_label"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        // iOS 17+ 系统边距关闭, 维持既有自管 padding 布局 (iOS 16 及以下 no-op)
+        .contentMarginsDisabled()
     }
 }

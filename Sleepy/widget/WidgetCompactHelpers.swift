@@ -65,16 +65,21 @@ enum WidgetCompactHelpers {
     }
 
     /// WeekGrid 最小档数据映射 — WeekData → 今日 WidgetData (v1.0.60 口径:
-    /// NEAREST_BUSY_DAY 时 targetDate = 最早有课日; nearestBusyTargetDate 字段是
-    /// v1.0.61+ 修正, 此处按 v1.0.60 对位)。
+    /// NEAREST_BUSY_DAY 时 targetDate = nearestBusyTargetDate (数据源显式给出),
+    /// 缺省回退最早有课日 → 最早日 → today (Android v1.0.61+ 同口径)。
     /// 最小档(1×1 列)不再"折叠成单列的网格脸", 直接复用今日课程·小的渲染器:
     /// 宿主只换数据, 渲染走 renderToday(SMALL) → 与今日课程·小像素同源同一张脸。
     /// 纯函数零 Date() — today 由调用方注入。
     static func weekGridMinimumTodayData(_ data: WeekData, today: Date) -> WidgetData {
         let timeJson = data.days.first?.timeJson ?? ""
+        // ← Android weekGridMinimumTodayData (:1029-35): 数据源显式 targetDate 优先;
+        //   整周数据下 minBy=周一不一定是跳转目标日 → 最早有课日次之, minDate 再次。
         let targetDate: Date
         if data.weekDisplayStatus == .nearestBusyDay {
-            targetDate = data.days.map { (date: $0.date, day: $0) }.min { $0.date < $1.date }?.day.date ?? today
+            targetDate = data.nearestBusyTargetDate
+                ?? data.days.first(where: { !$0.courses.isEmpty })?.date
+                ?? data.days.map({ $0.date }).min()
+                ?? today
         } else {
             targetDate = today
         }

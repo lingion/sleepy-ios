@@ -35,7 +35,8 @@ enum HolidayTransferOps {
         return f
     }
 
-    private static func dayKey(_ d: Date) -> String { fmt.string(from: d) }
+    /// 日键 "yyyy-MM-dd" (Asia/Shanghai) — internal: widget 装载器按日期口径去重/比较用
+    static func dayKey(_ d: Date) -> String { fmt.string(from: d) }
     private static func parseDay(_ s: String) -> Date? { fmt.date(from: s) }
 
     /// 星期几(1=周一 7=周日), 与 DateUtils.todayDayOfWeek 同语义
@@ -47,6 +48,33 @@ enum HolidayTransferOps {
     /// (Android lastOrNull = 后选覆盖前选, 编解码侧已按 sourceDate 去重保尾)
     static func transferFor(_ date: Date, _ transfers: [HolidayTransferEntry]) -> HolidayTransferEntry? {
         transfers.last { dayKey($0.sourceDate) == dayKey(date) }
+    }
+
+    /// 该展示日的"课实际来自哪一天": 命中 targetDate → 对应 sourceDate;
+    /// date 本身是被挪走的放假日 → nil (无课); 其余 → 原日期。
+    /// ← HolidayTransferOps.courseDateForDate (HolidayRange.kt:151-155)
+    static func courseDateForDate(_ date: Date, _ transfers: [HolidayTransferEntry]) -> Date? {
+        if let hit = transfers.last(where: { dayKey($0.targetDate) == dayKey(date) }) {
+            return hit.sourceDate
+        }
+        if transfers.contains(where: { dayKey($0.sourceDate) == dayKey(date) }) { return nil }
+        return date
+    }
+
+    /// 按"日期"取该天上课的课 (调休感知) ← HolidayTransferOps.coursesForDate
+    /// (HolidayRange.kt:161-170): courseDateForDate → 学期外空 → 按源日星期+周次过滤。
+    static func coursesForDate(
+        _ date: Date, startDate: String, maxWeek: Int,
+        courses: [CourseEntity], transfers: [HolidayTransferEntry]
+    ) -> [CourseEntity] {
+        guard let source = courseDateForDate(date, transfers) else { return [] }
+        if DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek, today: source) != .inRange {
+            return []
+        }
+        let week = DateUtils.currentWeek(startDate: startDate, today: source)
+        return courses
+            .filter { $0.day == dayOfWeek(source) && $0.inWeek(week) }
+            .sorted { $0.startNode < $1.startNode }
     }
 
     /**

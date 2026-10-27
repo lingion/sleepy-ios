@@ -152,6 +152,9 @@ struct WeekData {
     var compactWindow: [DayData] = []
     /// 当前展示周状态 (← v1.0.60 WeekData.weekDisplayStatus)
     var weekDisplayStatus: WeekDisplayStatus = .normal
+    /// NEAREST_BUSY_DAY 档时被自动跳到的那一天 (← Android WeekData.nearestBusyTargetDate,
+    /// 周网格 SMALL 最小档 weekGridMinimumTodayData 定位单日; nil 回退旧口径)
+    var nearestBusyTargetDate: Date? = nil
 }
 
 /// 两天视图数据 ← TwoDayData

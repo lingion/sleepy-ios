@@ -41,15 +41,24 @@ enum WeekDisplayResolver {
         now: Date,
         courses: [CourseEntity],
         timeJson: String,
-        enabled: Bool
+        enabled: Bool,
+        transfers: [HolidayTransferEntry] = []
     ) -> WeekDisplayContext {
         let safeMaxWeek = max(maxWeek, 1)
         let today = DateUtils.dayStart(now)
         let semesterStatus = DateUtils.semesterStatus(startDate: startDate, maxWeek: safeMaxWeek, today: today)
         let actualWeek = min(max(DateUtils.currentWeek(startDate: startDate, today: today), 1), safeMaxWeek)
 
-        let todayHasRemaining = semesterStatus == .inRange &&
-            hasRemainingCourse(actualWeek: actualWeek, today: today, now: now, courses: courses, timeJson: timeJson)
+        // ← Kotlin: todayHasRemaining 改走 coursesForDate(today) 调休感知口径
+        // (非开关门控的 semesterStatus==IN_RANGE && hasRemainingCourse 旧式):
+        // 放假日挪走后当天无课 → 应跳最近有课日; 旧口径仍按自然星期算"有课"。
+        let todayHasRemaining = HolidayTransferOps.coursesForDate(
+            today, startDate: startDate, maxWeek: safeMaxWeek,
+            courses: courses, transfers: transfers
+        ).contains { course in
+            guard let end = courseEndMinutes(course, timeJson) else { return true }
+            return end > nowMinutesOf(now)
+        }
 
         let targetDate: Date
         if !enabled || semesterStatus != .inRange || todayHasRemaining {
@@ -61,10 +70,18 @@ enum WeekDisplayResolver {
                 maxWeek: safeMaxWeek,
                 today: today,
                 courses: courses,
-                count: 1
+                count: 1,
+                transfers: transfers
             ).first ?? today
         }
-        let targetWeek = targetDate == today
+        // ← Kotlin targetWeek 门补调休条件: 今天有"补班映射" (targetDate==today 且其
+        // sourceDate 在学期内) 时不取 actualWeek, 按 currentWeek 反解。
+        let hasWorkdayTransferToday = transfers.contains(where: {
+            HolidayTransferOps.dayKey($0.targetDate) == HolidayTransferOps.dayKey(today)
+                && DateUtils.semesterStatus(startDate: startDate, maxWeek: safeMaxWeek,
+                                            today: $0.sourceDate) == .inRange
+        })
+        let targetWeek = (targetDate == today && !hasWorkdayTransferToday)
             ? actualWeek
             : min(max(DateUtils.currentWeek(startDate: startDate, today: targetDate), 1), safeMaxWeek)
 
@@ -104,23 +121,32 @@ enum WeekDisplayResolver {
     /// 返回 today，调用方可据此保持原有 NORMAL 降级语义。
     ///
     /// 关键不变量：扫描上限是 maxWeek 的周天，不会跨学期跳出；日期顺序永远递增。
+    /// ← Kotlin 同源: 逐日走 coursesForDate 判定 (调休感知 — 放假日挪走/补班日补上),
+    /// endDate 额外纳入"sourceDate 在学期内"的映射 targetDate (补班日可能越过学期末)。
     static func findNearestBusyDays(
         startDate: String,
         actualWeek: Int,
         maxWeek: Int,
         today: Date,
         courses: [CourseEntity],
-        count: Int = 2
+        count: Int = 2,
+        transfers: [HolidayTransferEntry] = []
     ) -> [Date] {
         if count <= 0 { return [] }
-        guard let endDate = DateUtils.dateOfWeek(startDate: startDate, week: maxWeek, dayOfWeek: 7) else { return [today] }
+        guard let semesterEnd = DateUtils.dateOfWeek(startDate: startDate, week: maxWeek, dayOfWeek: 7) else { return [today] }
+        // ← Kotlin: endDate = maxOf(semesterEnd, 学期内 source 的最大 targetDate)
+        let endDate = transfers.compactMap {
+            DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek, today: $0.sourceDate) == .inRange
+                ? $0.targetDate : nil
+        }.max().map { $0 > semesterEnd ? $0 : semesterEnd } ?? semesterEnd
         var result: [Date] = []
         let cal = DateUtils.isoCalendar
         var cursor = cal.date(byAdding: .day, value: 1, to: today) ?? today
         while cursor <= endDate && result.count < count {
-            let cursorWeek = min(max(DateUtils.currentWeek(startDate: startDate, today: cursor), 1), maxWeek)
-            let cursorDow = DateUtils.todayDayOfWeek(today: cursor)
-            if cursorWeek >= actualWeek && courses.contains(where: { $0.inWeek(cursorWeek) && $0.day == cursorDow }) {
+            if !HolidayTransferOps.coursesForDate(
+                cursor, startDate: startDate, maxWeek: maxWeek,
+                courses: courses, transfers: transfers
+            ).isEmpty {
                 result.append(cursor)
             }
             cursor = cal.date(byAdding: .day, value: 1, to: cursor) ?? endDate
@@ -128,23 +154,11 @@ enum WeekDisplayResolver {
         return result.isEmpty ? [today] : result
     }
 
-    /// 今天是否还有未结束的课：course.day > today → 未来；< today → 已过；= today → 解析 endTime。
-    private static func hasRemainingCourse(
-        actualWeek: Int,
-        today: Date,
-        now: Date,
-        courses: [CourseEntity],
-        timeJson: String
-    ) -> Bool {
-        let todayDow = DateUtils.todayDayOfWeek(today: today)
-        let cal = DateUtils.isoCalendar
-        let nowMinutes = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
-        return courses
-            .filter { $0.inWeek(actualWeek) && $0.day == todayDow }
-            .contains { course in
-                guard let end = courseEndMinutes(course, timeJson) else { return true }
-                return end > nowMinutes
-            }
+    /// now 的"当日分钟数" ← Kotlin now.hour*60+now.minute (Asia/Shanghai 口径)
+    private static func nowMinutesOf(_ now: Date) -> Int {
+        // isoCalendar 已固定锚 Asia/Shanghai (DateUtils L22), 与其余日期口径同源
+        let comps = DateUtils.isoCalendar.dateComponents([.hour, .minute], from: now)
+        return (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
     }
 
     private static func courseEndMinutes(_ course: CourseEntity, _ timeJson: String) -> Int? {

@@ -1035,3 +1035,16 @@
 "timeslot_drop_success" = "Reordered period %1$d to position %2$d";
 "timeslot_reorder_in_progress" = "Reordering";
 "timeslot_row_drop_target" = "Drop here";
+
+// MARK: - watch (2026-10 watch 伴侣 App)
+"watch_no_table_hint" = "No schedule yet — create one on your iPhone first.";
+"watch_mark_now" = "Now";
+"watch_mark_next" = "Next";
+"watch_mark_on" = "On";
+"watch_mark_off" = "Off";
+"watch_last_sync" = "Last sync";
+"watch_never_sync" = "Never";
+"watch_resync_now" = "Sync now";
+"watch_settings_reminders_header" = "Reminders";
+"watch_settings_readonly_hint" = "Reminders are managed on your iPhone.";
+"watch_detail_day" = "Day";

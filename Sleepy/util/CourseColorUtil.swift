@@ -145,9 +145,12 @@ enum CourseColorUtil {
     }
 
     /// Canvas 路径版本（ARGB Int）— 同一决策树，供 Widget 渲染
+    /// 0xFFFFFFFF 系字面量在 watchOS(arm64_32, Int=32 位)溢 Int 字面量编译不过 →
+    /// bitPattern 形态: 64 位 iOS 取值与旧字面量逐位一致, 32 位落 -1/-16777216
+    /// (位模式等价, 且本路径在 watch 无调用方)。2026-10 watch 伴侣 App。
     static func textColorOn(bg: Int, isDark: Bool, onSurface: Int) -> Int {
-        if luminance(bg) < 0.5 { return 0xFFFFFFFF }
-        if isDark { return 0xFF000000 }
+        if luminance(bg) < 0.5 { return Int(bitPattern: 0xFFFFFFFF) }
+        if isDark { return Int(bitPattern: 0xFF000000) }
         return onSurface
     }
 
@@ -175,13 +178,16 @@ enum CourseColorUtil {
     }
 
     /// HSL → ARGB Int（供 Widget Canvas 路径）
+    /// watchOS(arm64_32) 下 0xFF<<24 超 Int 字面量范围 → UInt32 域组装后截断回 Int;
+    /// 64 位 iOS 取值与旧写法逐位一致。
     static func hslToColorInt(_ h: Float, _ s: Float, _ l: Float) -> Int {
         let (r0, g0, b0) = hslRGB(h, s, l)
         let m = l - ((1 - abs(2 * l - 1)) * s) / 2
         let r = Int((min(max(r0 + m, 0), 1)) * 255)
         let g = Int((min(max(g0 + m, 0), 1)) * 255)
         let b = Int((min(max(b0 + m, 0), 1)) * 255)
-        return (0xFF << 24) | (r << 16) | (g << 8) | b
+        let argb: UInt32 = (UInt32(0xFF) << 24) | (UInt32(r) << 16) | (UInt32(g) << 8) | UInt32(b)
+        return Int(truncatingIfNeeded: argb)
     }
 
     // ============================ 第三层 · 平台适配入口 ============================
@@ -192,6 +198,13 @@ enum CourseColorUtil {
     /// 输入抛 IllegalArgumentException,上层 runCatching 落空回退 neutral/HSL 分支;
     /// iOS 若照收裸 hex(如 "FF5722")会让坏 hex 自定义色在两端走不同分支。
     static func parseColor(_ hex: String) -> Int? {
+        parseColorUInt32(hex).map { Int(truncatingIfNeeded: $0) }
+    }
+
+    /// UInt32 形态解析 — SwiftUI 渲染路径专用。watchOS(arm64_32, Int=32 位)上
+    /// ARGB>Int32.max 的自定义课色经 Int 中间态会运行时崩溃 (Int(4293589503)),
+    /// 本入口从根上绕开; 64 位 iOS 语义与 parseColor 逐位一致。2026-10 watch 伴侣 App。
+    static func parseColorUInt32(_ hex: String) -> UInt32? {
         guard hex.hasPrefix("#") else { return nil }
         var s = String(hex.dropFirst())
         if s.count == 6 {
@@ -200,15 +213,15 @@ enum CourseColorUtil {
         guard s.count == 8,
               s.allSatisfy({ $0.isHexDigit }),
               let v = UInt32(s, radix: 16) else { return nil }
-        return Int(v)
+        return v
     }
 
-    /// SwiftUI 路径取色入口（TodayScreen / CourseTableView）
+    /// SwiftUI 路径取色入口（TodayScreen / CourseTableView / watch App）
     /// - neutralColor: colorless 统一底色，即 scheme.secondaryContainer
     static func pickCourseColorSwiftUI(_ course: CourseEntity, isDark: Bool,
                                        neutralColor: Color, colorless: Bool = false) -> Color {
-        if hasCustomColor(course), let argb = parseColor(course.color) {
-            return Color(uiArgb: UInt32(argb))
+        if hasCustomColor(course), let argb = parseColorUInt32(course.color) {
+            return Color(uiArgb: argb)
         }
         if colorless { return neutralColor }
         let hue = stableHue(course.groupId)
@@ -245,15 +258,15 @@ enum CourseColorUtil {
     ) -> Color {
         switch row.colorMode {
         case CourseColorMode.CUSTOM:
-            return parseColor(row.color).map { Color(uiArgb: UInt32($0)) } ?? neutralColor
+            return parseColorUInt32(row.color).map { Color(uiArgb: $0) } ?? neutralColor
         case CourseColorMode.AUTO:
             if colorless { return neutralColor }
             let hue = GoldenAngleColor.forRow(row, groupRows, groupSourceColorHex(groupRows))
             let (s, l) = GoldenAngleColor.hsl(hue, isDark)
             return hslToColor(hue, s, l)
         default:  // GROUP(0) 或未知值 → 组级行为
-            if hasCustomColor(row), let argb = parseColor(row.color) {
-                return Color(uiArgb: UInt32(argb))
+            if hasCustomColor(row), let argb = parseColorUInt32(row.color) {
+                return Color(uiArgb: argb)
             }
             if colorless { return neutralColor }
             let hue = stableHue(row.groupId)
@@ -329,8 +342,8 @@ enum GoldenAngleColor {
     /// 空白口径 = Kotlin isNullOrBlank (Java Character.isWhitespace,含全角空格 U+3000)
     private static func parseHexHue(_ hex: String?) -> Float {
         guard let h = hex, CourseColorUtil.isNotBlank(h) else { return 0 }
-        if let argb = CourseColorUtil.parseColor(h) {
-            return rgbToHslHue(argb)
+        if let argb = CourseColorUtil.parseColorUInt32(h) {
+            return rgbToHslHue(Int(truncatingIfNeeded: argb))
         }
         return 0
     }

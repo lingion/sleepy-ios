@@ -14,6 +14,9 @@ struct WidgetWeekSource {
     let table: TimeTableEntity
     let courses: [CourseEntity]
     let display: WeekDisplayContext
+    /// ← Kotlin WidgetWeekSource.transfers (v1.0.61): 调休映射随 source 携带,
+    /// coursesOn / 装载器按日期反向查共用 (Android source.transfers 同源)。
+    let transfers: [HolidayTransferEntry]
 
     func coursesFor(dayOfWeek: Int, week: Int? = nil) -> [CourseEntity] {
         let w = week ?? display.targetWeek
@@ -22,9 +25,35 @@ struct WidgetWeekSource {
             .sorted { $0.startNode < $1.startNode }
     }
 
+    /// ← Kotlin WidgetWeekSource.coursesOn (v1.0.61 口径, 调休按日期反向查):
+    /// AFTER_END 且非补班日 → 清空; BEFORE_START 且无映射命中该日 → 按周1 自然星期预习;
+    /// 其余走 HolidayTransferOps.coursesForDate (补班日=sourceDate 的课, 放假日=无课)。
+    /// fixedDate 定日课 iOS 实体无此字段 (上游缺口, 移植时恒空)。
+    func coursesOn(_ date: Date, previewBeforeStart: Bool = false) -> [CourseEntity] {
+        let key = HolidayTransferOps.dayKey(date)
+        if previewBeforeStart && display.semesterStatus == .afterEnd &&
+            !transfers.contains(where: { HolidayTransferOps.dayKey($0.targetDate) == key }) {
+            return []
+        }
+        if previewBeforeStart && !transfers.contains(where: {
+            HolidayTransferOps.dayKey($0.sourceDate) == key || HolidayTransferOps.dayKey($0.targetDate) == key
+        }) && DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: date) == .beforeStart {
+            return coursesFor(dayOfWeek: DateUtils.todayDayOfWeek(today: date), week: 1)
+        }
+        return HolidayTransferOps.coursesForDate(
+            date, startDate: table.startDate, maxWeek: table.maxWeek,
+            courses: courses, transfers: transfers
+        ).sorted { $0.startNode < $1.startNode }
+    }
+
+    /// ← Kotlin WidgetWeekSource.dateFor: 学期前(NORMAL) 显示学期所在周(周1),
+    /// 其余按 targetDate 所在周的星期。
     func dateFor(dayOfWeek: Int) -> Date {
-        // ← Kotlin: DateUtils.dateOfWeek(table.startDate, display.targetWeek, dayOfWeek)
-        DateUtils.dateOfWeek(startDate: table.startDate, week: display.targetWeek, dayOfWeek: dayOfWeek) ?? Date()
+        if display.semesterStatus == .beforeStart && display.status == .normal {
+            return DateUtils.dateOfWeek(startDate: table.startDate, week: 1, dayOfWeek: dayOfWeek)
+                ?? DateUtils.dateOfWeekDay(ref: display.targetDate, dayOfWeek: dayOfWeek)
+        }
+        return DateUtils.dateOfWeekDay(ref: display.targetDate, dayOfWeek: dayOfWeek)
     }
 
     /// 返回 widget 应展示的"今天"语义日期:
@@ -47,14 +76,17 @@ enum WidgetWeekDataLoader {
                 ?? WidgetTableResolver.resolveCurrentTable(repo) else { return nil }
         let courses = (try? repo.getCourses(table.id)) ?? []
         let now = Date()
+        let transfers = AppPrefs.shared.getHolidayTransfers(table.id)
         let display = WeekDisplayResolver.resolve(
             startDate: table.startDate,
             maxWeek: table.maxWeek,
             now: now,
             courses: courses,
             timeJson: table.timeJson,
-            enabled: AppPrefs.shared.isNearestBusyDay()
+            enabled: AppPrefs.shared.isNearestBusyDay(),
+            transfers: transfers
         )
-        return WidgetWeekSource(table: table, courses: courses, display: display)
+        return WidgetWeekSource(table: table, courses: courses, display: display,
+                                transfers: transfers)
     }
 }

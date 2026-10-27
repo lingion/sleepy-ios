@@ -1035,3 +1035,16 @@
 "timeslot_drop_success" = "第 %1$d 節を位置 %2$d に並び替えました";
 "timeslot_reorder_in_progress" = "並び替え中";
 "timeslot_row_drop_target" = "ここにドロップ";
+
+// MARK: - watch (2026-10 watch 伴侣 App)
+"watch_no_table_hint" = "時間割がありません。まず iPhone で作成してください。";
+"watch_mark_now" = "進行中";
+"watch_mark_next" = "次回";
+"watch_mark_on" = "オン";
+"watch_mark_off" = "オフ";
+"watch_last_sync" = "最終同期";
+"watch_never_sync" = "未同期";
+"watch_resync_now" = "今すぐ同期";
+"watch_settings_reminders_header" = "リマインダー";
+"watch_settings_readonly_hint" = "リマインダーは iPhone で管理します。";
+"watch_detail_day" = "曜日";

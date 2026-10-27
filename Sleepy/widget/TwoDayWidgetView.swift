@@ -36,7 +36,9 @@ struct TwoDayWidgetEntry: TimelineEntry {
 enum TwoDayWidgetDataLoader {
 
     static func loadData(kind: String) async -> TwoDayData {
-        let today = Date()
+        // 自然日零点锚 (← Android LocalDate.now()); 明天 = +1 自然日, 不用 86400 秒
+        // 算术 (DST/时区下不保日界)
+        let today = DateUtils.isoCalendar.startOfDay(for: Date())
         let prefs = AppPrefs.shared
         let isDark = prefs.isDarkMode()
         let themeKey = prefs.getThemeKey()
@@ -57,29 +59,33 @@ enum TwoDayWidgetDataLoader {
                 maxWeek: table.maxWeek,
                 today: today,
                 courses: source.courses,
-                count: 2
+                count: 2,
+                transfers: source.transfers
             )
             dates = nearest.count >= 2
                 ? Array(nearest.prefix(2))
                 : [source.display.targetDate,
                    cal.date(byAdding: .day, value: 1, to: source.display.targetDate) ?? source.display.targetDate]
         } else {
-            dates = [today, cal.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86400)]
+            dates = [today, cal.date(byAdding: .day, value: 1, to: today) ?? today]
         }
         let status = DateUtils.semesterStatus(startDate: table.startDate,
                                               maxWeek: table.maxWeek,
                                               today: dates.first ?? today)
+        // ← Android L210-219: 取课 source.coursesOn(date) (调休按日期反向查, 学期外
+        // 由 coursesForDate 内部清空; 审计 [A]-2 修复 — 旧 effectiveDayOfWeek 正向
+        // 映射周次不随 source 日反解、补班日取错课), dayOfWeek 取自然星期。
         var days: [DayData] = []
         for date in dates {
-            let week = DateUtils.currentWeek(startDate: table.startDate, today: date)
-            let dow = HolidayTransferHelper.effectiveDayOfWeek(table.id, date)
-            let courses = status != .inRange ? [] : source.coursesFor(dayOfWeek: dow, week: week)
-            days.append(DayData(date: date, dayOfWeek: dow, courses: courses,
+            let courses = source.coursesOn(date)
+            days.append(DayData(date: date, dayOfWeek: DateUtils.todayDayOfWeek(today: date),
+                                courses: courses,
                                 timeJson: table.timeJson,
                                 isGrey: await HolidayManager.shouldGrey(date, tableId: table.id)))
         }
         return TwoDayData(days: days, hasTable: true, isDark: isDark, themeKey: themeKey,
-                          themeMode: themeMode, semesterStatus: status,
+                          themeMode: themeMode,
+                          semesterStatus: days.contains(where: { !$0.courses.isEmpty }) ? .inRange : status,
                           weekDisplayStatus: source.display.status)
     }
 }
@@ -166,7 +172,7 @@ struct TwoDayWidgetEntryView: View {
                          : L10n.format("semester_ended"))
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(s.onSurface)
-                        .padding(.bottom, 6)
+                        .padding(.bottom, 4) // 底部前进量 ≈22 (15pt 行高≈18 + 4) ← Android y+=22f
                     Text(L10n.format("today_semester_out_hint"))
                         .font(.system(size: 11))
                         .foregroundColor(s.onSurfaceVariant)
@@ -174,7 +180,7 @@ struct TwoDayWidgetEntryView: View {
                 } else {
                     // ★ 左右两栏: 每天一列, 中间竖直分隔 (id 用列序 — 调休映射下
                     //   两列 dayOfWeek 可能相同, 不能作 identity)
-                    HStack(alignment: .top, spacing: 10) {
+                    HStack(alignment: .top, spacing: 10) { // 列间距 10 ← Android colGap 10dp (:1328)
                         ForEach(Array(data.days.enumerated()), id: \.offset) { colIdx, day in
                             TwoDayColumn(day: day, scheme: s, colorless: colorless,
                                          displayMode: displayMode, showDate: showDate,
@@ -185,11 +191,11 @@ struct TwoDayWidgetEntryView: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(12)  // 外边距 12 ← Android renderTwoDayRegular pad=12dp (:1279), 与窗口扣减 44 同源
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(s.bg)
+        .sleepyWidgetBackground { s.bg }
         .widgetURL(URL(string: "sleepy://open"))
     }
 
@@ -224,9 +230,11 @@ private struct TwoDayColumn: View {
             // 列标题: 今天/明天/星期 + 日期(★ showDate=false 时隐藏)
             HStack(alignment: .firstTextBaseline, spacing: 6) { // 安卓日期间隔 titleW+6dp
                 Text(title)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))  // 列标题 12 ← Android :1370 12f
                     .foregroundColor(s.primary)
                 if showDate {
+                    // MM-dd ← Android :1376 画 day.dayLabel (DateUtils.shortDate = "MM-dd",
+                    // 非 shortDateSlash M/d)
                     Text(day.dayLabel)
                         .font(.system(size: 10))
                         .foregroundColor(s.onSurfaceVariant)
@@ -249,22 +257,29 @@ private struct TwoDayColumn: View {
                         WidgetCourseRowView(row: row, allCourses: day.courses, timeJson: day.timeJson,
                                             scheme: s, colorless: colorless,
                                             displayMode: displayMode, useAlias: useAlias,
+                                            isGrey: day.isGrey,
                                             rowHeight: WidgetRowGeometry.twoDayRowH,
                                             fontSizeSp: 10, laneFontSizeSp: 9)
                     }
                 }
+                // 列内课程块顶对齐 (窗口装不满时不留中部空隙)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 // ← drawCourse(greyAlpha 0x99): 节假日/周末灰显整列课卡降透明度 (issue#44)
-                //   strikethrough 样式在 WidgetCourseCard 文字层 (共享文件, 见接线说明)
+                //   strikethrough 样式在 WidgetCourseCard 文字层 (isGrey 已接线, 与删除线合取)
                 .opacity(day.isGrey ? 153.0 / 255.0 : 1)
             }
             Spacer(minLength: 0)
             // ← 8c0fcbea / ab27230c: 每列「+N」恒画 (含「+0」), 各列独立计数, 不可点
+            // 定稿: 宽度上限 46 (Android pillW coerceAtMost(colW) 语义的 iOS 固定上界近似;
+            //   胶囊本体圆角 = 高/2 = 9、字号 11 bold 见 WidgetCourseCard.WidgetCapsulePill)
             WidgetFooterCapsule(
                 text: window.map { WidgetWindowCore.capsuleText(hidden: $0.hiddenAheadCourses) },
                 scheme: s)
+                .frame(maxWidth: 46)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        // 列间竖直分隔线
+        // 列间竖直分隔线 ← Android :1448-50 — 全高 listTop→listBottom (列组件本身
+        //   即覆盖该区), 1dp 线位于列间距中心 (trailing −5 = 间距 10 的中点)
         .overlay(alignment: .trailing) {
             if !isLast {
                 Rectangle()
@@ -276,6 +291,8 @@ private struct TwoDayColumn: View {
     }
 
     private var title: String {
+        // ← Android :1373-77: 仅 isToday/明天/星期 三分支, 无跳转态标题
+        // (NEAREST_BUSY_DAY 只换日期列内容, 标题保持星期口径)
         if day.isToday { return L10n.format("today_today") }
         if day.isTomorrow { return L10n.format("tomorrow") }
         return day.dayName
@@ -289,5 +306,7 @@ struct TwoDayWidget: Widget {
         }
         .configurationDisplayName(L10n.format("widget_twoday_label"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        // iOS 17+ 系统边距关闭, 维持既有自管 padding 布局 (iOS 16 及以下 no-op)
+        .contentMarginsDisabled()
     }
 }

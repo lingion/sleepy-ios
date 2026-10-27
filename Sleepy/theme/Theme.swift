@@ -319,6 +319,13 @@ struct SleepyThemeProvider: ViewModifier {
 
     /// Android dynamicColorScheme(context) 的 iOS 等价:系统语义色映射到 M3 槽位
     static func dynamicSystemScheme(dark: Bool) -> WakeUpColorScheme {
+        #if os(watchOS)
+        // watchOS SDK 无 iOS 语义色族(systemPurple/systemBackground/label 等
+        // unavailable) — "system" 主题键在手表回落 M3 默认预设 (默认套主色
+        // #6750A4 即本映射 systemPurple 的视觉基准, 两端观感同源)。2026-10 watch 伴侣 App。
+        let preset = ThemePresets.byKey(ThemePresets.KEY_DEFAULT)
+        return dark ? preset.dark : preset.light
+        #else
         WakeUpColorScheme(
             primary: Color(uiColor: .systemPurple),
             onPrimary: dark ? Color(0xFF2D165C) : .white,
@@ -351,6 +358,7 @@ struct SleepyThemeProvider: ViewModifier {
             errorContainer: dark ? Color(0xFF93000A) : Color(0xFFF9DEDC),
             onErrorContainer: dark ? Color(0xFFFFDAD6) : Color(0xFF410E0B)
         )
+        #endif
     }
 }
 

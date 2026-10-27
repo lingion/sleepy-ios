@@ -692,7 +692,9 @@ final class NotificationScheduler {
     static func registerDailyResyncTask() {
         // BGTaskScheduler.register 在 app extension 内不可用(系统只允许主 App 注册
         // launch handler); widget 进程不接 BGTask, 注册归 app 侧 willFinishLaunching。
-        #if WIDGET_EXT
+        // watchOS 进程同理不接 (BGTaskScheduler API 在 watchOS 不可用);
+        // 手表每日窗口兜底 = 00:05 静默通知载体 (scheduleBeforeClassDailyResync 已排)。
+        #if WIDGET_EXT || WATCH_APP
         return
         #else
         guard #available(iOS 15.0, *), !bgTaskRegistered else { return }
@@ -706,6 +708,7 @@ final class NotificationScheduler {
         #endif
     }
 
+    #if !WIDGET_EXT && !WATCH_APP
     private static func handleDailyResyncBackground(_ task: BGAppRefreshTask) {
         NotificationScheduler.shared.submitDailyResyncTask()
         let work = Task {
@@ -714,9 +717,14 @@ final class NotificationScheduler {
         }
         task.expirationHandler = { work.cancel() }
     }
+    #endif
 
     /// 提交下一次每日窗口兜底唤醒 (00:05~00:35 时段, 系统择机; 重复调用同 id 合并)。
     func submitDailyResyncTask() {
+        // watchOS/widget 进程无 BGTask 通道 (见 registerDailyResyncTask 注释)
+        #if WIDGET_EXT || WATCH_APP
+        return
+        #else
         guard #available(iOS 15.0, *) else { return }
         let request = BGAppRefreshTaskRequest(identifier: Self.BG_RESYNC_TASK_ID)
         var comps = DateComponents()
@@ -725,6 +733,7 @@ final class NotificationScheduler {
         let todays = DateUtils.isoCalendar.nextDate(after: Date(), matching: comps, matchingPolicy: .nextTime)
         request.earliestBeginDate = todays
         try? BGTaskScheduler.shared.submit(request)
+        #endif
     }
 
     /// ← getCourseStartTime(course, table)
@@ -809,6 +818,9 @@ final class SleepyNotificationDelegate: NSObject, UNUserNotificationCenterDelega
             Task {
                 // F128 issue#1: 课前投放闸 AND 上课勿扰抑制闸 — 后者让
                 // ClassDndScheduler.shouldSuppressNotification 真正有调用方。
+                // watchOS: ClassDndScheduler 为 Foundation-only 已随 watch 编入;
+                // isClassDndEnabled 未镜像 (手表 prefs 默认 false) = 抑制闸恒开闸,
+                // Focus 真抑制只在 iPhone 生效。2026-10 watch 伴侣 App。
                 let delivery = await NotificationScheduler.shared.beforeClassDeliveryAllowed(
                     userInfo: notification.request.content.userInfo)
                 // F128 issue#1: `&&` 的 RHS 是 @autoclosure, 不支持嵌入 await —
