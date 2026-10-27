@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lingion/sleepy-ios/releases">下载 IPA</a> · <a href="https://sleepy.is-my.app">官网</a> · <a href="https://sleepy.qdp.qzz.io">在线体验</a> · <a href="https://github.com/lingion/sleepy">Android 原版</a> · <a href="#社区">💬 社区</a> · <a href="https://github.com/lingion/sleepy/blob/main/sponsor.md">赞助</a>
+  <a href="https://github.com/lingion/sleepy-ios/releases">下载 IPA</a> · <a href="https://sleepy.is-my.app">官网</a> · <a href="https://sleepy.is-my.app/preview">在线体验</a> · <a href="https://github.com/lingion/sleepy">Android 原版</a> · <a href="#社区">💬 社区</a> · <a href="https://github.com/lingion/sleepy/blob/main/sponsor.md">赞助</a>
 </p>
 
 ---
@@ -329,7 +329,7 @@ Bug 反馈和新学校适配请提交到 [Issues](https://github.com/lingion/sle
 ## 文档
 
 - **[官网](https://sleepy.is-my.app)** — 项目主页：功能介绍、学校名录、下载中心、常见问答
-- **[在线体验](https://sleepy.qdp.qzz.io)** — Web 版课表，浏览器打开即用，无需安装；支持多格式导入（WakeUp 分享文本 / ICS / CSV / Excel），数据仅存本地
+- **[在线体验](https://sleepy.is-my.app/preview)** — Web 版课表，浏览器打开即用，无需安装；支持多格式导入（WakeUp 分享文本 / ICS / CSV / Excel），数据仅存本地
 - **[Android 原版](https://github.com/lingion/sleepy)** — Sleepy 起源仓库：Kotlin + Jetpack Compose，附 [Wiki 手册](https://github.com/lingion/sleepy/wiki) 与[使用指南](https://blog.qdp.qzz.io/docs/sleepy/overview)
 - **[CI 自动化](docs/ci-automation.md)** — 云端构建无签名 IPA 与模拟器测试的流程说明
 

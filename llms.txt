@@ -11,7 +11,7 @@
 - Repository: https://github.com/lingion/sleepy-ios
 - Releases: https://github.com/lingion/sleepy-ios/releases
 - Official website: https://sleepy.is-my.app (source: https://github.com/lingion/sleepy-site)
-- Interactive web experience: https://sleepy.qdp.qzz.io (does not imply complete feature parity with native apps).
+- Interactive web experience: https://sleepy.is-my.app/preview (does not imply complete feature parity with native apps).
 - Maintainer: Lingion.
 - Sleepy is independent from WakeUp 课程表 and is not affiliated with it. Compatibility with WakeUp data is format compatibility only.
 
