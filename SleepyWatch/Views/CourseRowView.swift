@@ -29,14 +29,17 @@ struct CourseRowView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
+        // ← iOS TodayCourseCard: HStack(spacing: 12), 手表窄屏降维到 8 (SleepyShapes.small)
+        HStack(alignment: .top, spacing: 8) {
             if !store.neutralColor {
-                RoundedRectangle(cornerRadius: 2)
+                // 色条宽 = SleepyShapes.extraSmall (4pt), 圆角同
+                RoundedRectangle(cornerRadius: SleepyShapes.extraSmall)
                     .fill(color)
-                    .frame(width: 3)
+                    .frame(width: CGFloat(SleepyShapes.extraSmall))
                     .padding(.vertical, 1)
             }
-            VStack(alignment: .leading, spacing: 2) {
+            // ← iOS TodayCourseCard: VStack(spacing: 4)
+            VStack(alignment: .leading, spacing: 4) {
                 Text(store.slotLabel(course, table: table))
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
                     .foregroundColor(scheme.onSurfaceVariant)
@@ -55,13 +58,15 @@ struct CourseRowView: View {
             Spacer(minLength: 0)
             if let mark = mark {
                 // 进行中/下一节角标 ← today_screen 实时态的手表降维
-                Capsule()
-                    .fill(mark == .current ? scheme.primary : scheme.primary.opacity(0.25))
+                // 圆点 = Circle (非 Capsule, 6×6 是正圆); 色 = primary / primary@inactive
+                Circle()
+                    .fill(mark == .current ? scheme.primary : scheme.primary.opacity(SleepyTheme.Alpha.inactive))
                     .frame(width: 6, height: 6)
                     .padding(.top, 4)
                     .accessibilityLabel(mark == .current ? L10n.t("watch_mark_now") : L10n.t("watch_mark_next"))
             }
         }
-        .padding(.vertical, 2)
+        // ← iOS TodayCourseCard: padding(12), 手表窄屏降维到 4
+        .padding(.vertical, 4)
     }
 }

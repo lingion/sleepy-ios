@@ -117,14 +117,14 @@ struct TodayView: View {
     private func headerRow(status: DateUtils.SemesterStatus, table: TimeTableEntity,
                            count: Int, scheme: WidgetScheme) -> some View {
         let comps = DateUtils.isoCalendar.dateComponents([.month, .day, .weekday], from: Date())
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 0) {
             // ★ 日期行 = 全屏倒计时入口 (双击/单击进入沉浸式大字倒计时)
             NavigationLink {
                 CountdownView(table: table)
             } label: {
-                HStack(alignment: .bottom, spacing: 4) {
+                HStack(alignment: .bottom, spacing: 8) {
                     Text(L10n.format("date_long_format", comps.month ?? 1, comps.day ?? 1))
-                        .font(.system(size: 17, weight: .bold))
+                        .font(.system(size: 22, weight: .bold))
                         .foregroundColor(scheme.onSurface)
                     Text(DateUtils.localizedDay(((comps.weekday ?? 2) + 5) % 7 + 1))
                         .font(.system(size: 10, weight: .medium))
@@ -135,9 +135,11 @@ struct TodayView: View {
                         .foregroundColor(scheme.primary)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SleepyButtonStyle())
 
-            HStack(spacing: 4) {
+            Spacer().frame(height: 8)
+
+            HStack(spacing: 12) {
                 stat(weekOrStatusText(status, table: table),
                      bg: scheme.primaryContainer, fg: scheme.onPrimaryContainer, scheme: scheme)
                 // 节数 chip = 课程清单 push 入口 (手表今日页唯一入口位; 语义
@@ -147,9 +149,14 @@ struct TodayView: View {
                     stat(count == 0 ? L10n.t("no_course") : L10n.format("n_course_periods", count),
                          bg: scheme.surfaceVariant, fg: scheme.onSurfaceVariant, scheme: scheme)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SleepyButtonStyle())
             }
         }
+        // ← iOS TodayHeader: .padding(16) + .background(surfaceContainer) + .cornerRadius(large=16)
+        // 手表窄屏降维: padding 8, 圆角 medium=12 (SleepyShapes.medium)
+        .padding(8)
+        .background(scheme.surfaceContainer)
+        .cornerRadius(SleepyShapes.medium)
     }
 
     private func weekOrStatusText(_ status: DateUtils.SemesterStatus, table: TimeTableEntity) -> String {
@@ -166,8 +173,10 @@ struct TodayView: View {
         Text(label)
             .font(.system(size: 9, weight: .medium))
             .foregroundColor(fg)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Capsule().fill(bg))
+            // ← iOS Stat: padding(.horizontal, 12).padding(.vertical, 6) + cornerRadius(medium=12)
+            // 手表窄屏降维: padding 8/4, 圆角 small=8 (SleepyShapes.small)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: SleepyShapes.small).fill(bg))
     }
 
     private func emptyState(scheme: WidgetScheme) -> some View {
