@@ -1052,6 +1052,10 @@
 "watch_settings_readonly_hint" = "Los recordatorios se gestionan en el iPhone.";
 "watch_detail_day" = "Día";
 "watch_synced_ack" = "Watch sincronizado";
+"watch_countdown_title" = "Cuenta atrás";
+"watch_countdown_in_class" = "En clase";
+"watch_countdown_next" = "Hasta la siguiente";
+"watch_countdown_done" = "No hay más clases hoy";
 "watch_complication_display_name" = "Próxima clase";
 "watch_complication_description" = "Muestra la próxima clase y la cuenta atrás en la esfera";
 "watch_not_synced" = "Watch no sincronizado";

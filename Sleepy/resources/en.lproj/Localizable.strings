@@ -1052,6 +1052,10 @@
 "watch_settings_readonly_hint" = "Reminders are managed on your iPhone.";
 "watch_detail_day" = "Day";
 "watch_synced_ack" = "Watch synced";
+"watch_countdown_title" = "Countdown";
+"watch_countdown_in_class" = "In class";
+"watch_countdown_next" = "Until next";
+"watch_countdown_done" = "No more classes today";
 "watch_complication_display_name" = "Next class";
 "watch_complication_description" = "Show next class and countdown on the watch face";
 "watch_not_synced" = "Watch not synced";

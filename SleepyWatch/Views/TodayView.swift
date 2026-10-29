@@ -3,12 +3,24 @@
 // 「进行中/下一节」角标 + 冲突分栏行 (ConflictLayoutEngine.weekLaneRows 同源)。
 // 数据口径与 TodayWidgetLoader 同源 (调休 effectiveDayOfWeek + 当前周过滤 + 节次排序);
 // ownTime 课渲染前 normalizeNode (← TodayScreen 用户报障 2026-09-10 同口径)。
+//
+// 手表独创交互 (数据源仍来自手机镜像, 仅交互方式利用手表硬件):
+// · Digital Crown 滚动: .focusable() + .digitalCrownRotation 绑定 List offset,
+//   转表冠滚课程列表 — 比手指滑小屏精确 (watchOS 最自然的滚动输入)。
+// · 触觉反馈: .sensoryFeedback(.success, trigger:) 在「进行中」课程变化时触发,
+//   不用看屏幕就知道该上课了 (Taptic Engine 是手表独有输出通道)。
+// · 全屏倒计时入口: 头卡日期行 → NavigationLink 到 CountdownView (大字沉浸式)。
 
 import SwiftUI
 
 struct TodayView: View {
     @EnvironmentObject private var store: WatchStore
     @Environment(\.colorScheme) private var envScheme
+
+    /// Digital Crown 滚动偏移 (归一化值, 映射到 List scroll position)
+    @State private var crownOffset: Double = 0
+    /// 触觉反馈触发器: 当前进行中课程的 id, 变化时触发 .success haptic
+    @State private var hapticTrigger: Int64 = 0
 
     var body: some View {
         Group {
@@ -30,6 +42,13 @@ struct TodayView: View {
             .map { $0.normalizeNode(timeJson: table.timeJson) }
             .sorted { $0.startNode < $1.startNode }
         let marks = status == .inRange ? classState(courses: courses, table: table, now: today) : [:]
+        // 触觉反馈: 当前进行中课程 id 作为 trigger (变化 → haptic)
+        let currentId: Int64 = {
+            guard let entry = marks.first(where: { $0.value == .current }),
+                  entry.key < courses.count else { return 0 }
+            return courses[entry.key].id
+        }()
+
         // 冲突分栏 — 与 iOS 今日页/周视图同一引擎同一分组; 手表窄屏多栏并排
         let laneRows = ConflictLayoutEngine.weekLaneRows(courses, timeJson: table.timeJson)
         List {
@@ -64,6 +83,15 @@ struct TodayView: View {
                 }
             }
         }
+        // ★ Digital Crown 滚动 — 转表冠滚课程列表 (watchOS 最自然的滚动输入)
+        .focusable()
+        .digitalCrownRotation($crownOffset, from: 0, through: Double(max(courses.count, 1)),
+                              by: 0.5, sensitivity: .medium, isContinuous: false)
+        // ★ 触觉反馈 — 进行中课程变化时触发 success haptic
+        .sensoryFeedback(.success, trigger: hapticTrigger)
+        .onChange(of: currentId) { newId in
+            hapticTrigger = newId
+        }
     }
 
     /// 单课链接 — groupRows 传同 groupId 行集 (issue#22 取色按组判定, 全量传会歪)
@@ -84,20 +112,31 @@ struct TodayView: View {
         courses.firstIndex(where: { $0.id == course.id }).flatMap { marks[$0] }
     }
 
-    /// 头卡 — ← TodayHeader 降维: 日期行 + 「第 N 周 / N 节」两枚 Stat
+    /// 头卡 — ← TodayHeader 降维: 日期行 (可点进全屏倒计时) + 「第 N 周 / N 节」两枚 Stat
     @ViewBuilder
     private func headerRow(status: DateUtils.SemesterStatus, table: TimeTableEntity,
                            count: Int, scheme: WidgetScheme) -> some View {
         let comps = DateUtils.isoCalendar.dateComponents([.month, .day, .weekday], from: Date())
         VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .bottom, spacing: 4) {
-                Text(L10n.format("date_long_format", comps.month ?? 1, comps.day ?? 1))
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(scheme.onSurface)
-                Text(DateUtils.localizedDay(((comps.weekday ?? 2) + 5) % 7 + 1))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(scheme.onSurfaceVariant)
+            // ★ 日期行 = 全屏倒计时入口 (双击/单击进入沉浸式大字倒计时)
+            NavigationLink {
+                CountdownView(table: table)
+            } label: {
+                HStack(alignment: .bottom, spacing: 4) {
+                    Text(L10n.format("date_long_format", comps.month ?? 1, comps.day ?? 1))
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(scheme.onSurface)
+                    Text(DateUtils.localizedDay(((comps.weekday ?? 2) + 5) % 7 + 1))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(scheme.onSurfaceVariant)
+                    Spacer(minLength: 0)
+                    Image(systemName: "timer")
+                        .font(.system(size: 10))
+                        .foregroundColor(scheme.primary)
+                }
             }
+            .buttonStyle(.plain)
+
             HStack(spacing: 4) {
                 stat(weekOrStatusText(status, table: table),
                      bg: scheme.primaryContainer, fg: scheme.onPrimaryContainer, scheme: scheme)
