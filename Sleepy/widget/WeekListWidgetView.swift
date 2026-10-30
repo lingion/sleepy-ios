@@ -55,7 +55,9 @@ enum WeekListWidgetDataLoader {
     static func loadData(kind: String) async -> WeekData {
         let today = Date()
         let prefs = AppPrefs.shared
-        let isDark = prefs.isDarkMode()
+        // ← Android WeekListWidget.kt:171: isSystemDark 取 widget 宿主 Context 的
+        //   uiMode 夜间标志; iOS 默认参数 false 会让 system 主题下 widget 永远浅色。
+        let isDark = prefs.isDarkMode(isSystemDark: currentSystemDark())
         let themeKey = prefs.getThemeKey()
         let themeMode = prefs.getThemeMode()
         let fallback = WeekData(days: [], hasTable: false, isDark: isDark,

@@ -40,7 +40,9 @@ enum TwoDayWidgetDataLoader {
         // 算术 (DST/时区下不保日界)
         let today = DateUtils.isoCalendar.startOfDay(for: Date())
         let prefs = AppPrefs.shared
-        let isDark = prefs.isDarkMode()
+        // ← Android TwoDayWidget.kt:184: isSystemDark 取 widget 宿主 Context 的
+        //   uiMode 夜间标志; iOS 默认参数 false 会让 system 主题下 widget 永远浅色。
+        let isDark = prefs.isDarkMode(isSystemDark: currentSystemDark())
         let themeKey = prefs.getThemeKey()
         let themeMode = prefs.getThemeMode()
         let fallback = TwoDayData(days: [], hasTable: false, isDark: isDark,
