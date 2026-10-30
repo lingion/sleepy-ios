@@ -64,6 +64,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             WatchSyncCoordinator.shared.scheduleSync()
         }
         WatchSyncCoordinator.shared.start()
+        // ← Android SleepyApp.onCreate:44 CourseHueStore.start(this)
+        //   持久色相只读快照首载 + 订阅 mode/seed/theme/themeMode 四键变更。
+        CourseHueStore.shared.start()
         // ← Android SleepyApp.onCreate: classDndScheduler 注入 (F128 issue#2)
         ClassDndScheduler.shared.configure(repositoryProvider: { [weak self] in self?.repository })
         // ← Android ReminderRescheduler.init 块 (SleepyApp.kt:44-52) — 同时修复 init_ 从未被调用、

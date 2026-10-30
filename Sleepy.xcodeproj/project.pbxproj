@@ -86,6 +86,7 @@
 		18BB01CEE1A675650D7D82AD /* BackgroundReliabilitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B212788C9D9EE211D730AB /* BackgroundReliabilitySnapshot.swift */; };
 		18ECA3085EC4D063C5DBCA50 /* JwEams5Parser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A86F82646BCD36EE693111 /* JwEams5Parser.swift */; };
 		1A871ED1484402EECA9967C1 /* ImportDraftEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 427290E97C9EEF4990D614F5 /* ImportDraftEntity.swift */; };
+		1AB5B03F3F6BFD0906325574 /* CourseHueStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1972DF48A00AB2312D9DF0 /* CourseHueStore.swift */; };
 		1ABE658EB80D3B8BAE57540D /* ReminderRescheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EA972FB93F27FC5BF76C73 /* ReminderRescheduler.swift */; };
 		1AFA83E76F1078F6CB3E50E8 /* PeriodHeaderFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A77AF7764775265B10AE2B /* PeriodHeaderFormatter.swift */; };
 		1C0198D6207E6160D814C1B2 /* JwImportDiagnosticsFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 248CB14A9ABADCF13C48649F /* JwImportDiagnosticsFlow.swift */; };
@@ -129,6 +130,7 @@
 		2749A5FC17C9716409A893D6 /* ScheduleParserLosslessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD0851531D7F71E0ED03D36 /* ScheduleParserLosslessTests.swift */; };
 		2796FEB743582031203286AD /* TableEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A484DCBC349DF312302C65 /* TableEditUITests.swift */; };
 		2801D93B452A0F2E5DEE1D35 /* CalendarImportRecordDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8A83BDF70AF60240387895 /* CalendarImportRecordDao.swift */; };
+		283E9CDACD964CDA1F29633E /* ImportRoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF0ABA49DCD06B5254BA8BA /* ImportRoster.swift */; };
 		28AAD19BBD8398B2351C8434 /* JwClassicEamsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3F6B5708FBF3585FFE2EC2 /* JwClassicEamsParser.swift */; };
 		28C6288687FD37C6AAEE4DF1 /* SleepyNativeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831838316873C50C42AC649A /* SleepyNativeFormat.swift */; };
 		2911F2F82AF24F9DAC7F2CD5 /* ConflictLayoutEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41DA105DC235C6C99C97A0B /* ConflictLayoutEngineTests.swift */; };
@@ -207,6 +209,7 @@
 		44A1131C0E95B20A67FD5E33 /* JwHnustParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3205A634D1395324ABDEB /* JwHnustParserTests.swift */; };
 		451EC791E28FAFB2754E6149 /* UpdateInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5B884B15CD7982BF4BC2F9 /* UpdateInfo.swift */; };
 		45E85F9CE80185D47240DF4A /* WidgetSizeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7667DFB68961DD43C9A9A5D /* WidgetSizeCore.swift */; };
+		4678EDB31DEAC824CE42AB0D /* ImportRoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF0ABA49DCD06B5254BA8BA /* ImportRoster.swift */; };
 		46E56F82097EE35BCEEA4C77 /* JwThuparser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D6582A2AEB68F8E97C20FD /* JwThuparser.swift */; };
 		470E4097C98608142ADED67C /* JwWakeUpCompatParsers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 862D1D03A00150D15C37BF03 /* JwWakeUpCompatParsers.swift */; };
 		471B0D0CA625A98108CFBF7F /* JwImportFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49ACC545589A76ED84024036 /* JwImportFlowTests.swift */; };
@@ -215,6 +218,7 @@
 		47A68F16AF8D29100394A94A /* WidgetArchiveLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361943C96AEED91260036E34 /* WidgetArchiveLog.swift */; };
 		47CEDC5F55C0F4A8F96009E9 /* AppPrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB174180E779B7796964E378 /* AppPrefs.swift */; };
 		47E9257CA8EAFC6F9D5F7280 /* PeriodTableDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DC15F72A71D1DC1C3370D6F /* PeriodTableDao.swift */; };
+		48048B19335D586C4A1CF4B8 /* CourseColorWriteGlueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81A47CC19CD103543B9322D /* CourseColorWriteGlueTests.swift */; };
 		486E763FDB230519E148D20E /* MineScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05A3D362C9894D69BFFCEC3F /* MineScreen.swift */; };
 		488B6FCD75861629BFB511C2 /* JwWebViewBlankTargetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A0EF2E319E98B292C560CE /* JwWebViewBlankTargetUITests.swift */; };
 		4895103A08899E1C57F397A5 /* TimeTableUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EB72448743A4CF5CF466C5 /* TimeTableUtils.swift */; };
@@ -261,6 +265,7 @@
 		55F3C7508F2EBFE2219BCB83 /* GridSeparatorGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB8D57D18781E227F5F568A /* GridSeparatorGeometry.swift */; };
 		5694EE7975AACBA72A2D29C9 /* JwOldZfParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FA955015388CB1ED0BE2085 /* JwOldZfParser.swift */; };
 		57411C0CEB1EA1BD8B5D199A /* WidgetResizeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B6495A761202081C7C1888 /* WidgetResizeCore.swift */; };
+		57AD594D56124D39AF9F782E /* ImportRoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF0ABA49DCD06B5254BA8BA /* ImportRoster.swift */; };
 		57DAC24943EF538C3837B5FB /* VersionUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0892BA3B202EE76234C0CC9 /* VersionUtils.swift */; };
 		57E26289B688726AD9BC1472 /* CalendarImportRecordEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0DABC28BEA6BE6A4C2179D /* CalendarImportRecordEntity.swift */; };
 		58293D473C0574A95A1BDE90 /* DialogButtonsLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605E90839E51A5E622A86165 /* DialogButtonsLayoutPolicy.swift */; };
@@ -323,7 +328,9 @@
 		6C674F87490B5F9F9E5A8EB0 /* SchoolDomainMatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3406352597357F14F585C379 /* SchoolDomainMatch.swift */; };
 		6C8953C9D9137CB64BADA902 /* TopBarOverlapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E666B657065219FD1335EA /* TopBarOverlapUITests.swift */; };
 		6DBAC0D88FECC7F3CD92F43C /* CourseDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9605A27EE773F13A53F202 /* CourseDetailSheet.swift */; };
+		6DF2F4BC018E18DB38BE1206 /* CourseColorWriteGlue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */; };
 		6E05CDFBB3E25A4B6BB095C9 /* WidgetCourseCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ACF85CE927A56FE05B7CABB /* WidgetCourseCard.swift */; };
+		6E2176D99BBC969DE55CFB8F /* CourseHueStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1972DF48A00AB2312D9DF0 /* CourseHueStore.swift */; };
 		6E3183613FB4C7F3BB24DBB4 /* CalendarImportRecordDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8A83BDF70AF60240387895 /* CalendarImportRecordDao.swift */; };
 		6EE865668B55E20B20FB7941 /* DiagDumpProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72D4794F4BF53B6DB3E463D /* DiagDumpProgress.swift */; };
 		6F9732E349AFDA68CA653E3C /* TimeTableUtilsAlignmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F1563123EEBE8166F29623F /* TimeTableUtilsAlignmentTests.swift */; };
@@ -372,8 +379,10 @@
 		7CE5CBEFDDECCCE4C23E9AC5 /* WidgetManagementScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58603B4EDA2A13DB3DE29C0F /* WidgetManagementScreen.swift */; };
 		7CED8B22A59CED24C1EB08C8 /* ConflictLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4045004893D9AB9C079A3CF /* ConflictLayoutEngine.swift */; };
 		7D4E808CFE7DA03C186C197D /* CustomSchemeDeriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F2D8DA1BAD4105612867AE /* CustomSchemeDeriver.swift */; };
+		7D5AF9581BE87F6C8F32BDD5 /* CourseColorWriteGlue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */; };
 		7D937FA178D2B32F57D5AEBA /* JwJsonParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDC6BEB3E8D377C5952F4450 /* JwJsonParserTests.swift */; };
 		7DF4A56820FE431BC73708C7 /* WidgetSizeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7667DFB68961DD43C9A9A5D /* WidgetSizeCore.swift */; };
+		7E8E65D80BF95FCF885E7426 /* CourseHueStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1972DF48A00AB2312D9DF0 /* CourseHueStore.swift */; };
 		7EB40508A8D1805525DE6AB9 /* PinyinMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 690DF83E91E199DFE66F9756 /* PinyinMatcher.swift */; };
 		7EDE753B2953799E66FC71E7 /* JwProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3480ED82E92E5E453EA66874 /* JwProtocol.swift */; };
 		7EE4BEE36DF41CF8937BC955 /* SleepyUITestSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA7389DF46C926458122F39 /* SleepyUITestSeeder.swift */; };
@@ -391,6 +400,7 @@
 		830F5E51784D4CFFCC1C69D4 /* SchoolLocationLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131D314570395796E5D7505F /* SchoolLocationLookup.swift */; };
 		83439E6A9F38CC8D2EE1357D /* DialogButtonsLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605E90839E51A5E622A86165 /* DialogButtonsLayoutPolicy.swift */; };
 		83A4F8E096E900A4A5C045D2 /* GlobalWidgetCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B00E403E87446234A08FCF /* GlobalWidgetCompatibility.swift */; };
+		84FC6D0B5696C1AF3C7ED675 /* ImportRosterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E0C397C35B589BA063FC4D /* ImportRosterTests.swift */; };
 		85CDA2ACCCF749A4D3DC7619 /* WeekGridWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76EC0EF9B72C669E4A56B91E /* WeekGridWidgetView.swift */; };
 		861AB6B5478DB2423D1323C2 /* NativeColorPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9103FA65945B83156A93E926 /* NativeColorPicker.swift */; };
 		861F76FBEF8F54A2A7F2F55D /* WatchSyncSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE9B8E632B798EE88123F87B /* WatchSyncSnapshotTests.swift */; };
@@ -402,6 +412,8 @@
 		87748876653D7029B041AF5C /* WidgetVariantInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B140E2A80329256048C9082 /* WidgetVariantInfo.swift */; };
 		878F3244F1C6377357F0A0DE /* PendingPolicyBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CF867A5F45D33213B73226C /* PendingPolicyBanner.swift */; };
 		8824B6B9A71D1228E3B3FA3C /* WidgetResizeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B6495A761202081C7C1888 /* WidgetResizeCore.swift */; };
+		88437932F9E2E298F313850C /* CourseColorHarmonyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1FF9D29D0561321FEBCBF9 /* CourseColorHarmonyTests.swift */; };
+		89162646D192A897EF8D654B /* CourseHueStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1972DF48A00AB2312D9DF0 /* CourseHueStore.swift */; };
 		899CBC808AD7165366D9D0BA /* Issue55OwnTimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CFC9A64BF20B8F84CA0642 /* Issue55OwnTimeTests.swift */; };
 		89B1EC9714416910350CDA3C /* ShareScheduleSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C159F940014161B3F4498898 /* ShareScheduleSheet.swift */; };
 		89FAB921C7D98EA9A507D61A /* JwParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9090ACA661D747DF0AB718 /* JwParser.swift */; };
@@ -549,6 +561,7 @@
 		C5569EFCE2926F88F338D036 /* JwFetchJs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470B2F1B228FAF14D3C44AE7 /* JwFetchJs.swift */; };
 		C5C405B7D1B57C3194E7FF86 /* BatteryOptimizationIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A490795AC781095315441167 /* BatteryOptimizationIntents.swift */; };
 		C65CEF7065B1FE6FF1053150 /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0118768447020F992469BB3A /* WatchRootView.swift */; };
+		C67FEC137B6739296562BD28 /* CourseColorWriteGlue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */; };
 		C75EAA02EC7094A728B8A0F7 /* JwQzParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166C8FB4895B9F8ACF079DDD /* JwQzParser.swift */; };
 		C7749C80CF3B91B937B73606 /* AppearanceNavigationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BEBFA267D121F786634455D /* AppearanceNavigationRow.swift */; };
 		C7A725B2DDADB89C631B58DD /* PlatformParityNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0425392AD82917108D3BB908 /* PlatformParityNotes.swift */; };
@@ -598,6 +611,7 @@
 		D6F06CFA07C6AD3B37130285 /* MigrationDatabaseCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = F251FBCF28A44624A87D96D4 /* MigrationDatabaseCodec.swift */; };
 		D6F20A458DA3948A5446E4D6 /* ColorPickerDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08F572C4049C60A80884CCF /* ColorPickerDialog.swift */; };
 		D7AF86EA9E773ED3E5F0F344 /* ConflictLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4045004893D9AB9C079A3CF /* ConflictLayoutEngine.swift */; };
+		D7E202547F9B95BCF6FD2A56 /* CourseColorWriteGlue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */; };
 		D7FEDBA885B825B893C17A74 /* JwImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B413E30FAD9261068960FC5F /* JwImportViewModel.swift */; };
 		D8309150A0A16826825FAABB /* MigrationBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D592A336E4B87069FB2952A3 /* MigrationBackup.swift */; };
 		D850C9512A65FE07DDC9556F /* AppPrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB174180E779B7796964E378 /* AppPrefs.swift */; };
@@ -644,6 +658,7 @@
 		E39A2D58822A3FC8B9852B25 /* UpdateInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5B884B15CD7982BF4BC2F9 /* UpdateInfo.swift */; };
 		E3A1781977A55E7FE5CC8BA1 /* ScheduleExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEAA495471D6CEA3AECFD615 /* ScheduleExporter.swift */; };
 		E3D7309B5B98B918C7975331 /* QqJoin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7453815E27C3A0269EAA730D /* QqJoin.swift */; };
+		E45669AE2B48407355873D12 /* ImportRoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF0ABA49DCD06B5254BA8BA /* ImportRoster.swift */; };
 		E4C5FFFBF7ECC128779A6BEF /* JwJsonParsers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC7DB3DE13257F697784257 /* JwJsonParsers.swift */; };
 		E5174344C8BFB27DBD5ECE6C /* school_city_boundaries.source.json in Resources */ = {isa = PBXBuildFile; fileRef = DCA9076C6A9149843AB86B5C /* school_city_boundaries.source.json */; };
 		E6042C5401469BCF58FFE40E /* JwFetchProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F91D25B8AFE12E2BF5F3BFF8 /* JwFetchProtocol.swift */; };
@@ -829,6 +844,7 @@
 		1AEFC2A0E1B4E3D771CDD8C2 /* JwWebViewFrameCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWebViewFrameCaptureTests.swift; sourceTree = "<group>"; };
 		1B1EF1B2C5CAED6827418503 /* SleepyMaterialTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyMaterialTransition.swift; sourceTree = "<group>"; };
 		1BCB8B72B49233D52340AB7A /* ParserAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParserAuditTests.swift; sourceTree = "<group>"; };
+		1C1972DF48A00AB2312D9DF0 /* CourseHueStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseHueStore.swift; sourceTree = "<group>"; };
 		1C5C54D0863791B36DF5B028 /* JwNeuParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwNeuParserTests.swift; sourceTree = "<group>"; };
 		1C60FAC5447AB59ECB3F3CCF /* Issue55CsvHtmlTextOwnTimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Issue55CsvHtmlTextOwnTimeTests.swift; sourceTree = "<group>"; };
 		1C9A3BE407EE0D37AF553C0A /* WidgetSizeCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSizeCoreTests.swift; sourceTree = "<group>"; };
@@ -846,6 +862,7 @@
 		24530B6DC99642CD638100EE /* ImportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSheet.swift; sourceTree = "<group>"; };
 		248CB14A9ABADCF13C48649F /* JwImportDiagnosticsFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportDiagnosticsFlow.swift; sourceTree = "<group>"; };
 		24CB83AF9B32FF2BC4921DB0 /* SleepyNativeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyNativeParser.swift; sourceTree = "<group>"; };
+		2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorWriteGlue.swift; sourceTree = "<group>"; };
 		25FE9965C48E2F34C544D0F2 /* JwCfNewParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCfNewParser.swift; sourceTree = "<group>"; };
 		26CF08C9ED257788E53D0309 /* JwParserRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParserRegistry.swift; sourceTree = "<group>"; };
 		26F2D8DA1BAD4105612867AE /* CustomSchemeDeriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSchemeDeriver.swift; sourceTree = "<group>"; };
@@ -876,6 +893,7 @@
 		397DC86E9AB0B03EE79461D2 /* SleepyNativeFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyNativeFormatTests.swift; sourceTree = "<group>"; };
 		39EE2EC9F37C40DBBE526D31 /* JwCourse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCourse.swift; sourceTree = "<group>"; };
 		3A0E8FA435173DC2DF447D33 /* JwWakeUpCompatParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWakeUpCompatParserTests.swift; sourceTree = "<group>"; };
+		3A1FF9D29D0561321FEBCBF9 /* CourseColorHarmonyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorHarmonyTests.swift; sourceTree = "<group>"; };
 		3B140E2A80329256048C9082 /* WidgetVariantInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetVariantInfo.swift; sourceTree = "<group>"; };
 		3BB9A3170E31D64A578F3B56 /* ImportReceiverActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportReceiverActivity.swift; sourceTree = "<group>"; };
 		3C66E6D2ABAEEAC25D75D8C3 /* ExportImportRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImportRoundTripTests.swift; sourceTree = "<group>"; };
@@ -981,9 +999,11 @@
 		76EC0EF9B72C669E4A56B91E /* WeekGridWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekGridWidgetView.swift; sourceTree = "<group>"; };
 		7740A67DF059058207397D60 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = es; path = es.lproj/Localizable.stringsdict; sourceTree = "<group>"; };
 		779E427676157A13B322A5B5 /* AppearanceScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceScreen.swift; sourceTree = "<group>"; };
+		79E0C397C35B589BA063FC4D /* ImportRosterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRosterTests.swift; sourceTree = "<group>"; };
 		79F4DCCC2A6CD5809C73B1A1 /* JwChengFangParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwChengFangParser.swift; sourceTree = "<group>"; };
 		7B3E1AC29BB571E46B9B7476 /* SmartPeriodEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPeriodEditor.swift; sourceTree = "<group>"; };
 		7CA7389DF46C926458122F39 /* SleepyUITestSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyUITestSeeder.swift; sourceTree = "<group>"; };
+		7CF0ABA49DCD06B5254BA8BA /* ImportRoster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRoster.swift; sourceTree = "<group>"; };
 		7D5816F5C0F382110A910D43 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
 		7D8DF7E3509AC5B4147E75C8 /* ReminderScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScreen.swift; sourceTree = "<group>"; };
 		7F8FE3D103CAC0B91A9CE015 /* HolidayManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayManagerTests.swift; sourceTree = "<group>"; };
@@ -1130,6 +1150,7 @@
 		D651B0E8CCB723BAB435B4C8 /* UndoManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManagerTests.swift; sourceTree = "<group>"; };
 		D714228499D6B06608D1C5C6 /* JwNeuParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwNeuParser.swift; sourceTree = "<group>"; };
 		D7C64B8C9F20602B582D6F22 /* HolidayReminderPolicyAdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayReminderPolicyAdapterTests.swift; sourceTree = "<group>"; };
+		D81A47CC19CD103543B9322D /* CourseColorWriteGlueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorWriteGlueTests.swift; sourceTree = "<group>"; };
 		D8586C130A8636DBE2C68C55 /* HolidayReminderPolicyAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayReminderPolicyAdapter.swift; sourceTree = "<group>"; };
 		D8594A29E16AA5CD4AA06BD6 /* MigrationV11Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationV11Tests.swift; sourceTree = "<group>"; };
 		D9D08D0F2D4A4985859EFCC8 /* WidgetGlassPreviewRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGlassPreviewRenderTests.swift; sourceTree = "<group>"; };
@@ -1241,7 +1262,9 @@
 				D31FA03F7AF7A6E296C6B4BD /* ConflictDetailReporter.swift */,
 				D4045004893D9AB9C079A3CF /* ConflictLayoutEngine.swift */,
 				5F8589E7A5EA8C34355C1FFF /* CourseColorUtil.swift */,
+				2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */,
 				E451AD795407D5BA73BD0A6B /* CourseDisplayUtil.swift */,
+				1C1972DF48A00AB2312D9DF0 /* CourseHueStore.swift */,
 				A1D79D23433FE386230D5AB1 /* DateUtils.swift */,
 				605E90839E51A5E622A86165 /* DialogButtonsLayoutPolicy.swift */,
 				43F1E27AEBC58B8A02E88519 /* FeedbackComposer.swift */,
@@ -1565,6 +1588,7 @@
 			isa = PBXGroup;
 			children = (
 				64D96D4B4460BFB76E92F792 /* ImportDraftRepository.swift */,
+				7CF0ABA49DCD06B5254BA8BA /* ImportRoster.swift */,
 				F93B2813DC503FB445168386 /* ScheduleRepository.swift */,
 			);
 			path = repository;
@@ -1629,8 +1653,10 @@
 				984F3C8B5FC81B912AD5527B /* ConflictDetailReporterTests.swift */,
 				23A86C9A205FB6D008F11A52 /* ConflictDetailWeekScopeTests.swift */,
 				A41DA105DC235C6C99C97A0B /* ConflictLayoutEngineTests.swift */,
+				3A1FF9D29D0561321FEBCBF9 /* CourseColorHarmonyTests.swift */,
 				0BB53AB9E6835DF8A6C070C8 /* CourseColorMigrationTests.swift */,
 				5F19B09B9CF4562AD9450D43 /* CourseColorUtilTests.swift */,
+				D81A47CC19CD103543B9322D /* CourseColorWriteGlueTests.swift */,
 				425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */,
 				3256067B02E3F8DEC9B0CC14 /* CourseDisplayUtilTests.swift */,
 				4335B0682DC846901B8C28B4 /* CustomThemeTests.swift */,
@@ -1646,6 +1672,7 @@
 				4D83A7A25FAA92EB0300C64A /* Ics28NeuPeriodsTests.swift */,
 				A96BF262488C60DF32EE682F /* ImportDraftRepositoryTests.swift */,
 				5DDC90F60E5366C55756996B /* ImportReceiverActivityTests.swift */,
+				79E0C397C35B589BA063FC4D /* ImportRosterTests.swift */,
 				1274843FE9312E87CD5807D5 /* Info.plist */,
 				0ECF5F48FE99625564C23CA6 /* IrregularOverflowTests.swift */,
 				1C60FAC5447AB59ECB3F3CCF /* Issue55CsvHtmlTextOwnTimeTests.swift */,
@@ -2201,9 +2228,11 @@
 				37003BC702E69DE12D1447AE /* CourseColorDao.swift in Sources */,
 				4CFCCB843C2A303372FCDD37 /* CourseColorEntity.swift in Sources */,
 				F233C73F377B5DDCDC081C14 /* CourseColorUtil.swift in Sources */,
+				6DF2F4BC018E18DB38BE1206 /* CourseColorWriteGlue.swift in Sources */,
 				9AE93BE5648E919A1752C588 /* CourseDao.swift in Sources */,
 				FAB9B2708140EE98876A75A0 /* CourseDisplayUtil.swift in Sources */,
 				0CF027A0FD153C28E4A90C3E /* CourseEntity.swift in Sources */,
+				1AB5B03F3F6BFD0906325574 /* CourseHueStore.swift in Sources */,
 				8F75D32B8EFC4E5730F75A2F /* CustomSchemeDeriver.swift in Sources */,
 				5D7AD99DB7D760FB83A621E2 /* CustomThemeStore.swift in Sources */,
 				216094C5CD0141D6836836E9 /* DateUtils.swift in Sources */,
@@ -2217,6 +2246,7 @@
 				2396B64AC47D49F561D49C31 /* HolidayTransferHelper.swift in Sources */,
 				1FB1E50DA7DDADC6940D698D /* ImportDraftDao.swift in Sources */,
 				9DE0C660320EC7CA07D2F510 /* ImportDraftEntity.swift in Sources */,
+				57AD594D56124D39AF9F782E /* ImportRoster.swift in Sources */,
 				330E3860000F89A4525D5DB3 /* L10n.swift in Sources */,
 				20B154D5EDDA5F8A1974BC48 /* LocaleHelper.swift in Sources */,
 				53142E7E9331592212B5E19A /* MarkdownBlocks.swift in Sources */,
@@ -2296,10 +2326,12 @@
 				21DCF7B39A4DE9FB6442E19C /* CourseColorDao.swift in Sources */,
 				5CCC347DAF0236151CBB70AD /* CourseColorEntity.swift in Sources */,
 				B7B7B9E50F2427797E4F6752 /* CourseColorUtil.swift in Sources */,
+				C67FEC137B6739296562BD28 /* CourseColorWriteGlue.swift in Sources */,
 				9C3967DF73C2215296271E04 /* CourseDao.swift in Sources */,
 				6DBAC0D88FECC7F3CD92F43C /* CourseDetailSheet.swift in Sources */,
 				41F5B59C468562763A588C8D /* CourseDisplayUtil.swift in Sources */,
 				75BDBE0C304130911EB16781 /* CourseEntity.swift in Sources */,
+				6E2176D99BBC969DE55CFB8F /* CourseHueStore.swift in Sources */,
 				0DF86B83C7DAA37A8C106AB8 /* CourseListScreen.swift in Sources */,
 				ED1304B67D86E2778FC7A12F /* CourseTableView.swift in Sources */,
 				124C150E7516307A12A3F02F /* CustomSchemeDeriver.swift in Sources */,
@@ -2328,6 +2360,7 @@
 				2C1994A31222CF55F7225933 /* ImportDraftRepository.swift in Sources */,
 				DA4413047A8A63278EEAEA6D /* ImportDraftSheet.swift in Sources */,
 				8671CB01D75A76AD4B3C81DD /* ImportReceiverActivity.swift in Sources */,
+				E45669AE2B48407355873D12 /* ImportRoster.swift in Sources */,
 				CD777F7A41318DA863A267CD /* ImportSheet.swift in Sources */,
 				14E0C6206AB3224219245BAE /* JwBjtuParser.swift in Sources */,
 				7F1490E343E8BC376334AC9F /* JwBnuzParser.swift in Sources */,
@@ -2546,9 +2579,11 @@
 				4E1398EF9384F6E688AE9424 /* CourseColorDao.swift in Sources */,
 				B42EF2BAA233D8C579CA4347 /* CourseColorEntity.swift in Sources */,
 				BA5D6AE2D8A400A25159A6DE /* CourseColorUtil.swift in Sources */,
+				7D5AF9581BE87F6C8F32BDD5 /* CourseColorWriteGlue.swift in Sources */,
 				DF3C38B397BF68B63560316F /* CourseDao.swift in Sources */,
 				4D994AF69C97E9EDE3A981FB /* CourseDisplayUtil.swift in Sources */,
 				77BF6566053079C67DBD9122 /* CourseEntity.swift in Sources */,
+				7E8E65D80BF95FCF885E7426 /* CourseHueStore.swift in Sources */,
 				4ADBE56C6B4087A04783AC85 /* CustomSchemeDeriver.swift in Sources */,
 				8AE862E0121B6911D9598A4A /* CustomThemeStore.swift in Sources */,
 				1359BA5B59555988AB6494CF /* DateUtils.swift in Sources */,
@@ -2564,6 +2599,7 @@
 				3FE11B7DAAFFC2CB8E59B45B /* ImportDraftDao.swift in Sources */,
 				1A871ED1484402EECA9967C1 /* ImportDraftEntity.swift in Sources */,
 				D4BD8EDCF883B2E8DD714569 /* ImportDraftRepository.swift in Sources */,
+				4678EDB31DEAC824CE42AB0D /* ImportRoster.swift in Sources */,
 				074693070D57DAB3FFBF5A86 /* JwBjtuParser.swift in Sources */,
 				5BCF822930ED82CBBB59B069 /* JwBnuzParser.swift in Sources */,
 				B0C3A9CD26C699017100E223 /* JwBoyaPpParser.swift in Sources */,
@@ -2696,8 +2732,10 @@
 				615F9EEEE290D91C4B780F12 /* ConflictDetailReporterTests.swift in Sources */,
 				78F8EFCEC7BFB8B1C167F0BA /* ConflictDetailWeekScopeTests.swift in Sources */,
 				2911F2F82AF24F9DAC7F2CD5 /* ConflictLayoutEngineTests.swift in Sources */,
+				88437932F9E2E298F313850C /* CourseColorHarmonyTests.swift in Sources */,
 				EC281CA8CDDCD6B370B3D7C2 /* CourseColorMigrationTests.swift in Sources */,
 				955AA3AAA68DB122F123785B /* CourseColorUtilTests.swift in Sources */,
+				48048B19335D586C4A1CF4B8 /* CourseColorWriteGlueTests.swift in Sources */,
 				2AB1C979346A5D643A0C2F16 /* CourseDaoChainTests.swift in Sources */,
 				E8F4FE29733449ED72FB1C93 /* CourseDisplayUtilTests.swift in Sources */,
 				72450AD7A9EBD75DDDB64B35 /* CustomThemeTests.swift in Sources */,
@@ -2713,6 +2751,7 @@
 				770E54586B09A166233F94AA /* Ics28NeuPeriodsTests.swift in Sources */,
 				1FD4B13081B758504A67B753 /* ImportDraftRepositoryTests.swift in Sources */,
 				F909579116E3DAFE633B692D /* ImportReceiverActivityTests.swift in Sources */,
+				84FC6D0B5696C1AF3C7ED675 /* ImportRosterTests.swift in Sources */,
 				48AA36E34A07C60AC998DCA9 /* IrregularOverflowTests.swift in Sources */,
 				7C6FAB02E18707E0143035CA /* Issue55CsvHtmlTextOwnTimeTests.swift in Sources */,
 				899CBC808AD7165366D9D0BA /* Issue55OwnTimeTests.swift in Sources */,
@@ -2807,10 +2846,12 @@
 				1803ADD2723B46DFC45BD03B /* CourseColorDao.swift in Sources */,
 				1F6945B7E91B41FDC1AF35FA /* CourseColorEntity.swift in Sources */,
 				5BB4CA898C8BA35EA1326859 /* CourseColorUtil.swift in Sources */,
+				D7E202547F9B95BCF6FD2A56 /* CourseColorWriteGlue.swift in Sources */,
 				42CF185F1CE96D48DAB94808 /* CourseDao.swift in Sources */,
 				D88057BB6141BE7FE151401A /* CourseDetailView.swift in Sources */,
 				5965128D6179D9E02C635F0B /* CourseDisplayUtil.swift in Sources */,
 				4D2D981072A830B0C1F81F28 /* CourseEntity.swift in Sources */,
+				89162646D192A897EF8D654B /* CourseHueStore.swift in Sources */,
 				CACE2B7AA015DD75E921130A /* CourseListView.swift in Sources */,
 				493CAC2EAAFAC9013C62D538 /* CourseRowView.swift in Sources */,
 				7D4E808CFE7DA03C186C197D /* CustomSchemeDeriver.swift in Sources */,
@@ -2826,6 +2867,7 @@
 				B460C3CBB7055E64EE7187E5 /* HolidayTransferHelper.swift in Sources */,
 				0555DFC2B26D46071C579EC5 /* ImportDraftDao.swift in Sources */,
 				A011BEFBDCF953A547BB3E2F /* ImportDraftEntity.swift in Sources */,
+				283E9CDACD964CDA1F29633E /* ImportRoster.swift in Sources */,
 				701EF2D55BE6DD2E7E8F8F23 /* L10n.swift in Sources */,
 				6C1992878052714157C048D2 /* LocaleHelper.swift in Sources */,
 				D5D55B30BF064BF67ADBE06B /* MarkdownBlocks.swift in Sources */,

@@ -608,20 +608,21 @@ final class JwImportViewModel: ObservableObject {
 
             // 落库课程
             let defaultColor = "#FF6750A4"
-            // 按课程名分 groupId(同名课程视为一组,便于编辑)
-            var nameToGroup: [String: String] = [:]
             var entities = toCourseEntities(courses, tableId: generatedId, defaultColor: defaultColor)
-            for i in entities.indices {
-                let gid: String
-                if let g = nameToGroup[entities[i].courseName] {
-                    gid = g
-                } else {
-                    gid = UUID().uuidString
-                    nameToGroup[entities[i].courseName] = gid
-                }
-                entities[i].groupId = gid
-            }
+            // ★ 认亲(← kt:725-748 JwImportViewModel): 同名课程继承全局名册里的旧 groupId,
+            //   名册优先级 = 全局名册 > 本行自带 groupId > 新 UUID。
+            //   继承旧 groupId ⇒ 继承 course_colors 里的旧持久色相 ⇒ 重新导入不掉色。
+            //   名册须在事务内读(用 dbw 直查, DAO 的 db.read 会在写事务里重入死锁)。
+            let knownNameToGid = ImportRoster.knownNameToGroupId(
+                (try? CourseEntity.fetchAll(dbw, sql: "SELECT * FROM courses ORDER BY id")) ?? []
+            )
+            entities = ImportRoster.normalizedImportGroups(entities, knownNameToGroup: knownNameToGid)
             try courseDao.insertAllInDb(dbw, entities)
+            // 新组补持久色相(← kt:748 persistNewGroupHues) — 与 Android 同一事务内落表。
+            // 配色是增值数据: 失败吞掉降级为不写, 不影响课程落库主流程。
+            CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: dbw,
+                                                        dao: db.courseColorDao,
+                                                        entities: entities)
             return generatedId
         }
     }

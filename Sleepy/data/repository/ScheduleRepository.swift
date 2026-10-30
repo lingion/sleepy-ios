@@ -11,6 +11,8 @@ import GRDB
 final class ScheduleRepository {
     private let db: AppDatabase
     private let courseDao: CourseDao
+    /// 库句柄对外只读暴露(镜像快照需要读 course_colors 表) — 只读用途。
+    var database: AppDatabase { db }
     private let tableDao: TimeTableDao
     /// ← SleepyApp.get().notificationScheduler / WidgetUpdater
     /// iOS: 数据变更回调(由 App 壳注入: 刷 WidgetKit timeline + 重排 UNNotification)
@@ -463,6 +465,7 @@ final class ScheduleRepository {
         try captureForUndo()
         let withGroupIds = assignGroupIds(courses)
         let ids = try courseDao.insertAll(withGroupIds)
+        persistNewGroupColors(withGroupIds)
         onDataChanged()
         return ids
     }
@@ -594,8 +597,10 @@ final class ScheduleRepository {
     /// 覆盖式导入(先删后插)
     func replaceCourses(_ tableId: Int64, _ courses: [CourseEntity]) throws {
         try captureForUndo()
+        // 名册须在覆盖删除「之前」读取 — 否则被覆盖表自身的旧行失去认亲资格。
         let withGroupIds = assignGroupIds(courses)
         try courseDao.replaceAll(tableId: tableId, courses: withGroupIds)
+        persistNewGroupColors(withGroupIds)
         onDataChanged()
         pruneDefaultTopPrefs()
     }
@@ -697,25 +702,26 @@ final class ScheduleRepository {
             .eraseToAnyPublisher()
     }
 
+    /// 认亲 + 重写 groupId — ← Android ScheduleRepository.assignGroupIds。
+    /// 身份键 = trim + 空白折叠 + 小写(ImportRoster.importNameKey)。
+    /// 优先级: 全局名册(同名历史课程) > 该行自带非空 groupId > 新 UUID。
+    /// 名册按 id 升序读取全库课程(Android knownNameToGroupId(courseDao.getAll()) 的确定性来源)。
     private func assignGroupIds(_ courses: [CourseEntity]) -> [CourseEntity] {
-        var nameToGroupId: [String: String] = [:]
-        return courses.map { c in
-            // ← courseName.trim().replace(Regex("\\s+"), " ").lowercase()
-            let key = c.courseName.trimmingCharacters(in: .whitespacesAndNewlines)
-                .split(whereSeparator: { $0.isWhitespace })
-                .joined(separator: " ")
-                .lowercased()
-            let gid: String
-            if let existing = nameToGroupId[key] {
-                gid = existing
-            } else {
-                let newGid = !c.groupId.isEmpty ? c.groupId : UUID().uuidString
-                nameToGroupId[key] = newGid
-                gid = newGid
-            }
-            var copy = c
-            copy.groupId = gid
-            return copy
-        }
+        let roster = knownNameRoster()
+        return ImportRoster.normalizedImportGroups(courses, knownNameToGroup: roster)
+    }
+
+    /// 全局名册: 课程名身份键 → groupId(先到先得, 按 id 升序保证确定性)
+    private func knownNameRoster() -> [String: String] {
+        let rows = (try? courseDao.getAllCourses()) ?? []
+        let sorted = rows.sorted { $0.id < $1.id }
+        return ImportRoster.knownNameToGroupId(sorted)
+    }
+
+    /// 新组补持久色相 — ← Android ScheduleRepository.persistNewGroupColors。
+    /// 只在「课程组诞生」时刻写表(导入路); 单课新增/编辑组不写(Android 同)。
+    /// 配色是增值数据: 失败一律吞掉降级为不写, 不影响课程落库主流程。
+    private func persistNewGroupColors(_ entities: [CourseEntity]) {
+        _ = CourseColorWriteGlue.persistNewGroupHues(dao: db.courseColorDao, entities: entities)
     }
 }
