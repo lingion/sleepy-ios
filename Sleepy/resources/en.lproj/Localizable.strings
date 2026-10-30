@@ -1061,3 +1061,11 @@
 "watch_not_synced" = "Watch not synced";
 "watch_settings_sync_header" = "Sync";
 "watch_open_on_phone" = "Manage on iPhone";
+"appearance_section_course_color" = "Course colors";
+"course_color_classic" = "Don't follow theme color";
+"course_color_follow_theme" = "Follow theme";
+"course_color_custom_seed" = "Custom";
+"course_color_seed_label" = "Base hue";
+"course_color_preview" = "Preview";
+"course_color_recalc" = "Re-arrange all course colors";
+"course_color_recalc_done" = "Re-arranged colors for %1$d courses";

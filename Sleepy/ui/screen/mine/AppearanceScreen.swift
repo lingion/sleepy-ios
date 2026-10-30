@@ -26,6 +26,21 @@ struct AppearanceScreen: View {
     @State private var editingTheme: CustomTheme?
     private let prefs = AppPrefs.shared
 
+    // ── v1.0.62 Section②·5 课程配色(← Android CourseColorSection) ──
+    // ★ 初始值必须从 prefs getter 取, 不能读 publisher.value: AppPrefs 的
+    //   CurrentValueSubject 用硬编码缺省播种(不读持久值), 与 Android
+    //   callbackFlow「订阅即 trySend 当前持久值」语义不等价。
+    @State private var courseColorMode: Int
+    @State private var courseColorSeed: Float
+    /// 滑条本地值(拖动中; 未提交) — Android sliderHue remember
+    @State private var sliderHue: Float
+    /// 预览胶囊数据源: gid → 课名(前 5 组)
+    @State private var previewCourseGroups: [(gid: String, name: String)] = []
+    @State private var toastMessage: String?
+    @State private var toastToken: Int = 0
+    /// 持久色相快照订阅(Android CourseHueStore.hueMapFlow.collectAsState)
+    @ObservedObject private var hueStore = CourseHueStore.shared
+
     init(onDismiss: @escaping () -> Void,
          themeMode: String = AppPrefs.THEME_MODE_SYSTEM,
          onThemeModeChange: @escaping (String) -> Void = { _ in },
@@ -37,6 +52,12 @@ struct AppearanceScreen: View {
         self.onThemeKeyChange = onThemeKeyChange
         self.onOpenPeriodHeaderSettings = onOpenPeriodHeaderSettings
         _currentKey = State(initialValue: AppPrefs.shared.getThemeKey())
+        let mode = AppPrefs.shared.getCourseColorMode()
+        let seed = AppPrefs.shared.getCourseColorSeedHue()
+        _courseColorMode = State(initialValue: mode)
+        _courseColorSeed = State(initialValue: seed)
+        // Android: sliderHue by remember { mutableFloatStateOf(seed.coerceAtLeast(0f)) }
+        _sliderHue = State(initialValue: max(seed, 0))
     }
 
     /// 网格顺序不变量(d87eade3 + c1c166f9):预设 → 自定义 → 新建入口,加号永远在整网格
@@ -105,6 +126,11 @@ struct AppearanceScreen: View {
                                 prefs.setThemeMode(mode)
                                 onThemeModeChange(mode)
                                 refreshWidgets()
+                                // ← Android: 深浅切换后 FOLLOW_THEME 档需重算
+                                //   (锚点随主题 primary 变)
+                                if courseColorMode == AppPrefs.COURSE_COLOR_MODE_FOLLOW_THEME {
+                                    recalcAllCourses()
+                                }
                             } label: {
                                 Text(label)
                                     .font(.system(size: 14, weight: sel ? .semibold : .medium))
@@ -121,6 +147,22 @@ struct AppearanceScreen: View {
                     .padding(4)
                     .background(colors.surfaceContainer)
                     .cornerRadius(SleepyShapes.large)
+
+                    // ── 分组②·5 课程配色(v1.0.62) ──
+                    // ← Android SectionHeader(appearance_section_course_color) +
+                    //   CourseColorSection(Surface shapes.large surfaceContainer, padding 16)
+                    SectionHeader(title: L10n.format("appearance_section_course_color"))
+                    CourseColorSection(
+                        mode: courseColorMode,
+                        seed: courseColorSeed,
+                        sliderHue: sliderHue,
+                        hueMap: hueStore.hueMap,
+                        previewGroups: previewCourseGroups,
+                        onModeChange: onCourseColorModeChange,
+                        onSliderChange: { sliderHue = $0 },
+                        onSeedCommit: onCourseColorSeedCommit,
+                        onRecalc: onCourseColorRecalc
+                    )
 
                     // ── 分组③ 课表显示: 冲突样式及参数仍属于本组 ──
                     // ← Android SectionHeader(appearance_section_schedule_display) +
@@ -158,6 +200,116 @@ struct AppearanceScreen: View {
             // sheet 内容不保证继承宿主 environment,显式把当前主题色带进去
             .environment(\.localWakeUpColors, colors)
         }
+        // ← Android Toast(course_color_recalc_done) — 重排完成提示
+        .overlay(alignment: .bottom) {
+            if let toastMessage {
+                Text(toastMessage)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onSurface)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(colors.surfaceContainerHigh)
+                    .cornerRadius(SleepyShapes.large)
+                    .padding(.bottom, 24)
+                    .transition(.opacity)
+                    .task(id: toastToken) {
+                        try? await Task.sleep(nanoseconds: 1_800_000_000)
+                        guard !Task.isCancelled else { return }
+                        withAnimation { self.toastMessage = nil }
+                    }
+            }
+        }
+        // 预览胶囊数据源 ← Android LaunchedEffect(Unit) 读默认表课程
+        .task { loadPreviewCourseGroups() }
+    }
+
+    // MARK: - v1.0.62 课程配色
+
+    /// 预览胶囊: 默认表课程(无默认表 → 全表), 按 id 升序, groupId 非空去重, 取前 5 组。
+    /// ← Android AppearanceScreen.kt LaunchedEffect(Unit) previewCourseGroups。
+    private func loadPreviewCourseGroups() {
+        let db = AppDatabase.getShared()
+        let repo = ScheduleRepository(db)
+        let courses: [CourseEntity]
+        if let tid = try? repo.getDefaultTable()?.id {
+            courses = (try? repo.getCourses(tid)) ?? []
+        } else {
+            courses = (try? repo.getAllCourses()) ?? []
+        }
+        var seen = Set<String>()
+        var out: [(gid: String, name: String)] = []
+        for c in courses.sorted(by: { $0.id < $1.id }) {
+            guard CourseColorUtil.isNotBlank(c.groupId), seen.insert(c.groupId).inserted else { continue }
+            out.append((gid: c.groupId, name: c.courseName))
+            if out.count >= 5 { break }
+        }
+        previewCourseGroups = out
+    }
+
+    /// 换档 → 落盘 + 重排 + 刷小组件。
+    /// ← Android onModeChange: CUSTOM 且种子未设 → 先按主题 primary 落种子,
+    ///   再 setCourseColorMode, 然后 recalcAllCourses + refreshWidgets。
+    private func onCourseColorModeChange(_ newMode: Int) {
+        guard newMode != courseColorMode else { return }
+        if newMode == AppPrefs.COURSE_COLOR_MODE_CUSTOM,
+           prefs.getCourseColorSeedHue() == AppPrefs.COURSE_COLOR_SEED_UNSET {
+            let seedHue = CourseColorUtil.hueOf(colors.primary)
+            prefs.setCourseColorSeedHue(seedHue)
+            courseColorSeed = seedHue
+            sliderHue = seedHue
+        }
+        prefs.setCourseColorMode(newMode)
+        courseColorMode = newMode
+        recalcAllCourses()
+        refreshWidgets()
+    }
+
+    /// 种子色相提交(滑条松手) → 落盘 + 重排 + 刷小组件。
+    /// ← Android onSeedCommit。
+    private func onCourseColorSeedCommit(_ hue: Float) {
+        let v = hue.rounded()
+        prefs.setCourseColorSeedHue(v)
+        courseColorSeed = v
+        sliderHue = v
+        recalcAllCourses()
+        refreshWidgets()
+    }
+
+    /// 手动重排全部课程颜色 → 全量重算 + Toast 报组数 + 刷小组件。
+    /// ← Android onRecalc: 后台 recalcAll → 主线程 Toast「已重排 N 组」。
+    private func onCourseColorRecalc() {
+        let db = AppDatabase.getShared()
+        let repo = ScheduleRepository(db)
+        let gids: [String] = {
+            let all = (try? repo.getAllCourses()) ?? []
+            return all.sorted(by: { $0.id < $1.id }).map { $0.groupId }
+        }()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let n = CourseColorWriteGlue.recalcAll(dao: db.courseColorDao, gids: gids, prefs: AppPrefs.shared)
+            DispatchQueue.main.async {
+                self.showToast(L10n.format("course_color_recalc_done", n))
+                self.refreshWidgets()
+            }
+        }
+    }
+
+    /// 全量重算(后台) — FOLLOW_THEME / CUSTOM 档锚点变化时重排全部组。
+    /// ← Android recalcAllCourses(): gids 来自全库课程, 调 CourseColorWriteGlue.recalcAll。
+    private func recalcAllCourses() {
+        let db = AppDatabase.getShared()
+        let repo = ScheduleRepository(db)
+        let gids: [String] = {
+            let all = (try? repo.getAllCourses()) ?? []
+            return all.sorted(by: { $0.id < $1.id }).map { $0.groupId }
+        }()
+        DispatchQueue.global(qos: .userInitiated).async {
+            CourseColorWriteGlue.recalcAll(dao: db.courseColorDao, gids: gids, prefs: AppPrefs.shared)
+        }
+    }
+
+    private func showToast(_ message: String) {
+        toastMessage = message
+        toastToken += 1
     }
 
     // ★ 选主题/模式后立即刷小组件(← WidgetUpdater.notifyDataChanged)
@@ -170,6 +322,10 @@ struct AppearanceScreen: View {
         currentKey = key
         onThemeKeyChange()
         refreshWidgets()
+        // ← Android LaunchedEffect(currentKey): 主题键变化后 FOLLOW_THEME 档需重排
+        if courseColorMode == AppPrefs.COURSE_COLOR_MODE_FOLLOW_THEME {
+            recalcAllCourses()
+        }
     }
 
     private func openEditor(_ theme: CustomTheme?) {
@@ -188,6 +344,9 @@ struct AppearanceScreen: View {
         customThemes = CustomThemeStore.getAll()
         onThemeKeyChange()
         refreshWidgets()
+        if courseColorMode == AppPrefs.COURSE_COLOR_MODE_FOLLOW_THEME {
+            recalcAllCourses()
+        }
         showEditor = false
         editingTheme = nil
     }

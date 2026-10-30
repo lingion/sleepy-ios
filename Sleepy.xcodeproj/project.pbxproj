@@ -60,6 +60,7 @@
 		118C9D479FCCF165698AFD84 /* HolidayReminderPolicyAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C64B8C9F20602B582D6F22 /* HolidayReminderPolicyAdapterTests.swift */; };
 		119BD2A197427B16582217AD /* school_cities.json in Resources */ = {isa = PBXBuildFile; fileRef = 6033BE02095EB53FC165FEAC /* school_cities.json */; };
 		11D7A6FEAD0AED19CF03111F /* SleepyNativeFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397DC86E9AB0B03EE79461D2 /* SleepyNativeFormatTests.swift */; };
+		11F96A836ABDDC2904674E9F /* CourseColorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 821D9D0180308F350FCB6CC4 /* CourseColorSection.swift */; };
 		124C150E7516307A12A3F02F /* CustomSchemeDeriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F2D8DA1BAD4105612867AE /* CustomSchemeDeriver.swift */; };
 		126A5D5FFF85391361E73AB9 /* ThemePresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B72E006270ED69703F906F4 /* ThemePresets.swift */; };
 		128824CB5EB4EA4E54EEFF3B /* JwPekingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6264A390C22B85F9DD9F0CAC /* JwPekingParser.swift */; };
@@ -161,6 +162,7 @@
 		338986A10D01A10B4E6D63F1 /* WidgetArchiveLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361943C96AEED91260036E34 /* WidgetArchiveLog.swift */; };
 		34C421D4351930ECCD846982 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C19106B8995541FFB0F73DB6 /* LaunchScreen.storyboard */; };
 		34F819944913032B36BBD878 /* school_city_boundaries.source.json in Resources */ = {isa = PBXBuildFile; fileRef = DCA9076C6A9149843AB86B5C /* school_city_boundaries.source.json */; };
+		34FB5C7D5DEB1166318923E8 /* HueSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A86A7B1F5695195EC6093B /* HueSlider.swift */; };
 		351A32DF4BE95643A938844A /* UpdateInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5B884B15CD7982BF4BC2F9 /* UpdateInfo.swift */; };
 		3571AA5A1A965474D61BB033 /* HolidayTransferHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FAF9304707FC68029AD02F /* HolidayTransferHelper.swift */; };
 		35AED6976FAE210F6E93C694 /* SleepyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18164021426E1BE78DB3F46 /* SleepyUITests.swift */; };
@@ -371,6 +373,7 @@
 		793384D8A98170D9837B9858 /* ReminderPermissionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8DFDCCD1C8491943A7FD52 /* ReminderPermissionUITests.swift */; };
 		793FA69622AF8460F92F88AB /* SleepyWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 808431739643CC9DF6D6126D /* SleepyWatchApp.swift */; };
 		799157EED3EEFCA74C65EA68 /* WatchSyncSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10EAB15CF44A3E2DD61E368 /* WatchSyncSnapshot.swift */; };
+		7A2479827C12B873C2E406FC /* SystemAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F250CC5FA013950C3E50E5E /* SystemAppearance.swift */; };
 		7A9CAF646E93CD1D95292400 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B945AD465F81AFC535B658B /* NotificationScheduler.swift */; };
 		7B39EA18C8D7D03359DD1605 /* SleepyWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 64CFB5B5DD63AC209144EEDD /* SleepyWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7C2825E5A15B8A83D00172E2 /* MigrationPackageCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FA6912FC331672120BD449 /* MigrationPackageCodec.swift */; };
@@ -414,6 +417,7 @@
 		8824B6B9A71D1228E3B3FA3C /* WidgetResizeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B6495A761202081C7C1888 /* WidgetResizeCore.swift */; };
 		88437932F9E2E298F313850C /* CourseColorHarmonyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1FF9D29D0561321FEBCBF9 /* CourseColorHarmonyTests.swift */; };
 		89162646D192A897EF8D654B /* CourseHueStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1972DF48A00AB2312D9DF0 /* CourseHueStore.swift */; };
+		8948FFA014883F98FCAD629E /* SystemAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F250CC5FA013950C3E50E5E /* SystemAppearance.swift */; };
 		899CBC808AD7165366D9D0BA /* Issue55OwnTimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CFC9A64BF20B8F84CA0642 /* Issue55OwnTimeTests.swift */; };
 		89B1EC9714416910350CDA3C /* ShareScheduleSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C159F940014161B3F4498898 /* ShareScheduleSheet.swift */; };
 		89FAB921C7D98EA9A507D61A /* JwParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9090ACA661D747DF0AB718 /* JwParser.swift */; };
@@ -541,7 +545,9 @@
 		BA8B4CD05665493591F21F32 /* MealBreakDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A1DB6476DB4970E3D39BFC5 /* MealBreakDetector.swift */; };
 		BAA580709354A51AFDF6608B /* PlatformParityNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0425392AD82917108D3BB908 /* PlatformParityNotes.swift */; };
 		BADD33ED21D3D2BAB384DBE1 /* WidgetResizeCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8196FB929621E7BD5615C068 /* WidgetResizeCoreTests.swift */; };
+		BD14D3AAED156607D07DCCB8 /* SystemAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F250CC5FA013950C3E50E5E /* SystemAppearance.swift */; };
 		BD2E2F4B39BDE6C575B0D41A /* SleepyNativeExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2317D8ADB299B07E322439 /* SleepyNativeExporter.swift */; };
+		BD5346CD95C0750282DCB675 /* SystemAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F250CC5FA013950C3E50E5E /* SystemAppearance.swift */; };
 		BD8246AD64E1E8441C3550BC /* HolidayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C280149FF5701E57DD8E3418 /* HolidayManager.swift */; };
 		BEDC89614C251CBC4B52ACF2 /* JwWakeUpCompatParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A0E8FA435173DC2DF447D33 /* JwWakeUpCompatParserTests.swift */; };
 		BEEF1F450F462996F51AEBFA /* WatchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EAC76DA07CEFC9179624C92 /* WatchCommand.swift */; };
@@ -957,6 +963,7 @@
 		5DB8F6871F3F92D04E6106C9 /* NoRippleClickable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoRippleClickable.swift; sourceTree = "<group>"; };
 		5DDC90F60E5366C55756996B /* ImportReceiverActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportReceiverActivityTests.swift; sourceTree = "<group>"; };
 		5F19B09B9CF4562AD9450D43 /* CourseColorUtilTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorUtilTests.swift; sourceTree = "<group>"; };
+		5F250CC5FA013950C3E50E5E /* SystemAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAppearance.swift; sourceTree = "<group>"; };
 		5F8589E7A5EA8C34355C1FFF /* CourseColorUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorUtil.swift; sourceTree = "<group>"; };
 		5FE23E8A9E4FEBC54F0F90DF /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		60056452C13B6C1D48E232C7 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
@@ -1012,6 +1019,7 @@
 		808431739643CC9DF6D6126D /* SleepyWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyWatchApp.swift; sourceTree = "<group>"; };
 		81949E978A8725C92FCA42C2 /* WeekDisplayResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekDisplayResolver.swift; sourceTree = "<group>"; };
 		8196FB929621E7BD5615C068 /* WidgetResizeCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetResizeCoreTests.swift; sourceTree = "<group>"; };
+		821D9D0180308F350FCB6CC4 /* CourseColorSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorSection.swift; sourceTree = "<group>"; };
 		831838316873C50C42AC649A /* SleepyNativeFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyNativeFormat.swift; sourceTree = "<group>"; };
 		83F0807AB00ED93A168AD2C6 /* LocaleHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleHelper.swift; sourceTree = "<group>"; };
 		84CAD820258525C104E5A44E /* SleepyWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SleepyWidget.entitlements; sourceTree = "<group>"; };
@@ -1126,6 +1134,7 @@
 		C69CDDE3F7F1E2BEA3DA3C03 /* VersionAndUpdateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionAndUpdateTests.swift; sourceTree = "<group>"; };
 		C6A4164038C77837963DF96E /* TimeSlotEditorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeSlotEditorTests.swift; sourceTree = "<group>"; };
 		C7667DFB68961DD43C9A9A5D /* WidgetSizeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSizeCore.swift; sourceTree = "<group>"; };
+		C7A86A7B1F5695195EC6093B /* HueSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HueSlider.swift; sourceTree = "<group>"; };
 		C840C5A5F7582DB2079238B8 /* JwYethanParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwYethanParser.swift; sourceTree = "<group>"; };
 		C8547539653D1E71711BDB34 /* WatchCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCommandTests.swift; sourceTree = "<group>"; };
 		C8D11F5E8E185D71C3CFE2EC /* PeriodHeaderSettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeriodHeaderSettingsScreen.swift; sourceTree = "<group>"; };
@@ -1283,6 +1292,7 @@
 				0425392AD82917108D3BB908 /* PlatformParityNotes.swift */,
 				7453815E27C3A0269EAA730D /* QqJoin.swift */,
 				7CA7389DF46C926458122F39 /* SleepyUITestSeeder.swift */,
+				5F250CC5FA013950C3E50E5E /* SystemAppearance.swift */,
 				74EB72448743A4CF5CF466C5 /* TimeTableUtils.swift */,
 				2AD1DB72537D5FB202ADBE25 /* TimetableViewportPolicy.swift */,
 				AD5B884B15CD7982BF4BC2F9 /* UpdateInfo.swift */,
@@ -1364,6 +1374,7 @@
 				1335D448B44CCFBFCDA813D3 /* CourseTableView.swift */,
 				B26C1FC7457815C7A78F9026 /* DateTimePickers.swift */,
 				15B8ACC849EE7144AB42B848 /* DialogActionButtons.swift */,
+				C7A86A7B1F5695195EC6093B /* HueSlider.swift */,
 				9103FA65945B83156A93E926 /* NativeColorPicker.swift */,
 				2D5BFC656D3F3C24D3651480 /* NavigationRailBar.swift */,
 				2140942FC998369FA6029236 /* PeriodHeaderCellContent.swift */,
@@ -1826,6 +1837,7 @@
 				0BEBFA267D121F786634455D /* AppearanceNavigationRow.swift */,
 				779E427676157A13B322A5B5 /* AppearanceScreen.swift */,
 				9EBA2DA9AE696580ADE5F713 /* CalendarImportDialog.swift */,
+				821D9D0180308F350FCB6CC4 /* CourseColorSection.swift */,
 				CB6A1018CDA12035558C1A35 /* CourseListScreen.swift */,
 				931C7675820A5CFD1E1D2D75 /* CustomThemeEditorScreen.swift */,
 				370A630F8E293663E9B52AE2 /* EditTableScreen.swift */,
@@ -2269,6 +2281,7 @@
 				43957CBA52635ADCBBC23B06 /* SleepyNativeParser.swift in Sources */,
 				AE3C61604FEE3AD8EAD532EB /* SleepyUITestSeeder.swift in Sources */,
 				53F0C9D8F4E03F09E46777C0 /* SmartPeriodConfig.swift in Sources */,
+				8948FFA014883F98FCAD629E /* SystemAppearance.swift in Sources */,
 				4E81F0E0A67A306339F0358F /* Theme.swift in Sources */,
 				1C9FAB55A97BAE3BA49E1698 /* ThemePresets.swift in Sources */,
 				140929D688235C26A2A4B2BE /* TimeTableDao.swift in Sources */,
@@ -2325,6 +2338,7 @@
 				7CED8B22A59CED24C1EB08C8 /* ConflictLayoutEngine.swift in Sources */,
 				21DCF7B39A4DE9FB6442E19C /* CourseColorDao.swift in Sources */,
 				5CCC347DAF0236151CBB70AD /* CourseColorEntity.swift in Sources */,
+				11F96A836ABDDC2904674E9F /* CourseColorSection.swift in Sources */,
 				B7B7B9E50F2427797E4F6752 /* CourseColorUtil.swift in Sources */,
 				C67FEC137B6739296562BD28 /* CourseColorWriteGlue.swift in Sources */,
 				9C3967DF73C2215296271E04 /* CourseDao.swift in Sources */,
@@ -2355,6 +2369,7 @@
 				434B96F7B5B0B84E66E751F9 /* HolidayReminderPolicyAdapter.swift in Sources */,
 				D1561E237C27584E025A0131 /* HolidaySettingsScreen.swift in Sources */,
 				81027A0DB46EC0F6E3DAFA0D /* HolidayTransferHelper.swift in Sources */,
+				34FB5C7D5DEB1166318923E8 /* HueSlider.swift in Sources */,
 				E31BC3B397D107D3BEE7B9BC /* ImportDraftDao.swift in Sources */,
 				0AC70FBA0FD3781B9D3C83E6 /* ImportDraftEntity.swift in Sources */,
 				2C1994A31222CF55F7225933 /* ImportDraftRepository.swift in Sources */,
@@ -2482,6 +2497,7 @@
 				204AE00E39C760909B0B00CA /* SleepyUITestSeeder.swift in Sources */,
 				3D62756C181FAD2AC9F05B33 /* SmartPeriodConfig.swift in Sources */,
 				C0F89FA03A1F3657F20F3602 /* SmartPeriodEditor.swift in Sources */,
+				BD14D3AAED156607D07DCCB8 /* SystemAppearance.swift in Sources */,
 				5470F2F72B56FCFCD64AEC3A /* SystemCalendarManager.swift in Sources */,
 				6681365B327B45F2D250BA43 /* Theme.swift in Sources */,
 				667A9EB53C54336E43442489 /* ThemePresets.swift in Sources */,
@@ -2676,6 +2692,7 @@
 				9B9D3517FEE37311F47168DD /* SleepyUITestSeeder.swift in Sources */,
 				0061BF9B6753422634DBF086 /* SleepyWidgetBundle.swift in Sources */,
 				6BBB2B69C29DFE42F6E555BD /* SmartPeriodConfig.swift in Sources */,
+				BD5346CD95C0750282DCB675 /* SystemAppearance.swift in Sources */,
 				C29224B885A394D19B03AD8F /* SystemCalendarManager.swift in Sources */,
 				CA1CE6B8588EBA1973F7C38A /* Theme.swift in Sources */,
 				3B54195E1B7FF9075762B522 /* ThemePresets.swift in Sources */,
@@ -2892,6 +2909,7 @@
 				7EE4BEE36DF41CF8937BC955 /* SleepyUITestSeeder.swift in Sources */,
 				793FA69622AF8460F92F88AB /* SleepyWatchApp.swift in Sources */,
 				AB1BCBD3402EAA0AAE203590 /* SmartPeriodConfig.swift in Sources */,
+				7A2479827C12B873C2E406FC /* SystemAppearance.swift in Sources */,
 				DF2A76AFEC8478F75F47295B /* Theme.swift in Sources */,
 				126A5D5FFF85391361E73AB9 /* ThemePresets.swift in Sources */,
 				8A4B3CA47536FA11F2841A45 /* TimeTableDao.swift in Sources */,

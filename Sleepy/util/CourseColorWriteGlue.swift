@@ -193,15 +193,4 @@ enum CourseColorWriteGlue {
         let bi = Int(max(0, min(255, b * 255)))
         return (0xFF << 24) | (ri << 16) | (gi << 8) | bi
     }
-
-    /// 当前系统深浅(调用方无 trait 时用全局)
-    static func currentSystemDark() -> Bool {
-        #if os(watchOS)
-        // watchOS 无 UITraitCollection.current — 手表端 system 主题深浅由渲染期
-        // 快照/环境决定, 装载器侧取缺省 false。
-        return false
-        #else
-        return UITraitCollection.current.userInterfaceStyle == .dark
-        #endif
-    }
 }

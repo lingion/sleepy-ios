@@ -1061,3 +1061,11 @@
 "watch_not_synced" = "Watch 未同期";
 "watch_settings_sync_header" = "同期";
 "watch_open_on_phone" = "iPhone で管理";
+"appearance_section_course_color" = "科目の色";
+"course_color_classic" = "テーマ色に追随しない";
+"course_color_follow_theme" = "テーマに追随";
+"course_color_custom_seed" = "カスタム";
+"course_color_seed_label" = "基準の色相";
+"course_color_preview" = "プレビュー";
+"course_color_recalc" = "すべての科目の色を再配置";
+"course_color_recalc_done" = "%1$d 科目の色を再配置しました";

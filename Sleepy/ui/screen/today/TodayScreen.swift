@@ -257,6 +257,8 @@ private struct EmptyToday: View {
 private struct TodayCourseCard: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
+    /// 派生档持久色相快照(Android CourseHueStore.hueMapFlow.collectAsState 等价物)
+    @ObservedObject private var hueStore = CourseHueStore.shared
     let course: CourseEntity
     var timeJson: String? = nil
     /// issue#22: 同 groupId 全行(含自身) — AUTO/CUSTOM 取色按行判; 空则回退 [course](= Android `listOf(course)` 默认值)
@@ -269,7 +271,8 @@ private struct TodayCourseCard: View {
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: groupRows.isEmpty ? [course] : groupRows,
             isDark: isDark, neutralColor: colors.surfaceVariant,
-            colorless: AppPrefs.shared.isCourseColorless())
+            colorless: AppPrefs.shared.isCourseColorless(),
+            persistedHue: hueStore.hueFor(course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         let time: String? = {
             if course.ownTime, !course.startTime.isEmpty, !course.endTime.isEmpty {

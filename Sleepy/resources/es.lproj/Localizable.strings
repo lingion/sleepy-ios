@@ -1061,3 +1061,11 @@
 "watch_not_synced" = "Watch no sincronizado";
 "watch_settings_sync_header" = "Sincronización";
 "watch_open_on_phone" = "Gestionar en iPhone";
+"appearance_section_course_color" = "Colores de asignaturas";
+"course_color_classic" = "No seguir el color del tema";
+"course_color_follow_theme" = "Seguir el tema";
+"course_color_custom_seed" = "Personalizado";
+"course_color_seed_label" = "Tono base";
+"course_color_preview" = "Vista previa";
+"course_color_recalc" = "Reorganizar todos los colores";
+"course_color_recalc_done" = "Se reorganizaron los colores de %1$d asignaturas";

@@ -971,6 +971,8 @@ private struct TapExpandModifier: ViewModifier {
 
 private struct CourseOverlayCard: View {
     @Environment(\.localWakeUpColors) private var colors
+    /// 派生档持久色相快照(Android CourseHueStore.hueMapFlow.collectAsState 等价物)
+    @ObservedObject private var hueStore = CourseHueStore.shared
     let course: CourseEntity
     var cardHeight: CGFloat = 0   // 0 = 调用方未提供, 回退旧行为
     let isDark: Bool
@@ -988,7 +990,8 @@ private struct CourseOverlayCard: View {
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
             neutralColor: colors.secondaryContainer,
-            colorless: AppPrefs.shared.isCourseColorless())
+            colorless: AppPrefs.shared.isCourseColorless(),
+            persistedHue: hueStore.hueFor(course.groupId))
         // 文字色亮度自适应(决策 D5-13)
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         // 节假日灰显: 色块叠 alpha + 文字 strikethrough
@@ -1511,6 +1514,8 @@ func weekLaneHideSideLabel(laneW: CGFloat) -> Bool { laneW < 110 }
 private struct LessonRow: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
+    /// 派生档持久色相快照(Android CourseHueStore.hueMapFlow.collectAsState 等价物)
+    @ObservedObject private var hueStore = CourseHueStore.shared
     let course: CourseEntity
     let displayMode: String
     let timeJson: String
@@ -1532,7 +1537,8 @@ private struct LessonRow: View {
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
             neutralColor: colors.secondaryContainer,
-            colorless: AppPrefs.shared.isCourseColorless())
+            colorless: AppPrefs.shared.isCourseColorless(),
+            persistedHue: hueStore.hueFor(course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         // 节假日灰显 ← effectiveBg/effectiveFg/textDecoration
         let effectiveBg = isGrey ? bg.opacity(SleepyTheme.Alpha.inactive) : bg

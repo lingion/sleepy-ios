@@ -1062,3 +1062,11 @@
 "watch_not_synced" = "手表尚未同步";
 "watch_settings_sync_header" = "同步";
 "watch_open_on_phone" = "请在 iPhone 上管理";
+"appearance_section_course_color" = "课程配色";
+"course_color_classic" = "不跟随主题";
+"course_color_follow_theme" = "跟随主题";
+"course_color_custom_seed" = "自定义";
+"course_color_seed_label" = "基准色相";
+"course_color_preview" = "预览";
+"course_color_recalc" = "重新编排所有课程配色";
+"course_color_recalc_done" = "已重新编排 %1$d 门课程的配色";

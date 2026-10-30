@@ -110,6 +110,8 @@ struct ConflictCardShape: Shape {
 struct ConflictClusterCard: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
+    /// 派生档持久色相快照(Android CourseHueStore.hueMapFlow.collectAsState 等价物)
+    @ObservedObject private var hueStore = CourseHueStore.shared
     let cluster: ConflictCluster
     let style: String
     let topOverrideId: Int64?
@@ -249,7 +251,8 @@ struct ConflictClusterCard: View {
             var bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
                 course, groupRows: groupRowsForCard, isDark: isDark,
                 neutralColor: colors.surfaceVariant,
-                colorless: AppPrefs.shared.isCourseColorless())
+                colorless: AppPrefs.shared.isCourseColorless(),
+                persistedHue: hueStore.hueFor(course.groupId))
             if isGrey { bg = bg.opacity(SleepyTheme.Alpha.inactive) }
             return bg
         }
@@ -494,6 +497,8 @@ private struct DashOutlineShape: View {
  */
 private struct ConflictCourseCard: View {
     @Environment(\.localWakeUpColors) private var colors
+    /// 派生档持久色相快照(Android CourseHueStore.hueMapFlow.collectAsState 等价物)
+    @ObservedObject private var hueStore = CourseHueStore.shared
     let course: CourseEntity
     let onClick: () -> Void
     let isDark: Bool
@@ -510,7 +515,8 @@ private struct ConflictCourseCard: View {
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
             neutralColor: colors.surfaceVariant,
-            colorless: AppPrefs.shared.isCourseColorless())
+            colorless: AppPrefs.shared.isCourseColorless(),
+            persistedHue: hueStore.hueFor(course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         let effectiveBg = isGrey ? bg.opacity(SleepyTheme.Alpha.inactive) : bg
         let effectiveFg = isGrey ? fg.opacity(SleepyTheme.Alpha.inactive) : fg
