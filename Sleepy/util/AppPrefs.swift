@@ -50,6 +50,13 @@ final class AppPrefs {
     static let KEY_PERIOD_HEADER_HIDE_TIME = "period_header_hide_time" // boolean default false (legacy header only)
     static let KEY_WIDGET_COLORLESS = "widget_colorless" // bool default false
     static let KEY_COURSE_COLORLESS = "course_colorless" // bool default false (App 课程胶囊专用)
+    // ★ v1.0.62 派生档: App 级课程配色三模式(与 CourseColorMode 列级三态是两回事)
+    static let KEY_COURSE_COLOR_MODE = "course_color_mode"      // int 0/1/2
+    static let KEY_COURSE_COLOR_SEED_HUE = "course_color_seed_hue" // float 0..360; -1 = 未设置
+    static let COURSE_COLOR_MODE_CLASSIC = 0        // 不跟随主题(升级零变化)
+    static let COURSE_COLOR_MODE_FOLLOW_THEME = 1  // 跟随主题
+    static let COURSE_COLOR_MODE_CUSTOM = 2        // 自定义种子色相
+    static let COURSE_COLOR_SEED_UNSET: Float = -1
     static let KEY_WIDGET_SEPARATOR = "widget_separator" // bool default true (WeekView 纯文字课程间分隔线)
     static let KEY_HOLIDAY_GREY_HOLIDAY = "holiday_grey_holiday" // bool default true
     static let KEY_HOLIDAY_GREY_WEEKEND = "holiday_grey_weekend" // bool default true
@@ -99,6 +106,22 @@ final class AppPrefs {
     private let themeKeySubject = CurrentValueSubject<String, Never>(ThemePresets.KEY_DEFAULT)
     lazy private(set) var themeKeyPublisher: AnyPublisher<String, Never> = themeKeySubject.eraseToAnyPublisher()
 
+    /// 主题深浅模式的进程内 Flow — v1.0.62 CourseHueStore 需感知 mode 变化(跟随主题档要重排色相)。
+    /// Android 侧靠 AppPrefs.changeBus(SharedPreferences 监听)覆盖;iOS 无 changeBus,
+    /// 补一条专用 subject(仅此一个消费方,不扩散到全局设置流)。
+    private let themeModeSubject = CurrentValueSubject<String, Never>(AppPrefs.THEME_MODE_SYSTEM)
+    lazy private(set) var themeModePublisher: AnyPublisher<String, Never> = themeModeSubject.eraseToAnyPublisher()
+
+    /// App 级课程配色模式(0/1/2)进程内 Flow — v1.0.62 CourseHueStore 订阅源。
+    private let courseColorModeSubject = CurrentValueSubject<Int, Never>(AppPrefs.COURSE_COLOR_MODE_CLASSIC)
+    lazy private(set) var courseColorModePublisher: AnyPublisher<Int, Never> =
+        courseColorModeSubject.eraseToAnyPublisher()
+
+    /// 自定义种子色相进程内 Flow — v1.0.62 CourseHueStore 订阅源。
+    private let courseColorSeedHueSubject = CurrentValueSubject<Float, Never>(AppPrefs.COURSE_COLOR_SEED_UNSET)
+    lazy private(set) var courseColorSeedHuePublisher: AnyPublisher<Float, Never> =
+        courseColorSeedHueSubject.eraseToAnyPublisher()
+
     /// 单测注入用:默认 UserDefaults.standard。测试用 suiteName 隔离。
     private let d: UserDefaults
 
@@ -134,6 +157,7 @@ final class AppPrefs {
     func setThemeMode(_ mode: String) {
         precondition(mode == Self.THEME_MODE_LIGHT || mode == Self.THEME_MODE_DARK || mode == Self.THEME_MODE_SYSTEM)
         sp().set(mode, forKey: Self.KEY_THEME_MODE)
+        themeModeSubject.send(mode)
     }
 
     // ===== 画面 =====
@@ -496,6 +520,37 @@ final class AppPrefs {
 
     func isCourseColorless() -> Bool { sp().bool(forKey: Self.KEY_COURSE_COLORLESS) }
     func setCourseColorless(_ v: Bool) { sp().set(v, forKey: Self.KEY_COURSE_COLORLESS) }
+
+    // ===== v1.0.62 派生档: App 级课程配色三模式 =====
+
+    /// 课程配色模式:0=CLASSIC 不跟随主题 / 1=FOLLOW_THEME 跟随主题 / 2=CUSTOM 自定义种子色相。
+    /// 默认 CLASSIC — 升级零变化(既有用户配色与 v1.0.61 完全一致)。
+    func getCourseColorMode() -> Int {
+        let v = sp().integer(forKey: Self.KEY_COURSE_COLOR_MODE)
+        guard v >= Self.COURSE_COLOR_MODE_CLASSIC && v <= Self.COURSE_COLOR_MODE_CUSTOM else {
+            return Self.COURSE_COLOR_MODE_CLASSIC
+        }
+        return v
+    }
+
+    func setCourseColorMode(_ v: Int) {
+        precondition(v >= Self.COURSE_COLOR_MODE_CLASSIC && v <= Self.COURSE_COLOR_MODE_CUSTOM)
+        sp().set(v, forKey: Self.KEY_COURSE_COLOR_MODE)
+        courseColorModeSubject.send(v)
+    }
+
+    /// 自定义种子色相(0..360);-1 = 未设置(CUSTOM 档首次进入时按主题 primary 落种子)。
+    func getCourseColorSeedHue() -> Float {
+        let v = sp().float(forKey: Self.KEY_COURSE_COLOR_SEED_HUE)
+        guard v >= 0 || v == Self.COURSE_COLOR_SEED_UNSET else { return Self.COURSE_COLOR_SEED_UNSET }
+        return v
+    }
+
+    func setCourseColorSeedHue(_ hue: Float) {
+        precondition(hue >= 0 && hue <= 360 || hue == Self.COURSE_COLOR_SEED_UNSET)
+        sp().set(hue, forKey: Self.KEY_COURSE_COLOR_SEED_HUE)
+        courseColorSeedHueSubject.send(hue)
+    }
 
     // ===== widget v1.0.60 对齐键 (← AppPrefs.kt 同名键) =====
 

@@ -80,6 +80,7 @@
 		160CF854AADABDFB324E4D22 /* ScheduleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F93B2813DC503FB445168386 /* ScheduleRepository.swift */; };
 		167687F6D2D28F158D5F50FE /* WidgetVariantInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B140E2A80329256048C9082 /* WidgetVariantInfo.swift */; };
 		16E1B234831CCEF0C27E8015 /* PeriodHeaderLayoutModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0585AEDD24C0DBDDF049B0 /* PeriodHeaderLayoutModel.swift */; };
+		1803ADD2723B46DFC45BD03B /* CourseColorDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B5BC8D8EB2555CCEC70675 /* CourseColorDao.swift */; };
 		1832C71748A7A6836AE7C626 /* SchoolLocationLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131D314570395796E5D7505F /* SchoolLocationLookup.swift */; };
 		1838AAC5D3E893EA083F3EF6 /* JwImportDraftCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547FA015C2ED83C464E4A228 /* JwImportDraftCodecTests.swift */; };
 		18BB01CEE1A675650D7D82AD /* BackgroundReliabilitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B212788C9D9EE211D730AB /* BackgroundReliabilitySnapshot.swift */; };
@@ -96,6 +97,7 @@
 		1E52BC0344C6124276AD918B /* JwQzVariantsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99EABD46A9E378C7363591F /* JwQzVariantsTests.swift */; };
 		1EA269B175EB7B47AF6DBE56 /* ScheduleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F93B2813DC503FB445168386 /* ScheduleRepository.swift */; };
 		1EFE6A5CCA24F35DB5DC5A1C /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B58142DA4B1A49633BB19A05 /* GRDB */; };
+		1F6945B7E91B41FDC1AF35FA /* CourseColorEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B67A4A0964C245B289B5EE /* CourseColorEntity.swift */; };
 		1FA991BF1C4FA26B51E8A9E7 /* JwImportDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D459BE5930B1DBC7C47F71B0 /* JwImportDiagnosticsTests.swift */; };
 		1FB1E50DA7DDADC6940D698D /* ImportDraftDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DE9B51955EBD571182B827 /* ImportDraftDao.swift */; };
 		1FD4B13081B758504A67B753 /* ImportDraftRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96BF262488C60DF32EE682F /* ImportDraftRepositoryTests.swift */; };
@@ -107,6 +109,7 @@
 		20FD6BEEE6E36C3784DD15A9 /* WidgetTableResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C144DF8370196EBA2816A1B /* WidgetTableResolver.swift */; };
 		21103F91D07F2592D3706391 /* JwYethanParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C840C5A5F7582DB2079238B8 /* JwYethanParser.swift */; };
 		216094C5CD0141D6836836E9 /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D79D23433FE386230D5AB1 /* DateUtils.swift */; };
+		21DCF7B39A4DE9FB6442E19C /* CourseColorDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B5BC8D8EB2555CCEC70675 /* CourseColorDao.swift */; };
 		227033AFF7F80B70665E4E1D /* SleepyNativeParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69EA8E5BBFFA27CDCBB7FE26 /* SleepyNativeParserTests.swift */; };
 		22A7084A7E874B58177C314E /* WatchSyncReceiver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522A76986ED4843C6F93EF90 /* WatchSyncReceiver.swift */; };
 		22C390F65068B7B99CA619C3 /* WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3C1BE11E1D3338FD98721F /* WidgetContent.swift */; };
@@ -160,6 +163,7 @@
 		3571AA5A1A965474D61BB033 /* HolidayTransferHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FAF9304707FC68029AD02F /* HolidayTransferHelper.swift */; };
 		35AED6976FAE210F6E93C694 /* SleepyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18164021426E1BE78DB3F46 /* SleepyUITests.swift */; };
 		35FFDF589B5449B7BFC58681 /* JwQzCrazyParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D445F86E00820411E38285 /* JwQzCrazyParser.swift */; };
+		37003BC702E69DE12D1447AE /* CourseColorDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B5BC8D8EB2555CCEC70675 /* CourseColorDao.swift */; };
 		3743820ECD9DEA1E5B26EDD6 /* JwFetchJs2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181CB1537E2A755C1003C417 /* JwFetchJs2.swift */; };
 		37865A10EE0433586AF21683 /* schools.json in Resources */ = {isa = PBXBuildFile; fileRef = 40B0375B042F64DCB87DBE3F /* schools.json */; };
 		37D2BEE481DF10E1C3B103E6 /* TimeSlotEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 290CA376AA06DF914D39E04B /* TimeSlotEditor.swift */; };
@@ -228,9 +232,11 @@
 		4C11CEA9A518D6F2972027E6 /* ScheduleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F93B2813DC503FB445168386 /* ScheduleRepository.swift */; };
 		4C849CA74D599C87C175C33A /* ReminderRescheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EA972FB93F27FC5BF76C73 /* ReminderRescheduler.swift */; };
 		4CD8E9161191F5AA264BD01F /* SchoolCityIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE3D4154D8B09B67CD942EC /* SchoolCityIndex.swift */; };
+		4CFCCB843C2A303372FCDD37 /* CourseColorEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B67A4A0964C245B289B5EE /* CourseColorEntity.swift */; };
 		4D12094DB99D2877F409F0FD /* VersionAndUpdateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69CDDE3F7F1E2BEA3DA3C03 /* VersionAndUpdateTests.swift */; };
 		4D2D981072A830B0C1F81F28 /* CourseEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */; };
 		4D994AF69C97E9EDE3A981FB /* CourseDisplayUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = E451AD795407D5BA73BD0A6B /* CourseDisplayUtil.swift */; };
+		4E1398EF9384F6E688AE9424 /* CourseColorDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B5BC8D8EB2555CCEC70675 /* CourseColorDao.swift */; };
 		4E81F0E0A67A306339F0358F /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FE23E8A9E4FEBC54F0F90DF /* Theme.swift */; };
 		4EDA62AC9956E6B0ADB1A6AA /* JwFetchError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6385BFCE2C0419152DFEAB9 /* JwFetchError.swift */; };
 		4F190B9C9F05278577CF2722 /* UpdateChangelogDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD2BE655E5EFE5F39CF6283 /* UpdateChangelogDialog.swift */; };
@@ -272,6 +278,7 @@
 		5BBFF48EE96BC7C8BFB2E820 /* UIElementAuditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CAD39D80DA896A487637E86 /* UIElementAuditUITests.swift */; };
 		5BCF822930ED82CBBB59B069 /* JwBnuzParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32366CDB34A4D30D2E25CFF3 /* JwBnuzParser.swift */; };
 		5CC516C7ED012D9929322DC7 /* WeekListWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CB5E397A61641128360FA3 /* WeekListWidgetView.swift */; };
+		5CCC347DAF0236151CBB70AD /* CourseColorEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B67A4A0964C245B289B5EE /* CourseColorEntity.swift */; };
 		5CD40212F4EB21279F992A5E /* GlobalWidgetCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B00E403E87446234A08FCF /* GlobalWidgetCompatibility.swift */; };
 		5CE72BC2F9CBA24050AE7BEF /* JwFetchProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F91D25B8AFE12E2BF5F3BFF8 /* JwFetchProtocol.swift */; };
 		5D21F5E0A4B2FB62832B4851 /* ScheduleExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEAA495471D6CEA3AECFD615 /* ScheduleExporter.swift */; };
@@ -495,6 +502,7 @@
 		B1717BF470AC4DBA9FE176B3 /* WidgetWeekSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F5F152011B05D7D4679807 /* WidgetWeekSource.swift */; };
 		B28F1749B30AA833506A16D0 /* SegmentedSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA25C6698B82B80FF02AB1B /* SegmentedSwitcher.swift */; };
 		B365C08AC9F09ACFB4EC868D /* WatchSyncSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10EAB15CF44A3E2DD61E368 /* WatchSyncSnapshot.swift */; };
+		B42EF2BAA233D8C579CA4347 /* CourseColorEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B67A4A0964C245B289B5EE /* CourseColorEntity.swift */; };
 		B460C3CBB7055E64EE7187E5 /* HolidayTransferHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FAF9304707FC68029AD02F /* HolidayTransferHelper.swift */; };
 		B4ACEF6476B50F05AA6975B6 /* JwNewUrpParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE7E49A169E2B9312B44369 /* JwNewUrpParserTests.swift */; };
 		B5CFFB98AB5D7E7BC9801B84 /* SleepyNativeExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DDC1DB2898102E2021052B3 /* SleepyNativeExporterTests.swift */; };
@@ -653,6 +661,7 @@
 		EAB17FAF4183B15066AA6885 /* SchoolLocationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E75995AB2FB7D4568AE0E14 /* SchoolLocationPolicy.swift */; };
 		EB64E7384E57BFEC8C14F6E5 /* JwHnustParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C202EA6E5DE4FC41312B62 /* JwHnustParser.swift */; };
 		EBCF11B08F6C82DC4F5572B8 /* GridSeparatorGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB8D57D18781E227F5F568A /* GridSeparatorGeometry.swift */; };
+		EC281CA8CDDCD6B370B3D7C2 /* CourseColorMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB53AB9E6835DF8A6C070C8 /* CourseColorMigrationTests.swift */; };
 		EC2F5B2FFEEF908131D0D88E /* WidgetLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883A8F99C25404524386B89E /* WidgetLogicTests.swift */; };
 		EC3C6A12985426E343C1554D /* PeriodTableShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2A030E63E72EF0BC18A2CE2 /* PeriodTableShareSheet.swift */; };
 		EC71988CF2185B0F043DCA31 /* ScheduleScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 449BD8236BF9A935B646F5F3 /* ScheduleScreen.swift */; };
@@ -790,6 +799,7 @@
 		091CF54ADE6711A4CA322D6D /* JwParity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParity.swift; sourceTree = "<group>"; };
 		0A34060A11A2074B2B02C7E1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		0ADF37AF4B24FC388BA9CEE2 /* UndoCaptureCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoCaptureCoverageTests.swift; sourceTree = "<group>"; };
+		0BB53AB9E6835DF8A6C070C8 /* CourseColorMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorMigrationTests.swift; sourceTree = "<group>"; };
 		0BEBFA267D121F786634455D /* AppearanceNavigationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceNavigationRow.swift; sourceTree = "<group>"; };
 		0C144DF8370196EBA2816A1B /* WidgetTableResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTableResolver.swift; sourceTree = "<group>"; };
 		0C14C917D9FFF63F1BDA1150 /* RowKeyDiffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowKeyDiffer.swift; sourceTree = "<group>"; };
@@ -887,6 +897,7 @@
 		4416D5B0BDC66E042718596B /* TodayScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayScreen.swift; sourceTree = "<group>"; };
 		44572156E2EDF36215369769 /* MigrationDatabaseCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationDatabaseCodecTests.swift; sourceTree = "<group>"; };
 		449BD8236BF9A935B646F5F3 /* ScheduleScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleScreen.swift; sourceTree = "<group>"; };
+		44B67A4A0964C245B289B5EE /* CourseColorEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorEntity.swift; sourceTree = "<group>"; };
 		4619533148AC3370B5605611 /* WidgetEditViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetEditViewModel.swift; sourceTree = "<group>"; };
 		461D4FA2DB17915ACF3D0063 /* JwUrpParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwUrpParser.swift; sourceTree = "<group>"; };
 		467B034A9889202CEA76931B /* JwWiseduParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWiseduParser.swift; sourceTree = "<group>"; };
@@ -896,6 +907,7 @@
 		47B6F574D4104631810ED34D /* SchoolLocationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolLocationPolicyTests.swift; sourceTree = "<group>"; };
 		480CB26C5638A20DE5CED8AC /* TimeTableEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTableEntity.swift; sourceTree = "<group>"; };
 		49ACC545589A76ED84024036 /* JwImportFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportFlowTests.swift; sourceTree = "<group>"; };
+		49B5BC8D8EB2555CCEC70675 /* CourseColorDao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorDao.swift; sourceTree = "<group>"; };
 		4B72E006270ED69703F906F4 /* ThemePresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePresets.swift; sourceTree = "<group>"; };
 		4B8F322DCB1C5CF622C99C11 /* JwParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParserTests.swift; sourceTree = "<group>"; };
 		4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseEntity.swift; sourceTree = "<group>"; };
@@ -1212,6 +1224,7 @@
 			isa = PBXGroup;
 			children = (
 				AC8A83BDF70AF60240387895 /* CalendarImportRecordDao.swift */,
+				49B5BC8D8EB2555CCEC70675 /* CourseColorDao.swift */,
 				9D3AA9F8B115E2B804EBDA31 /* CourseDao.swift */,
 				16DE9B51955EBD571182B827 /* ImportDraftDao.swift */,
 				4DC15F72A71D1DC1C3370D6F /* PeriodTableDao.swift */,
@@ -1596,6 +1609,7 @@
 			isa = PBXGroup;
 			children = (
 				FB0DABC28BEA6BE6A4C2179D /* CalendarImportRecordEntity.swift */,
+				44B67A4A0964C245B289B5EE /* CourseColorEntity.swift */,
 				4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */,
 				427290E97C9EEF4990D614F5 /* ImportDraftEntity.swift */,
 				5D841A747EFF33403A2C0C2C /* PeriodTableEntity.swift */,
@@ -1615,6 +1629,7 @@
 				984F3C8B5FC81B912AD5527B /* ConflictDetailReporterTests.swift */,
 				23A86C9A205FB6D008F11A52 /* ConflictDetailWeekScopeTests.swift */,
 				A41DA105DC235C6C99C97A0B /* ConflictLayoutEngineTests.swift */,
+				0BB53AB9E6835DF8A6C070C8 /* CourseColorMigrationTests.swift */,
 				5F19B09B9CF4562AD9450D43 /* CourseColorUtilTests.swift */,
 				425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */,
 				3256067B02E3F8DEC9B0CC14 /* CourseDisplayUtilTests.swift */,
@@ -2183,6 +2198,8 @@
 				CF9A5AEA7FB15A7072CA54CE /* ClassDndScheduler.swift in Sources */,
 				2E1BDB0B92A816CF0608E969 /* ConflictDetailReporter.swift in Sources */,
 				D7AF86EA9E773ED3E5F0F344 /* ConflictLayoutEngine.swift in Sources */,
+				37003BC702E69DE12D1447AE /* CourseColorDao.swift in Sources */,
+				4CFCCB843C2A303372FCDD37 /* CourseColorEntity.swift in Sources */,
 				F233C73F377B5DDCDC081C14 /* CourseColorUtil.swift in Sources */,
 				9AE93BE5648E919A1752C588 /* CourseDao.swift in Sources */,
 				FAB9B2708140EE98876A75A0 /* CourseDisplayUtil.swift in Sources */,
@@ -2276,6 +2293,8 @@
 				DC5CE34D036E0C2093928DEE /* ConflictCard.swift in Sources */,
 				AD0511066366C95F452D312F /* ConflictDetailReporter.swift in Sources */,
 				7CED8B22A59CED24C1EB08C8 /* ConflictLayoutEngine.swift in Sources */,
+				21DCF7B39A4DE9FB6442E19C /* CourseColorDao.swift in Sources */,
+				5CCC347DAF0236151CBB70AD /* CourseColorEntity.swift in Sources */,
 				B7B7B9E50F2427797E4F6752 /* CourseColorUtil.swift in Sources */,
 				9C3967DF73C2215296271E04 /* CourseDao.swift in Sources */,
 				6DBAC0D88FECC7F3CD92F43C /* CourseDetailSheet.swift in Sources */,
@@ -2524,6 +2543,8 @@
 				A35B709314A45ECD47265948 /* ClassDndScheduler.swift in Sources */,
 				2504B261A1F9A94ABC2FA3F7 /* ConflictDetailReporter.swift in Sources */,
 				496DF2875E115783B5201D7F /* ConflictLayoutEngine.swift in Sources */,
+				4E1398EF9384F6E688AE9424 /* CourseColorDao.swift in Sources */,
+				B42EF2BAA233D8C579CA4347 /* CourseColorEntity.swift in Sources */,
 				BA5D6AE2D8A400A25159A6DE /* CourseColorUtil.swift in Sources */,
 				DF3C38B397BF68B63560316F /* CourseDao.swift in Sources */,
 				4D994AF69C97E9EDE3A981FB /* CourseDisplayUtil.swift in Sources */,
@@ -2675,6 +2696,7 @@
 				615F9EEEE290D91C4B780F12 /* ConflictDetailReporterTests.swift in Sources */,
 				78F8EFCEC7BFB8B1C167F0BA /* ConflictDetailWeekScopeTests.swift in Sources */,
 				2911F2F82AF24F9DAC7F2CD5 /* ConflictLayoutEngineTests.swift in Sources */,
+				EC281CA8CDDCD6B370B3D7C2 /* CourseColorMigrationTests.swift in Sources */,
 				955AA3AAA68DB122F123785B /* CourseColorUtilTests.swift in Sources */,
 				2AB1C979346A5D643A0C2F16 /* CourseDaoChainTests.swift in Sources */,
 				E8F4FE29733449ED72FB1C93 /* CourseDisplayUtilTests.swift in Sources */,
@@ -2782,6 +2804,8 @@
 				15516102E419F18E53D7081E /* ConflictDetailReporter.swift in Sources */,
 				9EA9F5DBCA7F04307F3B51EE /* ConflictLayoutEngine.swift in Sources */,
 				D38B04FDA107F93DC5568568 /* CountdownView.swift in Sources */,
+				1803ADD2723B46DFC45BD03B /* CourseColorDao.swift in Sources */,
+				1F6945B7E91B41FDC1AF35FA /* CourseColorEntity.swift in Sources */,
 				5BB4CA898C8BA35EA1326859 /* CourseColorUtil.swift in Sources */,
 				42CF185F1CE96D48DAB94808 /* CourseDao.swift in Sources */,
 				D88057BB6141BE7FE151401A /* CourseDetailView.swift in Sources */,

@@ -40,6 +40,17 @@ enum CourseColorUtil {
     /// 暗色模式亮度
     private static let L_DARK: Float = 0.28
 
+    // ===== v1.0.62 派生档:安全弧色相布点 =====
+
+    /// 安全弧离散化刻度数 — 弧上按 1 度的整数 tick 布点(实际步长 ARC_STEP_DEG)
+    private static let ARC_UNITS: Int = 240
+
+    /// 安全弧布点步长(度) — 每 tick 2°
+    private static let ARC_STEP_DEG: Int = 2
+
+    /// 已占用色相之间的最小间隔(度) — 达不到时按最接近者退让
+    internal static let MIN_SEP_DEG: Float = 10
+
     // ============================ 第二层 · 纯逻辑（无平台依赖） ============================
 
     /// Kotlin String.hashCode(): s[0]*31^(n-1) + ... (Int 溢出回绕)
@@ -79,6 +90,130 @@ enum CourseColorUtil {
     /// Kotlin String.isNotBlank() 等价: 非空且不全是 Java 空白字符
     static func isNotBlank(_ s: String) -> Bool {
         return s.unicodeScalars.contains { !isJavaWhitespace($0) }
+    }
+
+    // ============================ 第二层 · 安全弧布点（v1.0.62 派生档） ============================
+
+    /// 安全弧基准偏移 — 前半弧落在 anchor+30°~anchor+150°(避开主题色 ±30° 带)
+    /// 后半弧落在 anchor+210°~anchor+330°(避开补色 anchor+150°~anchor+210° 带)
+    private static let ARC_OFFSET_NEAR: Float = 30
+    private static let ARC_OFFSET_FAR: Float = 210
+
+    /// groupId → 弧上刻度种子(0..<ARC_UNITS) — Kotlin `(hashCode() and Int.MAX_VALUE) % ARC_UNITS`
+    private static func seedT(_ groupId: String) -> Int {
+        let h = Int32(truncatingIfNeeded: javaHash(groupId)) & 0x7FFFFFFF
+        return Int(h) % ARC_UNITS
+    }
+
+    /// 弧刻度 → 色相 — 前半弧近端(offset 30+t), 后半弧远端(offset 210+(t-ARC_UNITS/2))
+    static func hueFromT(_ anchor: Float, _ t: Int) -> Float {
+        let offset: Float = t < ARC_UNITS / 2
+            ? ARC_OFFSET_NEAR + Float(t)
+            : ARC_OFFSET_FAR + Float(t - ARC_UNITS / 2)
+        return ((anchor + offset).truncatingRemainder(dividingBy: 360) + 360)
+            .truncatingRemainder(dividingBy: 360)
+    }
+
+    /// 安全弧布点 — 不考虑已占用色相时的基础落点
+    static func safeArcHue(_ anchor: Float, _ groupId: String) -> Float {
+        hueFromT(anchor, seedT(groupId))
+    }
+
+    /// 环上最短角距(度) — 0..180
+    static func ringDelta(_ a: Float, _ b: Float) -> Float {
+        let d = ((a - b).truncatingRemainder(dividingBy: 360) + 360)
+            .truncatingRemainder(dividingBy: 360)
+        return d > 180 ? 360 - d : d
+    }
+
+    /// 在安全弧上为 groupId 找一个与已占用色相间隔 ≥ minSep 的落点。
+    /// 找不到(弧被占满)时退让到间隔最大的刻度。
+    static func resolveHueWithSpacing(_ anchor: Float, _ groupId: String,
+                                      _ taken: [Float],
+                                      minSep: Float = MIN_SEP_DEG) -> Float {
+        let t0 = seedT(groupId)
+        if taken.isEmpty { return hueFromT(anchor, t0) }
+        var t = t0
+        var bestT = t0
+        var bestGap: Float = -1
+        for _ in 0..<(ARC_UNITS / ARC_STEP_DEG) {
+            let hue = hueFromT(anchor, t)
+            let gap = taken.map { ringDelta(hue, $0) }.min() ?? 0
+            if gap >= minSep { return hue }
+            if gap > bestGap { bestGap = gap; bestT = t }
+            t = (t + ARC_STEP_DEG) % ARC_UNITS
+        }
+        return hueFromT(anchor, bestT)
+    }
+
+    /// ARGB → 色相(0..360) — 灰阶(饱和度≈0)返回 0
+    static func hueOf(_ argb: Int) -> Float {
+        let r = Float((argb >> 16) & 0xFF) / 255
+        let g = Float((argb >> 8) & 0xFF) / 255
+        let b = Float(argb & 0xFF) / 255
+        let maxc = max(r, g, b)
+        let minc = min(r, g, b)
+        let delta = maxc - minc
+        if delta < 0.0001 { return 0 }
+        var h: Float = 0
+        if maxc == r {
+            h = 60 * ((g - b) / delta).truncatingRemainder(dividingBy: 6)
+        } else if maxc == g {
+            h = 60 * ((b - r) / delta + 2)
+        } else {
+            h = 60 * ((r - g) / delta + 4)
+        }
+        return ((h.truncatingRemainder(dividingBy: 360)) + 360).truncatingRemainder(dividingBy: 360)
+    }
+
+    /// SwiftUI Color → 色相(0..360) — 走 UIColor 解析分量(同 CustomSchemeDeriver 手法)
+    static func hueOf(_ color: Color) -> Float {
+        let ui = UIColor(color)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let ri = min(255, max(0, Int(r * 255)))
+        let gi = min(255, max(0, Int(g * 255)))
+        let bi = min(255, max(0, Int(b * 255)))
+        let argb = (ri << 16) | (gi << 8) | bi
+        return hueOf(argb)
+    }
+
+    /// 当前模式 → 锚点色相。nil = CLASSIC(不跟随主题,渲染走 stableHue 老路径)
+    /// - mode: AppPrefs.COURSE_COLOR_MODE_* (0=CLASSIC / 1=FOLLOW_THEME / 2=CUSTOM)
+    /// - themePrimaryArgb: 当前主题 primary 的 ARGB
+    /// - seedHue: 用户自定义种子色相(-1 = 未设置)
+    static func resolveAnchor(mode: Int, themePrimaryArgb: Int, seedHue: Float) -> Float? {
+        switch mode {
+        case AppPrefs.COURSE_COLOR_MODE_FOLLOW_THEME:
+            return hueOf(themePrimaryArgb)
+        case AppPrefs.COURSE_COLOR_MODE_CUSTOM:
+            if seedHue >= 0 {
+                return ((seedHue.truncatingRemainder(dividingBy: 360)) + 360)
+                    .truncatingRemainder(dividingBy: 360)
+            }
+            return hueOf(themePrimaryArgb)
+        default:
+            return nil
+        }
+    }
+
+    /// 为一组 groupId 编排色相 — 锚点为 nil 时零规划(CLASSIC 不写表)。
+    /// - existingHues: 已被占用的色相(导入补色时 = 表中已有值;重算时 = 空)
+    /// - gids: 待编排的 groupId(按传入顺序)
+    static func planHuesForGroups(anchor: Float?, existingHues: [Float],
+                                  gids: [String]) -> [String: Float] {
+        guard let anchor = anchor else { return [:] }
+        var taken = existingHues
+        var plan: [String: Float] = [:]
+        var order: [String] = []
+        for gid in gids {
+            if plan[gid] != nil { continue }
+            let hue = resolveHueWithSpacing(anchor, gid, taken)
+            plan[gid] = hue
+            order.append(gid)
+            taken.append(hue)
+        }
+        return plan
     }
 
     /// 判定课程是否有用户自定义颜色：color 非空且非哨兵值。
@@ -219,12 +354,13 @@ enum CourseColorUtil {
     /// SwiftUI 路径取色入口（TodayScreen / CourseTableView / watch App）
     /// - neutralColor: colorless 统一底色，即 scheme.secondaryContainer
     static func pickCourseColorSwiftUI(_ course: CourseEntity, isDark: Bool,
-                                       neutralColor: Color, colorless: Bool = false) -> Color {
+                                       neutralColor: Color, colorless: Bool = false,
+                                       persistedHue: Float? = nil) -> Color {
         if hasCustomColor(course), let argb = parseColorUInt32(course.color) {
             return Color(uiArgb: argb)
         }
         if colorless { return neutralColor }
-        let hue = stableHue(course.groupId)
+        let hue = persistedHue ?? stableHue(course.groupId)
         let s = isDark ? S_DARK : S_LIGHT
         let l = isDark ? L_DARK : L_LIGHT
         return hslToColor(hue, s, l)
@@ -232,12 +368,13 @@ enum CourseColorUtil {
 
     /// Canvas 路径取色入口（Widget 渲染）
     static func pickCourseColorInt(_ course: CourseEntity, isDark: Bool,
-                                   neutralColorInt: Int, colorless: Bool = false) -> Int {
+                                   neutralColorInt: Int, colorless: Bool = false,
+                                   persistedHue: Float? = nil) -> Int {
         if hasCustomColor(course), let argb = parseColor(course.color) {
             return argb
         }
         if colorless { return neutralColorInt }
-        let hue = stableHue(course.groupId)
+        let hue = persistedHue ?? stableHue(course.groupId)
         let s = isDark ? S_DARK : S_LIGHT
         let l = isDark ? L_DARK : L_LIGHT
         return hslToColorInt(hue, s, l)
@@ -254,14 +391,16 @@ enum CourseColorUtil {
     /// - row: 目标行; groupRows: 同 groupId 所有行(含 row 自身), AUTO 模式按行序算 hue
     static func pickCourseColorSwiftUIWithGroupRows(
         _ row: CourseEntity, groupRows: [CourseEntity], isDark: Bool,
-        neutralColor: Color, colorless: Bool = false
+        neutralColor: Color, colorless: Bool = false,
+        persistedHue: Float? = nil
     ) -> Color {
         switch row.colorMode {
         case CourseColorMode.CUSTOM:
             return parseColorUInt32(row.color).map { Color(uiArgb: $0) } ?? neutralColor
         case CourseColorMode.AUTO:
             if colorless { return neutralColor }
-            let hue = GoldenAngleColor.forRow(row, groupRows, groupSourceColorHex(groupRows))
+            let hue = GoldenAngleColor.forRow(row, groupRows, groupSourceColorHex(groupRows),
+                                              persistedBaseHue: persistedHue)
             let (s, l) = GoldenAngleColor.hsl(hue, isDark)
             return hslToColor(hue, s, l)
         default:  // GROUP(0) 或未知值 → 组级行为
@@ -269,7 +408,7 @@ enum CourseColorUtil {
                 return Color(uiArgb: argb)
             }
             if colorless { return neutralColor }
-            let hue = stableHue(row.groupId)
+            let hue = persistedHue ?? stableHue(row.groupId)
             let s = isDark ? S_DARK : S_LIGHT
             let l = isDark ? L_DARK : L_LIGHT
             return hslToColor(hue, s, l)
@@ -279,14 +418,16 @@ enum CourseColorUtil {
     /// Canvas 路径 · issue#22 3 态取色入口 (供 Widget 渲染)
     static func pickCourseColorIntWithGroupRows(
         _ row: CourseEntity, groupRows: [CourseEntity], isDark: Bool,
-        neutralColorInt: Int, colorless: Bool = false
+        neutralColorInt: Int, colorless: Bool = false,
+        persistedHue: Float? = nil
     ) -> Int {
         switch row.colorMode {
         case CourseColorMode.CUSTOM:
             return parseColor(row.color) ?? neutralColorInt
         case CourseColorMode.AUTO:
             if colorless { return neutralColorInt }
-            let hue = GoldenAngleColor.forRow(row, groupRows, groupSourceColorHex(groupRows))
+            let hue = GoldenAngleColor.forRow(row, groupRows, groupSourceColorHex(groupRows),
+                                              persistedBaseHue: persistedHue)
             let (s, l) = GoldenAngleColor.hsl(hue, isDark)
             return hslToColorInt(hue, s, l)
         default:  // GROUP(0) 或未知值 → 组级行为
@@ -294,7 +435,7 @@ enum CourseColorUtil {
                 return argb
             }
             if colorless { return neutralColorInt }
-            let hue = stableHue(row.groupId)
+            let hue = persistedHue ?? stableHue(row.groupId)
             let s = isDark ? S_DARK : S_LIGHT
             let l = isDark ? L_DARK : L_LIGHT
             return hslToColorInt(hue, s, l)
@@ -322,8 +463,10 @@ enum GoldenAngleColor {
     private static let LIGHTNESS_DARK: Float = 0.28
 
     /// forRow — hue = 组色源 hue + idx*137.508°, idx = row.id 在同组行升序中的序号
-    static func forRow(_ row: CourseEntity, _ groupRows: [CourseEntity], _ srcHex: String?) -> Float {
-        let baseHue = parseHexHue(srcHex)
+    /// - persistedBaseHue: 组级持久色相(v1.0.62 派生档) — 非 nil 时取代 hex 解析的基色相
+    static func forRow(_ row: CourseEntity, _ groupRows: [CourseEntity], _ srcHex: String?,
+                       persistedBaseHue: Float? = nil) -> Float {
+        let baseHue = persistedBaseHue ?? parseHexHue(srcHex)
         let sorted = groupRows.sorted { $0.id < $1.id }
         let idx = sorted.firstIndex { $0.id == row.id } ?? 0
         let raw = baseHue + Float(idx) * GOLDEN_ANGLE_DEG
