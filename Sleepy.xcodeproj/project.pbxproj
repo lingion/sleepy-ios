@@ -38,6 +38,7 @@
 		073AC4188BA51ACB88A559DC /* QqJoin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7453815E27C3A0269EAA730D /* QqJoin.swift */; };
 		074693070D57DAB3FFBF5A86 /* JwBjtuParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715802C2A36A63F13CDA2C0C /* JwBjtuParser.swift */; };
 		07E559CFB768AB2B4D313DCC /* ExportFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B41AA3A6188D5A6651648F24 /* ExportFlowUITests.swift */; };
+		087B86D4EEC0536EC3216C01 /* ChinaGeoJson-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3CB908A2E97C7E2983C42AD4 /* ChinaGeoJson-LICENSE.txt */; };
 		08BEFCDFB15D26CC79E26E52 /* WidgetTableResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C144DF8370196EBA2816A1B /* WidgetTableResolver.swift */; };
 		0A85C1402956ED7AA81EE29B /* ImportAuditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0718B20F0D0233CEBDC569F8 /* ImportAuditUITests.swift */; };
 		0AC70FBA0FD3781B9D3C83E6 /* ImportDraftEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 427290E97C9EEF4990D614F5 /* ImportDraftEntity.swift */; };
@@ -95,7 +96,9 @@
 		1C8E683FDAFAE99A1ED64D2F /* JwQzAppParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 991A8A88EDA9AC6FE69501FB /* JwQzAppParserTests.swift */; };
 		1C9FAB55A97BAE3BA49E1698 /* ThemePresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B72E006270ED69703F906F4 /* ThemePresets.swift */; };
 		1CCAD24DDB460F17DADB2344 /* HolidayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C280149FF5701E57DD8E3418 /* HolidayManager.swift */; };
+		1D36BC8B9FD884814139619C /* JwCatalogueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB11F437022C4816C0AD581 /* JwCatalogueTests.swift */; };
 		1D4043F77A7E026C5EABF415 /* WidgetScrollStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E863D5E148DA13657A66F19F /* WidgetScrollStore.swift */; };
+		1D949EFE0C48290C2D6B4618 /* PARSERS_NOTICE.json in Resources */ = {isa = PBXBuildFile; fileRef = 5D43712C2EE55C28649E9A6B /* PARSERS_NOTICE.json */; };
 		1E20A90FF620D849D94D8D71 /* PeriodHeaderCellContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2140942FC998369FA6029236 /* PeriodHeaderCellContent.swift */; };
 		1E52BC0344C6124276AD918B /* JwQzVariantsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99EABD46A9E378C7363591F /* JwQzVariantsTests.swift */; };
 		1EA269B175EB7B47AF6DBE56 /* ScheduleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F93B2813DC503FB445168386 /* ScheduleRepository.swift */; };
@@ -118,6 +121,7 @@
 		22A7084A7E874B58177C314E /* WatchSyncReceiver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522A76986ED4843C6F93EF90 /* WatchSyncReceiver.swift */; };
 		22C390F65068B7B99CA619C3 /* WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3C1BE11E1D3338FD98721F /* WidgetContent.swift */; };
 		2333CE80B1AC298CAAD6A321 /* ScheduleParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7DC9AA7E9C052C705251AA6 /* ScheduleParser.swift */; };
+		23500C0273BF58C546CB0DAE /* ChinaGeoJson-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3CB908A2E97C7E2983C42AD4 /* ChinaGeoJson-LICENSE.txt */; };
 		2396B64AC47D49F561D49C31 /* HolidayTransferHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FAF9304707FC68029AD02F /* HolidayTransferHelper.swift */; };
 		2440FCE0F60D962D55FFBD62 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15DCA636E9FBBAFF5CEB6B16 /* SettingsView.swift */; };
 		247BD2909D3811BF1E518627 /* LocaleHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F0807AB00ED93A168AD2C6 /* LocaleHelper.swift */; };
@@ -130,6 +134,7 @@
 		25CE177E9704106CB220899E /* MigrationDatabaseCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44572156E2EDF36215369769 /* MigrationDatabaseCodecTests.swift */; };
 		260FE8DC16D501D997B56EC9 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03179FCBB27BEDBD1F5EF152 /* TodayView.swift */; };
 		262690131EB94042FD8CC972 /* JwChengFangParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F4DCCC2A6CD5809C73B1A1 /* JwChengFangParser.swift */; };
+		26A6718BF00C21A61AD174C6 /* PARSERS_NOTICE.json in Resources */ = {isa = PBXBuildFile; fileRef = 5D43712C2EE55C28649E9A6B /* PARSERS_NOTICE.json */; };
 		2749A5FC17C9716409A893D6 /* ScheduleParserLosslessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD0851531D7F71E0ED03D36 /* ScheduleParserLosslessTests.swift */; };
 		2796FEB743582031203286AD /* TableEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A484DCBC349DF312302C65 /* TableEditUITests.swift */; };
 		2801D93B452A0F2E5DEE1D35 /* CalendarImportRecordDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8A83BDF70AF60240387895 /* CalendarImportRecordDao.swift */; };
@@ -198,6 +203,7 @@
 		3F53F21ED9C6475AB538CB28 /* JwDiagnosticSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15BE292C937E404C09480DA2 /* JwDiagnosticSession.swift */; };
 		3FE11B7DAAFFC2CB8E59B45B /* ImportDraftDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DE9B51955EBD571182B827 /* ImportDraftDao.swift */; };
 		40061C26490E27046B141D5A /* JwWiseduParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467B034A9889202CEA76931B /* JwWiseduParser.swift */; };
+		417C7B3188944E7A0A86B46E /* NLSC-NOTICE.txt in Resources */ = {isa = PBXBuildFile; fileRef = AB9FB3B65A7401740976E63C /* NLSC-NOTICE.txt */; };
 		41E4CB66648841DF940050C0 /* WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3C1BE11E1D3338FD98721F /* WidgetContent.swift */; };
 		41F5B59C468562763A588C8D /* CourseDisplayUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = E451AD795407D5BA73BD0A6B /* CourseDisplayUtil.swift */; };
 		4270DA248E20033D4C7588FA /* PeriodHeaderLayoutModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0585AEDD24C0DBDDF049B0 /* PeriodHeaderLayoutModel.swift */; };
@@ -213,6 +219,7 @@
 		448F58E97EC4E4577A6888A8 /* MigrationV7toV10Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB3F76D45AE7F613321DAFA /* MigrationV7toV10Tests.swift */; };
 		44A1131C0E95B20A67FD5E33 /* JwHnustParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3205A634D1395324ABDEB /* JwHnustParserTests.swift */; };
 		451EC791E28FAFB2754E6149 /* UpdateInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5B884B15CD7982BF4BC2F9 /* UpdateInfo.swift */; };
+		45AEF9E916D677DD8D7029F0 /* SchoolSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089AF7B5A308D8889ABF3C6A /* SchoolSearchIndex.swift */; };
 		45E85F9CE80185D47240DF4A /* WidgetSizeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7667DFB68961DD43C9A9A5D /* WidgetSizeCore.swift */; };
 		4678EDB31DEAC824CE42AB0D /* ImportRoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF0ABA49DCD06B5254BA8BA /* ImportRoster.swift */; };
 		46E56F82097EE35BCEEA4C77 /* JwThuparser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D6582A2AEB68F8E97C20FD /* JwThuparser.swift */; };
@@ -320,6 +327,7 @@
 		6681365B327B45F2D250BA43 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FE23E8A9E4FEBC54F0F90DF /* Theme.swift */; };
 		66F139067FBE341280D9CBF9 /* FileImportUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD39BACAC97BB2F4E6F0FF56 /* FileImportUITests.swift */; };
 		675948B576189464B48322ED /* JwCfNewFetchJs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D91020B7AECA19BEC7D1A96 /* JwCfNewFetchJs.swift */; };
+		68017FB75931AD3B775AE4D8 /* ChinaGeoJson-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3CB908A2E97C7E2983C42AD4 /* ChinaGeoJson-LICENSE.txt */; };
 		681AC5A2C9A44C84E305E5A2 /* RowKeyDiffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C14C917D9FFF63F1BDA1150 /* RowKeyDiffer.swift */; };
 		69FE60FF295F9F5E64767937 /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */; };
 		6A146A0A07E98B39A265A340 /* ReminderScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D8DF7E3509AC5B4147E75C8 /* ReminderScreen.swift */; };
@@ -354,6 +362,7 @@
 		728B5288C0C8D46FFF033A93 /* JwParseDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEFFFB7B27071D52A6BF4CD8 /* JwParseDiagnostics.swift */; };
 		7321415F6CE1352B83B69421 /* JwCfNewParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FE9965C48E2F34C544D0F2 /* JwCfNewParser.swift */; };
 		73A53B07D725587DD43E8777 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8D929FCEF4A32DF472275A70 /* Assets.xcassets */; };
+		73B677685CA5B391BE4231B0 /* SchoolSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089AF7B5A308D8889ABF3C6A /* SchoolSearchIndex.swift */; };
 		74587759EA022E899B4F285F /* WatchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EAC76DA07CEFC9179624C92 /* WatchCommand.swift */; };
 		74678E3DCC6D48477BC81B24 /* PinyinMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 690DF83E91E199DFE66F9756 /* PinyinMatcher.swift */; };
 		74B61FAF8530E50875B9F791 /* SleepyNativeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831838316873C50C42AC649A /* SleepyNativeFormat.swift */; };
@@ -372,6 +381,7 @@
 		784FCA1EA5F582BC59BC844F /* TableSwitchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EB2EA5882A1102A65170A9 /* TableSwitchUITests.swift */; };
 		7886F9D30CF882DA17E5DD03 /* SettingsCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE15454AE12C13CA8A96C9D /* SettingsCards.swift */; };
 		78B5EBC1FA2060A28A7EC364 /* SleepyNativeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831838316873C50C42AC649A /* SleepyNativeFormat.swift */; };
+		78D3234746EDE3941CC1DF5B /* NLSC-NOTICE.txt in Resources */ = {isa = PBXBuildFile; fileRef = AB9FB3B65A7401740976E63C /* NLSC-NOTICE.txt */; };
 		78F17A670A6F6C7204CB379B /* WeekDisplayResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81949E978A8725C92FCA42C2 /* WeekDisplayResolver.swift */; };
 		78F8EFCEC7BFB8B1C167F0BA /* ConflictDetailWeekScopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A86C9A205FB6D008F11A52 /* ConflictDetailWeekScopeTests.swift */; };
 		793384D8A98170D9837B9858 /* ReminderPermissionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8DFDCCD1C8491943A7FD52 /* ReminderPermissionUITests.swift */; };
@@ -385,6 +395,7 @@
 		7C7E515B40D83EEB2C9A7D1E /* WatchComplicationData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D788F42493581E599B26ABC /* WatchComplicationData.swift */; };
 		7CE5CBEFDDECCCE4C23E9AC5 /* WidgetManagementScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58603B4EDA2A13DB3DE29C0F /* WidgetManagementScreen.swift */; };
 		7CED8B22A59CED24C1EB08C8 /* ConflictLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4045004893D9AB9C079A3CF /* ConflictLayoutEngine.swift */; };
+		7D4D5456AE84961CDABA255D /* NLSC-NOTICE.txt in Resources */ = {isa = PBXBuildFile; fileRef = AB9FB3B65A7401740976E63C /* NLSC-NOTICE.txt */; };
 		7D4E808CFE7DA03C186C197D /* CustomSchemeDeriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F2D8DA1BAD4105612867AE /* CustomSchemeDeriver.swift */; };
 		7D5AF9581BE87F6C8F32BDD5 /* CourseColorWriteGlue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */; };
 		7D937FA178D2B32F57D5AEBA /* JwJsonParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDC6BEB3E8D377C5952F4450 /* JwJsonParserTests.swift */; };
@@ -575,6 +586,7 @@
 		C67FEC137B6739296562BD28 /* CourseColorWriteGlue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */; };
 		C75EAA02EC7094A728B8A0F7 /* JwQzParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166C8FB4895B9F8ACF079DDD /* JwQzParser.swift */; };
 		C7749C80CF3B91B937B73606 /* AppearanceNavigationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BEBFA267D121F786634455D /* AppearanceNavigationRow.swift */; };
+		C7994467C173356950218670 /* NLSC-NOTICE.txt in Resources */ = {isa = PBXBuildFile; fileRef = AB9FB3B65A7401740976E63C /* NLSC-NOTICE.txt */; };
 		C7A725B2DDADB89C631B58DD /* PlatformParityNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0425392AD82917108D3BB908 /* PlatformParityNotes.swift */; };
 		C7E1B6270651CCFDB000813D /* ExportScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9275738703FAD36D408DAA49 /* ExportScreen.swift */; };
 		C8093691F612B15E78BCE398 /* UndoCaptureCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ADF37AF4B24FC388BA9CEE2 /* UndoCaptureCoverageTests.swift */; };
@@ -607,6 +619,7 @@
 		D2FA696AE5282A46EB50ACBD /* school_city_boundaries.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = 0F6A3A4DB6AEC3D8277B080A /* school_city_boundaries.bin.gz */; };
 		D311473A9A7123F30A470D13 /* OfflineSchoolCityIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = F39B1B29040C2EE0D86E48E5 /* OfflineSchoolCityIndex.swift */; };
 		D38B04FDA107F93DC5568568 /* CountdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C90F21885B1E17FA515F36A /* CountdownView.swift */; };
+		D45E6E8BD42A8C22C9DA4086 /* ChinaGeoJson-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3CB908A2E97C7E2983C42AD4 /* ChinaGeoJson-LICENSE.txt */; };
 		D4BD8EDCF883B2E8DD714569 /* ImportDraftRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D96D4B4460BFB76E92F792 /* ImportDraftRepository.swift */; };
 		D57158AB79171803AE7C1172 /* GlobalWidgetCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B00E403E87446234A08FCF /* GlobalWidgetCompatibility.swift */; };
 		D5AD36AF92B9BEA56E25543C /* WatchComplicationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1696DA5E0411C382E6CAE49 /* WatchComplicationProvider.swift */; };
@@ -622,6 +635,7 @@
 		D6F06CFA07C6AD3B37130285 /* MigrationDatabaseCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = F251FBCF28A44624A87D96D4 /* MigrationDatabaseCodec.swift */; };
 		D6F20A458DA3948A5446E4D6 /* ColorPickerDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08F572C4049C60A80884CCF /* ColorPickerDialog.swift */; };
 		D7AF86EA9E773ED3E5F0F344 /* ConflictLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4045004893D9AB9C079A3CF /* ConflictLayoutEngine.swift */; };
+		D7C10F6902B64BD20AB8AA38 /* PARSERS_NOTICE.json in Resources */ = {isa = PBXBuildFile; fileRef = 5D43712C2EE55C28649E9A6B /* PARSERS_NOTICE.json */; };
 		D7E202547F9B95BCF6FD2A56 /* CourseColorWriteGlue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */; };
 		D7FEDBA885B825B893C17A74 /* JwImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B413E30FAD9261068960FC5F /* JwImportViewModel.swift */; };
 		D8309150A0A16826825FAABB /* MigrationBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D592A336E4B87069FB2952A3 /* MigrationBackup.swift */; };
@@ -678,6 +692,7 @@
 		E6A8F1F1EA3C4AE7922736FF /* PeriodTableDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DC15F72A71D1DC1C3370D6F /* PeriodTableDao.swift */; };
 		E7A0657E3C6AE3280A1D0D43 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 23085CFBDA125756FB4E8934 /* PrivacyInfo.xcprivacy */; };
 		E815737E05A1F5CE6EF71008 /* SleepyPeriodTableParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF141C267F6FA2738F222C5D /* SleepyPeriodTableParserTests.swift */; };
+		E86336BD66510E1A429131C9 /* PARSERS_NOTICE.json in Resources */ = {isa = PBXBuildFile; fileRef = 5D43712C2EE55C28649E9A6B /* PARSERS_NOTICE.json */; };
 		E8D7B76EF66FA5C3EEC79FFD /* SwipeBackGestureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2745AD826F30FABAEB0D32 /* SwipeBackGestureUITests.swift */; };
 		E8F4FE29733449ED72FB1C93 /* CourseDisplayUtilTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3256067B02E3F8DEC9B0CC14 /* CourseDisplayUtilTests.swift */; };
 		E8F69FCE58D1956F1355B386 /* FeedbackComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D01ED756BE86C51A9663993 /* FeedbackComposerTests.swift */; };
@@ -823,6 +838,7 @@
 		05BA412B6F60CF5B04BE6998 /* SleepyWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepyWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		05EC5FA0F37BCA99BF0D8ABE /* ExitDraftStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExitDraftStateTests.swift; sourceTree = "<group>"; };
 		0718B20F0D0233CEBDC569F8 /* ImportAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAuditUITests.swift; sourceTree = "<group>"; };
+		089AF7B5A308D8889ABF3C6A /* SchoolSearchIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolSearchIndex.swift; sourceTree = "<group>"; };
 		091CF54ADE6711A4CA322D6D /* JwParity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParity.swift; sourceTree = "<group>"; };
 		0A34060A11A2074B2B02C7E1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		0ADF37AF4B24FC388BA9CEE2 /* UndoCaptureCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoCaptureCoverageTests.swift; sourceTree = "<group>"; };
@@ -910,6 +926,7 @@
 		3B140E2A80329256048C9082 /* WidgetVariantInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetVariantInfo.swift; sourceTree = "<group>"; };
 		3BB9A3170E31D64A578F3B56 /* ImportReceiverActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportReceiverActivity.swift; sourceTree = "<group>"; };
 		3C66E6D2ABAEEAC25D75D8C3 /* ExportImportRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImportRoundTripTests.swift; sourceTree = "<group>"; };
+		3CB908A2E97C7E2983C42AD4 /* ChinaGeoJson-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ChinaGeoJson-LICENSE.txt"; sourceTree = "<group>"; };
 		3CE7034F859FC0E80A0569C9 /* SleepyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SleepyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3E20E86B4FD984D1F80869C5 /* CustomThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomThemeStore.swift; sourceTree = "<group>"; };
 		3E75995AB2FB7D4568AE0E14 /* SchoolLocationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolLocationPolicy.swift; sourceTree = "<group>"; };
@@ -967,6 +984,7 @@
 		5C90F21885B1E17FA515F36A /* CountdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownView.swift; sourceTree = "<group>"; };
 		5CD0851531D7F71E0ED03D36 /* ScheduleParserLosslessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleParserLosslessTests.swift; sourceTree = "<group>"; };
 		5D01ED756BE86C51A9663993 /* FeedbackComposerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackComposerTests.swift; sourceTree = "<group>"; };
+		5D43712C2EE55C28649E9A6B /* PARSERS_NOTICE.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = PARSERS_NOTICE.json; sourceTree = "<group>"; };
 		5D841A747EFF33403A2C0C2C /* PeriodTableEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeriodTableEntity.swift; sourceTree = "<group>"; };
 		5DB8F6871F3F92D04E6106C9 /* NoRippleClickable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoRippleClickable.swift; sourceTree = "<group>"; };
 		5DDC90F60E5366C55756996B /* ImportReceiverActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportReceiverActivityTests.swift; sourceTree = "<group>"; };
@@ -1086,6 +1104,7 @@
 		A92AD4732D1CB6F326DFEAED /* JwYethanParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwYethanParserTests.swift; sourceTree = "<group>"; };
 		A96BF262488C60DF32EE682F /* ImportDraftRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportDraftRepositoryTests.swift; sourceTree = "<group>"; };
 		AAA25C6698B82B80FF02AB1B /* SegmentedSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedSwitcher.swift; sourceTree = "<group>"; };
+		AB9FB3B65A7401740976E63C /* NLSC-NOTICE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "NLSC-NOTICE.txt"; sourceTree = "<group>"; };
 		ABE15454AE12C13CA8A96C9D /* SettingsCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCards.swift; sourceTree = "<group>"; };
 		AC8A83BDF70AF60240387895 /* CalendarImportRecordDao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarImportRecordDao.swift; sourceTree = "<group>"; };
 		AD39BACAC97BB2F4E6F0FF56 /* FileImportUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileImportUITests.swift; sourceTree = "<group>"; };
@@ -1175,6 +1194,7 @@
 		D9D08D0F2D4A4985859EFCC8 /* WidgetGlassPreviewRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGlassPreviewRenderTests.swift; sourceTree = "<group>"; };
 		DA5552387A1965D9D7A826FD /* NotificationSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSchedulerTests.swift; sourceTree = "<group>"; };
 		DA6CEF27A9C39504E09D3487 /* GeneralSettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsScreen.swift; sourceTree = "<group>"; };
+		DAB11F437022C4816C0AD581 /* JwCatalogueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCatalogueTests.swift; sourceTree = "<group>"; };
 		DB174180E779B7796964E378 /* AppPrefs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPrefs.swift; sourceTree = "<group>"; };
 		DBC7DB3DE13257F697784257 /* JwJsonParsers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwJsonParsers.swift; sourceTree = "<group>"; };
 		DCA9076C6A9149843AB86B5C /* school_city_boundaries.source.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = school_city_boundaries.source.json; sourceTree = "<group>"; };
@@ -1434,6 +1454,15 @@
 			path = migration;
 			sourceTree = "<group>";
 		};
+		3D2761A488CA7A620D98D115 /* third_party */ = {
+			isa = PBXGroup;
+			children = (
+				3CB908A2E97C7E2983C42AD4 /* ChinaGeoJson-LICENSE.txt */,
+				AB9FB3B65A7401740976E63C /* NLSC-NOTICE.txt */,
+			);
+			path = third_party;
+			sourceTree = "<group>";
+		};
 		413A187C2AD760D7CF0719FD /* edit */ = {
 			isa = PBXGroup;
 			children = (
@@ -1602,6 +1631,7 @@
 				3406352597357F14F585C379 /* SchoolDomainMatch.swift */,
 				131D314570395796E5D7505F /* SchoolLocationLookup.swift */,
 				3E75995AB2FB7D4568AE0E14 /* SchoolLocationPolicy.swift */,
+				089AF7B5A308D8889ABF3C6A /* SchoolSearchIndex.swift */,
 				4737C8EBD3C461383C3E9868 /* UcasDetailFetch.swift */,
 			);
 			path = jw;
@@ -1701,6 +1731,7 @@
 				1C60FAC5447AB59ECB3F3CCF /* Issue55CsvHtmlTextOwnTimeTests.swift */,
 				C2CFC9A64BF20B8F84CA0642 /* Issue55OwnTimeTests.swift */,
 				E7717787BC54237EC484E5E5 /* JwBoyaPpParserTests.swift */,
+				DAB11F437022C4816C0AD581 /* JwCatalogueTests.swift */,
 				65E097C9F44C637CEDD4DBCD /* JwChaoxingParserTests.swift */,
 				E1E0BCF9A05FDD62F8ED47C6 /* JwEams5ParserTests.swift */,
 				A2B3205A634D1395324ABDEB /* JwHnustParserTests.swift */,
@@ -1879,6 +1910,8 @@
 				1205376525F575AF970B7CD4 /* Localizable.strings */,
 				B605BE92A8C8460374E8BA82 /* Localizable.stringsdict */,
 				74AAD82A6B74E4B619BC82EA /* SchoolCity */,
+				3D2761A488CA7A620D98D115 /* third_party */,
+				5D43712C2EE55C28649E9A6B /* PARSERS_NOTICE.json */,
 				40B0375B042F64DCB87DBE3F /* schools.json */,
 			);
 			path = resources;
@@ -2170,9 +2203,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				39528768165F38372C693951 /* Assets.xcassets in Resources */,
+				D45E6E8BD42A8C22C9DA4086 /* ChinaGeoJson-LICENSE.txt in Resources */,
 				34C421D4351930ECCD846982 /* LaunchScreen.storyboard in Resources */,
 				F641EDE75578F5F85B651651 /* Localizable.strings in Resources */,
 				52350D79416EE136012CF1CD /* Localizable.stringsdict in Resources */,
+				417C7B3188944E7A0A86B46E /* NLSC-NOTICE.txt in Resources */,
+				D7C10F6902B64BD20AB8AA38 /* PARSERS_NOTICE.json in Resources */,
 				E7A0657E3C6AE3280A1D0D43 /* PrivacyInfo.xcprivacy in Resources */,
 				8A6E8CBA5BD35AD27269BBE8 /* school_cities.json in Resources */,
 				61639588D86095F728021619 /* school_city_boundaries.bin.gz in Resources */,
@@ -2186,8 +2222,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				3340A3402AFBA1CD5E3DDB2B /* Assets.xcassets in Resources */,
+				23500C0273BF58C546CB0DAE /* ChinaGeoJson-LICENSE.txt in Resources */,
 				9A1D51364D41BEC42AF36C0D /* Localizable.strings in Resources */,
 				4B6BD5049F8AACA8B6600F67 /* Localizable.stringsdict in Resources */,
+				C7994467C173356950218670 /* NLSC-NOTICE.txt in Resources */,
+				1D949EFE0C48290C2D6B4618 /* PARSERS_NOTICE.json in Resources */,
 				9F8B55D0FDF040A05A668BED /* PrivacyInfo.xcprivacy in Resources */,
 				D5B4C0BD6A29B9D845CD420D /* school_cities.json in Resources */,
 				DDF8C5C7D7054B29592F3C57 /* school_city_boundaries.bin.gz in Resources */,
@@ -2200,8 +2239,11 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				087B86D4EEC0536EC3216C01 /* ChinaGeoJson-LICENSE.txt in Resources */,
 				E24D2AF12B919765E9916F58 /* Localizable.strings in Resources */,
 				76BB995625DBA705AC2A5E81 /* Localizable.stringsdict in Resources */,
+				78D3234746EDE3941CC1DF5B /* NLSC-NOTICE.txt in Resources */,
+				26A6718BF00C21A61AD174C6 /* PARSERS_NOTICE.json in Resources */,
 				520AA5E85939E1A6EB567022 /* PrivacyInfo.xcprivacy in Resources */,
 				D68B0279BE8968F3197D725A /* school_cities.json in Resources */,
 				6BB126EC35C8C5DAD2B35AA8 /* school_city_boundaries.bin.gz in Resources */,
@@ -2215,9 +2257,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				73A53B07D725587DD43E8777 /* Assets.xcassets in Resources */,
+				68017FB75931AD3B775AE4D8 /* ChinaGeoJson-LICENSE.txt in Resources */,
 				EFA7E01FD14A1381CC266E23 /* LaunchScreen.storyboard in Resources */,
 				D6770DDC7A4CB4206244FDD1 /* Localizable.strings in Resources */,
 				52DFF0E7291B635399231833 /* Localizable.stringsdict in Resources */,
+				7D4D5456AE84961CDABA255D /* NLSC-NOTICE.txt in Resources */,
+				E86336BD66510E1A429131C9 /* PARSERS_NOTICE.json in Resources */,
 				1090E91F815A223E47CFD718 /* PrivacyInfo.xcprivacy in Resources */,
 				119BD2A197427B16582217AD /* school_cities.json in Resources */,
 				D2FA696AE5282A46EB50ACBD /* school_city_boundaries.bin.gz in Resources */,
@@ -2496,6 +2541,7 @@
 				6C674F87490B5F9F9E5A8EB0 /* SchoolDomainMatch.swift in Sources */,
 				830F5E51784D4CFFCC1C69D4 /* SchoolLocationLookup.swift in Sources */,
 				C8841B4DC588553DD289363E /* SchoolLocationPolicy.swift in Sources */,
+				45AEF9E916D677DD8D7029F0 /* SchoolSearchIndex.swift in Sources */,
 				6490703A999373DFF63E3F2A /* SchoolSelectScreen.swift in Sources */,
 				B28F1749B30AA833506A16D0 /* SegmentedSwitcher.swift in Sources */,
 				7886F9D30CF882DA17E5DD03 /* SettingsCards.swift in Sources */,
@@ -2704,6 +2750,7 @@
 				3B036A4C135F3D8D7DE9C0C6 /* SchoolDomainMatch.swift in Sources */,
 				1832C71748A7A6836AE7C626 /* SchoolLocationLookup.swift in Sources */,
 				EAB17FAF4183B15066AA6885 /* SchoolLocationPolicy.swift in Sources */,
+				73B677685CA5B391BE4231B0 /* SchoolSearchIndex.swift in Sources */,
 				105848ADD6E684DE219C4F90 /* SleepyNativeExporter.swift in Sources */,
 				9BDBBCA50972C67AC052EA46 /* SleepyNativeFormat.swift in Sources */,
 				A2C80F36D6728FF2F43F453F /* SleepyNativeParser.swift in Sources */,
@@ -2791,6 +2838,7 @@
 				7C6FAB02E18707E0143035CA /* Issue55CsvHtmlTextOwnTimeTests.swift in Sources */,
 				899CBC808AD7165366D9D0BA /* Issue55OwnTimeTests.swift in Sources */,
 				902DD269F77279DB2BAC9BEB /* JwBoyaPpParserTests.swift in Sources */,
+				1D36BC8B9FD884814139619C /* JwCatalogueTests.swift in Sources */,
 				0C0475DF05C8B9E030770D77 /* JwChaoxingParserTests.swift in Sources */,
 				F0299BF92B48D57BF4556370 /* JwEams5ParserTests.swift in Sources */,
 				44A1131C0E95B20A67FD5E33 /* JwHnustParserTests.swift in Sources */,

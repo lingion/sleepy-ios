@@ -20,6 +20,9 @@ import GRDB
 final class JwImportViewModel: ObservableObject {
 
     @Published private(set) var schools: [JwSchoolInfo] = []
+    /// ← Android `remember(schools) { SchoolSearchIndex(schools) }`:
+    ///   索引随 schools 重建, 搜索时只做匹配(不在每次按键重算拼音)。
+    private var searchIndex = SchoolSearchIndex([])
     @Published private(set) var importState: ImportState = .idle
     // ← v1.0.60 _schoolLocation StateFlow: 推荐卡定位状态机(8 态)
     @Published private(set) var schoolLocation: SchoolLocationState = .idle
@@ -72,8 +75,11 @@ final class JwImportViewModel: ObservableObject {
                     v.cities = cityIndex[info.name] ?? []
                     return v
                 }
+                // ← Android loadSchools: 只显示有 URL 的学校, 避免用户看到大量不可用选项。
+                .filter { !$0.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 DispatchQueue.main.async {
                     self?.schools = list
+                    self?.searchIndex = SchoolSearchIndex(list)
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -97,16 +103,8 @@ final class JwImportViewModel: ObservableObject {
             let aliases = (obj["aliases"] as? [String]) ?? []
             let typeStr = (obj["type"] as? String) ?? ""
             // ← kt:187 ifBlank { null } — 纯空白 type 同样视为未声明
-            // status 字段缺失/未知回落 supported
-            let rawStatus = (obj["status"] as? String) ?? ""
-            let status: String
-            switch rawStatus {
-            case JwSchoolInfo.STATUS_PENDING: status = JwSchoolInfo.STATUS_PENDING
-            case JwSchoolInfo.STATUS_LEGACY: status = JwSchoolInfo.STATUS_LEGACY
-            case JwSchoolInfo.STATUS_GRAD_SUPPORTED: status = JwSchoolInfo.STATUS_GRAD_SUPPORTED
-            case JwSchoolInfo.STATUS_GRAD_PENDING: status = JwSchoolInfo.STATUS_GRAD_PENDING
-            default: status = JwSchoolInfo.STATUS_SUPPORTED
-            }
+            // ← Android normalizeStatus: 缺失保留历史行为(supported), 未知状态 fail-closed 到 pending
+            let status = JwSchoolInfo.normalizeStatus(obj["status"] as? String)
             list.append(JwSchoolInfo(
                 sortKey: obj["sortKey"] as? String ?? "",
                 name: obj["name"] as? String ?? "",
@@ -116,10 +114,17 @@ final class JwImportViewModel: ObservableObject {
                 aliases: aliases,
                 sortKeyFull: obj["sortKeyFull"] as? String ?? "",
                 enableFetch: (obj["enableFetch"] as? Bool) ?? false,
-                cities: (obj["cities"] as? [String]) ?? []
+                cities: (obj["cities"] as? [String]) ?? [],
+                catalogId: obj["catalogId"] as? String ?? ""
             ))
         }
         return list
+    }
+
+    /// ← Android SchoolSelectScreen: `remember(searchIndex, query) { searchIndex.search(query) }`。
+    /// 空白查询返回全量目录; 别名精确命中者前置。
+    func searchSchools(_ query: String) -> [JwSchoolInfo] {
+        searchIndex.search(query)
     }
 
     /// 解析 HTML 源码,返回课程列表(不入库) ← suspend parseHtml
