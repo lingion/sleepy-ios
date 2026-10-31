@@ -1070,3 +1070,145 @@ final class JwXjuParser: WakeUpMarkerParserBase {
         return primary.isEmpty ? try super.generateCourseList() : primary
     }
 }
+
+final class JwUmoocParser: WakeUpMarkerParserBase {
+    init(_ source: String) { super.init(source, ["timetable", "infolist_hr_common", "academic/common/security"]) }
+    override func generateCourseList() throws -> [JwCourse] {
+        let primary = WakeUpCompat.parseUmooc(source)
+        return primary.isEmpty ? try super.generateCourseList() : primary
+    }
+}
+
+final class JwYlParser: WakeUpMarkerParserBase {
+    init(_ source: String) { super.init(source, ["CourseTimeTable-styles-timeTable", "lyuapServer", "奕联"]) }
+    override func generateCourseList() throws -> [JwCourse] {
+        let primary = WakeUpCompat.parseYl(source)
+        return primary.isEmpty ? try super.generateCourseList() : primary
+    }
+}
+
+// MARK: - UMOOC / 奕联(YL) 课表解析
+
+extension WakeUpCompat {
+
+    /// UMOOC 教务课表: 容器 `.timetable` 或 `#timetable`, 行内单元格文本按行拆成
+    /// [课程名, 教师, 教室, 周次信息], 周次信息形如 "1-16周" / "1-16周(单)"。
+    ///
+    /// ★ 与 Android 的实现差异(两处, 均有实证):
+    ///   a. Android 写 `cell.text().trim().split("\n")` 并要求 `lines.size >= 2`。
+    ///      Jsoup 的 `Element.text()` 会把 `<br>` 折成一个空格、并把换行也折成空格,
+    ///      所以 split("\n") 永远只得到 1 行 ⇒ **Android 的 parseUmooc/parseYl 是死代码,
+    ///      永远返回空列表**。本实现改用 `html()` + `<br>` 正则切分(与 Jsoup 的
+    ///      `html()` 行为等价), 才能真正取到多行字段。
+    ///   b. 单双周 type 取值: Android 写 单→1 / 双→0 / 其余→2, 与 `JwCourse.type`
+    ///      的 0=每周 / 1=单周 / 2=双周 语义以及 `JwParity.adjustedRange` 冲突 ——
+    ///      双周课会被当每周、每周课会被当双周。本实现取自然映射 单→1 / 双→2 / 其余→0。
+    ///      Android 侧没有 UMOOC/YL 的单测与 fixture, 该差异无上游断言覆盖。
+    static func parseUmooc(_ source: String) -> [JwCourse] {
+        let doc = (try? SwiftSoup.parse(source)) ?? Document("")
+        // Kotlin: selectFirst(".timetable") ?: selectFirst("#timetable") ?: return emptyList()
+        guard let timetable = (try? doc.select(".timetable"))?.first()
+                ?? (try? doc.select("#timetable"))?.first() else { return [] }
+        var result: [JwCourse] = []
+        for (rowIndex, row) in ((try? timetable.select("tr")) ?? Elements()).enumerated() {
+            for (cellIndex, cell) in ((try? row.select("td")) ?? Elements()).enumerated() {
+                let text = ((try? cell.text()) ?? "").trimmingCharacters(in: .whitespaces)
+                if text.isEmpty || text == "节次" { continue }
+                let lines = splitByRegex((try? cell.html()) ?? "", #"<br\s*/?>"#)
+                    .map { chunk -> String in
+                        let t = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if t.isEmpty { return "" }
+                        guard let d = try? SwiftSoup.parse(t) else { return t }
+                        return ((try? d.text()) ?? t).trimmingCharacters(in: .whitespaces)
+                    }
+                    .filter { !$0.isEmpty }
+                guard lines.count >= 2 else { continue }
+                let name = lines[0]
+                let teacher = lines.count > 1 ? lines[1] : ""
+                let room = lines.count > 2 ? lines[2] : ""
+                let weekInfo = lines.count > 3 ? lines[3] : ""
+                guard let m = reWeekDash.firstMatch(
+                    in: weekInfo, range: NSRange(weekInfo.startIndex..., in: weekInfo)) else { continue }
+                let ns = weekInfo as NSString
+                guard let startWeek = Int(ns.substring(with: m.range(at: 1))),
+                      let endWeek = Int(ns.substring(with: m.range(at: 2))) else { continue }
+                let type: Int
+                if weekInfo.contains("单") { type = 1 }
+                else if weekInfo.contains("双") { type = 2 }
+                else { type = 0 }
+                let day = cellIndex + 1
+                guard (1...7).contains(day) else { continue }
+                let startNode = rowIndex + 1
+                result.append(JwCourse(name: name, room: room, teacher: teacher, day: day,
+                                        startNode: startNode, endNode: startNode,
+                                        startWeek: startWeek, endWeek: endWeek, type: type))
+            }
+        }
+        var seen = Set<String>()
+        return result.filter { c in
+            let key = [c.name, String(c.day), String(c.startNode), String(c.startWeek),
+                       String(c.endWeek), String(c.type)].joined(separator: "|")
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
+    }
+
+    /// 奕联(YL) 教务课表: 容器 class 含 "CourseTimeTable" 的表, 取其 tbody 的行。
+    /// 字段与 UMOOC 相同(见 parseUmooc 的注释, 含与 Android 的两处差异说明)。
+    static func parseYl(_ source: String) -> [JwCourse] {
+        let doc = (try? SwiftSoup.parse(source)) ?? Document("")
+        // Kotlin: selectFirst(".app-components-CourseTimeTable-styles-timeTable")
+        //         ?: selectFirst("[class*=CourseTimeTable]") ?: return emptyList()
+        let container = (try? doc.select(".app-components-CourseTimeTable-styles-timeTable"))?.first()
+            ?? (try? doc.select("[class*=CourseTimeTable]"))?.first()
+        guard let timeTable = container else { return [] }
+        guard let tbody = (try? timeTable.select("tbody"))?.first() else { return [] }
+        var result: [JwCourse] = []
+        for (rowIndex, row) in ((try? tbody.select("tr")) ?? Elements()).enumerated() {
+            for (cellIndex, cell) in ((try? row.select("td")) ?? Elements()).enumerated() {
+                let text = ((try? cell.text()) ?? "").trimmingCharacters(in: .whitespaces)
+                if text.isEmpty || text == "节次" { continue }
+                let lines = splitByRegex((try? cell.html()) ?? "", #"<br\s*/?>"#)
+                    .map { chunk -> String in
+                        let t = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if t.isEmpty { return "" }
+                        guard let d = try? SwiftSoup.parse(t) else { return t }
+                        return ((try? d.text()) ?? t).trimmingCharacters(in: .whitespaces)
+                    }
+                    .filter { !$0.isEmpty }
+                guard lines.count >= 2 else { continue }
+                let name = lines[0]
+                let teacher = lines.count > 1 ? lines[1] : ""
+                let room = lines.count > 2 ? lines[2] : ""
+                let weekInfo = lines.count > 3 ? lines[3] : ""
+                guard let m = reWeekDash.firstMatch(
+                    in: weekInfo, range: NSRange(weekInfo.startIndex..., in: weekInfo)) else { continue }
+                let ns = weekInfo as NSString
+                guard let startWeek = Int(ns.substring(with: m.range(at: 1))),
+                      let endWeek = Int(ns.substring(with: m.range(at: 2))) else { continue }
+                let type: Int
+                if weekInfo.contains("单") { type = 1 }
+                else if weekInfo.contains("双") { type = 2 }
+                else { type = 0 }
+                let day = cellIndex + 1
+                guard (1...7).contains(day) else { continue }
+                let startNode = rowIndex + 1
+                result.append(JwCourse(name: name, room: room, teacher: teacher, day: day,
+                                        startNode: startNode, endNode: startNode,
+                                        startWeek: startWeek, endWeek: endWeek, type: type))
+            }
+        }
+        var seen = Set<String>()
+        return result.filter { c in
+            let key = [c.name, String(c.day), String(c.startNode), String(c.startWeek),
+                       String(c.endWeek), String(c.type)].joined(separator: "|")
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
+    }
+
+    /// "1-16周" 里的数字区间。
+    private static let reWeekDash = try! NSRegularExpression(pattern: "(\\d+)-(\\d+)", options: [])
+}

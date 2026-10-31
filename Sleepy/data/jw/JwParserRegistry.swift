@@ -61,6 +61,10 @@ enum JwParserRegistry {
         (JwProtocol.TYPE_CUMTB, 14),
         (JwProtocol.TYPE_XJU_POST, 15),
         (JwProtocol.TYPE_THU, 16),
+        (JwProtocol.TYPE_UMOOC, 13),
+        (JwProtocol.TYPE_YL, 13),
+        (JwProtocol.TYPE_ECUPL, 16),
+        (JwProtocol.TYPE_SCAU, 200),
         (JwProtocol.TYPE_WISEDU, 20),
         (JwProtocol.TYPE_CQU, 25),
         (JwProtocol.TYPE_CHAOXING, 26),
@@ -141,6 +145,10 @@ enum JwParserRegistry {
         case JwProtocol.TYPE_CUMTB: return { JwCumtbParser($0) }
         case JwProtocol.TYPE_XJU_POST: return { JwXjuParser($0) }
         case JwProtocol.TYPE_THU: return { JwThuparser($0) }
+        case JwProtocol.TYPE_UMOOC: return { JwUmoocParser($0) }
+        case JwProtocol.TYPE_YL: return { JwYlParser($0) }
+        case JwProtocol.TYPE_ECUPL: return { JwEcuplParser($0) }
+        case JwProtocol.TYPE_SCAU: return { JwScauParser($0) }
         case JwProtocol.TYPE_KUST: return { JwKustParser($0) }
         case JwProtocol.TYPE_NUIT: return { JwNuitParser($0) }
         case JwProtocol.TYPE_YETHAN: return { JwYethanParser($0) }
@@ -171,6 +179,14 @@ enum JwParserRegistry {
     /// schools.json type 能否被 Registry 路由(SchoolsJsonConsistencyTest 用)
     static func isRoutable(_ type: String) -> Bool {
         factoryFor(type) != nil
+    }
+
+    /// ← Android JwParserRegistry.supports(type): 该 type 是否有已注册的 parser。
+    /// 与 isRoutable 同义但接受可空 type(nil = 未声明协议 → 不支持),
+    /// 供 JwSchoolInfo.canImport 的「未验证条目」判定使用。
+    static func supports(_ type: String?) -> Bool {
+        guard let type, !type.isEmpty else { return false }
+        return factoryFor(type) != nil
     }
 
     private struct Row {

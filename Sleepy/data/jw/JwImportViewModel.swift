@@ -131,6 +131,16 @@ final class JwImportViewModel: ObservableObject {
     /// T8: 显式分发的纯函数形式(不依赖 UIKit / GRDB)。 ← parseHtmlStatic
     /// 返回 (courses, attempts); 未知 type 包装 JwParseError 给 T9 分类。
     static func parseHtmlStatic(_ html: String, _ protocolType: String) throws -> (courses: [JwCourse], attempts: [ParserAttemptSnapshot]) {
+        // ← kt:264-272 SCAU / Element UI 形态覆盖。
+        // 目录里较早的 SCAU 条目登记的是 QZ, 老 URL 还可能判成 ZF,
+        // 但只有"完整解析出的 Element UI 课表形态"才允许覆盖它们。
+        if [JwProtocol.TYPE_QZ, JwProtocol.TYPE_ZF, JwProtocol.TYPE_ZF_1].contains(protocolType),
+           html.contains("el-table__body-wrapper"), html.contains("el-table__body") {
+            let scau = JwScauParser(html)
+            if !scau.parseElementUiStrategy().isEmpty {
+                return try parseHtmlStatic(html, JwProtocol.TYPE_SCAU)
+            }
+        }
         guard let parser = try? JwParserRegistry.parserFor(protocolType, html) else {
             // 已知 type 不在工厂表: 包装 JwParseError 给 T9 分类
             throw JwParseError(

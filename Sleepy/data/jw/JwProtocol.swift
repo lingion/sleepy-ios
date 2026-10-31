@@ -65,6 +65,38 @@ enum JwProtocol {
     /// WakeUp 西交/新疆大学 POST 课表变体。
     static let TYPE_XJU_POST = "xju_post"
 
+    // ── v1.0.62 对齐新增的 9 个协议族(安卓 JwProtocol.kt 同名常量) ──
+    // 说明:displayName/category 已 1:1 搬齐;解析器按 B2/B7 批次分批落地。
+    //   已落地解析器: umooc / yl / scau / ecupl (B2)
+    //   待落地解析器: kingo_zx / nwpu_post / new_urp_super / ecupl_script / ecupl_super (B7)
+
+    /// WakeUp 青果 ZX 子变体(kingosoft ZX 分支)。
+    static let TYPE_KINGO_ZX = "kingo_zx"
+
+    /// UMOOC 教务(中国海洋大学慕课平台, /academic/common/security/login.jsp + .timetable)。
+    static let TYPE_UMOOC = "umooc"
+
+    /// 奕联教务(/lyuapServer/login + .app-components-CourseTimeTable-styles-timeTable)。
+    static let TYPE_YL = "yl"
+
+    /// 西北工业大学研究生教务(NWPU POST 变体)。
+    static let TYPE_NWPU_POST = "nwpu_post"
+
+    /// 新 URP 教务(数组变体)。
+    static let TYPE_NEW_URP_SUPER = "new_urp_super"
+
+    /// 华东政法大学 (ECUPL) 经典 EAMS 变体。
+    static let TYPE_ECUPL = "ecupl"
+
+    /// 华东政法大学 (ECUPL Script) 脚本导出变体。
+    static let TYPE_ECUPL_SCRIPT = "ecupl_script"
+
+    /// 华东政法大学 (ECUPL 调度器) 调度变体。
+    static let TYPE_ECUPL_SUPER = "ecupl_super"
+
+    /// 华南农业大学 (SCAU) 老式 border=1 课表变体。
+    static let TYPE_SCAU = "scau"
+
     /// 重庆大学自建统一门户 my.cqu.edu.cn(REST API + Bearer token,非 HTML 解析)。
     /// WebView 登录统一身份认证后从 localStorage 取 cqu_edu_ACCESS_TOKEN,fetch 四个接口。
     /// 外部佐证:时光课程表 cqu.js 适配器(茵符草)、321CQU/pymycqu。
@@ -211,8 +243,10 @@ enum JwProtocol {
 
     /// WakeUp 兼容层路由的协议族;与旧 UI 排序分开保存 ← WAKEUP_COMPAT_TYPES
     static let WAKEUP_COMPAT_TYPES: [String] = [
-        TYPE_KINGO_NEW, TYPE_JZ, TYPE_SOUTH_SOFT, TYPE_CHAOXING_LEGACY,
-        TYPE_SHUWEI, TYPE_SUDA_POST, TYPE_CUMTB, TYPE_XJU_POST, TYPE_THU,
+        TYPE_KINGO_NEW, TYPE_KINGO_ZX, TYPE_JZ, TYPE_SOUTH_SOFT, TYPE_CHAOXING_LEGACY,
+        TYPE_SHUWEI, TYPE_UMOOC, TYPE_YL, TYPE_SUDA_POST, TYPE_CUMTB, TYPE_XJU_POST,
+        TYPE_THU, TYPE_NWPU_POST, TYPE_NEW_URP_SUPER, TYPE_ECUPL,
+        TYPE_ECUPL_SCRIPT, TYPE_ECUPL_SUPER, TYPE_SCAU,
     ]
 
     /// 协议显示名(用于 UI 提示) ← displayName
@@ -256,6 +290,24 @@ enum JwProtocol {
             return "西交/新疆大学教务"
         case TYPE_THU:
             return "清华大学 (THU 教务)"
+        case TYPE_KINGO_ZX:
+            return "青果教务 (ZX 子变体)"
+        case TYPE_UMOOC:
+            return "UMOOC 教务"
+        case TYPE_YL:
+            return "奕联教务"
+        case TYPE_NWPU_POST:
+            return "西北工业大学研究生教务"
+        case TYPE_NEW_URP_SUPER:
+            return "新 URP 教务 (数组变体)"
+        case TYPE_ECUPL:
+            return "华东政法大学 (ECUPL)"
+        case TYPE_ECUPL_SCRIPT:
+            return "华东政法大学 (ECUPL Script)"
+        case TYPE_ECUPL_SUPER:
+            return "华东政法大学 (ECUPL 调度器)"
+        case TYPE_SCAU:
+            return "华南农业大学 (SCAU)"
         case TYPE_PKU:
             return "北京大学"
         case TYPE_BNUZ:
@@ -318,6 +370,9 @@ enum JwProtocol {
             return "urp"
         case TYPE_KINGO_NEW, TYPE_JZ, TYPE_SOUTH_SOFT, TYPE_CHAOXING_LEGACY,
              TYPE_SHUWEI, TYPE_SUDA_POST, TYPE_CUMTB, TYPE_XJU_POST, TYPE_THU:
+            return "other"
+        case TYPE_KINGO_ZX, TYPE_UMOOC, TYPE_YL, TYPE_NWPU_POST, TYPE_NEW_URP_SUPER,
+             TYPE_ECUPL, TYPE_ECUPL_SCRIPT, TYPE_ECUPL_SUPER, TYPE_SCAU:
             return "other"
         case TYPE_WISEDU:
             return "wisedu"
