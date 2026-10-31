@@ -182,16 +182,16 @@ struct AddCourseScreen: View {
                     .padding(.horizontal, 4)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    ForEach(Array(meetingBlocks.enumerated()), id: \.element.id) { index, _ in
+                    ForEach(Array(meetingBlocks.enumerated()), id: \.element.id) { index, block in
                         MeetingBlockEditor(
                             title: L10n.format("slot_n", index + 1),
-                            block: bindingForBlock(at: index),
+                            block: bindingForBlock(withId: block.id),
                             maxStd: TimeTableUtils.maxStandardNode(effectiveTimeJson),
                             timeJson: effectiveTimeJson,
                             canRemove: meetingBlocks.count > 1,
-                            issues: validationIssues.filter { $0.blockId == meetingBlocks[index].id }.map { $0.message },
+                            issues: validationIssues.filter { $0.blockId == block.id }.map { $0.message },
                             groupSourceColorHex: groupSourceColorHex,
-                            onRemove: { meetingBlocks.remove(at: index) },
+                            onRemove: { removeBlock(withId: block.id) },
                             onPickEdge: { edgePickTargetIndex = index },
                             onEditSlot: { node, s, e in slotEditTarget = SlotEditTarget(node: node, start: s, end: e) },
                             onDeselectEdge: { released in deselectEdge(from: index, released: released) })
@@ -421,10 +421,34 @@ struct AddCourseScreen: View {
         }
     }
 
-    private func bindingForBlock(at index: Int) -> Binding<MeetingBlockDraft> {
+    /// 按 **block id** 定位的绑定 —— 不按下标。
+    ///
+    /// 根因(2026-10-31): 旧实现 `bindingForBlock(at: index)` 的 getter/setter 直接
+    /// `meetingBlocks[index]`。删除时段时数组收缩, 但 SwiftUI 正在消失的卡片的
+    /// `Switch.updateUIView` / 子视图 getter 仍会读这个绑定 ⇒ `Array._checkSubscript`
+    /// 越界 ⇒ `EXC_BREAKPOINT` (SIGTRAP) 闪退(见 .ips 回溯)。
+    ///
+    /// 改为按 id 查找后, 数组收缩与视图更新顺序不再影响取数: 找不到就返回占位稿
+    /// (只读语义), 写入则丢弃 —— 删除动作本身不会因回写而崩溃。
+    private func bindingForBlock(withId id: Int) -> Binding<MeetingBlockDraft> {
         Binding(
-            get: { meetingBlocks[index] },
-            set: { meetingBlocks[index] = $0 })
+            get: {
+                meetingBlocks.first(where: { $0.id == id })
+                    ?? MeetingBlockDraft(id: id, days: [], startNode: 1, step: 2,
+                                         startTime: "", endTime: "", startWeek: 1, endWeek: 1, weekType: 0)
+            },
+            set: { newValue in
+                guard let idx = meetingBlocks.firstIndex(where: { $0.id == id }) else { return }
+                meetingBlocks[idx] = newValue
+            })
+    }
+
+    /// 删除指定 id 的时段(按 id, 不按下标 —— 删除时数组会收缩, 下标可能已失效)。
+    private func removeBlock(withId id: Int) {
+        meetingBlocks.removeAll { $0.id == id }
+        if let i = edgePickTargetIndex, !meetingBlocks.indices.contains(i) {
+            edgePickTargetIndex = nil
+        }
     }
 
     // ← remember(editingCourse?.id) 初始状态 + 编辑模式查同 groupId 回填多 block

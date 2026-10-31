@@ -202,7 +202,7 @@ final class ScheduleFlowUITests: XCTestCase {
     //       修复前 iOS 今天页课卡不可点、无详情 Sheet)
 
     func testTodayCourseTapOpensDetailSheet() {
-        app.descendants(matching: .any)["pill_today"].tap()
+        app.switchToPillTab("today")
         // 种子: 周一高数/周二英语/周三物理/周五体育 — 今天落哪天不定,
         // 用 today_course_ 标识符匹配任意课卡(旧版只认"高等数学", 非周一有课时两断言全挂)
         let course = app.descendants(matching: .any).matching(

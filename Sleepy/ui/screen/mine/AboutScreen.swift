@@ -303,6 +303,9 @@ struct AboutScreen: View {
             if let msg = snackMessage {
                 Text(msg)
                     .font(.system(size: 14)) // ← Android Snackbar bodyMedium 14
+                    // ← G5: 稳定锚点 — 「已是最新版本」是「检查更新」在无更新时的
+                    //   正常结果信号(不是 sheet), 无 id 时 UI 测试无法断言该分支。
+                    .accessibilityIdentifier("about_snackbar")
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)

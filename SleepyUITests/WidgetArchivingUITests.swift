@@ -30,8 +30,9 @@ final class WidgetArchivingUITests: XCTestCase {
 
         // 切到 Mine 页(钩子元素在 Mine 页底部)
         XCTAssertTrue(app.descendants(matching: .any)["pill_mine"].waitForExistence(timeout: 10))
-        app.descendants(matching: .any)["pill_mine"].tap()
-        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 5))
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5))
 
         let expectedKinds = [
             "TodayWidgetRV",

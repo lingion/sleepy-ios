@@ -50,7 +50,7 @@ final class DeepLinkUITests: XCTestCase {
 
     func testCourseDeepLinkOpensEditor() throws {
         guard #available(iOS 16.4, *) else { throw XCTSkip("openURL 需要 iOS 16.4+") }
-        app.descendants(matching: .any)["pill_schedule"].tap()
+        app.switchToPillTab("schedule")
         try openDeepLink(URL(string: "sleepy://course/1")!)
         // 深链 → AddCourseScreen(标题 Edit Course), 姓名字段预填种子课名
         XCTAssertTrue(app.staticTexts["Edit Course"].waitForExistence(timeout: 8),

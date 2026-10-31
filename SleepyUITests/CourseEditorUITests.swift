@@ -25,7 +25,7 @@ final class CourseEditorUITests: XCTestCase {
 
     /// 管理页 → manage_add_course 卡 → AddCourseScreen
     private func openEditor() {
-        app.descendants(matching: .any)["pill_manage"].tap()
+        app.switchToPillTab("manage")
         let addCard = app.descendants(matching: .any)["manage_add_course"]
         XCTAssertTrue(addCard.waitForExistence(timeout: 5), "管理页 Add Course 卡锚点未找到")
         addCard.tap()
@@ -169,7 +169,7 @@ final class CourseEditorUITests: XCTestCase {
         if backBtn.waitForExistence(timeout: 3) { backBtn.tap() }
         let pill = app.descendants(matching: .any)["pill_schedule"]
         XCTAssertTrue(pill.waitForExistence(timeout: 5), "返回后 pill 应恢复")
-        pill.tap()   // 返回落在 manage Tab, 切回课表 Tab
+        app.switchToPillTab("schedule")   // 返回落在 manage Tab, 切回课表 Tab
 
         // 课表 → DetailPanel(下半屏, 先上滑) → 点课 → 详情 → detail_edit
         app.swipeUp()

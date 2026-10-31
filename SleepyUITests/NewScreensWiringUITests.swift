@@ -15,9 +15,8 @@ final class NewScreensWiringUITests: XCTestCase {
         app.sleepyLaunch()
 
         // 我的 tab(PillNavigationBar 的 id 约定 = pill_<item.id>)
-        let mineTab = app.descendants(matching: .any)["pill_mine"]
-        if mineTab.waitForExistence(timeout: 8) {
-            mineTab.tap()
+        if app.descendants(matching: .any)["pill_mine"].waitForExistence(timeout: 8) {
+            app.switchToPillTab("mine")
         } else {
             // 底栏无 id 时按坐标右起第一个(4 tab 布局: mine 最右)
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.875, dy: 0.96)).tap()

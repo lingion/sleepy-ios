@@ -17,8 +17,14 @@ final class MineSettingsUITests: XCTestCase {
                                "-SLEEPY_UI_TEST_SEED"]
         app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
-        app.descendants(matching: .any)["pill_mine"].tap()
-        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 5))
+        app.switchToPillTab("mine")
+        // ★ 锚点修正(2026-10-31): 旧锚点 app.staticTexts["Me"] 是假阳性 ——
+        //   悬浮药丸导航栏自己就渲染一个 StaticText label "Me", 该元素在
+        //   「课表」页同样存在 ⇒ setUp 从未真正断言「已进入我的页」。
+        //   实证: 失败时无障碍层级显示 app 仍停在 Schedule 页。
+        //   改用「我的页独有」的入口 mine_all_tables 作锚点。
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"].waitForExistence(timeout: 8),
+                      "未进入「我的」页(mine_all_tables 未出现)")
     }
 
     override func tearDownWithError() throws {

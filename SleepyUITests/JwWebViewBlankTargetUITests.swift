@@ -34,7 +34,7 @@ final class JwWebViewBlankTargetUITests: XCTestCase {
 
     /// 走 Manage → 导入 → 教务导入 → 搜索框输入本地 URL → UrlDirectRow 进 WebView
     private func navigateToWebView() {
-        app.descendants(matching: .any)["pill_manage"].tap()
+        app.switchToPillTab("manage")
         app.descendants(matching: .any)["manage_import"].waitForExistence(timeout: 8)
         app.descendants(matching: .any)["manage_import"].tap()
         app.descendants(matching: .any)["import_jw"].waitForExistence(timeout: 8)
@@ -162,27 +162,37 @@ final class UISampleServer {
         while true {
             let client = accept(socketFD, nil, nil)
             guard client >= 0 else { break }
-            var buf = [UInt8](repeating: 0, count: 8192)
-            _ = read(client, &buf, 8192)
-            let request = String(bytes: buf.prefix(while: { $0 != 0 }), encoding: .utf8) ?? ""
-            // 解析请求路径 "GET /x HTTP/1.1"
-            let path = request.split(separator: "\r\n").first
-                .map { $0.split(separator: " ").count > 1 ? String($0.split(separator: " ")[1]) : "/" } ?? "/"
-            lock.lock()
-            requests.append(path)
-            let html = routes[path] ?? "<html><body>404</body></html>"
-            lock.unlock()
-            var out = Data("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(html.utf8.count)\r\nConnection: close\r\n\r\n".utf8)
-            out.append(Data(html.utf8))
-            out.withUnsafeBytes { ptr in
-                var sent = 0
-                while sent < ptr.count {
-                    let n = write(client, ptr.baseAddress!.advanced(by: sent), ptr.count - sent)
-                    if n <= 0 { break }
-                    sent += n
+            // ★ 每连接独立线程: WebKit 会为同一 origin 建立「投机性预连接」
+            //   (speculative preconnect) —— 该 socket 建连后不发送任何请求。
+            //   若在 accept 循环里同步 read(), 服务器会阻塞在这个空连接上,
+            //   真正的 /page2.html 请求只能排在 accept 队列里, 直到 WebKit
+            //   预连接超时(约 3s)才被处理 → 点击后无导航的假失败。
+            //   改为每连接一线程后, 空连接与真实请求互不阻塞。
+            //   同款修复已落在单测侧 SleepyTests/WebViewNavigationPolicyTests.swift。
+            Thread { [weak self] in
+                guard let self else { close(client); return }
+                var buf = [UInt8](repeating: 0, count: 8192)
+                _ = read(client, &buf, 8192)
+                let request = String(bytes: buf.prefix(while: { $0 != 0 }), encoding: .utf8) ?? ""
+                // 解析请求路径 "GET /x HTTP/1.1"
+                let path = request.split(separator: "\r\n").first
+                    .map { $0.split(separator: " ").count > 1 ? String($0.split(separator: " ")[1]) : "/" } ?? "/"
+                lock.lock()
+                requests.append(path)
+                let html = routes[path] ?? "<html><body>404</body></html>"
+                lock.unlock()
+                var out = Data("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(html.utf8.count)\r\nConnection: close\r\n\r\n".utf8)
+                out.append(Data(html.utf8))
+                out.withUnsafeBytes { ptr in
+                    var sent = 0
+                    while sent < ptr.count {
+                        let n = write(client, ptr.baseAddress!.advanced(by: sent), ptr.count - sent)
+                        if n <= 0 { break }
+                        sent += n
+                    }
                 }
-            }
-            close(client)
+                close(client)
+            }.start()
         }
     }
 

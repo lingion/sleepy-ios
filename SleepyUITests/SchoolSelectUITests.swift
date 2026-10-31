@@ -14,7 +14,7 @@ final class SchoolSelectUITests: XCTestCase {
                                "-SLEEPY_UI_TEST_SEED"]
         app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
-        app.descendants(matching: .any)["pill_manage"].tap()
+        app.switchToPillTab("manage")
         app.descendants(matching: .any)["manage_import"].tap()
         app.descendants(matching: .any)["import_jw"].tap()
         let search = app.descendants(matching: .any)["school_search"]

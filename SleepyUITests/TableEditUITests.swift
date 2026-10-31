@@ -29,7 +29,7 @@ final class TableEditUITests: XCTestCase {
         app.sleepyLaunch()
         // 20s: 批量跑套件时首启冷启动+seed 注入可远超 10s(批量失败即栽在此行, 单跑全绿)
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 20))
-        app.descendants(matching: .any)["pill_manage"].tap()
+        app.switchToPillTab("manage")
         XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["manage_edit_current"].tap()
         XCTAssertTrue(app.staticTexts["Edit Schedule"].waitForExistence(timeout: 5))

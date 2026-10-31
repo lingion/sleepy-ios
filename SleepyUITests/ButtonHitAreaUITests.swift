@@ -33,7 +33,7 @@ final class ButtonHitAreaUITests: XCTestCase {
         app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
 
-        app.descendants(matching: .any)["pill_mine"].tap()
+        app.switchToPillTab("mine")
         let aboutEntry = app.descendants(matching: .any)["mine_about"]
         XCTAssertTrue(aboutEntry.waitForExistence(timeout: 8), "关于入口未出现")
         aboutEntry.tap()
@@ -46,12 +46,33 @@ final class ButtonHitAreaUITests: XCTestCase {
         //   - fetch 失败      → failed sheet(Cancel / Retry)
         // Checking 文字是瞬态不作锚点; Download 只在 updateAvailable 时出现不作锚点。
         tapColorBlockOnly(checkUpdate)
+        // 结果信号有两条(按 UpdateManager 结果分支):
+        //   - 有更新  → sheet: "New version ... / Download / Cancel"
+        //   - 已是最新 → snackbar "You're on the latest version vX"(不是 sheet!)
+        //   - 拉取失败 → sheet: "Retry / Cancel"
+        // ★ v1.0.62 对齐修正: 旧版只等 sheet 标签, 而「无更新」分支走 snackbar
+        //   (AboutScreen.checkUpdate → uiState == .idle + snackMessage),
+        //   于是 app 行为正确却被判失败 25s 超时。
+        //   现改为「snackbar 或 sheet 任一出现」即视为动作已触发。
         let dialog = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS 'New version' OR label == 'Download' OR label == 'Retry' OR label == 'Cancel'"))
             .firstMatch
+        let snackbar = app.descendants(matching: .any)["about_snackbar"]
         // 25s: fetch 走 UpdateManager 15s 超时(对齐 Android connectTimeout)→
         // failed sheet 最迟 ~15s+渲染 才出现; 15s 等待与 app 超时同值必竞态
-        let triggered = dialog.waitForExistence(timeout: 25)
-        XCTAssertTrue(triggered, "点击按钮色块区(非文字/图标)应触发检查更新动作(结果 sheet 出现)")
+        //
+        // ★ 条件等待(轮询), 不给固定 sleep。
+        //   注: 不能用 XCTNSPredicateExpectation —— 它的 predicate 在**后台线程**
+        //   求值, 而 XCUIElement 查询只在主线程有效 ⇒ 谓词永远取不到真实状态,
+        //   于是「app 已经出了 snackbar」也会被判失败。
+        //   这里在主线程手动轮询两个信号。
+        let deadline = Date().addingTimeInterval(25)
+        var triggered = false
+        while Date() < deadline {
+            if dialog.exists || snackbar.exists { triggered = true; break }
+            usleep(300_000)   // 0.3s
+        }
+        XCTAssertTrue(triggered,
+                      "点击按钮色块区(非文字/图标)应触发检查更新动作(snackbar 或结果 sheet 出现)")
     }
 }
