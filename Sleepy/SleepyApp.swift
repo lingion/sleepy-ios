@@ -52,6 +52,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         repository = ScheduleRepository(database)
         notificationScheduler = NotificationScheduler.shared
         rootViewModel = AppRootViewModel(repository: repository)
+        // 2026-10-29 App Store 截图自动化钩子(headless 模拟器, simctl launch 传参):
+        //   -SLEEPY_SHOT_TAB=today|manage|mine 切初始 tab;-SLEEPY_SHOT_VIEW_GRID 切网格视图。
+        //   只影响启动初始屏, 不改变任何交互逻辑; 与 -SLEEPY_UI_TEST_SEED 同性质。
+        let shotArgs = ProcessInfo.processInfo.arguments
+        if let t = shotArgs.first(where: { $0.hasPrefix("-SLEEPY_SHOT_TAB=") }) {
+            switch String(t.dropFirst("-SLEEPY_SHOT_TAB=".count)) {
+            case "today": rootViewModel.currentTab = .today
+            case "manage": rootViewModel.currentTab = .manage
+            case "mine": rootViewModel.currentTab = .mine
+            default: break
+            }
+        }
+        if let v = shotArgs.first(where: { $0.hasPrefix("-SLEEPY_SHOT_VIEW=") }) {
+            rootViewModel.scheduleViewMode = String(v.dropFirst("-SLEEPY_SHOT_VIEW=".count)) == "cards" ? .cards : .full
+        }
         super.init()
         // ← onCreate: 通知调度器接 repo;数据变更 → 刷 widget + 重排通知
         notificationScheduler.repositoryProvider = { [weak self] in self?.repository }
@@ -59,9 +74,15 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             guard let self = self else { return }
             WidgetCenter.shared.reloadAllTimelines()
             self.notificationScheduler.scheduleAll()
-            // ← 2026-10 watch 伴侣 App: 同一条 refresh 总线挂手表全量快照推送
-            // (scheduleSync 只持 Coordinator 单例, [weak self] 模式与本 hook 其余行一致)
+            // ← 2026-10 watch 伴侶 App: 同一条 refresh 总线挂手表全量快照推送
+            // (scheduleSync 只持 Coordinator 单例, [weak self] 模式與本 hook 其余行一致)
             WatchSyncCoordinator.shared.scheduleSync()
+            // v1.0.62 B1: 資料變更 → 刷 course_colors 快照
+            Task {
+                await CourseHueStore.shared.refresh(
+                    mode: AppPrefs.shared.getCourseColorMode(), dao: self.database.courseColorDao
+                )
+            }
         }
         WatchSyncCoordinator.shared.start()
         // ← Android SleepyApp.onCreate: classDndScheduler 注入 (F128 issue#2)
@@ -75,6 +96,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
         // ← Android BootReceiver kt:808 冷启动无条件校准 (pref 关时 rebuildState 守卫 = 安全 no-op):
         ClassDndScheduler.shared.syncFromPrefs()
+        // v1.0.62 B1: 冷启动刷 course_colors 快照
+        Task {
+            await CourseHueStore.shared.refresh(
+                mode: AppPrefs.shared.getCourseColorMode(), dao: database.courseColorDao
+            )
+        }
         // ← Android ProcessLifecycleOwner onStart observer (SleepyApp.kt:63-72; iOS app-wide
         //   此前没有 didBecomeActive 调度观察者 — 只有 ReminderScreen 的局部快照刷新):
         NotificationCenter.default.addObserver(

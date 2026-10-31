@@ -45,6 +45,7 @@ final class AppDatabase {
     let periodTableDao: PeriodTableDao
     let importDraftDao: ImportDraftDao
     let calendarImportRecordDao: CalendarImportRecordDao
+    let courseColorDao: CourseColorDao
 
     /// 默认走共享目录(AppGroupResolver: AltStore 侧载共享给 widget;Xcode 直跑回退沙箱)
     convenience init() {
@@ -77,6 +78,7 @@ final class AppDatabase {
         self.periodTableDao = PeriodTableDao(db: queue)
         self.importDraftDao = ImportDraftDao(db: queue)
         self.calendarImportRecordDao = CalendarImportRecordDao(db: queue)
+        self.courseColorDao = CourseColorDao(db: queue)
         try migrator.migrate(queue)
     }
 
@@ -238,6 +240,17 @@ final class AppDatabase {
         m.registerMigration("v11.addReminderEnabled") { db in
             try db.execute(
                 sql: "ALTER TABLE time_tables ADD COLUMN reminderEnabled INTEGER NOT NULL DEFAULT 1")
+        }
+
+        // ← MIGRATION_11_12 (v1.0.62 B1): 课程持久色相表 course_colors。
+        // (tableKey, groupId) 复合主键 → hue REAL，不回填（新表为空,CLASSIC 档不读）。
+        m.registerMigration("v12.createCourseColors") { db in
+            try db.create(table: "course_colors", options: []) { t in
+                t.column("tableKey", .text).notNull()
+                t.column("groupId", .text).notNull()
+                t.column("hue", .double).notNull()
+                t.primaryKey(["tableKey", "groupId"])
+            }
         }
 
         return m

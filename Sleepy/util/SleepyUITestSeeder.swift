@@ -56,18 +56,21 @@ enum SleepyUITestSeeder {
 
         // 4 门课: 周一1-2 高数 / 周二3-4 英语 / 周三5-6 物理 / 周五1-2 体育
         // ★ 固定 id 1..4: sleepy://course/N 深链测试需确定性定位(自增 id 跨种子漂移)
-        let courses: [(Int64, Int, Int, Int, String, String, String)] = [
-            (1, 1, 1, 2, "高等数学", "张老师", "教1-101"),
-            (2, 2, 3, 4, "大学英语", "李老师", "外楼202"),
-            (3, 3, 5, 6, "大学物理", "王老师", "理楼305"),
-            (4, 5, 1, 2, "体育", "赵老师", "操场"),
+        // 2026-10-29: 显式非哨兵色 → 走自定义色路径(不经黄金角派生), 截图配色确定且多样
+        let courses: [(Int64, Int, Int, Int, String, String, String, String)] = [
+            (1, 1, 1, 2, "高等数学", "张老师", "教 1-101", "#FF9FA8DA"),
+            (2, 2, 3, 4, "大学英语", "李老师", "外楼 202", "#FFA5D6A7"),
+            (3, 3, 5, 6, "大学物理", "王老师", "理楼 305", "#FFFFE082"),
+            (4, 5, 1, 2, "体育", "赵老师", "操场", "#FF80CBC4"),
+            // 2026-10-29: 周四课 — 让"今日"tab 截图非空态(ASC 商店图); 测试断言已核过无影响
+            (5, 4, 3, 4, "数据结构", "刘老师", "理楼 408", "#FFF48FB1"),
         ]
-        for (id, day, sn, en, name, teacher, room) in courses {
+        for (id, day, sn, en, name, teacher, room, color) in courses {
             var c = CourseEntity(
-                groupId: UUID().uuidString, tableId: table.id,
+                groupId: "seed-group-\(id)", tableId: table.id,
                 courseName: name, teacher: teacher, room: room,
                 day: day, startNode: sn, step: en - sn + 1,
-                startWeek: 1, endWeek: 20, type: 0, color: "#FF6750A4")
+                startWeek: 1, endWeek: 20, type: 0, color: color)
             c.id = id
             c.note = ""
             _ = try? database.courseDao.insert(c)

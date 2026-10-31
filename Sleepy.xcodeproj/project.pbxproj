@@ -133,6 +133,7 @@
 		29FF44762D7AF07F1291EB44 /* AppGroupResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */; };
 		2AB1C979346A5D643A0C2F16 /* CourseDaoChainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */; };
 		2AE7F207B86347354D0810CC /* TwoDayWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52AFD49A9FA76836199F06A /* TwoDayWidgetView.swift */; };
+		2B05D2F15CBA2A62AEB2B508 /* AppStoreScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E3172EE79612ED5CD78AD5 /* AppStoreScreenshotTests.swift */; };
 		2B081332F507C7E53ED7600E /* WatchSyncSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10EAB15CF44A3E2DD61E368 /* WatchSyncSnapshot.swift */; };
 		2BBBE362200FC7D505993AD1 /* JwKustParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AB83DCC65798AF11C37CD62 /* JwKustParser.swift */; };
 		2C1994A31222CF55F7225933 /* ImportDraftRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D96D4B4460BFB76E92F792 /* ImportDraftRepository.swift */; };
@@ -1053,6 +1054,7 @@
 		B10EAB15CF44A3E2DD61E368 /* WatchSyncSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncSnapshot.swift; sourceTree = "<group>"; };
 		B1696DA5E0411C382E6CAE49 /* WatchComplicationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchComplicationProvider.swift; sourceTree = "<group>"; };
 		B18164021426E1BE78DB3F46 /* SleepyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyUITests.swift; sourceTree = "<group>"; };
+		B1E3172EE79612ED5CD78AD5 /* AppStoreScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshotTests.swift; sourceTree = "<group>"; };
 		B224CFEBDB7BB8B297D36C6C /* JwWebViewConfigBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWebViewConfigBuilder.swift; sourceTree = "<group>"; };
 		B242D6295A73E40C47DC92F3 /* NewScreensWiringUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewScreensWiringUITests.swift; sourceTree = "<group>"; };
 		B26C1FC7457815C7A78F9026 /* DateTimePickers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateTimePickers.swift; sourceTree = "<group>"; };
@@ -1819,6 +1821,7 @@
 		D329B1DFD15D4AF37A70CB50 /* SleepyUITests */ = {
 			isa = PBXGroup;
 			children = (
+				B1E3172EE79612ED5CD78AD5 /* AppStoreScreenshotTests.swift */,
 				12B67FFE926875C9BA1433BE /* ButtonHitAreaUITests.swift */,
 				64BF7FAB38EE44A780C793BD /* CourseEditorUITests.swift */,
 				A4DE50D458660EA5AFF52F87 /* DeepLinkUITests.swift */,
@@ -2485,6 +2488,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2B05D2F15CBA2A62AEB2B508 /* AppStoreScreenshotTests.swift in Sources */,
 				9F5B46589CCE6B5952BECCBB /* ButtonHitAreaUITests.swift in Sources */,
 				658D875BFD9C89E43F647582 /* CourseEditorUITests.swift in Sources */,
 				E9F9AAF2D8687E4BD8631507 /* DeepLinkUITests.swift in Sources */,

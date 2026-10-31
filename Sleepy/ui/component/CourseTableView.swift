@@ -988,7 +988,8 @@ private struct CourseOverlayCard: View {
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
             neutralColor: colors.secondaryContainer,
-            colorless: AppPrefs.shared.isCourseColorless())
+            colorless: AppPrefs.shared.isCourseColorless(),
+            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         // 文字色亮度自适应(决策 D5-13)
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         // 节假日灰显: 色块叠 alpha + 文字 strikethrough
@@ -1532,7 +1533,8 @@ private struct LessonRow: View {
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
             neutralColor: colors.secondaryContainer,
-            colorless: AppPrefs.shared.isCourseColorless())
+            colorless: AppPrefs.shared.isCourseColorless(),
+            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         // 节假日灰显 ← effectiveBg/effectiveFg/textDecoration
         let effectiveBg = isGrey ? bg.opacity(SleepyTheme.Alpha.inactive) : bg

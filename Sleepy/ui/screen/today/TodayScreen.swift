@@ -269,7 +269,8 @@ private struct TodayCourseCard: View {
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: groupRows.isEmpty ? [course] : groupRows,
             isDark: isDark, neutralColor: colors.surfaceVariant,
-            colorless: AppPrefs.shared.isCourseColorless())
+            colorless: AppPrefs.shared.isCourseColorless(),
+            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         let time: String? = {
             if course.ownTime, !course.startTime.isEmpty, !course.endTime.isEmpty {
