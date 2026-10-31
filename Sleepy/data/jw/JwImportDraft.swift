@@ -36,6 +36,12 @@ struct JwImportDraftSnapshot: Equatable {
         self.usedDefaultTimes = usedDefaultTimes
         self.phase = phase
     }
+
+    /// 恢复登录阶段草稿时, 该草稿的选校准入确认不能被跳过。
+    /// ← Android `JwImportDraftSnapshot.requiresSchoolConfirmation`
+    var requiresSchoolConfirmation: Bool {
+        phase == .webViewLogin && (!school.canImport || school.isUnverified)
+    }
 }
 
 struct JwImportDraftPeriod: Equatable {
@@ -141,6 +147,8 @@ enum JwImportDraftCodec {
             "aliases": school.aliases,
             "sortKeyFull": school.sortKeyFull,
             "enableFetch": school.enableFetch,
+            // ← Android: 目录条目的稳定身份随草稿往返(旧草稿无此键 → 空 → stableKey 回落)
+            "catalogId": school.catalogId,
         ]
         if let type = school.type { o["type"] = type }
         return o
@@ -170,10 +178,11 @@ enum JwImportDraftCodec {
             name: name,
             url: (json["url"] as? String) ?? "",
             type: type,
-            status: (json["status"] as? String) ?? JwSchoolInfo.STATUS_SUPPORTED,
+            status: JwSchoolInfo.normalizeStatus((json["status"] as? String) ?? ""),
             aliases: aliases,
             sortKeyFull: (json["sortKeyFull"] as? String) ?? "",
-            enableFetch: (json["enableFetch"] as? Bool) ?? false
+            enableFetch: (json["enableFetch"] as? Bool) ?? false,
+            catalogId: (json["catalogId"] as? String) ?? ""
         )
     }
 

@@ -320,4 +320,58 @@ final class JwCatalogueTests: XCTestCase {
         XCTAssertEqual("我的学校", sels[0].name)
         XCTAssertEqual("https://unknown.example/", sels[0].url)
     }
+
+    // MARK: - 草稿恢复的选校准入确认 (← Android JwImportDraftSnapshot.requiresSchoolConfirmation)
+
+    func testRequiresSchoolConfirmationOnlyInLoginPhase() {
+        let unverified = JwSchoolInfo(sortKey: "A", name: "甲", url: "https://a.edu/",
+                                      type: "zf_new", status: JwSchoolInfo.STATUS_UNVERIFIED)
+        let supported = JwSchoolInfo(sortKey: "A", name: "甲", url: "https://a.edu/",
+                                     type: "zf_new", status: JwSchoolInfo.STATUS_SUPPORTED)
+
+        let loginUnverified = JwImportDraftSnapshot(
+            school: unverified, courses: [], periods: [], phase: .webViewLogin)
+        XCTAssertTrue(loginUnverified.requiresSchoolConfirmation)
+
+        let confirmUnverified = JwImportDraftSnapshot(
+            school: unverified, courses: [], periods: [], phase: .configureConfirm)
+        XCTAssertFalse(confirmUnverified.requiresSchoolConfirmation,
+                       "配置确认阶段不再需要选校准入确认")
+
+        let loginSupported = JwImportDraftSnapshot(
+            school: supported, courses: [], periods: [], phase: .webViewLogin)
+        XCTAssertFalse(loginSupported.requiresSchoolConfirmation)
+    }
+
+    func testRequiresSchoolConfirmationWhenSchoolCannotImport() {
+        let pending = JwSchoolInfo(sortKey: "A", name: "甲", url: "",
+                                   type: "zf_new", status: JwSchoolInfo.STATUS_PENDING)
+        let snapshot = JwImportDraftSnapshot(
+            school: pending, courses: [], periods: [], phase: .webViewLogin)
+        XCTAssertTrue(snapshot.requiresSchoolConfirmation)
+    }
+
+    // MARK: - 草稿往返保留 catalogId
+
+    func testDraftRoundTripKeepsCatalogIdAndStatus() throws {
+        let school = JwSchoolInfo(sortKey: "G", name: "广东东软学院", url: "https://jw.example/",
+                                  type: "zf_new", status: JwSchoolInfo.STATUS_UNVERIFIED,
+                                  aliases: ["nuit"], catalogId: "G_广东东软学院")
+        let snapshot = JwImportDraftSnapshot(
+            school: school,
+            courses: [JwCourse(name: "高数", room: "A1", teacher: "张", day: 1,
+                               startNode: 1, endNode: 2, startWeek: 1, endWeek: 16, type: 0)],
+            periods: [JwImportDraftPeriod(node: 1, start: "08:00", end: "09:40")],
+            termStartDate: "2026-09-01", tableName: "我的课表",
+            phase: .webViewLogin)
+        let json = JwImportDraftCodec.toJson(snapshot)
+        let back = try XCTUnwrap(JwImportDraftCodec.fromJson(json))
+        XCTAssertEqual("G_广东东软学院", back.school.catalogId)
+        XCTAssertEqual(JwSchoolInfo.STATUS_UNVERIFIED, back.school.status)
+        XCTAssertEqual(snapshot.school.stableKey, back.school.stableKey)
+        XCTAssertEqual(1, back.courses.count)
+        XCTAssertEqual(1, back.periods.count)
+        XCTAssertEqual(.webViewLogin, back.phase)
+        XCTAssertTrue(back.requiresSchoolConfirmation)
+    }
 }

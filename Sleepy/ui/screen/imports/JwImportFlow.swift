@@ -85,6 +85,9 @@ struct JwImportFlow: View {
     @State private var configTableName = ""
     // confirmError: 留在确认框内联展示(2026-09-20: 只标红出错字段, 不上全局横幅)
     @State private var confirmError: String? = nil
+    // ← catalogNotice: 选校准入确认(未验证/待适配条目点进前的告知弹窗)
+    //   ← Android `var catalogNotice by remember { mutableStateOf<JwSchoolInfo?>(null) }`
+    @State private var catalogNotice: JwSchoolInfo? = nil
 
     var body: some View {
         ZStack {
@@ -98,6 +101,25 @@ struct JwImportFlow: View {
                     onDeleteDraft: { handleExitChoice(.deleteDraft) })
                     .transition(.opacity)
                     .zIndex(2)
+            }
+
+            // ← 选校准入确认(未验证/待适配条目点进前)
+            //   ← Android `catalogNotice?.let { school -> AlertDialog(...) }`
+            if let school = catalogNotice {
+                JwCatalogNoticeDialog(
+                    school: school,
+                    onDismiss: { catalogNotice = nil },
+                    onConfirm: {
+                        catalogNotice = nil
+                        // mayTry 才有"仍要尝试"这条路; 不可导入的条目确认键只是关闭
+                        if school.isUnverified && school.canImport {
+                            selectedSchool = school
+                            exitDraftState.activeImport = true
+                            stage = .webViewLogin
+                        }
+                    })
+                    .transition(.opacity)
+                    .zIndex(3)
             }
 
             // ← 错误提示统一 AlertDialog 双按钮 (2026-09-18 用户: 全 app 报错必须是弹窗,
@@ -180,8 +202,10 @@ struct JwImportFlow: View {
             }
         } else if stage == .selectSchool {
             SchoolSelectScreen(onSchoolSelected: { school in
-                if jwIsBlank(school.url) {
-                    errorMsg = L10n.format("jw_no_url")
+                // ← Android onSchoolSelected 准入闸: 未验证 / 不可导入的条目先弹告知框,
+                //   用户确认「仍要尝试」才进 WebView; supported 条目直通。
+                if !school.canImport || school.isUnverified {
+                    catalogNotice = school
                     return
                 }
                 selectedSchool = school
@@ -190,7 +214,10 @@ struct JwImportFlow: View {
                 stage = .webViewLogin
             }, onDismiss: { requestExit() })
         } else if stage == .webViewLogin {
-            if let school = selectedSchool {
+            // ← Android `stage is Stage.WebViewLogin -> { val school = selectedSchool;
+            //   if (school == null || !school.canImport) { stage = Stage.SelectSchool } else ... }`
+            //   iOS 原实现只在 selectedSchool == nil 时回选校, 漏了 !canImport 分支。
+            if let school = selectedSchool, school.canImport {
                 JwWebViewLoginScreen(
                     school: school,
                     onHtmlCaptured: onHtmlCaptured,
@@ -313,7 +340,21 @@ struct JwImportFlow: View {
             // v1.0.56 T10: 默认选中「本次导入自动建作息表」(合成 id=-1)
             configBindPeriodTableId = -1
             exitDraftState.activeImport = true
-            stage = snapshot.phase == .webViewLogin ? .webViewLogin : .preview
+            // ← Android: `stage = when (snapshot.phase) {
+            //   WEBVIEW_LOGIN -> if (snapshot.requiresSchoolConfirmation) {
+            //     catalogNotice = snapshot.school; Stage.SelectSchool } else Stage.WebViewLogin
+            //   CONFIGURE_CONFIRM -> Stage.Preview }`
+            // 恢复登录阶段草稿时, 未验证/不可导入的学校不能跳过选校准入确认。
+            if snapshot.phase == .webViewLogin {
+                if snapshot.requiresSchoolConfirmation {
+                    catalogNotice = snapshot.school
+                    stage = .selectSchool
+                } else {
+                    stage = .webViewLogin
+                }
+            } else {
+                stage = .preview
+            }
         }
     }
 
@@ -1440,5 +1481,51 @@ enum DiagMapper {
             return L10n.format("jw_diag_qz_vpn_hint")
         }
         return ""
+    }
+}
+struct JwCatalogNoticeDialog: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let school: JwSchoolInfo
+    var onDismiss: () -> Void
+    var onConfirm: () -> Void
+
+    /// mayTry = 未验证 + 可导入(有 parser + 有 URL)
+    private var mayTry: Bool { school.isUnverified && school.canImport }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onDismiss)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(school.name)
+                    .font(.system(size: 24))   // ← headlineSmall 24sp
+                    .foregroundColor(colors.onSurface)
+                    .padding(.bottom, 12)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(L10n.t(mayTry ? "jw_catalog_unverified_message" : "jw_catalog_pending_message"))
+                            .font(.system(size: 14))
+                            .foregroundColor(colors.onSurfaceVariant)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Spacer().frame(height: 20)
+                        DialogActionButtons(
+                            confirmText: L10n.t(mayTry ? "jw_catalog_try" : "jw_pending_close"),
+                            onConfirm: onConfirm,
+                            // ← Android dismissButton 仅在 mayTry 时存在
+                            dismissText: mayTry ? L10n.t("jw_pending_close") : nil,
+                            onDismiss: onDismiss)
+                    }
+                }
+                .frame(maxHeight: 320)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: SleepyShapes.extraLarge)
+                .fill(colors.surfaceContainerHigh))
+            .padding(.horizontal, 24)
+        }
+        .accessibilityIdentifier("jw_catalog_notice_dialog")
     }
 }

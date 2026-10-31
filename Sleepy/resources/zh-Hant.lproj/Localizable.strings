@@ -1069,3 +1069,7 @@
 "course_color_preview" = "預覽";
 "course_color_recalc" = "重新編排所有課程配色";
 "course_color_recalc_done" = "已重新編排 %1$d 門課程的配色";
+"jw_catalog_unverified_message" = "此入口和協定尚未在該校驗證。你可以先嘗試登入，但匯入結果可能不完整或失敗。";
+"jw_catalog_pending_message" = "此學校尚無可嘗試的已核實入口。可稍後再試或申請適配。";
+"jw_catalog_try" = "仍要嘗試";
+"jw_catalog_counts" = "目錄 %1$d · 已支援 %2$d · 待驗證 %3$d";

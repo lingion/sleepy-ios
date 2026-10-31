@@ -1069,3 +1069,7 @@
 "course_color_preview" = "Preview";
 "course_color_recalc" = "Re-arrange all course colors";
 "course_color_recalc_done" = "Re-arranged colors for %1$d courses";
+"jw_catalog_unverified_message" = "This entry and protocol have not been verified for this school. You can try signing in, but import may be incomplete or fail.";
+"jw_catalog_pending_message" = "There is no verified entry to try for this school yet. Try later or request support.";
+"jw_catalog_try" = "Try anyway";
+"jw_catalog_counts" = "Directory %1$d · Supported %2$d · Unverified %3$d";

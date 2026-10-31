@@ -1069,3 +1069,7 @@
 "course_color_preview" = "プレビュー";
 "course_color_recalc" = "すべての科目の色を再配置";
 "course_color_recalc_done" = "%1$d 科目の色を再配置しました";
+"jw_catalog_unverified_message" = "この学校では、この入口とプロトコルはまだ検証されていません。ログインを試せますが、インポートが不完全または失敗する場合があります。";
+"jw_catalog_pending_message" = "この学校には、まだ試せる確認済みの入口がありません。後でもう一度試すか、対応をリクエストしてください。";
+"jw_catalog_try" = "試してみる";
+"jw_catalog_counts" = "掲載 %1$d · 対応済み %2$d · 未検証 %3$d";

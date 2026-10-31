@@ -1070,3 +1070,7 @@
 "course_color_preview" = "预览";
 "course_color_recalc" = "重新编排所有课程配色";
 "course_color_recalc_done" = "已重新编排 %1$d 门课程的配色";
+"jw_catalog_unverified_message" = "此入口和协议尚未在该校验证。你可以先尝试登录，结果可能不完整或无法导入。";
+"jw_catalog_pending_message" = "此学校尚无可尝试的已核实入口。可稍后再试或申请适配。";
+"jw_catalog_try" = "仍要尝试";
+"jw_catalog_counts" = "目录 %1$d · 已支持 %2$d · 待验证 %3$d";

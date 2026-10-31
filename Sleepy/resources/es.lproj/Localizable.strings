@@ -1069,3 +1069,7 @@
 "course_color_preview" = "Vista previa";
 "course_color_recalc" = "Reorganizar todos los colores";
 "course_color_recalc_done" = "Se reorganizaron los colores de %1$d asignaturas";
+"jw_catalog_unverified_message" = "Esta entrada y su protocolo aún no se han verificado para esta institución. Puedes intentar iniciar sesión, pero la importación podría ser incompleta o fallar.";
+"jw_catalog_pending_message" = "Aún no hay una entrada verificada para esta institución. Inténtalo más tarde o solicita asistencia.";
+"jw_catalog_try" = "Intentar de todos modos";
+"jw_catalog_counts" = "Directorio %1$d · Compatibles %2$d · Sin verificar %3$d";
