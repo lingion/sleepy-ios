@@ -1073,3 +1073,9 @@
 "jw_catalog_pending_message" = "この学校には、まだ試せる確認済みの入口がありません。後でもう一度試すか、対応をリクエストしてください。";
 "jw_catalog_try" = "試してみる";
 "jw_catalog_counts" = "掲載 %1$d · 対応済み %2$d · 未検証 %3$d";
+"jw_import_report_title" = "インポート成功 — ひとつお願いがあります";
+"jw_import_report_hint" = "この学校の学務ポートは未検証でした。あなたの成功がそのまま実証になります。下の報告テキストをコピーし、QQグループ %1$@ に参加して貼り付けてください。確認され次第、次バージョンではこの学校に再表示されません。";
+"jw_import_report_qq_manual" = "QQ が検出されませんでした。グループ番号 %1$@：QQ を手動で開いて検索してください。";
+"jw_import_report_copy" = "報告をコピー";
+"jw_import_report_join_qq" = "QQ グループに参加";
+"jw_import_report_done" = "完了";

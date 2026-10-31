@@ -1074,3 +1074,9 @@
 "jw_catalog_pending_message" = "此学校尚无可尝试的已核实入口。可稍后再试或申请适配。";
 "jw_catalog_try" = "仍要尝试";
 "jw_catalog_counts" = "目录 %1$d · 已支持 %2$d · 待验证 %3$d";
+"jw_import_report_title" = "导入成功 · 请帮个忙";
+"jw_import_report_hint" = "这所学校的教务入口此前未经验证，你的这次成功就是一次真实验证。复制下面的报告文本，加入 QQ 群 %1$@ 粘贴发送即可。维护者确认后，下个版本该校不再出现提示。";
+"jw_import_report_qq_manual" = "未检测到 QQ，群号 %1$@，请手动打开 QQ 搜索加入";
+"jw_import_report_copy" = "复制报告";
+"jw_import_report_join_qq" = "加入 QQ 群";
+"jw_import_report_done" = "完成";

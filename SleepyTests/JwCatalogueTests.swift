@@ -374,4 +374,60 @@ final class JwCatalogueTests: XCTestCase {
         XCTAssertEqual(.webViewLogin, back.phase)
         XCTAssertTrue(back.requiresSchoolConfirmation)
     }
+
+    // MARK: - 导入报告 (← Android JwImportReport)
+
+    func testImportReportTextShape() {
+        let school = JwSchoolInfo(sortKey: "G", name: "广东东软学院", url: "https://jw.example/",
+                                  type: "zf_new", status: JwSchoolInfo.STATUS_UNVERIFIED,
+                                  catalogId: "G_广东东软学院")
+        let text = JwImportReport.build(school: school, courseCount: 12,
+                                        versionName: "1.0.62", versionCode: 62,
+                                        date: "2026-10-31")
+        let lines = text.components(separatedBy: "\n")
+        XCTAssertEqual("[Sleepy导入成功]", lines[0])
+        XCTAssertEqual("app=1.0.62 (62)", lines[1])
+        XCTAssertEqual("date=2026-10-31", lines[2])
+        XCTAssertEqual("school=广东东软学院", lines[3])
+        XCTAssertEqual("catalogId=G_广东东软学院", lines[4])
+        XCTAssertEqual("status=unverified", lines[5])
+        XCTAssertTrue(lines[6].hasPrefix("protocol="))
+        XCTAssertTrue(lines[6].contains("(zf_new)"))
+        XCTAssertEqual("url=https://jw.example/", lines[7])
+        XCTAssertEqual("courses=12", lines[8])
+    }
+
+    func testImportReportUsesUnknownPlaceholderForMissingFields() {
+        let school = JwSchoolInfo(sortKey: "X", name: "无名", url: "", type: nil,
+                                  status: JwSchoolInfo.STATUS_PENDING)
+        let text = JwImportReport.build(school: school, courseCount: 0,
+                                        versionName: "1.0.62", versionCode: 62,
+                                        date: "2026-10-31")
+        XCTAssertTrue(text.contains("catalogId=unknown"))
+        XCTAssertTrue(text.contains("url=unknown"))
+        XCTAssertTrue(text.contains("(unknown)"))
+        XCTAssertTrue(text.contains("courses=0"))
+    }
+
+    func testImportReportNeverCarriesCredentials() {
+        // 隐私边界: 输入只有学校公开信息 → 报告文本不可能出现凭据
+        let school = JwSchoolInfo(sortKey: "G", name: "广东东软学院", url: "https://jw.example/",
+                                  type: "zf_new", status: JwSchoolInfo.STATUS_UNVERIFIED)
+        let text = JwImportReport.build(school: school, courseCount: 1,
+                                        versionName: "1.0.62", versionCode: 62,
+                                        date: "2026-10-31")
+        for forbidden in ["password", "口令", "密码", "session", "cookie", "token"] {
+            XCTAssertFalse(text.lowercased().contains(forbidden), "报告文本不得包含 \(forbidden)")
+        }
+    }
+
+    func testTodayStampFormat() {
+        var comps = DateComponents()
+        comps.year = 2026; comps.month = 10; comps.day = 31
+        comps.hour = 12
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone.current
+        let date = cal.date(from: comps)!
+        XCTAssertEqual("2026-10-31", JwImportReport.todayStamp(date))
+    }
 }

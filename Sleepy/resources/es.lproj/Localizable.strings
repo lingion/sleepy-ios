@@ -1073,3 +1073,9 @@
 "jw_catalog_pending_message" = "Aún no hay una entrada verificada para esta institución. Inténtalo más tarde o solicita asistencia.";
 "jw_catalog_try" = "Intentar de todos modos";
 "jw_catalog_counts" = "Directorio %1$d · Compatibles %2$d · Sin verificar %3$d";
+"jw_import_report_title" = "Importación exitosa — un pequeño favor";
+"jw_import_report_hint" = "La entrada académica de esta institución no estaba verificada; tu éxito es una verificación real. Copia el informe de abajo, únete al grupo de QQ %1$@ y pégalo allí. Al confirmarse, esta institución no mostrará más avisos en la próxima versión.";
+"jw_import_report_qq_manual" = "No se detectó QQ. Número de grupo %1$@: abre QQ y búscalo para unirte manualmente.";
+"jw_import_report_copy" = "Copiar informe";
+"jw_import_report_join_qq" = "Unirse al grupo";
+"jw_import_report_done" = "Listo";

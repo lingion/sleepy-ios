@@ -1073,3 +1073,9 @@
 "jw_catalog_pending_message" = "There is no verified entry to try for this school yet. Try later or request support.";
 "jw_catalog_try" = "Try anyway";
 "jw_catalog_counts" = "Directory %1$d · Supported %2$d · Unverified %3$d";
+"jw_import_report_title" = "Import succeeded — one small favor";
+"jw_import_report_hint" = "This school's academic portal had not been verified before; your success is a real verification. Copy the report text below, join QQ group %1$@, and paste it there. Once confirmed, this school will show no more prompts in the next release.";
+"jw_import_report_qq_manual" = "QQ not detected. Group number %1$@ — please open QQ and search to join manually.";
+"jw_import_report_copy" = "Copy report";
+"jw_import_report_join_qq" = "Join QQ group";
+"jw_import_report_done" = "Done";
