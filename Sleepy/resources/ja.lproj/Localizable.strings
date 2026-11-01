@@ -374,8 +374,6 @@
 "notif_daily_title" = "今日は %1$d 日、授業は %2$d コマです";
 "notif_daily_title_no_course" = "今日は %1$d 日、授業はありません";
 "notif_room_unknown" = "教室不明";
-"reminder_banner_sub" = "通知バーに授業前のバナーを表示";
-"reminder_banner_title" = "バナーリマインダー";
 "reminder_before_class_preview" = "例：次の授業 高等数学 08:00 @ 教学棟A101";
 "reminder_before_class_sub" = "各授業の開始前に次の授業情報をリマインド";
 "reminder_before_class_title" = "授業前リマインダー";
@@ -392,8 +390,12 @@
 "reminder_fluid_fields" = "カプセルメイン表示内容";
 "reminder_fluid_fields_hint" = "メイン表示内容を選択";
 "reminder_fluid_note" = "通知をタップすると授業詳細を展開できます。Fluid Cloud / Super Island として表示されるかどうかは、スマホのシステム、通知権限、メーカーのサービス資格によって決まります。";
-"reminder_fluid_sub" = "対応する Xiaomi・OPPO スマホでリアルタイム授業カードを表示";
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
+"reminder_mode_label" = "リマインダー形態";
+"reminder_mode_banner" = "バナー";
+"reminder_mode_fluid" = "リアルタイムカード";
+"reminder_mode_banner_sub" = "通知バーに表示する通常のスワイプ削除可能バナー。ウェアラブル同期に影響なし";
+"reminder_mode_fluid_sub" = "対応する Xiaomi・vivo・Samsung・Meizu スマホでリアルタイム授業カードを表示。非対応の場合は表示されないことがあります";
 "reminder_master_sub" = "Sleepy に授業通知の送信を許可";
 "reminder_master_title" = "リマインダーを有効化";
 "reminder_notif_denied_title" = "通知の権限が拒否されています";
@@ -1079,3 +1081,10 @@
 "jw_import_report_copy" = "報告をコピー";
 "jw_import_report_join_qq" = "QQ グループに参加";
 "jw_import_report_done" = "完了";
+"table_reminder_title" = "時間割の通知";
+"table_reminder_subtitle" = "通知を受け取る時間割を選択";
+"table_reminder_master_off" = "通知はオフです。時間割ごとの設定は、通知のメインスイッチをオンにすると有効になります。";
+"table_reminder_empty" = "時間割がありません。先に追加またはインポートしてください。";
+"table_reminder_save_failed" = "保存できませんでした。もう一度お試しください。";
+"edit_table_reminder_enable" = "この時間割を通知";
+"edit_table_reminder_desc" = "オフにすると、この時間割の课前リマインダー・日課表サマリー・フローティングクラウドは送信されません";

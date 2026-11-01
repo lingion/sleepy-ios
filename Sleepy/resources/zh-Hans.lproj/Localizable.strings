@@ -336,10 +336,12 @@
 "reminder_before_minutes_label" = "提前";
 "reminder_before_minutes_unit" = "分钟";
 "reminder_before_class_preview" = "示例：下节课 高等数学 于 08:00 在 教学楼A101 上课";
-"reminder_banner_title" = "横幅提醒";
-"reminder_banner_sub" = "在系统通知栏显示课前横幅";
 "reminder_fluid_title" = "流体云 / 超级岛";
-"reminder_fluid_sub" = "在支持的小米、OPPO 手机上显示实时课程卡片";
+"reminder_mode_label" = "提醒形态";
+"reminder_mode_banner" = "横幅";
+"reminder_mode_fluid" = "流体云";
+"reminder_mode_banner_sub" = "系统通知栏普通横幅,可手动划掉;手环/手表同步不受影响";
+"reminder_mode_fluid_sub" = "在支持的小米 / vivo / 三星 / 魅族手机上显示实时课程卡片;系统不支持时可能不显示";
 "reminder_fluid_fields" = "胶囊主显示内容";
 "reminder_fluid_fields_hint" = "选择一个主显示内容";
 "reminder_fluid_field_name" = "课程名称";
@@ -1080,3 +1082,10 @@
 "jw_import_report_copy" = "复制报告";
 "jw_import_report_join_qq" = "加入 QQ 群";
 "jw_import_report_done" = "完成";
+"table_reminder_title" = "课表提醒";
+"table_reminder_subtitle" = "选择需要接收提醒的课表";
+"table_reminder_master_off" = "总开关已关闭。可以先设置各课表，开启总开关后生效。";
+"table_reminder_empty" = "还没有课表，请先添加或导入课表。";
+"table_reminder_save_failed" = "保存失败，请重试";
+"edit_table_reminder_enable" = "本表参与提醒";
+"edit_table_reminder_desc" = "关闭后，本课表不再发送课前提醒、每日课表摘要与流体云";

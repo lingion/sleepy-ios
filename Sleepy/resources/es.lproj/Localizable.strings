@@ -374,8 +374,6 @@
 "notif_daily_title" = "Hoy es %1$d, tienes %2$d clases";
 "notif_daily_title_no_course" = "Hoy es %1$d, no tienes clases hoy";
 "notif_room_unknown" = "Aula desconocida";
-"reminder_banner_sub" = "Mostrar un banner antes de clase en la barra de notificaciones";
-"reminder_banner_title" = "Recordatorio en banner";
 "reminder_before_class_preview" = "Ejemplo: Próxima clase Cálculo Avanzado a las 08:00 en Edificio A101";
 "reminder_before_class_sub" = "Recordarte sobre la próxima clase antes de que comience cada una";
 "reminder_before_class_title" = "Recordatorio antes de clase";
@@ -392,8 +390,12 @@
 "reminder_fluid_fields" = "Contenido principal de la cápsula";
 "reminder_fluid_fields_hint" = "Elige un campo de visualización principal";
 "reminder_fluid_note" = "Toca la notificación para expandir los detalles del curso. Si se muestra como Nube Fluida / Súper Isla depende del sistema del teléfono, los permisos de notificación y la elegibilidad del servicio del fabricante.";
-"reminder_fluid_sub" = "Mostrar tarjetas de curso en tiempo real en teléfonos Xiaomi y OPPO compatibles";
 "reminder_fluid_title" = "Nube Fluida / Súper Isla";
+"reminder_mode_label" = "Estilo de aviso";
+"reminder_mode_banner" = "Banner";
+"reminder_mode_fluid" = "Nube fluida";
+"reminder_mode_banner_sub" = "Banner normal deslizable en la barra de notificaciones; compatible con la sincronización de reloj y pulsera";
+"reminder_mode_fluid_sub" = "Tarjetas de curso en tiempo real en teléfonos Xiaomi, vivo, Samsung y Meizu compatibles; puede no mostrarse si no es compatible";
 "reminder_master_sub" = "Permitir que Sleepy envíe notificaciones de cursos";
 "reminder_master_title" = "Activar recordatorios";
 "reminder_notif_denied_title" = "Notificaciones denegadas";
@@ -1079,3 +1081,10 @@
 "jw_import_report_copy" = "Copiar informe";
 "jw_import_report_join_qq" = "Unirse al grupo";
 "jw_import_report_done" = "Listo";
+"table_reminder_title" = "Avisos por horario";
+"table_reminder_subtitle" = "Elige qué horarios reciben avisos";
+"table_reminder_master_off" = "Los avisos están desactivados. Tu selección se aplicará al activar el interruptor principal.";
+"table_reminder_empty" = "No hay horarios. Añade o importa uno primero.";
+"table_reminder_save_failed" = "No se pudo guardar. Inténtalo de nuevo.";
+"edit_table_reminder_enable" = "Recordatorios de este horario";
+"edit_table_reminder_desc" = "Al desactivarlo, este horario deja de enviar avisos previos, resúmenes diarios y nube fluida";

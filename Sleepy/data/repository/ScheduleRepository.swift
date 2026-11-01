@@ -127,6 +127,21 @@ final class ScheduleRepository {
         onDataChanged()
     }
 
+    /// v1.0.62 每课表提醒开关 — ← Android ScheduleRepository.setTableReminderEnabled:
+    /// 提醒设置独占 reminderEnabled 字段, 永不覆盖课表元数据;「读现值→相同即 no-op
+    /// (不抓 undo)→不同才 capture+UPDATE」, 有变化才 onDataChanged。
+    /// iOS 侧 captureForUndo 自带独立写事务, 不能嵌进 GRDB write 块(死锁), 故读写
+    /// 两步走: 单 UI 写入口(TableReminderScreen 每表 in-flight 去重同 Android pending),
+    /// 竞态窗口可忽略。
+    func setTableReminderEnabled(id: Int64, enabled: Bool) throws {
+        guard let current = try tableDao.getById(id), current.reminderEnabled != enabled else { return }
+        try captureForUndo()
+        let changed = try db.dbQueue.write { db in
+            try tableDao.setReminderEnabledInDb(db, id, enabled)
+        }
+        if changed > 0 { onDataChanged() }
+    }
+
     /// 2026-09-23 症状3修复: 编辑课表保存 — 只写课程表自身元数据(name/startDate/maxWeek),
     /// 绑定关系与兼容列原样保留。
     ///

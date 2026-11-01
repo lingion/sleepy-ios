@@ -17,8 +17,14 @@ final class AppPrefs {
     static let KEY_DAILY_TIME = "daily_reminder_time" // "HH:mm" default "07:00"
     static let KEY_BEFORE_CLASS_ENABLED = "before_class_enabled"       // bool default false
     static let KEY_BEFORE_CLASS_MINUTES = "before_class_minutes"       // int default 10
-    static let KEY_BEFORE_CLASS_BANNER = "before_class_banner"         // bool default true
+    // v1.0.62: banner/fluid 双开关收敛为 mode 单源 (← AppPrefs.kt KEY_BEFORE_CLASS_MODE);
+    // BANNER 键退役为只读迁移源 (Android 亦保留 FLUID 键仅作推导), FLUID 键仍被 watch 同步读。
+    @available(*, deprecated, message: "改走 getBeforeClassMode — banner 不再是独立开关")
+    static let KEY_BEFORE_CLASS_BANNER = "before_class_banner"         // legacy bool default true (迁移源)
     static let KEY_BEFORE_CLASS_FLUID = "before_class_fluid"            // bool default false
+    static let KEY_BEFORE_CLASS_MODE = "before_class_mode"             // string: banner|fluid — 互斥形态 (取代双开关) ← Android KEY_BEFORE_CLASS_MODE
+    static let BEFORE_CLASS_MODE_BANNER = "banner"
+    static let BEFORE_CLASS_MODE_FLUID = "fluid"
     static let KEY_BEFORE_CLASS_FLUID_FIELDS = "before_class_fluid_fields" // legacy multi-select
     // ← v1.0.60 新增: 次日预告 + 当日提醒 + 上课自动勿扰
     static let KEY_TOMORROW_REMINDER_ENABLED = "tomorrow_reminder"             // bool default false
@@ -248,13 +254,33 @@ final class AppPrefs {
 
     // MARK: - v1.0.61 系统日历导入 (对齐)
 
-    func isBeforeClassBannerEnabled() -> Bool {
-        sp().object(forKey: Self.KEY_BEFORE_CLASS_BANNER) as? Bool ?? true
-    }
-    func setBeforeClassBannerEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_BANNER) }
+    // MARK: - v1.0.62 课前提醒形态 (互斥) ← AppPrefs.kt getBeforeClassMode
 
-    func isBeforeClassFluidEnabled() -> Bool { sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID) }
-    func setBeforeClassFluidEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_FLUID) }
+    /// 课前提醒形态 (互斥): banner 普通横幅 | fluid 实况卡片。
+    /// 旧版双开关无损迁移: 未写过 mode 时, 由 KEY_BEFORE_CLASS_FLUID 推导
+    /// (← Android: legacyFluid ? FLUID : BANNER; banner 键退役不读)。
+    func getBeforeClassMode() -> String {
+        if let m = sp().string(forKey: Self.KEY_BEFORE_CLASS_MODE) { return m }
+        return sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID)
+            ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER
+    }
+    func setBeforeClassMode(_ mode: String) { sp().set(mode, forKey: Self.KEY_BEFORE_CLASS_MODE) }
+
+    func isBeforeClassBannerEnabled() -> Bool {
+        getBeforeClassMode() == Self.BEFORE_CLASS_MODE_BANNER
+    }
+    func isBeforeClassFluidEnabled() -> Bool {
+        getBeforeClassMode() == Self.BEFORE_CLASS_MODE_FLUID
+    }
+    @available(*, deprecated, message: "双开关退役 — UI 层改调 setBeforeClassMode;此写点仅作 watch 同步兼容通道")
+    func setBeforeClassBannerEnabled(_ v: Bool) {
+        // watch 快照恢复侧兼容: banner=true 的快照 ⇔ mode=banner (false 侧无信息量,
+        // Android 快照侧已无此字段, 不再扩散) — 不覆盖既有 mode 为 fluid 的用户配置。
+        if v { setBeforeClassMode(Self.BEFORE_CLASS_MODE_BANNER) }
+    }
+    func setBeforeClassFluidEnabled(_ v: Bool) {
+        setBeforeClassMode(v ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER)
+    }
 
     /// legacy multi-select 读取(死写路径已删 — setBeforeClassFluidFields 全库零调用,读取仅通知组件用旧数据)
     func getBeforeClassFluidFields() -> Set<String> {

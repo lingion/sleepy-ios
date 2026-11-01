@@ -312,6 +312,7 @@
 		63EDBE68B99F1D51360FA085 /* MigrationV11Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8594A29E16AA5CD4AA06BD6 /* MigrationV11Tests.swift */; };
 		642E48735D38B833DEAE48A4 /* JwUcasParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FD5A52D7EC60F78D92780AF /* JwUcasParser.swift */; };
 		64731FE6BC355297EC4B0606 /* ReminderCapabilityFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 989DD79C335C4640D40750EF /* ReminderCapabilityFlowTests.swift */; };
+		523E01B7373540DA9B3E7A7CAFF146AF /* ReminderModeAndTableReminderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F031F38886041A4B83C9A38ABD0C227 /* ReminderModeAndTableReminderTests.swift */; };
 		6490703A999373DFF63E3F2A /* SchoolSelectScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B4ADA3F4D0F22AB81E78C4 /* SchoolSelectScreen.swift */; };
 		65159DFE2C381A0FA2742717 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 7063967109C7E5366BA3B4B1 /* GRDB */; };
 		656B92D8C96921200777C5F8 /* WidgetBindingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32FA87FAC3D04B6686F6E0DB /* WidgetBindingStore.swift */; };
@@ -331,6 +332,7 @@
 		681AC5A2C9A44C84E305E5A2 /* RowKeyDiffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C14C917D9FFF63F1BDA1150 /* RowKeyDiffer.swift */; };
 		69FE60FF295F9F5E64767937 /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */; };
 		6A146A0A07E98B39A265A340 /* ReminderScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D8DF7E3509AC5B4147E75C8 /* ReminderScreen.swift */; };
+		E2115344926E3E056124FF82 /* TableReminderScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41EEFC4EB004B4E9D21C765E /* TableReminderScreen.swift */; };
 		6A5073E149C535CC5BE817F0 /* TimeTableUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EB72448743A4CF5CF466C5 /* TimeTableUtils.swift */; };
 		6A66F8370C8F187915144393 /* HolidayManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8FE3D103CAC0B91A9CE015 /* HolidayManagerTests.swift */; };
 		6ACACA77582B39945AFA2DC3 /* JwKustParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AB83DCC65798AF11C37CD62 /* JwKustParser.swift */; };
@@ -1041,6 +1043,7 @@
 		7CF0ABA49DCD06B5254BA8BA /* ImportRoster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRoster.swift; sourceTree = "<group>"; };
 		7D5816F5C0F382110A910D43 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
 		7D8DF7E3509AC5B4147E75C8 /* ReminderScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScreen.swift; sourceTree = "<group>"; };
+		41EEFC4EB004B4E9D21C765E /* TableReminderScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableReminderScreen.swift; sourceTree = "<group>"; };
 		7F8FE3D103CAC0B91A9CE015 /* HolidayManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayManagerTests.swift; sourceTree = "<group>"; };
 		804FD9B63BCC3C1726B9CAFF /* WeekViewWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekViewWidgetView.swift; sourceTree = "<group>"; };
 		807D2193B6730A4A295A42AC /* CourseListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseListView.swift; sourceTree = "<group>"; };
@@ -1079,6 +1082,7 @@
 		9610BD61FF13088540D20D20 /* JwImportDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportDraft.swift; sourceTree = "<group>"; };
 		984F3C8B5FC81B912AD5527B /* ConflictDetailReporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictDetailReporterTests.swift; sourceTree = "<group>"; };
 		989DD79C335C4640D40750EF /* ReminderCapabilityFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCapabilityFlowTests.swift; sourceTree = "<group>"; };
+		8F031F38886041A4B83C9A38ABD0C227 /* ReminderModeAndTableReminderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderModeAndTableReminderTests.swift; sourceTree = "<group>"; };
 		9903ECA15FF00B8E5DFA5657 /* ColorStyleSheetConsistencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorStyleSheetConsistencyTests.swift; sourceTree = "<group>"; };
 		990A9D3555C706514CFAA8B3 /* JwImportFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportFlow.swift; sourceTree = "<group>"; };
 		991A8A88EDA9AC6FE69501FB /* JwQzAppParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzAppParserTests.swift; sourceTree = "<group>"; };
@@ -1774,6 +1778,7 @@
 				1BCB8B72B49233D52340AB7A /* ParserAuditTests.swift */,
 				54F8C6D3080AE57961A4E115 /* RealUserScheduleTests.swift */,
 				989DD79C335C4640D40750EF /* ReminderCapabilityFlowTests.swift */,
+				8F031F38886041A4B83C9A38ABD0C227 /* ReminderModeAndTableReminderTests.swift */,
 				6B1DEA8716FA0CD6F973E4DB /* ReminderScreenPreviewFormatTests.swift */,
 				F84E511E00AFD8247D4D4B07 /* resources */,
 				FEFE0F382E2D42F640D9689F /* RowKeyDifferTests.swift */,
@@ -1901,6 +1906,7 @@
 				C338EA7B8421C284DDAEDC27 /* PeriodTablesScreen.swift */,
 				D3997ACEE9626F6C1DD522A5 /* ReminderCapabilityFlow.swift */,
 				7D8DF7E3509AC5B4147E75C8 /* ReminderScreen.swift */,
+				41EEFC4EB004B4E9D21C765E /* TableReminderScreen.swift */,
 				713C016B6B2A7FCBBE0600AE /* ScheduleConflictBottomSheet.swift */,
 				C221BBAE2EEB506EF4E1D090 /* ScheduleDisplayScreen.swift */,
 				FAD2BE655E5EFE5F39CF6283 /* UpdateChangelogDialog.swift */,
@@ -2532,6 +2538,7 @@
 				31BA8990DDABCAF60E5EEFC2 /* ReminderCapabilityFlow.swift in Sources */,
 				A1A36A06E64B44E4F24812DE /* ReminderRescheduler.swift in Sources */,
 				6A146A0A07E98B39A265A340 /* ReminderScreen.swift in Sources */,
+				E2115344926E3E056124FF82 /* TableReminderScreen.swift in Sources */,
 				681AC5A2C9A44C84E305E5A2 /* RowKeyDiffer.swift in Sources */,
 				C54D9E99BD53251D3C599894 /* ScheduleConflictBottomSheet.swift in Sources */,
 				8EECC95AA4B4692227082826 /* ScheduleDisplayScreen.swift in Sources */,
@@ -2883,6 +2890,7 @@
 				F65B4753901D75DE1D367046 /* ParserAuditTests.swift in Sources */,
 				CD4DBDBD4665DCDAE1B70954 /* RealUserScheduleTests.swift in Sources */,
 				64731FE6BC355297EC4B0606 /* ReminderCapabilityFlowTests.swift in Sources */,
+				523E01B7373540DA9B3E7A7CAFF146AF /* ReminderModeAndTableReminderTests.swift in Sources */,
 				A31E7F0D23FBDB439EEDBF5F /* ReminderScreenPreviewFormatTests.swift in Sources */,
 				7F02BDED7F46E380471BCE38 /* RowKeyDifferTests.swift in Sources */,
 				DDF0855DE843D230CA5BC500 /* ScheduleEditPolicyStateTests.swift in Sources */,

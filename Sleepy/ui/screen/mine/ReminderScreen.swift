@@ -55,13 +55,20 @@ struct ReminderScreen: View {
     @State private var tomorrowTime = AppPrefs.shared.getTomorrowReminderTime()
     @State private var beforeClassEnabled = AppPrefs.shared.isBeforeClassEnabled()
     @State private var minutesInput = "\(AppPrefs.shared.getBeforeClassMinutes())"
-    @State private var bannerEnabled = AppPrefs.shared.isBeforeClassBannerEnabled()
-    @State private var fluidEnabled = AppPrefs.shared.isBeforeClassFluidEnabled()
+    // v1.0.62 课前提醒形态互斥 (← Android ReminderScreen beforeClassMode +
+    // AppPrefs.getBeforeClassMode): 旧 banner/fluid 双开关下 banner 被 fluid 静默
+    // 吞掉 (用户 2026-10-17 指令), 收敛为 mode 单源 + 分段二选一。
+    // fluidEnabled 降级为派生只读 — 细节块显隐/诊断快照刷新与 mode 恒同源。
+    @State private var beforeClassMode = AppPrefs.shared.getBeforeClassMode()
+    private var fluidEnabled: Bool { beforeClassMode == AppPrefs.BEFORE_CLASS_MODE_FLUID }
     @State private var fluidPrimary = AppPrefs.shared.getBeforeClassFluidPrimary()
     @State private var classDndEnabled = AppPrefs.shared.isClassDndEnabled()
     @State private var pickerTarget: DailyReminderTimeTarget? = nil
     @State private var pickerTime = Date()
     @State private var showHolidaySettings = false
+    // v1.0.62 B3: 课表提醒独立页入口 (Android SleepyRoute.TableReminder push 路由;
+    // iOS 内嵌 sheet = holiday/widgetManagement 同款 by design 链)。
+    @State private var showTableReminder = false
     /// 通知权限 denied 态 → master 卡内手动设置引导行。
     /// iOS 语义: denied 后 requestAuthorization 不再弹系统框、静默返回 false
     /// (一次性弹窗), 唯一恢复路径 = 用户手动去系统设置。仅在用户点 master
@@ -92,6 +99,32 @@ struct ReminderScreen: View {
                             NotifDeniedRow(onOpenSettings: { openNotificationSettings() })
                         }
                     }
+
+                    // v1.0.62 B3 课表提醒入口 — ← Android ReminderScreen item:
+                    // title+subtitle 两行 + 尾随 ChevronRight, surfaceContainer 卡底。
+                    Button { showTableReminder = true } label: {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.format("table_reminder_title"))
+                                    .font(.system(size: 14, weight: .medium))   // ← titleSmall
+                                    .foregroundColor(colors.onSurface)
+                                Text(L10n.format("table_reminder_subtitle"))
+                                    .font(.system(size: 12))                    // ← bodySmall
+                                    .foregroundColor(colors.onSurfaceVariant)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 20))
+                                .foregroundColor(colors.onSurfaceVariant)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity)
+                        .background(colors.surfaceContainer)
+                        .cornerRadius(SleepyShapes.large)
+                    }
+                    .buttonStyle(SleepyButtonStyle())
+                    .accessibilityIdentifier("reminder_table_reminder_entry")
 
                     // Date-based reminder rules remain independent from the general reminder master.
                     dateRulesCard
@@ -132,6 +165,10 @@ struct ReminderScreen: View {
             HolidaySettingsScreen(onDismiss: { showHolidaySettings = false },
                                   tableId: currentSelectedTableId,
                                   refreshTransfer: { viewModel?.refreshTransfer() })
+        }
+        // v1.0.62 B3: 课表提醒页 (Android SleepyRoute.TableReminder push 等价 = 内嵌 sheet)
+        .sheet(isPresented: $showTableReminder) {
+            TableReminderScreen(onDismiss: { showTableReminder = false })
         }
     }
 
@@ -383,22 +420,55 @@ struct ReminderScreen: View {
                     .padding(.trailing, 4)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SubDivider()
-                ReminderToggleRow(title: L10n.format("reminder_banner_title"),
-                                  subtitle: L10n.format("reminder_banner_sub"),
-                                  checked: $bannerEnabled) {
-                    bannerEnabled = $0
-                    prefs.setBeforeClassBannerEnabled($0)
-                    ReminderRescheduler.shared.request()
+                // ← Android v1.0.62 形态互斥分段 (SegmentedSwitcher banner|fluid):
+                // 旧双开关下 banner 被 fluid 静默吞掉 → 二选一, 切 banner 即 fluid 全停。
+                // iOS 语义映射: banner=UNUserNotification 横幅; fluid 档在 iOS 无实况卡
+                // 实现 (ActivityKit 属 reminder-live 切片, 见 BackgroundReliabilitySnapshot
+                // 头注), 选中 fluid = 存 mode + 展示字段/说明细节块, 横幅投递停发 —
+                // 与 Android「系统不支持则无卡片、不做静默回落」同口径, 如实呈现。
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L10n.format("reminder_mode_label"))
+                        .font(.system(size: 14))
+                        .foregroundColor(colors.onSurface)
+                    SegmentedSwitcher(
+                        options: [
+                            (AppPrefs.BEFORE_CLASS_MODE_BANNER, L10n.format("reminder_mode_banner")),
+                            (AppPrefs.BEFORE_CLASS_MODE_FLUID, L10n.format("reminder_mode_fluid"))
+                        ],
+                        selected: beforeClassMode,
+                        onSelect: { mode in
+                            guard mode != beforeClassMode else { return }
+                            beforeClassMode = mode
+                            prefs.setBeforeClassMode(mode)
+                            // ← Android 切回横幅须真正停流体投放 (FluidCloudService
+                            // .requestStop); iOS 侧横幅/实况互斥全走 mode 单源,
+                            // 重排即等效 — 残留 fluid 通知由 deliveryAllowed 复查闸拦。
+                            ReminderRescheduler.shared.request()
+                        },
+                        containerColor: colors.surfaceContainerHighest
+                    )
+                    .frame(height: 42)
+                    if fluidEnabled {
+                        // fluid 段头: 标题 + 「实验」tag (← Android 分段下方行)
+                        HStack(spacing: 6) {
+                            Text(L10n.format("reminder_fluid_title"))
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(colors.onSurfaceVariant)
+                            Text(L10n.format("reminder_experimental_tag"))
+                                .font(.system(size: 10))
+                                .foregroundColor(colors.primary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(colors.primary.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    Text(L10n.format(fluidEnabled ? "reminder_mode_fluid_sub" : "reminder_mode_banner_sub"))
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.onSurfaceVariant)
                 }
-                SubDivider()
-                ReminderToggleRow(title: L10n.format("reminder_fluid_title"),
-                                  subtitle: L10n.format("reminder_fluid_sub"),
-                                  tag: L10n.format("reminder_experimental_tag"),
-                                  checked: $fluidEnabled) {
-                    fluidEnabled = $0
-                    prefs.setBeforeClassFluidEnabled($0)
-                    ReminderRescheduler.shared.request()
-                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 4)
                 if fluidEnabled {
                     SubDivider()
                     VStack(alignment: .leading, spacing: 6) {

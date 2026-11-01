@@ -33,7 +33,9 @@ final class UndoCaptureCoverageTests: XCTestCase {
         "insertCourse", "insertCourses", "insertCoursesKeepingGroups",
         "replaceCoursesKeepingGroups", "updateCourse", "updateCourseGroup",
         "setGroupSourceColor", "applyDiff", "deleteCourse", "deleteCourseGroup",
-        "replaceCourses"
+        "replaceCourses",
+        // v1.0.62 B3: 每课表提醒开关 — 同值 no-op 不抓, 真变化 capture (← Android 同名方法)
+        "setTableReminderEnabled"
     ]
 
     /// 正则在 text 中找第一处匹配(NSString 坐标系)。

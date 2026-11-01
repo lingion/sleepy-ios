@@ -374,8 +374,6 @@
 "notif_daily_title" = "今日 %1$d 號，您有 %2$d 節課";
 "notif_daily_title_no_course" = "今日 %1$d 號，今天沒有課程";
 "notif_room_unknown" = "未知教室";
-"reminder_banner_sub" = "在系統通知欄顯示課前橫幅";
-"reminder_banner_title" = "橫幅提醒";
 "reminder_before_class_preview" = "範例：下節課 高等數學 於 08:00 在 教學樓A101 上課";
 "reminder_before_class_sub" = "在每節課開始前提醒下節課資訊";
 "reminder_before_class_title" = "每節課前提醒";
@@ -392,8 +390,12 @@
 "reminder_fluid_fields" = "膠囊主顯示內容";
 "reminder_fluid_fields_hint" = "選擇一個主顯示內容";
 "reminder_fluid_note" = "點擊通知後可展開課程詳情。具體是否顯示為流體雲/超級島由手機系統、通知權限和廠商服務資格決定。";
-"reminder_fluid_sub" = "在支援的小米、OPPO 手機上顯示即時課程卡片";
 "reminder_fluid_title" = "流體雲 / 超級島";
+"reminder_mode_label" = "提醒形態";
+"reminder_mode_banner" = "橫幅";
+"reminder_mode_fluid" = "流體雲";
+"reminder_mode_banner_sub" = "系統通知欄一般橫幅,可手動劃掉;手環/手錶同步不受影響";
+"reminder_mode_fluid_sub" = "在支援的小米 / vivo / 三星 / 魅族手機上顯示即時課程卡片;系統不支援時可能不顯示";
 "reminder_master_sub" = "允許 Sleepy 發送課程通知";
 "reminder_master_title" = "開啟提醒";
 "reminder_notif_denied_title" = "通知權限已被拒絕";
@@ -1079,3 +1081,10 @@
 "jw_import_report_copy" = "複製報告";
 "jw_import_report_join_qq" = "加入 QQ 群";
 "jw_import_report_done" = "完成";
+"table_reminder_title" = "課表提醒";
+"table_reminder_subtitle" = "選擇需要接收提醒的課表";
+"table_reminder_master_off" = "總開關已關閉。可以先設定各課表，開啟總開關後生效。";
+"table_reminder_empty" = "還沒有課表，請先新增或匯入課表。";
+"table_reminder_save_failed" = "儲存失敗，請重試";
+"edit_table_reminder_enable" = "本表參與提醒";
+"edit_table_reminder_desc" = "關閉後，本課表不再發送課前提醒、每日課表摘要與流體雲";

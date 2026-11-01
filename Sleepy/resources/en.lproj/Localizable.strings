@@ -374,8 +374,6 @@
 "notif_daily_title" = "Today is day %1$d of the month, you have %2$d classes";
 "notif_daily_title_no_course" = "Today is day %1$d of the month, no classes today";
 "notif_room_unknown" = "Unknown room";
-"reminder_banner_sub" = "Show a before-class banner in the notification bar";
-"reminder_banner_title" = "Banner Reminder";
 "reminder_before_class_preview" = "Example: Next class Advanced Math at 08:00 in Building A101";
 "reminder_before_class_sub" = "Remind you about the next class before each one starts";
 "reminder_before_class_title" = "Before-class Reminder";
@@ -392,8 +390,12 @@
 "reminder_fluid_fields" = "Capsule Primary Content";
 "reminder_fluid_fields_hint" = "Choose a primary display field";
 "reminder_fluid_note" = "Tap the notification to expand course details. Whether it appears as Fluid Cloud / Super Island depends on the phone system, notification permissions, and manufacturer service eligibility.";
-"reminder_fluid_sub" = "Show real-time course cards on supported Xiaomi and OPPO phones";
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
+"reminder_mode_label" = "Reminder style";
+"reminder_mode_banner" = "Banner";
+"reminder_mode_fluid" = "Fluid Cloud";
+"reminder_mode_banner_sub" = "Standard dismissible banner in the notification bar; safe for watch/band sync";
+"reminder_mode_fluid_sub" = "Real-time course cards on supported Xiaomi, vivo, Samsung, and Meizu phones; may not appear if unsupported";
 "reminder_master_sub" = "Allow Sleepy to send course notifications";
 "reminder_master_title" = "Enable Reminders";
 "reminder_notif_denied_title" = "Notifications are denied";
@@ -1079,3 +1081,10 @@
 "jw_import_report_copy" = "Copy report";
 "jw_import_report_join_qq" = "Join QQ group";
 "jw_import_report_done" = "Done";
+"table_reminder_title" = "Timetable reminders";
+"table_reminder_subtitle" = "Choose which timetables receive reminders";
+"table_reminder_master_off" = "Reminders are off. Your timetable choices will take effect when you turn on the master switch.";
+"table_reminder_empty" = "No timetables yet. Add or import a timetable first.";
+"table_reminder_save_failed" = "Could not save. Please try again.";
+"edit_table_reminder_enable" = "Reminders for this table";
+"edit_table_reminder_desc" = "When off, this table stops sending pre-class reminders, daily summaries and fluid cloud";
