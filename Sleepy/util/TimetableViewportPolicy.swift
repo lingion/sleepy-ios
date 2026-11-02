@@ -105,6 +105,19 @@ enum TimetableViewportPolicy {
         min(max(baseRowHeightDp * verticalScale, minRowHeightDp), maxRowHeightDp)
     }
 
+    /**
+     * 长课间薄带卡高 (2026-10-17 #105→#183 回归定位): 卡片高度 = natural 跨度 − 普通行隙,
+     * **带厚永远不进卡高** — 带只存在于 yOfRows 坐标层 (悬浮在锚行卡底与下行卡顶之间)。
+     * 旧 bug = cardH 减 gapAfterRow(=gapH+带) 而 cardY 走 yOfRows(已加带), 同一带厚双扣,
+     * 锚行胶囊回缩一个带厚。签名无带参数 = 该错误口径不可表达。
+     * minSpanDp: ownTime 比例卡保底 (0.3 标准行, 防过短课塌缩到不可点)。
+     * v1.0.62 B5b: ← TimetableViewportPolicy.kt longBreakCardHeightDp
+     * (iOS 不折权 — expandWeightsForLongBreaks 不移植, 只需带厚不进卡高口径)。
+     */
+    static func longBreakCardHeightDp(naturalSpanDp: CGFloat, gapDp: CGFloat, minSpanDp: CGFloat = 0) -> CGFloat {
+        max(naturalSpanDp, minSpanDp) - gapDp
+    }
+
     /// 仅当双指手势有明确纵向意图时为 true。
     static func locksVerticalResize(
         startVerticalSpan: CGFloat, currentVerticalSpan: CGFloat,

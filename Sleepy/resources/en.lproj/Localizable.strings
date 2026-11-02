@@ -371,8 +371,8 @@
 "notif_channel_fluid_desc" = "Shows an expandable real-time course card before class";
 "notif_daily_text_first" = "First class: %1$@ at %2$@ in %3$@";
 "notif_daily_text_no_course" = "Take a break and enjoy the day!";
-"notif_daily_title" = "Today is day %1$d of the month, you have %2$d classes";
-"notif_daily_title_no_course" = "Today is day %1$d of the month, no classes today";
+"notif_daily_title" = "Today · Classes: %1$d";
+"notif_daily_title_no_course" = "No classes today";
 "notif_room_unknown" = "Unknown room";
 "reminder_before_class_preview" = "Example: Next class Advanced Math at 08:00 in Building A101";
 "reminder_before_class_sub" = "Remind you about the next class before each one starts";
@@ -847,8 +847,8 @@
 "manage_view_all_tables" = "View all";
 "mine_period_tables" = "Bell schedule";
 "notif_tomorrow_text_no_course" = "No classes tomorrow. Take a break!";
-"notif_tomorrow_title" = "Tomorrow is day %lld of the month, you have %lld classes";
-"notif_tomorrow_title_no_course" = "Tomorrow is day %lld of the month, no classes tomorrow";
+"notif_tomorrow_title" = "Tomorrow · Classes: %1$d";
+"notif_tomorrow_title_no_course" = "No classes tomorrow";
 "period_table_bind_label" = "Bell schedule";
 "period_table_bind_preview_body" = "After switching, this timetable interprets periods via the new bell schedule; custom-time courses are unaffected";
 "period_table_bind_preview_title" = "Confirm rebind";
@@ -1096,3 +1096,17 @@
 "widget_add_unsupported_hint" = "This launcher does not support quick add. Long-press the home screen → Widgets → pick Sleepy.";
 "widget_gallery_title" = "Add Widget";
 "widget_manage_empty_v2" = "Tap + at the top right to add a widget. If your launcher does not support quick add, long-press the home screen → Widgets → pick Sleepy.";
+
+// <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
+"agenda_title" = "Daily agenda";
+"agenda_first" = "First class: %1$@";
+"agenda_more" = "More classes: %1$d";
+"agenda_time_unknown" = "Time unknown";
+"agenda_count" = "%1$d classes · %2$d timetables";
+"agenda_empty" = "No classes requiring reminders on this date";
+"agenda_load_error" = "Unable to load the agenda. Please try again.";
+"agenda_table_unknown" = "Unnamed timetable";
+"agenda_source_count" = "Timetables: %1$d";
+"notif_date_title" = "%1$@ · Classes: %2$d";
+"notif_date_no_course" = "%1$@ · No classes";
+"notif_before_class_compact" = "Starts %1$@ · %2$@";

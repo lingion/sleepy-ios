@@ -29,6 +29,21 @@ struct ScheduleState {
     /// 原始行(库内数据, timeJson 兼容列可能过期)
     var currentTable: TimeTableEntity? { tables.first { $0.id == selectedTableId } }
 
+    /// v1.0.62 B5b: 展示周上限 = max(表 maxWeek, 学期内调休 targetDate 反解的最大周)
+    /// ← Android ScheduleState.displayMaxWeek: 补班日可能落在 maxWeek 之外(周末补下一学期首周的课),
+    /// 翻页/跳周上限必须把这类周并入, 否则补班周翻不到。
+    var displayMaxWeek: Int {
+        guard let table = currentTable else { return 20 }
+        let maxTransferWeek = transfers
+            .filter {
+                DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek,
+                                         today: $0.sourceDate) == .inRange
+            }
+            .map { DateUtils.currentWeek(startDate: table.startDate, today: $0.targetDate) }
+            .max() ?? table.maxWeek
+        return max(table.maxWeek, maxTransferWeek)
+    }
+
     /// issue#40: 水合后的当前表 — 节次时间域一律从这里读, 不得直接读 currentTable.timeJson
     var effectiveCurrentTable: TimeTableEntity? {
         currentTable.map { $0.hydratedWith(effectivePeriodTable) }
@@ -45,6 +60,17 @@ struct ScheduleState {
     /// issue#44: 给定日期实际应"按星期几取课"; 命中映射=targetDate 星期, 未命中=自然星期
     func transferDayFor(_ date: Date) -> Int {
         HolidayTransferOps.effectiveDayOfWeek(date, transfers)
+    }
+
+    /// v1.0.62 B5b: 给定日期实际取课日 — 补班日=sourceDate, 放假日=nil(无课), 未命中=原日期
+    /// ← Android ScheduleState.courseDateFor → HolidayTransferOps.courseDateForDate
+    func courseDateFor(_ date: Date) -> Date? {
+        HolidayTransferOps.courseDateForDate(date, transfers)
+    }
+
+    /// v1.0.62 B5b: 给定日期实际按星期几取课(反向口径) ← Android ScheduleState.courseDayFor
+    func courseDayFor(_ date: Date) -> Int? {
+        courseDateFor(date).map { DateUtils.todayDayOfWeek(today: $0) }
     }
 }
 
@@ -250,13 +276,16 @@ final class ScheduleViewModel: ObservableObject {
             // 水合: 绑定存在时 nodesPerDay/timeJson/smartConfigJson 以时间节次表为准
             let table = rawTable.map { $0.hydratedWith(periodTable) }
             let displayContext = table.map {
+                // v1.0.62 B5b: resolver 传入调休映射 ← Android WeekDisplayResolver.resolve(transfers=...)
+                // (放假日跳最近有课日 / 补班日计入扫描终点; AppPrefs 直读 = Android 同源新读)
                 WeekDisplayResolver.resolve(
                     startDate: $0.startDate,
                     maxWeek: $0.maxWeek,
                     now: Date(),
                     courses: courses,
                     timeJson: $0.timeJson,
-                    enabled: AppPrefs.shared.isNearestBusyDay()
+                    enabled: AppPrefs.shared.isNearestBusyDay(),
+                    transfers: AppPrefs.shared.getHolidayTransfers(tableId)
                 )
             }
             let week = displayContext?.actualWeek ?? 1
@@ -443,8 +472,9 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     func changeWeek(_ week: Int) {
-        // 防呆: 下限 1, 上限 maxWeek — 之前只有下限, 右箭头可以无限翻出学期范围外
-        let maxWeek = state.currentTable?.maxWeek ?? 20
+        // 防呆: 下限 1, 上限 displayMaxWeek — v1.0.62 B5b: 上限改 displayMaxWeek
+        // (← Android changeWeek: 补班日可能落在 maxWeek 之外, 翻页上限并入调休目标周)
+        let maxWeek = state.displayMaxWeek
         guard week >= 1, week <= maxWeek else { return }
         // 甲案语境: 用户手动翻周 = 停止自动跟随 targetWeek
         state.selectedWeek = week
@@ -453,22 +483,27 @@ final class ScheduleViewModel: ObservableObject {
 
     /// issue#44: 设置页保存调休映射后, 通知 VM 重新拉当前表的映射。
     /// 现有 courses 列表不需重查, 只需刷新 dayFor() 的真源, 一次 reload 即生效。
+    /// v1.0.62 B5b: ← Android refreshTransfer 尾部追加 recalculateWeekDisplay() —
+    /// 映射变更会改变 targetWeek(放假日跳最近有课日/补班日计入), 展示周须同帧重算。
     func refreshTransfer() {
         guard let id = state.selectedTableId else { return }
         state.transfers = AppPrefs.shared.getHolidayTransfers(id)
+        recalculateWeekDisplay()
     }
 
     /// ← recalculateWeekDisplay (Android): 外部语境变化(如回到本周)后重算展示周。
     /// weekSelectionManual=true 时保留用户所选周, 否则跟随 targetWeek。
     func recalculateWeekDisplay() {
         guard let table = state.effectiveCurrentTable else { return }
+        // v1.0.62 B5b: 传入调休映射 ← Android recalculateWeekDisplay(transfers=AppPrefs 直读)
         let context = WeekDisplayResolver.resolve(
             startDate: table.startDate,
             maxWeek: table.maxWeek,
             now: Date(),
             courses: state.courses,
             timeJson: table.timeJson,
-            enabled: AppPrefs.shared.isNearestBusyDay()
+            enabled: AppPrefs.shared.isNearestBusyDay(),
+            transfers: AppPrefs.shared.getHolidayTransfers(table.id)
         )
         let selected = state.weekSelectionManual ? state.selectedWeek : context.targetWeek
         state.currentWeek = context.actualWeek

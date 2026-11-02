@@ -128,6 +128,9 @@ struct ConflictClusterCard: View {
     var timeSlots: [TimeSlot] = []
     /// issue#23 §5: 行跨度(分数行) → 像素高(占位节次行按分钟加权); nil = 等高回落
     var spanDpOf: ((Double, Double) -> Double)? = nil
+    /// v1.0.62 B5b: 卡高 natural 跨度(长课间空隙不计入卡高) ← Android contentSpanDpOf;
+    /// nil = 回落 spanDpOf(无餐段等价)
+    var contentSpanDpOf: ((Double, Double) -> Double)? = nil
     let isGrey: Bool
     /// v7.10.16r 轮换(issue#10): 会话内轮换步数(nil=默认序),不落盘
     var rotationStep: Int? = nil
@@ -262,7 +265,8 @@ struct ConflictClusterCard: View {
         }
         func cardHOf(_ courseId: Int64) -> CGFloat {
             let g = rowGeomOf[courseId] ?? (0, 1)
-            let span = spanDpOf?(g.start, g.start + g.rows) ?? Double(rowH) * g.rows
+            // v1.0.62 B5b: 高度走 natural 跨度 ← Android `(contentSpanDpOf ?: spanDpOf)?.invoke(...)`
+            let span = (contentSpanDpOf ?? spanDpOf)?(g.start, g.start + g.rows) ?? Double(rowH) * g.rows
             return CGFloat(max(span, Double(rowH) * 0.3)) - gapH
         }
         func layerRepOf(_ courseId: Int64) -> Int64? { layerOfId[courseId].flatMap { layerRepId[$0] } }
@@ -274,7 +278,8 @@ struct ConflictClusterCard: View {
                 isTop: isFront,
                 form: form,
                 colW: Double(colW), rowH: Double(rowH), gapH: Double(gapH),
-                minStartRow: minStartRow, topInset: topInset, spanDpOf: spanDpOf)
+                minStartRow: minStartRow, topInset: topInset, spanDpOf: spanDpOf,
+                contentSpanDpOf: contentSpanDpOf)
         }
         func switchTap(_ n: Int, _ fallbackRepId: Int64) {
             if n >= 3 { onRotate() } else { onPickTop(fallbackRepId) }
@@ -336,7 +341,8 @@ struct ConflictClusterCard: View {
                     ownRowsFrac: g.rows,
                     form: .stack,
                     colW: Double(colW), rowH: Double(rowH), gapH: Double(gapH),
-                    minStartRow: minStartRow, spanDpOf: spanDpOf)
+                    minStartRow: minStartRow, spanDpOf: spanDpOf,
+                    contentSpanDpOf: contentSpanDpOf)
                 return AnyView(Button {
                     switchTap(layerCount, layerRepOf(hiddenCourse.id) ?? hiddenCourse.id)
                 } label: {

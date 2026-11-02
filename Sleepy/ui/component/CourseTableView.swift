@@ -534,13 +534,20 @@ struct CardsGridView: View {
                                                         displayedNodeEnds: renderSlots.map { $0.nodeEnd })
             : []
         let mealGapExtra: CGFloat = longBreakSpacing ? d(24) * systemFontScaleProxy : 0
+        // v1.0.62 B5b: 餐段带在网格外额外占高, 拟合行高只按课程行权重计算
+        // (刚性, 带宽不摊进 rowH) ← Android mealBandCount/mealBandTotal
+        let mealBandCount = mealBreakAfterRows.filter {
+            renderSlots.indices.contains($0) && $0 + 1 < renderSlots.count
+        }.count
+        let mealBandTotal = mealGapExtra * CGFloat(mealBandCount)
 
         return GeometryReader { geo in
             // 外层 padding d(8) 每边 — 可用宽/高都已扣除(← BoxWithConstraints maxWidth/maxHeight)
             let boxPad = d(8)
             let availableW = max(geo.size.width - 2 * boxPad, 0)
             // 行高基座: 自适应只改纵向; 长课间带不进可用高度预算(行高刚性, 带悬浮行间)
-            let availableGridHeight = max(geo.size.height - 2 * boxPad - headH - gapH - navExtra, 0)
+            // v1.0.62 B5b: 可用高度再扣 mealBandTotal ← Android availableGridHeight − mealBandTotal
+            let availableGridHeight = max(geo.size.height - 2 * boxPad - headH - gapH - navExtra - mealBandTotal, 0)
             let weightsForFit = renderPlan.slotWeights.map { $0.map { CGFloat($0) } }
             let baseRowHeight = TimetableViewportPolicy.baseRowHeightDp(
                 adaptive: adaptiveHeight,
@@ -558,10 +565,14 @@ struct CardsGridView: View {
                 maxRowHeightDp: TimetableViewportPolicy.MAX_ROW_DP * clampedScale)
             let rowH = rowHeightDp
 
-            // 展开的占位行权重 = "正好显示完文字"的展开权重 — yOfRows/rowHeightAt/gridH
-            // 都读 effectiveWeights 同一张表, 行高与 y 前缀和天然同源(时间轴不破)。
-            let effectiveWeights: [CGFloat]? = renderPlan.slotWeights.map { base in
-                base.enumerated().map { i, w in
+            // v1.0.62 B5b: natural/boundary 两表同族 ← Android naturalWeights/boundaryWeights:
+            // natural = 内容高(卡片/表头卡), boundary = 行边界坐标(yOfRows/分隔线/gridH, 含长课间带)。
+            // 无占位行(slotWeights=nil)时也走均匀表 — 否则折权被兜底表整体丢弃。
+            // 展开的占位行权重 = "正好显示完文字"的展开权重 — 行高与 y 前缀和天然同源(时间轴不破)。
+            let naturalWeights: [CGFloat] = {
+                let base = renderPlan.slotWeights.map { $0.map { CGFloat($0) } }
+                    ?? Array(repeating: CGFloat(1), count: renderSlots.count)
+                return base.enumerated().map { i, w -> CGFloat in
                     let slot = i < renderSlots.count ? renderSlots[i] : nil
                     if let slot, slot.isPlaceholder, expandedPlaceholders.contains(slot.timeString) {
                         return max(CGFloat(w), TimeTableUtils.placeholderExpandedWeight(
@@ -571,10 +582,11 @@ struct CardsGridView: View {
                     }
                     return CGFloat(w)
                 }
-            }
+            }()
 
             // yOfRows(r) — 加权行坐标 r(0.0=网格顶, 1.0=一标准行) → pt; 穿过的长课间带同帧计入
-            let ws = effectiveWeights ?? Array(repeating: CGFloat(1), count: renderSlots.count)
+            // (boundary 口径 ← Android yOfRows)
+            let ws = naturalWeights
             let yOfRows: (Double) -> CGFloat = { r in
                 let full = Int(min(max(r, 0), Double(ws.count)))
                 var acc: CGFloat = 0
@@ -582,6 +594,18 @@ struct CardsGridView: View {
                 if full < ws.count && r > Double(full) { acc += ws[full] * CGFloat(r - Double(full)) }
                 let crossedBreaks = mealBreakAfterRows.filter { Double($0 + 1) <= r }.count
                 return rowH * acc + mealGapExtra * CGFloat(crossedBreaks)
+            }
+            // v1.0.62 B5b: natural 累计坐标 (r = 行分数, 同 yOfRows 口径, 无长课间带) ← naturalSpan
+            let naturalSpan: (Double) -> CGFloat = { r in
+                var acc: CGFloat = 0
+                let full = Int(min(max(r, 0), Double(ws.count)))
+                for i in 0..<full { acc += ws[i] }
+                if full < ws.count && r > Double(full) { acc += ws[full] * CGFloat(r - Double(full)) }
+                return rowH * acc
+            }
+            /// v1.0.62 B5b: natural 跨度 (dp): 卡片高度用 — 长课间空隙不计入卡高 ← contentSpanDpOf
+            let contentSpanDpOf: (Double, Double) -> CGFloat = { from, to in
+                naturalSpan(to) - naturalSpan(from)
             }
             let rowHeightAt: (Int) -> CGFloat = { i in
                 rowH * (i >= 0 && i < ws.count ? ws[i] : 1)
@@ -657,8 +681,20 @@ struct CardsGridView: View {
                                         ctx.stroke(p, with: .color(lineColor), lineWidth: stroke)
                                     }
                                 }
+                                // v1.0.62 B5b: 线-卡协同 ← Android 横线画在间隙中点, 卡上下各留半 gap;
+                                // 旧口径线贴卡顶(0)、卡底离线 gapH, 空白全堆在卡下 → 上下不对称。
+                                // 长休带下边界保持原位贴 band 下边, 不中点化; boundary 0 保持 y=0:
+                                // Box 上方是 Spacer(gapH), 负坐标有被父级裁剪风险。
                                 for boundary in 0...renderSlots.count {
-                                    let y = yOfRows(Double(boundary))
+                                    let y: CGFloat
+                                    if boundary == 0 {
+                                        y = 0
+                                    } else if mealBreakAfterRows.contains(boundary - 1) {
+                                        y = yOfRows(Double(boundary))              // 长休带下边界: 原位
+                                    } else {
+                                        y = yOfRows(Double(boundary))
+                                            - gapAfterRow(boundary - 1) / 2        // 普通格间: 间隙中点
+                                    }
                                     var p = Path()
                                     p.move(to: CGPoint(x: timeW, y: y))
                                     p.addLine(to: CGPoint(x: size.width, y: y))
@@ -703,6 +739,8 @@ struct CardsGridView: View {
                             maxNode: maxNode, timeSlots: renderSlots,
                             timeJson: timeJson,
                             spanDpOf: { f, t in Double(yOfRows(t) - yOfRows(f)) },
+                            // v1.0.62 B5b: 卡高走 natural 跨度 — 空隙不被算进卡片高度, 空白落在卡后
+                            contentSpanDpOf: { f, t in Double(contentSpanDpOf(f, t)) },
                             timeW: timeW, colW: colW, rowH: rowH,
                             gapW: gapW, gapH: gapH, greyDays: greyDays,
                             scale: scale, cornerRatio: cornerRatio,
@@ -762,6 +800,9 @@ struct GridConflictLayer: View {
     var timeJson: String = ""
     /// 行跨度(分数行) → 像素高(加权); 网格恒传(含占位行/长课间带的同源映射)
     var spanDpOf: ((Double, Double) -> Double)? = nil
+    /// v1.0.62 B5b: 卡高 natural 跨度(长课间空隙不计入卡高) ← Android contentSpanDpOf;
+    /// nil = 回落 spanDpOf(无餐段等价)
+    var contentSpanDpOf: ((Double, Double) -> Double)? = nil
     let timeW: CGFloat
     let colW: CGFloat
     let rowH: CGFloat
@@ -824,6 +865,7 @@ struct GridConflictLayer: View {
                             gapW: gapW, gapH: gapH,
                             timeSlots: timeSlots,
                             spanDpOf: spanDpOf,
+                            contentSpanDpOf: contentSpanDpOf,
                             isGrey: greyDays.contains(cluster.day),
                             rotationStep: rotationSteps[clusterKey],
                             onRotate: {
@@ -854,11 +896,29 @@ struct GridConflictLayer: View {
                     // ViewBuilder 不接受「先声明后分支赋值」(let 赋值语句不是 View) — 用即时闭包算出 (cardY, cardH)
                     let (cardY, cardH): (CGFloat, CGFloat) = {
                         guard let frac else {
+                            // v1.0.62 B5b: 卡高走 natural 跨度 − 普通行隙 — 薄带不进卡高
+                            // ← Android longBreakCardHeightDp(naturalSpan, gapH) (整格分支无 minSpan)
+                            if let contentSpanDpOf {
+                                return (yOfRows(Double(nodeIdx)),
+                                        TimetableViewportPolicy.longBreakCardHeightDp(
+                                            naturalSpanDp: CGFloat(contentSpanDpOf(Double(nodeIdx),
+                                                                                   Double(nodeIdx + steps))),
+                                            gapDp: gapH))
+                            }
+                            // 旧口径回落(无 contentSpanDpOf 的调用方)
                             return (yOfRows(Double(nodeIdx)),
                                     yOfRows(Double(nodeIdx + steps)) - yOfRows(Double(nodeIdx)) - gapAfterRow(nodeIdx + steps - 1))
                         }
-                        // 按比例(分钟加权), 保底 0.3 标准行避免过短课胶囊塌缩到不可点;
-                        // 整行结束(frac.1 为整数且 >0)→ 扣该行 gapAfterRow, 否则扣 gapH
+                        // v1.0.62 B5b: 按比例(分钟加权)分支 — 卡高 = max(natural 跨度, 0.3 标准行) − gapH
+                        // (位置 cardY 仍走 yOfRows 边界; 旧"整行扣 gapAfterRow"口径带厚双扣废弃)
+                        if let contentSpanDpOf {
+                            return (yOfRows(frac.0),
+                                    TimetableViewportPolicy.longBreakCardHeightDp(
+                                        naturalSpanDp: CGFloat(contentSpanDpOf(frac.0, frac.1)),
+                                        gapDp: gapH,
+                                        minSpanDp: rowH * 0.3))
+                        }
+                        // 旧口径回落(无 contentSpanDpOf 的调用方)
                         let span = max(yOfRows(frac.1) - yOfRows(frac.0), rowH * 0.3)
                         let r2 = Int(frac.1.rounded())
                         let subtract = (frac.1 == Double(r2) && frac.1 > 0)
@@ -1134,6 +1194,8 @@ struct FullWeekView: View {
     var currentWeek: Int = 1
     let onCourseClick: (CourseEntity) -> Void
     var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7)
+    /// v1.0.62 B5b: 周视图日期「·M月d日」开关 ← Android FullWeekView(showDate)
+    var showDate: Bool = false
 
     var body: some View {
         let byDay = Dictionary(grouping: courses, by: { $0.day })
@@ -1141,6 +1203,19 @@ struct FullWeekView: View {
         let weekScale = CGFloat(AppPrefs.shared.getWeekScale())
         let cornerRatio = CGFloat(AppPrefs.shared.getGridCornerRatio())
         let useAlias = AppPrefs.shared.isWeekUseAlias()
+
+        // v1.0.62 B5b: 每天的 M月d日 日期串 — showDate 开且 startDate 合法时显示
+        // (用户要求: 周一·10月13日) ← Android dayDate map (shortDateChinese)
+        let dayDate: [Int: String] = {
+            guard showDate, !startDate.isEmpty else { return [:] }
+            var map: [Int: String] = [:]
+            for day in visibleDays.sorted() where (1...7).contains(day) {
+                if let d = DateUtils.dateOfWeek(startDate: startDate, week: currentWeek, dayOfWeek: day) {
+                    map[day] = DateUtils.shortDateChinese(d)
+                }
+            }
+            return map
+        }()
 
         ScrollView(.vertical) {
             VStack(spacing: 0) {
@@ -1160,6 +1235,7 @@ struct FullWeekView: View {
                             twoColumn: AppPrefs.shared.isWeekTwoColumn(),
                             twoColumnMode: AppPrefs.shared.getWeekTwoColumnMode(),
                             hideEmptyDays: AppPrefs.shared.isWeekHideEmptyDays(),
+                            dayDate: dayDate,
                             onCourseClick: onCourseClick)
                 // 悬浮底栏额外余量(→ Android LocalNavExtraBottomPadding Spacer):
                 //   镜像 Android FullWeekView 末行追加 Spacer(height = navExtra),
@@ -1288,6 +1364,8 @@ private struct DetailPanel: View {
     var twoColumn: Bool = false
     var twoColumnMode: String = "days"
     var hideEmptyDays: Bool = false
+    /// v1.0.62 B5b: 天 → M月d日 日期串(周视图日期「·M月d日」) ← Android DetailPanel(dayDate)
+    var dayDate: [Int: String] = [:]
     let onCourseClick: (CourseEntity) -> Void
 
     var body: some View {
@@ -1322,6 +1400,7 @@ private struct DetailPanel: View {
                                 startDate: startDate, currentWeek: currentWeek,
                                 displayMode: displayMode, timeJson: timeJson,
                                 greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
+                                dayDate: dayDate,
                                 onCourseClick: onCourseClick)
                     .frame(maxWidth: .infinity)
                 if !split.1.isEmpty {
@@ -1330,6 +1409,7 @@ private struct DetailPanel: View {
                                     startDate: startDate, currentWeek: currentWeek,
                                     displayMode: displayMode, timeJson: timeJson,
                                     greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
+                                    dayDate: dayDate,
                                     onCourseClick: onCourseClick)
                         .frame(maxWidth: .infinity)
                 }
@@ -1346,6 +1426,7 @@ private struct DetailPanel: View {
                                   displayMode: displayMode, timeJson: timeJson,
                                   isGrey: greyDays.contains(day),
                                   scale: scale, cornerRatio: cornerRatio,
+                                  dateStr: dayDate[day],
                                   onCourseClick: onCourseClick)
                 }
             }
@@ -1370,6 +1451,8 @@ private struct DetailDayColumn: View {
     var greyDays: Set<Int> = []
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
+    /// v1.0.62 B5b: 天 → M月d日 日期串 ← Android DayColumn(dayDate)
+    var dayDate: [Int: String] = [:]
     let onCourseClick: (CourseEntity) -> Void
 
     var body: some View {
@@ -1382,6 +1465,7 @@ private struct DetailDayColumn: View {
                               displayMode: displayMode, timeJson: timeJson,
                               isGrey: greyDays.contains(day),
                               scale: scale, cornerRatio: cornerRatio,
+                              dateStr: dayDate[day],
                               onCourseClick: onCourseClick)
             }
         }
@@ -1402,6 +1486,8 @@ private struct DetailDayCard: View {
     var isGrey: Bool = false
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
+    /// v1.0.62 B5b: 该天 M月d日 日期串(showDate 开时非 nil) ← Android DetailDayCard(dateStr)
+    var dateStr: String? = nil
     let onCourseClick: (CourseEntity) -> Void
 
     // v7.10.4 冲突栏字体压缩: lane 实宽按内容区宽算(行满宽 → 与卡内边距对齐)
@@ -1409,10 +1495,12 @@ private struct DetailDayCard: View {
 
     var body: some View {
         let greyFg = colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive)
+        // v1.0.62 B5b: 周视图日期「·M月d日」← Android `+ (dateStr?.let { "·$it" } ?: "")`
+        let dateSuffix = dateStr.map { "·\($0)" } ?? ""
         VStack(spacing: 8 * scale) {
             // 头部: 星期 + 今天标记
             HStack {
-                Text(DateUtils.localizedDay(day) + (isToday ? L10n.format("today_suffix") : ""))
+                Text(DateUtils.localizedDay(day) + (isToday ? L10n.format("today_suffix") : "") + dateSuffix)
                     // ← Android titleSmall.copy(SemiBold): 14sp 不随 weekScale 缩放
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(isGrey ? greyFg : colors.onSurface)
@@ -1420,7 +1508,7 @@ private struct DetailDayCard: View {
             }
 
             if courses.isEmpty {
-                Text(DateUtils.localizedDay(day) + L10n.format("no_course_today"))
+                Text(DateUtils.localizedDay(day) + L10n.format("no_course_today") + dateSuffix)
                     .font(.system(size: 12 * scale))
                     .foregroundColor(isGrey ? greyFg : colors.onSurfaceVariant)
                     .frame(maxWidth: .infinity, alignment: .leading)

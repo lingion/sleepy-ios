@@ -371,8 +371,8 @@
 "notif_channel_fluid_desc" = "Muestra una tarjeta expandible de curso en tiempo real antes de clase";
 "notif_daily_text_first" = "Primera clase: %1$@ a las %2$@ en %3$@";
 "notif_daily_text_no_course" = "¡Descansa y disfruta el día!";
-"notif_daily_title" = "Hoy es %1$d, tienes %2$d clases";
-"notif_daily_title_no_course" = "Hoy es %1$d, no tienes clases hoy";
+"notif_daily_title" = "Hoy · Clases: %1$d";
+"notif_daily_title_no_course" = "Hoy no hay clases";
 "notif_room_unknown" = "Aula desconocida";
 "reminder_before_class_preview" = "Ejemplo: Próxima clase Cálculo Avanzado a las 08:00 en Edificio A101";
 "reminder_before_class_sub" = "Recordarte sobre la próxima clase antes de que comience cada una";
@@ -847,8 +847,8 @@
 "manage_view_all_tables" = "Ver todos";
 "mine_period_tables" = "Horario de períodos";
 "notif_tomorrow_text_no_course" = "Mañana no hay clases. ¡Descansa!";
-"notif_tomorrow_title" = "Mañana es %lld, tienes %lld clases";
-"notif_tomorrow_title_no_course" = "Mañana es %lld, no tienes clases mañana";
+"notif_tomorrow_title" = "Mañana · Clases: %1$d";
+"notif_tomorrow_title_no_course" = "Mañana no hay clases";
 "period_table_bind_label" = "Horario de períodos";
 "period_table_bind_preview_body" = "Tras cambiar, este horario interpreta los períodos según el nuevo horario de períodos; los cursos con hora propia no se afectan";
 "period_table_bind_preview_title" = "Confirmar cambio";
@@ -1096,3 +1096,17 @@
 "widget_add_unsupported_hint" = "Este lanzador no admite el añadido rápido. Mantén pulsado el inicio → Widgets → elige Sleepy.";
 "widget_gallery_title" = "Añadir widget";
 "widget_manage_empty_v2" = "Toca + arriba a la derecha para añadir un widget. Si tu lanzador no admite el añadido rápido, mantén pulsado el inicio → Widgets → elige Sleepy.";
+
+// <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
+"agenda_title" = "Agenda diaria";
+"agenda_first" = "Primera clase: %1$@";
+"agenda_more" = "Clases adicionales: %1$d";
+"agenda_time_unknown" = "Hora desconocida";
+"agenda_count" = "%1$d clases · %2$d horarios";
+"agenda_empty" = "No hay clases con recordatorios en esta fecha";
+"agenda_load_error" = "No se pudo cargar la agenda. Inténtalo de nuevo.";
+"agenda_table_unknown" = "Horario sin nombre";
+"agenda_source_count" = "Horarios: %1$d";
+"notif_date_title" = "%1$@ · Clases: %2$d";
+"notif_date_no_course" = "%1$@ · Sin clases";
+"notif_before_class_compact" = "Empieza a las %1$@ · %2$@";

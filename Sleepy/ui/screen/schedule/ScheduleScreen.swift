@@ -83,7 +83,8 @@ struct ScheduleScreen: View {
             } else {
                 ScheduleTopBar(
                     currentWeek: state.selectedWeek,
-                    maxWeek: state.currentTable?.maxWeek ?? 20,
+                    // v1.0.62 B5b: 跳周菜单上限并入调休目标周 ← Android TopBar(maxWeek = state.displayMaxWeek)
+                    maxWeek: state.displayMaxWeek,
                     startDate: state.currentTable?.startDate ?? "",
                     // ← Android TopBar(displayContext = state.weekDisplayContext):
                     // actualWeek/semesterStatus 优先取 VM 展示上下文(最近有课日逻辑),
@@ -131,7 +132,8 @@ struct ScheduleScreen: View {
                 }
 
                 // 主体视图 — 左右滑动切换周次(TabView pager)
-                let pagerMaxWeek = max(state.currentTable?.maxWeek ?? 20, 1)
+                // v1.0.62 B5b: 翻页页数并入调休目标周 ← Android pagerMaxWeek = state.displayMaxWeek
+                let pagerMaxWeek = max(state.displayMaxWeek, 1)
                 WeekPager(viewModel: viewModel, viewMode: viewMode, pagerMaxWeek: pagerMaxWeek,
                           displayMode: displayMode, showDate: showDate, visibleDays: visibleDays,
                           topOverrides: $topOverrides,
@@ -197,8 +199,9 @@ struct ScheduleScreen: View {
         //   280pt 面板 + 圆形周 chip 网格, 点击即选即关, 点面板外任意处关闭。
         .overlay(alignment: .top) {
             if showWeekJumpMenu {
+                // v1.0.62 B5b: 跳周 chip 网格上限同 displayMaxWeek ← Android TopBar 内 DropdownMenu 同参
                 WeekJumpMenu(currentWeek: state.selectedWeek,
-                             maxWeek: state.currentTable?.maxWeek ?? 20,
+                             maxWeek: state.displayMaxWeek,
                              onSelect: { week in
                                  viewModel.changeWeek(week)
                                  showWeekJumpMenu = false
@@ -209,15 +212,33 @@ struct ScheduleScreen: View {
         }
         // 详情 Bottom Sheet
         .sheet(item: $selectedCourse) { course in
-            CourseDetailSheet(
+            // v1.0.62 B5b: 详情页聚簇同域 ← Android allCourses = 逐日 coursesForDate 投影:
+            // 调休周里补班日列的课(投影 day)与放假日空列都按同一渲染域参与聚簇, 幽灵/漏簇同修。
+            let detailAllCourses: [CourseEntity] = state.currentTable.map { table in
+                (1...7).flatMap { day -> [CourseEntity] in
+                    guard let date = DateUtils.dateOfWeek(startDate: table.startDate,
+                                                          week: state.selectedWeek, dayOfWeek: day) else { return [] }
+                    return HolidayTransferOps.coursesForDate(
+                        date, startDate: table.startDate, maxWeek: table.maxWeek,
+                        courses: state.courses, transfers: state.transfers
+                    ).map { c -> CourseEntity in
+                        var projected = c
+                        projected.day = day
+                        return projected
+                    }
+                }
+            } ?? []
+            return CourseDetailSheet(
                 course: course,
                 timeString: course.nodeString(),
-                // v7.10.16q: allCourses 必须与网格同周域(selectedWeek 过滤) —
+                // v7.10.16q: allCourses 必须与网格同周域 —
                 // 周次不相交同行(如周1-4/周6-13)全量传会被当成同时存在 → 幽灵图层
-                allCourses: state.courses.filter { $0.inWeek(state.selectedWeek) },
+                allCourses: detailAllCourses,
                 onEdit: { c in
                     selectedCourse = nil
-                    onEditCourse(c)
+                    // v1.0.62 B5b: 编辑回传库内原始行 ← Android onEditCourse(firstOrNull(id) ?: course) —
+                    // 投影替身(day 已改写)不落库, 按 id 找回原始行
+                    onEditCourse(state.courses.first { $0.id == c.id } ?? c)
                 },
                 // issue#40: 详情页时间域与网格同源 = 水合表 effectiveCurrentTable
                 timeJson: state.effectiveCurrentTable?.timeJson)
@@ -300,29 +321,30 @@ private func cardTimeSlots(table: TimeTableEntity?) -> [TimeSlot] {
     return TimeTableUtils.renderSlots(timeJson: table.timeJson)
 }
 
-// issue#44 调休渲染期换日 ← ScheduleScreen.kt L290-314:
-// 本页各天日期命中调休映射 → 该天列改按映射目标星期渲染(周日补周四 → 周四列显示周日该上课的课),
-// 渲染期替身不写库; 未命中日期原样。
-func remapCoursesForTransfers(_ courses: [CourseEntity],
-                              startDate: String,
-                              week: Int,
-                              transfers: [HolidayTransferEntry]) -> [CourseEntity] {
-    guard !startDate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-          !transfers.isEmpty else { return courses }
-    // natural→display 仅收录被映射改写的天
-    var daySwap: [Int: Int] = [:]
-    for day in 1...7 {
-        guard let date = DateUtils.dateOfWeek(startDate: startDate, week: week, dayOfWeek: day) else { continue }
-        let natural = DateUtils.todayDayOfWeek(today: date)
-        let display = HolidayTransferOps.effectiveDayOfWeek(date, transfers)
-        if display != natural { daySwap[natural] = display }
-    }
-    guard !daySwap.isEmpty else { return courses }
-    return courses.map { c in
-        guard let mapped = daySwap[c.day], mapped != c.day else { return c }
-        var copy = c
-        copy.day = mapped
-        return copy
+// v1.0.62 B5b: 调休渲染改逐日投影 ← ScheduleScreen.kt L290-300 (coursesForDate 版):
+// 本页 7 天逐日走 HolidayTransferOps.coursesForDate — 补班日列 = sourceDate 星期的课,
+// 放假日列 = 空(课被挪走), 未命中日 = 自然星期; 投影行 day 改写为所在列, 渲染期替身不写库。
+// 旧 remapCoursesForTransfers(daySwap 整列搬移)口径废弃: 补班日原课未屏蔽会与调来的课同列叠加。
+func renderCoursesForWeek(_ table: TimeTableEntity,
+                          week: Int,
+                          courses: [CourseEntity],
+                          transfers: [HolidayTransferEntry],
+                          timeJson: String?) -> [CourseEntity] {
+    return (1...7).flatMap { day -> [CourseEntity] in
+        guard let date = DateUtils.dateOfWeek(startDate: table.startDate, week: week, dayOfWeek: day) else {
+            return []
+        }
+        return HolidayTransferOps.coursesForDate(
+            date, startDate: table.startDate, maxWeek: table.maxWeek,
+            courses: courses, transfers: transfers
+        ).map { c -> CourseEntity in
+            var projected = c
+            projected.day = day
+            if let tj = timeJson {
+                projected = projected.normalizeNode(timeJson: tj)
+            }
+            return projected
+        }
     }
 }
 
@@ -364,11 +386,13 @@ private struct WeekPager: View {    @ObservedObject var viewModel: ScheduleViewM
                     guard let tj = state.effectiveCurrentTable?.timeJson else { return list }
                     return list.map { $0.normalizeNode(timeJson: tj) }
                 }()
-                // issue#44 调休渲染期换日 ← ScheduleScreen.kt L290-314
-                let renderCourses = remapCoursesForTransfers(weekCourses,
-                                                             startDate: state.currentTable?.startDate ?? "",
-                                                             week: page,
-                                                             transfers: state.transfers)
+                // v1.0.62 B5b: 调休渲染改 coursesForDate 逐日投影 ← ScheduleScreen.kt L290-300
+                // (表缺省回落 weekCourses 原路径; 投影内部已含 normalizeNode 时间域归一)
+                let renderCourses = state.currentTable.map {
+                    renderCoursesForWeek($0, week: page, courses: state.courses,
+                                         transfers: state.transfers,
+                                         timeJson: state.effectiveCurrentTable?.timeJson)
+                } ?? weekCourses
                 Group {
                     switch viewMode {
                     case .full:
@@ -380,7 +404,9 @@ private struct WeekPager: View {    @ObservedObject var viewModel: ScheduleViewM
                                      startDate: state.currentTable?.startDate ?? "",
                                      currentWeek: page,
                                      onCourseClick: onCourseClick,
-                                     greyDays: greyDaysByWeek[page] ?? [])
+                                     greyDays: greyDaysByWeek[page] ?? [],
+                                     // v1.0.62 B5b: 周视图日期「·M月d日」← Android FullWeekView(showDate = showDate)
+                                     showDate: showDate)
                     case .cards:
                         CardsGridView(courses: renderCourses,
                                       timeSlots: cardTimeSlots(table: state.effectiveCurrentTable),

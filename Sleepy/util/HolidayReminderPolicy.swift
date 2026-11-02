@@ -61,6 +61,13 @@ enum HolidayTransferOps {
         return date
     }
 
+    /// 该展示日的课来自星期几(1=周一 7=周日): 放假日 → nil (无课)。
+    /// ← HolidayTransferOps.courseDayForDate (HolidayRange.kt:157-158,
+    ///   = courseDateForDate(...)?.dayOfWeek.value; v1.0.62 议程反向取课补齐)。
+    static func courseDayForDate(_ date: Date, _ transfers: [HolidayTransferEntry]) -> Int? {
+        courseDateForDate(date, transfers).map { dayOfWeek($0) }
+    }
+
     /// 按"日期"取该天上课的课 (调休感知) ← HolidayTransferOps.coursesForDate
     /// (HolidayRange.kt:161-170): courseDateForDate → 学期外空 → 按源日星期+周次过滤。
     static func coursesForDate(

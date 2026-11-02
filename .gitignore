@@ -33,6 +33,5 @@ xcuserdata/
 Sleepy/Build/
 Build/
 DerivedData/
-
 # xcodebuild derived-data scratch (per-worktree, 同 DerivedData/)
 .dd/
