@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://testflight.apple.com/join/SxymmDzf"><img src="https://img.shields.io/badge/TestFlight-公测-007AFF?style=flat-square&logo=apple&logoColor=white" alt="TestFlight 公测"></a>
   <a href="https://github.com/lingion/sleepy-ios/releases"><img src="https://img.shields.io/github/v/release/lingion/sleepy-ios?style=flat-square&label=version" alt="Latest Release"></a>
   <img src="https://img.shields.io/github/stars/lingion/sleepy-ios?style=flat-square&logo=github" alt="Stars">
   <img src="https://img.shields.io/badge/platform-iOS-000000?style=flat-square&logo=apple&logoColor=white" alt="iOS">
@@ -21,8 +22,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lingion/sleepy-ios/releases">下载 IPA</a> · <a href="https://sleepy.is-my.app">官网</a> · <a href="https://sleepy.is-my.app/preview">在线体验</a> · <a href="https://github.com/lingion/sleepy">Android 原版</a> · <a href="#社区">💬 社区</a> · <a href="https://github.com/lingion/sleepy/blob/main/sponsor.md">赞助</a>
+  <a href="https://testflight.apple.com/join/SxymmDzf">TestFlight 公测（唯一合法上线途径）</a> · <a href="https://github.com/lingion/sleepy-ios/releases">下载 IPA</a> · <a href="https://sleepy.is-my.app">官网</a> · <a href="https://sleepy.is-my.app/preview">在线体验</a> · <a href="https://github.com/lingion/sleepy">Android 原版</a> · <a href="#社区">💬 社区</a> · <a href="https://github.com/lingion/sleepy/blob/main/sponsor.md">赞助</a>
 </p>
+
+---
+
+> [!IMPORTANT]
+> **官方上线途径声明**：Apple TestFlight 公测（[testflight.apple.com/join/SxymmDzf](https://testflight.apple.com/join/SxymmDzf)）为目前**唯一合法上线途径**。点击加入后即可通过 Apple 官方 TestFlight App 安装体验，无需自行签名，并自动接收后续版本推送。
 
 ---
 
@@ -312,7 +318,8 @@ xcodebuild -project Sleepy.xcodeproj \
 
 ### 安装
 
-下载 Release 中的 IPA 文件，使用 AltStore 或 SideStore 签名安装。
+- **TestFlight 公测（目前唯一合法上线途径）**：点击加入 [TestFlight 公测](https://testflight.apple.com/join/SxymmDzf)，通过 Apple 官方 TestFlight App 安装体验最新版本，无需自行签名，自动接收版本更新。
+- **自签名安装**：下载 [Releases](https://github.com/lingion/sleepy-ios/releases) 中的 IPA 文件，使用 AltStore 或 SideStore 签名安装。
 
 ---
 

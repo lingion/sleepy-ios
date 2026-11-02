@@ -10,7 +10,6 @@
 //      + time_tables.periodTableId; v9 = issue#40 C2 preBindSnapshotJson;
 // v10 = Sleepy 托管系统日历导入记录 (与 Android Migrations.kt 一一对应, Android 1.0.61 终点)。
 // v11 = 每表独立提醒开关 reminderEnabled — 对齐 Android 目标 schema v11
-// v12 = course_colors 持久色相表 — 对齐 Android v1.0.62 (Migrations.kt 11_12 + AppDatabase version=12)
 //      (~/sleepy app/schemas/com.lingion.sleepy.data.AppDatabase/11.json:
 //      `reminderEnabled INTEGER NOT NULL DEFAULT 1`; RoomSchemaContractTest.kt:47、
 //      TableReminderMigrationTest.kt 同向锁定)。Android 仓 Kotlin 侧落地中
@@ -243,18 +242,15 @@ final class AppDatabase {
                 sql: "ALTER TABLE time_tables ADD COLUMN reminderEnabled INTEGER NOT NULL DEFAULT 1")
         }
 
-        // ← MIGRATION_11_12 (Android v1.0.62): course_colors 持久色相表。
-        //   DDL 与 Android Migrations.kt 11_12 逐字一致(复合主键 tableKey+groupId, hue REAL)。
-        //   无回填: 老用户表空 → 渲染层 persistedHue ?: stableHue 走 v1.0.61 老路径(升级零变化)。
+        // ← MIGRATION_11_12 (v1.0.62 B1): 课程持久色相表 course_colors。
+        // (tableKey, groupId) 复合主键 → hue REAL，不回填（新表为空,CLASSIC 档不读）。
         m.registerMigration("v12.createCourseColors") { db in
-            try db.execute(sql: """
-                CREATE TABLE IF NOT EXISTS course_colors (
-                    tableKey TEXT NOT NULL,
-                    groupId TEXT NOT NULL,
-                    hue REAL NOT NULL,
-                    PRIMARY KEY (tableKey, groupId)
-                )
-                """)
+            try db.create(table: "course_colors", options: []) { t in
+                t.column("tableKey", .text).notNull()
+                t.column("groupId", .text).notNull()
+                t.column("hue", .double).notNull()
+                t.primaryKey(["tableKey", "groupId"])
+            }
         }
 
         return m

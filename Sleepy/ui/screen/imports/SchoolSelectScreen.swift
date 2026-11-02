@@ -16,7 +16,7 @@ func looksLikeUrl(_ s: String) -> Bool {
     let t = s.trimmingCharacters(in: .whitespaces)
     if t.hasPrefix("http://") || t.hasPrefix("https://") { return true }
     // 域名形态
-    if t.range(of: #"^[a-zA-Z0-9][-a-zA-Z0-9]{0,62}\.[a-zA-Z]{2,}([/:].*)?$"#,
+    if t.range(of: #"^[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})*\.[a-zA-Z]{2,}(:[0-9]+)?([/?#].*)?$"#,
                options: .regularExpression) != nil { return true }
     // IP 形态
     if t.range(of: #"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?(/.*)?$"#,
@@ -247,7 +247,7 @@ struct SchoolSelectScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingsTopBar(title: L10n.format("select_school"), onBack: onDismiss)
+            SettingsTopBar(title: L10n.format("select_school"), leadingStyle: .close, onBack: onDismiss)
 
             // 搜索框 ← query 存于 SchoolSelectStateStore(rememberSaveable 语义),
             // 跨 WebView 往返不丢; focusRequester 等价 = @FocusState
@@ -364,6 +364,7 @@ struct SchoolSelectScreen: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 4)
                         }
+                        .scrollDismissesKeyboardImmediatelyCompat()
                         .coordinateSpace(name: "schoolList")
                         .onPreferenceChange(SectionHeaderMinYKey.self) { scrollModel.merge($0) }
                         .onAppear {
@@ -378,18 +379,24 @@ struct SchoolSelectScreen: View {
                         // 字母索引栏(点击+滑动) — 高亮随滚动派生; 点击直接滚动,
                         // 同字母重复点击也能重新跳转
                         if showIndexBar {
-                            AlphabetIndexBar(letters: sections.map { $0.letter },
-                                             activeLetter: activeLetter,
-                                             onLetterTap: { letter in
-                                                 // 跳位后清除目标之后各组的陈旧 minY,
-                                                 // 防止高亮粘在旧底部字母(见 dropHeaders)
-                                                 scrollModel.dropHeaders(after: letter,
-                                                                         in: sections.map { $0.letter })
-                                                 withAnimation {
-                                                     proxy.scrollTo("header_\(letter)", anchor: .top)
-                                                 }
-                                             })
-                                .frame(width: 32)
+                            AlphabetIndexBar(
+                                letters: sections.map { $0.letter },
+                                activeLetter: activeLetter,
+                                onLetterSelect: { letter, isContinuousDrag in
+                                    if searchFocused { searchFocused = false }
+                                    scrollModel.dropHeaders(after: letter,
+                                                            in: sections.map { $0.letter })
+                                    if isContinuousDrag {
+                                        // Direct synchronous jump during continuous dragging: zero stutter
+                                        proxy.scrollTo("header_\(letter)", anchor: .top)
+                                    } else {
+                                        // Smooth spring animation on discrete tap or gesture end
+                                        withAnimation(.easeOut(duration: 0.2)) {
+                                            proxy.scrollTo("header_\(letter)", anchor: .top)
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
                 }
@@ -562,45 +569,84 @@ private struct SchoolSectionHeader: View {
     }
 }
 
-// ← AlphabetIndexBar
+// ← AlphabetIndexBar (iOS native HIG aligned gesture isolation & throttle)
 private struct AlphabetIndexBar: View {
     @Environment(\.localWakeUpColors) private var colors
     let letters: [String]
     let activeLetter: String?
-    let onLetterTap: (String) -> Void
+    let onLetterSelect: (_ letter: String, _ isContinuousDrag: Bool) -> Void
+
+    @State private var lastReportedLetter: String? = nil
+    @State private var lastDragTimestamp: TimeInterval = 0
+
+    private let itemHeight: CGFloat = 15
+    private let barWidth: CGFloat = 20
 
     var body: some View {
         GeometryReader { geo in
+            let totalHeight = CGFloat(letters.count) * itemHeight
+            let effectiveItemHeight = totalHeight > geo.size.height && !letters.isEmpty
+                ? max(11, geo.size.height / CGFloat(letters.count))
+                : itemHeight
+            let containerHeight = effectiveItemHeight * CGFloat(letters.count)
+
             VStack(spacing: 0) {
                 ForEach(letters, id: \.self) { letter in
                     let isActive = letter == activeLetter
                     Text(letter)
-                        .font(.system(size: 11, weight: isActive ? .bold : .regular))
+                        .font(.system(size: 10, weight: isActive ? .bold : .medium))
                         .foregroundColor(isActive ? colors.primary : colors.onSurfaceVariant)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
+                        .frame(width: barWidth, height: effectiveItemHeight)
                         .background(isActive
                             ? colors.primaryContainer.opacity(SleepyTheme.Alpha.inactive)
                             : Color.clear)
                         .cornerRadius(SleepyShapes.extraSmall)
-                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            lastReportedLetter = letter
+                            onLetterSelect(letter, false)
+                        }
                 }
             }
-            .frame(maxHeight: .infinity)
-            .contentShape(Rectangle())
+            .frame(width: barWidth, height: containerHeight)
+            .contentShape(RoundedRectangle(cornerRadius: 8))
             .gesture(
-                DragGesture(minimumDistance: 0)
+                DragGesture(minimumDistance: 4, coordinateSpace: .local)
                     .onChanged { g in
-                        // 触摸 Y → index 精准对应(每字母 1/N)
-                        let ratio = min(max(g.location.y / geo.size.height, 0), 0.999)
+                        // Horizontal constraint: release touch if finger drifted into list area
+                        guard g.location.x >= -12 && g.location.x <= barWidth + 12 else { return }
+                        // Must start within the letter column container
+                        guard g.startLocation.y >= 0 && g.startLocation.y <= containerHeight else { return }
+
+                        let ratio = min(max(g.location.y / containerHeight, 0), 0.999)
+                        let idx = Int(ratio * Double(letters.count))
+                        guard letters.indices.contains(idx) else { return }
+
+                        let letter = letters[idx]
+                        guard letter != lastReportedLetter else { return }
+
+                        // Throttle rapid drag updates to 40ms (~25fps)
+                        let now = CACurrentMediaTime()
+                        guard now - lastDragTimestamp >= 0.04 else { return }
+
+                        lastDragTimestamp = now
+                        lastReportedLetter = letter
+                        onLetterSelect(letter, true)
+                    }
+                    .onEnded { g in
+                        let ratio = min(max(g.location.y / containerHeight, 0), 0.999)
                         let idx = Int(ratio * Double(letters.count))
                         if letters.indices.contains(idx) {
-                            onLetterTap(letters[idx])
+                            let letter = letters[idx]
+                            lastReportedLetter = letter
+                            onLetterSelect(letter, false)
                         }
                     }
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
-        .padding(.trailing, 4)
+        .frame(width: 22)
+        .padding(.trailing, 2)
     }
 }
 

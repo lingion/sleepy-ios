@@ -36,18 +36,11 @@ struct JwSchoolInfo: Equatable {
         return id.isEmpty ? "\(sortKey)_\(name)" : id
     }
 
-    var isSupported: Bool { status == Self.STATUS_SUPPORTED || status == Self.STATUS_GRAD_SUPPORTED }
-    /// ← Android isGrad: 研究生三态(已支持/待适配/未验证)都算研究生条目。
-    var isGrad: Bool {
-        status == Self.STATUS_GRAD_SUPPORTED
-            || status == Self.STATUS_GRAD_PENDING
-            || status == Self.STATUS_GRAD_UNVERIFIED
+    var isSupported: Bool {
+        (status == Self.STATUS_SUPPORTED || status == Self.STATUS_GRAD_SUPPORTED)
+            && !(type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
     }
-
-    /// 未验证条目 — 选校时需用户确认后才进入 WebView(Android isUnverified)。
-    var isUnverified: Bool {
-        status == Self.STATUS_UNVERIFIED || status == Self.STATUS_GRAD_UNVERIFIED
-    }
+    var isGrad: Bool { status == Self.STATUS_GRAD_SUPPORTED || status == Self.STATUS_GRAD_PENDING }
 
     /// T13: pending/grad_pending 状态 — 待适配(点行弹申请适配弹窗, 不进 WebView)
     var isPending: Bool { status == Self.STATUS_PENDING || status == Self.STATUS_GRAD_PENDING }

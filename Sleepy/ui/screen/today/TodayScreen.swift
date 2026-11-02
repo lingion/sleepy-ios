@@ -21,11 +21,10 @@ struct TodayScreen: View {
     var body: some View {
         let state = viewModel.state
         let today = Date()
-        // v1.0.62 B5b: 取课走反向查 ← Android TodayScreen `state.courseDateFor(today)`:
-        // 补班日 = sourceDate 的课(如 1/4 周日补周四的课), 放假日 = 无课(nil), 未映射走自然星期。
-        // 旧 effectiveDayOfWeek 正向口径会把放假日列错填成 targetDate 星期(v1.0.60 审计 [A]-1 同类)。
-        let courseDate = state.courseDateFor(today)
-        let dayOfWeek: Int? = courseDate.map { DateUtils.todayDayOfWeek(today: $0) }
+        // issue#44 对齐: 调休日按映射目标星期取课, 未映射走自然星期
+        // (← Android `state.transferDayFor(today)`; HolidayTransferHelper 直读所选表在
+        // AppPrefs 的调休映射 = Android VM transfers 的同一数据源, 语义等价)。
+        let dayOfWeek = HolidayTransferHelper.effectiveDayOfWeek(state.selectedTableId, today)
         // issue#40 对齐: 节次时间域一律走水合后的当前表(← Android
         // `state.effectiveCurrentTable?.timeJson`)。绑定独立节次表 → 以所绑表 timeJson
         // 为准; 悬空/未绑定 → 回退旧兼容列。ScheduleState 尚无 effectiveCurrentTable
@@ -37,20 +36,16 @@ struct TodayScreen: View {
                 .effectivePeriodTable(tableId: table.id)) ?? nil
             return table.hydratedWith(period).timeJson
         }()
-        // v1.0.62 B5b: 周/学期判定按取课日(courseDate ?: today) ← Android 同口径 —
-        // 补班日跨周(如周日补下周一的课)时周次跟 sourceDate 走。
         let actualWeek = state.currentTable.map {
-            DateUtils.currentWeek(startDate: $0.startDate, today: courseDate ?? today)
+            DateUtils.currentWeek(startDate: $0.startDate, today: today)
         } ?? state.currentWeek
         // ★ 学期外感知: BEFORE_START/AFTER_END 时今日课不按周过滤展示
         let semesterStatus = state.currentTable.map {
-            DateUtils.semesterStatus(startDate: $0.startDate, maxWeek: $0.maxWeek, today: courseDate ?? today)
+            DateUtils.semesterStatus(startDate: $0.startDate, maxWeek: $0.maxWeek, today: today)
         } ?? .inRange
         let isOutOfSemester = semesterStatus != .inRange
         let todayCourses: [CourseEntity] = {
-            // v1.0.62 B5b: 放假日(dayOfWeek == nil)今日列表为空 ← Android `|| dayOfWeek == null`
-            guard !isOutOfSemester, let dayOfWeek else { return [] }
-            let list = state.courses.filter {
+            let list = isOutOfSemester ? [] : state.courses.filter {
                 $0.day == dayOfWeek && $0.inWeek(actualWeek)
             }
             // 用户报障 2026-09-10: ownTime 课渲染前按真实时间归一化节点(与网格同一
@@ -262,8 +257,6 @@ private struct EmptyToday: View {
 private struct TodayCourseCard: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
-    /// 派生档持久色相快照(Android CourseHueStore.hueMapFlow.collectAsState 等价物)
-    @ObservedObject private var hueStore = CourseHueStore.shared
     let course: CourseEntity
     var timeJson: String? = nil
     /// issue#22: 同 groupId 全行(含自身) — AUTO/CUSTOM 取色按行判; 空则回退 [course](= Android `listOf(course)` 默认值)
@@ -277,7 +270,7 @@ private struct TodayCourseCard: View {
             course, groupRows: groupRows.isEmpty ? [course] : groupRows,
             isDark: isDark, neutralColor: colors.surfaceVariant,
             colorless: AppPrefs.shared.isCourseColorless(),
-            persistedHue: hueStore.hueFor(course.groupId))
+            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         let time: String? = {
             if course.ownTime, !course.startTime.isEmpty, !course.endTime.isEmpty {

@@ -55,9 +55,7 @@ enum WeekListWidgetDataLoader {
     static func loadData(kind: String) async -> WeekData {
         let today = Date()
         let prefs = AppPrefs.shared
-        // ← Android WeekListWidget.kt:171: isSystemDark 取 widget 宿主 Context 的
-        //   uiMode 夜间标志; iOS 默认参数 false 会让 system 主题下 widget 永远浅色。
-        let isDark = prefs.isDarkMode(isSystemDark: currentSystemDark())
+        let isDark = prefs.isDarkMode()
         let themeKey = prefs.getThemeKey()
         let themeMode = prefs.getThemeMode()
         let fallback = WeekData(days: [], hasTable: false, isDark: isDark,
@@ -278,7 +276,7 @@ private struct WeekListDayColumn: View {
                             : CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
                             course, groupRows: day.courses.filter { $0.groupId == course.groupId },
                             isDark: s.isDark, neutralColor: s.secondaryContainer, colorless: colorless,
-                            persistedHue: CourseHueStore.shared.hueFor(course.groupId))
+                            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
                         Text(CourseDisplayUtil.displayName(course, useAlias))
                             // 紧贴 Text  receiver 调 Text 级重载(ios 13+, 默认实线), 显式
                             // color: nil = 删除线随正文主色 —— 与修复前行为逐字相同;

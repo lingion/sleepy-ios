@@ -17,14 +17,8 @@ final class AppPrefs {
     static let KEY_DAILY_TIME = "daily_reminder_time" // "HH:mm" default "07:00"
     static let KEY_BEFORE_CLASS_ENABLED = "before_class_enabled"       // bool default false
     static let KEY_BEFORE_CLASS_MINUTES = "before_class_minutes"       // int default 10
-    // v1.0.62: banner/fluid 双开关收敛为 mode 单源 (← AppPrefs.kt KEY_BEFORE_CLASS_MODE);
-    // BANNER 键退役为只读迁移源 (Android 亦保留 FLUID 键仅作推导), FLUID 键仍被 watch 同步读。
-    @available(*, deprecated, message: "改走 getBeforeClassMode — banner 不再是独立开关")
-    static let KEY_BEFORE_CLASS_BANNER = "before_class_banner"         // legacy bool default true (迁移源)
+    static let KEY_BEFORE_CLASS_BANNER = "before_class_banner"         // bool default true
     static let KEY_BEFORE_CLASS_FLUID = "before_class_fluid"            // bool default false
-    static let KEY_BEFORE_CLASS_MODE = "before_class_mode"             // string: banner|fluid — 互斥形态 (取代双开关) ← Android KEY_BEFORE_CLASS_MODE
-    static let BEFORE_CLASS_MODE_BANNER = "banner"
-    static let BEFORE_CLASS_MODE_FLUID = "fluid"
     static let KEY_BEFORE_CLASS_FLUID_FIELDS = "before_class_fluid_fields" // legacy multi-select
     // ← v1.0.60 新增: 次日预告 + 当日提醒 + 上课自动勿扰
     static let KEY_TOMORROW_REMINDER_ENABLED = "tomorrow_reminder"             // bool default false
@@ -56,12 +50,14 @@ final class AppPrefs {
     static let KEY_PERIOD_HEADER_HIDE_TIME = "period_header_hide_time" // boolean default false (legacy header only)
     static let KEY_WIDGET_COLORLESS = "widget_colorless" // bool default false
     static let KEY_COURSE_COLORLESS = "course_colorless" // bool default false (App 课程胶囊专用)
-    // ★ v1.0.62 派生档: App 级课程配色三模式(与 CourseColorMode 列级三态是两回事)
-    static let KEY_COURSE_COLOR_MODE = "course_color_mode"      // int 0/1/2
-    static let KEY_COURSE_COLOR_SEED_HUE = "course_color_seed_hue" // float 0..360; -1 = 未设置
-    static let COURSE_COLOR_MODE_CLASSIC = 0        // 不跟随主题(升级零变化)
-    static let COURSE_COLOR_MODE_FOLLOW_THEME = 1  // 跟随主题
-    static let COURSE_COLOR_MODE_CUSTOM = 2        // 自定义种子色相
+
+    // ===== v1.0.62 B1: 课程配色全局模式 =====
+    // ← Android AppPrefs.kt KEY_COURSE_COLOR_MODE / KEY_COURSE_COLOR_SEED_HUE
+    static let KEY_COURSE_COLOR_MODE = "course_color_mode"           // int: 0 classic / 1 followTheme / 2 customSeed
+    static let KEY_COURSE_COLOR_SEED_HUE = "course_color_seed_hue"   // float 0..360; -1 = 未初始化(CUSTOM 回退主题色)
+    static let COURSE_COLOR_MODE_CLASSIC = 0
+    static let COURSE_COLOR_MODE_FOLLOW_THEME = 1
+    static let COURSE_COLOR_MODE_CUSTOM = 2
     static let COURSE_COLOR_SEED_UNSET: Float = -1
     static let KEY_WIDGET_SEPARATOR = "widget_separator" // bool default true (WeekView 纯文字课程间分隔线)
     static let KEY_HOLIDAY_GREY_HOLIDAY = "holiday_grey_holiday" // bool default true
@@ -112,22 +108,6 @@ final class AppPrefs {
     private let themeKeySubject = CurrentValueSubject<String, Never>(ThemePresets.KEY_DEFAULT)
     lazy private(set) var themeKeyPublisher: AnyPublisher<String, Never> = themeKeySubject.eraseToAnyPublisher()
 
-    /// 主题深浅模式的进程内 Flow — v1.0.62 CourseHueStore 需感知 mode 变化(跟随主题档要重排色相)。
-    /// Android 侧靠 AppPrefs.changeBus(SharedPreferences 监听)覆盖;iOS 无 changeBus,
-    /// 补一条专用 subject(仅此一个消费方,不扩散到全局设置流)。
-    private let themeModeSubject = CurrentValueSubject<String, Never>(AppPrefs.THEME_MODE_SYSTEM)
-    lazy private(set) var themeModePublisher: AnyPublisher<String, Never> = themeModeSubject.eraseToAnyPublisher()
-
-    /// App 级课程配色模式(0/1/2)进程内 Flow — v1.0.62 CourseHueStore 订阅源。
-    private let courseColorModeSubject = CurrentValueSubject<Int, Never>(AppPrefs.COURSE_COLOR_MODE_CLASSIC)
-    lazy private(set) var courseColorModePublisher: AnyPublisher<Int, Never> =
-        courseColorModeSubject.eraseToAnyPublisher()
-
-    /// 自定义种子色相进程内 Flow — v1.0.62 CourseHueStore 订阅源。
-    private let courseColorSeedHueSubject = CurrentValueSubject<Float, Never>(AppPrefs.COURSE_COLOR_SEED_UNSET)
-    lazy private(set) var courseColorSeedHuePublisher: AnyPublisher<Float, Never> =
-        courseColorSeedHueSubject.eraseToAnyPublisher()
-
     /// 单测注入用:默认 UserDefaults.standard。测试用 suiteName 隔离。
     private let d: UserDefaults
 
@@ -163,7 +143,6 @@ final class AppPrefs {
     func setThemeMode(_ mode: String) {
         precondition(mode == Self.THEME_MODE_LIGHT || mode == Self.THEME_MODE_DARK || mode == Self.THEME_MODE_SYSTEM)
         sp().set(mode, forKey: Self.KEY_THEME_MODE)
-        themeModeSubject.send(mode)
     }
 
     // ===== 画面 =====
@@ -254,33 +233,13 @@ final class AppPrefs {
 
     // MARK: - v1.0.61 系统日历导入 (对齐)
 
-    // MARK: - v1.0.62 课前提醒形态 (互斥) ← AppPrefs.kt getBeforeClassMode
-
-    /// 课前提醒形态 (互斥): banner 普通横幅 | fluid 实况卡片。
-    /// 旧版双开关无损迁移: 未写过 mode 时, 由 KEY_BEFORE_CLASS_FLUID 推导
-    /// (← Android: legacyFluid ? FLUID : BANNER; banner 键退役不读)。
-    func getBeforeClassMode() -> String {
-        if let m = sp().string(forKey: Self.KEY_BEFORE_CLASS_MODE) { return m }
-        return sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID)
-            ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER
-    }
-    func setBeforeClassMode(_ mode: String) { sp().set(mode, forKey: Self.KEY_BEFORE_CLASS_MODE) }
-
     func isBeforeClassBannerEnabled() -> Bool {
-        getBeforeClassMode() == Self.BEFORE_CLASS_MODE_BANNER
+        sp().object(forKey: Self.KEY_BEFORE_CLASS_BANNER) as? Bool ?? true
     }
-    func isBeforeClassFluidEnabled() -> Bool {
-        getBeforeClassMode() == Self.BEFORE_CLASS_MODE_FLUID
-    }
-    @available(*, deprecated, message: "双开关退役 — UI 层改调 setBeforeClassMode;此写点仅作 watch 同步兼容通道")
-    func setBeforeClassBannerEnabled(_ v: Bool) {
-        // watch 快照恢复侧兼容: banner=true 的快照 ⇔ mode=banner (false 侧无信息量,
-        // Android 快照侧已无此字段, 不再扩散) — 不覆盖既有 mode 为 fluid 的用户配置。
-        if v { setBeforeClassMode(Self.BEFORE_CLASS_MODE_BANNER) }
-    }
-    func setBeforeClassFluidEnabled(_ v: Bool) {
-        setBeforeClassMode(v ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER)
-    }
+    func setBeforeClassBannerEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_BANNER) }
+
+    func isBeforeClassFluidEnabled() -> Bool { sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID) }
+    func setBeforeClassFluidEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_FLUID) }
 
     /// legacy multi-select 读取(死写路径已删 — setBeforeClassFluidFields 全库零调用,读取仅通知组件用旧数据)
     func getBeforeClassFluidFields() -> Set<String> {
@@ -547,36 +506,21 @@ final class AppPrefs {
     func isCourseColorless() -> Bool { sp().bool(forKey: Self.KEY_COURSE_COLORLESS) }
     func setCourseColorless(_ v: Bool) { sp().set(v, forKey: Self.KEY_COURSE_COLORLESS) }
 
-    // ===== v1.0.62 派生档: App 级课程配色三模式 =====
-
-    /// 课程配色模式:0=CLASSIC 不跟随主题 / 1=FOLLOW_THEME 跟随主题 / 2=CUSTOM 自定义种子色相。
-    /// 默认 CLASSIC — 升级零变化(既有用户配色与 v1.0.61 完全一致)。
+    // ===== v1.0.62 B1: 课程配色全局模式 + 种子色相 =====
+    // CLASSIC(0)=不用 anchor,走 stableHue 老路径; FOLLOW_THEME(1)=anchor=主题primary hue;
+    // CUSTOM(2)=anchor=种子色 hue,未初始化(-1)回退主题 hue。
     func getCourseColorMode() -> Int {
-        let v = sp().integer(forKey: Self.KEY_COURSE_COLOR_MODE)
-        guard v >= Self.COURSE_COLOR_MODE_CLASSIC && v <= Self.COURSE_COLOR_MODE_CUSTOM else {
-            return Self.COURSE_COLOR_MODE_CLASSIC
-        }
-        return v
+        sp().object(forKey: Self.KEY_COURSE_COLOR_MODE) != nil
+            ? sp().integer(forKey: Self.KEY_COURSE_COLOR_MODE)
+            : Self.COURSE_COLOR_MODE_CLASSIC
     }
+    func setCourseColorMode(_ v: Int) { sp().set(v, forKey: Self.KEY_COURSE_COLOR_MODE) }
 
-    func setCourseColorMode(_ v: Int) {
-        precondition(v >= Self.COURSE_COLOR_MODE_CLASSIC && v <= Self.COURSE_COLOR_MODE_CUSTOM)
-        sp().set(v, forKey: Self.KEY_COURSE_COLOR_MODE)
-        courseColorModeSubject.send(v)
-    }
-
-    /// 自定义种子色相(0..360);-1 = 未设置(CUSTOM 档首次进入时按主题 primary 落种子)。
     func getCourseColorSeedHue() -> Float {
-        let v = sp().float(forKey: Self.KEY_COURSE_COLOR_SEED_HUE)
-        guard v >= 0 || v == Self.COURSE_COLOR_SEED_UNSET else { return Self.COURSE_COLOR_SEED_UNSET }
-        return v
+        guard sp().object(forKey: Self.KEY_COURSE_COLOR_SEED_HUE) != nil else { return Self.COURSE_COLOR_SEED_UNSET }
+        return sp().float(forKey: Self.KEY_COURSE_COLOR_SEED_HUE)
     }
-
-    func setCourseColorSeedHue(_ hue: Float) {
-        precondition(hue >= 0 && hue <= 360 || hue == Self.COURSE_COLOR_SEED_UNSET)
-        sp().set(hue, forKey: Self.KEY_COURSE_COLOR_SEED_HUE)
-        courseColorSeedHueSubject.send(hue)
-    }
+    func setCourseColorSeedHue(_ hue: Float) { sp().set(hue, forKey: Self.KEY_COURSE_COLOR_SEED_HUE) }
 
     // ===== widget v1.0.60 对齐键 (← AppPrefs.kt 同名键) =====
 

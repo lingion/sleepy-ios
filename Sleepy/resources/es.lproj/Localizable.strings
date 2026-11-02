@@ -289,7 +289,16 @@
 "theme_mode_dark" = "Oscuro";
 "appearance_section_theme" = "Colores del tema";
 "appearance_section_display" = "Visualización de cursos";
-"appearance_section_widget" = "Widget";
+\"appearance_section_widget\" = \"Widget\";
+\"appearance_section_course_color\" = \"Colores del curso\";
+\"course_color_uniform\" = \"Uniforme\";
+\"course_color_classic\" = \"No seguir el color del tema\";
+\"course_color_follow_theme\" = \"Seguir el tema\";
+\"course_color_custom_seed\" = \"Personalizado\";
+\"course_color_seed_label\" = \"Tono base\";
+\"course_color_preview\" = \"Vista previa\";
+\"course_color_recalc\" = \"Recolorar todos los cursos\";
+\"course_color_recalc_done\" = \"Recoloreados %1$d cursos\";
 "settings_section_display" = "Pantalla";
 "settings_high_refresh" = "Alta frecuencia de actualización";
 "settings_nav_style" = "Estilo de la barra de navegación";

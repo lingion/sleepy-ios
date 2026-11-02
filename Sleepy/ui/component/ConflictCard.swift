@@ -110,8 +110,6 @@ struct ConflictCardShape: Shape {
 struct ConflictClusterCard: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
-    /// 派生档持久色相快照(Android CourseHueStore.hueMapFlow.collectAsState 等价物)
-    @ObservedObject private var hueStore = CourseHueStore.shared
     let cluster: ConflictCluster
     let style: String
     let topOverrideId: Int64?
@@ -128,9 +126,6 @@ struct ConflictClusterCard: View {
     var timeSlots: [TimeSlot] = []
     /// issue#23 §5: 行跨度(分数行) → 像素高(占位节次行按分钟加权); nil = 等高回落
     var spanDpOf: ((Double, Double) -> Double)? = nil
-    /// v1.0.62 B5b: 卡高 natural 跨度(长课间空隙不计入卡高) ← Android contentSpanDpOf;
-    /// nil = 回落 spanDpOf(无餐段等价)
-    var contentSpanDpOf: ((Double, Double) -> Double)? = nil
     let isGrey: Bool
     /// v7.10.16r 轮换(issue#10): 会话内轮换步数(nil=默认序),不落盘
     var rotationStep: Int? = nil
@@ -255,7 +250,7 @@ struct ConflictClusterCard: View {
                 course, groupRows: groupRowsForCard, isDark: isDark,
                 neutralColor: colors.surfaceVariant,
                 colorless: AppPrefs.shared.isCourseColorless(),
-                persistedHue: hueStore.hueFor(course.groupId))
+                persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
             if isGrey { bg = bg.opacity(SleepyTheme.Alpha.inactive) }
             return bg
         }
@@ -265,8 +260,7 @@ struct ConflictClusterCard: View {
         }
         func cardHOf(_ courseId: Int64) -> CGFloat {
             let g = rowGeomOf[courseId] ?? (0, 1)
-            // v1.0.62 B5b: 高度走 natural 跨度 ← Android `(contentSpanDpOf ?: spanDpOf)?.invoke(...)`
-            let span = (contentSpanDpOf ?? spanDpOf)?(g.start, g.start + g.rows) ?? Double(rowH) * g.rows
+            let span = spanDpOf?(g.start, g.start + g.rows) ?? Double(rowH) * g.rows
             return CGFloat(max(span, Double(rowH) * 0.3)) - gapH
         }
         func layerRepOf(_ courseId: Int64) -> Int64? { layerOfId[courseId].flatMap { layerRepId[$0] } }
@@ -278,8 +272,7 @@ struct ConflictClusterCard: View {
                 isTop: isFront,
                 form: form,
                 colW: Double(colW), rowH: Double(rowH), gapH: Double(gapH),
-                minStartRow: minStartRow, topInset: topInset, spanDpOf: spanDpOf,
-                contentSpanDpOf: contentSpanDpOf)
+                minStartRow: minStartRow, topInset: topInset, spanDpOf: spanDpOf)
         }
         func switchTap(_ n: Int, _ fallbackRepId: Int64) {
             if n >= 3 { onRotate() } else { onPickTop(fallbackRepId) }
@@ -341,8 +334,7 @@ struct ConflictClusterCard: View {
                     ownRowsFrac: g.rows,
                     form: .stack,
                     colW: Double(colW), rowH: Double(rowH), gapH: Double(gapH),
-                    minStartRow: minStartRow, spanDpOf: spanDpOf,
-                    contentSpanDpOf: contentSpanDpOf)
+                    minStartRow: minStartRow, spanDpOf: spanDpOf)
                 return AnyView(Button {
                     switchTap(layerCount, layerRepOf(hiddenCourse.id) ?? hiddenCourse.id)
                 } label: {
@@ -503,8 +495,6 @@ private struct DashOutlineShape: View {
  */
 private struct ConflictCourseCard: View {
     @Environment(\.localWakeUpColors) private var colors
-    /// 派生档持久色相快照(Android CourseHueStore.hueMapFlow.collectAsState 等价物)
-    @ObservedObject private var hueStore = CourseHueStore.shared
     let course: CourseEntity
     let onClick: () -> Void
     let isDark: Bool
@@ -522,7 +512,7 @@ private struct ConflictCourseCard: View {
             course, groupRows: effRows, isDark: isDark,
             neutralColor: colors.surfaceVariant,
             colorless: AppPrefs.shared.isCourseColorless(),
-            persistedHue: hueStore.hueFor(course.groupId))
+            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         let effectiveBg = isGrey ? bg.opacity(SleepyTheme.Alpha.inactive) : bg
         let effectiveFg = isGrey ? fg.opacity(SleepyTheme.Alpha.inactive) : fg

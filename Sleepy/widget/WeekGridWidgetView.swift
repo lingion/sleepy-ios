@@ -661,7 +661,7 @@ private struct WeekGridColorBandColumn: View {
                         ? [course] : allCourses.filter { $0.groupId == course.groupId },
                     isDark: scheme.isDark, neutralColor: scheme.surfaceVariant,
                     colorless: colorless,
-                    persistedHue: CourseHueStore.shared.hueFor(course.groupId))
+                    persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
                 RoundedRectangle(cornerRadius: min(4, barH / 2))
                     .fill(baseColor.opacity(dayData.isGrey ? 120.0 / 255.0 : 200.0 / 255.0))
                     .frame(width: laneW, height: barH)
@@ -758,7 +758,7 @@ private struct WeekGridCourseCard: View {
         let baseColor = glass ? Color.white : CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: groupRows.isEmpty ? [course] : groupRows,
             isDark: scheme.isDark, neutralColor: scheme.surfaceVariant, colorless: colorless,
-            persistedHue: CourseHueStore.shared.hueFor(course.groupId))
+            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         // 文字色: 深底白字 / 浅底近黑 (isDarkOn); 灰显文字 alpha ← Android :740
         let textColor = glass ? scheme.onSurface
             : (Self.isDarkOn(baseColor) ? Color.white : Color(0xFF1D1B20))
