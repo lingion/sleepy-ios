@@ -275,7 +275,8 @@ private struct WeekListDayColumn: View {
                         let bgColor = glass ? s.secondaryContainer
                             : CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
                             course, groupRows: day.courses.filter { $0.groupId == course.groupId },
-                            isDark: s.isDark, neutralColor: s.secondaryContainer, colorless: colorless)
+                            isDark: s.isDark, neutralColor: s.secondaryContainer, colorless: colorless,
+                            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
                         Text(CourseDisplayUtil.displayName(course, useAlias))
                             // 紧贴 Text  receiver 调 Text 级重载(ios 13+, 默认实线), 显式
                             // color: nil = 删除线随正文主色 —— 与修复前行为逐字相同;

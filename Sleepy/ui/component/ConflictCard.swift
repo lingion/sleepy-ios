@@ -249,7 +249,8 @@ struct ConflictClusterCard: View {
             var bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
                 course, groupRows: groupRowsForCard, isDark: isDark,
                 neutralColor: colors.surfaceVariant,
-                colorless: AppPrefs.shared.isCourseColorless())
+                colorless: AppPrefs.shared.isCourseColorless(),
+                persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
             if isGrey { bg = bg.opacity(SleepyTheme.Alpha.inactive) }
             return bg
         }
@@ -510,7 +511,8 @@ private struct ConflictCourseCard: View {
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
             neutralColor: colors.surfaceVariant,
-            colorless: AppPrefs.shared.isCourseColorless())
+            colorless: AppPrefs.shared.isCourseColorless(),
+            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         let effectiveBg = isGrey ? bg.opacity(SleepyTheme.Alpha.inactive) : bg
         let effectiveFg = isGrey ? fg.opacity(SleepyTheme.Alpha.inactive) : fg

@@ -289,7 +289,16 @@
 "theme_mode_dark" = "ダーク";
 "appearance_section_theme" = "テーマカラー";
 "appearance_section_display" = "授業の表示";
-"appearance_section_widget" = "ウィジェット";
+\"appearance_section_widget\" = \"ウィジェット\";
+\"appearance_section_course_color\" = \"コースの色\";
+\"course_color_uniform\" = \"統一色\";
+\"course_color_classic\" = \"テーマ色に追随しない\";
+\"course_color_follow_theme\" = \"テーマに追随\";
+\"course_color_custom_seed\" = \"カスタム\";
+\"course_color_seed_label\" = \"基準の色相\";
+\"course_color_preview\" = \"プレビュー\";
+\"course_color_recalc\" = \"すべてのコースの配色をやり直す\";
+\"course_color_recalc_done\" = \"%1$d コースの配色をやり直しました\";
 "settings_section_display" = "画面";
 "settings_high_refresh" = "高リフレッシュレート";
 "settings_nav_style" = "ナビバーのスタイル";

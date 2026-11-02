@@ -12,6 +12,8 @@ final class ScheduleRepository {
     private let db: AppDatabase
     private let courseDao: CourseDao
     private let tableDao: TimeTableDao
+    private let periodTableDao: PeriodTableDao
+    private let courseColorDao: CourseColorDao
     /// ← SleepyApp.get().notificationScheduler / WidgetUpdater
     /// iOS: 数据变更回调(由 App 壳注入: 刷 WidgetKit timeline + 重排 UNNotification)
     var onDataChangedHook: (() -> Void)?
@@ -21,6 +23,7 @@ final class ScheduleRepository {
         self.courseDao = db.courseDao
         self.tableDao = db.timeTableDao
         self.periodTableDao = PeriodTableDao(db: db.dbQueue)
+        self.courseColorDao = db.courseColorDao
     }
 
     // ========== v7.10.16 单级撤回 + 2026-09-21 单级 redo ==========
@@ -443,6 +446,14 @@ final class ScheduleRepository {
     /// issue#40: 全库课程 — 时间节次表保存预览须统计所有绑定表的课。
     func getAllCourses() throws -> [CourseEntity] { try courseDao.getAllCourses() }
 
+    /// v1.0.62 B1: 全库课程 groupId 去重列表 — recalcAll 用。
+    func getAllGroupIds() -> [String] {
+        (try? courseDao.getAllCourses())?
+            .map { $0.groupId }
+            .filter { !$0.isEmpty }
+            .distinct(by: { $0 }) ?? []
+    }
+
     func getCoursesByDay(_ tableId: Int64, day: Int) throws -> [CourseEntity] {
         try courseDao.getByTableAndDay(tableId, day: day)
     }
@@ -454,6 +465,16 @@ final class ScheduleRepository {
         try captureForUndo()
         let id = try courseDao.insert(course)
         onDataChanged()
+        // v1.0.62 B1: 新课补持久色相 (导入/新增)
+        Task {
+            await CourseColorWriteGlue.persistNewGroupHues(
+                mode: AppPrefs.shared.getCourseColorMode(),
+                anchor: CourseColorWriteGlue.resolveAnchor(mode: AppPrefs.shared.getCourseColorMode()),
+                dao: courseColorDao,
+                entities: [course]
+            )
+            CourseHueStore.shared.invalidate(mode: AppPrefs.shared.getCourseColorMode(), dao: courseColorDao)
+        }
         return id
     }
 
@@ -464,6 +485,16 @@ final class ScheduleRepository {
         let withGroupIds = assignGroupIds(courses)
         let ids = try courseDao.insertAll(withGroupIds)
         onDataChanged()
+        // v1.0.62 B1: 新课补持久色相 (导入/新增)
+        Task {
+            await CourseColorWriteGlue.persistNewGroupHues(
+                mode: AppPrefs.shared.getCourseColorMode(),
+                anchor: CourseColorWriteGlue.resolveAnchor(mode: AppPrefs.shared.getCourseColorMode()),
+                dao: courseColorDao,
+                entities: withGroupIds
+            )
+            CourseHueStore.shared.invalidate(mode: AppPrefs.shared.getCourseColorMode(), dao: courseColorDao)
+        }
         return ids
     }
 

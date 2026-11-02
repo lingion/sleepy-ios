@@ -50,6 +50,15 @@ final class AppPrefs {
     static let KEY_PERIOD_HEADER_HIDE_TIME = "period_header_hide_time" // boolean default false (legacy header only)
     static let KEY_WIDGET_COLORLESS = "widget_colorless" // bool default false
     static let KEY_COURSE_COLORLESS = "course_colorless" // bool default false (App 课程胶囊专用)
+
+    // ===== v1.0.62 B1: 课程配色全局模式 =====
+    // ← Android AppPrefs.kt KEY_COURSE_COLOR_MODE / KEY_COURSE_COLOR_SEED_HUE
+    static let KEY_COURSE_COLOR_MODE = "course_color_mode"           // int: 0 classic / 1 followTheme / 2 customSeed
+    static let KEY_COURSE_COLOR_SEED_HUE = "course_color_seed_hue"   // float 0..360; -1 = 未初始化(CUSTOM 回退主题色)
+    static let COURSE_COLOR_MODE_CLASSIC = 0
+    static let COURSE_COLOR_MODE_FOLLOW_THEME = 1
+    static let COURSE_COLOR_MODE_CUSTOM = 2
+    static let COURSE_COLOR_SEED_UNSET: Float = -1
     static let KEY_WIDGET_SEPARATOR = "widget_separator" // bool default true (WeekView 纯文字课程间分隔线)
     static let KEY_HOLIDAY_GREY_HOLIDAY = "holiday_grey_holiday" // bool default true
     static let KEY_HOLIDAY_GREY_WEEKEND = "holiday_grey_weekend" // bool default true
@@ -496,6 +505,22 @@ final class AppPrefs {
 
     func isCourseColorless() -> Bool { sp().bool(forKey: Self.KEY_COURSE_COLORLESS) }
     func setCourseColorless(_ v: Bool) { sp().set(v, forKey: Self.KEY_COURSE_COLORLESS) }
+
+    // ===== v1.0.62 B1: 课程配色全局模式 + 种子色相 =====
+    // CLASSIC(0)=不用 anchor,走 stableHue 老路径; FOLLOW_THEME(1)=anchor=主题primary hue;
+    // CUSTOM(2)=anchor=种子色 hue,未初始化(-1)回退主题 hue。
+    func getCourseColorMode() -> Int {
+        sp().object(forKey: Self.KEY_COURSE_COLOR_MODE) != nil
+            ? sp().integer(forKey: Self.KEY_COURSE_COLOR_MODE)
+            : Self.COURSE_COLOR_MODE_CLASSIC
+    }
+    func setCourseColorMode(_ v: Int) { sp().set(v, forKey: Self.KEY_COURSE_COLOR_MODE) }
+
+    func getCourseColorSeedHue() -> Float {
+        guard sp().object(forKey: Self.KEY_COURSE_COLOR_SEED_HUE) != nil else { return Self.COURSE_COLOR_SEED_UNSET }
+        return sp().float(forKey: Self.KEY_COURSE_COLOR_SEED_HUE)
+    }
+    func setCourseColorSeedHue(_ hue: Float) { sp().set(hue, forKey: Self.KEY_COURSE_COLOR_SEED_HUE) }
 
     // ===== widget v1.0.60 对齐键 (← AppPrefs.kt 同名键) =====
 

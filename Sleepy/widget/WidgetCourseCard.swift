@@ -92,7 +92,8 @@ struct WidgetCourseCard: View {
         let bgColor = glass ? scheme.secondaryContainer
             : CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(course,
             groupRows: groupRows.isEmpty ? [course] : groupRows,
-            isDark: scheme.isDark, neutralColor: scheme.secondaryContainer, colorless: colorless)
+            isDark: scheme.isDark, neutralColor: scheme.secondaryContainer, colorless: colorless,
+            persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         // 文字色亮度自适应 (决策 D5-13) — 深色自定义课色上切白字, 浅色底仍 onSurface
         let textColor = glass ? scheme.onSurface
             : CourseColorUtil.textColorOn(bg: bgColor, isDark: scheme.isDark,

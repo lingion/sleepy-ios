@@ -122,6 +122,18 @@ struct AppearanceScreen: View {
                     .background(colors.surfaceContainer)
                     .cornerRadius(SleepyShapes.large)
 
+                    // ── 分组②·5 课程配色 (v1.0.62 B1) ──
+                    CourseColorSection(
+                        refreshWidgets: { refreshWidgets() },
+                        onRequestRecalc: { recalcAllCourses() }
+                    )
+                        .onAppear {
+                            Task { await refreshHueStore() }
+                        }
+                        .onDisappear {
+                            Task { await refreshHueStore() }
+                        }
+
                     // ── 分组③ 课表显示: 冲突样式及参数仍属于本组 ──
                     // ← Android SectionHeader(appearance_section_schedule_display) +
                     //   Surface(shapes.large, surfaceContainer) 内嵌 ScheduleDisplayContent(padding 16)
@@ -163,6 +175,29 @@ struct AppearanceScreen: View {
     // ★ 选主题/模式后立即刷小组件(← WidgetUpdater.notifyDataChanged)
     private func refreshWidgets() {
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// 刷新 CourseHueStore 快照 — 进入/离开外观页、主题/配色模式切换时调用。
+    private func refreshHueStore() async {
+        let db = AppDatabase.getShared()
+        await CourseHueStore.shared.refresh(
+            mode: prefs.getCourseColorMode(), dao: db.courseColorDao
+        )
+    }
+
+    /// 全量重算课程配色(手动重排按钮调用) — 走 CourseColorWriteGlue.recalcAll。
+    private func recalcAllCourses() {
+        let db = AppDatabase.getShared()
+        let repo = ScheduleRepository(db)
+        let gids = repo.getAllGroupIds()
+        Task {
+            _ = await CourseColorWriteGlue.recalcAll(
+                mode: prefs.getCourseColorMode(), dao: db.courseColorDao, gids: gids
+            )
+            Task { @MainActor in
+                await refreshHueStore()
+            }
+        }
     }
 
     private func selectThemeKey(_ key: String) {
@@ -456,5 +491,146 @@ private struct DashedCircleWithPlus: View {
                 .foregroundColor(colors.onSurface)
         }
         .frame(width: size, height: size)
+    }
+}
+
+// ── v1.0.62 B1: 课程配色分段 (Section②·5) ──
+// ← Android CourseColorSection.kt: SegmentedSwitcher 4 段(uniform/CLASSIC/FOLLOW_THEME/CUSTOM)
+//   + CUSTOM 时 HueSlider + 实时群色预览 + 底部「重新编排」按钮。
+
+private struct CourseColorSection: View {
+    @Environment(\.localWakeUpColors) private var colors
+    @ObservedObject private var hueStore = CourseHueStore.shared
+    private let prefs = AppPrefs.shared
+
+    let refreshWidgets: () -> Void
+    let onRequestRecalc: () -> Void
+
+    // 四段: uniform=色less(true) / CLASSIC / FOLLOW_THEME / CUSTOM
+    //   uniform 映射到 course_colorless=true; 其它三档关闭 colorless + 写 mode。
+    @State private var colorless: Bool = true       // uniform 选中时 → true
+    @State private var mode: Int = AppPrefs.COURSE_COLOR_MODE_CLASSIC
+
+    private var isCustom: Bool { mode == AppPrefs.COURSE_COLOR_MODE_CUSTOM }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: L10n.format("appearance_section_course_color"))
+
+            VStack(spacing: 16) {
+                // ← Android SegmentedSwitcher(options, selected, onSelect);
+                //   uniform = colorless=true, 其它档 = colorless=false + setMode。
+                let options: [(Int, String)] = [
+                    (-1, L10n.t("course_color_uniform")),
+                    (AppPrefs.COURSE_COLOR_MODE_CLASSIC, L10n.t("course_color_classic")),
+                    (AppPrefs.COURSE_COLOR_MODE_FOLLOW_THEME, L10n.t("course_color_follow_theme")),
+                    (AppPrefs.COURSE_COLOR_MODE_CUSTOM, L10n.t("course_color_custom_seed"))
+                ]
+                SegmentedSwitcher(
+                    options: options.map { ($0.0, $0.1) },
+                    selected: colorless ? -1 : mode,
+                    onSelect: onModeSelected
+                )
+
+                // CUSTOM 模式: 种子色相滑条 + 实时群色预览
+                if isCustom {
+                    VStack(spacing: 12) {
+                        Text(L10n.t("course_color_seed_label"))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(colors.onSurfaceVariant)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        HueSlider(
+                            hue: seedHue >= 0 ? seedHue : 0,
+                            onHueChange: { h in seedHue = h },
+                            onHueCommit: { h in
+                                prefs.setCourseColorSeedHue(h)
+                                refreshHueStore()
+                            },
+                            initialHue: prefs.getCourseColorSeedHue()
+                        )
+                        .frame(height: 36)
+                    }
+                }
+
+                // 群色预览条 — 5 组, 用当前 anchor 计算
+                HStack(spacing: 8) {
+                    ForEach(Array(previewColors.enumerated()), id: \.offset) { idx, color in
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(color)
+                            .frame(width: 36, height: 24)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // 重新编排按钮
+                Button {
+                    onRequestRecalc()
+                } label: {
+                    Text(L10n.t("course_color_recalc"))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(colors.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(colors.surfaceContainerHighest)
+                        .cornerRadius(SleepyShapes.large)
+                }
+                .buttonStyle(SleepyButtonStyle())
+            }
+            .padding(16)
+            .background(colors.surfaceContainer)
+            .cornerRadius(SleepyShapes.large)
+        }
+        .onAppear { loadState() }
+    }
+
+    // 预览色: 用当前 mode + seed 计算 5 组群色
+    private var previewColors: [Color] {
+        let anchor = CourseColorWriteGlue.resolveAnchor(mode: mode)
+        let groups: [String] = (0..<5).map { "preview_group_\($0)" }
+        let plan = CourseColorUtil.planHuesForGroups(
+            anchor: anchor, existingHues: Array(hueStore.hueMap.values), gids: groups
+        )
+        let isDark = AppPrefs.shared.isDarkMode()
+        return groups.map { gid in
+            let h = plan[gid] ?? 200
+            let s = isDark ? CourseColorUtil.S_DARK : CourseColorUtil.S_LIGHT
+            let l = isDark ? CourseColorUtil.L_DARK : CourseColorUtil.L_LIGHT
+            return CourseColorUtil.hslToColor(h, s, l)
+        }
+    }
+
+    private func loadState() {
+        colorless = prefs.isCourseColorless()
+        mode = prefs.getCourseColorMode()
+        seedHue = prefs.getCourseColorSeedHue()
+        refreshHueStore()
+    }
+
+    private func onModeSelected(_ raw: Int) {
+        guard raw != -1 else {
+            if !prefs.isCourseColorless() {
+                prefs.setCourseColorless(true)
+                colorless = true
+                refreshWidgets()
+            }
+            return
+        }
+        if prefs.isCourseColorless() {
+            prefs.setCourseColorless(false)
+            colorless = false
+        }
+        prefs.setCourseColorMode(raw)
+        mode = raw
+        colorless = false
+        refreshHueStore()
+        refreshWidgets()
+    }
+
+    private func refreshHueStore() {
+        let db = AppDatabase.getShared()
+        Task {
+            await hueStore.refresh(mode: mode, dao: db.courseColorDao)
+        }
     }
 }
