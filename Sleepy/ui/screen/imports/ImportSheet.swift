@@ -1393,45 +1393,35 @@ extension ImportSheet {
         case .importAsNew:
             let base = (try? repo.getTable(preview.targetTableId)) ?? nil
             // issue#40 §6: 新格式带 P 区块 → 建 period_tables 并绑定(恢复共享关系);
-            // 旧格式 periodTable=nil → 不建(课表用自己兼容列, 不误共享)。
+            // v1.0.62 B7b 用户 2026-10-05(2a): 无 P 区块(旧格式/粘贴文本)不再"不建" — 恒以确认页
+            // 最终 confirmedTimeJson 兜底建表并绑定, 三个入口作息表行为统一。
             // v1.0.56 T6: 用户在第三 Tab 显式选了作息表 → 绑定用户所选(优先于自动建表绑定);
             // v1.0.56 T10: 自动建表走全局唯一名顺延(撞名加后缀, 禁与既有课表/作息表同名)
-            var importedPeriodTableId: Int64? = bindPeriodTableId
-            if importedPeriodTableId == nil, let pt = preview.parseResult.periodTable {
-                let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
-                let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
-                let entity = PeriodTableEntity(
-                    name: TimeTableUtils.suggestUniqueName(
-                        pt.name, courseTableNames: courseNames, periodTableNames: periodNames),
-                    nodesPerDay: pt.nodesPerDay,
-                    timeJson: pt.timeJson)
-                if let newId = (try? repo.insertPeriodTable(entity)) ?? nil, newId > 0 {
-                    importedPeriodTableId = newId
-                }
-            }
-            let existingNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
-            var newTable = TimeTableEntity(
-                name: uniqueImportedTableName(confirmedTableName, existingNames),
-                startDate: confirmedStartDate,
-                maxWeek: preview.parseResult.maxWeek > 0 ? preview.parseResult.maxWeek : (base?.maxWeek ?? 20),
-                nodesPerDay: preview.parseResult.nodesPerDay > 0 ? preview.parseResult.nodesPerDay : base?.nodesPerDay ?? 12,
-                timeJson: confirmedTimeJson,
-                isDefault: false)
-            newTable.color = base?.color ?? "#FF6750A4"
-            newTable.periodTableId = importedPeriodTableId
-            let newTableId = (try? repo.insertTable(newTable)) ?? 0
-            var courses = preview.parseResult.courses
-            for i in courses.indices {
-                courses[i].id = 0
-                courses[i].tableId = newTableId
-            }
-            // sleepy-v1: groupId 权威时保留分区(ImportAsNew 全量落新课表, 等价 replace 语义)
-            if preview.parseResult.groupIdsAuthoritative {
-                _ = try? repo.insertCoursesKeepingGroups(courses)
-            } else {
-                _ = try? repo.insertCourses(courses)
-            }
-            try? repo.setDefault(newTableId)
+            let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
+            let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
+            // ← Android importedPeriodTableDraft: 选中既有作息表则共享, 否则确认行 owns 新表
+            let importedPeriod = importedPeriodTableDraft(
+                bindingId: bindPeriodTableId,
+                name: TimeTableUtils.suggestUniqueName(
+                    preview.parseResult.periodTable?.name ?? confirmedTableName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    courseTableNames: courseNames,
+                    periodTableNames: periodNames,
+                    defaultName: preview.parseResult.tableName),
+                confirmedTimeJson: confirmedTimeJson)
+            // v1.0.62 B7b ← repo.importNewTable: 表+作息表+课程+默认切换单事务原子提交
+            let newTableId = (try? repo.importNewTable(
+                table: TimeTableEntity(
+                    name: uniqueImportedTableName(confirmedTableName, courseNames),
+                    startDate: confirmedStartDate,
+                    maxWeek: preview.parseResult.maxWeek > 0 ? preview.parseResult.maxWeek : (base?.maxWeek ?? 20),
+                    nodesPerDay: max(TimeTableUtils.parseTimeSlotRows(confirmedTimeJson).count, 1),
+                    timeJson: confirmedTimeJson,
+                    color: base?.color ?? "#FF6750A4",
+                    isDefault: false),
+                courses: preview.parseResult.courses,
+                periodTable: importedPeriod,
+                bindPeriodTableId: bindPeriodTableId,
+                keepGroups: preview.parseResult.groupIdsAuthoritative)) ?? 0
             // v7.10.12: 整表新建不过闸门, 超层时提示(同 ReplaceCurrent 策略)
             let badDaysNew = ConflictLayoutEngine.daysExceedingTwoLanes(preview.parseResult.courses)
             if !badDaysNew.isEmpty {
@@ -1499,16 +1489,15 @@ extension ImportSheet {
                     requiredNodeCount: incoming.nodesPerDay)
                 : confirmedTimeJson
             let mergedRows = TimeTableUtils.parseTimeSlotRows(mergedTimeJson)
-            let existingNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
-            var newTable = TimeTableEntity(
-                name: uniqueImportedTableName(confirmedTableName, existingNames),
-                startDate: confirmedStartDate,
-                maxWeek: incoming.maxWeek > 0 ? incoming.maxWeek : (base?.maxWeek ?? 20),
-                nodesPerDay: !mergedRows.isEmpty ? mergedRows.count : (base?.nodesPerDay ?? 12),
-                timeJson: mergedTimeJson,
-                isDefault: false)
-            newTable.color = base?.color ?? "#FF6750A4"
-            let newTableId = (try? repo.insertTable(newTable)) ?? 0
+            // v1.0.62 B7b 用户 2026-10-05(2a): 合并新建课表同样恒建+绑作息表(以 mergedTimeJson 为源)。
+            let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
+            let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
+            let mergedName = uniqueImportedTableName(confirmedTableName, courseNames)
+            let mergedPeriod = PeriodTableEntity(
+                name: TimeTableUtils.suggestUniqueName(
+                    mergedName, courseTableNames: courseNames, periodTableNames: periodNames),
+                nodesPerDay: max(mergedRows.count, 1),
+                timeJson: mergedTimeJson)
             // 当前课表原课 + 导入课程合并导入新课表
             // v7.10.16i: 老课全量保留。v7.10.16j(用户 2026-09-03「新课表=纯老表复制」):
             // 三层闸门改为**只拦新增冲突** — 候选违规判定只看新增候选本身是否比原表
@@ -1528,19 +1517,23 @@ extension ImportSheet {
                 let droppedDays = afterDays.subtracting(beforeDays)
                 onError(L10n.format("import_three_layers_kept", dayNames(droppedDays)))
             }
+            // 全量合并入库: 老课 + 全部非重复导入课(仅提示, 不再剔除 — 闸门只拦编辑恶化,
+            // 合并是新建课表, 用户明确要的就是并集)
             // AppendAsNew 合并新老课: 导入侧 groupId 权威时仅对导入课保组, 老课照原样保组
-            var mergedCourses = (oldCourses + cleanIncoming).map { c in
-                var copy = c; copy.id = 0; copy.tableId = newTableId; return copy
-            }
-            if preview.parseResult.groupIdsAuthoritative {
-                _ = try? repo.insertCoursesKeepingGroups(mergedCourses)
-                mergedCourses = []
-            } else {
-                _ = try? repo.insertCourses(mergedCourses)
-                mergedCourses = []
-            }
-            // v7.10.16j: 合并新课表建完即激活 — 缺 setDefault 则用户仍看老表
-            try? repo.setDefault(newTableId)
+            // v1.0.62 B7b ← repo.importNewTable: 表+作息表+课程+默认切换单事务原子提交
+            // (id/tableId 重置在 importNewTable 内统一做, 调用方不再自行拷贝)
+            let newTableId = (try? repo.importNewTable(
+                table: TimeTableEntity(
+                    name: mergedName,
+                    startDate: confirmedStartDate,
+                    maxWeek: incoming.maxWeek > 0 ? incoming.maxWeek : (base?.maxWeek ?? 20),
+                    nodesPerDay: max(mergedRows.count, 1),
+                    timeJson: mergedTimeJson,
+                    color: base?.color ?? "#FF6750A4",
+                    isDefault: false),
+                courses: oldCourses + cleanIncoming,
+                periodTable: mergedPeriod,
+                keepGroups: preview.parseResult.groupIdsAuthoritative)) ?? 0
             onImported()
             return newTableId
         case .appendAll:

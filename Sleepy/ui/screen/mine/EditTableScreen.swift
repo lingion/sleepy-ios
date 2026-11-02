@@ -120,6 +120,15 @@ struct EditTableScreen: View {
         //   timeJson 取实体来源(effective/table)的列值, 用户编辑 slotRows 不改动它,
         //   故编辑期键稳定(与 Android 一致: 编辑只动 mutableStateListOf, 不换 remember 键)。
         let timeJson = effective?.timeJson ?? table.timeJson
+        // v1.0.62 B7b(用户 2026-10-05): 草稿载体三入口统一 — 未绑定课表用本表兼容列合成载体,
+        // 手动改动同样进 editState 草稿(与绑定态一致); 原 effectivePeriodTable != null
+        // 守卫把未绑定路径整个跳过 = 手动↔自动同步断链的根因。
+        // ← Android draftScheduleCarrier
+        let draftScheduleCarrier = effective ?? PeriodTableEntity(
+            name: table.name,
+            nodesPerDay: table.nodesPerDay,
+            timeJson: table.timeJson,
+            smartConfigJson: table.smartConfigJson)
         let scheduleKey = "\(table.id)|\(effective?.id ?? -1)|\(timeJson)|\(scheduleEpoch)"
 
         return VStack(spacing: 0) {
@@ -192,27 +201,34 @@ struct EditTableScreen: View {
                                 rows: $slotRows,
                                 onRowsChange: { newRows in
                                     slotRows = newRows
-                                    // 甲案 §2.1: 节次编辑即草稿变化 — 同步进会话状态;
-                                    // 策略已登记时会自动作废(invariant ⑤, 下次保存重弹)
-                                    if let effective = effective {
-                                        var draft = effective
-                                        draft.timeJson = TimeTableUtils.buildTimeJsonFromRows(newRows)
-                                        draft.nodesPerDay = max(newRows.count, 1)
-                                        editState?.updateDraft(draft)
-                                        syncPendingPolicy()
+                                    // v1.0.62 B7b: 手动改行后 smartConfig 同步重播种(与
+                                    // PeriodTableEditScreen 同口径) — stored 仍能 derive 当前行
+                                    // 则定点保留(分组/标签不丢), 否则按行重推断; 不可推断保持旧值。
+                                    // 否则陈旧 config 被 Auto 模式 derive 覆盖手动行 = "多出 44 分钟课"根因。
+                                    if let reseeded = resolveAutoPeriodConfig(rows: newRows, stored: smartConfig) {
+                                        smartConfig = reseeded
                                     }
+                                    // 甲案 §2.1: 节次编辑即草稿变化 — 同步进会话状态;
+                                    // 策略已登记时会自动作废(invariant ⑤, 下次保存重弹)。
+                                    // 2b: 绑定/未绑定同口径(载体 = draftScheduleCarrier)。
+                                    var draft = draftScheduleCarrier
+                                    draft.timeJson = TimeTableUtils.buildTimeJsonFromRows(newRows)
+                                    draft.smartConfigJson = encodeSmartConfig(smartConfig)
+                                    draft.nodesPerDay = max(newRows.count, 1)
+                                    editState?.updateDraft(draft)
+                                    syncPendingPolicy()
                                 },
                                 smartConfig: smartConfig,
                                 onSmartConfigChange: { newCfg in
                                     smartConfig = newCfg
                                     // 甲案 §2.1: 自动模式配置也属作息草稿 — 变化即同步+旧策略作废
-                                    if let effective = effective {
-                                        var draft = effective
-                                        draft.smartConfigJson = encodeSmartConfig(newCfg)
-                                        draft.nodesPerDay = max(slotRows.count, 1)
-                                        editState?.updateDraft(draft)
-                                        syncPendingPolicy()
-                                    }
+                                    // 2b: 绑定/未绑定同口径(载体 = draftScheduleCarrier)。
+                                    var draft = draftScheduleCarrier
+                                    draft.timeJson = TimeTableUtils.buildTimeJsonFromRows(slotRows)
+                                    draft.smartConfigJson = encodeSmartConfig(newCfg)
+                                    draft.nodesPerDay = max(slotRows.count, 1)
+                                    editState?.updateDraft(draft)
+                                    syncPendingPolicy()
                                 },
                                 periodTableOptions: allPeriodTables.map {
                                     PeriodTableOption(id: $0.id, name: $0.name, nodesPerDay: $0.nodesPerDay)

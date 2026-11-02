@@ -121,6 +121,26 @@ final class ScheduleRepository {
         return id
     }
 
+    /// v1.0.62 B7b ← Android ScheduleRepository.importNewTable: 新课表 + 可选私有作息表 +
+    /// 课程 + 默认表切换, 单事务原子提交(一个撤回单元)。
+    /// 认亲（spec §2.4）: 事务内读导入前全库名册; 新课 hue 同事务落库(见 GRDBNewTableImportStore)。
+    @discardableResult
+    func importNewTable(table: TimeTableEntity,
+                        courses: [CourseEntity],
+                        periodTable: PeriodTableEntity?,
+                        bindPeriodTableId: Int64? = nil,
+                        keepGroups: Bool = false) throws -> Int64 {
+        let store = GRDBNewTableImportStore(db: db)
+        let id = try importNewTableAtomically(store: store,
+                                              table: table,
+                                              courses: courses,
+                                              period: periodTable,
+                                              bindingId: bindPeriodTableId,
+                                              keepGroups: keepGroups)
+        onDataChanged()
+        return id
+    }
+
     func updateTable(_ table: TimeTableEntity) throws {
         try captureForUndo()
         try tableDao.update(table)
