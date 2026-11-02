@@ -1,9 +1,10 @@
 // GeneralSettingsScreen.swift — ← ui/screen/mine/GeneralSettingsScreen.kt
-// 通用设置页(决策 D1 L1 ⑤): 六组 — ①课表显示 / ②小组件 / ③画面与导航 / ④语言 /
-// ⑤实验室 / ⑥数据迁移 (2026-09-21 Android 定稿分组与顺序, 本文件 v1.0.61 对齐重排)。
+// 通用设置页(决策 D1 L1 ⑤): 五组 — ①课表显示 / ②画面与导航 / ③语言 /
+// ④实验室 / ⑤数据迁移 (2026-09-21 Android 定稿分组与顺序, 本文件 v1.0.61 对齐重排;
+// v1.0.62 B4: 原分组② 小组件整块移出至 WidgetSettingsScreen 独立页, Android −78 同口径)。
 // 显示项变更后即时刷新小组件;语言切换 → LocaleHelper.applyLanguage(无 Activity.recreate,
 // 等价适配:iOS 由窗口重建语言环境)。
-// 分组②③④⑤⑥与各折叠卡抽为子视图 — SwiftUI ViewBuilder 单闭包 10 子视图上限。
+// 分组②③④⑤与各折叠卡抽为子视图 — SwiftUI ViewBuilder 单闭包 10 子视图上限。
 // 平台适配说明:
 // - 高刷新率行: iOS 无公开刷率 API(ProMotion 系统调度), 不移植 — 已载于
 //   PlatformParityNotes.swift; ③组仅 启动默认页 + 底栏样式。
@@ -207,13 +208,9 @@ struct GeneralSettingsScreen: View {
                                 MajorDivider()
                             }
 
-                            // ── 分组② 小组件 + 分组③ 画面与导航 ──
+                            // ── 分组③ 画面与导航 (v1.0.62 B4: 分组② 小组件整块
+                            //    移出至 WidgetSettingsScreen 独立页, 「我的」页进入) ──
                             Group {
-                                WidgetSection(expandedSections: $expandedSections,
-                                              refreshWidgets: refreshWidgets)
-
-                                MajorDivider()
-
                                 // 分组③ (启动默认页 + 底栏样式;
                                 //    高刷新率 = Android 专有, iOS 无公开刷率 API, 不移植)
                                 DisplayNavigationSection(
@@ -579,85 +576,10 @@ private struct VisibleDayRow: View {
     }
 }
 
-// ← 分组② 小组件 (2026-09-21 定稿: colorless / separator / 没课时显示最近有课的一天;
-//   竖排标点优化已迁实验室组 — 实验功能唯一家门=「实验室」组, 禁第三形态)
-private struct WidgetSection: View {
-    @Environment(\.localWakeUpColors) private var colors
-    @Binding var expandedSections: Set<String>
-    let refreshWidgets: () -> Void
-
-    // ← onOpenWidgetManagement: 跳二级页列出已放置的小组件
-    @State private var showManage = false
-
-    @State private var widgetColorless: Bool = AppPrefs.shared.isWidgetColorless()
-    @State private var widgetSeparator: Bool = AppPrefs.shared.isWidgetSeparator()
-    @State private var nearestBusyDay: Bool = AppPrefs.shared.isNearestBusyDay()
-    private let prefs = AppPrefs.shared
-
-    private func toggleSection(_ key: String) {
-        if expandedSections.contains(key) { expandedSections.remove(key) }
-        else { expandedSections.insert(key) }
-    }
-
-    var body: some View {
-        VStack(spacing: 16) {
-            SectionHeader(title: L10n.format("appearance_section_widget"))
-            SettingsCard(title: L10n.format("settings_widget"),
-                         expanded: expandedSections.contains("widget"),
-                         onToggle: { toggleSection("widget") }) {
-                SettingToggleRow(label: L10n.format("settings_widget_colorless"),
-                                 subtitle: L10n.format("settings_widget_colorless_sub"),
-                                 checked: widgetColorless) {
-                    widgetColorless = $0
-                    prefs.setWidgetColorless($0)
-                    refreshWidgets()
-                }
-                SubDivider()
-                SettingToggleRow(label: L10n.format("settings_widget_separator"),
-                                 subtitle: L10n.format("settings_widget_separator_sub"),
-                                 checked: widgetSeparator) {
-                    widgetSeparator = $0
-                    prefs.setWidgetSeparator($0)
-                    refreshWidgets()
-                }
-                SubDivider()
-                SettingToggleRow(label: L10n.format("settings_nearest_busy_day"),
-                                 subtitle: L10n.format("settings_nearest_busy_day_sub"),
-                                 checked: nearestBusyDay) {
-                    nearestBusyDay = $0
-                    // Android setNearestBusyDay + refreshWidgets; iOS setter 内部已
-                    // reloadAllTimelines(AppPrefs.swift:461), 再显式刷一次与 Android 同构无害
-                    prefs.setNearestBusyDay($0)
-                    refreshWidgets()
-                }
-            }
-
-            // 管理桌面小组件: 跳二级页列出已放置的小组件(模板: 节假日课程灰显入口行)
-            // ← GeneralSettingsScreen.kt item{ Row{...} }: titleSmall + ChevronRight 20dp
-            Button { showManage = true } label: {
-                HStack {
-                    Text(L10n.format("widget_manage_entry"))
-                        .font(.system(size: 14, weight: .medium)) // ← Android titleSmall 14sp Medium
-                        .foregroundColor(colors.onSurface)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 20))
-                        .foregroundColor(colors.onSurfaceVariant)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(colors.surfaceContainer)
-                .cornerRadius(SleepyShapes.large)
-            }
-            .buttonStyle(SleepyButtonStyle())
-            .accessibilityIdentifier("settings_widget_manage_entry")
-        }
-        .fullScreenCover(isPresented: $showManage) {
-            WidgetManagementScreen(onDismiss: { showManage = false })
-        }
-    }
-}
+// ← 分组② 小组件 — v1.0.62 B4 整块移出至 WidgetSettingsScreen(独立页, 「我的」页进入;
+//   Android GeneralSettingsScreen.kt −78 同口径: widget 块自通用页移出)。
+//   偏好键零迁移: settings_widget_colorless / separator / nearest_busy_day 三开关
+//   与「管理桌面小组件」入口行现宿主于 ui/screen/mine/WidgetSettingsScreen.swift。
 
 // ← 分组③ 画面与导航: 启动默认页 + 底栏样式(高刷新率 = Android 专有, 见 PlatformParityNotes)
 private struct DisplayNavigationSection: View {

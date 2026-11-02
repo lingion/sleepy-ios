@@ -24,6 +24,8 @@ enum SleepyRoute: Equatable {
     case about
     case license
     case widgetManagement
+    case widgetSettings
+    case widgetGallery
     case widgetEdit(widgetId: Int)
     case periodTables
     case periodEdit(periodId: Int64, isNew: Bool = false)
@@ -69,9 +71,12 @@ extension SleepyRoute {
             return .periodHeaderSettings
         // 以下无根 overlay 承载 = 平台忠实映射, by design (非缺口):
         //   holiday 内嵌 GeneralSettings 内部 sheet;
-        //   widgetManagement/widgetEdit 内嵌 GeneralSettings→WidgetManagement 链。
+        //   v1.0.62 B4: widgetSettings/widgetGallery 内嵌 MineScreen→WidgetSettings
+        //   →WidgetManagement→WidgetGallery cover 链(与 holiday/widgetManagement 同款惯例)。
         case .holiday: return nil
         case .widgetManagement: return nil
+        case .widgetSettings: return nil
+        case .widgetGallery: return nil
         case .widgetEdit: return nil
         }
     }
@@ -79,7 +84,8 @@ extension SleepyRoute {
     /// 是否已有 iOS 页面承接 (SleepyNavigator facade 放行条件).
     /// 1.0.61 新放行: .courseList / .periodTables / .periodEdit / .periodHeaderSettings
     /// (屏均已落地, OverlayScreen 有对应 case); holiday / widgetManagement / widgetEdit
-    /// 保持未放行 = 内嵌 sheet 链, 无根 overlay 路由 (by design, 非缺口).
+    /// / widgetSettings / widgetGallery 保持未放行 = 内嵌 sheet 链, 无根 overlay 路由
+    /// (by design, 非缺口).
     var isIOSPorted: Bool {
         switch self {
         case .addCourse, .allTables, .editTable, .appearance,

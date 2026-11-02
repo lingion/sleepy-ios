@@ -1079,3 +1079,11 @@
 "jw_import_report_copy" = "Copiar informe";
 "jw_import_report_join_qq" = "Unirse al grupo";
 "jw_import_report_done" = "Listo";
+
+/* ---- sleepy v1.0.62 B4 alignment ---- */
+"appearance_header_hide_time" = "Ocultar fila de hora";
+"appearance_header_hide_time_sub" = "Solo el número de periodo en el encabezado clásico (experimental, desactivado)";
+"mine_widget" = "Widgets";
+"widget_add_unsupported_hint" = "Este lanzador no admite el añadido rápido. Mantén pulsado el inicio → Widgets → elige Sleepy.";
+"widget_gallery_title" = "Añadir widget";
+"widget_manage_empty_v2" = "Toca + arriba a la derecha para añadir un widget. Si tu lanzador no admite el añadido rápido, mantén pulsado el inicio → Widgets → elige Sleepy.";

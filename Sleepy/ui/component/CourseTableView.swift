@@ -515,8 +515,13 @@ struct CardsGridView: View {
             timeW = max(threeLineWidthDp(slots: renderSlots, headerStyle: headerStyle, scale: scale,
                                          hangingUnits: headerHanging, showX: headerShowX), d(46))
         } else {
-            timeW = max(legacyLineWidthDp(slots: renderSlots, headerStyle: headerStyle, scale: scale,
-                                          showX: headerShowX), d(46))
+            // 用户令 (老式表头同三行式统一): 列宽 = dash 轴几何
+            // (所有行 dash 同一 X, 列宽含最宽行两侧余量), 不再硬钉 68dp。
+            // v1.0.62 B4: hideTime=true 时时间行不渲染, 列宽收口到标签实测宽
+            // (legacyTimeWidthDp, 下限 36dp 在函数内; 网格仍套 d(46) 防挤压口径)。
+            timeW = max(legacyTimeWidthDp(slots: renderSlots, headerStyle: headerStyle, scale: scale,
+                                          showX: headerShowX,
+                                          hideTime: AppPrefs.shared.isPeriodHeaderHideTime()), d(46))
         }
         let headH = d(52)
         let gapH = d(4)

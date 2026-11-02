@@ -1079,3 +1079,11 @@
 "jw_import_report_copy" = "報告をコピー";
 "jw_import_report_join_qq" = "QQ グループに参加";
 "jw_import_report_done" = "完了";
+
+/* ---- sleepy v1.0.62 B4 alignment ---- */
+"appearance_header_hide_time" = "時間行を表示しない";
+"appearance_header_hide_time_sub" = "旧式ヘッダーで限のみ表示（実験的、デフォルト OFF）";
+"mine_widget" = "ウィジェット";
+"widget_add_unsupported_hint" = "このランチャーはクイック追加に対応していません。ホーム画面を長押し → ウィジェット → Sleepy を選択してください。";
+"widget_gallery_title" = "ウィジェットを追加";
+"widget_manage_empty_v2" = "右上の＋からウィジェットを追加できます。クイック追加非対応のランチャーでは、ホーム画面を長押し → ウィジェット → Sleepy を選択してください。";
