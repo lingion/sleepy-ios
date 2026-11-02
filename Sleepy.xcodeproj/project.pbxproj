@@ -671,6 +671,7 @@
 		D431AB4C1EFC59B24DCAD842 /* NewTableImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B53C960D4A669D9CD7B6E307 /* NewTableImport.swift */; };
 		D45E6E8BD42A8C22C9DA4086 /* ChinaGeoJson-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3CB908A2E97C7E2983C42AD4 /* ChinaGeoJson-LICENSE.txt */; };
 		D4BD8EDCF883B2E8DD714569 /* ImportDraftRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D96D4B4460BFB76E92F792 /* ImportDraftRepository.swift */; };
+		D4E7ECA8F3FB198F4BEE3D48 /* JwKingoZxParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250B3D258A4D459C78D87DFF /* JwKingoZxParserTests.swift */; };
 		D57158AB79171803AE7C1172 /* GlobalWidgetCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B00E403E87446234A08FCF /* GlobalWidgetCompatibility.swift */; };
 		D5AD36AF92B9BEA56E25543C /* WatchComplicationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1696DA5E0411C382E6CAE49 /* WatchComplicationProvider.swift */; };
 		D5B4C0BD6A29B9D845CD420D /* school_cities.json in Resources */ = {isa = PBXBuildFile; fileRef = 6033BE02095EB53FC165FEAC /* school_cities.json */; };
@@ -960,6 +961,7 @@
 		24530B6DC99642CD638100EE /* ImportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSheet.swift; sourceTree = "<group>"; };
 		248CB14A9ABADCF13C48649F /* JwImportDiagnosticsFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportDiagnosticsFlow.swift; sourceTree = "<group>"; };
 		24CB83AF9B32FF2BC4921DB0 /* SleepyNativeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyNativeParser.swift; sourceTree = "<group>"; };
+		250B3D258A4D459C78D87DFF /* JwKingoZxParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwKingoZxParserTests.swift; sourceTree = "<group>"; };
 		2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorWriteGlue.swift; sourceTree = "<group>"; };
 		25AC6BA5397C193730D19A1B /* LocalCalendarFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCalendarFallbackTests.swift; sourceTree = "<group>"; };
 		25FE9965C48E2F34C544D0F2 /* JwCfNewParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCfNewParser.swift; sourceTree = "<group>"; };
@@ -1853,6 +1855,7 @@
 				49ACC545589A76ED84024036 /* JwImportFlowTests.swift */,
 				FA6FB4EA603D000B36F0CA61 /* JwImportViewModelTests.swift */,
 				EDC6BEB3E8D377C5952F4450 /* JwJsonParserTests.swift */,
+				250B3D258A4D459C78D87DFF /* JwKingoZxParserTests.swift */,
 				1C5C54D0863791B36DF5B028 /* JwNeuParserTests.swift */,
 				8BE7E49A169E2B9312B44369 /* JwNewUrpParserTests.swift */,
 				EFA83C4C6953AC1887DC5C65 /* JwParseDiagnosticsTests.swift */,
@@ -3024,6 +3027,7 @@
 				471B0D0CA625A98108CFBF7F /* JwImportFlowTests.swift in Sources */,
 				9CD15FB64044347529E02189 /* JwImportViewModelTests.swift in Sources */,
 				7D937FA178D2B32F57D5AEBA /* JwJsonParserTests.swift in Sources */,
+				D4E7ECA8F3FB198F4BEE3D48 /* JwKingoZxParserTests.swift in Sources */,
 				D5D68403113C498FC1ECA824 /* JwNeuParserTests.swift in Sources */,
 				B4ACEF6476B50F05AA6975B6 /* JwNewUrpParserTests.swift in Sources */,
 				E2A19463FD9AB90DD20895B5 /* JwParseDiagnosticsTests.swift in Sources */,
