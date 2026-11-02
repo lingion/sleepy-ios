@@ -70,6 +70,22 @@ private func regexFirstMatchRange(_ pattern: String, in s: String, from location
     return re.firstMatch(in: s, options: [], range: searchRange)?.range
 }
 
+/// Android `Regex.matches(input)` 等价物 — 全串匹配。
+private func regexMatchesEntire(_ pattern: String, in s: String) -> Bool {
+    guard let re = try? NSRegularExpression(pattern: "^(" + pattern + ")$", options: []) else { return false }
+    let ns = s as NSString
+    guard let m = re.firstMatch(in: s, options: [], range: NSRange(location: 0, length: ns.length)) else { return false }
+    return m.range.location == 0 && m.range.length == ns.length
+}
+
+/// Android `Regex.findAll(input).map { it.value }` 等价物。
+private func regexAllMatches(_ pattern: String, in s: String) -> [String] {
+    guard let re = try? NSRegularExpression(pattern: pattern, options: []) else { return [] }
+    let ns = s as NSString
+    return re.matches(in: s, options: [], range: NSRange(location: 0, length: ns.length))
+        .map { ns.substring(with: $0.range) }
+}
+
 final class JwThuparser: JwParser, JwParserConfidenceReporting {
 
     let source: String
@@ -90,21 +106,31 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
     ]
 
     // ---- regex constants ----
+    // v1.0.62 口径: \d → [0-9] 字符类 (Kotlin Regex \d 默认 ASCII, iOS 26 ICU
+    // 的 \d 会吞全角数字, PR #22 教训)。
     static let RE_C1_LINK = #"strHTML \+= "<a class='mainHref' href='.*?;([0-9A-Z]{8})'.*?>"#
     static let RE_C1_TITLE = ##"strHTML \+= "<b>(.*)</b>""##
     static let RE_C1_DATA = ##"strHTML1 \+= ?"；(.*)""##
-    static let RE_C1_WEEKBIG = #"getElementById\('a(\d)_(\d)'\).innerHTML \+= strHTML"#
+    static let RE_C1_WEEKBIG = #"getElementById\('a([0-9])_([0-9])'\).innerHTML \+= strHTML"#
     static let RE_C2_BLUE_RED_NONE = ##"strHTML = "<a class='blue_red_none' href='.*?p_id=([0-9A-Z]+)'.*?><b><font color='blue'>(.*?)</font></b></a><font color='blue'>(.*?)</font>";"##
-    static let RE_SEMESTER = ##"name="p_xnxq" value="([\d\-]+?)"##
+    static let RE_SEMESTER = ##"name="p_xnxq" value="([0-9\-]+?)"##
     static let RE_SET_INIT_VALUE = #"function setInitValue\(\)"#
     static let RE_EVENT_OBSERVE = #"Event\.observe"#
+    /// 数字串 — 周次数字解析 (Kotlin RE_NUMBER = \d+ → [0-9]+)。
+    static let RE_NUMBER = #"[0-9]+"#
 
     // ---- state machine ----
     private enum ParseState {
         case idle, gotLink, gotTitle, gotTeacher, gotType, gotWeeks, gotLocation
+        // v1.0.62: 已识别 C2, 等待 grid 坐标 (C2 不再即时 emit)
+        case gotC2
     }
     private static let defaultWeekCount: Int = 16
     private static let xkTypeList = ["必修", "限选", "任选"]
+
+    /// v1.0.62: 元数据缺项/形态不支持而跳过的课程数 (诊断特征用)。
+    /// Kotlin `internal var skippedCourseCount: Int = 0; private set`。
+    private(set) var skippedCourseCount: Int = 0
 
     private struct PendingCourse {
         var courseId: String = ""
@@ -113,18 +139,22 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
         var type: String = ""
         var weekText: String = ""
         var location: String = ""
+        var isC2: Bool = false  // v1.0.62: C2 与 C1 共用 pending 管线
         var big: Int = 0
         var day: Int = 0
         func copy(big: Int = 0, day: Int = 0) -> PendingCourse {
-            PendingCourse(courseId: courseId, name: name, teacher: teacher,
-                          type: type, weekText: weekText, location: location,
-                          big: big, day: day)
+            var c = self
+            c.big = big
+            c.day = day
+            return c
         }
     }
 
     // MARK: - JwParser
 
     func generateCourseList() throws -> [JwCourse] {
+        skippedCourseCount = 0
+        var out: [JwCourse] = []
         if !source.contains("function setInitValue") || !source.contains("Event.observe") {
             return []
         }
@@ -144,15 +174,44 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
         var state = ParseState.idle
         var pending = PendingCourse()
         var foundCourses: [String: PendingCourse] = [:]
-        var out: [JwCourse] = []
 
         for trimmed in lines {
-            switch state {
-            case .idle:
-                if let c2 = matchC2(trimmed) {
-                    out += parseBlueRedNone(name: c2.name, detStr: c2.detail)
+            // v1.0.62: 上游在元数据缺项时会直接进入网格坐标;
+            // 不能把下一门课的字段吞进当前记录 → 截断当前 pending 并计数。
+            if state != .idle && (regexHasMatch(Self.RE_C1_LINK, in: trimmed)
+                || regexHasMatch(Self.RE_C2_BLUE_RED_NONE, in: trimmed)) {
+                skippedCourseCount += 1
+                state = .idle
+                pending = PendingCourse()
+            }
+            // v1.0.62: GOT_TITLE/GOT_TEACHER/GOT_TYPE/GOT_WEEKS 阶段网格坐标可提前到达
+            // (缺类型/缺周次/缺地点) — 直接 emit, 不再等 GOT_LOCATION。
+            if [ParseState.gotTitle, .gotTeacher, .gotType, .gotWeeks].contains(state) {
+                if let m = matchStr(Self.RE_C1_WEEKBIG, in: trimmed, groups: [1, 2]) {
+                    pending.big = Int(m[0]) ?? 0
+                    pending.day = Int(m[1]) ?? 0
+                    if let course = emitCourse(pending) {
+                        out.append(course)
+                    } else {
+                        skippedCourseCount += 1
+                    }
+                    foundCourses[pending.courseId] = pending.copy(big: 0, day: 0)
+                    state = .idle
+                    pending = PendingCourse()
                     continue
                 }
+            }
+            switch state {
+            case .idle:
+                // 优先 C2 (单行 blue_red_none 模式, 跨周实验课/辅修)
+                // v1.0.62: C2 不再即时 emit — 进 pending 管线等 grid 坐标,
+                // 无可用排课信息时由 emitCourse 返回 nil 并计数。
+                if let c2 = matchC2(trimmed) {
+                    pending = PendingCourse(name: c2.name, location: c2.detail, isC2: true)
+                    state = .gotC2
+                    continue
+                }
+                // 否则试 C1 链接
                 if let link = matchStr(Self.RE_C1_LINK, in: trimmed, group: 1) {
                     let courseId = link.trimmingCharacters(in: .whitespaces)
                     pending = foundCourses[courseId]?.copy(big: 0, day: 0) ?? PendingCourse(courseId: courseId)
@@ -171,7 +230,14 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
                 }
             case .gotTeacher:
                 if let str = matchStr(Self.RE_C1_DATA, in: trimmed, group: 1) {
-                    if Self.xkTypeList.contains(str) { pending.type = str; state = .gotType }
+                    if Self.xkTypeList.contains(str) {
+                        pending.type = str
+                        state = .gotType
+                    } else {
+                        // v1.0.62: 课程属性是可选字段; 缺省时本行就是周次, 不可丢弃。
+                        pending.weekText = str
+                        state = .gotWeeks
+                    }
                 }
             case .gotType:
                 if let weekText = matchStr(Self.RE_C1_DATA, in: trimmed, group: 1) {
@@ -183,38 +249,81 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
                 }
             case .gotLocation:
                 if let m = matchStr(Self.RE_C1_WEEKBIG, in: trimmed, groups: [1, 2]) {
-                    let big = Int(m[0]) ?? 0
-                    let day = Int(m[1]) ?? 0
-                    pending.big = big; pending.day = day
-                    out += emitCourse(pending)
+                    pending.big = Int(m[0]) ?? 0
+                    pending.day = Int(m[1]) ?? 0
+                    if let course = emitCourse(pending) {
+                        out.append(course)
+                    } else {
+                        skippedCourseCount += 1
+                    }
+                    // 保留课程 (跨段复用), 重置 big/day
                     foundCourses[pending.courseId] = pending.copy(big: 0, day: 0)
                     state = .idle; pending = PendingCourse()
                 }
+            case .gotC2:
+                if let m = matchStr(Self.RE_C1_WEEKBIG, in: trimmed, groups: [1, 2]) {
+                    pending.big = Int(m[0]) ?? 0
+                    pending.day = Int(m[1]) ?? 0
+                    if let course = emitCourse(pending) {
+                        out.append(course)
+                    } else {
+                        skippedCourseCount += 1
+                    }
+                    state = .idle
+                    pending = PendingCourse()
+                }
             }
         }
+        // v1.0.62: 收尾仍挂在中间态的残课计一次 skipped
+        if state != .idle { skippedCourseCount += 1 }
         return out
     }
 
     // MARK: - Emit
-    private func emitCourse(_ p: PendingCourse) -> [JwCourse] {
+    /// v1.0.62: emit 失败返回 nil (调用方计 skipped), 不再伪造占位课。
+    private func emitCourse(_ p: PendingCourse) -> JwCourse? {
         // Android: p.name.isBlank() — 纯空白名也算空
         guard !p.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              (1...6).contains(p.big), (1...7).contains(p.day) else { return [emptyCourse(p.name)] }
+              (1...6).contains(p.big), (1...7).contains(p.day) else { return nil }
         let startNode = Self.START_NODE_MAP[p.big]
         let endNode = Self.END_NODE_MAP[p.big]
-        if startNode == 0 || endNode == 0 { return [emptyCourse(p.name)] }
-        let (sw, ew, type) = Self.parseWeekText(p.weekText)
+        if p.isC2 {
+            // v1.0.62: C2 详情可含任意周集合/小时区间;
+            // 当前模型不能无损表达时不伪造全周。
+            guard p.location.contains("("), p.location.contains(")") else { return nil }
+            // substringAfter('(') → substringBeforeLast(')')
+            guard let openRange = p.location.range(of: "(") else { return nil }
+            let afterOpen = String(p.location[openRange.upperBound...])
+            let details: String
+            if let lastRange = afterOpen.range(of: ")", options: .backwards) {
+                details = String(afterOpen[afterOpen.startIndex..<lastRange.lowerBound])
+            } else {
+                details = afterOpen
+            }
+            let parts = details.components(separatedBy: "；")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            guard let weekText = parts.first(where: { $0.contains("周") }) else { return nil }
+            if parts.contains(where: { $0.contains("时间：") }) { return nil }
+            guard let range = Self.parseKnownWeekText(weekText) else { return nil }
+            let room = parts.prefix { !$0.contains("周") }.joined(separator: "；")
+            let (sw, ew, type) = range
+            let adj = JwParity.adjustedRange(sw, ew, parity: type)
+            if adj.start > ew { return nil }
+            return JwCourse(
+                name: p.name, room: room, teacher: "",
+                day: p.day, startNode: startNode, endNode: endNode,
+                startWeek: adj.start, endWeek: adj.end, type: type)
+        }
+        guard let range = Self.parseKnownWeekText(p.weekText) else { return nil }
+        let (sw, ew, type) = range
         let adj = JwParity.adjustedRange(sw, ew, parity: type)
-        return [JwCourse(
+        if adj.start > ew { return nil }
+        return JwCourse(
             name: p.name,
             room: p.location.trimmingCharacters(in: .whitespaces),
             teacher: p.teacher.trimmingCharacters(in: .whitespaces),
             day: p.day, startNode: startNode, endNode: endNode,
-            startWeek: adj.start, endWeek: adj.end, type: type
-        )]
-    }
-    private func emptyCourse(_ name: String) -> JwCourse {
-        JwCourse(name: name, room: "", teacher: "", day: 0, startNode: 0, endNode: 0, startWeek: 0, endWeek: 0, type: 0)
+            startWeek: adj.start, endWeek: adj.end, type: type)
     }
 
     // MARK: - C2 (blue_red_none)
@@ -227,48 +336,59 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
         guard let m = firstMatchStr(Self.RE_C2_BLUE_RED_NONE, in: line) else { return nil }
         return C2Match(id: m[1], name: m[2], detail: m[3])
     }
-    /// C2 (blue_red_none) — 跨周实验课/辅修。
-    /// name = `<font color=blue>` 第1段 课程名; detail = 第2段 blue font (周次/地点).
-    private func parseBlueRedNone(name: String, detStr: String) -> [JwCourse] {
-        // Android: detStr.trim() 同时去掉换行
-        return [JwCourse(name: name, room: detStr.trimmingCharacters(in: .whitespacesAndNewlines), teacher: "",
-            day: 0, startNode: 0, endNode: 0,
-            startWeek: 1, endWeek: Self.defaultWeekCount, type: 0)
-        ]
-    }
 
     // MARK: - Week text parsing
-    /// "全周"→(1,16,0); "前八周"→(1,8,0); "后八周"→(9,16,0); "单周"→(1,16,1); "双周"→(2,16,2)
-    /// "第X-Y周（单/双）" / "第X-Y周(单/双)"; "第X-Y周"; "第X周"
-    internal static func parseWeekText(_ text: String) -> (startWeek: Int, endWeek: Int, parity: Int) {
+    /// v1.0.62: 解析已知周次文字; 未知或越界返回 nil, 不伪造全周:
+    ///  "全周"→(1,16,0); "前八周"→(1,8,0); "后八周"→(9,16,0);
+    ///  "单周"→(1,16,1); "双周"→(2,16,2);
+    ///  "X-Y周"→(X,Y,0); "第X-Y周"→(X,Y,0); "第X-Y周(单/双)"→(X,Y,1/2); "第X周"→(X,X,0)
+    static func parseKnownWeekText(_ text: String) -> (startWeek: Int, endWeek: Int, parity: Int)? {
         // Android: text.trim().trimStart('；',';') — 只去前导分号, 保留尾部分号
         let spaceTrimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let t = String(spaceTrimmed.drop { $0 == "\u{FF1B}" || $0 == ";" })
-        if t == "全周" { return (1, Self.defaultWeekCount, 0) }
-        if t == "前八周" { return (1, 8, 0) }
-        if t == "后八周" { return (9, Self.defaultWeekCount, 0) }
-        if t == "单周" { return (1, Self.defaultWeekCount, 1) }
-        if t == "双周" { return (2, Self.defaultWeekCount, 2) }
-        // Android 走 t.matches(...) 全串匹配 → iOS 用 ^…$ 锚定;
-        // 全角（单/双）与半角(单/双) 分别匹配, 混用括号不匹配 (与 Android 两分支语义一致)
-        let parityFullRe = #"^第(\d+)-(\d+)周（(单|双)）$"#
-        let parityHalfRe = #"^第(\d+)-(\d+)周\((单|双)\)$"#
-        if let m = matchStr(parityFullRe, in: t, groups: [1, 2, 3]) ?? matchStr(parityHalfRe, in: t, groups: [1, 2, 3]) {
-            let sw = Int(m[0]) ?? 1, ew = Int(m[1]) ?? sw
-            let p = m[2] == "单" ? 1 : 2
-            return (sw, ew, p)
+        var parsed: (Int, Int, Int)?
+        if t == "全周" {
+            parsed = (1, Self.defaultWeekCount, 0)
+        } else if t == "前八周" {
+            parsed = (1, 8, 0)
+        } else if t == "后八周" {
+            parsed = (9, Self.defaultWeekCount, 0)
+        } else if t == "单周" {
+            parsed = (1, Self.defaultWeekCount, 1)
+        } else if t == "双周" {
+            parsed = (2, Self.defaultWeekCount, 2)
+        } else if regexMatchesEntire(#"[0-9]+-[0-9]+周"#, in: t)
+            || regexMatchesEntire(#"第[0-9]+-[0-9]+周（单）"#, in: t)
+            || regexMatchesEntire(#"第[0-9]+-[0-9]+周\(单\)"#, in: t)
+            || regexMatchesEntire(#"第[0-9]+-[0-9]+周（双）"#, in: t)
+            || regexMatchesEntire(#"第[0-9]+-[0-9]+周\(双\)"#, in: t)
+            || regexMatchesEntire(#"第[0-9]+-[0-9]+周"#, in: t) {
+            // RE_NUMBER.findAll 取全部数字; Kotlin `?: return null` → 整体 nil
+            let nums = regexAllMatches(Self.RE_NUMBER, in: t).compactMap { Int($0) }
+            guard nums.count >= 2 else { return nil }
+            let parity: Int
+            if regexMatchesEntire(#"第[0-9]+-[0-9]+周（单）"#, in: t) || regexMatchesEntire(#"第[0-9]+-[0-9]+周\(单\)"#, in: t) {
+                parity = 1
+            } else if regexMatchesEntire(#"第[0-9]+-[0-9]+周（双）"#, in: t) || regexMatchesEntire(#"第[0-9]+-[0-9]+周\(双\)"#, in: t) {
+                parity = 2
+            } else {
+                parity = 0
+            }
+            parsed = (nums[0], nums[1], parity)
+        } else if regexMatchesEntire(#"第[0-9]+周"#, in: t) {
+            guard let n = regexAllMatches(Self.RE_NUMBER, in: t).first.flatMap({ Int($0) }) else { return nil }
+            parsed = (n, n, 0)
         }
-        let rangeRe = #"^第(\d+)-(\d+)周$"#
-        if let m = matchStr(rangeRe, in: t, groups: [1, 2]) {
-            let sw = Int(m[0]) ?? 1, ew = Int(m[1]) ?? sw
-            return (sw, ew, 0)
-        }
-        let singleRe = #"^第(\d+)周$"#
-        if let m = matchStr(singleRe, in: t, groups: [1]) {
-            let sw = Int(m[0]) ?? 1
-            return (sw, sw, 0)
-        }
-        return (1, Self.defaultWeekCount, 0)
+        guard let (sw, ew, parity) = parsed,
+              (1...30).contains(sw), (sw...30).contains(ew) else { return nil }
+        return (sw, ew, parity)
+    }
+
+    /// 兼容 shim: v1.0.61 静态 parseWeekText 签名 (既有单测仍在调用)。
+    /// v1.0.62 起解析路径走 parseKnownWeekText (nil=跳过不伪造);
+    /// shim 仅把"未知文字"回落到旧默认 (1,16,0), 已知文字行为不变。
+    internal static func parseWeekText(_ text: String) -> (startWeek: Int, endWeek: Int, parity: Int) {
+        parseKnownWeekText(text) ?? (1, Self.defaultWeekCount, 0)
     }
 
     // MARK: - JwParserConfidenceReporting
@@ -277,7 +397,7 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
         JwThuparser.confidenceValueFor(source: source)
     }
     var matchedFeatureList: [String] {
-        JwThuparser.matchedFeaturesFor(source: source)
+        JwThuparser.matchedFeaturesFor(source: source, skippedCount: skippedCourseCount)
     }
 
     // MARK: - Static confidence (协议指纹 6 件套)
@@ -299,10 +419,11 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
         if hits >= 1 { return 10 }
         return 0
     }
-    /// Android matchedFeatures(): 7 项特征检查 (含 thu:login-or-sso-marker),
+    /// Android matchedFeatures(): 8 项特征检查 (v1.0.62 首位 thu:skipped-unsupported=N),
     /// 仅当特征列表为空时追加 guard 项 (不对 login-only 页面短路)。
-    static func matchedFeaturesFor(source: String) -> [String] {
+    static func matchedFeaturesFor(source: String, skippedCount: Int = 0) -> [String] {
         var feats: [String] = []
+        if skippedCount > 0 { feats.append("thu:skipped-unsupported=\(skippedCount)") }
         if source.contains("zhjwxk") || source.contains("cic.tsinghua") {
             feats.append("thu:login-or-sso-marker")
         }

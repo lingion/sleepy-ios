@@ -31,15 +31,22 @@ final class JwEcuplParser: JwParser, JwParserConfidenceReporting {
 
     // MARK: - 特征正则
 
-    private static let reListTable = try! NSRegularExpression(pattern: "<table[^>]*class=\"listTable\"[^>]*>", options: [])
+    // reListTable 为 internal: JwEcuplSuperParser.HAS_LIST_TABLE 复用
+    // (← Kotlin companion 直接引用 JwEcuplParser.RE_LIST_TABLE)。
+    static let reListTable = try! NSRegularExpression(pattern: "<table[^>]*class=\"listTable\"[^>]*>", options: [])
     private static let reCourseName = try! NSRegularExpression(pattern: "<td[^>]*>([^<]*(?:法|律|学|课)[^<]*)</td>", options: [])
     private static let reTeacher = try! NSRegularExpression(pattern: "<td[^>]*>([^<]*(?:教授|老师|讲师|[一-龥]{2,4})[^<]*)</td>", options: [])
     private static let reWeekRange = try! NSRegularExpression(pattern: "(\\d+)\\s*[-~]\\s*(\\d+)\\s*(?:(单|双)|每周)?", options: [])
     private static let reSection = try! NSRegularExpression(pattern: "(\\d+)\\s*[-~]\\s*(\\d+)\\s*节?", options: [])
 
+    /// 静态包含判定 (供 JwEcuplSuperParser 等外部复用)。
+    static func contains(_ re: NSRegularExpression, _ s: String) -> Bool {
+        let r = NSRange(s.startIndex..., in: s)
+        return re.firstMatch(in: s, options: [], range: r) != nil
+    }
+
     private func matches(_ re: NSRegularExpression) -> Bool {
-        let r = NSRange(source.startIndex..., in: source)
-        return re.firstMatch(in: source, options: [], range: r) != nil
+        JwEcuplParser.contains(re, source)
     }
 
     // MARK: - JwParser
