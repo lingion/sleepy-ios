@@ -39,6 +39,19 @@ enum LocaleHelper {
            let b = Bundle(path: path) {
             return b
         }
+        // 针对测试运行期 (Bundle.main 为 xctest 而非 Sleepy.app):
+        for b in Bundle.allBundles + Bundle.allFrameworks {
+            if let path = b.path(forResource: name, ofType: "lproj"),
+               let bundle = Bundle(path: path) {
+                return bundle
+            }
+            let siblingApp = b.bundleURL.deletingLastPathComponent().appendingPathComponent("Sleepy.app")
+            if let appBundle = Bundle(url: siblingApp),
+               let path = appBundle.path(forResource: name, ofType: "lproj"),
+               let bundle = Bundle(path: path) {
+                return bundle
+            }
+        }
         return .main // 找不到(如 default→系统语言)回退 main
     }
 

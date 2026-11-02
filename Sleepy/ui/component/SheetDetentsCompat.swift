@@ -148,3 +148,218 @@ struct MultilineFieldCompat: View {
         }
     }
 }
+
+// MARK: - Presentation Drag Indicator & Dismiss Attempt Interceptor (iOS 15 / 16+)
+
+#if canImport(UIKit)
+import UIKit
+
+/// UIViewControllerRepresentable 宿主内省器:
+/// 1. 沿 VC 树向上查找 UISheetPresentationController 并配置 prefersGrabberVisible (iOS 15/16 兜底)
+/// 2. 挂接 UIAdaptivePresentationControllerDelegate 拦截 presentationControllerDidAttemptToDismiss
+/// 3. 保留并转发宿主原生已有 delegate 方法, 杜绝破坏 SwiftUI sheet 内部生命周期
+private struct SheetPresentationCompatIntrospector: UIViewControllerRepresentable {
+    let prefersGrabberVisible: Bool
+    let onDismissAttempt: (() -> Void)?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onDismissAttempt: onDismissAttempt)
+    }
+
+    func makeUIViewController(context: Context) -> SheetIntrospectViewController {
+        let vc = SheetIntrospectViewController()
+        vc.onResolve = { sheet in
+            sheet.prefersGrabberVisible = prefersGrabberVisible
+            context.coordinator.attach(to: sheet)
+        }
+        return vc
+    }
+
+    func updateUIViewController(_ vc: SheetIntrospectViewController, context: Context) {
+        context.coordinator.onDismissAttempt = onDismissAttempt
+        vc.onResolve = { sheet in
+            sheet.prefersGrabberVisible = prefersGrabberVisible
+            context.coordinator.attach(to: sheet)
+        }
+        vc.resolveAndNotify()
+    }
+
+    final class Coordinator: NSObject, UIAdaptivePresentationControllerDelegate {
+        var onDismissAttempt: (() -> Void)?
+        weak var originalDelegate: UIAdaptivePresentationControllerDelegate?
+        private weak var attachedController: UIPresentationController?
+
+        init(onDismissAttempt: (() -> Void)?) {
+            self.onDismissAttempt = onDismissAttempt
+        }
+
+        func attach(to pc: UIPresentationController) {
+            guard attachedController !== pc || pc.delegate !== self else { return }
+            attachedController = pc
+            if let existing = pc.delegate, existing !== self {
+                originalDelegate = existing
+            }
+            pc.delegate = self
+        }
+
+        // MARK: - UIAdaptivePresentationControllerDelegate 拦截与转发
+
+        func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) {
+            onDismissAttempt?()
+            originalDelegate?.presentationControllerDidAttemptToDismiss?(presentationController)
+        }
+
+        func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+            originalDelegate?.presentationControllerDidDismiss?(presentationController)
+        }
+
+        func presentationControllerShouldDismiss(_ presentationController: UIPresentationController) -> Bool {
+            return originalDelegate?.presentationControllerShouldDismiss?(presentationController) ?? true
+        }
+
+        func presentationControllerWillDismiss(_ presentationController: UIPresentationController) {
+            originalDelegate?.presentationControllerWillDismiss?(presentationController)
+        }
+
+        func adaptivePresentationStyle(for controller: UIPresentationController) -> UIModalPresentationStyle {
+            return originalDelegate?.adaptivePresentationStyle?(for: controller) ?? .none
+        }
+
+        func adaptivePresentationStyle(
+            for controller: UIPresentationController,
+            traitCollection: UITraitCollection
+        ) -> UIModalPresentationStyle {
+            return originalDelegate?.adaptivePresentationStyle?(for: controller, traitCollection: traitCollection) ?? .none
+        }
+
+        override func responds(to aSelector: Selector!) -> Bool {
+            if super.responds(to: aSelector) { return true }
+            return originalDelegate?.responds(to: aSelector) ?? false
+        }
+
+        override func forwardingTarget(for aSelector: Selector!) -> Any? {
+            if let orig = originalDelegate, orig.responds(to: aSelector) {
+                return orig
+            }
+            return super.forwardingTarget(for: aSelector)
+        }
+    }
+}
+
+private final class SheetIntrospectViewController: UIViewController {
+    var onResolve: ((UISheetPresentationController) -> Void)?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+    }
+
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        resolveAndNotify()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        resolveAndNotify()
+    }
+
+    func resolveAndNotify() {
+        var attempts = 0
+        func findSheet() {
+            var node: UIViewController? = self
+            while let cur = node {
+                if let sheet = cur.sheetPresentationController {
+                    onResolve?(sheet)
+                    return
+                }
+                node = cur.parent ?? cur.presentingViewController
+            }
+            attempts += 1
+            if attempts < 20 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: findSheet)
+            }
+        }
+        findSheet()
+    }
+}
+
+public struct SheetPresentationCompatModifier: ViewModifier {
+    let dragIndicator: Visibility
+    let onDismissAttempt: (() -> Void)?
+
+    public func body(content: Content) -> some View {
+        if #available(iOS 16.0, *) {
+            content
+                .presentationDragIndicator(dragIndicator)
+                .background(
+                    SheetPresentationCompatIntrospector(
+                        prefersGrabberVisible: dragIndicator == .visible,
+                        onDismissAttempt: onDismissAttempt
+                    )
+                )
+        } else {
+            content
+                .background(
+                    SheetPresentationCompatIntrospector(
+                        prefersGrabberVisible: dragIndicator == .visible,
+                        onDismissAttempt: onDismissAttempt
+                    )
+                )
+        }
+    }
+}
+
+public extension View {
+    /// 兼容 iOS 15/16+ 的 sheet 拖拽指示条与下滑拦截统一配置
+    func sheetPresentationCompat(
+        dragIndicator: Visibility = .visible,
+        onDismissAttempt: (() -> Void)? = nil
+    ) -> some View {
+        modifier(SheetPresentationCompatModifier(dragIndicator: dragIndicator, onDismissAttempt: onDismissAttempt))
+    }
+
+    /// 兼容 iOS 15/16+ 的 sheet 拖拽指示条展示控制
+    func sheetDragIndicator(_ visibility: Visibility = .visible) -> some View {
+        sheetPresentationCompat(dragIndicator: visibility, onDismissAttempt: nil)
+    }
+
+    /// 拦截 sheet 下滑关闭尝试 (当 interactiveDismissDisabled(true) 时触发, 桥接至退出确认)
+    func onSheetDismissAttempt(perform action: @escaping () -> Void) -> some View {
+        sheetPresentationCompat(dragIndicator: .visible, onDismissAttempt: action)
+    }
+
+    /// 别名：拦截 sheet 下滑关闭尝试
+    func onDismissAttempt(perform action: @escaping () -> Void) -> some View {
+        sheetPresentationCompat(dragIndicator: .visible, onDismissAttempt: action)
+    }
+}
+
+// MARK: - Keyboard Dismissal on Scroll Compatibility (iOS 15/16)
+
+public struct ScrollDismissesKeyboardImmediatelyModifier: ViewModifier {
+    public func body(content: Content) -> some View {
+        if #available(iOS 16.0, *) {
+            content.scrollDismissesKeyboard(.immediately)
+        } else {
+            content.simultaneousGesture(
+                DragGesture(minimumDistance: 8).onChanged { _ in
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder),
+                        to: nil, from: nil, for: nil
+                    )
+                }
+            )
+        }
+    }
+}
+
+public extension View {
+    /// Dismisses keyboard immediately when user drags/scrolls the view, compatible with iOS 15 & 16+
+    func scrollDismissesKeyboardImmediatelyCompat() -> some View {
+        modifier(ScrollDismissesKeyboardImmediatelyModifier())
+    }
+}
+#endif
+
