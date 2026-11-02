@@ -20,7 +20,7 @@
 - Release availability and version numbers are authoritative at the Releases URL and the in-app About page; this file intentionally does not pin version strings.
 - Product support floor: iOS 16.0 (badges, UI copy and release notes). The Xcode build setting `IPHONEOS_DEPLOYMENT_TARGET` is currently 15.6; some surfaces are gated with `@available(iOS 16.0, *)`. Treat 16.0 as the supported baseline.
 - Architecture: arm64.
-- Distribution: unsigned IPA builds via GitHub Releases, pending TestFlight; install requires re-signing (AltStore / SideStore).
+- Distribution: TestFlight public beta (https://testflight.apple.com/join/SxymmDzf, currently the only official release route); unsigned IPA builds via GitHub Releases (requires AltStore / SideStore re-signing).
 - Feature-aligned with the Android releases; alignment status is documented per release in release notes.
 
 ## Tech stack
