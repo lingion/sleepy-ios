@@ -38,7 +38,7 @@ jobs:
     # xcodegen 新版生成的 pbxproj 是 format 77 (Xcode 16), macos-14 镜像的
     # Xcode 15.4 读不了 — 必须用 macos-15
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,9 +57,13 @@ jobs:
           retention-days: 7
       - name: Run simulator tests
         if: inputs.tests == 'yes'
+        shell: bash
         run: |
+          # pipefail: 没有它, xcodebuild 失败会被 `| xcbeautify` 吞成 exit 0 (假绿)。
+          # iPhone 15 在 macos-14 镜像不存在(最低 16), 曾导致本步骤直接跳过测试还报绿。
+          set -o pipefail
           xcodebuild test \
             -project Sleepy.xcodeproj \
             -scheme Sleepy \
-            -destination "platform=iOS Simulator,name=iPhone 15" \
+            -destination "platform=iOS Simulator,name=iPhone 16,OS=18.5" \
             | xcbeautify
