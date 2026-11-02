@@ -113,11 +113,14 @@ struct FrameSnapshotList {
 // MARK: - 树遍历与锚点判定
 enum FrameTraversalTree {
 
-    /// 锚点集 — 与 parser 容器选择器对齐(Table1/blacktab/kbtable/kbgrid_table_0/kblist_table/
-    /// kbList/kbxx/timetable/_dgdata)。
+    // ← Android JwWebViewFrameCapture.kt:125 (v1.0.62): 14 锚点。
+    // 后 5 个 (pageRpt/mytable/reportArea/xkinfo/sample-table-1) 是 Kingosoft 正选报表
+    // (table#pageRpt, 移植源 JwKingoZxParser.kt:122) 等页面的 id/class 锚点 ——
+    // 缺失会让这类页在 frame 选择阶段判 WRONG_PAGE, 移植好的解析器永远跑不到。
     static let ANCHORS: [String] = [
         "Table1", "blacktab", "kbtable", "kbgrid_table_0", "kblist_table",
-        "kbList", "kbxx", "timetable", "_dgdata"
+        "kbList", "kbxx", "timetable", "_dgdata", "pageRpt", "mytable",
+        "reportArea", "xkinfo", "sample-table-1"
     ]
 
     private static func anchorNeedle(_ anchor: String) -> [String] {
@@ -128,13 +131,47 @@ enum FrameTraversalTree {
         return ["id=\"\(anchor)\"", "id='\(anchor)'", "class=\"\(anchor)\"", "class='\(anchor)'"]
     }
 
-    /// 扫锚点: 返回 ANCHORS 的命中子集, 顺序保持 ANCHORS 原序
+    // ← Android JwWebViewFrameCapture.kt:130 THU_SCRIPT_ANCHOR。
+    /// THU 网格课程由页面脚本填入 aN_M 单元；需要完整脚本指纹，不能仅凭泛用 id 命中。
+    static let THU_SCRIPT_ANCHOR = "thu-setInitValue-course-grid"
+
+    // ← Android JwWebViewFrameCapture.kt:132 isThuCoursePage
+    private static func isThuCoursePage(_ html: String) -> Bool {
+        html.contains("function setInitValue()")
+            && html.contains("Event.observe")
+            && (html.contains("class='mainHref'") || html.contains("class='blue_red_none'"))
+            && (html.range(of: #"getElementById\('a[1-6]_[1-7]'\)\.innerHTML\s*\+=\s*strHTML"#,
+                           options: .regularExpression) != nil)
+    }
+
+    /// 扫锚点: 返回 ANCHORS 的命中子集 + 结构锚点扩展, 顺序保持 ANCHORS 原序(测试断言依赖稳定序)。
+    /// ← Android JwWebViewFrameCapture.kt:147 findAnchors (v1.0.62):
+    /// 三个结构扩展锚点 — old-qz-structural / thu 网格 / new-urp-array。
     static func findAnchors(_ html: String) -> [String] {
         if html.isEmpty { return [] }
         let lower = html.lowercased()
-        return ANCHORS.filter { anchor in
+        let anchors = ANCHORS.filter { anchor in
             anchorNeedle(anchor).contains { lower.contains($0.lowercased()) }
         }
+        // ← Android :153-156: 老青岛教务 (id="kb" 或 id="1-2-2" 式单元格) 且结构解析出课 → 命中。
+        let oldQzAnchors: [String]
+        if (lower.contains("id=\"kb\"") || lower.contains("id='kb'")
+            || lower.range(of: #"id=["'][1-5]-[1-7]-2["']"#, options: .regularExpression) != nil)
+            && !((try? JwOldQzSuperParser(html).generateCourseList()) ?? []).isEmpty {
+            oldQzAnchors = anchors + ["old-qz-structural"]
+        } else {
+            oldQzAnchors = anchors
+        }
+        let thuAnchors = isThuCoursePage(html)
+            ? oldQzAnchors + [THU_SCRIPT_ANCHOR] : oldQzAnchors
+        // Some URP pages embed the timetable as a flat JSON array in a script,
+        // without a table id/class. Validate its structure before selecting frame.
+        // ← Android :158-162
+        if html.contains("\"skzc\"") && html.contains("\"kcm\"")
+            && JwNewUrpSuperParser(html).hasFlatArraySchema() {
+            return thuAnchors + ["new-urp-array"]
+        }
+        return thuAnchors
     }
 
     /// 跨域 frame 列表: "frameName@domain"
