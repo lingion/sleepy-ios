@@ -27,7 +27,7 @@ final class ReminderPermissionUITests: XCTestCase {
     }
 
     private func openReminder() {
-        app.descendants(matching: .any)["pill_mine"].tap()
+        app.switchToPillTab("mine")
         let entry = app.descendants(matching: .any)["mine_reminder"]
         XCTAssertTrue(entry.waitForExistence(timeout: 5), "Mine 页应有提醒入口")
         entry.tap()
@@ -168,7 +168,7 @@ final class ReminderPermissionDeniedTests: XCTestCase {
     }
 
     func testMasterOnWithPermissionDeniedRevertsOff() throws {
-        app.descendants(matching: .any)["pill_mine"].tap()
+        app.switchToPillTab("mine")
         app.descendants(matching: .any)["mine_reminder"].tap()
         XCTAssertTrue(app.staticTexts["Reminders"].waitForExistence(timeout: 5))
 

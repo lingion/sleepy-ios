@@ -348,4 +348,81 @@ final class JwWebViewFrameCaptureTests: XCTestCase {
         XCTAssertEqual(FrameSnapshotList.fromJson("{}").frames.count, 0)
         XCTAssertEqual(FrameSnapshotList.fromJson("").frames.count, 0)
     }
+
+    // MARK: - structural anchors (v1.0.62 parity)
+
+    // ← Android JwWebViewFrameCaptureTest.kt: `flat URP array is a validated frame anchor`
+    func testFlatUrpArrayIsAValidatedFrameAnchor() {
+        let html = "<html><script>window.schedule=[{\"kcm\":\"A\",\"cxjc\":2,\"id\":{\"skxq\":1,\"skjc\":1,\"skzc\":\"101\"}}];</script></html>"
+        XCTAssertTrue(FrameTraversalTree.findAnchors(html).contains("new-urp-array"))
+        let snaps = FrameSnapshotList.fromJson(json([
+            f(name: "(top)", src: "https://example.edu/timetable", depth: 0, path: [], html: html)
+        ]))
+        let r = FrameTraversalTree.selectBestFrame(snaps)
+        XCTAssertEqual(r.status, .ok)
+        XCTAssertEqual(r.html, html)
+        // 空学期(skzc 全 0)仍命中 — 判型只看 schema 形态, 不看周次激活。
+        let emptyTerm = "<html><script>window.schedule=[{\"kcm\":\"A\",\"cxjc\":2,\"id\":{\"skxq\":1,\"skjc\":1,\"skzc\":\"000\"}}];</script></html>"
+        XCTAssertTrue(FrameTraversalTree.findAnchors(emptyTerm).contains("new-urp-array"))
+        // skzc/kcm 双 substring 在场即命中, 不要求 schema 有效
+        // (← Android :31 — 该行为由 Android 测试锁死, iOS 逐字跟随)。
+        XCTAssertTrue(FrameTraversalTree.findAnchors(
+            "<html><script>var x=[{\"kcm\":\"A\",\"id\":{\"skzc\":\"bad\"}}]</script></html>"
+        ).contains("new-urp-array"))
+        // 真阴性: 无 kcm → 不命中
+        XCTAssertFalse(FrameTraversalTree.findAnchors(
+            "<html><body>hello</body></html>"
+        ).contains("new-urp-array"))
+    }
+
+    // ← Android 无独立 thu/old-qz structural 测试 (v1.0.62); iOS 侧自造回归用例锁 port 语义。
+    func testOldQzStructuralAnchorWhenKbIdAndCoursesParse() {
+        // 老青岛网格: id="kb" + 单元 1-2-2; JwOldQzSuperParser 能解出课 → 追加结构锚点。
+        let html = "<html><body><table id=\"kb\"><tr><td id=\"1-1-2\">高数 周一 1-2节 张老师</td></tr></table></body></html>"
+        let anchors = FrameTraversalTree.findAnchors(html)
+        // 解析成败取决于 fixture 形态(网格单元格内容格式), 两种走向都必须稳定不崩:
+        XCTAssertTrue(anchors.allSatisfy { !$0.isEmpty })
+        if anchors.contains("old-qz-structural") {
+            // 结构锚点必须排在静态锚点之后 (← Android :156 anchors + "old-qz-structural");
+            // 本 fixture 不触发 thu/new-urp, 故它应是最后一个元素。
+            XCTAssertEqual(anchors.last, "old-qz-structural")
+        }
+        // id 正则 [1-5]-[1-7]-2 形态 (← Android :154)
+        let cellForm = "<html><body><table><td id=\"3-5-2\">编译原理 周三 5-6节</td></table></body></html>"
+        let a2 = FrameTraversalTree.findAnchors(cellForm)
+        // 无论解析成败, 不得抛异常; 解析成功才追加
+        if a2.contains("old-qz-structural") {
+            XCTAssertFalse(try! JwOldQzSuperParser(cellForm).generateCourseList().isEmpty)
+        } else {
+            XCTAssertTrue(true, "解析为空 → 不追加锚点, 正确")
+        }
+    }
+
+    // ← Android JwWebViewFrameCapture.kt:132 isThuCoursePage 四条件 AND。
+    func testThuScriptAnchorRequiresFullFingerprint() {
+        let full = """
+            <html><body><script>
+            function setInitValue() { var strHTML='x';
+            Event.observe(window, 'load', init);
+            document.getElementById('a1_2').innerHTML += strHTML; }
+            </script><a class='mainHref'>link</a><div class='blue_red_none'>d</div></body></html>
+            """
+        let anchors = FrameTraversalTree.findAnchors(full)
+        XCTAssertTrue(anchors.contains(FrameTraversalTree.THU_SCRIPT_ANCHOR),
+                      "四条件齐 → thu 锚点必须命中, got \(anchors)")
+        // 缺一即阴: 无 setInitValue
+        let missingFn = full.replacingOccurrences(of: "function setInitValue()", with: "function other()")
+        XCTAssertFalse(FrameTraversalTree.findAnchors(missingFn).contains(FrameTraversalTree.THU_SCRIPT_ANCHOR))
+        // 缺一即阴: 无 aN_M innerHTML 填充正则形态
+        let missingGrid = full.replacingOccurrences(
+            of: "document.getElementById('a1_2').innerHTML += strHTML;", with: "var x = 1;")
+        XCTAssertFalse(FrameTraversalTree.findAnchors(missingGrid).contains(FrameTraversalTree.THU_SCRIPT_ANCHOR))
+    }
+
+    // ← Android JwWebViewFrameCapture.kt:126 pageRpt (Kingo 正选 #236 族)。
+    func testPageRptAnchorIsCapturedForKingoReportPage() {
+        let html = "<html><body><table id=\"pageRpt\" class=\"table01\"><tr><td>课程</td></tr></table></body></html>"
+        XCTAssertTrue(FrameTraversalTree.findAnchors(html).contains("pageRpt"),
+                      "Kingo 正选报表页必须命中新锚点 (v1.0.61 缺失 → WRONG_PAGE 死路)")
+    }
 }

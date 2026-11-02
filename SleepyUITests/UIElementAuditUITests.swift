@@ -9,11 +9,19 @@ import CoreGraphics
 final class UIElementAuditUITests: XCTestCase {
 
     var app: XCUIApplication!
-    var outputDir: String = "/Users/lingion_k/Desktop/sleepy-ios/audit_shots"
+    /// 截图落盘目录。
+    /// ★ 原为硬编码外部机器路径 "/Users/lingion_k/Desktop/sleepy-ios/audit_shots",
+    ///   在别的机器上该目录不存在 → `try? data.write(to:)` 静默失败, PNG 从未落盘,
+    ///   随后 `assertDarkScreenshot` 的 `CGDataProvider(url:)` 解码必然失败 →
+    ///   A6_* 深色矩阵 10 个用例全部报「无法解码截图」(测试夹具缺陷, 非产品缺陷)。
+    /// 改为进程临时目录并在 setUp 里创建, 保证可写。
+    var outputDir: String = NSTemporaryDirectory() + "sleepy_audit_shots"
 
     override func setUpWithError() throws {
         continueAfterFailure = true
         app = XCUIApplication()
+        try? FileManager.default.createDirectory(atPath: outputDir,
+                                                withIntermediateDirectories: true)
         // 默认:Light + zh-Hans (通过 AppleLanguages/zh-Hans 注入)
         // 注意:-SLEEPY_UI_TEST_SEED 触发种子数据
     }
@@ -107,10 +115,9 @@ final class UIElementAuditUITests: XCTestCase {
 
 
     private func switchToTab(_ tabId: String) {
-        let tab = app.descendants(matching: .any)["pill_\(tabId)"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 5), "Tab \(tabId) not found")
-        tab.tap()
-        sleep(1) // 动画
+        // ★ 复用统一 helper: 断言「真的切过去了」(选中 trait 翻转)并对被吞掉的 tap 重试。
+        //   旧写法 tap + sleep 无切换断言 → tap 丢失时错误现场与病因脱节。
+        app.switchToPillTab(tabId)
     }
 
     // MARK: - 导航到子页面

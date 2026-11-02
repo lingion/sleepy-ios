@@ -28,7 +28,7 @@ final class ExportFlowUITests: XCTestCase {
     }
 
     private func openExport() {
-        app.descendants(matching: .any)["pill_mine"].tap()
+        app.switchToPillTab("mine")
         let exportEntry = app.descendants(matching: .any)["mine_export"]
         XCTAssertTrue(exportEntry.waitForExistence(timeout: 5), "Mine 页应有导出入口")
         exportEntry.tap()

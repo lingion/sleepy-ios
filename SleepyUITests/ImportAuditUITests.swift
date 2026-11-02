@@ -19,7 +19,7 @@ final class ImportAuditUITests: XCTestCase {
     func testManageImportEntryReachable() throws {
         let app = launchSeeded()
         XCTAssertTrue(app.descendants(matching: .any)["pill_mine"].waitForExistence(timeout: 10))
-        app.descendants(matching: .any)["pill_mine"].tap()
+        app.switchToPillTab("mine")
         // mine_stat_tables 容器锚点 = StatItem(.accessibilityElement(children:.contain)),
         // 但 tables/courses 两项被 Button 包裹(MineScreen.swift StatsCard, v1.0.60 可点
         // 进管理页/课程清单)→ 容器节点在 AX 树不浮出(无同名可查元素, waitForExistence

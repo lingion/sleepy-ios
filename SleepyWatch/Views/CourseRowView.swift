@@ -16,11 +16,14 @@ struct CourseRowView: View {
     var groupRows: [CourseEntity] = []
 
     @EnvironmentObject private var store: WatchStore
+    /// 派生档持久色相快照(镜像自手机 course_colors) — 与手机课程色一致。
+    @ObservedObject private var hueStore = CourseHueStore.shared
 
     private var color: Color {
         CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: groupRows.isEmpty ? [course] : groupRows,
-            isDark: scheme.isDark, neutralColor: scheme.secondaryContainer)
+            isDark: scheme.isDark, neutralColor: scheme.secondaryContainer,
+            persistedHue: hueStore.hueFor(course.groupId))
     }
 
     /// 「教师 · 地点」← TodayCourseCard 同拼接: 空段跳过, 两段之间中点分隔

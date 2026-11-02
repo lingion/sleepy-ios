@@ -40,28 +40,32 @@ final class SleepyUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 5))
 
         // 课表 → 今日
-        app.descendants(matching: .any)["pill_today"].tap()
+        app.switchToPillTab("today")
         // 今日页头: "Today" 标题 + 周次 + 节数卡
         XCTAssertTrue(app.staticTexts["Today"].waitForExistence(timeout: 3),
                       "今日页未出现 Today 标题")
 
         // 今日 → 课表管理
-        app.descendants(matching: .any)["pill_manage"].tap()
+        app.switchToPillTab("manage")
         XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 3),
                       "管理页未出现 Manage 标题")
 
         // 管理 → 我的
-        app.descendants(matching: .any)["pill_mine"].tap()
-        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 3),
+        app.switchToPillTab("mine")
+        // 注意: 底栏本身渲染一个 label="Me" 的 StaticText → staticTexts["Me"] 是假锚点。
+        //   改用「我的」页独有入口标识作为锚点。
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5),
                       "我的页未出现 Me 标题")
     }
 
     // MARK: - 我的页设置项可达
 
     func testMineSettingsNavigation() {
-        app.descendants(matching: .any)["pill_mine"].tap()
+        app.switchToPillTab("mine")
         // 等我的页加载
-        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5))
 
         // 6 个设置项都存在(通过 accessibilityIdentifier)
         XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"].exists, "all_tables 入口缺失")
@@ -75,8 +79,9 @@ final class SleepyUITests: XCTestCase {
     // MARK: - 主题切换可达
 
     func testAppearanceScreen() {
-        app.descendants(matching: .any)["pill_mine"].tap()
-        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 3))
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5))
 
         app.descendants(matching: .any)["mine_appearance"].tap()
         // mine_appearance = "Appearance" (locale-invariant via identifier)
@@ -87,8 +92,9 @@ final class SleepyUITests: XCTestCase {
     // MARK: - 关于页(版本号 + 1-click update)
 
     func testAboutScreen() {
-        app.descendants(matching: .any)["pill_mine"].tap()
-        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 3))
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5))
 
         app.descendants(matching: .any)["mine_about"].tap()
         XCTAssertTrue(app.staticTexts["About"].waitForExistence(timeout: 3),
@@ -98,8 +104,9 @@ final class SleepyUITests: XCTestCase {
     // MARK: - 提醒页
 
     func testReminderScreen() {
-        app.descendants(matching: .any)["pill_mine"].tap()
-        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 3))
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5))
 
         app.descendants(matching: .any)["mine_reminder"].tap()
         XCTAssertTrue(app.staticTexts["Reminders"].waitForExistence(timeout: 3),
@@ -109,8 +116,9 @@ final class SleepyUITests: XCTestCase {
     // MARK: - 通用设置页
 
     func testGeneralSettingsScreen() {
-        app.descendants(matching: .any)["pill_mine"].tap()
-        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 3))
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5))
 
         app.descendants(matching: .any)["mine_general"].tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 3),
@@ -120,8 +128,9 @@ final class SleepyUITests: XCTestCase {
     // MARK: - 全部课表页
 
     func testAllTablesScreen() {
-        app.descendants(matching: .any)["pill_mine"].tap()
-        XCTAssertTrue(app.staticTexts["Me"].waitForExistence(timeout: 3))
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5))
 
         app.descendants(matching: .any)["mine_all_tables"].tap()
         XCTAssertTrue(app.staticTexts["All Schedules"].waitForExistence(timeout: 3),
@@ -131,7 +140,7 @@ final class SleepyUITests: XCTestCase {
     // MARK: - 课表管理 → 导入入口
 
     func testManageScreenImportEntry() {
-        app.descendants(matching: .any)["pill_manage"].tap()
+        app.switchToPillTab("manage")
         XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 3))
 
         // 课表管理页有"导入课表"按钮(ManagementPage 顶部 + 4 manage cards)

@@ -39,21 +39,30 @@ enum SchoolCityIndex {
     }
 
     /// 城市名归一: 去首尾空白 + 去单个"市"后缀 (Android removeSuffix 只剥结尾一次, 不是全局替换)。
+    /// ← Android normalizeCity 额外处理两个异名:
+    ///   "临夏州" → "临夏回族自治州" (行政区全称归一)
+    ///   "昆山"   → "苏州"      (县级市归入地级市)
     static func normalizeCity(_ city: String) -> String {
         let trimmed = city.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.hasSuffix("市") ? String(trimmed.dropLast()) : trimmed
+        let stripped = trimmed.hasSuffix("市") ? String(trimmed.dropLast()) : trimmed
+        switch stripped {
+        case "临夏州": return "临夏回族自治州"
+        case "昆山": return "苏州"
+        default: return stripped
+        }
     }
 
     /// 同城学校列表 — 按 supported 优先 + sortKeyFull 字典序。
     /// normalizeCity 后缀"市"的剥离是单向的: "北京市"→"北京", "北京"→"北京"。
+    /// ← Android: 去重键用 stableKey (catalogId 优先), 不是 name — 避免同名不同校被吞掉。
     static func schoolsInCity(_ schools: [JwSchoolInfo], city: String) -> [JwSchoolInfo] {
         let normalized = normalizeCity(city)
         if normalized.isEmpty { return [] }
         var seen = Set<String>()
         let matched = schools.filter { school in
-            guard !seen.contains(school.name) else { return false }
+            guard !seen.contains(school.stableKey) else { return false }
             if school.cities.contains(where: { normalizeCity($0) == normalized }) {
-                seen.insert(school.name)
+                seen.insert(school.stableKey)
                 return true
             }
             return false

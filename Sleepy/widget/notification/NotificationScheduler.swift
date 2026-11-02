@@ -1,8 +1,18 @@
-// NotificationScheduler.swift — ← CourseNotificationScheduler.kt (v1.0.61)
+// NotificationScheduler.swift — ← CourseNotificationScheduler.kt (v1.0.62)
 // 课程通知调度器 — 支持每日提醒(当日/次日分闸) + 次日预告 + 每节课前提醒(7 天幂等重同步 + 账本)。
 //
 // 平台映射: AlarmManager+BroadcastReceiver → UNUserNotificationCenter+UNCalendarNotificationTrigger
 // (iOS 无 exact alarm;日历触发器在锁屏也能到,精度分钟级 — 等价适配)
+//
+// v1.0.62 升级 (B5 每日议程):
+//  - 摘要单条聚合: 多表扇出(sleepy_summary_*) → 单条通知, 跨表同名同刻的课经
+//    buildDailyAgenda 合并(来源全保留); 正文 = 首课行 + 展开多行 (← sendScheduleSummary)
+//  - 取课语义反向查: DataSource.effectiveDayOfWeek → courseDateForDate
+//    (补班日=sourceDate 星期, 放假日=无课; ← HolidayTransferOps.courseDateForDate)
+//  - 遗留扇出清理: DailySummaryNotificationMigration (sleepy_summary_ 前缀归属)
+//  - 摘要点击 → 议程页 (userInfo.agendaDate 绝对日历日期; delegate didReceive 路由)
+//  - Android setTimeoutAfter(每日文案午夜过期) 无 iOS 等价物 — 平台缺口, 见
+//    postDailySummaries 注释; dailyNotificationLifetime 纯函数保留供单测锁定
 //
 // v1.0.60 升级:
 //  - 课前提醒: 未来 7 天全窗口幂等重同步(requestCode=NOTIFY_BEFORE_CLASS_PREFIX+courseId
@@ -65,6 +75,9 @@ final class NotificationScheduler {
     /// 节假日全豁免静默标记: 主 id 触发器是每日重算锚不能撤, 静默日贴空载荷 + 此标记,
     /// delegate willPresent 见标记即丢弃展示 (到货仍触发重算)。
     static let KEY_USERINFO_SUMMARY_SILENT = "sleepy_summary_silent"
+    /// v1.0.62 摘要点击载荷: 绝对日历日期 "yyyy-MM-dd" (← DailyAgendaRoute.EXTRA_DATE) —
+    /// delegate didReceive 据此路由到议程页, 旧通知点击不漂移到今天。
+    static let KEY_USERINFO_AGENDA_DATE = "agenda_date"
 
     /// 课前提醒预排窗口: 今天起 7 个日历天(参照 shiguang WIDGET_SYNC_DAYS=7)
     static let BEFORE_CLASS_WINDOW_DAYS = 7
@@ -134,8 +147,9 @@ final class NotificationScheduler {
             }
             return ids
         }
-        func effectiveDayOfWeek(tableId: Int64?, date: Date) -> Int {
-            return HolidayTransferHelper.effectiveDayOfWeek(tableId, date)
+        /// v1.0.62: effectiveDayOfWeek(正向查遗留) → courseDateForDate(反向查取课语义)
+        func courseDateForDate(tableId: Int64?, date: Date) -> Date? {
+            return HolidayTransferHelper.courseDateForDate(tableId, date)
         }
         func allowsReminder(tableId: Int64, date: Date) async -> Bool {
             return await HolidayReminderPolicyAdapter.decide(date: date, tableId: tableId).allowReminder
@@ -152,16 +166,26 @@ final class NotificationScheduler {
                 let content = UNMutableNotificationContent()
                 let courseName = extras["courseName"] as? String ?? ""
                 let room = (extras["room"] as? String) ?? ""
-                let teacher = (extras["teacher"] as? String) ?? ""
                 let startTime = (extras["startTime"] as? String) ?? ""
                 let roomStr = room.isEmpty ? L10n.t("notif_room_unknown") : room
-                if teacher.isEmpty {
-                    content.title = L10n.t("notif_before_class_title")
-                    content.body = L10n.format("notif_before_class_text", courseName, startTime, roomStr)
-                } else {
-                    content.title = L10n.t("notif_before_class_title")
-                    content.body = L10n.format("notif_before_class_text_with_teacher", courseName, startTime, roomStr, teacher)
+                // v1.0.62 ← CourseNotificationScheduler.handle: 标准横幅统一 compact 文案 —
+                //   title=课程名, 正文=「开始时间 · 教室」+ 多表来源标签〔…〕(教师不再进正文)。
+                content.title = courseName
+                var body = L10n.format(
+                    "notif_before_class_compact",
+                    startTime.trimmingCharacters(in: .whitespaces).isEmpty
+                        ? L10n.t("agenda_time_unknown") : startTime,
+                    roomStr)
+                // ← handle(context, intent, source): 来源标签 = 该表在「开启提醒的全部表」
+                //   中的标注 (notificationSourceLabels; 单表/无标注 → 空表 → 无〔…〕后缀)。
+                if let tableId = extras["tableId"] as? Int64,
+                   let repo = NotificationScheduler.shared.repositoryProvider?() {
+                    let enabled = ((try? repo.getAllTables()) ?? []).filter { $0.reminderEnabled }
+                    if let source = notificationSourceLabels(enabled, L10n.t("agenda_table_unknown"))[tableId] {
+                        body += "\u{3014}\(source)\u{3015}"
+                    }
                 }
+                content.body = body
                 content.sound = .default
                 // 发送时重校验载荷 (← Android Intent extras tableId/reminderDate):
                 // delegate willPresent 用这两个键复查 表存在+reminderEnabled+节假日策略。
@@ -332,12 +356,17 @@ final class NotificationScheduler {
         return (n - NOTIFY_TABLE_SUMMARY_BASE) % 2 == 0
     }
 
-    /// v1.0.61 (#143) 摘要重算+张贴 — 语义 ← DailyNotifyReceiver → sendScheduleSummary:
+    /// v1.0.62 (#143 → 单条聚合) 摘要重算+张贴 — 语义 ← sendScheduleSummary:
     /// 每次调用都按「当前库内实况」重算内容 (触发器 repeats:true 固定内容会陈旧, 因此
     /// scheduleAll / 00:05 载体到货 / BGAppRefreshTask 每条唤醒路径都重贴同 id = 原地刷新)。
-    /// targetDate 取触发器下一次到货日, 保证到货当天文案正确 («今日 N 号» 不过期)。
-    /// 多张有课表时逐表贴 sleepy_summary_* (活跃表 >1 时标题/正文加 "课表名 · " 前缀),
-    /// 上一轮扇出本轮不再需要的 id 按账本精确撤销。
+    /// targetDate 取触发器下一次到货日, 保证到货当天文案正确 («今天/明天» 不过期)。
+    /// v1.0.62 变化: 多表扇出(sleepy_summary_*) → 单条聚合通知 — 跨表同名同刻的课
+    /// 经 buildDailyAgenda 合并为一条, 来源全保留 (agenda.notificationSources);
+    /// 正文首行 = 首课, 展开文本 = 来源课表数 + 前 6 条 + 「另有 N 次课」。
+    /// 点击打开议程页 (userInfo.agendaDate = 绝对日历日期, 旧通知点击不漂移)。
+    /// Android setTimeoutAfter(dailyNotificationLifetime) 在 iOS 无等价物 (UNNotification
+    /// 不支持自动过期) — 平台缺口, 相对文案过期由「每日重贴」覆盖, dailyNotificationLifetime
+    /// 纯函数保留并由单测锁定 (DailyAgendaTests)。
     func postDailySummaries(timeStr: String, fallbackHour: Int, fallbackMinute: Int,
                             identifier: String, isTomorrowPreview: Bool) async {
         let parts = timeStr.split(separator: ":").map(String.init)
@@ -355,115 +384,96 @@ final class NotificationScheduler {
             ? Calendar.current.date(byAdding: .day, value: 1, to: nextFire) ?? nextFire
             : nextFire
 
-        let result = await computeSummaryPosts(targetDate: targetDate, isTomorrowPreview: isTomorrowPreview)
-        let previous = env.loadDailySummaryIds(isTomorrowPreview: isTomorrowPreview)
-        var armedIds = Set<String>()
-
-        if result.posts.isEmpty {
-            if result.silent {
-                // 全部活跃表被节假日豁免 → Android 接收器直接 return 不发。iOS 主 id 触发器是
-                // 每日重算锚, 不能撤(撤了锚就死); 改贴空载荷 + silent 标记, delegate 到货丢弃。
-                let content = UNMutableNotificationContent()
-                content.title = "Sleepy"
-                content.body = ""
-                content.userInfo = [Self.KEY_USERINFO_SUMMARY_SILENT: true]
-                try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
-            } else {
-                // 无课摘要贴主 id (← Android notify(1001/1002, no-course 文案))
-                let content = UNMutableNotificationContent()
-                content.title = result.noCourseTitle
-                content.body = result.noCourseBody
-                content.sound = .default
-                try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
-            }
-            for id in previous { alarmPort.cancel(id: id) }
-            env.saveDailySummaryIds([], isTomorrowPreview: isTomorrowPreview)
+        // ← sendScheduleSummary: 先清 v1.0.61 扇出遗留, 再现读现算
+        cleanupLegacyDailySummaryNotifications()
+        let loaded: LoadedDailyAgenda
+        do {
+            guard let repo = repositoryProvider?() else { throw AgendaLoadError.noRepository }
+            loaded = try await loadDailyAgenda(repository: repo, targetDate: targetDate)
+        } catch {
+            // ← Android sendScheduleSummary 抛错即接收器协程静默不发; iOS 主 id 触发器
+            //   是每日重算锚不能撤, 贴静默载荷保锚存活, 到货/BGTask 重算兜底。
+            await postSilentAnchor(identifier: identifier, trigger: trigger)
             return
         }
+        // 上一轮扇出账本全撤 (单条聚合后不再有扇出 id; v1.0.61 升级残留在此收口)
+        let previous = env.loadDailySummaryIds(isTomorrowPreview: isTomorrowPreview)
+        for id in previous { alarmPort.cancel(id: id) }
+        env.saveDailySummaryIds([], isTomorrowPreview: isTomorrowPreview)
 
-        let multiTable = result.activeCount > 1
-        for (index, post) in result.posts.enumerated() {
-            var title = post.title
-            var text = post.body
-            if multiTable {
-                title = "\(post.tableName) · \(title)"
-                text = "\(post.tableName) · \(text)"
-            }
-            // baseId 判定 ← Android posts==1 && activeTables<=1 → 主 id, 否则扇出号段。
-            // 平台适配: 扇出模式下第 0 张贴主 id — iOS 主 id 的 repeats:true 触发器是
-            // 每日重算链的锚(无 fire-time 代码执行), 不能让旧内容空转; Android 侧锚是
-            // PendingIntent 闹钟与 notify id 解耦, 第 0 张用哪个 id 对用户不可见。
-            let id: String
-            if result.posts.count == 1 && result.activeCount <= 1 {
-                id = identifier
-            } else if index == 0 {
-                id = identifier
-            } else {
-                id = Self.summaryIdentifier(tableId: post.tableId, isTomorrowPreview: isTomorrowPreview)
-                armedIds.insert(id)
-            }
-            let content = UNMutableNotificationContent()
-            content.title = title
-            content.body = text
-            content.sound = .default
-            try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        if loaded.suppressed {
+            // 全部活跃表被节假日豁免 → Android 接收器直接 return 不发。iOS 主 id 触发器是
+            // 每日重算锚, 不能撤(撤了锚就死); 改贴空载荷 + silent 标记, delegate 到货丢弃。
+            await postSilentAnchor(identifier: identifier, trigger: trigger)
+            return
         }
-        // 单表场景主 id 内容原地刷新, 扇出账本里的多余 id 撤销
-        for id in previous where !armedIds.contains(id) {
-            alarmPort.cancel(id: id)
+        let agenda = loaded.agenda
+
+        // ← relativeDay: 通知到货日与目标日的相对天数 (0=今天 1=明天 其他=绝对日期文案)
+        let today = DateUtils.isoCalendar.startOfDay(for: Date())
+        let target = DateUtils.isoCalendar.startOfDay(for: targetDate)
+        let relativeDay = DateUtils.isoCalendar.dateComponents([.day], from: today, to: target).day ?? 0
+
+        let unknownTable = L10n.t("agenda_table_unknown")
+        let unknownTime = L10n.t("agenda_time_unknown")
+        let unknownRoom = L10n.t("notif_room_unknown")
+        let sources = agenda.notificationSources(unknownTable: unknownTable)
+
+        let title: String
+        let text: String
+        var expanded = ""
+        if agenda.items.isEmpty {
+            // ← 无课: 标题按相对日三分支, 正文沿用 no-course 文案
+            switch relativeDay {
+            case 0: title = L10n.t("notif_daily_title_no_course")
+            case 1: title = L10n.t("notif_tomorrow_title_no_course")
+            default: title = L10n.format("notif_date_no_course", DateUtils.fullDate(targetDate))
+            }
+            text = L10n.t(isTomorrowPreview ? "notif_tomorrow_text_no_course" : "notif_daily_text_no_course")
+        } else {
+            switch relativeDay {
+            case 0: title = L10n.format("notif_daily_title", agenda.items.count)
+            case 1: title = L10n.format("notif_tomorrow_title", agenda.items.count)
+            default: title = L10n.format("notif_date_title", DateUtils.fullDate(targetDate), agenda.items.count)
+            }
+            // ← agenda_first + 首课单行; expanded = 来源数 + 可见行 + 「另有 N 次课」
+            text = L10n.format("agenda_first",
+                               agenda.items[0].notificationLine(unknownTime: unknownTime, unknownRoom: unknownRoom, sourceLabels: sources))
+            let (visible, remaining) = agenda.preview()
+            var lines: [String] = []
+            if !sources.isEmpty {
+                lines.append(L10n.format("agenda_source_count", agenda.tableCount))
+            }
+            lines.append(contentsOf: visible.map {
+                $0.notificationLine(unknownTime: unknownTime, unknownRoom: unknownRoom, sourceLabels: sources)
+            })
+            if remaining > 0 {
+                lines.append(L10n.format("agenda_more", remaining))
+            }
+            expanded = lines.joined(separator: "\n")
         }
-        env.saveDailySummaryIds(armedIds, isTomorrowPreview: isTomorrowPreview)
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        // ← BigTextStyle.bigText(expanded): iOS 无独立展开态, 长正文系统自带折叠;
+        //   有展开内容时正文直接用多行聚合文本 (首课行已是第一行)。
+        content.body = expanded.isEmpty ? text : expanded
+        content.sound = .default
+        // 点击 → 议程页 (绝对日历日期, ← DailyAgendaActivity.pendingIntent EXTRA_DATE)
+        content.userInfo = [Self.KEY_USERINFO_AGENDA_DATE: DateUtils.fullDate(targetDate)]
+        try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     }
 
-    /// ← sendScheduleSummary 的数据聚合部分。
-    /// silent = 有开启提醒的表但全部被节假日策略豁免 → 不发任何摘要 (Android 语义)。
-    private func computeSummaryPosts(targetDate: Date, isTomorrowPreview: Bool) async
-        -> (posts: [(tableId: Int64, tableName: String, title: String, body: String)],
-            activeCount: Int, noCourseTitle: String, noCourseBody: String, silent: Bool) {
-        let dayOfMonth = DateUtils.isoCalendar.component(.day, from: targetDate)
-        let noCourseTitle = L10n.format(isTomorrowPreview ? "notif_tomorrow_title_no_course" : "notif_daily_title_no_course", dayOfMonth)
-        let noCourseBody = L10n.t(isTomorrowPreview ? "notif_tomorrow_text_no_course" : "notif_daily_text_no_course")
-
-        guard let repo = repositoryProvider?() else {
-            return ([], 0, noCourseTitle, noCourseBody, false)
-        }
-        let tables = ((try? repo.getAllTables()) ?? []).map { t -> TimeTableEntity in
-            var pt: PeriodTableEntity? = nil
-            if let pid = t.periodTableId { pt = (try? repo.getPeriodTable(pid)) ?? nil }
-            return t.hydratedWith(pt)
-        }
-        let enabledTables = tables.filter { $0.reminderEnabled }
-        var activeTables: [TimeTableEntity] = []
-        for t in enabledTables {
-            if await HolidayReminderPolicyAdapter.decide(date: targetDate, tableId: t.id).allowReminder {
-                activeTables.append(t)
-            }
-        }
-        if !enabledTables.isEmpty && activeTables.isEmpty {
-            return ([], 0, noCourseTitle, noCourseBody, true)
-        }
-
-        struct Row { let table: TimeTableEntity; let courses: [CourseEntity] }
-        let rows: [Row] = activeTables.map { table in
-            let effDow = HolidayTransferHelper.effectiveDayOfWeek(table.id, targetDate)
-            let week = DateUtils.currentWeek(startDate: table.startDate, today: targetDate)
-            let inSemester = DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: targetDate) == .inRange
-            let courses: [CourseEntity] = inSemester
-                ? ((try? repo.getCoursesByDay(table.id, day: effDow)) ?? []).filter { $0.inWeek(week) }.sorted { $0.startNode < $1.startNode }
-                : []
-            return Row(table: table, courses: courses)
-        }
-        let posts: [(tableId: Int64, tableName: String, title: String, body: String)] = rows.compactMap { row in
-            guard !row.courses.isEmpty else { return nil }
-            let title = L10n.format(isTomorrowPreview ? "notif_tomorrow_title" : "notif_daily_title", dayOfMonth, row.courses.count)
-            let first = row.courses[0]
-            let firstTime = Self.courseStartTime(first, row.table)
-            let firstRoom = first.room.isEmpty ? L10n.t("notif_room_unknown") : first.room
-            let body = L10n.format("notif_daily_text_first", first.courseName, firstTime, firstRoom)
-            return (row.table.id, row.table.name, title, body)
-        }
-        return (posts, activeTables.count, noCourseTitle, noCourseBody, false)
+    /// 节假日全豁免/重算失败时的锚保活载体: 空载荷 + silent 标记, delegate 到货丢弃展示。
+    private func postSilentAnchor(identifier: String, trigger: UNCalendarNotificationTrigger) async {
+        let content = UNMutableNotificationContent()
+        content.title = "Sleepy"
+        content.body = ""
+        content.userInfo = [Self.KEY_USERINFO_SUMMARY_SILENT: true]
+        try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     }
+
+    private enum AgendaLoadError: Error { case noRepository }
 
     /// 到货/后台唤醒重算入口: 按当前 prefs 重贴当日/次日摘要 (schedule 侧同款逻辑)。
     /// ← DailyNotifyReceiver/TomorrowNotifyReceiver.onReceive 的到货重查。
@@ -573,19 +583,22 @@ final class NotificationScheduler {
         let cal = DateUtils.isoCalendar
 
         // 1) 枚举窗口内的天, 收集课程行(仅学期内且允许提醒的天)
+        // v1.0.62 ← collectTableSlots: 取课改反向查 courseDateForDate —
+        //   补班日上 sourceDate 星期几的课(周次/学期判定同用 sourceDate),
+        //   放假日 sourceDate=nil → 当天零课; 学期外/豁免日同旧口径跳过。
         var days: [(Date, [CourseEntity])] = []
         for offset in 0..<Self.BEFORE_CLASS_WINDOW_DAYS {
             guard let date = cal.date(byAdding: .day, value: offset, to: today) else { continue }
-            if !semesterInRange(table: table, date: date) {
+            guard let sourceDate = dataSource.courseDateForDate(tableId: table.id, date: date),
+                  DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek,
+                                           today: sourceDate) == .inRange,
+                  await dataSource.allowsReminder(tableId: table.id, date: date)
+            else {
                 days.append((date, []))
                 continue
             }
-            if !(await dataSource.allowsReminder(tableId: table.id, date: date)) {
-                days.append((date, []))
-                continue
-            }
-            let week = DateUtils.currentWeek(startDate: table.startDate, today: date)
-            let dow = dataSource.effectiveDayOfWeek(tableId: table.id, date: date)
+            let week = DateUtils.currentWeek(startDate: table.startDate, today: sourceDate)
+            let dow = DateUtils.todayDayOfWeek(today: sourceDate)
             let courses = dataSource.coursesForDay(tableId: table.id, dayOfWeek: dow).filter { $0.inWeek(week) }
             days.append((date, courses))
         }
@@ -642,9 +655,10 @@ final class NotificationScheduler {
         }
     }
 
-    private func semesterInRange(table: TimeTableEntity, date: Date) -> Bool {
-        return DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: date) == .inRange
-    }
+    // v1.0.62: semesterInRange(table:date:) 已删 — 学期判定并入 collectTableSlots
+    // 的反向查分支(改用 sourceDate 判定, ← Android collectTableSlots 同款内联)。
+    // v1.0.62: courseStartTime(course:table:) 已删 — 摘要改单条聚合后无消费方
+    // (Android v1.0.62 同步删除 getCourseStartTime)。
 
     // ==================== Channels / 权限 ====================
     // iOS 无 NotificationChannel。Android createChannels 携带的隐式
@@ -741,14 +755,6 @@ final class NotificationScheduler {
         try? BGTaskScheduler.shared.submit(request)
         #endif
     }
-
-    /// ← getCourseStartTime(course, table)
-    static func courseStartTime(_ course: CourseEntity, _ table: TimeTableEntity) -> String {
-        if course.ownTime && !course.startTime.isEmpty { return course.startTime }
-        let nodes = TimeTableUtils.parseNodes(table.timeJson)
-        guard let node = nodes.first(where: { $0.node == course.startNode }) else { return "" }
-        return TimeTableUtils.formatTime(node.start)
-    }
 }
 
 // MARK: - 可注入端口(JVM 单测接缝, 顶层 — Swift 不允许协议嵌套在类内)
@@ -780,7 +786,11 @@ protocol NotificationSchedulerBeforeClassDataSource {
     func resolveReminderTables() -> [TimeTableEntity]
     func coursesForDay(tableId: Int64, dayOfWeek: Int) -> [CourseEntity]
     func allCourseIds() -> [Int64]
-    func effectiveDayOfWeek(tableId: Int64?, date: Date) -> Int
+    /// v1.0.62 取课语义反向查 (← BeforeClassDataSource.courseDateForDate):
+    /// 补班日=sourceDate(上被挪走那天的课), 放假日=nil(无课), 未映射=原日期。
+    /// (替换 v1.0.60 的 effectiveDayOfWeek 正向查遗留语义 — 实际取课一律走反向查,
+    /// 保留来源周次; 列映射兼容口径归 HolidayTransferHelper.effectiveDayOfWeek)
+    func courseDateForDate(tableId: Int64?, date: Date) -> Date?
     func allowsReminder(tableId: Int64, date: Date) async -> Bool
 }
 
@@ -804,11 +814,21 @@ protocol NotificationSchedulerBeforeClassAlarmPort {
 ///  - sleepy_bc_* (课前) → beforeClassDeliveryAllowed 重校验后决定是否展示
 ///    (← BeforeClassNotifyReceiver.onReceive: 表存在 + reminderEnabled + 节假日策略 + banner 闸);
 ///  - sleepy_daily_1001 / sleepy_summary_* → 当日/次日子闸重查 (← DailyNotifyReceiver /
-///    TomorrowNotifyReceiver 的 isTodayReminderEnabled / isTomorrowReminderEnabled 重查)。
+///    TomorrowNotifyReceiver 的 isTodayReminderEnabled / isTomorrowReminderEnabled 重查);
+///    v1.0.62: 点击(userInfo.agendaDate)路由到议程页 ← DailyAgendaActivity.pendingIntent。
 /// 注册点: SleepyApp 启动时 `UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared`
 /// (共享文件, 集成者统一接线)。
 final class SleepyNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = SleepyNotificationDelegate()
+
+    /// 通知点击 → 议程页的内部广播 (AppRoot onReceive 订阅; userInfo["agendaDate"] =
+    /// raw "yyyy-MM-dd" 原文, 议程页侧经 DailyAgendaRoute 严格解析)。
+    static let agendaOpenNotification = Notification.Name("sleepy.agenda.open")
+
+    /// 点击议程页的待消费日期原文 (raw "yyyy-MM-dd") — Foundation 级静态:
+    /// delegate 三 target 共源编译不能引用 app-only 的 DailyAgendaRoute/PendingAgendaDate;
+    /// 冷启竞态兜底(系统投递 didReceive 可能早于 SwiftUI 订阅), AppRoot 消费后清空。
+    static var pendingAgendaDateRaw: String? = nil
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                willPresent notification: UNNotification,
@@ -861,6 +881,16 @@ final class SleepyNotificationDelegate: NSObject, UNUserNotificationCenterDelega
         if id == NotificationScheduler.NOTIFY_RESYNC {
             Task { await NotificationScheduler.shared.handleDailyResync(); completionHandler() }
             return
+        }
+        // v1.0.62: 摘要点击 → 议程页 (← DailyAgendaActivity.pendingIntent EXTRA_DATE)。
+        // agendaDate 是排期时写入的绝对日历日期; 缺省(旧版本排下的残留)不路由。
+        // 双通道: pendingAgendaDateRaw 兜冷启竞态, NotificationCenter 通知驱动前台即时打开。
+        if NotificationScheduler.isTodaySummaryIdentifier(id) || NotificationScheduler.isTomorrowSummaryIdentifier(id),
+           let raw = response.notification.request.content.userInfo[NotificationScheduler.KEY_USERINFO_AGENDA_DATE] as? String {
+            Self.pendingAgendaDateRaw = raw
+            NotificationCenter.default.post(
+                name: Self.agendaOpenNotification, object: nil,
+                userInfo: [NotificationScheduler.KEY_USERINFO_AGENDA_DATE: raw])
         }
         completionHandler()
     }

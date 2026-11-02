@@ -28,7 +28,7 @@ final class FileImportUITests: XCTestCase {
     }
 
     private func openImportSheet() {
-        app.descendants(matching: .any)["pill_manage"].tap()
+        app.switchToPillTab("manage")
         let title = app.descendants(matching: .any)["manage_page_title"]
         XCTAssertTrue(title.waitForExistence(timeout: 5), "应切到 Manage 页")
         // manage_import 卡 → ImportSheet(sheet) 弹出, 文件行即可见

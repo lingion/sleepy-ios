@@ -92,6 +92,12 @@ struct JwImportFlow: View {
     @State private var configTableName = ""
     // confirmError: 留在确认框内联展示(2026-09-20: 只标红出错字段, 不上全局横幅)
     @State private var confirmError: String? = nil
+    // ← catalogNotice: 选校准入确认(未验证/待适配条目点进前的告知弹窗)
+    //   ← Android `var catalogNotice by remember { mutableStateOf<JwSchoolInfo?>(null) }`
+    @State private var catalogNotice: JwSchoolInfo? = nil
+    // ← reportDialogSchool: 未验证学校导入成功后的报告弹窗(2026-10-18 离线回路)
+    //   ← Android `var reportDialogSchool by remember { mutableStateOf<JwSchoolInfo?>(null) }`
+    @State private var reportDialogSchool: JwSchoolInfo? = nil
 
     var body: some View {
         ZStack {
@@ -105,6 +111,38 @@ struct JwImportFlow: View {
                     onDeleteDraft: { handleExitChoice(.deleteDraft) })
                     .transition(.opacity)
                     .zIndex(2)
+            }
+
+            // ← 选校准入确认(未验证/待适配条目点进前)
+            //   ← Android `catalogNotice?.let { school -> AlertDialog(...) }`
+            if let school = catalogNotice {
+                JwCatalogNoticeDialog(
+                    school: school,
+                    onDismiss: { catalogNotice = nil },
+                    onConfirm: {
+                        catalogNotice = nil
+                        // mayTry 才有"仍要尝试"这条路; 不可导入的条目确认键只是关闭
+                        if school.isUnverified && school.canImport {
+                            selectedSchool = school
+                            exitDraftState.activeImport = true
+                            stage = .webViewLogin
+                        }
+                    })
+                    .transition(.opacity)
+                    .zIndex(3)
+            }
+
+            // ← 导入成功报告弹窗(未验证学校 → 生成可粘贴报告文本)
+            //   ← Android `reportDialogSchool?.let { school -> AlertDialog(...) }`
+            if let school = reportDialogSchool {
+                JwImportReportDialog(
+                    school: school,
+                    courseCount: parsedCourses.count,
+                    onDismiss: { closeReportDialog() },
+                    onCopyReport: { copyTextToClipboard(currentReportText()) },
+                    onJoinQq: { launchQqGroupJoin() })
+                    .transition(.opacity)
+                    .zIndex(4)
             }
 
             // ← 错误提示统一 AlertDialog 双按钮 (2026-09-18 用户: 全 app 报错必须是弹窗,
@@ -326,6 +364,81 @@ struct JwImportFlow: View {
         if let id = draftId { try? draftRepository.delete(id) }
         importFinished = true
         exitDraftState.activeImport = false
+    }
+
+    // MARK: - 离线报告回路 (2026-10-18, ← Android finishOrReport / copyTextToClipboard / launchQqGroupJoin)
+
+    /// 未验证学校导入成功 → 先弹报告弹窗(复制文本 + 拉起 QQ 群粘贴);
+    /// 已支持学校维持原静默 finish, 零额外打扰。
+    /// ← Android `suspend fun finishOrReport(school: JwSchoolInfo?)`
+    private func finishOrReport(_ school: JwSchoolInfo?) {
+        if let school, school.isUnverified {
+            reportDialogSchool = school
+        } else {
+            completeImport()
+        }
+    }
+
+    /// 只写剪贴板, 不拉起任何应用 — 与 launchQqGroupJoin 的剪贴板边界互斥。
+    /// ← Android `copyTextToClipboard(text, label)`
+    private func copyTextToClipboard(_ text: String) {
+        UIPasteboard.general.string = text
+    }
+
+    /// 报告正文 — 学校侧公开信息 + 计数 + 版本号 + 日期, 不含任何凭据。
+    /// ← Android `JwImportReport.build(school, courseCount, VERSION_NAME, VERSION_CODE)`
+    private func currentReportText() -> String {
+        guard let school = reportDialogSchool else { return "" }
+        return JwImportReport.build(
+            school: school,
+            courseCount: parsedCourses.count,
+            versionName: UpdateManager.currentVersionName,
+            versionCode: appBuildCode,
+            date: JwImportReport.todayStamp())
+    }
+
+    /// 完成/点外 = 同一收口: 清弹窗 → completeImport → importFinished → finish()
+    /// ← Android `closeReportDialog`
+    private func closeReportDialog() {
+        reportDialogSchool = nil
+        completeImport()
+    }
+
+    /// QQ 拉起降级链复用 AboutScreen.joinQqGroup 时序(群资料卡 → 备选形态 → TIM → QQ → 浏览器),
+    /// 但**不**像 AboutScreen 那样先复制群号 — 此刻剪贴板装着待粘贴的报告, 覆盖 = 回路断裂。
+    /// ← Android `launchQqGroupJoin(group)`
+    private func launchQqGroupJoin() {
+        let group = L10n.t("about_qq_group_number")
+        func canOpen(_ s: String) -> Bool {
+            guard let url = URL(string: s) else { return false }
+            return UIApplication.shared.canOpenURL(url)
+        }
+        func open(_ s: String) {
+            guard let url = URL(string: s) else { return }
+            UIApplication.shared.open(url)
+        }
+        var launched = false
+        // 旧实现的 mqqopensdkapi 通道因缺少官方 key 被 QQ 拒解析, 不启用 ← QqJoin.officialJoinComponentUri
+        if canOpen(QqJoin.groupCardUri(group)) {
+            open(QqJoin.groupCardUri(group)); launched = true
+        } else if canOpen(QqJoin.groupCardUriAlt(group)) {
+            open(QqJoin.groupCardUriAlt(group)); launched = true
+        } else if canOpen("tim://") {
+            open("tim://"); launched = true
+        } else if canOpen("mqq://") {
+            open("mqq://"); launched = true
+        }
+        if !launched, canOpen(QqJoin.webFallbackUri(group)) {
+            open(QqJoin.webFallbackUri(group)); launched = true
+        }
+        if !launched {
+            statusMsg = L10n.format("jw_import_report_qq_manual", group)
+        }
+    }
+
+    /// App 构建号(= Android BuildConfig.VERSION_CODE; iOS = CFBundleVersion)
+    private var appBuildCode: Int {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String).flatMap(Int.init) ?? 0
     }
 
     // MARK: - 草稿恢复 (← LaunchedEffect(incomingDraftId))
@@ -611,7 +724,8 @@ struct JwImportFlow: View {
             onError: { msg in errorMsg = msg },
             bindPeriodTableId: (configBindPeriodTableId ?? 0) > 0 ? configBindPeriodTableId : nil)
         // A rejected append must keep the preview and its recoverable draft.
-        if imported { completeImport() }
+        // ← Android: `if (imported) finishOrReport(selectedSchool ?: parsedSchool)`
+        if imported { finishOrReport(selectedSchool ?? parsedSchool) }
     }
 
     // MARK: - 配置确认 (← Stage.ConfigureConfirm AlertDialog)
@@ -801,7 +915,8 @@ struct JwImportFlow: View {
                             try? repo.bindPeriodTable(timeTableId: tableId, periodTableId: chosenId)
                         }.value
                     }
-                    completeImport()
+                    // ← Android `finishOrReport(school)` (未验证学校 → 报告弹窗, 非静默结束)
+                    finishOrReport(school)
                 } else {
                     guard let preview = previewSnapshot else {
                         isApplying = false
@@ -1496,5 +1611,127 @@ enum DiagMapper {
             return L10n.format("jw_diag_qz_vpn_hint")
         }
         return ""
+    }
+}
+struct JwCatalogNoticeDialog: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let school: JwSchoolInfo
+    var onDismiss: () -> Void
+    var onConfirm: () -> Void
+
+    /// mayTry = 未验证 + 可导入(有 parser + 有 URL)
+    private var mayTry: Bool { school.isUnverified && school.canImport }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onDismiss)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(school.name)
+                    .font(.system(size: 24))   // ← headlineSmall 24sp
+                    .foregroundColor(colors.onSurface)
+                    .padding(.bottom, 12)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(L10n.t(mayTry ? "jw_catalog_unverified_message" : "jw_catalog_pending_message"))
+                            .font(.system(size: 14))
+                            .foregroundColor(colors.onSurfaceVariant)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Spacer().frame(height: 20)
+                        DialogActionButtons(
+                            confirmText: L10n.t(mayTry ? "jw_catalog_try" : "jw_pending_close"),
+                            onConfirm: onConfirm,
+                            // ← Android dismissButton 仅在 mayTry 时存在
+                            dismissText: mayTry ? L10n.t("jw_pending_close") : nil,
+                            onDismiss: onDismiss)
+                    }
+                }
+                .frame(maxHeight: 320)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: SleepyShapes.extraLarge)
+                .fill(colors.surfaceContainerHigh))
+            .padding(.horizontal, 24)
+        }
+        .accessibilityIdentifier("jw_catalog_notice_dialog")
+    }
+}
+
+// MARK: - 导入成功报告弹窗 (← Android reportDialogSchool?.let { AlertDialog(...) })
+
+/// 未验证学校导入成功 = 对该校协议适配的一次真人验证。app 不上传任何数据,
+/// 把成功事实压成可粘贴文本, 用户复制后进 QQ 群粘贴; 维护者据此把条目翻 verified。
+/// ← Android `reportDialogSchool?.let { school -> ... }`
+struct JwImportReportDialog: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let school: JwSchoolInfo
+    let courseCount: Int
+    var onDismiss: () -> Void          // 完成 / 点外 = 同一收口
+    var onCopyReport: () -> Void       // 只写剪贴板, 不拉起任何应用
+    var onJoinQq: () -> Void           // 拉起 QQ 群(不覆盖剪贴板)
+
+    private var qqGroup: String { L10n.t("about_qq_group_number") }
+
+    private var reportText: String {
+        JwImportReport.build(
+            school: school,
+            courseCount: courseCount,
+            versionName: UpdateManager.currentVersionName,
+            versionCode: (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
+                .flatMap(Int.init) ?? 0,
+            date: JwImportReport.todayStamp())
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onDismiss)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(L10n.t("jw_import_report_title"))
+                    .font(.system(size: 24))   // ← headlineSmall 24sp
+                    .foregroundColor(colors.onSurface)
+                    .padding(.bottom, 12)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(L10n.format("jw_import_report_hint", qqGroup))
+                            .font(.system(size: 14))   // ← bodyMedium 14sp
+                            .foregroundColor(colors.onSurfaceVariant)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Spacer().frame(height: 10)
+                        // 报告正文: 等宽感用 surfaceVariant 底色块(全app纯色块禁描线 2026-08-25)
+                        ScrollView {
+                            Text(reportText)
+                                .font(.system(size: 12))   // ← bodySmall 12sp
+                                .foregroundColor(colors.onSurface)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(12)
+                        }
+                        .frame(maxHeight: 220)
+                        .background(RoundedRectangle(cornerRadius: SleepyShapes.large)
+                            .fill(colors.surfaceVariant))
+                        Spacer().frame(height: 20)
+                        DialogActionButtons(
+                            confirmText: L10n.t("jw_import_report_done"),
+                            onConfirm: onDismiss,
+                            dismissText: L10n.t("jw_import_report_copy"),
+                            onDismiss: onCopyReport,
+                            thirdText: L10n.t("jw_import_report_join_qq"),
+                            onThird: onJoinQq)
+                    }
+                }
+                .frame(maxHeight: 420)   // ← heightIn(max = 420.dp)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: SleepyShapes.extraLarge)
+                .fill(colors.surfaceContainerHigh))
+            .padding(.horizontal, 24)
+        }
+        .accessibilityIdentifier("jw_import_report_dialog")
     }
 }

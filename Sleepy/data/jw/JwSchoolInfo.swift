@@ -4,9 +4,14 @@
 // 字段含义:
 //   - sortKey: 拼音首字母 / "#" 表示"我的学校"(最近用过)/ "通" 表示通用类型分组
 //   - name: 学校名(用户可见)
-//   - url: 教务入口 URL(WebView 直接打开此 URL)。status != "supported" 时为空
-//   - type: 协议类型(见 JwProtocol)。status != "supported" 时为 nil
-//   - status: 支持状态 — "supported" 已实现 / "pending" 本科待适配 / "grad_supported" 研究生已支持 / "grad_pending" 研究生待适配 / "legacy" 旧条目
+//   - url: 教务入口 URL(WebView 直接打开此 URL)。待适配条目可以没有入口。
+//   - type: 已声明的协议类型(见 JwProtocol)。未知协议为 nil。
+//   - status: 支持状态 — "supported" 已实现 / "pending" 本科待适配 /
+//     "grad_supported" 研究生已支持 / "grad_pending" 研究生待适配 /
+//     "unverified" / "grad_unverified" 需用户确认后尝试 / "legacy" 旧条目
+//   - catalogId: 目录条目的稳定身份(旧资产与草稿没有该字段 → 回落到 sortKey_name)
+
+import Foundation
 
 struct JwSchoolInfo: Equatable {
     let sortKey: String
@@ -21,6 +26,15 @@ struct JwSchoolInfo: Equatable {
     /// Known home/campus cities, used only for the school picker recommendations.
     /// ← v1.0.60 同城推荐: 城市元数据与导入目录分离, 不影响 URL/协议。
     var cities: [String] = []
+    /// 目录条目的稳定身份;旧资产与旧草稿为空 → stableKey 回落到 sortKey_name。
+    var catalogId: String = ""
+
+    /// 稳定身份 — 列表 ForEach 的 key、目录去重键都用它。
+    /// ← Android `stableKey`: catalogId 非空则用它, 否则 "\(sortKey)_\(name)"。
+    var stableKey: String {
+        let id = catalogId.trimmingCharacters(in: .whitespacesAndNewlines)
+        return id.isEmpty ? "\(sortKey)_\(name)" : id
+    }
 
     var isSupported: Bool {
         (status == Self.STATUS_SUPPORTED || status == Self.STATUS_GRAD_SUPPORTED)
@@ -31,9 +45,43 @@ struct JwSchoolInfo: Equatable {
     /// T13: pending/grad_pending 状态 — 待适配(点行弹申请适配弹窗, 不进 WebView)
     var isPending: Bool { status == Self.STATUS_PENDING || status == Self.STATUS_GRAD_PENDING }
 
-    /// T13: 是否配置了可打开的教务 URL
-    var hasUrl: Bool { !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    /// 是否可以进入教务导入流程。
+    /// ← Android canImport: (已支持 或 (未验证 且 该协议有 parser)) 且 有可用 URL。
+    var canImport: Bool {
+        (isSupported || (isUnverified && JwParserRegistry.supports(type))) && hasUrl
+    }
 
+    /// T13: 是否配置了可打开的教务 URL。
+    /// ← Android hasUrl: URI 校验 — http/https 协议 + host 非空 + 不带 userInfo。
+    var hasUrl: Bool {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              components.host?.isEmpty == false,
+              components.user == nil,
+              components.password == nil
+        else { return false }
+        return true
+    }
+
+    /// 状态归一 — 缺省/未知值永不放行导入(fail-closed 到 pending)。
+    /// ← Android normalizeStatus(raw): null/"" → supported; 未知 → pending。
+    static func normalizeStatus(_ raw: String?) -> String {
+        switch raw {
+        case nil, "", STATUS_SUPPORTED: return STATUS_SUPPORTED
+        case STATUS_GRAD_SUPPORTED: return STATUS_GRAD_SUPPORTED
+        case STATUS_GRAD_PENDING: return STATUS_GRAD_PENDING
+        case STATUS_UNVERIFIED: return STATUS_UNVERIFIED
+        case STATUS_GRAD_UNVERIFIED: return STATUS_GRAD_UNVERIFIED
+        case STATUS_LEGACY: return STATUS_LEGACY
+        default: return STATUS_PENDING
+        }
+    }
+
+    static let STATUS_UNVERIFIED = "unverified"
+    static let STATUS_GRAD_UNVERIFIED = "grad_unverified"
     static let STATUS_SUPPORTED = "supported"
     static let STATUS_PENDING = "pending"
     static let STATUS_GRAD_SUPPORTED = "grad_supported"

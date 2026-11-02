@@ -53,6 +53,9 @@ struct PeriodHeaderCellContent: View {
     var scale: CGFloat = 1
     var hangingUnitsOverride: CGFloat? = nil
     var showXOverride: Bool? = nil
+    // v1.0.62 B4: hideTimeOverride (旧式表头「隐藏时间行」) — nil = 直读 prefs,
+    //   设置页预览传实时值(开关拨动即时反映, ← Android hideTimeOverride)
+    var hideTimeOverride: Bool? = nil
     var sharedFont: PeriodHeaderAdaptiveFont? = nil
     var sharedPlacement: PeriodHeaderPlacement? = nil
     var sharedLegacyAxis: CGFloat? = nil
@@ -63,6 +66,7 @@ struct PeriodHeaderCellContent: View {
             let cardW = geo.size.width
             let cardH = geo.size.height
             let showX = showXOverride ?? AppPrefs.shared.isPeriodHeaderShowX()  // ← showXOverride ?: AppPrefs.isPeriodHeaderShowX(context)
+            let hideTime = hideTimeOverride ?? AppPrefs.shared.isPeriodHeaderHideTime()  // ← hideTimeOverride ?: AppPrefs.isPeriodHeaderHideTime(context)
             let label: String = (showX && nodeStart == nodeEnd)
                 ? PeriodHeaderFormatter.fullLabel(nodeStart, style)
                 : PeriodHeaderFormatter.range(nodeStart, nodeEnd, style)
@@ -70,7 +74,7 @@ struct PeriodHeaderCellContent: View {
             if layout == "three_line" {
                 threeLineBody(cardW: cardW, cardH: cardH, label: label, showX: showX)
             } else {
-                legacyBody(cardW: cardW, cardH: cardH, label: label)
+                legacyBody(cardW: cardW, cardH: cardH, label: label, hideTime: hideTime)
             }
         }
     }
@@ -214,7 +218,7 @@ struct PeriodHeaderCellContent: View {
     // MARK: - Legacy 两行
 
     @ViewBuilder
-    private func legacyBody(cardW: CGFloat, cardH: CGFloat, label: String) -> some View {
+    private func legacyBody(cardW: CGFloat, cardH: CGFloat, label: String, hideTime: Bool) -> some View {
         // 测量走共享路径 ← Android legacyRowInk (基准字号, 行高 13×scale/14×scale)
         let rowInk = legacyRowInk(displayStart: displayStart, displayEnd: displayEnd,
                                   label: label, scale: scale)
@@ -233,6 +237,25 @@ struct PeriodHeaderCellContent: View {
         let timeFontScaled = UIFont.systemFont(ofSize: baseFont.timeSize * effectiveScale)
         let labelLeft = axisX - rowInk.labelPx / 2
         let timeLeft = axisX - rowInk.timeLeftPx - rowInk.dashPx / 2
+
+        if hideTime {
+            // 隐藏时间行 (用户 2026-10-05): 只剩标签一行 — 不参与 dash 轴/双行
+            // union 垂直解, 卡片内水平+垂直整体居中; 卡高装不下时同口径缩字。
+            let cardHPx = cardH
+            let labelHPx = rowInk.labelHeightPx
+            let fontScale = (labelHPx > 0 && cardHPx >= 1 && cardHPx < labelHPx)
+                ? max(cardHPx / labelHPx, 0.6) : CGFloat(1)
+            let labelFont = UIFont.systemFont(
+                ofSize: baseFont.labelSize * scale * fontScale, weight: .semibold)
+            ZStack {
+                Text(label)
+                    .font(Font(labelFont))
+                    .foregroundColor(colors.onSurface)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .frame(width: cardW, height: cardH)   // ← Box(fillMaxSize, Center)
+        } else {
 
         // 外层 Box 摆两行 (label + time) 绝对定位
         ZStack(alignment: .topLeading) {
@@ -279,6 +302,7 @@ struct PeriodHeaderCellContent: View {
         // offset 从盒左上起算; 缺 alignment 参数会退化为 center, 卡大于内容时整体下移
         // (label/time 的 offset 语义 = 相对盒顶, 不是相对中心)。
         .frame(width: cardW, height: cardH, alignment: .topLeading)
+        }
     }
 
     // (无文字测量成员方法 — textWidth / 行高公式均为文件作用域自由函数, 与三个宽度 API 同源)
@@ -361,6 +385,30 @@ func legacyLineWidthDp(
     let geometry = legacyDashColumnPx(rows: rows, padPx: 0)
     // + 卡片内边距 ×2 (periodHeaderCardPadDp, 预览/网格/widget 同一常量), 乘 scale
     return geometry.columnWidthPx + 2 * periodHeaderCardPadDp * scale
+}
+
+/// v1.0.62 B4 ← legacyTimeWidthDp: 旧式表头时间列宽(pt, dp→pt 1:1 项目惯例)。
+/// hideTime=false 走 dash 轴几何(legacyLineWidthDp 同源); hideTime=true 时时间行
+/// 不再渲染, 列宽收口到最长节次标签实测宽 + 卡片边距, 下限 36dp 防「第X节」等长
+/// 标签被挤压。网格与设置页预览共用。
+func legacyTimeWidthDp(
+    slots: [TimeSlot],
+    headerStyle: String,
+    scale: CGFloat,
+    showX: Bool = false,
+    hideTime: Bool = false
+) -> CGFloat {
+    if !hideTime { return legacyLineWidthDp(slots: slots, headerStyle: headerStyle, scale: scale, showX: showX) }
+    let labelFont = UIFont.systemFont(ofSize: 12 * scale, weight: .semibold) // ← headerLabelStyle
+    var maxLabel: CGFloat = 0
+    for slot in slots {
+        let label = (showX && slot.nodeStart == slot.nodeEnd)
+            ? PeriodHeaderFormatter.fullLabel(slot.nodeStart, headerStyle)
+            : PeriodHeaderFormatter.range(slot.nodeStart, slot.nodeEnd, headerStyle)
+        maxLabel = max(maxLabel, textWidth(label, font: labelFont))
+    }
+    let content = maxLabel + 2 * periodHeaderCardPadDp * scale
+    return max(content, 36 * scale)
 }
 
 /// 老式表头单行墨迹 ← Android legacyRowInk: 标签整宽 + 时间串三段 (start / dash / end,

@@ -8,6 +8,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 // --- shared types(← private enum/data class, sheet 自包含) ---
 
@@ -163,8 +164,18 @@ struct ImportSheet: View {
                         Button {
                             isLoading = true
                             let p = ImportSheet.buildImportPreview(inputText, state) { msg in errorMsg = msg }
-                            if p != nil { preview = p }
                             isLoading = false
+                            guard let p else { return }
+                            // ★ v1.0.62 对齐(根因修复): Android 的导入预览是 AlertDialog,
+                            //   以 dialog 形式弹出时系统会先收走键盘;iOS 用 .sheet 弹预览时,
+                            //   粘贴框仍是 first responder → 键盘不收 → UIKit 把预览 sheet
+                            //   的容器整体下移(内容容器 y=874),预览底部按钮落到屏幕外,
+                            //   XCUITest 拿到 {{inf,inf}/{0,0}} 的无效 frame 无法点击。
+                            //   对策: 先强制收键盘(与 DateTimePickers 同款),再延一小拍弹预览。
+                            ImportSheet.dismissKeyboard()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                preview = p
+                            }
                         } label: {
                             Text(isLoading ? L10n.format("import_parsing") : L10n.format("import_preview"))
                                 .font(.system(size: 14, weight: .medium))
@@ -317,6 +328,9 @@ struct ImportSheet: View {
                     })
             } else {
             ImportPreviewDialog(preview: box.preview,
+                                showConfirm: pendingMode != nil,
+                                onConfirmDismiss: { pendingMode = nil },
+                                confirmContent: { AnyView(confirmDialogContent) },
                                 onDismiss: { preview = nil }) { mode in
                 let existingTable = state.currentTable
                 confirmedStartDate = preview!.parseResult.startDate.isEmpty
@@ -332,87 +346,48 @@ struct ImportSheet: View {
                     currentJson: existingTable?.timeJson ?? "",
                     incomingJson: preview!.parseResult.timeJson,
                     requiredNodeCount: preview!.parseResult.nodesPerDay)
-                // ★ iOS 16 sheet 冲突修复: 先关预览 sheet 再开确认 sheet —
-                //   同一宿主上确认 sheet 会因预览未 dismiss 被丢弃。快照 preview
-                //   进 confirmedPreview 持有, 延迟到预览 dismiss 完成后再置模式。
+                // ★ 架构对齐 Android v1.0.62 (ImportSheet.kt: `if (preview != null &&
+                //   pendingMode != null)` 同时组合 ImportPreviewDialog 与 ImportConfirmDialog):
+                //   Android 的预览**不关**, 确认框作为第二个 Dialog 叠在上面, 两者共存。
+                //   iOS 早期把确认框做成宿主上的第二个 .sheet, 并靠"先 preview = nil 再延时
+                //   0.45s 置 pendingMode"绕开同宿主双 sheet 冲突 —— 结果第二个 sheet 在预览
+                //   dismiss 途中被丢弃, 用户看到"点了没反应"(ManageImportUITests
+                //   testFullTextImportFlow 失败: 确认对话框未弹出)。
+                //   现改为: 预览 sheet 保持打开, 确认框作为**预览 sheet 内部的一层 overlay**
+                //   呈现(见 ImportPreviewDialog 的 showConfirm/confirmContent), 与 Android
+                //   双对话框同构; 无延时, 无"先关预览"。
                 // v7.10.13 追加模式: 追加到已存在的课表, 命名由目标课表自带, 不需要再问用户 —
                 // 直接走 applyImportPreview, 跳过 ImportConfirmDialog(← Android LaunchedEffect)。
+                // ★ 无需延时: 追加分支不弹确认框, 预览 sheet 保持打开直到导入完成,
+                //   不存在"第二个 presentation 被丢弃"的竞态。
                 if mode == .appendNonConflict || mode == .appendAll {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        guard let p = preview else { return }
-                        isLoading = true
-                        _ = ImportSheet.applyImportPreview(
-                            preview: p, mode: mode,
-                            confirmedStartDateRaw: p.parseResult.startDate.isEmpty
-                                ? (state.currentTable?.startDate ?? Self.todayISO())
-                                : p.parseResult.startDate,
-                            confirmedTableName: state.currentTable?.name ?? "",
-                            confirmedTimeJson: TimeTableUtils.mergeMostComplete(
-                                currentJson: state.currentTable?.timeJson ?? "",
-                                incomingJson: p.parseResult.timeJson,
-                                requiredNodeCount: p.parseResult.nodesPerDay),
-                            onImported: onImported) { msg in errorMsg = msg }
-                        preview = nil
-                        pendingMode = nil
-                        isLoading = false
-                        // ← Android: 导入成功不再跳编辑课表页(假保存闸), snackbar 明示已落库
-                        showSuccess(L10n.format("import_success"))
-                    }
-                    return
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                    confirmedPreview = preview
-                    pendingMode = mode
-                    preview = nil
-                }
-            }
-            .sheetDetents([.large])
-            }
-        }
-        // 确认对话框(pendingMode 驱动; preview 已快照进 confirmedPreview)
-        .sheet(isPresented: Binding(
-            get: { pendingMode != nil },
-            set: { if !$0 { pendingMode = nil } }
-        )) {
-            ImportConfirmDialog(
-                startDate: confirmedStartDate,
-                tableName: confirmedTableName,
-                timeJson: confirmedTimeJson,
-                // 仅"创建新课表"或"追加为新课表"需要命名; 覆盖课表不强制重命名
-                showTableName: pendingMode == .importAsNew || pendingMode == .appendAsNew,
-                onTableNameChange: { confirmedTableName = $0 },
-                onStartDateChange: { confirmedStartDate = $0 },
-                onTimeJsonChange: { confirmedTimeJson = $0 },
-                onDismiss: { pendingMode = nil },
-                // v1.0.56 T6: 第三 Tab「作息表」
-                periodTableOptions: viewModel.loadAllPeriodTables().map {
-                    PeriodTableOption(id: $0.id, name: $0.name, nodesPerDay: $0.nodesPerDay)
-                },
-                selectedPeriodTableId: confirmedBindPeriodTableId,
-                onSelectPeriodTable: { confirmedBindPeriodTableId = $0 },
-                periodTableTimeJsonById: Dictionary(
-                    uniqueKeysWithValues: viewModel.loadAllPeriodTables().map { ($0.id, $0.timeJson) }),
-                onConfirm: {
-                    guard let mode = pendingMode, let currentPreview = confirmedPreview else { return }
+                    guard let p = preview else { return }
                     isLoading = true
-                    // 「确认导入」= 唯一写库点, 点下即落库。之后不再跳编辑课表页 —
-                    // 那个页面有「保存」按钮, 会造成"没点保存数据也在"的假保存闸误导
-                    // (Android v1.0.56 已删跳转, 改 snackbar 明示 import_success)。
                     _ = ImportSheet.applyImportPreview(
-                        preview: currentPreview, mode: mode,
-                        confirmedStartDateRaw: confirmedStartDate,
-                        confirmedTableName: confirmedTableName,
-                        confirmedTimeJson: confirmedTimeJson,
-                        onImported: onImported,
-                        onError: { msg in errorMsg = msg },
-                        bindPeriodTableId: confirmedBindPeriodTableId)
-                    confirmedPreview = nil
+                        preview: p, mode: mode,
+                        confirmedStartDateRaw: p.parseResult.startDate.isEmpty
+                            ? (state.currentTable?.startDate ?? Self.todayISO())
+                            : p.parseResult.startDate,
+                        confirmedTableName: state.currentTable?.name ?? "",
+                        confirmedTimeJson: TimeTableUtils.mergeMostComplete(
+                            currentJson: state.currentTable?.timeJson ?? "",
+                            incomingJson: p.parseResult.timeJson,
+                            requiredNodeCount: p.parseResult.nodesPerDay),
+                        onImported: onImported) { msg in errorMsg = msg }
                     preview = nil
                     pendingMode = nil
                     isLoading = false
+                    // ← Android: 导入成功不再跳编辑课表页(假保存闸), snackbar 明示已落库
                     showSuccess(L10n.format("import_success"))
-                })
-                .sheetDetents([.large])
+                    return
+                }
+                // ← Android: preview 保持非 nil, pendingMode 同步置位;
+                //   确认框作为第二个 Dialog 叠在预览之上(见预览 sheet 内的 overlay)。
+                confirmedPreview = preview
+                pendingMode = mode
+            }
+            .sheetDetents([.large])
+            }
         }
         // 草稿箱弹窗 (← Android if (showDrafts) ImportDraftSheet(...))
         .sheet(isPresented: $showDrafts) {
@@ -429,6 +404,57 @@ struct ImportSheet: View {
         .sheet(item: $detailFormat) { fmt in
             FormatDetailDialog(format: fmt)
         }
+    }
+
+    /// ← Android: `if (preview != null && pendingMode != null)` 时把 ImportConfirmDialog
+    ///   作为**第二个 Dialog** 叠在预览 Dialog 之上(两者共存, 预览不关)。
+    ///   iOS 无"对话框叠对话框"这一层结构, 嵌套 .sheet(挂在预览 sheet 里的
+    ///   NavigationView 根上)在 iOS 上会被静默丢弃 —— 表现为"点了导入模式没反应"。
+    ///   对策: 确认框作为**预览 sheet 内部的一层 overlay**(同一 presented surface),
+    ///   语义与 Android 的双对话框叠放一致: 预览仍在下面, 确认框盖在上面。
+    ///   ⚠️ overlay 必须落在**非** .accessibilityElement(children: .contain) 的
+    ///   容器里, 否则确认框的标题会被预览层吞掉(XCUITest 找不到 import_confirm_title)。
+    @ViewBuilder
+    private var confirmDialogContent: some View {
+        ImportConfirmDialog(
+            startDate: confirmedStartDate,
+            tableName: confirmedTableName,
+            timeJson: confirmedTimeJson,
+            // 仅"创建新课表"或"追加为新课表"需要命名; 覆盖课表不强制重命名
+            showTableName: pendingMode == .importAsNew || pendingMode == .appendAsNew,
+            onTableNameChange: { confirmedTableName = $0 },
+            onStartDateChange: { confirmedStartDate = $0 },
+            onTimeJsonChange: { confirmedTimeJson = $0 },
+            onDismiss: { pendingMode = nil },
+            // v1.0.56 T6: 第三 Tab「作息表」
+            periodTableOptions: viewModel.loadAllPeriodTables().map {
+                PeriodTableOption(id: $0.id, name: $0.name, nodesPerDay: $0.nodesPerDay)
+            },
+            selectedPeriodTableId: confirmedBindPeriodTableId,
+            onSelectPeriodTable: { confirmedBindPeriodTableId = $0 },
+            periodTableTimeJsonById: Dictionary(
+                uniqueKeysWithValues: viewModel.loadAllPeriodTables().map { ($0.id, $0.timeJson) }),
+            onConfirm: {
+                guard let mode = pendingMode, let currentPreview = confirmedPreview else { return }
+                isLoading = true
+                // 「确认导入」= 唯一写库点, 点下即落库。之后不再跳编辑课表页 —
+                // 那个页面有「保存」按钮, 会造成"没点保存数据也在"的假保存闸误导
+                // (Android v1.0.56 已删跳转, 改 snackbar 明示 import_success)。
+                _ = ImportSheet.applyImportPreview(
+                    preview: currentPreview, mode: mode,
+                    confirmedStartDateRaw: confirmedStartDate,
+                    confirmedTableName: confirmedTableName,
+                    confirmedTimeJson: confirmedTimeJson,
+                    onImported: onImported,
+                    onError: { msg in errorMsg = msg },
+                    bindPeriodTableId: confirmedBindPeriodTableId)
+                confirmedPreview = nil
+                pendingMode = nil
+                // ← Android: 导入成功预览一并关闭 (preview = null)
+                preview = nil
+                isLoading = false
+                showSuccess(L10n.format("import_success"))
+            })
     }
 
     private static func todayISO() -> String {
@@ -471,9 +497,20 @@ struct ImportSheet: View {
 }
 
 // Identifiable 包装(sheet(item:) 需要)
+// ★ 根因修复(2026-10-31): id 必须**由内容派生**, 不能用 UUID()。
+//   .sheet(item:) 的 get 闭包在每次父视图重绘时都会重新求值, 若 id 每次都是新的
+//   UUID, SwiftUI 会认为"换了一个 item" → 旧 sheet 关闭 + 新 sheet 重新弹出。
+//   点"导入模式"时父状态(pendingMode)一变就触发重绘 → 预览 sheet 被重新呈现,
+//   呈现动画中容器停在起始位置(y=874), 模式按钮 frame 落到屏幕外
+//   (y=1450…1594), XCUITest 报 "Activation point invalid"(ManageImportUITests
+//   testFullTextImportFlow 失败)。稳定 id ⇒ 只更新内容, 不重新呈现。
 private struct PreviewBox: Identifiable {
-    let id = UUID()
     let preview: ImportPreview
+    /// 内容派生的稳定标识: 同一份预览在任何重绘下 id 不变。
+    var id: String {
+        let r = preview.parseResult
+        return "\(preview.targetTableId)|\(r.tableName)|\(r.startDate)|\(r.courses.count)|\(preview.conflicts.count)"
+    }
 }
 
 // ← ImportMethodRow
@@ -656,12 +693,23 @@ private struct FormatDetailDialog: View {
 private struct ImportPreviewDialog: View {
     @Environment(\.localWakeUpColors) private var colors
     let preview: ImportPreview
+    /// ← Android: 预览 Dialog 不关, 确认 Dialog 作为第二个 Dialog 叠在上面。
+    ///   iOS 用同一 presented surface 内的 overlay 层实现(嵌套 .sheet 会被丢弃)。
+    var showConfirm: Bool = false
+    var onConfirmDismiss: () -> Void = {}
+    var confirmContent: () -> AnyView = { AnyView(EmptyView()) }
     let onDismiss: () -> Void
     let onApply: (ImportApplyMode) -> Void
 
     var body: some View {
         NavigationView {
-            ZStack(alignment: .bottom) {
+            ZStack {
+            // ★ v1.0.62 对齐(结构修复): Android 的 ImportPreviewDialog 是 Material3
+            //   AlertDialog,模式按钮在 dialog 自带的底部动作容器里(真实布局容器,
+            //   永远在屏内)。iOS 之前用 ZStack(alignment:.bottom) 把按钮组浮在 List 之上,
+            //   键盘未收时 sheet 内容容器被下移 → 按钮 frame 落到屏幕外。
+            //   改为 VStack { List; 按钮组 } 的真实流内容器,与 Android 容器语义一致。
+            VStack(spacing: 0) {
                 List {
                     Section {
                         VStack(alignment: .leading, spacing: 6) {
@@ -797,27 +845,23 @@ private struct ImportPreviewDialog: View {
                         }
                     }
 
-                    // 留出底部按钮区空间
-                    Section {
-                        Color.clear.frame(height: 100)
-                            .listRowBackground(Color.clear)
-                    }
+                    // ← 底部按钮组改为 List 之后的真实流内容器, 不再需要占位行
                 }
                 .listStyle(.insetGrouped)
                 .background(colors.surface)
 
-                // 底部按钮组 - 浮动在 List 之上, 保留纯色块风格统一
+                // 底部按钮组 - List 之下的真实容器(← Android AlertDialog 的 confirmButton 容器)
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         if preview.targetTableId == 0 {
-                            PrimaryDialogButton(L10n.format("import_as_new")) {
+                            PrimaryDialogButton(L10n.format("import_as_new"), identifier: "import_mode_as_new") {
                                 onApply(.importAsNew)
                             }
                         } else {
-                            PrimaryDialogButton(L10n.format("import_append_only")) {
+                            PrimaryDialogButton(L10n.format("import_append_only"), identifier: "import_mode_append_only") {
                                 onApply(.appendNonConflict)
                             }
-                            PrimaryDialogButton(L10n.format("import_as_new")) {
+                            PrimaryDialogButton(L10n.format("import_as_new"), identifier: "import_mode_as_new") {
                                 onApply(.importAsNew)
                             }
                         }
@@ -837,7 +881,8 @@ private struct ImportPreviewDialog: View {
                                     .cornerRadius(SleepyShapes.medium)
                             }
                             .buttonStyle(SleepyButtonStyle())
-                            PrimaryDialogButton(L10n.format("import_append_as_new")) {
+                            .accessibilityIdentifier("import_mode_append_conflict")
+                            PrimaryDialogButton(L10n.format("import_append_as_new"), identifier: "import_mode_append_as_new") {
                                 onApply(.appendAsNew)
                             }
                         }
@@ -853,6 +898,7 @@ private struct ImportPreviewDialog: View {
                                 .cornerRadius(SleepyShapes.medium)
                         }
                         .buttonStyle(SleepyButtonStyle())
+                        .accessibilityIdentifier("import_mode_overwrite")
                     }
                     // ← Android TextButton: 纯文字 40dp, onSurfaceVariant
                     Button(action: onDismiss) {
@@ -863,12 +909,18 @@ private struct ImportPreviewDialog: View {
                             .frame(height: 40)
                     }
                     .buttonStyle(SleepyButtonStyle())
+                    .accessibilityIdentifier("import_preview_cancel")
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
+                .padding(.top, 8)
                 .background(
-                    LinearGradient(colors: [colors.surface.opacity(0), colors.surface],
-                                   startPoint: .top, endPoint: .bottom)
+                    VStack(spacing: 0) {
+                        Rectangle()
+                            .fill(colors.outlineVariant)
+                            .frame(height: 0.5)
+                        colors.surface
+                    }
                     .ignoresSafeArea(edges: .bottom)
                 )
             }
@@ -882,6 +934,25 @@ private struct ImportPreviewDialog: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("import_preview_title")
+
+            // ← Android: 第二个 Dialog(ImportConfirmDialog)叠在预览 Dialog 之上。
+            //   iOS: 同一 presented surface 内的 overlay 层。遮罩 + 全屏内容,
+            //   与 M3 AlertDialog 的 scrim + 卡片观感一致。
+            //   ⚠️ 必须是**独立**的兄弟节点, 不能被预览层的
+            //   .accessibilityElement(children:.contain) 吞掉 —— 否则确认框的
+            //   import_confirm_title 标题在 AX 树里消失, XCUITest 找不到。
+            if showConfirm {
+                ZStack {
+                    // scrim(点外部 = 取消确认, ← Android onDismissRequest)
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .onTapGesture { onConfirmDismiss() }
+
+                    confirmContent()
+                }
+                .accessibilityIdentifier("import_confirm_overlay")
+            }
+            }
         }
     }
 }
@@ -893,10 +964,12 @@ extension CourseConflict: Identifiable {
 private struct PrimaryDialogButton: View {
     @Environment(\.localWakeUpColors) private var colors
     let title: String
+    var identifier: String? = nil
     let action: () -> Void
 
-    init(_ title: String, _ action: @escaping () -> Void) {
+    init(_ title: String, identifier: String? = nil, _ action: @escaping () -> Void) {
         self.title = title
+        self.identifier = identifier
         self.action = action
     }
 
@@ -912,6 +985,22 @@ private struct PrimaryDialogButton: View {
                 .cornerRadius(SleepyShapes.medium)
         }
         .buttonStyle(SleepyButtonStyle())
+        // 稳定标识: 预览底部按钮浮在 List 之上, XCUITest 按 label 找元素时偶发拿到
+        // 无效 frame({inf, inf}/{0.0,0.0}) → "Failed to compute hit point"。给显式
+        // identifier 后 UI 测试可按 id 精确定位, 不依赖本地化文案。
+        .modifier(PrimaryDialogButtonIdentifier(identifier: identifier))
+    }
+}
+
+/// 仅在 identifier 非空时挂 accessibilityIdentifier(空串会被 UIKit 当成有效 id, 反而误命中)
+private struct PrimaryDialogButtonIdentifier: ViewModifier {
+    let identifier: String?
+    func body(content: Content) -> some View {
+        if let identifier, !identifier.isEmpty {
+            content.accessibilityIdentifier(identifier)
+        } else {
+            content
+        }
     }
 }
 
@@ -995,6 +1084,7 @@ private struct ImportConfirmDialog: View {
                 Text(L10n.format("import_confirm_title"))
                     .font(.system(size: 24))   // ← M3 AlertDialog title = headlineSmall 24sp 常规
                     .foregroundColor(colors.onSurface)
+                    .accessibilityIdentifier("import_confirm_title")
                 Text(L10n.format("import_confirm_body"))
                     .font(.system(size: 14))
                     .foregroundColor(colors.onSurfaceVariant)
@@ -1187,6 +1277,14 @@ private struct PurePeriodImportDialog: View {
 
 extension ImportSheet {
 
+    /// 强制收走系统键盘(与 DateTimePickers 的做法同款)。
+    /// 弹预览 sheet 前必须调用:粘贴框仍是 first responder 时键盘不收,
+    /// UIKit 会把预览 sheet 的内容容器整体下移到屏幕之外。
+    static func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
+    }
+
     // ← buildImportPreview
     static func buildImportPreview(
         _ text: String,
@@ -1295,45 +1393,35 @@ extension ImportSheet {
         case .importAsNew:
             let base = (try? repo.getTable(preview.targetTableId)) ?? nil
             // issue#40 §6: 新格式带 P 区块 → 建 period_tables 并绑定(恢复共享关系);
-            // 旧格式 periodTable=nil → 不建(课表用自己兼容列, 不误共享)。
+            // v1.0.62 B7b 用户 2026-10-05(2a): 无 P 区块(旧格式/粘贴文本)不再"不建" — 恒以确认页
+            // 最终 confirmedTimeJson 兜底建表并绑定, 三个入口作息表行为统一。
             // v1.0.56 T6: 用户在第三 Tab 显式选了作息表 → 绑定用户所选(优先于自动建表绑定);
             // v1.0.56 T10: 自动建表走全局唯一名顺延(撞名加后缀, 禁与既有课表/作息表同名)
-            var importedPeriodTableId: Int64? = bindPeriodTableId
-            if importedPeriodTableId == nil, let pt = preview.parseResult.periodTable {
-                let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
-                let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
-                let entity = PeriodTableEntity(
-                    name: TimeTableUtils.suggestUniqueName(
-                        pt.name, courseTableNames: courseNames, periodTableNames: periodNames),
-                    nodesPerDay: pt.nodesPerDay,
-                    timeJson: pt.timeJson)
-                if let newId = (try? repo.insertPeriodTable(entity)) ?? nil, newId > 0 {
-                    importedPeriodTableId = newId
-                }
-            }
-            let existingNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
-            var newTable = TimeTableEntity(
-                name: uniqueImportedTableName(confirmedTableName, existingNames),
-                startDate: confirmedStartDate,
-                maxWeek: preview.parseResult.maxWeek > 0 ? preview.parseResult.maxWeek : (base?.maxWeek ?? 20),
-                nodesPerDay: preview.parseResult.nodesPerDay > 0 ? preview.parseResult.nodesPerDay : base?.nodesPerDay ?? 12,
-                timeJson: confirmedTimeJson,
-                isDefault: false)
-            newTable.color = base?.color ?? "#FF6750A4"
-            newTable.periodTableId = importedPeriodTableId
-            let newTableId = (try? repo.insertTable(newTable)) ?? 0
-            var courses = preview.parseResult.courses
-            for i in courses.indices {
-                courses[i].id = 0
-                courses[i].tableId = newTableId
-            }
-            // sleepy-v1: groupId 权威时保留分区(ImportAsNew 全量落新课表, 等价 replace 语义)
-            if preview.parseResult.groupIdsAuthoritative {
-                _ = try? repo.insertCoursesKeepingGroups(courses)
-            } else {
-                _ = try? repo.insertCourses(courses)
-            }
-            try? repo.setDefault(newTableId)
+            let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
+            let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
+            // ← Android importedPeriodTableDraft: 选中既有作息表则共享, 否则确认行 owns 新表
+            let importedPeriod = importedPeriodTableDraft(
+                bindingId: bindPeriodTableId,
+                name: TimeTableUtils.suggestUniqueName(
+                    preview.parseResult.periodTable?.name ?? confirmedTableName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    courseTableNames: courseNames,
+                    periodTableNames: periodNames,
+                    defaultName: preview.parseResult.tableName),
+                confirmedTimeJson: confirmedTimeJson)
+            // v1.0.62 B7b ← repo.importNewTable: 表+作息表+课程+默认切换单事务原子提交
+            let newTableId = (try? repo.importNewTable(
+                table: TimeTableEntity(
+                    name: uniqueImportedTableName(confirmedTableName, courseNames),
+                    startDate: confirmedStartDate,
+                    maxWeek: preview.parseResult.maxWeek > 0 ? preview.parseResult.maxWeek : (base?.maxWeek ?? 20),
+                    nodesPerDay: max(TimeTableUtils.parseTimeSlotRows(confirmedTimeJson).count, 1),
+                    timeJson: confirmedTimeJson,
+                    color: base?.color ?? "#FF6750A4",
+                    isDefault: false),
+                courses: preview.parseResult.courses,
+                periodTable: importedPeriod,
+                bindPeriodTableId: bindPeriodTableId,
+                keepGroups: preview.parseResult.groupIdsAuthoritative)) ?? 0
             // v7.10.12: 整表新建不过闸门, 超层时提示(同 ReplaceCurrent 策略)
             let badDaysNew = ConflictLayoutEngine.daysExceedingTwoLanes(preview.parseResult.courses)
             if !badDaysNew.isEmpty {
@@ -1401,16 +1489,15 @@ extension ImportSheet {
                     requiredNodeCount: incoming.nodesPerDay)
                 : confirmedTimeJson
             let mergedRows = TimeTableUtils.parseTimeSlotRows(mergedTimeJson)
-            let existingNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
-            var newTable = TimeTableEntity(
-                name: uniqueImportedTableName(confirmedTableName, existingNames),
-                startDate: confirmedStartDate,
-                maxWeek: incoming.maxWeek > 0 ? incoming.maxWeek : (base?.maxWeek ?? 20),
-                nodesPerDay: !mergedRows.isEmpty ? mergedRows.count : (base?.nodesPerDay ?? 12),
-                timeJson: mergedTimeJson,
-                isDefault: false)
-            newTable.color = base?.color ?? "#FF6750A4"
-            let newTableId = (try? repo.insertTable(newTable)) ?? 0
+            // v1.0.62 B7b 用户 2026-10-05(2a): 合并新建课表同样恒建+绑作息表(以 mergedTimeJson 为源)。
+            let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
+            let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
+            let mergedName = uniqueImportedTableName(confirmedTableName, courseNames)
+            let mergedPeriod = PeriodTableEntity(
+                name: TimeTableUtils.suggestUniqueName(
+                    mergedName, courseTableNames: courseNames, periodTableNames: periodNames),
+                nodesPerDay: max(mergedRows.count, 1),
+                timeJson: mergedTimeJson)
             // 当前课表原课 + 导入课程合并导入新课表
             // v7.10.16i: 老课全量保留。v7.10.16j(用户 2026-09-03「新课表=纯老表复制」):
             // 三层闸门改为**只拦新增冲突** — 候选违规判定只看新增候选本身是否比原表
@@ -1430,19 +1517,23 @@ extension ImportSheet {
                 let droppedDays = afterDays.subtracting(beforeDays)
                 onError(L10n.format("import_three_layers_kept", dayNames(droppedDays)))
             }
+            // 全量合并入库: 老课 + 全部非重复导入课(仅提示, 不再剔除 — 闸门只拦编辑恶化,
+            // 合并是新建课表, 用户明确要的就是并集)
             // AppendAsNew 合并新老课: 导入侧 groupId 权威时仅对导入课保组, 老课照原样保组
-            var mergedCourses = (oldCourses + cleanIncoming).map { c in
-                var copy = c; copy.id = 0; copy.tableId = newTableId; return copy
-            }
-            if preview.parseResult.groupIdsAuthoritative {
-                _ = try? repo.insertCoursesKeepingGroups(mergedCourses)
-                mergedCourses = []
-            } else {
-                _ = try? repo.insertCourses(mergedCourses)
-                mergedCourses = []
-            }
-            // v7.10.16j: 合并新课表建完即激活 — 缺 setDefault 则用户仍看老表
-            try? repo.setDefault(newTableId)
+            // v1.0.62 B7b ← repo.importNewTable: 表+作息表+课程+默认切换单事务原子提交
+            // (id/tableId 重置在 importNewTable 内统一做, 调用方不再自行拷贝)
+            let newTableId = (try? repo.importNewTable(
+                table: TimeTableEntity(
+                    name: mergedName,
+                    startDate: confirmedStartDate,
+                    maxWeek: incoming.maxWeek > 0 ? incoming.maxWeek : (base?.maxWeek ?? 20),
+                    nodesPerDay: max(mergedRows.count, 1),
+                    timeJson: mergedTimeJson,
+                    color: base?.color ?? "#FF6750A4",
+                    isDefault: false),
+                courses: oldCourses + cleanIncoming,
+                periodTable: mergedPeriod,
+                keepGroups: preview.parseResult.groupIdsAuthoritative)) ?? 0
             onImported()
             return newTableId
         case .appendAll:

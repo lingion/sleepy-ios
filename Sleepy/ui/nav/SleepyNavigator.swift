@@ -27,8 +27,9 @@ import Foundation
 //     与 .courseList/.periodTables 同式经 default 走 vm.navigate; OverlayScreen.case +
 //     iosNavigation + navigate 映射 = 共享接线 needs_shared_wiring, 本 facade 只摘 blocked)。
 //   • 仍未放行 (无根 overlay 承载, 待共享接线, 见下): .holiday / .widgetManagement /
-//     .widgetEdit — holiday 内嵌 GeneralSettings sheet,
-//     widgetManagement/widgetEdit 内嵌 GeneralSettings→WidgetManagement 链。
+//     .widgetSettings / .widgetGallery / .widgetEdit — holiday 内嵌 GeneralSettings sheet,
+//     v1.0.62 B4: widgetSettings/widgetGallery 内嵌 MineScreen→WidgetSettings
+//     →WidgetManagement→WidgetGallery cover 链。
 
 // 薄门面驱动 @MainActor VM 态 → 整个类 @MainActor (Android 侧同为主线程).
 @MainActor
@@ -81,12 +82,14 @@ final class SleepyNavigator {
         case .periodTables:
             // 1.0.61 放行: PeriodTablesScreen 已落地且 OverlayScreen 已有 case。
             if !vm.navigate(to: route) { vm.overlayScreen = .periodTables }
-        case .holiday, .widgetManagement, .widgetEdit:
+        case .holiday, .widgetManagement, .widgetSettings, .widgetGallery, .widgetEdit:
             // 屏已落地但无根 overlay 承载 (sheet/内嵌链), 路由级放行待共享接线:
             // SleepyRoutes.isIOSPorted + vm.navigate 映射 (见交付报告 needs_shared_wiring)。
             // 🚫silent skip 原则 → 显式留痕, 不伪造跳转。
             // (.periodHeaderSettings 已放行: 经 default → vm.navigate, 屏 + Appearance
             //  Section④ 入口已落地, OverlayScreen.case/iosNavigation/navigate 映射为共享接线。)
+            // v1.0.62 B4: widgetSettings/widgetGallery 实际呈现 = MineScreen/
+            //   WidgetManagementScreen 内部 fullScreenCover (与 holiday 同款惯例)。
             break
         default:
             // .main / .allTables / .editTable / .appearance / .general / .export /
@@ -129,6 +132,10 @@ final class SleepyNavigator {
     func openAbout() { push(route: .about) }
     func openLicense() { push(route: .license) }
     func openWidgetManagement() { push(route: .widgetManagement) }
+    // v1.0.62 B4: 意图面补齐(Android SleepyNavigator 同名意图 1:1);
+    //   实际呈现走 MineScreen/WidgetManagementScreen 内嵌 cover(见 push no-op 注释)。
+    func openWidgetSettings() { push(route: .widgetSettings) }
+    func openWidgetGallery() { push(route: .widgetGallery) }
     func openPeriodTables() { push(route: .periodTables) }
     func openWidgetEdit(widgetId: Int) { push(route: .widgetEdit(widgetId: widgetId)) }
     func openPeriodEdit(periodId: Int64, isNew: Bool = false) { push(route: .periodEdit(periodId: periodId, isNew: isNew)) }

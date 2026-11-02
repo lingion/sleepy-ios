@@ -148,7 +148,16 @@ struct PeriodTableEditScreen: View {
                             ProgressView()
                         } else if timeSlotsExpanded {
                             TimeSlotEditor(rows: $slotRows,
-                                           onRowsChange: { slotRows = $0 },
+                                           onRowsChange: { newRows in
+                                               slotRows = newRows
+                                               // v1.0.62 B7b(用户 2026-10-05): 手动改行后 smartConfig 同步重播种 —
+                                               // stored 仍能 derive 当前行则定点保留(分组/标签不丢), 否则按行
+                                               // 重推断; 不可推断保持旧值。与 EditTableScreen 同口径, 否则
+                                               // 陈旧 config 被 Auto 模式 derive 覆盖手动行 = "多出 44 分钟课"根因。
+                                               // ← Android PeriodTableEditScreen.kt onRowsChange
+                                               smartConfig = resolveAutoPeriodConfig(rows: newRows, stored: smartConfig)
+                                                   ?? smartConfig
+                                           },
                                            usedDefaultTimes: usedDefaultTimes,
                                            smartConfig: smartConfig,
                                            onSmartConfigChange: { smartConfig = $0 })

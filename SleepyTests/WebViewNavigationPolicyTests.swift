@@ -46,24 +46,33 @@ final class LocalPageServer {
             while true {
                 let client = accept(fd, nil, nil)
                 guard client >= 0 else { break }
-                var buf = [UInt8](repeating: 0, count: 4096)
-                _ = read(client, &buf, 4096)
-                let resp = """
-                HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\
-                Content-Length: \(body.count)\r\nConnection: close\r\n\r\n
-                """
-                var out = resp.data(using: .utf8)!
-                out.append(body)
-                out.withUnsafeBytes { ptr in
-                    var sent = 0
-                    while sent < ptr.count {
-                        let n = write(client, ptr.baseAddress!.advanced(by: sent), ptr.count - sent)
-                        if n <= 0 { break }
-                        sent += n
+                // ★ 每连接独立线程: WebKit 会为同一 origin 建立「投机性预连接」
+                //   (speculative preconnect) —— 该 socket 建连后不发送任何请求。
+                //   若在 accept 循环里同步 read(), 服务器会阻塞在这个空连接上,
+                //   真正的 page2.html 请求只能排在 accept 队列里, 直到 WebKit
+                //   预连接超时(约 3s)才被处理 → 3s 等待窗口的断言必然超时。
+                //   改为每连接一线程后, 空连接与真实请求互不阻塞。
+                let body = body
+                Thread {
+                    var buf = [UInt8](repeating: 0, count: 4096)
+                    _ = read(client, &buf, 4096)
+                    let resp = """
+                    HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\
+                    Content-Length: \(body.count)\r\nConnection: close\r\n\r\n
+                    """
+                    var out = resp.data(using: .utf8)!
+                    out.append(body)
+                    out.withUnsafeBytes { ptr in
+                        var sent = 0
+                        while sent < ptr.count {
+                            let n = write(client, ptr.baseAddress!.advanced(by: sent), ptr.count - sent)
+                            if n <= 0 { break }
+                            sent += n
+                        }
                     }
-                }
-                close(client)
-                _ = pagePath
+                    close(client)
+                    _ = pagePath
+                }.start()
             }
         }
         acceptThread?.stackSize = 256 * 1024

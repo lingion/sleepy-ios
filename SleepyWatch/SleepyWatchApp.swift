@@ -26,6 +26,8 @@ struct SleepyWatchApp: App {
         // 调度器 repo 接线 (delegate 到货 handleDailyResync 冷启动即需,
         // 不等首次 applySnapshot)
         store.prepareScheduler()
+        // 持久色相快照首载(手表本地镜像库) — 与手机同口径的派生档课程色。
+        CourseHueStore.shared.start()
     }
 
     var body: some Scene {

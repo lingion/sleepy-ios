@@ -30,7 +30,7 @@ final class ManageImportUITests: XCTestCase {
                                "-SLEEPY_UI_TEST_SEED"]
         app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
-        app.descendants(matching: .any)["pill_manage"].tap()
+        app.switchToPillTab("manage")
         XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 5))
     }
 
@@ -200,22 +200,40 @@ final class ManageImportUITests: XCTestCase {
         // 选 "Import as new schedule" 模式: 只有该模式(及 Append as new table / Overwrite
         // current)会弹 "Confirm Before Import" 对话框; "Append non-conflicting" 在 Android
         // 源上本来就不弹 confirm(直接应用) → 旧断言不可能通过。
-        let appendBtn = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS 'Import as new'")).firstMatch
-        if appendBtn.waitForExistence(timeout: 3) {
-            appendBtn.tap()
+        // ★ v1.0.62 对齐: 改按 accessibilityIdentifier 定位(import_mode_as_new 等),
+        //   不再按本地化文案匹配 —— 预览底部按钮浮在 List 之上, 按 label 匹配时偶发
+        //   拿到无效 frame({inf,inf}/{0,0}) → "Failed to compute hit point"(旧失败根因之一)。
+        let asNewBtn = app.descendants(matching: .any)["import_mode_as_new"]
+        if asNewBtn.waitForExistence(timeout: 3) {
+            // 预览 sheet 弹出前粘贴框仍是 first responder 时键盘不收,键盘会把预览
+            // sheet 的内容容器下移 → 模式按钮落到屏幕外(frame 变成 {{inf,inf}})。
+            // App 侧已收键盘,这里再兜一次底:键盘还在就收掉再点。
+            if app.keyboards.count > 0 {
+                let dismissKey = app.keyboards.buttons.matching(
+                    NSPredicate(format: "label IN {'Return', 'Done', 'return', 'done', '换行', '完成'}")
+                ).firstMatch
+                if dismissKey.waitForExistence(timeout: 2) {
+                    dismissKey.tap()
+                }
+                sleep(1)
+            }
+            if asNewBtn.isHittable {
+                asNewBtn.tap()
+            } else {
+                // 元素存在但不可点(仍在屏幕外)→ 用坐标兜底点它的中心
+                asNewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
         } else {
             // 兜底: "⚠ Overwrite current" 也走 confirm 流(替换种子表为导入内容,
             // 编译原理 周四 7-8 不碰种子课时段, 课表仍可验证)
-            let replace = app.descendants(matching: .any).matching(
-                NSPredicate(format: "label CONTAINS 'Overwrite current'")).firstMatch
+            let replace = app.descendants(matching: .any)["import_mode_overwrite"]
             XCTAssertTrue(replace.waitForExistence(timeout: 2), "confirm 流模式按钮都不在")
             replace.tap()
         }
 
         // 确认对话框: 表名/开始日期/Confirm Import
-        XCTAssertTrue(app.staticTexts["Confirm Before Import"].waitForExistence(timeout: 4),
-                      "确认对话框未弹出")
+        XCTAssertTrue(app.descendants(matching: .any)["import_confirm_title"]
+            .waitForExistence(timeout: 6), "确认对话框未弹出")
         // 确认按钮在 safeAreaInset 底部, 键盘可能盖住 → 先收键盘再滚到位
         // 注1: 键盘存在≠Return键存在(多行TextField无收起键/键名随locale漂移)
         // 注2: exists→tap 有竞态 —— 点模式按钮后SwiftUI异步收焦点, exists读到陈旧树,
@@ -229,7 +247,7 @@ final class ManageImportUITests: XCTestCase {
             if dismissKey.waitForExistence(timeout: 2) {
                 dismissKey.tap() // waitForExistence后窗口极小; 若再撞竞态由下方标题失焦兜底
             } else {
-                app.staticTexts["Confirm Before Import"].tap()
+                app.descendants(matching: .any)["import_confirm_title"].tap()
             }
             sleep(1)
         }

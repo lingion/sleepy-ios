@@ -55,8 +55,17 @@ final class JwSeuParser: JwParser, JwParserConfidenceReporting {
         var arr: [Any] = []
         if let a = root as? [Any] {
             arr = a
-        } else if let o = root as? [String: Any], let a = jsonArr(o["data"]) {
-            arr = a
+        } else if let o = root as? [String: Any] {
+            // v2 (WebView fetch): 多层解包 datas → xskcb → rows;
+            // 缺失时回退 v1 用户粘入的 root["data"] 数组。
+            if let datas = jsonObj(o["datas"]), let xskcb = jsonObj(datas["xskcb"]),
+               let rows = jsonArr(xskcb["rows"]) {
+                arr = rows
+            } else if let a = jsonArr(o["data"]) {
+                arr = a
+            } else {
+                return []
+            }
         } else {
             return []
         }
@@ -74,8 +83,14 @@ final class JwSeuParser: JwParser, JwParserConfidenceReporting {
             guard let startNode = jint(o, "KSJC") else { continue }
             let endNode = jint(o, "JSJC") ?? startNode
             let zcmc = jstr(o, "ZCMC")
+            let skzc = jstr(o, "SKZC")
 
-            for (sw, ew, type) in parseWeekRanges(zcmc) {
+            // v2: 只有由 0/1 构成的非空 SKZC 才是位图; 全 0 明确表示无课,
+            // 不能回退 ZCMC。缺失或非法位图才回退到 ZCMC 展示文本。
+            let weekRanges = (!skzc.isEmpty && skzc.all { $0 == "0" || $0 == "1" })
+                ? parseWeekBitmap(skzc)
+                : parseWeekRanges(zcmc)
+            for (sw, ew, type) in weekRanges {
                 out.append(JwCourse(
                     name: name, room: room, teacher: teacher,
                     day: min(max(day, 1), 7),
@@ -85,6 +100,30 @@ final class JwSeuParser: JwParser, JwParserConfidenceReporting {
             }
         }
         return out
+    }
+
+    /// v2: 精确保留服务端 SKZC 位图中的洞与单双周; 与金智同族解析器一致。
+    /// 全连续步长 2 → 单段单/双周; 其余按连续段切分 (type 0)。
+    func parseWeekBitmap(_ skzc: String) -> [(Int, Int, Int)] {
+        let weeks = skzc.enumerated().compactMap { index, bit -> Int? in bit == "1" ? index + 1 : nil }
+        if weeks.isEmpty { return [] }
+        if weeks.count > 1 && zip(weeks, weeks.dropFirst()).allSatisfy({ $1 - $0 == 2 }) {
+            return [(weeks[0], weeks[weeks.count - 1], weeks[0] % 2 == 1 ? 1 : 2)]
+        }
+        var ranges: [(Int, Int, Int)] = []
+        var start = weeks[0]
+        var end = start
+        for week in weeks.dropFirst() {
+            if week == end + 1 {
+                end = week
+            } else {
+                ranges.append((start, end, 0))
+                start = week
+                end = week
+            }
+        }
+        ranges.append((start, end, 0))
+        return ranges
     }
 
     /// ZCMC 串 → [(startWeek, endWeek, type)]。三形态: 范围/单双周/离散/单值。

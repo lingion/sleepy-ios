@@ -167,31 +167,27 @@ struct SchoolSelectScreen: View {
         Binding(get: { store.expandedCity }, set: { store.expandedCity = $0 })
     }
 
+    /// ← Android `remember(schools) { SchoolSearchIndex(schools) }` +
+    ///   `remember(searchIndex, query) { searchIndex.search(query) }`:
+    ///   索引由 ViewModel 按 schools 变更时重建, 每次按键只做匹配。
+    ///   (索引缓存放在 VM — schools 是 VM 的 @Published, 索引与它同生命周期)
     private var filtered: [JwSchoolInfo] {
-        let schools = viewModel.schools
-        if query.trimmingCharacters(in: .whitespaces).isEmpty { return schools }
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        let matched = schools.filter { PinyinMatcher.match($0.name, $0.sortKey, query, aliases: $0.aliases) }
-        // 别名精确匹配优先 ← Android matched.sortedByDescending{...}: Kotlin 排序稳定,
-        // 同键保持原序; Swift sorted 不保证稳定 → 用原始下标做同键 tie-break 复刻稳定语义
-        let keyed = matched.enumerated().map { ($0.element, $0.offset) }
-        let ordered = keyed.sorted { a, b in
-            let aExact = a.0.aliases.contains { $0.lowercased() == q }
-            let bExact = b.0.aliases.contains { $0.lowercased() == q }
-            if aExact != bExact { return aExact }
-            return a.1 < b.1
-        }
-        return ordered.map { $0.0 }
+        viewModel.searchSchools(query)
     }
 
     private var isUrl: Bool { looksLikeUrl(query) }
     private var urlProtocol: String? { isUrl ? JwImportViewModel.detectProtocolFromUrl(query) : nil }
-    /// ← issue #25: 输入 URL 的注册域若与目录条目同域, 直接映射到目录条目
-    ///   (拿权威教务 URL + 协议 type), 而不是建 type=nil 的自定义条目。
-    private var matchedSchool: JwSchoolInfo? {
-        isUrl ? SchoolDomainMatch.matchSchool(normalizeUrl(query.trimmingCharacters(in: .whitespaces)),
-                                              viewModel.schools)
-              : nil
+    /// ← Android `SchoolDomainMatch.selectionsForUrl(normalizeUrl(query.trim()), schools, urlProtocol, "自定义教务")`:
+    ///   精确命中的目录条目原样返回(多条 → 让用户选), 未命中才回退到单条自定义条目。
+    ///   目录身份必须保留 — 否则用户输 URL 会绕过未验证学校的准入提示。
+    private var urlSelections: [JwSchoolInfo] {
+        guard isUrl else { return [] }
+        return SchoolDomainMatch.selectionsForUrl(
+            normalizeUrl(query.trimmingCharacters(in: .whitespaces)),
+            viewModel.schools,
+            protocolType: urlProtocol,
+            customName: "自定义教务"
+        )
     }
 
     private var sections: [SchoolSection] { groupByLetter(filtered) }
@@ -277,9 +273,12 @@ struct SchoolSelectScreen: View {
                 .padding(.trailing, 16)
                 .padding(.bottom, 2)
 
-            // 计数行
+            // 计数行 ← Android jw_catalog_counts(总数 / 已支持且可导入 / 待验证)
             HStack {
-                Text(L10n.format("school_count_total", viewModel.schools.count))
+                Text(L10n.format("jw_catalog_counts",
+                                 viewModel.schools.count,
+                                 viewModel.schools.filter { $0.isSupported && $0.canImport }.count,
+                                 viewModel.schools.filter { $0.isUnverified }.count))
                     .font(.system(size: 12))
                     .foregroundColor(colors.onSurfaceVariant)
                 Spacer()
@@ -293,18 +292,27 @@ struct SchoolSelectScreen: View {
             .padding(.vertical, 4)
 
             if isUrl {
-                // issue #25: 域名命中目录条目 → 直接选中目录条目(权威 URL + type),
-                // 未命中才回退到自定义条目(与 Android `matchedSchool ?: JwSchoolInfo(...)` 一致)
-                UrlDirectRow(url: query.trimmingCharacters(in: .whitespaces),
-                             protocolType: urlProtocol,
-                             matchedSchool: matchedSchool) {
-                    let school = matchedSchool ?? JwSchoolInfo(
-                        sortKey: "",
-                        name: "自定义教务",
-                        url: normalizeUrl(query.trimmingCharacters(in: .whitespaces)),
-                        type: urlProtocol,
-                        status: JwSchoolInfo.STATUS_SUPPORTED)
-                    onSchoolSelected(school)
+                // ← Android: 单条 → UrlDirectRow; 多条 → 240dp 高的候选列表(让用户选)
+                if urlSelections.count == 1 {
+                    let school = urlSelections[0]
+                    UrlDirectRow(url: query.trimmingCharacters(in: .whitespaces),
+                                 protocolType: urlProtocol,
+                                 matchedSchool: viewModel.schools.contains(school) ? school : nil) {
+                        onSchoolSelected(school)
+                    }
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 2) {
+                            ForEach(urlSelections, id: \.stableKey) { school in
+                                SchoolRow(school: school) {
+                                    onSchoolSelected(school)
+                                }
+                                DividerRow()
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    .frame(maxHeight: 240)
                 }
             }
 
@@ -345,7 +353,7 @@ struct SchoolSelectScreen: View {
                                 ForEach(sections, id: \.letter) { section in
                                     SchoolSectionHeader(letter: section.letter)
                                         .id("header_\(section.letter)")
-                                    ForEach(section.schools, id: \.name) { school in
+                                    ForEach(section.schools, id: \.stableKey) { school in
                                         SchoolRow(school: school) {
                                             onSchoolSelected(school)
                                         }
@@ -492,7 +500,7 @@ private struct PossibleSchoolsCard: View {
                         .foregroundColor(colors.onSurfaceVariant)
                         .padding(.top, 8)
                     let visible = isExpanded ? schools : Array(schools.prefix(5))
-                    ForEach(visible, id: \.name) { school in
+                    ForEach(visible, id: \.stableKey) { school in
                         // ← Android 卡内行走共享 SchoolRow(含 badge/URL 行), 非独立 inline
                         SchoolRow(school: school) {
                             onSchoolSelected(school)
@@ -648,21 +656,21 @@ private struct SchoolRow: View {
     let school: JwSchoolInfo
     let onClick: () -> Void
 
+    /// ← Android SchoolRow: `val isClickable = school.canImport`
+    ///   (已支持, 或未验证且该协议有 parser, 并且有可用 URL)。
+    ///   该标志在 Android 只影响校名文字颜色 — 行本身永远可点(noRippleClickable 恒挂 onClick),
+    ///   待适配条目照样进 onSchoolSelected, 由 JwImportFlow 弹「待适配」告知框。
+    ///   iOS 若把 Button 门禁绑到该标志上, 待适配行将永远点不动 → 少了 catalogNotice 那一路。
     private var isClickable: Bool {
-        school.isSupported && !school.url.isEmpty
+        school.canImport
     }
 
     var body: some View {
-        Group {
-            if isClickable {
-                Button(action: onClick) {
-                    rowContent
-                }
-                .buttonStyle(SleepyButtonStyle())
-            } else {
-                rowContent
-            }
+        // ← Android: 行恒可点(availability 只由文字颜色表达), 准入判定在 Activity 侧。
+        Button(action: onClick) {
+            rowContent
         }
+        .buttonStyle(SleepyButtonStyle())
     }
 
     private var rowContent: some View {
@@ -696,27 +704,34 @@ private struct SchoolRow: View {
         .padding(.horizontal, 4)
     }
 
+    /// ← Android SchoolRow: `if (school.status != STATUS_SUPPORTED && !school.isUnverified)`
+    ///   — supported 与 unverified 都不渲染徽章(未验证占列表绝大多数, 满屏徽章会淹没其余信号;
+    ///   提示职责移到点进前的 catalogNotice 确认 + 导入成功后的报告弹窗)。
     @ViewBuilder
     private var schoolStatusBadge: some View {
-        switch school.status {
-        case JwSchoolInfo.STATUS_PENDING:
-            badge(label: L10n.t("jw_pending_pending"),
-                  background: colors.tertiaryContainer,
-                  foreground: colors.onTertiaryContainer)
-        case JwSchoolInfo.STATUS_GRAD_PENDING:
-            badge(label: L10n.t("jw_pending_pending") + " · " + L10n.t("jw_pending_grad"),
-                  background: colors.tertiaryContainer,
-                  foreground: colors.onTertiaryContainer)
-        case JwSchoolInfo.STATUS_GRAD_SUPPORTED:
-            badge(label: L10n.t("jw_pending_grad"),
-                  background: colors.secondaryContainer,
-                  foreground: colors.onSecondaryContainer)
-        case JwSchoolInfo.STATUS_LEGACY:
-            badge(label: L10n.t("jw_pending_legacy"),
-                  background: colors.surfaceVariant,
-                  foreground: colors.onSurfaceVariant)
-        default:
+        if school.status == JwSchoolInfo.STATUS_SUPPORTED || school.isUnverified {
             EmptyView()
+        } else {
+            switch school.status {
+            case JwSchoolInfo.STATUS_PENDING:
+                badge(label: L10n.t("jw_pending_pending"),
+                      background: colors.tertiaryContainer,
+                      foreground: colors.onTertiaryContainer)
+            case JwSchoolInfo.STATUS_GRAD_PENDING:
+                badge(label: L10n.t("jw_pending_pending") + " · " + L10n.t("jw_pending_grad"),
+                      background: colors.tertiaryContainer,
+                      foreground: colors.onTertiaryContainer)
+            case JwSchoolInfo.STATUS_GRAD_SUPPORTED:
+                badge(label: L10n.t("jw_pending_grad"),
+                      background: colors.secondaryContainer,
+                      foreground: colors.onSecondaryContainer)
+            case JwSchoolInfo.STATUS_LEGACY:
+                badge(label: L10n.t("jw_pending_legacy"),
+                      background: colors.surfaceVariant,
+                      foreground: colors.onSurfaceVariant)
+            default:
+                EmptyView()
+            }
         }
     }
 

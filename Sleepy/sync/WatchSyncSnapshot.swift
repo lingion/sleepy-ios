@@ -75,6 +75,11 @@ enum WatchSyncSnapshot {
         var conflictDefaultTop: [String: Int64] = [:]
         var autoHideEvening: Bool = false
         var eveningStart: String = "18:00"   // KEY_GRID_EVENING_START "HH:mm" 原串
+        // ===== 课程配色派生档 (2026-10 B1 对齐) =====
+        // 0=CLASSIC(纯 stableHue) 1=FOLLOW_THEME(跟主题) 2=CUSTOM(种子色)
+        var courseColorMode: Int = 0
+        // CUSTOM 档种子色相 0..360 (未设 = -1)
+        var courseColorSeedHue: Float = -1
     }
 
     struct Body: Codable {
@@ -86,6 +91,10 @@ enum WatchSyncSnapshot {
         var timeTables: [TimeTableEntity] = []
         var courses: [CourseEntity] = []
         var prefs: PrefsSnapshot? = nil
+        // course_colors 镜像: groupId → hue (派生档持久色相)
+        // Android WatchSync 契约无对应字段(手表不镜像配色) — iOS 手表端按
+        // 「无独有功能, 手机口径镜像」原则补齐, 手表课程色与手机一致。
+        var courseColors: [String: Float] = [:]
     }
 
     // MARK: - WCSession 消息/载荷键 (两端契约单点)
@@ -144,7 +153,15 @@ enum WatchSyncSnapshot {
             transfers: Self.captureTransfers(tables: body.timeTables),
             conflictDefaultTop: prefs.getConflictDefaultTop(),
             autoHideEvening: prefs.isGridAutoHideEmptyEvening(),
-            eveningStart: prefs.getGridEveningStart())
+            eveningStart: prefs.getGridEveningStart(),
+            courseColorMode: prefs.getCourseColorMode(),
+            courseColorSeedHue: prefs.getCourseColorSeedHue())
+        // course_colors 表仅派生档有值; CLASSIC 档恒空(渲染零变化)。
+        let mode = prefs.getCourseColorMode()
+        if mode != AppPrefs.COURSE_COLOR_MODE_CLASSIC {
+            let dao = repo.database.courseColorDao
+            body.courseColors = (try? dao.getHueMap(CourseColorEntity.globalTableKey)) ?? [:]
+        }
         return body
     }
 
@@ -246,6 +263,8 @@ enum WatchSyncSnapshot {
         ConflictDefaultTopStore.shared.prime(snapshot.conflictDefaultTop)
         prefs.setGridAutoHideEmptyEvening(snapshot.autoHideEvening)
         prefs.setGridEveningStart(snapshot.eveningStart)
+        prefs.setCourseColorMode(snapshot.courseColorMode)
+        prefs.setCourseColorSeedHue(snapshot.courseColorSeedHue)
     }
 
     /// 全量重建镜像库: 三表清空 → 显式 id 直插 (FK CASCADE 已建,
@@ -267,6 +286,13 @@ enum WatchSyncSnapshot {
             }
             for c in body.courses {
                 try db.courseDao.insertInDb(writDB, c)
+            }
+            // course_colors 镜像重建 (派生档持久色相): 载荷是唯一真源 → 全量替换。
+            try writDB.execute(sql: "DELETE FROM course_colors")
+            for (gid, hue) in body.courseColors {
+                var row = CourseColorEntity(tableKey: CourseColorEntity.globalTableKey,
+                                            groupId: gid, hue: hue)
+                try row.insert(writDB, onConflict: .replace)
             }
         }
     }

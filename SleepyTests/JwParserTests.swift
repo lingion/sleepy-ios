@@ -434,11 +434,13 @@ final class JwImportViewModelLogicTests: XCTestCase {
     func testSchoolsJsonLoadsAndParses() throws {
         // 校数闸门随安卓 schools.json 联动
         // 2026-09-10 安卓 185 → v1.0.60 全量交叉验证收录 348 (15 agent 分桶, 60 修/3 删/3 更名)
-        // 2026-10-10 收录湖北商贸学院(zf_new, PR #156/#157) → 349
-        //   (安卓 v1.0.61 tag XjuPostgraduateAdmissionTest `main assets schools json count gate 349`;
-        //    iOS resources/schools.json 与安卓 v1.0.61 assets 逐条 diff = 0)
+        // 2026-10-10 收录湖北商贸学院(zf_new, PR #156/#157) → 349 (v1.0.61)
+        // 2026-10-31 B2 对齐 v1.0.62 目录资产 → 4140 (其中 1478 条带可用 URL)
+        //   (安卓 v1.0.62 tag 10adc247 assets/schools.json 逐条与 iOS resources/schools.json 一致)
         let list = try loadSchools()
-        XCTAssertEqual(349, list.count)
+        XCTAssertEqual(4140, list.count)
+        // 带 URL 的可导入子集闸门: 1480 里 supported 348 + grad_supported 2 + unverified 1128
+        XCTAssertEqual(1478, list.filter { !$0.url.isEmpty }.count)
         let first = list[0]
         XCTAssertFalse(first.name.isEmpty)
     }

@@ -29,7 +29,7 @@ final class TableSwitchUITests: XCTestCase {
     /// Mine → All Schedules。列表页锚点 = 顶栏返回键(Mine 页无 topbar_back;
     /// 注意 Mine 页入口按钮 label 也是 "All Schedules", 不能用它区分页面)。
     private func openAllTables() {
-        app.descendants(matching: .any)["pill_mine"].tap()
+        app.switchToPillTab("mine")
         XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
         app.buttons["mine_all_tables"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["topbar_back"].waitForExistence(timeout: 5),
@@ -149,14 +149,14 @@ final class TableSwitchUITests: XCTestCase {
 
         // 数据联动: B表 无课 → 离开 AllTables 回 Mine → Schedule 页不再显示种子课程
         backToMine()
-        app.descendants(matching: .any)["pill_schedule"].tap()
+        app.switchToPillTab("schedule")
         XCTAssertFalse(courseElement("高等数学").waitForExistence(timeout: 3),
                        "切到空表 B表 后 Schedule 不应显示种子课程")
         // 切回种子表, 课程恢复(就地选表 → 回 Mine → 手动回 Schedule)
         openAllTables()
         selectTableRowInPlace("我的课表")
         backToMine()
-        app.descendants(matching: .any)["pill_schedule"].tap()
+        app.switchToPillTab("schedule")
         XCTAssertTrue(courseElement("高等数学").waitForExistence(timeout: 8),
                       "切回种子表后课程应恢复")
     }

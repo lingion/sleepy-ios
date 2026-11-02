@@ -150,6 +150,14 @@ enum DateUtils {
         let c = isoCalendar.dateComponents([.month, .day], from: date)
         return "\(c.month ?? 1)/\(c.day ?? 1)"
     }
+
+    /// 中文短日期 M月d日（无前导零）
+    /// v1.0.62 B5b: ← DateUtils.kt shortDateChinese — 周视图日期「·M月d日」用;
+    /// 现有 shortDate 是 "MM-dd" 口径不能复用, 新增函数。
+    static func shortDateChinese(_ date: Date) -> String {
+        let c = isoCalendar.dateComponents([.month, .day], from: date)
+        return "\(c.month ?? 1)月\(c.day ?? 1)日"
+    }
 }
 
 /// ICS 解析用的 ISO 周工具(Swift Date 版 java.time.LocalDate 语义)

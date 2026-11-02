@@ -301,120 +301,28 @@ final class JwQzWithNodeParser: JwQzParser {
 /// 样本学校（上游 SchoolListActivity.kt 实证）：湖南工学院等 3 所。
 ///
 /// 上游源码：dIT8Zv/WakeupSchedule_BUPT OldQzParser.kt (Apache-2.0)
+/// v1.0.62: 稳定 qz_old 入口 — 变薄壳委托 JwOldQzSuperParser
+/// (old-qz-super-cross-verify-2026-10-13 取证; 解析/置信度/特征全由 Super 承担)。
 final class JwOldQzParser: JwParser, JwParserConfidenceReporting {
 
     let source: String
 
+    private let delegate: JwOldQzSuperParser
+
     init(_ source: String) {
         self.source = source
+        self.delegate = JwOldQzSuperParser(source)
     }
 
     func generateCourseList() throws -> [JwCourse] {
-        var courseList: [JwCourse] = []
-        let doc = try SwiftSoup.parse(source)
-        guard let kbtable = (try? doc.getElementById("kbtable")) ?? nil else { return courseList }
-        let trs = (try? kbtable.getElementsByTag("tr")) ?? Elements()
-
-        for tr in trs {
-            let tds = (try? tr.getElementsByTag("td")) ?? Elements()
-            if tds.isEmpty() { continue }
-
-            // day 初始 -1: td[0]=节次标签 day=0, td[1..7]=周一..周日 day=1..7
-            var day = -1
-
-            for td in tds {
-                day += 1
-                let divs = (try? td.getElementsByTag("div")) ?? Elements()
-                for div in divs {
-                    // 过滤 display:none 和空白格
-                    // 上游原文是 == "display: none;"（带空格），真实页面存在
-                    // "display:none;"（无空格）变体（fixture timetable_kbtable_hidden.html
-                    // 有两种写法各一个 div，expected 要求两者都被过滤），
-                    // 因此去掉空格后比较 — 有意偏离 upstream 的 bug fix。
-                    if (((try? div.attr("style")) ?? "").replacingOccurrences(of: " ", with: "") == "display:none;") { continue }
-                    if ((try? div.text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
-
-                    // ← Android `div.html().split("<br>")`: Jsoup 序列化输出 `<br>`,
-                    // SwiftSoup 输出 `<br />` —— 不归一则整格切不开, 时间串落在
-                    // index 0, toCourse 的 split[preIndex ± 1] 越界直接崩溃
-                    // (Android 侧是 ArrayIndexOutOfBounds 被 Registry 捕获, 语义对齐)。
-                    let split = qzNormalizeBrTags((try? div.html()) ?? "").components(separatedBy: "<br>")
-                    var preIndex = -1
-
-                    func toCourse() {
-                        if preIndex == -1 { return }
-                        // 课名 = split[0] (SwiftSoup 解析剥残留 HTML 标签)
-                        let courseName = ((try? SwiftSoup.parse(split[0]).text()) ?? "")
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                        // room = split[preIndex+1], teacher = split[preIndex-1]
-                        let room = ((try? SwiftSoup.parse(split[preIndex + 1]).text()) ?? "")
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                        let teacher = ((try? SwiftSoup.parse(split[preIndex - 1]).text()) ?? "")
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                        // 时间串形如 "1-16周[1-2节]" 或 "10周[1-2节]"
-                        let timeInfo = ((try? SwiftSoup.parse(split[preIndex]).text()) ?? "")
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                            .components(separatedBy: "周[")
-                        guard timeInfo.count >= 2 else { return }
-                        let weekPart = timeInfo[0]
-                        let nodePart = timeInfo[1]
-                        let startWeek: Int
-                        let endWeek: Int
-                        if weekPart.contains("-") {
-                            let ws = weekPart.components(separatedBy: "-")
-                            startWeek = Int(ws.first ?? "") ?? 0
-                            endWeek = Int(ws.count > 1 ? ws[1] : "") ?? 0
-                        } else {
-                            startWeek = Int(weekPart) ?? 0
-                            endWeek = startWeek
-                        }
-                        let ns = nodePart.components(separatedBy: "-")
-                        let startNode = Int(ns.first ?? "") ?? 0
-                        // "[1-2节]" split('-') 得 ["1","2节]"]，endNode 去 '节' 后再 toInt
-                        let endRaw = ns.count > 1 ? ns[1] : ""
-                        let endBefore = endRaw.components(separatedBy: "节").first ?? endRaw
-                        let endNode = Int(endBefore) ?? 0
-
-                        courseList.append(JwCourse(
-                            name: courseName,
-                            room: room,
-                            teacher: teacher,
-                            day: day,
-                            startNode: startNode,
-                            endNode: endNode,
-                            startWeek: startWeek,
-                            endWeek: endWeek,
-                            type: 0))
-                    }
-
-                    for i in split.indices {
-                        // 时间串特征：[ + ] + 周 + 节 四要素
-                        if split[i].contains("[") && split[i].contains("]") &&
-                            split[i].contains("节") && split[i].contains("周") {
-                            if preIndex != -1 { toCourse() }
-                            preIndex = i
-                        }
-                        if i == split.count - 1 { toCourse() }
-                    }
-                }
-            }
-        }
-        return courseList
+        try delegate.generateCourseList()
     }
 
-    /// T8: kbtable + 单元格含[周][节]四要素 = 100; 仅 kbtable = 50
     var confidenceValue: Int {
-        guard let doc = try? SwiftSoup.parse(source) else { return 0 }
-        guard ((try? doc.getElementById("kbtable")) ?? nil) != nil else { return 0 }
-        let hasTimeToken = source.contains("[") && source.contains("]") &&
-            source.contains("周") && source.contains("节")
-        return hasTimeToken ? 100 : 50
+        delegate.confidenceValue
     }
 
     var matchedFeatureList: [String] {
-        var out: [String] = []
-        if source.contains("kbtable") { out.append("id=kbtable") }
-        if source.contains("[") && source.contains("周") && source.contains("节") { out.append("单元格含[周][节]") }
-        return out
+        delegate.matchedFeatureList
     }
 }

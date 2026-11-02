@@ -113,6 +113,11 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoadsInWebContent: true
         ITSAppUsesNonExemptEncryption: false
+        # ★ QQ/TIM 加群拉起探针 (2026-10-31 B2 对齐)
+        #   iOS 的 UIApplication.canOpenURL 对未声明的 scheme 恒返回 false,
+        #   缺此键 → 教务导入报告弹窗的「加入 QQ 群」链只剩浏览器兜底,
+        #   TIM / QQ 两个分支永远走不到(Android 侧对应的是 getPackageInfo 存在性探测)。
+        LSApplicationQueriesSchemes: [mqqapi, tim, mqq]
     entitlements:
       path: Sleepy/Sleepy.entitlements
       # 2026-10-26 付费开发者账号(D9UP75W466)注册 App ID 后恢复:

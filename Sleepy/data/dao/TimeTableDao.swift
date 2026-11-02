@@ -39,6 +39,12 @@ struct TimeTableDao {
         try dbw.execute(sql: "UPDATE time_tables SET isDefault = (id = ?)", arguments: [id])
     }
 
+    // @Query("UPDATE time_tables SET reminderEnabled = :enabled WHERE id = :id") — ← Android TimeTableDao.setReminderEnabled
+    func setReminderEnabledInDb(_ dbw: Database, _ id: Int64, _ enabled: Bool) throws -> Int {
+        try dbw.execute(sql: "UPDATE time_tables SET reminderEnabled = ? WHERE id = ?", arguments: [enabled, id])
+        return dbw.changesCount
+    }
+
     // @Update
     func update(_ table: TimeTableEntity) throws {
         var table = table

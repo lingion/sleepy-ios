@@ -36,10 +36,11 @@ final class SwipeBackGestureUITests: XCTestCase {
 
     func testSettingsFullScreenDismissByBackButton() throws {
         // 进入 Mine tab
-        let mineTab = app.descendants(matching: .any)["pill_mine"].firstMatch
-        XCTAssertTrue(mineTab.waitForExistence(timeout: 5))
-        mineTab.tap()
-        XCTAssertTrue(app.staticTexts["Me"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["pill_mine"].firstMatch
+                          .waitForExistence(timeout: 5))
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5))
 
         // 点 mine_general 入口 → fullScreenCover overlay 打开
         let generalEntry = app.descendants(matching: .any)["mine_general"].firstMatch
@@ -65,10 +66,11 @@ final class SwipeBackGestureUITests: XCTestCase {
 
     func testFullScreenOverlaySwipeDismiss() throws {
         // 进入 Mine → About
-        let mineTab = app.descendants(matching: .any)["pill_mine"].firstMatch
-        XCTAssertTrue(mineTab.waitForExistence(timeout: 5))
-        mineTab.tap()
-        XCTAssertTrue(app.staticTexts["Me"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["pill_mine"].firstMatch
+                          .waitForExistence(timeout: 5))
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
+                          .waitForExistence(timeout: 5))
 
         let aboutEntry = app.descendants(matching: .any)["mine_about"].firstMatch
         guard aboutEntry.waitForExistence(timeout: 5) else {
@@ -126,9 +128,9 @@ final class SwipeBackGestureUITests: XCTestCase {
     // MARK: - 兜底: About overlay 顶栏 ⬅️ 按钮存在性
 
     func testAboutOverlayBackButtonExists() throws {
-        let mineTab = app.descendants(matching: .any)["pill_mine"].firstMatch
-        XCTAssertTrue(mineTab.waitForExistence(timeout: 5))
-        mineTab.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["pill_mine"].firstMatch
+                          .waitForExistence(timeout: 5))
+        app.switchToPillTab("mine")
 
         let aboutEntry = app.descendants(matching: .any)["mine_about"].firstMatch
         guard aboutEntry.waitForExistence(timeout: 5) else {

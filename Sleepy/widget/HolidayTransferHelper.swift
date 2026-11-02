@@ -18,6 +18,17 @@ enum HolidayTransferHelper {
         return HolidayTransferOps.courseDateForDate(date, transfers)
     }
 
+    /// ← Android L20-24: 某表某天的课来自星期几(1=周一 7=周日) — 放假日→nil(无课),
+    /// 未映射/无表→自然星期。(v1.0.62 议程反向取课补齐 ← HolidayTransferHelper.courseDayForDate)
+    static func courseDayForDate(_ tableId: Int64?, _ date: Date) -> Int? {
+        guard let tableId = tableId else {
+            let raw = DateUtils.isoCalendar.component(.weekday, from: date)
+            return raw == 1 ? 7 : raw - 1
+        }
+        let transfers = AppPrefs.shared.getHolidayTransfers(tableId)
+        return HolidayTransferOps.courseDayForDate(date, transfers)
+    }
+
     static func effectiveDayOfWeek(_ tableId: Int64?, _ date: Date) -> Int {
         guard let tableId = tableId else {
             let raw = DateUtils.isoCalendar.component(.weekday, from: date)

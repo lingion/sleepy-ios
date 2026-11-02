@@ -43,7 +43,9 @@ enum TodayWidgetLoader {
         // now 只取一次贯穿全程 (Android 注释: 两次 now() 跨午夜 = 单次渲染口径分裂)
         let today = Date()
         let prefs = AppPrefs.shared
-        let isDark = prefs.isDarkMode()
+        // ← Android TodayWidget.kt:465: isSystemDark 取 widget 宿主 Context 的
+        //   uiMode 夜间标志; iOS 默认参数 false 会让 system 主题下 widget 永远浅色。
+        let isDark = prefs.isDarkMode(isSystemDark: currentSystemDark())
         let themeKey = prefs.getThemeKey()
         let themeMode = prefs.getThemeMode()
         // 导航锚定日 (无导航态 → today; iOS 无翻页 UI 入口, Store 语义仍对齐)
@@ -103,7 +105,8 @@ enum WeekGridWidgetLoader {
     /// nearestBusyTargetDate; 无表/异常回退 hasTable=false 空数据。
     static func loadWeekData(kind: String? = nil) async -> WeekData {
         let prefs = AppPrefs.shared
-        let isDark = prefs.isDarkMode()
+        // ← Android WeekGridWidgetProvider.kt:1016: 同上, system 主题须取宿主夜间标志。
+        let isDark = prefs.isDarkMode(isSystemDark: currentSystemDark())
         let themeKey = prefs.getThemeKey()
         let themeMode = prefs.getThemeMode()
         let showDate = prefs.isShowDate()

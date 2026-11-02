@@ -20,6 +20,9 @@ import GRDB
 final class JwImportViewModel: ObservableObject {
 
     @Published private(set) var schools: [JwSchoolInfo] = []
+    /// ← Android `remember(schools) { SchoolSearchIndex(schools) }`:
+    ///   索引随 schools 重建, 搜索时只做匹配(不在每次按键重算拼音)。
+    private var searchIndex = SchoolSearchIndex([])
     @Published private(set) var importState: ImportState = .idle
     // ← v1.0.60 _schoolLocation StateFlow: 推荐卡定位状态机(8 态)
     @Published private(set) var schoolLocation: SchoolLocationState = .idle
@@ -72,8 +75,11 @@ final class JwImportViewModel: ObservableObject {
                     v.cities = cityIndex[info.name] ?? []
                     return v
                 }
+                // ← Android loadSchools: 只显示有 URL 的学校, 避免用户看到大量不可用选项。
+                .filter { !$0.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 DispatchQueue.main.async {
                     self?.schools = list
+                    self?.searchIndex = SchoolSearchIndex(list)
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -97,16 +103,8 @@ final class JwImportViewModel: ObservableObject {
             let aliases = (obj["aliases"] as? [String]) ?? []
             let typeStr = (obj["type"] as? String) ?? ""
             // ← kt:187 ifBlank { null } — 纯空白 type 同样视为未声明
-            // status 字段缺失/未知回落 supported
-            let rawStatus = (obj["status"] as? String) ?? ""
-            let status: String
-            switch rawStatus {
-            case JwSchoolInfo.STATUS_PENDING: status = JwSchoolInfo.STATUS_PENDING
-            case JwSchoolInfo.STATUS_LEGACY: status = JwSchoolInfo.STATUS_LEGACY
-            case JwSchoolInfo.STATUS_GRAD_SUPPORTED: status = JwSchoolInfo.STATUS_GRAD_SUPPORTED
-            case JwSchoolInfo.STATUS_GRAD_PENDING: status = JwSchoolInfo.STATUS_GRAD_PENDING
-            default: status = JwSchoolInfo.STATUS_SUPPORTED
-            }
+            // ← Android normalizeStatus: 缺失保留历史行为(supported), 未知状态 fail-closed 到 pending
+            let status = JwSchoolInfo.normalizeStatus(obj["status"] as? String)
             list.append(JwSchoolInfo(
                 sortKey: obj["sortKey"] as? String ?? "",
                 name: obj["name"] as? String ?? "",
@@ -116,10 +114,17 @@ final class JwImportViewModel: ObservableObject {
                 aliases: aliases,
                 sortKeyFull: obj["sortKeyFull"] as? String ?? "",
                 enableFetch: (obj["enableFetch"] as? Bool) ?? false,
-                cities: (obj["cities"] as? [String]) ?? []
+                cities: (obj["cities"] as? [String]) ?? [],
+                catalogId: obj["catalogId"] as? String ?? ""
             ))
         }
         return list
+    }
+
+    /// ← Android SchoolSelectScreen: `remember(searchIndex, query) { searchIndex.search(query) }`。
+    /// 空白查询返回全量目录; 别名精确命中者前置。
+    func searchSchools(_ query: String) -> [JwSchoolInfo] {
+        searchIndex.search(query)
     }
 
     /// 解析 HTML 源码,返回课程列表(不入库) ← suspend parseHtml
@@ -131,6 +136,25 @@ final class JwImportViewModel: ObservableObject {
     /// T8: 显式分发的纯函数形式(不依赖 UIKit / GRDB)。 ← parseHtmlStatic
     /// 返回 (courses, attempts); 未知 type 包装 JwParseError 给 T9 分类。
     static func parseHtmlStatic(_ html: String, _ protocolType: String) throws -> (courses: [JwCourse], attempts: [ParserAttemptSnapshot]) {
+        // ← kt:264-272 SCAU / Element UI 形态覆盖。
+        // 目录里较早的 SCAU 条目登记的是 QZ, 老 URL 还可能判成 ZF,
+        // 但只有"完整解析出的 Element UI 课表形态"才允许覆盖它们。
+        if [JwProtocol.TYPE_QZ, JwProtocol.TYPE_ZF, JwProtocol.TYPE_ZF_1].contains(protocolType),
+           html.contains("el-table__body-wrapper"), html.contains("el-table__body") {
+            let scau = JwScauParser(html)
+            if !scau.parseElementUiStrategy().isEmpty {
+                return try parseHtmlStatic(html, JwProtocol.TYPE_SCAU)
+            }
+        }
+        // ← kt:266-272 ECUPL Script 子协议覆盖: 目录条目登记的是 CLASSIC_EAMS,
+        // 但页面是 script 形态 (CourseTable 分钟矩阵 + 八参 newActivity +
+        // addActivityByTime) 时改走 ECUPL_SCRIPT, classic EAMS 解析不出课。
+        if protocolType == JwProtocol.TYPE_CLASSIC_EAMS,
+           JwEcuplScriptParser.firstMatch(JwEcuplScriptParser.reCourseTable, html) != nil,
+           JwEcuplScriptParser.firstMatch(JwEcuplScriptParser.reNewActivity8, html) != nil,
+           html.contains("addActivityByTime(") {
+            return try parseHtmlStatic(html, JwProtocol.TYPE_ECUPL_SCRIPT)
+        }
         guard let parser = try? JwParserRegistry.parserFor(protocolType, html) else {
             // 已知 type 不在工厂表: 包装 JwParseError 给 T9 分类
             throw JwParseError(
@@ -246,6 +270,13 @@ final class JwImportViewModel: ObservableObject {
             || u.contains("kust.edu.cn")
             || u.contains("kmust.edu.cn") { return JwProtocol.TYPE_KUST }
         if u.contains("byxt.buaa.edu.cn") { return JwProtocol.TYPE_NEU }
+
+        // 清华选课系统独立主机; 仅业务域判型, oauth 门户页仍走上方网关守卫 ← kt:394-395
+        // ★ Kotlin u.matches() = 全串匹配 → ^…$ 锚定 (同 CQU/YETHAN 规则)
+        if u.range(of: #"^https?://zhjwxk\.cic\.tsinghua\.edu\.cn(/.*)?$"#, options: .regularExpression) != nil {
+            return JwProtocol.TYPE_THU
+        }
+
         if u.contains("/jwapp/") { return JwProtocol.TYPE_WISEDU }
 
         // ①a classic EAMS — server-rendered course table entry points (← kt:387-390).
@@ -399,6 +430,13 @@ final class JwImportViewModel: ObservableObject {
         // ⑤ WISEDU — 业务回调路径
         if lower.contains("/jwapp/sys/")
             || (lower.contains("authserver/login") && lower.contains("execution=")) { return JwProtocol.TYPE_WISEDU }
+
+        // ⑤ NEW_URP_SUPER — flat JSON 数组 + skzc 位图变体; 必须先于 URP_NEW
+        //    的 SM3 锚点 (课表 JSON 同页可能带 urpnova 脚本) ← kt:545-547
+        if lower.contains("\"skzc\"") && lower.contains("\"kcm\""),
+           JwNewUrpSuperParser(html).hasFlatArraySchema() {
+            return JwProtocol.TYPE_NEW_URP_SUPER
+        }
 
         // ⑤ URP_NEW — SM3 加密资源 + URPNova
         if lower.contains("/js/sm3/")
@@ -608,20 +646,21 @@ final class JwImportViewModel: ObservableObject {
 
             // 落库课程
             let defaultColor = "#FF6750A4"
-            // 按课程名分 groupId(同名课程视为一组,便于编辑)
-            var nameToGroup: [String: String] = [:]
             var entities = toCourseEntities(courses, tableId: generatedId, defaultColor: defaultColor)
-            for i in entities.indices {
-                let gid: String
-                if let g = nameToGroup[entities[i].courseName] {
-                    gid = g
-                } else {
-                    gid = UUID().uuidString
-                    nameToGroup[entities[i].courseName] = gid
-                }
-                entities[i].groupId = gid
-            }
+            // ★ 认亲(← kt:725-748 JwImportViewModel): 同名课程继承全局名册里的旧 groupId,
+            //   名册优先级 = 全局名册 > 本行自带 groupId > 新 UUID。
+            //   继承旧 groupId ⇒ 继承 course_colors 里的旧持久色相 ⇒ 重新导入不掉色。
+            //   名册须在事务内读(用 dbw 直查, DAO 的 db.read 会在写事务里重入死锁)。
+            let knownNameToGid = ImportRoster.knownNameToGroupId(
+                (try? CourseEntity.fetchAll(dbw, sql: "SELECT * FROM courses ORDER BY id")) ?? []
+            )
+            entities = ImportRoster.normalizedImportGroups(entities, knownNameToGroup: knownNameToGid)
             try courseDao.insertAllInDb(dbw, entities)
+            // 新组补持久色相(← kt:748 persistNewGroupHues) — 与 Android 同一事务内落表。
+            // 配色是增值数据: 失败吞掉降级为不写, 不影响课程落库主流程。
+            CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: dbw,
+                                                        dao: db.courseColorDao,
+                                                        entities: entities)
             return generatedId
         }
     }
