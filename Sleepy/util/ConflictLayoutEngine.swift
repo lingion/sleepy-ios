@@ -845,9 +845,14 @@ enum ConflictLayoutEngine {
         gapH: Double,
         minStartRow: Double,
         topInset: Double = 7,
-        spanDpOf: ((Double, Double) -> Double)? = nil
+        spanDpOf: ((Double, Double) -> Double)? = nil,
+        contentSpanDpOf: ((Double, Double) -> Double)? = nil
     ) -> ConflictRect {
-        let ownSpanDp = max(spanDpOf?(startRowFrac, startRowFrac + ownRowsFrac)
+        // v1.0.62 B5b: 长课间两表 ← Android conflictCardRectFrac(contentSpanDpOf):
+        // 高度走 natural 跨度(卡片不跨进折入的空隙), 位置仍走 spanDpOf(边界) —
+        // 空白落在卡片之后。缺省回落 spanDpOf = 无餐段等价。
+        let heightSpan = contentSpanDpOf ?? spanDpOf
+        let ownSpanDp = max(heightSpan?(startRowFrac, startRowFrac + ownRowsFrac)
                             ?? rowH * ownRowsFrac, rowH * 0.3)
         let ownH = ownSpanDp - gapH
         let y = spanDpOf?(minStartRow, startRowFrac) ?? rowH * (startRowFrac - minStartRow)
@@ -873,9 +878,12 @@ enum ConflictLayoutEngine {
         rowH: Double,
         gapH: Double,
         minStartRow: Double,
-        spanDpOf: ((Double, Double) -> Double)? = nil
+        spanDpOf: ((Double, Double) -> Double)? = nil,
+        contentSpanDpOf: ((Double, Double) -> Double)? = nil
     ) -> ConflictRect {
-        let ownH = max(spanDpOf?(startRowFrac, startRowFrac + ownRowsFrac)
+        // v1.0.62 B5b: 高度(natural)/位置(boundary)分离 ← Android conflictMarkRectFrac(contentSpanDpOf)
+        let heightSpan = contentSpanDpOf ?? spanDpOf
+        let ownH = max(heightSpan?(startRowFrac, startRowFrac + ownRowsFrac)
                        ?? rowH * ownRowsFrac, rowH * 0.3) - gapH
         let y = spanDpOf?(minStartRow, startRowFrac) ?? rowH * (startRowFrac - minStartRow)
         switch form {

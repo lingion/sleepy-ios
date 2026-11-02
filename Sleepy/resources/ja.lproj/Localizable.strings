@@ -371,8 +371,8 @@
 "notif_channel_fluid_desc" = "授業前に展開可能なリアルタイム授業カードを表示";
 "notif_daily_text_first" = "最初の授業：%1$@ %2$@ @ %3$@";
 "notif_daily_text_no_course" = "ゆっくり休んで、一日を楽しんでください！";
-"notif_daily_title" = "今日は %1$d 日、授業は %2$d コマです";
-"notif_daily_title_no_course" = "今日は %1$d 日、授業はありません";
+"notif_daily_title" = "今日の授業 · %1$d 件";
+"notif_daily_title_no_course" = "今日は授業なし";
 "notif_room_unknown" = "教室不明";
 "reminder_banner_sub" = "通知バーに授業前のバナーを表示";
 "reminder_banner_title" = "バナーリマインダー";
@@ -845,8 +845,8 @@
 "manage_view_all_tables" = "すべて表示";
 "mine_period_tables" = "時程表";
 "notif_tomorrow_text_no_course" = "明日は授業がありません。ゆっくり休んでください!";
-"notif_tomorrow_title" = "明日は %lld 日、授業は %lld コマです";
-"notif_tomorrow_title_no_course" = "明日は %lld 日、授業はありません";
+"notif_tomorrow_title" = "明日の授業 · %1$d 件";
+"notif_tomorrow_title_no_course" = "明日は授業なし";
 "period_table_bind_label" = "時程表";
 "period_table_bind_preview_body" = "切り替え後、この時間割は新しい時程表で時限を解釈します。カスタム時刻の授業は影響しません";
 "period_table_bind_preview_title" = "切り替え確認";
@@ -1079,3 +1079,17 @@
 "jw_import_report_copy" = "報告をコピー";
 "jw_import_report_join_qq" = "QQ グループに参加";
 "jw_import_report_done" = "完了";
+
+// <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
+"agenda_title" = "一日の予定";
+"agenda_first" = "最初の授業：%1$@";
+"agenda_more" = "ほか %1$d 件";
+"agenda_time_unknown" = "時刻未定";
+"agenda_count" = "授業 %1$d 件 · 時間割 %2$d 件";
+"agenda_empty" = "この日に通知対象の授業はありません";
+"agenda_load_error" = "予定を読み込めませんでした。再試行してください。";
+"agenda_table_unknown" = "名前のない時間割";
+"agenda_source_count" = "%1$d 件の時間割";
+"notif_date_title" = "%1$@ · 授業 %2$d 件";
+"notif_date_no_course" = "%1$@ · 授業なし";
+"notif_before_class_compact" = "%1$@ 開始 · %2$@";

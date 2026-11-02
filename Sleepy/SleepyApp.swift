@@ -127,6 +127,9 @@ final class AppRootViewModel: ObservableObject {
         case periodEdit              // PeriodTableEditScreen(pendingNew 丢弃链见 handleBack)
         case periodHeaderSettings    // PeriodHeaderSettingsScreen(外观页 Section④ 节次表头入口)
         case scheduleDisplay         // ScheduleDisplayScreen(课表显示设置)
+        // ← v1.0.62 B5: 每日议程页(通知点击/深链 sleepy://daily-agenda/<date> 落地;
+        //   日期参数走 dailyAgendaDate, 不进 rawValue)
+        case dailyAgenda             // DailyAgendaScreen(每日议程)
         // holiday 由 GeneralSettings 内部 sheet 呈现,不再出现在根 enum
         var id: String { rawValue }
     }
@@ -146,6 +149,8 @@ final class AppRootViewModel: ObservableObject {
     @Published var previousDefaultTableId: Int64? = nil
     // 深链课程
     @Published var deepLinkCourse: CourseEntity? = nil
+    // ← v1.0.62 B5: 议程页路由参数(通知点击/深链共用; openDailyAgenda 单一入口)
+    @Published var dailyAgendaDate: Date? = nil
     // 语言切换重建 token(← Activity.recreate): L10n.didChange → 递增 → AppRoot 全树重建
     @Published var languageReload = 0
     // ★ v1.0.45 底栏 dock 样式: false=贴底, true=悬浮药丸
@@ -290,6 +295,14 @@ final class AppRootViewModel: ObservableObject {
         }
     }
 
+    // ← v1.0.62 B5: 议程页单一打开入口 (通知点击 + 深链共用)。
+    //   日期经 DailyAgendaRoute 严格解析后在此落位; 重复打开同日不重触发转场。
+    func openDailyAgenda(_ date: Date) {
+        if overlayScreen == .dailyAgenda && dailyAgendaDate == date { return }
+        dailyAgendaDate = date
+        overlayScreen = .dailyAgenda
+    }
+
     // ← Android MainActivity.kt:342-351 (observeAll + JwImportDraftCodec 映射)。
     //   getAll() = observeAll() 的同步等价; 解码失败的行直接跳过(Android mapNotNull 同义)。
     func refreshDrafts() {
@@ -389,6 +402,9 @@ struct AppRoot: View {
             root.refreshDrafts()
             // 冷启兜底: onAppear 时窗口已就位, 重判一次(inset 判定不再可能 nil)
             root.refreshNavMode()
+            // ← v1.0.62 B5: 冷启兜底 — 通知点击拉起 app 时 delegate 先落 pending,
+            //   热路径广播可能早于 AppRoot 挂载而无人订阅, onAppear 在此统一消费。
+            drainPendingAgendaDate(PendingAgendaDate.value)
         }
         // ★ 回前台重判底栏形态(仅"未显式设置"自适应路径有意义; 显式选择时
         //   resolver 设置优先, 重判结果不变)。
@@ -401,6 +417,13 @@ struct AppRoot: View {
                 root.editingCourse = root.deepLinkCourse
                 root.deepLinkCourse = nil
             }
+        }
+        // ← v1.0.62 B5: 通知点击 → 议程页 (delegate didReceive 广播; 冷启竞态由
+        //   pendingAgendaDateRaw 兜底, 下方 onAppear 消费)。日期经严格解析, 非法丢弃。
+        .onReceive(NotificationCenter.default.publisher(
+            for: SleepyNotificationDelegate.agendaOpenNotification)) { note in
+            let raw = note.userInfo?[NotificationScheduler.KEY_USERINFO_AGENDA_DATE] as? String
+            drainPendingAgendaDate(raw)
         }
         // pendingImportText → 自动切 Manage + 弹导入(← LaunchedEffect(pendingImportText))
         .onChange(of: PendingImportText.value) { text in
@@ -475,6 +498,7 @@ struct AppRoot: View {
                 pendingNewTableId: root.pendingNewTableId,
                 periodEditId: root.periodEditId,
                 pendingNewPeriodTableId: root.pendingNewPeriodTableId,
+                dailyAgendaDate: root.dailyAgendaDate,
                 onOpenPeriodEdit: { periodId, isNew in
                     root.periodEditId = periodId
                     root.pendingNewPeriodTableId = isNew ? periodId : nil
@@ -886,9 +910,24 @@ struct AppRoot: View {
                 PendingImportText.value = text
                 root.currentTab = .manage
             }
+        case "daily-agenda":
+            // ← v1.0.62 B5: sleepy://daily-agenda/<date> (← DailyAgendaRoute.identity)
+            //   严格回读解析, 非法日期不静默打开今天 (← DailyAgendaRouteTest 语义)
+            if let date = DailyAgendaRoute.parse(url.lastPathComponent) {
+                root.openDailyAgenda(date)
+            }
         default:
             break
         }
+    }
+
+    // ← v1.0.62 B5: 议程页 pending 消费(通知点击广播 + 冷启兜底共用单一入口)。
+    //   raw 优先(delegate 热路径广播), 空则回退 PendingAgendaDate(冷启竞态兜底);
+    //   经 DailyAgendaRoute 严格解析, 非法日期丢弃(不静默打开今天), 消费即清零。
+    private func drainPendingAgendaDate(_ raw: String?) {
+        guard let date = DailyAgendaRoute.parse(raw ?? PendingAgendaDate.value) else { return }
+        PendingAgendaDate.value = nil
+        root.openDailyAgenda(date)
     }
 }
 
@@ -1029,6 +1068,8 @@ private struct PresentOverlay: ViewModifier {
     // ← v1.0.60 作息表编辑路由参数(镜像 editTable 的 pending 丢弃链)
     let periodEditId: Int64?
     let pendingNewPeriodTableId: Int64?
+    // ← v1.0.62 B5: 议程页路由参数(通知点击/深链共用; openDailyAgenda 单一入口落位)
+    let dailyAgendaDate: Date?
     let onOpenPeriodEdit: (Int64, _ isNew: Bool) -> Void
     let scheduleViewModel: ScheduleViewModel
     let themeMode: String
@@ -1247,6 +1288,12 @@ private struct PresentOverlay: ViewModifier {
                 .edgeBackGesture(dragX: $dragX, onBack: onBack, onCommit: commitGestureDismiss)
         case .scheduleDisplay:
             ScheduleDisplayScreen(onBack: onDismiss)
+                .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
+                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+        case .dailyAgenda:
+            // ← v1.0.62 B5: 每日议程页(通知点击/深链落地; 日期经 DailyAgendaRoute 严格解析)
+            DailyAgendaScreen(date: dailyAgendaDate ?? Date(), onBack: onDismiss)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)

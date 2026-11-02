@@ -371,8 +371,8 @@
 "notif_channel_fluid_desc" = "課前顯示可展開的課程即時卡片";
 "notif_daily_text_first" = "第一節課 %1$@ 於 %2$@ 在 %3$@ 上課";
 "notif_daily_text_no_course" = "好好休息，享受一天！";
-"notif_daily_title" = "今日 %1$d 號，您有 %2$d 節課";
-"notif_daily_title_no_course" = "今日 %1$d 號，今天沒有課程";
+"notif_daily_title" = "今天有 %1$d 次課";
+"notif_daily_title_no_course" = "今天沒有課";
 "notif_room_unknown" = "未知教室";
 "reminder_banner_sub" = "在系統通知欄顯示課前橫幅";
 "reminder_banner_title" = "橫幅提醒";
@@ -845,8 +845,8 @@
 "manage_view_all_tables" = "查看全部";
 "mine_period_tables" = "作息表";
 "notif_tomorrow_text_no_course" = "明日無課,好好休息!";
-"notif_tomorrow_title" = "明日 %lld 號，您有 %lld 節課";
-"notif_tomorrow_title_no_course" = "明日 %lld 號，沒有課程";
+"notif_tomorrow_title" = "明天有 %1$d 次課";
+"notif_tomorrow_title_no_course" = "明天沒有課";
 "period_table_bind_label" = "作息表";
 "period_table_bind_preview_body" = "切換後本課表按新作息表解釋節次；自訂時間的課程不受影響";
 "period_table_bind_preview_title" = "換綁確認";
@@ -1079,3 +1079,17 @@
 "jw_import_report_copy" = "複製報告";
 "jw_import_report_join_qq" = "加入 QQ 群";
 "jw_import_report_done" = "完成";
+
+// <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
+"agenda_title" = "每日議程";
+"agenda_first" = "首課 %1$@";
+"agenda_more" = "另有 %1$d 次課";
+"agenda_time_unknown" = "時間待定";
+"agenda_count" = "%1$d 次課程 · %2$d 張課表";
+"agenda_empty" = "當天沒有需要提醒的課程";
+"agenda_load_error" = "暫時無法載入議程，請重試";
+"agenda_table_unknown" = "未命名課表";
+"agenda_source_count" = "%1$d 張課表";
+"notif_date_title" = "%1$@ · %2$d 次課";
+"notif_date_no_course" = "%1$@ 沒有課";
+"notif_before_class_compact" = "%1$@ 開始 · %2$@";
