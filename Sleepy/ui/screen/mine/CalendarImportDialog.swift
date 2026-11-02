@@ -377,7 +377,8 @@ struct CalendarImportDialog: View {
         hasTransfers = !prefs.getHolidayTransfers(table.id).isEmpty
 
         Task {
-            calendars = SystemCalendarManager.writableCalendars()
+            // v1.0.62 B6 ← Android: writableCalendars 改走 LocalCalendarFallback(空则自建) → async
+            calendars = await SystemCalendarManager.writableCalendars()
             if !calendars.contains(where: { $0.id == selectedCalendarId }) {
                 selectedCalendarId = calendars.first?.id ?? ""
                 if !selectedCalendarId.isEmpty {

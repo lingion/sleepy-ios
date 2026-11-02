@@ -5,6 +5,9 @@
 // - WRITE/READ_CALENDAR 权限 → EKEventStore.requestAccess(to: .event);
 //   16.4 SDK 无 .fullAccess/.writeOnly 分支, 授权即 authorizationStatus == .authorized
 // - 可写日历 = allowsContentModifications && type != .local/.calDAV (← Android ACCESS_LEVEL >= CONTRIBUTOR && VISIBLE, 16.4 无 isSelectable)
+// - v1.0.62 B6: writableCalendars 改走 LocalCalendarFallback — 可写日历为空时
+//   ensureCalendar 兜底自建「Sleepy」本地日历(← Android LocalCalendarFallback);
+//   自建日历恒纳入可写列表, 否则兜底产物永远选不中
 // - 记录 eventId ← 内容库 _ID(Long) → EKCalendarItem.externalIdentifier (String)
 // - 描述行尾 marker "Sleepy import key: tableId:courseId:yyyy-MM-dd" 保留(存 EKCalendarItem.notes),
 //   记录丢失后可按 marker 恢复, 对齐 Android findEventByMarker
@@ -16,6 +19,10 @@
 //   写入失败返回 nil 计 errors(← Android 两阶段均失败分支)。成功路径 alarmFallback 不增长, 与 Android 一致。
 // - 事件时区 EKEvent 无公开 API → 指纹恒以 TimeZone.current.identifier 固定(与 Android ZoneId.systemDefault().id 同位)
 // - EventKit 无"导入历史"原生概念 → 仓内 CalendarImportRecordDao/Entity (calendar_import_records 表) 承担记录职责
+// - v1.0.62 B6 调休口径(← Android SystemCalendarManager.kt v1.0.62):
+//   导入日期范围纳入调休目标日(源日在学期内的 targetDate 可把区间撑出学期末);
+//   事件内容按源日(courseDateForDate/coursesForDate — 放假日无课、补班日上源日的课),
+//   显示与闹钟按目标日(事件落位在 targetDate 当天)。
 
 import EventKit
 import Foundation
@@ -113,8 +120,13 @@ final class SystemCalendarManager {
 
     static let shared = SystemCalendarManager()
 
-    private let store = EKEventStore()
+    let store = EKEventStore()
     private let markerPrefix = "Sleepy import key:"
+
+    // v1.0.62 B6 ← Android localCalendarFallback: 可写日历走兜底策略(空则自建「Sleepy」本地日历)
+    private static let fallback = LocalCalendarFallback()
+    /// 与 shared.store 同实例 — 自建日历创建后立即可见可写
+    private static let eventKitStore = EventKitLocalCalendarStore(store: shared.store)
 
     enum ReminderMethod: String, Comparable {
         case alert, alarm
@@ -163,38 +175,50 @@ final class SystemCalendarManager {
     /// EKCalendar 无 isPrimary API → defaultCalendarForNewEvents 作为 primary 代理恒排首位,
     /// 其余按 title  localizedCaseInsensitive 比较(← COLLATE NOCASE)。
     /// displayName = title.isBlank ? accountName : title (← Android displayName.ifBlank { accountName }, 含纯空白)
-    static func writableCalendars() -> [SystemCalendarInfo] {
-        let defaultId = shared.store.defaultCalendarForNewEvents?.calendarIdentifier
-        return shared.store.calendars(for: .event).filter {
-            $0.allowsContentModifications && $0.type != .local && $0.type != .calDAV
-        }.map { cal in
-            SystemCalendarInfo(
-                id: cal.calendarIdentifier,
-                displayName: cal.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? cal.source.title : cal.title,
-                accountName: cal.source.title
-            )
-        }.sorted { lhs, rhs in
-            let lPrimary = lhs.id == defaultId
-            let rPrimary = rhs.id == defaultId
-            if lPrimary != rPrimary { return lPrimary }
-            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
-        }
+    ///
+    /// v1.0.62 B6 ← Android writableCalendars(context): 改走 LocalCalendarFallback —
+    /// 可写日历为空时 ensureCalendar 兜底自建「Sleepy」本地日历; 查询失败整体回落空列表。
+    static func writableCalendars() async -> [SystemCalendarInfo] {
+        await fallback.writable(store: eventKitStore)
+    }
+
+    /// ← Android ensureLocalCalendar(context): 无可写日历时自建本地日历(幂等, 串行化)。
+    static func ensureLocalCalendar() async -> SystemCalendarInfo? {
+        await fallback.ensure(store: eventKitStore)
     }
 
     // MARK: - 日期区间 (← Android selectedDateRange, 公式逐一对齐)
 
-    static func selectedDateRange(table: TimeTableEntity, range: CalendarImportRange, today: Date) -> (start: Date, end: Date) {
+    /// v1.0.62 B6 ← Android: 导入日期范围纳入调休目标日 — 源日在学期内的 targetDate
+    /// 可把 effectiveEnd 撑出学期末, 也可把 start 提前到学期初之前(补班日早于开学)。
+    static func selectedDateRange(
+        table: TimeTableEntity,
+        range: CalendarImportRange,
+        today: Date,
+        transfers: [HolidayTransferEntry] = []
+    ) -> (start: Date, end: Date) {
         let cal = DateUtils.isoCalendar
         let tableStart = DateUtils.parseDate(table.startDate) ?? today
         let semesterStart = Calendar.isoMondayOfWeek(tableStart)
         let semesterEnd = Calendar.isoAddDays(semesterStart, 7 * table.maxWeek)
+        // ← Android validTargets: 源日仍在学期内的映射才参与区间扩展
+        let validTargets = transfers
+            .filter {
+                DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: $0.sourceDate) == .inRange
+            }
+            .map { DateUtils.dayStart($0.targetDate) }
+        // ← Android effectiveEnd = maxOf(semesterEnd, validTargets.max()?.plusDays(1) ?: semesterEnd)
+        let effectiveEnd = validTargets.max().map { Calendar.isoAddDays($0, 1) } ?? semesterEnd
+        // ← Android start = maxOf(today, minOf(semesterStart, validTargets.min() ?: semesterStart))
+        let rangeStart = validTargets.min().map { min(semesterStart, $0) } ?? semesterStart
+        let start = max(DateUtils.dayStart(today), rangeStart)
         let requestedEnd: Date
         switch range {
         case .NEXT_MONTH: requestedEnd = cal.date(byAdding: .month, value: 1, to: today) ?? today
-        case .SEMESTER: requestedEnd = semesterEnd
+        case .SEMESTER: requestedEnd = effectiveEnd
         case .NEXT_WEEK: requestedEnd = Calendar.isoAddDays(today, 7)
         }
-        return (max(today, semesterStart), min(requestedEnd, semesterEnd))
+        return (start, min(requestedEnd, effectiveEnd))
     }
 
     // MARK: - 预览
@@ -206,7 +230,9 @@ final class SystemCalendarManager {
         options: CalendarImportOptions,
         today: Date = Date()
     ) -> CalendarImportPreview {
-        let (from, until) = selectedDateRange(table: table, range: options.range, today: today)
+        // ← Android: 区间扩展用与事件展开同一份调休映射(applyHolidayTransfers 闸门一致)
+        let transfers = options.applyHolidayTransfers ? AppPrefs.shared.getHolidayTransfers(table.id) : []
+        let (from, until) = selectedDateRange(table: table, range: options.range, today: today, transfers: transfers)
         let (specs, invalid) = shared.buildEventSpecs(table: table, courses: courses, options: options, from: from, until: until)
         let alarmKeys = shared.firstPeriodAlarmKeys(specs)
         let rows = specs.map { spec -> CalendarPreviewRow in
@@ -242,10 +268,18 @@ final class SystemCalendarManager {
         var day = DateUtils.dayStart(from)
         let limit = DateUtils.dayStart(until)
         while day < limit {
-            let week = DateUtils.currentWeek(startDate: table.startDate, today: day)
-            let naturalDow = DateUtils.todayDayOfWeek(today: day)
-            let classDay = transfers.isEmpty ? naturalDow : HolidayTransferOps.effectiveDayOfWeek(day, transfers)
-            for course in courses where course.day == classDay && course.inWeek(week) {
+            // v1.0.62 B6 ← Android: 事件内容按源日、显示与闹钟按目标日 —
+            // sourceDate = 该展示日的课实际来自哪天(放假日 nil / 补班日 = 被调走的源日);
+            // selected = coursesForDate 按源日星期+源日周次取课(学期外空)。
+            let sourceDate = HolidayTransferOps.courseDateForDate(day, transfers)
+            let selected = HolidayTransferOps.coursesForDate(
+                day, startDate: table.startDate, maxWeek: table.maxWeek,
+                courses: courses, transfers: transfers
+            )
+            // 周次标签跟源日走(补班日上的是源日那周的课)
+            let week = DateUtils.currentWeek(startDate: table.startDate, today: sourceDate ?? day)
+            let classDay = DateUtils.todayDayOfWeek(today: sourceDate ?? day)
+            for course in selected {
                 guard let (startHHmm, endHHmm) = TimeTableUtils.effectiveCourseTime(
                     isIrregularTime: course.isIrregularTime,
                     startTime: course.startTime,
@@ -260,7 +294,8 @@ final class SystemCalendarManager {
                 let start = appendTime(day, startHHmm)
                 let end = appendTime(day, endHHmm)
                 guard end > start else { invalid += 1; continue }
-                let transferred = transfers.isEmpty ? false : classDay != naturalDow
+                // ← Android transferred = sourceDate != date: 仅补班日为 true(放假日 sourceDate=nil → false)
+                let transferred = sourceDate.map { HolidayTransferOps.dayKey($0) != HolidayTransferOps.dayKey(day) } ?? false
                 specs.append(EventSpec(
                     course: course,
                     date: day,
@@ -323,11 +358,6 @@ final class SystemCalendarManager {
         batchId: String
     ) throws -> CalendarImportResult {
         guard hasCalendarPermissions() else { throw CalendarImportError.permissionDenied }
-        // ← Android: options.calendarId 必须在 writableCalendars() 集合内(可写且可见),
-        //   仅在 store.calendars 中存在不足以证明可写 (如 type == .local 已被 picker 过滤)。
-        guard Self.writableCalendars().contains(where: { $0.id == options.calendarId }) else {
-            throw CalendarImportError.noWritableCalendar
-        }
         let db = AppDatabase.getShared()
         // batchId = 调用方生成并持久化 (← Android import(batchId) 透传, 不再重新生成)
         let (specs, invalid) = buildEventSpecs(table: table, courses: courses, options: options, from: from, until: until)
@@ -482,8 +512,16 @@ final class SystemCalendarManager {
         batchId: String
     ) async -> CalendarImportResult {
         let today = Date()
-        let (from, until) = selectedDateRange(table: table, range: options.range, today: today)
+        // ← Android: 区间扩展与事件展开用同一份调休映射
+        let transfers = options.applyHolidayTransfers ? AppPrefs.shared.getHolidayTransfers(table.id) : []
+        let (from, until) = selectedDateRange(table: table, range: options.range, today: today, transfers: transfers)
         do {
+            // ← Android: options.calendarId 必须在 fallback 感知的可写集合内(可写且可见),
+            //   仅在 store.calendars 中存在不足以证明可写; 兜底自建日历也在该集合内。
+            let calendars = await writableCalendars()
+            guard calendars.contains(where: { $0.id == options.calendarId }) else {
+                throw CalendarImportError.noWritableCalendar
+            }
             return try shared.importCourses(table: table, courses: courses, options: options,
                                             from: from, until: until, batchId: batchId)
         } catch {
