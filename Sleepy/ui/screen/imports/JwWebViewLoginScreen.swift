@@ -78,6 +78,7 @@ struct JwWebViewLoginScreen: View {
     // termStartDate ← Android JwWebViewLoginScreen 第 4 回调参数: JSON 直连协议
     // (boya_pp 等) 从接口拿到的第一周周一, 供确认页开学日期预填; 无则空串
     let onHtmlCaptured: (String, JwSchoolInfo, [(Int, String, String)], String) -> Void
+    var onBack: (() -> Void)? = nil
     let onDismiss: () -> Void
     // 排查包导出通道 (← Android webViewForDump / onWebViewReady): coordinator 就绪时
     // 上抛一次, 调用方持有引做 dump JS 段 evaluate. 默认 nil — 不传 = 不启用.
@@ -306,6 +307,8 @@ struct JwWebViewLoginScreen: View {
         }
         if let coordinator = webViewCoordinator, coordinator.canGoBack {
             coordinator.goBack()
+        } else if let onBack {
+            onBack()
         } else {
             onDismiss()
         }

@@ -133,8 +133,14 @@ extension AllTablesScreen {
 
 // 设置页统一顶栏(← TopAppBar 模式, 各设置页共用)
 struct SettingsTopBar: View {
+    enum LeadingStyle {
+        case back      // Push navigation: chevron.left, id: "topbar_back", label: "back"
+        case close     // Modal presentation: xmark.circle.fill, id: "topbar_close", label: "action_close"
+    }
+
     @Environment(\.localWakeUpColors) private var colors
     let title: String
+    var leadingStyle: LeadingStyle = .back
     let onBack: () -> Void
 
     var body: some View {
@@ -142,15 +148,23 @@ struct SettingsTopBar: View {
         //   导航钮 40×40 + 前 4dp, 标题起点 = 4+40+4 = 48(= Android navIcon 44 + 标题盒 4)
         HStack(spacing: 0) {
             Button(action: onBack) {
-                Image(systemName: "chevron.left")   // ← 有意差异: iOS 惯用 chevron, Android 用 ArrowBack 图形
-                    .font(.system(size: 24))   // ← LeadingIconSize 24dp(原 20 Medium)
-                    .frame(width: 40, height: 40)   // ← M3 IconButton 40×40
-                    .foregroundColor(colors.onBackground)
+                switch leadingStyle {
+                case .back:
+                    Image(systemName: "chevron.left")   // ← 有意差异: iOS 惯用 chevron, Android 用 ArrowBack 图形
+                        .font(.system(size: 24))   // ← LeadingIconSize 24dp(原 20 Medium)
+                        .frame(width: 40, height: 40)   // ← M3 IconButton 40×40
+                        .foregroundColor(colors.onBackground)
+                case .close:
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 22))
+                        .symbolRenderingMode(.hierarchical)
+                        .frame(width: 40, height: 40)
+                        .foregroundColor(colors.onSurfaceVariant)
+                }
             }
             .buttonStyle(SleepyButtonStyle())
-            .accessibilityIdentifier("topbar_back")
-            // ← Android ArrowBack contentDescription = back
-            .accessibilityLabel(L10n.format("back"))
+            .accessibilityIdentifier(leadingStyle == .close ? "topbar_close" : "topbar_back")
+            .accessibilityLabel(L10n.format(leadingStyle == .close ? "action_close" : "back"))
             .padding(.leading, 4)   // ← TopAppBarHorizontalPadding 4dp
             Text(title)
                 .font(.system(size: 22))   // ← Android TopAppBar titleLarge 22 Normal(去 Medium)

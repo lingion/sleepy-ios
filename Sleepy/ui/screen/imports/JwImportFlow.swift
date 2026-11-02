@@ -14,11 +14,15 @@ import Foundation
 import SwiftUI
 import WebKit
 
-enum JwStage {
-    case selectSchool
-    case webViewLogin
-    case preview
-    case configureConfirm
+enum JwStage: Int, Comparable {
+    case selectSchool = 0
+    case webViewLogin = 1
+    case preview = 2
+    case configureConfirm = 3
+
+    static func < (lhs: JwStage, rhs: JwStage) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
 }
 
 // 与 Android Regex("""^...$""").matches 同语义的整串匹配。
@@ -45,6 +49,8 @@ struct JwImportFlow: View {
     // activeImport 变化外抛(← issue#39 防御延伸): sheet 宿主可据此
     // .interactiveDismissDisabled(flag) 封掉下滑关闭手势绕过退出确认。默认 nil 零行为变化。
     var onActiveImportChanged: ((Bool) -> Void)? = nil
+    // 下滑关闭尝试外抛回调 (当处于有进度态 interactiveDismissDisabled(true) 触发)
+    var onDismissAttempt: (() -> Void)? = nil
 
     @StateObject private var jwViewModel = JwImportViewModel()
     // ← SleepyApp.get().importDraftRepository: iOS 无 app 级单例, 自装配同库仓储。
@@ -52,6 +58,7 @@ struct JwImportFlow: View {
 
     @State private var selectedSchool: JwSchoolInfo? = nil
     @State private var stage: JwStage = .selectSchool
+    @State private var isNavigatingForward = true
     @State private var errorMsg: String? = nil
     @State private var statusMsg: String? = nil
     @State private var importFinished = false
@@ -127,6 +134,9 @@ struct JwImportFlow: View {
                 .zIndex(1)
             }
         }
+        .onSheetDismissAttempt {
+            handleDismissAttempt()
+        }
         .onAppear {
             // F084: 流程「新进入」= Activity 重建 → saveable 状态清零。
             //   外层 ZStack 身份在 stage 切换中稳定, onAppear 每次流程呈现只跑一次,
@@ -147,67 +157,111 @@ struct JwImportFlow: View {
         }
     }
 
+    private var stageTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .move(edge: isNavigatingForward ? .trailing : .leading)),
+            removal: .opacity.combined(with: .move(edge: isNavigatingForward ? .leading : .trailing))
+        )
+    }
+
+    private func navigateToStage(_ newStage: JwStage) {
+        let forward = newStage >= stage
+        isNavigatingForward = forward
+        withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
+            stage = newStage
+        }
+    }
+
+    private func handleDismissAttempt() {
+        if exitDraftState.activeImport {
+            requestExit()
+        }
+        onDismissAttempt?()
+    }
+
+    private func handleBackFromWebView() {
+        if draftId != nil || !parsedCourses.isEmpty {
+            requestExit()
+        } else {
+            exitDraftState.activeImport = false
+            navigateToStage(.selectSchool)
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         if importFinished {
             EmptyView()   // LaunchedEffect(finish) → onFinish 已由 onChange 触发
-        } else if stage == .preview && !parsedCourses.isEmpty {
-            // ← Stage.Preview: 复用共享导入预览(五模式按钮); 解析成功不再直接跳确认页。
-            //   .task 挂 Group(分支级稳定身份): 进/回本 stage 重挂载即重跑
-            //   (↔ LaunchedEffect(parsedCourses) 在 composition 重入时重启),
-            //   从 ConfigureConfirm 返回同样重建预览; importPreview nil→set 不重复触发。
-            Group {
-                if let preview = importPreview {
-                    JwImportPreviewDialog(preview: preview,
-                                          isApplying: isApplying,
-                                          onDismiss: { requestExit() },
-                                          onApply: onPreviewApply)
-                } else {
-                    // 预览尚未构建(进/回本 stage 首帧) — 与 Android importPreview==null 同形
-                    Color.clear
+        } else {
+            ZStack {
+                switch stage {
+                case .selectSchool:
+                    SchoolSelectScreen(onSchoolSelected: { school in
+                        if jwIsBlank(school.url) {
+                            errorMsg = L10n.format("jw_no_url")
+                            return
+                        }
+                        selectedSchool = school
+                        // ← activeImport=true: 选校即进入"有进度"态, 退出须走确认(issue#39)
+                        exitDraftState.activeImport = true
+                        navigateToStage(.webViewLogin)
+                    }, onDismiss: { requestExit() })
+                    .transition(stageTransition)
+                    .zIndex(stage == .selectSchool ? 1 : 0)
+
+                case .webViewLogin:
+                    if let school = selectedSchool {
+                        JwWebViewLoginScreen(
+                            school: school,
+                            onHtmlCaptured: onHtmlCaptured,
+                            onBack: { handleBackFromWebView() },
+                            onDismiss: { requestExit() },
+                            onWebViewReady: { coordinator in
+                                // 排查包导出通道(← onWebViewReady → webViewForDump)
+                                webViewForDump = coordinator
+                            },
+                            onCaptureError: { result, hint in
+                                handleCaptureError(result, hint)
+                            })
+                            .transition(stageTransition)
+                            .zIndex(stage == .webViewLogin ? 1 : 0)
+                    } else {
+                        Color.clear.onAppear { navigateToStage(.selectSchool) }
+                    }
+
+                case .preview:
+                    if !parsedCourses.isEmpty {
+                        Group {
+                            if let preview = importPreview {
+                                JwImportPreviewDialog(preview: preview,
+                                                      isApplying: isApplying,
+                                                      onDismiss: { requestExit() },
+                                                      onApply: onPreviewApply)
+                            } else {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                        }
+                        .task(id: parsedCourses.count) { rebuildPreview() }
+                        .transition(stageTransition)
+                        .zIndex(stage == .preview ? 1 : 0)
+                    } else {
+                        Color.clear.onAppear { navigateToStage(.webViewLogin) }
+                    }
+
+                case .configureConfirm:
+                    if !parsedCourses.isEmpty && parsedSchool != nil {
+                        configureConfirmSheet
+                            .transition(stageTransition)
+                            .zIndex(stage == .configureConfirm ? 1 : 0)
+                    } else {
+                        Color.clear.onAppear {
+                            navigateToStage(.webViewLogin)
+                            parsedCourses = []
+                        }
+                    }
                 }
             }
-            .task(id: parsedCourses.count) { rebuildPreview() }
-        } else if stage == .configureConfirm && !parsedCourses.isEmpty {
-            if parsedSchool == nil {
-                // school 丢失 → 回 WebView
-                Color.clear.onAppear {
-                    stage = .webViewLogin
-                    parsedCourses = []
-                }
-            } else {
-                configureConfirmSheet
-            }
-        } else if stage == .selectSchool {
-            SchoolSelectScreen(onSchoolSelected: { school in
-                if jwIsBlank(school.url) {
-                    errorMsg = L10n.format("jw_no_url")
-                    return
-                }
-                selectedSchool = school
-                // ← activeImport=true: 选校即进入"有进度"态, 退出须走确认(issue#39)
-                exitDraftState.activeImport = true
-                stage = .webViewLogin
-            }, onDismiss: { requestExit() })
-        } else if stage == .webViewLogin {
-            if let school = selectedSchool {
-                JwWebViewLoginScreen(
-                    school: school,
-                    onHtmlCaptured: onHtmlCaptured,
-                    onDismiss: { requestExit() },
-                    onWebViewReady: { coordinator in
-                        // 排查包导出通道(← onWebViewReady → webViewForDump)
-                        webViewForDump = coordinator
-                    },
-                    onCaptureError: { result, hint in
-                        handleCaptureError(result, hint)
-                    })
-            } else {
-                Color.clear.onAppear { stage = .selectSchool }
-            }
-        } else if stage == .preview {
-            // preview 但课程被清空(草稿删除等异常态) → 回 WebView
-            Color.clear.onAppear { stage = .webViewLogin }
         }
     }
 
@@ -313,7 +367,7 @@ struct JwImportFlow: View {
             // v1.0.56 T10: 默认选中「本次导入自动建作息表」(合成 id=-1)
             configBindPeriodTableId = -1
             exitDraftState.activeImport = true
-            stage = snapshot.phase == .webViewLogin ? .webViewLogin : .preview
+            navigateToStage(snapshot.phase == .webViewLogin ? .webViewLogin : .preview)
         }
     }
 
@@ -426,7 +480,7 @@ struct JwImportFlow: View {
         draftId = await Task.detached(priority: .userInitiated) {
             try? repo.save(snapshot, sourceType: "jw", sourceUrl: sch.url)
         }.value
-        stage = .preview
+        navigateToStage(.preview)
         // v1.0.56 T10: 默认选中「本次导入自动建作息表」(合成 id=-1)
         configBindPeriodTableId = -1
         statusMsg = nil
@@ -498,7 +552,9 @@ struct JwImportFlow: View {
                         conflicts: conflicts,
                         multiLocationWarnings: multiLocWarnings)
                 }.value
-                importPreview = preview
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
+                    importPreview = preview
+                }
                 loadPeriodTables()
             } catch {
                 errorMsg = L10n.format("jw_parse_failed", error.localizedDescription)
@@ -523,7 +579,7 @@ struct JwImportFlow: View {
                 isApplying = false
             }
         } else {
-            stage = .configureConfirm
+            navigateToStage(.configureConfirm)
         }
     }
 
@@ -622,7 +678,7 @@ struct JwImportFlow: View {
                     //   dismissButton = importPreview=null; stage=Preview — 保留已解析课程回预览
                     Button(L10n.format("back")) {
                         importPreview = nil
-                        stage = .preview
+                        navigateToStage(.preview)
                     }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)

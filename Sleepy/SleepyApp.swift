@@ -440,7 +440,8 @@ struct AppRoot: View {
             jwImportRequested = true
         }
         .sheet(isPresented: $jwImportActive, onDismiss: {
-            // 下滑关闭与流程内关闭两条路径都收敛到这里: 入参带完即清, 草稿列表随流程结束刷新
+            // 下滑关闭与流程内关闭两条路径都收敛到这里: 选校状态重置、入参带完即清、草稿列表随流程结束刷新
+            SchoolSelectStateStore.shared.resetForNewEntry()
             jwIncomingDraftId = nil
             jwActiveImport = false
             root.refreshDrafts()
@@ -455,6 +456,7 @@ struct AppRoot: View {
             .preferredColorScheme(schemeOverride)
             // ← issue#39: 教务流程进行中禁止下滑关闭(绕过退出确认 = 静默丢进度)
             .interactiveDismissDisabled(jwActiveImport)
+            .sheetDragIndicator(.visible)
         }
         // ★ sheet 冲突修复续: ImportSheet dismiss 完成后(0.45s 动画)再 present JW 流程
         .onChange(of: jwImportRequested) { req in

@@ -22,7 +22,10 @@ struct JwSchoolInfo: Equatable {
     /// ← v1.0.60 同城推荐: 城市元数据与导入目录分离, 不影响 URL/协议。
     var cities: [String] = []
 
-    var isSupported: Bool { status == Self.STATUS_SUPPORTED || status == Self.STATUS_GRAD_SUPPORTED }
+    var isSupported: Bool {
+        (status == Self.STATUS_SUPPORTED || status == Self.STATUS_GRAD_SUPPORTED)
+            && !(type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+    }
     var isGrad: Bool { status == Self.STATUS_GRAD_SUPPORTED || status == Self.STATUS_GRAD_PENDING }
 
     /// T13: pending/grad_pending 状态 — 待适配(点行弹申请适配弹窗, 不进 WebView)
