@@ -32,6 +32,29 @@ import ZIPFoundation
 import UIKit
 #endif
 
+/// 转场空闲门(纯函数) — 决定能否在目标 VC 上安全 present, 以及重试是否耗尽。
+///
+/// 崩溃复盘(1.0.62, iPhone8,2 / iOS 15.8.8): 旧版 share() 爬 presentedViewController
+/// 链拿到最顶 sheet 宿主后直接 present; 该宿主正处于自己的 presentation 动画时,
+/// UIKit 在转场完成回调(_applyBlocks:releaseBlocks:)里跑 _presentViewController
+/// 抛 NSInvalidArgumentException → SIGABRT。
+/// 四信号任一为忙即须等待; hasWindow=false 为防御项(未挂窗 present 无意义)。
+enum SharePresentationGate {
+    static func mustWait(isBeingPresented: Bool,
+                         isBeingDismissed: Bool,
+                         hasTransitionCoordinator: Bool,
+                         hasWindow: Bool) -> Bool {
+        if !hasWindow { return true }
+        return isBeingPresented || isBeingDismissed || hasTransitionCoordinator
+    }
+
+    /// 重试上限 20 次 × 50ms ≈ 1s; attempts 达到上限即放弃(不崩)。
+    static func shouldGiveUp(attempts: Int) -> Bool { attempts >= maxAttempts }
+
+    static let maxAttempts = 20
+    static let retryInterval: TimeInterval = 0.05
+}
+
 /// 排查全量包导出。
 /// 1:1 对照 Android JwCaptureDump.kt:三组重载 exportDump 兼容旧调用方,
 /// 纯函数 buildZip 可在测试中以 nil ctx 调用,IO 走 shareDump 调用方提供的 Activity/UIActivityVC 桥。
@@ -673,23 +696,57 @@ enum JwCaptureDump {
     @MainActor
     static func share(url: URL) {
         #if canImport(UIKit)
-        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-        // 找当前最顶 UIViewController 展示 — 避免 iPad 上无 anchor 闪退
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let root = scene.windows.first?.rootViewController {
-            var top = root
-            while let presented = top.presentedViewController { top = presented }
-            if let popover = activityVC.popoverPresentationController {
-                popover.sourceView = top.view
-                popover.sourceRect = CGRect(x: top.view.bounds.midX,
-                                             y: top.view.bounds.midY,
-                                             width: 0, height: 0)
-                popover.permittedArrowDirections = []
-            }
-            top.present(activityVC, animated: true)
-        }
+        presentShareWhenIdle(url: url, attempts: 0)
         #endif
     }
+
+    #if canImport(UIKit)
+    /// 转场空闲重试: 目标 VC 忙则 50ms 后再看, 最多 20 次(~1s)后放弃。
+    /// 宁可少弹一次分享面板, 不在转场中硬 present。
+    @MainActor
+    private static func presentShareWhenIdle(url: URL, attempts: Int) {
+        guard !SharePresentationGate.shouldGiveUp(attempts: attempts) else { return }
+        // 取活跃场景的 key window 根 VC, 沿 presented 链爬到最顶
+        guard let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive })
+                ?? (UIApplication.shared.connectedScenes.first as? UIWindowScene),
+              let root = (scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first)?
+                .rootViewController
+        else {
+            retryShareLater(url: url, attempts: attempts)
+            return
+        }
+        var top = root
+        while let presented = top.presentedViewController { top = presented }
+        guard !SharePresentationGate.mustWait(
+            isBeingPresented: top.isBeingPresented,
+            isBeingDismissed: top.isBeingDismissed,
+            hasTransitionCoordinator: top.transitionCoordinator != nil,
+            hasWindow: top.view.window != nil)
+        else {
+            retryShareLater(url: url, attempts: attempts)
+            return
+        }
+        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = top.view
+            popover.sourceRect = CGRect(x: top.view.bounds.midX,
+                                         y: top.view.bounds.midY,
+                                         width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        top.present(activityVC, animated: true)
+    }
+
+    /// 重试节奏单点 — 递归必须走这里, 保证 attempts 单调递增、必然终止。
+    @MainActor
+    private static func retryShareLater(url: URL, attempts: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + SharePresentationGate.retryInterval) {
+            presentShareWhenIdle(url: url, attempts: attempts + 1)
+        }
+    }
+    #endif
 
     // MARK: - 返回结果
 
