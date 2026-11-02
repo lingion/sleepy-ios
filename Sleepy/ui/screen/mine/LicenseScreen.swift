@@ -24,6 +24,11 @@ private struct PerSchoolEntry {
 
 private let foundationalEntries: [FoundationalEntry] = [
     FoundationalEntry(
+        title: "Old-QZ 协议核对",
+        meta: "历史协议参考",
+        usage: "Old-QZ protocol verification: Crazy-ChenMiLin/TableAPK (Apache-2.0; protocol reference); LonelyMarch/OpenWakeUp (AGPL-3.0; protocol reference); ThaiCao/WakeupSchedule_Kotlin (Apache-2.0; protocol reference); YuZhangWang/Java-Demo (GPL-3.0; protocol reference); dIT8Zv/WakeupSchedule_BUPT (Apache-2.0; protocol reference); ershiyidian/WakeUp_SHU (NOASSERTION; protocol reference); historical WakeUp APK (YZune; closed-source protocol reference, no code reused)."
+    ),
+    FoundationalEntry(
         title: "WakeUp 课程表 (YZune)",
         meta: "Apache-2.0",
         usage: "JwCourse / JwParser 中间结构语义与强智系 HTML 解析的参考实现"
@@ -77,7 +82,7 @@ private let perSchoolEntries: [PerSchoolEntry] = [
     ),
     PerSchoolEntry(
         id: "school-seu", title: "东南大学 SEU",
-        usage: "SEUTimetable (sakimidare, Apache-2.0)\nAetik-yue/hormone (SEU SSO 入口)\nluzy99/SEUAutoLogin"
+        usage: "SEUTimetable (sakimidare, Apache-2.0)\nAetik-yue/hormone (SEU SSO 入口)\nluzy99/SEUAutoLogin\nHaa1024/SEU-Timetable (MIT)\nOFRabby/seu-routine-maker (OFRabby, UMS PDF negative evidence)\nHeraldStudio/herald-webservice (MIT)\n131AIClub/seu-xiaoai-course (LGPL-2.1)\nluyishui/classduck\nWheretoSleepinNJU/NJU-Class-Shedule-Flutter (Apache-2.0)"
     ),
     PerSchoolEntry(
         id: "school-zju", title: "浙江大学 ZJU",
@@ -184,8 +189,8 @@ private let perSchoolEntries: [PerSchoolEntry] = [
         usage: "CQYTZFCheckScores (xM3GAN, Apache-2.0)"
     ),
     PerSchoolEntry(
-        id: "school-scau", title: "华南农业大学 SCAU",
-        usage: "ScheduleXParser_SCAU (greyovo)"
+        id: "school-scau", title: "华南农业大学 SCAU (2026-10 SOP cross-verified)",
+        usage: "greyovo/ScheduleXParser_SCAU (Njw2017 Element UI 实页)\ngreyovo/AIScheduleSCAU (el-table__body-wrapper 参考)\nSCAU-Grad-Automatically-Fill-Evaluation-Form-JS (jiefing, 致谢清单)\nN0B0d7-rzddn/SCAU-course-tool (强智新教务 API 旁证)\nCberYellowstone/Course-Hunter-SCAU (iframe 表单旁证)\nWeather174/SCAU-Course-Assistant (zzxkyzbjk_* API 端点确认)\nToMo517/Scau_Course_bot-main (正方 V9.0 历史旁证)\nvisionyimian/scau_class_table (老正方历史旁证)\nKerryChia/ruc-schedule-extension (JZ protocol reference)"
     ),
     PerSchoolEntry(
         id: "school-qlu", title: "齐鲁工业大学 QLU",
@@ -224,6 +229,10 @@ private let perSchoolEntries: [PerSchoolEntry] = [
         usage: "AmaneSuzuha000/SWJTU_Login (YHXT CAS + ytoken cookie + common API 直接证据)\n1-nuo/swjtu-course-grabber (ytoken 请求头 + JWT sub 学号 + SM2 选课加密)\nArex-lbb/auto-course-grabber (JWT + SM2 + A0422 失效码)\n1837634311/SWJTU-Course-Management-Script (GPL-3.0, TMS/vatuu 反向证据)\nHackSwjtu/Postime (MIT, 老教务网反向证据)\nlpzams/swjtu-course-crawler (旧 vatuu 反向证据)\n949144093/SWJTU-JiaoWuAutoLogin (旧 vatuu 反向证据)\nkakasearch/course_download (旧 vatuu 反向证据)\nzx1411057234/VatuuSpider (旧 vatuu 反向证据)\nkashaku/no-vatuu-evaluation (旧 vatuu 反向证据)\nJoe-create-star/swjtu-dektx-reminder (MIT, OCW/YETHAN 多租户旁证)"
     ),
     PerSchoolEntry(
+        id: "school-kingo-zx", title: "新青果 super 协议适配（2026-10）",
+        usage: "WakeUp NewKingosoftSuperParser smali 主参考 (YZune, 反向)\nOpenWakeUp NewKingosoftSuperParser (LonelyMarch, AGPL-3.0)\nNYIST-CIPS/CourseTable (NYIST-CIPS, MIT, 间接协议旁证)\nicepie/aischedule-lit-kingosoft (MIT, 间接协议旁证)\nlizhengqiang/kingosoft_api (间接接口旁证)\nershiyidian/WakeUp_SHU (ershiyidian, 同源青果协议旁证)\n52funny/KINGOSOFT-LOGIN (青果登录端点)\nXTAI9/SYU_KINGGOClassSel (青果选课端点旁证)\nwzj1122/jxufe-auto-evaluate (MIT, 青果族批量请求)\nKou-JunHao/mi-schedule (MIT, 青果族渲染)\nDaydream357/WakeUpSchedule (MIT, WakeUp 通用反混淆)\nicepie/oh-my-lit (AGPL-3.0, negative layout control)"
+    ),
+    PerSchoolEntry(
         id: "school-wakeup-family", title: "WakeUp 兼容协议族调研",
         usage: "Dawn-Course (HF-CYGG, GPL-3.0)\nWakeUp_SHU (ershiyidian)\nCourseHelper (jiangyiqi99, GPL-3.0)\naischedule-lit-kingosoft (icepie, MIT)\nXiaoAISchedule_hebust (web1n)\nai-schedule-chaoxing (moeshin, MIT)\ntzvcst-schedule-chaoxing (Sittymin, AGPL-3.0)\nxiaoai-shuwei-course (ZKJJaker, 反向证据)\njxufe-auto-evaluate (wzj1122, MIT)\nKINGOSOFT-LOGIN (52funny)\nxiaoaiSchedule (xiaxiaoyu8)\nmi-schedule (Kou-JunHao, MIT)\nAISchedule-xjsf (ltxhhz, MIT)\nAIScheduleSCAU (greyovo)\nMI_AI_Course_Schedule (ceresOPA)\nAISchedule-QiangZhi (MyLikeGirl)\nclasspush (sungithub270, GPL-3.0)\nXiaoAiScheduleOfSUOT (trueWangSyutung)\nXiaoAiCurriculumSchedule (LukeJean)\ngetICS (Konata09)\nWITClassScheduleToCalendar (DOROMOLLL, MIT)\nCrawlerCourseTable (canliture)\nSYU_KINGGOClassSel (XTAI9)\nhait_AICourseTable (zzzsq1)\nAIShedule_cqwu (cqwu-ehall, AGPL-3.0)\nWakeUpSchedule (Daydream357, MIT)\nshike-android (sw7943604-del)\nshiguang_Tester (XingHeYuZhuan, MIT)\ndutsso (yuanyuanzijin)\npub-docs (zfman, 青果接口文档)\neduData-GoBack (huhu415)\nNUISTTable (zyc-816)\nSCAU-Grad-Automatically-Fill-Evaluation-Form-JS (jiefing, Gwork 族控件命名旁证)"
     ),
@@ -232,8 +241,28 @@ private let perSchoolEntries: [PerSchoolEntry] = [
         usage: "NWUPL: dream2333/NWUPL-Pure-EMS (间接协议旁证)\nLIXIN: classic EAMS 采集形态（未复制代码）\nKMUST: linling-zy/kust-schedule (间接协议旁证, Apache-2.0)\nNUIT: 3056810551/nuit-class-schedule (直接字段旁证, 未复制代码)"
     ),
     PerSchoolEntry(
+        id: "school-thu", title: "清华大学 THU (2026-10 固定源码复核)",
+        usage: "Compultra/BistuSchedule (BISTU XLSX tool; unrelated)\nfengh16/CourseDataGet (reviewed; no matching timetable protocol)\nrobertying/CourseRegistrationHelper (reviewed; no matching timetable protocol)\nFztTony/Tsinghua-CourseSpider (GPL-3.0; course catalog, not timetable)\nsmartThise/NextTHUxk (same ztkbSearch script fields; historical corroboration)\npiggyham/thu_timetable (different JSONP timetable; indirect)\nlingion/wakeup-mod (decompiled historical periods; facts only)\nStarrah/THUCourseHelper (MIT; historical timetable script parser)\nxbcfantasy/tanwei-course-guide (reviewed; no matching timetable protocol)\nhuangkaka666/thu-course-helper (MIT; ratings integration, not timetable)\nDelthin/thu-graduate-course-helper (MIT; indirect, different workflow)\ndenny2001/thu_courses2ics (MIT; indirect timetable export)\nYZune/WakeUpSchedule (cited THUParser absent from pinned source)\nheyeshuang/YAATO (2012 rendered DOM timetable; historical corroboration)\ncircleLZY/thu-courses (course notes; no timetable parser)\nbrightcolin/thu-course-pilot (scheduling assistant; parser not verified)"
+    ),
+    PerSchoolEntry(
+        id: "school-ecupl", title: "华东政法大学 ECUPL",
+        usage: "LonelyMarch/OpenWakeUp (AGPL-3.0; CourseTable 脚本协议参考)\nlingion/wakeup-mod (历史 WakeUp APK 归档；仅核实 TaskActivity/index 协议；原作者许可未确认)\n调研对照，尚未证实适用于 ECUPL 课表字段：ershiyidian/WakeUp_SHU、zimo0o0omiz/wisedu-unified-login-api、only9464/HEU-Wisedu、CreamPig233/neu_wisedu2wakeup、wisedu/bh-mobile-sdk"
+    ),
+    PerSchoolEntry(
         id: "school-hzcu", title: "浙大城市学院 HZCU",
         usage: "用户采集包实锤 zf_new 协议 (新正方 zftal-ui-v5 裸 /kbcx/ 路径, SSO /sso/ddlogin 专用入口, issue #90)\nqiqqqqq517/shangkeschedule (Apache-2.0, 该校 zhengfang_new 条目互证)\nXu-Jack11/MySchedule (MIT, 同端点直接旁证)\nLanternCX/HZCUCourseChoose (MIT, 选课端点旁证)"
+    ),
+    PerSchoolEntry(
+        id: "school-hbsm", title: "湖北商贸学院 HBSM",
+        usage: "用户采集包实锤 zf_new 协议 (新正方 zftal-ui-v5 裸 /kbcx/ 路径, xskbcx_cxXsgrkb kbList JSON)\nqiqqqqq517/shangkeschedule (Apache-2.0, 该校 zhengfang_new 条目互证)\nLonelyMarch/OpenWakeUp (AGPL-3.0, 该校 type=zf 伞型收录同域旁证, 未复用代码)"
+    ),
+    PerSchoolEntry(
+        id: "school-nwpu-post", title: "西北工业大学研究生教务 NWPU Post",
+        usage: "WakeUp 反编译 smali 实锤 sample-table-1 HTML 一维清单协议层; 51 候选 GitHub 仓库跨仓求证 (0 POSITIVE / 20 INDIRECT / 31 NEGATIVE), 协议层无任何开源实现, 全量迁移至新门户 jwxt.nwpu.edu.cn print-data JSON 端点; 致谢 20 个 NWPU 同校生态仓 (新门户 print-data / 智慧校园 ecampus / 强智 URP):\nLorcas-Zephyr/aoxiang-assistant\nShiGuangSchedule/shiguang_warehouse (MIT, nwpu_01.js 跨校适配)\nQingQiz/AoxiangRobot (LGPL-3.0, archived 旧 EAMS courseTableForStd)\nqiqqqqq517/shangkeschchedule (Apache-2.0, 时光 NWPU 适配镜像)\nqllokirin/nonebot-plugin-npu (MIT, ecampus + print-data 双轨)\nCR200J1-A/NPU-Course-picker (新门户 print-data 油猴脚本)\nJungod1121/nwpu-jwxt (强智 URP + Playwright 自动化)\nNikaidou-Shinku/sjw (WTFPL, course-selection-api 选课端点)\nstevexyh/AutoAoxiang (WTFPL, 翱翔 NCP/图书馆辅助)\ncheanus/SelectCourseEasily (新门户 lesson-search 排课抓取)\nfantian-bilibili/NWPU_COURSE_MONITOR (ecampus WebView 历史课表)\nzengzoxiong/aoxiang-jwxt-enhance (西工大研究生系统挂载)\nzhanghaoran124/NWPU_AISchedule (iframe course-table 解析)\nHydrostic/NWPU-EAMS-helper (Svelte userscript jwxt iframe)\nfantian-bilibili/NCP-NWPU-Course-Parser (Aoxiang localStorage 缓存)\ntop-tree/nwpu-edu-plus (显式 print-data 端点 + studentTableVm)\nLiYulin-s/nwpu-coursetable (jwxt localStorage cs-selectedLessons)\nPanoramasx/aoxiang-harmonyos (HarmonyOS api_collect.js 镜像)\niiijiashu/guagua-course (NwpuPrintDataParser + NwpuJwxtExtractor 双端点)\nxiaozhuang357/NPU-eCampus-ICS-Exporter (智慧校园 studentTableVm 导出)\nDy1anT/NWPUgrade (NEGATIVE, 教务相关协议边界)\n2ndelement/nwpu-lesson-select-enhance (NEGATIVE, 教务相关协议边界)\nzymelaii/nwpu-toy-scripts (NEGATIVE, 教务相关协议边界)\nFlowingFrost/NWPU-Course-Helper (NEGATIVE, 教务相关协议边界)\nPhoenix-ZH/NWPU_GPA (NEGATIVE, 教务相关协议边界)\nMoeMion/NPU-Course-Evalue-Script (NEGATIVE, 教务相关协议边界)\nchurehill/JWhelper (NEGATIVE, 教务相关协议边界)\nBakerBunker/nwpu_helper (NEGATIVE, 教务相关协议边界)\nBakerBunker/NpuGpa (NEGATIVE, 教务相关协议边界)\nNaraLan0502/AoxiangHelp_QQBotPlugin (NEGATIVE, 教务相关协议边界)\nDryzk/nwpu-gpa-and-rank (NEGATIVE, 教务相关协议边界)\nXio-Shark/aoxiang-kebiao (NEGATIVE, 教务相关协议边界)\nhuohuo132/Aoxiang-assistant-for-HarmonyOS (NEGATIVE, 教务相关协议边界)\nnpuNancy/AoXiangGrades (NEGATIVE, 教务相关协议边界)\nsjrsjz/nwpu-gpa-rank (NEGATIVE, 教务相关协议边界)"
+    ),
+    PerSchoolEntry(
+        id: "school-new-urp-super", title: "新 URP 数组变体（跨校协议）",
+        usage: "WakeUp NewUrpSuperParser 反编译提供字段模型；39 个相关仓库仅为间接生态或协议边界参考，未证实同款接口：\nAirmole/ShellBox\ndanbaixi/yunxiaozhi\ndairoot/school-api\nfrederick-wang/scu-urp-assistant\nLeonidasCl/seu-jwc-catcher\nHaoZai000/NexioSchedule\nStageGuard/SuperCourseTimetableBot (NEGATIVE, 协议边界)\nyeliqin666/xjtu-toolbox-android\nLittFlower/SCU-URP-Helper\nLorcas-Zephyr/aoxiang-assistant\nShiGuangSchedule/shiguang_warehouse\nBIT101-dev/BIT101-Android\nxiaomanjun233/SleepDown-Schedule\nMutx163/mikcb\nAriaPokotengYe/SEU-NewSystem-catcher\nhiguangke/Higk\nyuchenii/HHUClassSchedule\nHeraldStudio/herald-webservice\nyuan1994/ZCrawler\nsuperdaobo/mini-hbut\nBIT101-dev/BIT101-GO\ndemocard/xmu_assistant\nki-ljl/ncepu-edm\nwcomaqsw/indulge-in-study\nCrazyRunning/MyStudyHelper\nchaolan2019/SCU-URP-plusplus\nmlkgrnt/ScheduleX\nHolit/HEU_edusys_miui\nershiyidian/WakeUp_SHU\nBritneyOvO/swun_ehall\nleavesvv-source/NEU-Timetable\nArrogHie/XMUTimeTabel\nyuchenii/AIschedule-HHU-URP\nshouDeveloper/shou-api\nkuailiaojie/classtable (NEGATIVE, 无匹配源码)\nadminerest/SHOU-urp-auto-choose-lessons\nneiro-o/seuGrabber\narnoliudaxia/shanghaitech-chooseCourse-query\nfangd123/funhubu"
     ),
 ]
 
@@ -268,6 +297,18 @@ private let contributorEntries: [ContributorEntry] = [
     ContributorEntry(
         id: "contributor-Cold577", title: "冷冷冷 Cold577", meta: "GitHub @Cold577",
         usage: "已合并 PR #79 小组件选择器预览图修复 (运行时位图容器 previewLayout 摘除) — 全部提交与讨论记录见 github.com/Cold577"
+    ),
+    ContributorEntry(
+        id: "contributor-X-art-hash", title: "X-art-hash", meta: "GitHub @X-art-hash",
+        usage: "已合并的代码贡献 — 全部提交与讨论记录见 github.com/X-art-hash"
+    ),
+    ContributorEntry(
+        id: "contributor-echo0731", title: "echo0731", meta: "GitHub @echo0731",
+        usage: "已合并的代码贡献 — 全部提交与讨论记录见 github.com/echo0731"
+    ),
+    ContributorEntry(
+        id: "contributor-Kerry1020", title: "Kerry1020", meta: "GitHub @Kerry1020",
+        usage: "已合并 PR #115 Room schema 导出与迁移门禁 (本仓库 v10 schema 真值 + v9→v10 instrumented 迁移测试 + schema 漂移契约测试) — 全部提交与讨论记录见 github.com/Kerry1020"
     ),
 ]
 

@@ -127,6 +127,17 @@ struct ExportScreen: View {
                                     snackMessage = L10n.format("export_copied_hint")
                                 }
                                 RowDivider()
+                                // v1.0.62 B6 ← Android ExportScreen: 小爱导出项(SmartToy → SF sparkles,
+                                //   16.4 SDK 无 robot 符号) — voiceassist:// deep link 唤起小爱预览导入
+                                ExportItem(icon: "sparkles",
+                                           title: L10n.format("export_xiaoai_title"),
+                                           subtitle: L10n.format("export_xiaoai_subtitle"),
+                                           id: "export_xiaoai_row") {
+                                    launchXiaoaiImport(table: table,
+                                                       courses: courses,
+                                                       boundPeriodTable: boundPeriodTable(table))
+                                }
+                                RowDivider()
                                 ExportItem(icon: "calendar",
                                            title: L10n.format("export_ics_title"),
                                            subtitle: L10n.format("export_ics_subtitle"),
@@ -291,6 +302,36 @@ struct ExportScreen: View {
             loadedCourses = try? ScheduleRepository(AppDatabase.getShared()).getCourses(tid)
         } else {
             loadedCourses = nil
+        }
+    }
+
+    // v1.0.62 B6 ← Android launchXiaoaiImport: 小爱课程表一键导入。
+    // 深链 voiceassist://aiweb/?url=&presetData= 唤起小爱(或小爱课程表独立 App),
+    // H5 /import 路由读 presetData.importData 进预览, 用户确认后才写入小米云。
+    // Sleepy 本地准备数据后打开链接; 小爱接收后的联网和数据处理由其负责。
+    // 未安装小爱 → open 失败回调提示安装(iOS open 无需 LSApplicationQueriesSchemes,
+    // canOpenURL 才需要 — Android SecurityException 在 iOS 无等价物, 不设分支)。
+    private func launchXiaoaiImport(table: TimeTableEntity, courses: [CourseEntity], boundPeriodTable: PeriodTableEntity?) {
+        if courses.isEmpty {
+            snackMessage = L10n.format("export_xiaoai_empty")
+            return
+        }
+        let presetData: String
+        do {
+            presetData = try XiaoaiPresetData.build(table: table, courses: courses, periodTable: boundPeriodTable)
+        } catch {
+            // ← Android IllegalArgumentException → export_xiaoai_invalid
+            snackMessage = L10n.format("export_xiaoai_invalid")
+            return
+        }
+        guard let url = URL(string: XiaoaiPresetData.deepLink(presetData)) else {
+            snackMessage = L10n.format("export_failed")
+            return
+        }
+        UIApplication.shared.open(url) { ok in
+            // ← Android ActivityNotFoundException → Toast(not_installed); 成功 → onResult(launched)
+            snackMessage = ok ? L10n.format("export_xiaoai_launched")
+                              : L10n.format("export_xiaoai_not_installed")
         }
     }
 

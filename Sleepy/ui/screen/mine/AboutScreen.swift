@@ -176,6 +176,40 @@ struct AboutScreen: View {
                     }
                     Spacer().frame(height: 12)
 
+                    // Privacy policy card — ← v1.0.62 商店审核要求: 应用内可达
+                    //   https://sleepy.qdp.qzz.io/privacy (与 web 关于页同源) ← AboutScreen.kt 隐私卡
+                    InfoCard {
+                        HStack(spacing: 12) {
+                            Image(systemName: "shield.fill") // ← Icons.Outlined.Shield 24dp
+                                .font(.system(size: 24))
+                                .foregroundColor(colors.primary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.format("about_privacy"))
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(colors.onSurface)
+                                Button {
+                                    openURL("https://sleepy.qdp.qzz.io/privacy")
+                                } label: {
+                                    Text(L10n.format("about_privacy_url"))
+                                        .font(.system(size: 14))
+                                        .foregroundColor(colors.primary)
+                                        .underline()
+                                }
+                                .buttonStyle(SleepyButtonStyle())
+                            }
+                            Spacer()
+                            Button {
+                                openURL("https://sleepy.qdp.qzz.io/privacy")
+                            } label: {
+                                Image(systemName: "arrow.up.right") // ← Icons.AutoMirrored.OpenInNew 20dp
+                                    .font(.system(size: 20))
+                                    .foregroundColor(colors.primary)
+                            }
+                            .buttonStyle(SleepyButtonStyle())
+                        }
+                    }
+                    Spacer().frame(height: 12)
+
                     // Feedback card — ← 1.0.51 反馈卡: GitHub Issue / 邮件两个入口
                     //   (FeedbackComposer 已 1:1 移植, 这里只是接上 UI)
                     InfoCard {

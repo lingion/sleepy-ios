@@ -27,10 +27,12 @@ def kotlin_symbols(path):
 
 def swift_symbols(path):
     src = open(path, encoding='utf-8').read()
-    out = {'func': [], 'class': [], 'struct': [], 'enum': [], 'var': [], 'let': []}
-    for m in re.finditer(r'^\s*(?:private\s+|internal\s+|public\s+|open\s+|final\s+|@(?:discardableResult|objc)\s+)*(?:static\s+|class\s+)?(func|class|struct|enum)\s+[`]?(\w+)', src, re.M):
+    # v1.0.62 B6: actor/protocol 也是可移植声明形态(LocalCalendarFallback actor /
+    # LocalCalendarStore protocol), 名字池必须收录, 否则同名映射永远够不到
+    out = {'func': [], 'class': [], 'struct': [], 'enum': [], 'actor': [], 'protocol': [], 'var': [], 'let': []}
+    for m in re.finditer(r'^\s*(?:private\s+|internal\s+|public\s+|open\s+|final\s+|@(?:discardableResult|objc)\s+)*(?:static\s+|class\s+)?(func|class|struct|enum|actor|protocol)\s+[`]?(\w+)', src, re.M):
         kind, name = m.group(1), m.group(2)
-        out[{'func':'func','class':'class','struct':'struct','enum':'enum'}[kind]].append(name)
+        out[{'func':'func','class':'class','struct':'struct','enum':'enum','actor':'actor','protocol':'protocol'}[kind]].append(name)
     for m in re.finditer(r'^\s*(?:private\s+|internal\s+|public\s+)?(?:static\s+)?(?:let|var)\s+(\w+)', src, re.M):
         out['let'].append(m.group(1))
     return {k: sorted(set(v)) for k, v in out.items() if v}
@@ -98,6 +100,12 @@ RENAMES = {
     # 解析器(class → struct, 同名; 名字池含 struct)
     'kotlinx': 'parse',                     # import kotlinx 误报(正则噪音)
     'parseIcsTimeOfDay': 'parseIcs',
+    # v1.0.62 B6 日历/小爱导出
+    'eventValues': 'writeEventValues',      # ContentValues 组装 → EKEvent 字段写入
+    'insertReminder': 'replaceReminder',    # Android replaceReminder 内嵌局部 fun 插提醒行 →
+                                            #   iOS replaceReminder 内联 EKAlarm 插入(同名外壳)
+    'AndroidLocalCalendarStore': 'EventKitLocalCalendarStore',  # CalendarContract provider → EventKit 平台实现
+    'intArrayJson': 'expandWeeks',          # buildJsonArray(int) → iOS 直接产 [Int] 交 JSONSerialization
 }
 # 注解式等价(swift 源文本包含即视为已映射 — 覆盖 enum case/成员级声明, 名字池正则够不到)
 TEXT_EQUIV = {
@@ -107,6 +115,13 @@ TEXT_EQUIV = {
     'hasNotifPermission': 'getNotificationSettings',
     'install': 'update_ios_sideload_hint', # PD2: 自装 APK → 侧载提示文案
     'themeKeyFlow': 'themeKeyPublisher',
+    # v1.0.62 B6 日历/小爱导出
+    # recordFor: CalendarImportRecordEntity 构造在 iOS 内联于 importCourses 的
+    #   update/insert 两路径, 无独立函数 — 以记录实体字面量为等价锚点
+    'recordFor': 'CalendarImportRecordEntity(',
+    # intRangeJson(from,to): sections 区间数组在 iOS 由 buildCourseInfos 内联
+    #   Array(startNode...(startNode+step-1)) 直接产出
+    'intRangeJson': 'Array(normalized.startNode',
 }
 
 PLATFORM_EXEMPT = {
