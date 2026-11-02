@@ -59,6 +59,7 @@
 		1090E91F815A223E47CFD718 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 517FEA6516EE11E941115E90 /* PrivacyInfo.xcprivacy */; };
 		109E3E18679D4DEDA57A1C98 /* PinyinMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 690DF83E91E199DFE66F9756 /* PinyinMatcher.swift */; };
 		10D9CFAD96128961F82A2FCE /* WidgetCompactHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 945AE1E7D6D417CE3FBD4C89 /* WidgetCompactHelpers.swift */; };
+		10E749AF05144AF2D09A4EB6 /* WidgetGalleryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FCF63330F56FEE242126B7 /* WidgetGalleryData.swift */; };
 		118C9D479FCCF165698AFD84 /* HolidayReminderPolicyAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C64B8C9F20602B582D6F22 /* HolidayReminderPolicyAdapterTests.swift */; };
 		119BD2A197427B16582217AD /* school_cities.json in Resources */ = {isa = PBXBuildFile; fileRef = 6033BE02095EB53FC165FEAC /* school_cities.json */; };
 		11D7A6FEAD0AED19CF03111F /* SleepyNativeFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397DC86E9AB0B03EE79461D2 /* SleepyNativeFormatTests.swift */; };
@@ -388,6 +389,7 @@
 		78F8EFCEC7BFB8B1C167F0BA /* ConflictDetailWeekScopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A86C9A205FB6D008F11A52 /* ConflictDetailWeekScopeTests.swift */; };
 		793384D8A98170D9837B9858 /* ReminderPermissionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8DFDCCD1C8491943A7FD52 /* ReminderPermissionUITests.swift */; };
 		793FA69622AF8460F92F88AB /* SleepyWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 808431739643CC9DF6D6126D /* SleepyWatchApp.swift */; };
+		7952DF9FF657ABE6875CD6E2 /* WidgetGalleryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FCF63330F56FEE242126B7 /* WidgetGalleryData.swift */; };
 		799157EED3EEFCA74C65EA68 /* WatchSyncSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10EAB15CF44A3E2DD61E368 /* WatchSyncSnapshot.swift */; };
 		7A2479827C12B873C2E406FC /* SystemAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F250CC5FA013950C3E50E5E /* SystemAppearance.swift */; };
 		7A9CAF646E93CD1D95292400 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B945AD465F81AFC535B658B /* NotificationScheduler.swift */; };
@@ -459,6 +461,7 @@
 		929B66661B3FDFDA3483E563 /* SchoolLocationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B6F574D4104631810ED34D /* SchoolLocationPolicyTests.swift */; };
 		92F5FBC94FF2A739A0980E4E /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */; };
 		93F1C8A6717A8342C06F9832 /* CalendarImportRecordDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8A83BDF70AF60240387895 /* CalendarImportRecordDao.swift */; };
+		94C782E0DD98EF5B54FF72D8 /* WidgetGalleryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FCF63330F56FEE242126B7 /* WidgetGalleryData.swift */; };
 		94E323D67EBC057F143C54A4 /* WidgetVendorActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95FC3092F0599DF4E35D564E /* WidgetVendorActions.swift */; };
 		955AA3AAA68DB122F123785B /* CourseColorUtilTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F19B09B9CF4562AD9450D43 /* CourseColorUtilTests.swift */; };
 		957652CBC786AA65FDF15CCD /* JwQzVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A552952CA5208B8A961BF4 /* JwQzVariants.swift */; };
@@ -540,6 +543,7 @@
 		B42EF2BAA233D8C579CA4347 /* CourseColorEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B67A4A0964C245B289B5EE /* CourseColorEntity.swift */; };
 		B460C3CBB7055E64EE7187E5 /* HolidayTransferHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FAF9304707FC68029AD02F /* HolidayTransferHelper.swift */; };
 		B4ACEF6476B50F05AA6975B6 /* JwNewUrpParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE7E49A169E2B9312B44369 /* JwNewUrpParserTests.swift */; };
+		B55B8ACFD1834BE3A590440D /* WidgetGalleryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FCF63330F56FEE242126B7 /* WidgetGalleryData.swift */; };
 		B5CFFB98AB5D7E7BC9801B84 /* SleepyNativeExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DDC1DB2898102E2021052B3 /* SleepyNativeExporterTests.swift */; };
 		B618F0EA7C5E645958A78CF6 /* SchoolLocationLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0019194E612B127ADA12CF26 /* SchoolLocationLookupTests.swift */; };
 		B65064E11BAFEA92D191DEE4 /* JwClassicEamsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3F6B5708FBF3585FFE2EC2 /* JwClassicEamsParser.swift */; };
@@ -556,6 +560,7 @@
 		B92AA819E746F356382EE0D6 /* JwUcasParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FD5A52D7EC60F78D92780AF /* JwUcasParser.swift */; };
 		B946F93F767DE214C2567E03 /* WatchPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = B74E99119576AF81E6F6A973 /* WatchPalette.swift */; };
 		B97DD574CBBD426AFB4CDB21 /* WeekRangeOverlap.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8C75554581BE8C26C81B68 /* WeekRangeOverlap.swift */; };
+		B9AD5C163D32ED432392B809 /* WidgetSettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B0AA7A7A590FC36AAAE7D0 /* WidgetSettingsScreen.swift */; };
 		B9F2E54ACCFF7426F9E03EDD /* TimetableViewportPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AD1DB72537D5FB202ADBE25 /* TimetableViewportPolicy.swift */; };
 		BA0886BFD5285B9F2ED4B736 /* BackgroundReliabilityProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A2B9F752990795A5BDC657 /* BackgroundReliabilityProbe.swift */; };
 		BA253B767724470F76B002E5 /* VendorCapabilityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88DDC15915916194A673803 /* VendorCapabilityState.swift */; };
@@ -740,6 +745,7 @@
 		F90AF82583153D795EF0668B /* TwoDayWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52AFD49A9FA76836199F06A /* TwoDayWidgetView.swift */; };
 		F91FD1BE5DB449D2BEE5E54E /* JwParserRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26CF08C9ED257788E53D0309 /* JwParserRegistry.swift */; };
 		F97D2E9F0FC4D16AD6A5B47C /* MigrationPrefsCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35B9FB6B04AC8792BDE0F5C7 /* MigrationPrefsCodec.swift */; };
+		F9C140CA4D66E00163D46D71 /* WidgetGalleryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CAD2798811A61E5A2ED8F2C /* WidgetGalleryScreen.swift */; };
 		FA6FA833DC3CAD28F1C2B656 /* VendorCapabilityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88DDC15915916194A673803 /* VendorCapabilityState.swift */; };
 		FAB9B2708140EE98876A75A0 /* CourseDisplayUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = E451AD795407D5BA73BD0A6B /* CourseDisplayUtil.swift */; };
 		FB63563BAAF964DF077FA5B1 /* AppGroupResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */; };
@@ -867,6 +873,7 @@
 		15BE292C937E404C09480DA2 /* JwDiagnosticSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwDiagnosticSession.swift; sourceTree = "<group>"; };
 		15DCA636E9FBBAFF5CEB6B16 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		166C8FB4895B9F8ACF079DDD /* JwQzParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzParser.swift; sourceTree = "<group>"; };
+		16B0AA7A7A590FC36AAAE7D0 /* WidgetSettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSettingsScreen.swift; sourceTree = "<group>"; };
 		16DE9B51955EBD571182B827 /* ImportDraftDao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportDraftDao.swift; sourceTree = "<group>"; };
 		16FAF9304707FC68029AD02F /* HolidayTransferHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayTransferHelper.swift; sourceTree = "<group>"; };
 		181CB1537E2A755C1003C417 /* JwFetchJs2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwFetchJs2.swift; sourceTree = "<group>"; };
@@ -964,6 +971,7 @@
 		4B72E006270ED69703F906F4 /* ThemePresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePresets.swift; sourceTree = "<group>"; };
 		4B8F322DCB1C5CF622C99C11 /* JwParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParserTests.swift; sourceTree = "<group>"; };
 		4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseEntity.swift; sourceTree = "<group>"; };
+		4CAD2798811A61E5A2ED8F2C /* WidgetGalleryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGalleryScreen.swift; sourceTree = "<group>"; };
 		4D83A7A25FAA92EB0300C64A /* Ics28NeuPeriodsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ics28NeuPeriodsTests.swift; sourceTree = "<group>"; };
 		4DC15F72A71D1DC1C3370D6F /* PeriodTableDao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeriodTableDao.swift; sourceTree = "<group>"; };
 		4E82A553EBD1D0C8456D3011 /* SleepyPlaceholderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyPlaceholderTests.swift; sourceTree = "<group>"; };
@@ -1215,6 +1223,7 @@
 		E7717787BC54237EC484E5E5 /* JwBoyaPpParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwBoyaPpParserTests.swift; sourceTree = "<group>"; };
 		E863D5E148DA13657A66F19F /* WidgetScrollStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetScrollStore.swift; sourceTree = "<group>"; };
 		E9C683580CF237672D635028 /* WeekView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekView.swift; sourceTree = "<group>"; };
+		E9FCF63330F56FEE242126B7 /* WidgetGalleryData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGalleryData.swift; sourceTree = "<group>"; };
 		EAA351FA5E1B5313277092F1 /* WebViewNavigationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewNavigationPolicyTests.swift; sourceTree = "<group>"; };
 		EB16BBC06209972B0E6B63A1 /* AllTablesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllTablesScreen.swift; sourceTree = "<group>"; };
 		EB8C75554581BE8C26C81B68 /* WeekRangeOverlap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekRangeOverlap.swift; sourceTree = "<group>"; };
@@ -1552,6 +1561,7 @@
 				5ACF85CE927A56FE05B7CABB /* WidgetCourseCard.swift */,
 				B445492F562DDC2A16B5171D /* WidgetDataLoaders.swift */,
 				4619533148AC3370B5605611 /* WidgetEditViewModel.swift */,
+				E9FCF63330F56FEE242126B7 /* WidgetGalleryData.swift */,
 				94B6495A761202081C7C1888 /* WidgetResizeCore.swift */,
 				E863D5E148DA13657A66F19F /* WidgetScrollStore.swift */,
 				C7667DFB68961DD43C9A9A5D /* WidgetSizeCore.swift */,
@@ -1910,6 +1920,7 @@
 				713C016B6B2A7FCBBE0600AE /* ScheduleConflictBottomSheet.swift */,
 				C221BBAE2EEB506EF4E1D090 /* ScheduleDisplayScreen.swift */,
 				FAD2BE655E5EFE5F39CF6283 /* UpdateChangelogDialog.swift */,
+				16B0AA7A7A590FC36AAAE7D0 /* WidgetSettingsScreen.swift */,
 			);
 			path = mine;
 			sourceTree = "<group>";
@@ -2000,6 +2011,7 @@
 			isa = PBXGroup;
 			children = (
 				CD353A49838BDA61A2D6C1C3 /* WidgetEditScreen.swift */,
+				4CAD2798811A61E5A2ED8F2C /* WidgetGalleryScreen.swift */,
 				58603B4EDA2A13DB3DE29C0F /* WidgetManagementScreen.swift */,
 			);
 			path = widget;
@@ -2375,6 +2387,7 @@
 				3ACCEFDB8725C0B271811D0E /* WidgetBindingStore.swift in Sources */,
 				760B8B1DFA4B989E2C8B3A45 /* WidgetContent.swift in Sources */,
 				667CA00AB4F16A7952386049 /* WidgetDataLoaders.swift in Sources */,
+				7952DF9FF657ABE6875CD6E2 /* WidgetGalleryData.swift in Sources */,
 				20FD6BEEE6E36C3784DD15A9 /* WidgetTableResolver.swift in Sources */,
 				167687F6D2D28F158D5F50FE /* WidgetVariantInfo.swift in Sources */,
 				B1717BF470AC4DBA9FE176B3 /* WidgetWeekSource.swift in Sources */,
@@ -2610,9 +2623,12 @@
 				0622AA30976E2A962861F9AA /* WidgetDataLoaders.swift in Sources */,
 				7092158F8080ED44A91163D3 /* WidgetEditScreen.swift in Sources */,
 				03C4615F85A3182AB96D8BD3 /* WidgetEditViewModel.swift in Sources */,
+				10E749AF05144AF2D09A4EB6 /* WidgetGalleryData.swift in Sources */,
+				F9C140CA4D66E00163D46D71 /* WidgetGalleryScreen.swift in Sources */,
 				7CE5CBEFDDECCCE4C23E9AC5 /* WidgetManagementScreen.swift in Sources */,
 				57411C0CEB1EA1BD8B5D199A /* WidgetResizeCore.swift in Sources */,
 				4AE70CB674F0E57B96A92C94 /* WidgetScrollStore.swift in Sources */,
+				B9AD5C163D32ED432392B809 /* WidgetSettingsScreen.swift in Sources */,
 				45E85F9CE80185D47240DF4A /* WidgetSizeCore.swift in Sources */,
 				08BEFCDFB15D26CC79E26E52 /* WidgetTableResolver.swift in Sources */,
 				297A14B9B2B2A08AB2F8BC49 /* WidgetTextWrap.swift in Sources */,
@@ -2804,6 +2820,7 @@
 				6E05CDFBB3E25A4B6BB095C9 /* WidgetCourseCard.swift in Sources */,
 				CF4775FD01AE97CE9C594347 /* WidgetDataLoaders.swift in Sources */,
 				DA915F3BE57A674BDBB94F20 /* WidgetEditViewModel.swift in Sources */,
+				B55B8ACFD1834BE3A590440D /* WidgetGalleryData.swift in Sources */,
 				8824B6B9A71D1228E3B3FA3C /* WidgetResizeCore.swift in Sources */,
 				1D4043F77A7E026C5EABF415 /* WidgetScrollStore.swift in Sources */,
 				7DF4A56820FE431BC73708C7 /* WidgetSizeCore.swift in Sources */,
@@ -3018,6 +3035,7 @@
 				656B92D8C96921200777C5F8 /* WidgetBindingStore.swift in Sources */,
 				41E4CB66648841DF940050C0 /* WidgetContent.swift in Sources */,
 				98A433888141B39883E37167 /* WidgetDataLoaders.swift in Sources */,
+				94C782E0DD98EF5B54FF72D8 /* WidgetGalleryData.swift in Sources */,
 				0125DED554B59AC745DC043E /* WidgetTableResolver.swift in Sources */,
 				87748876653D7029B041AF5C /* WidgetVariantInfo.swift in Sources */,
 				C3C2F1C25CAA9ACCEB170607 /* WidgetWeekSource.swift in Sources */,

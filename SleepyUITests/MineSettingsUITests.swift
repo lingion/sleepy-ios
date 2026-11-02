@@ -1,5 +1,5 @@
 // MineSettingsUITests.swift — G5+ 我的页设置全交互面测试
-// 覆盖: Mine 刷新小组件按钮(带 snackbar) + AllTables(切表/编辑入口/新建) +
+// 覆盖: Mine 小组件入口(独立页) + 画廊可达 + AllTables(切表/编辑入口/新建) +
 //       Appearance(系统主题卡 + 3 态模式分段 + 预设网格) + General(5 张设置卡
 //       展开收起 + 每卡内选项/开关 + 周可见日 7 行 + 语言 5 项) + Export(3 格式) +
 //       Reminder(总开关 + 子开关 + 时间选择) + About(检查更新按钮)。
@@ -86,16 +86,42 @@ final class MineSettingsUITests: XCTestCase {
         opt.tap()
     }
 
-    // MARK: 刷新小组件按钮 + snackbar 反馈
+    // MARK: 小组件设置独立页 + 画廊(v1.0.62 B4)
+    //   刷新按钮自「我的」页迁入小组件设置独立页(仅桌面已有实例时出现, 种子环境
+    //   无已放置实例 → 按钮不渲染, 旧 testRefreshWidgetsButtonShowsSnackbar 失效),
+    //   由下面两条冒烟接替: 入口可达性 ×2。
 
-    func testRefreshWidgetsButtonShowsSnackbar() {
-        let refreshBtn = app.descendants(matching: .any)["mine_refresh_widgets"]
-        XCTAssertTrue(refreshBtn.waitForExistence(timeout: 3))
-        refreshBtn.tap()
-        // snackbar 2.5s 停留 — 用 descendants 锚点(与 MineScreen.mine_snackbar 对齐)
-        let snackbar = app.descendants(matching: .any)["mine_snackbar"]
-        XCTAssertTrue(snackbar.waitForExistence(timeout: 3),
-                      "点刷新应弹 snackbar")
+    /// ①「我的」页 mine_widget 入口 → 小组件设置独立页可达。
+    ///    断言锚点取页内独有的 settings_widget_manage_entry(与 locale 无关)。
+    func testMineWidgetEntryOpensWidgetSettings() {
+        let entry = app.descendants(matching: .any)["mine_widget"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 3), "「我的」页应有 mine_widget 入口")
+        XCTAssertTrue(scrollUntil(entry), "mine_widget 入口应能滚入视口")
+        entry.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["settings_widget_manage_entry"]
+                          .waitForExistence(timeout: 5),
+                      "点 mine_widget 应打开小组件设置独立页")
+    }
+
+    /// ② 设置页管理入口 → 管理页顶栏「＋」→ 画廊页可达。
+    ///    三级 fullScreenCover 叠放(Mine → WidgetSettings → Manage → Gallery),
+    ///    断言锚点 = 画廊卡 widget_gallery_card_<kind>(5 kind 随注册表, 前缀匹配)。
+    func testManageEntryAndPlusOpenGallery() {
+        let entry = app.descendants(matching: .any)["mine_widget"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 3))
+        XCTAssertTrue(scrollUntil(entry), "mine_widget 入口应能滚入视口")
+        entry.tap()
+        let manageEntry = app.descendants(matching: .any)["settings_widget_manage_entry"]
+        // 冷首启 fullScreenCover 首次呈现可 >5s(时序 flake, 曾致 :115 偶发失败), 放宽到 10s
+        XCTAssertTrue(manageEntry.waitForExistence(timeout: 10), "小组件设置页应有管理入口")
+        manageEntry.tap()
+        let addBtn = app.descendants(matching: .any)["widget_gallery_add"]
+        XCTAssertTrue(addBtn.waitForExistence(timeout: 5), "管理页顶栏应有「＋」")
+        addBtn.tap()
+        let card = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'widget_gallery_card_'"))
+            .firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5), "点「＋」应打开添加小组件画廊页")
     }
 
     // MARK: All Schedules — 切表 / 编辑入口 / 新建按钮

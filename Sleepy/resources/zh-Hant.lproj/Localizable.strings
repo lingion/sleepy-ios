@@ -1088,3 +1088,11 @@
 "table_reminder_save_failed" = "儲存失敗，請重試";
 "edit_table_reminder_enable" = "本表參與提醒";
 "edit_table_reminder_desc" = "關閉後，本課表不再發送課前提醒、每日課表摘要與流體雲";
+
+/* ---- sleepy v1.0.62 B4 alignment ---- */
+"appearance_header_hide_time" = "隱藏時間列";
+"appearance_header_hide_time_sub" = "舊式表頭僅顯示節次，不顯示上課時間（實驗性，預設關閉）";
+"mine_widget" = "小工具";
+"widget_add_unsupported_hint" = "目前桌面不支援快捷新增,請長按桌面 → 小工具 → 選擇 Sleepy。";
+"widget_gallery_title" = "新增小工具";
+"widget_manage_empty_v2" = "點右上角 ＋ 新增小工具;若桌面不支援快捷新增,請長按桌面 → 小工具 → 選擇 Sleepy。";

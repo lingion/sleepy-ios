@@ -1,8 +1,9 @@
 // MineScreen.swift — ← ui/screen/mine/MineScreen.kt
-// 我的页: 标题 + 数据统计卡(表/课/周) + 6 设置导航项 + 刷新小组件按钮(snackbar 反馈)。
+// 我的页: 标题 + 数据统计卡(表/课/周) + 7 设置导航项。
+// v1.0.62 B4 (+36 对齐): 新增「小组件」入口行(→ WidgetSettingsScreen 独立页);
+//   「刷新所有小组件」按钮 + snackbar 自本页迁出(动作随 widget 块移入设置页)。
 
 import SwiftUI
-import WidgetKit
 
 struct MineScreen: View {
     @Environment(\.localWakeUpColors) private var colors
@@ -17,7 +18,9 @@ struct MineScreen: View {
     var onOpenReminder: () -> Void = {}
     var onOpenAbout: () -> Void = {}
 
-    @State private var snackMessage: String? = nil
+    // v1.0.62 B4: 「小组件」入口 → WidgetSettingsScreen(内嵌 cover 链,
+    //   与 holiday/widgetManagement 同款惯例, 无根 overlay 承载)
+    @State private var showWidgetSettings = false
 
     var body: some View {
         let state = viewModel.state
@@ -47,28 +50,8 @@ struct MineScreen: View {
                 SettingsNavList(onOpenAllTables: onOpenAllTables, onOpenPeriodTables: onOpenPeriodTables,
                                 onOpenExport: onOpenExport,
                                 onOpenReminder: onOpenReminder, onOpenAppearance: onOpenAppearance,
-                                onOpenGeneral: onOpenGeneral, onOpenAbout: onOpenAbout)
-
-                // 动作区: 刷新所有小组件
-                Button {
-                    // ← WidgetUpdater.notifyDataChanged → WidgetCenter.reloadAllTimelines
-                    WidgetCenter.shared.reloadAllTimelines()
-                    snackMessage = L10n.format("mine_refresh_widgets_done")
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 24))   // ← Android Icon 默认 24dp
-                        Text(L10n.format("mine_refresh_widgets"))
-                            .font(.system(size: 14, weight: .medium))   // ← labelLarge 14 Medium
-                    }
-                    .foregroundColor(colors.onSecondaryContainer)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(colors.secondaryContainer)
-                    .cornerRadius(SleepyShapes.large)
-                }
-                .buttonStyle(SleepyButtonStyle())
-                .accessibilityIdentifier("mine_refresh_widgets")
+                                onOpenGeneral: onOpenGeneral, onOpenAbout: onOpenAbout,
+                                onOpenWidgetSettings: { showWidgetSettings = true })
 
                 // Widget 归档诊断钩子: UI 测试 runner 无 App Group 权限读
                 // widget_archive.log, 由 app 进程(有权限)把日志内容透出到
@@ -86,35 +69,9 @@ struct MineScreen: View {
             .padding(.bottom, navExtra)
         }
         .background(colors.background)
-        .overlay(alignment: .bottom) {
-            if let msg = snackMessage {
-                Text(msg)
-                    .font(.system(size: 14)) // ← Android Snackbar bodyMedium 14
-                    .accessibilityIdentifier("mine_snackbar")   // ← G5: 镜像 ExportScreen export_snackbar
-                    .foregroundColor(colors.onSurface)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(colors.surfaceContainerHighest)
-                    .cornerRadius(8)
-                    // 避让悬浮药丸导航栏: 本 overlay 挂在 ScrollView 上, 而
-                    // localNavExtraBottomPadding 只注入 floating 分支的 ZStack —
-                    // docked 模式 env 默认 0 → padding 12 会落进贴底 bar 区
-                    // (y742-806) 被吞, mine_snackbar 永不可达(2026-10-24 串行
-                    // run + probe 实证)。与 ExportScreen/AboutScreen 同式读
-                    // DockSpec 常量, 两模式都不遮挡。
-                    .padding(.bottom, DockSpec.capsuleHeight + DockSpec.bottomFloat + 12)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .task(id: msg) {
-                        // ← 2.5s: 与 iOS 镜像同族页(AboutScreen/ExportScreen 等)的统一停留时长。
-                        // UI 测试态延到 6s(← ExportScreen 同款): 串行套件下快照延迟
-                        // 会错过 2.5s 存活窗口(2026-10-24 probe 实证 tap→首查 >4s)。
-                        let life: Double = ProcessInfo.processInfo.arguments
-                            .contains("-SLEEPY_UI_TEST_SEED") ? 6 : 2.5
-                        try? await Task.sleep(nanoseconds: UInt64(life * 1_000_000_000))
-                        guard !Task.isCancelled else { return }
-                        withAnimation { snackMessage = nil }
-                    }
-            }
+        // v1.0.62 B4: 小组件设置页 cover(与 GeneralSettings→WidgetManagement 链同款惯例)
+        .fullScreenCover(isPresented: $showWidgetSettings) {
+            WidgetSettingsScreen(onDismiss: { showWidgetSettings = false })
         }
     }
 
@@ -259,6 +216,9 @@ private struct SettingsNavList: View {
     let onOpenAppearance: () -> Void
     let onOpenGeneral: () -> Void
     let onOpenAbout: () -> Void
+    // v1.0.62 B4: 「小组件」入口行(Android MineScreen +36: Widgets 图标项,
+    //   插在「通用」与「关于」之间)
+    let onOpenWidgetSettings: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -276,7 +236,7 @@ private struct SettingsNavList: View {
                          identifier: "mine_reminder", onClick: onOpenReminder)
             HDivider()
             SettingsNavListB(onOpenAppearance: onOpenAppearance, onOpenGeneral: onOpenGeneral,
-                             onOpenAbout: onOpenAbout)
+                             onOpenAbout: onOpenAbout, onOpenWidgetSettings: onOpenWidgetSettings)
         }
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyShapes.large)
@@ -290,6 +250,7 @@ private struct SettingsNavListB: View {
     let onOpenAppearance: () -> Void
     let onOpenGeneral: () -> Void
     let onOpenAbout: () -> Void
+    let onOpenWidgetSettings: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -298,6 +259,11 @@ private struct SettingsNavListB: View {
             HDivider()
             SettingsItem(icon: "slider.horizontal.3", label: L10n.format("mine_general"),
                          identifier: "mine_general", onClick: onOpenGeneral)
+            HDivider()
+            // v1.0.62 B4: 小组件入口(← Icons.Outlined.Widgets; iOS 无同名 SF Symbol,
+            //   取同义 2×2 方格网格 — Android Widgets 图标即 2×2 方块)
+            SettingsItem(icon: "square.grid.2x2", label: L10n.format("mine_widget"),
+                         identifier: "mine_widget", onClick: onOpenWidgetSettings)
             HDivider()
             SettingsItem(icon: "info.circle", label: L10n.format("about_title"),
                          identifier: "mine_about", onClick: onOpenAbout,

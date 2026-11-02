@@ -1088,3 +1088,11 @@
 "table_reminder_save_failed" = "No se pudo guardar. Inténtalo de nuevo.";
 "edit_table_reminder_enable" = "Recordatorios de este horario";
 "edit_table_reminder_desc" = "Al desactivarlo, este horario deja de enviar avisos previos, resúmenes diarios y nube fluida";
+
+/* ---- sleepy v1.0.62 B4 alignment ---- */
+"appearance_header_hide_time" = "Ocultar fila de hora";
+"appearance_header_hide_time_sub" = "Solo el número de periodo en el encabezado clásico (experimental, desactivado)";
+"mine_widget" = "Widgets";
+"widget_add_unsupported_hint" = "Este lanzador no admite el añadido rápido. Mantén pulsado el inicio → Widgets → elige Sleepy.";
+"widget_gallery_title" = "Añadir widget";
+"widget_manage_empty_v2" = "Toca + arriba a la derecha para añadir un widget. Si tu lanzador no admite el añadido rápido, mantén pulsado el inicio → Widgets → elige Sleepy.";

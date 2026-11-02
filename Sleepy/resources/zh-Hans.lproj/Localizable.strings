@@ -1089,3 +1089,11 @@
 "table_reminder_save_failed" = "保存失败，请重试";
 "edit_table_reminder_enable" = "本表参与提醒";
 "edit_table_reminder_desc" = "关闭后，本课表不再发送课前提醒、每日课表摘要与流体云";
+
+/* ---- sleepy v1.0.62 B4 alignment ---- */
+"appearance_header_hide_time" = "隐藏时间行";
+"appearance_header_hide_time_sub" = "旧式表头只显示节次，不显示上课时间（实验性，默认关闭）";
+"mine_widget" = "小组件";
+"widget_add_unsupported_hint" = "当前桌面不支持快捷添加,请长按桌面 → 小组件 → 选 Sleepy。";
+"widget_gallery_title" = "添加小组件";
+"widget_manage_empty_v2" = "点右上角 ＋ 添加小组件;桌面不支持快捷添加时,长按桌面 → 小组件 → 选 Sleepy。";

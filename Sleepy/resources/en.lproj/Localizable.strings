@@ -1088,3 +1088,11 @@
 "table_reminder_save_failed" = "Could not save. Please try again.";
 "edit_table_reminder_enable" = "Reminders for this table";
 "edit_table_reminder_desc" = "When off, this table stops sending pre-class reminders, daily summaries and fluid cloud";
+
+/* ---- sleepy v1.0.62 B4 alignment ---- */
+"appearance_header_hide_time" = "Hide time row";
+"appearance_header_hide_time_sub" = "Show only period numbers in the legacy header (experimental, off by default)";
+"mine_widget" = "Widgets";
+"widget_add_unsupported_hint" = "This launcher does not support quick add. Long-press the home screen → Widgets → pick Sleepy.";
+"widget_gallery_title" = "Add Widget";
+"widget_manage_empty_v2" = "Tap + at the top right to add a widget. If your launcher does not support quick add, long-press the home screen → Widgets → pick Sleepy.";

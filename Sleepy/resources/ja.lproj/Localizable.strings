@@ -1088,3 +1088,11 @@
 "table_reminder_save_failed" = "保存できませんでした。もう一度お試しください。";
 "edit_table_reminder_enable" = "この時間割を通知";
 "edit_table_reminder_desc" = "オフにすると、この時間割の课前リマインダー・日課表サマリー・フローティングクラウドは送信されません";
+
+/* ---- sleepy v1.0.62 B4 alignment ---- */
+"appearance_header_hide_time" = "時間行を表示しない";
+"appearance_header_hide_time_sub" = "旧式ヘッダーで限のみ表示（実験的、デフォルト OFF）";
+"mine_widget" = "ウィジェット";
+"widget_add_unsupported_hint" = "このランチャーはクイック追加に対応していません。ホーム画面を長押し → ウィジェット → Sleepy を選択してください。";
+"widget_gallery_title" = "ウィジェットを追加";
+"widget_manage_empty_v2" = "右上の＋からウィジェットを追加できます。クイック追加非対応のランチャーでは、ホーム画面を長押し → ウィジェット → Sleepy を選択してください。";
