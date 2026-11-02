@@ -146,6 +146,15 @@ final class JwImportViewModel: ObservableObject {
                 return try parseHtmlStatic(html, JwProtocol.TYPE_SCAU)
             }
         }
+        // ← kt:266-272 ECUPL Script 子协议覆盖: 目录条目登记的是 CLASSIC_EAMS,
+        // 但页面是 script 形态 (CourseTable 分钟矩阵 + 八参 newActivity +
+        // addActivityByTime) 时改走 ECUPL_SCRIPT, classic EAMS 解析不出课。
+        if protocolType == JwProtocol.TYPE_CLASSIC_EAMS,
+           JwEcuplScriptParser.firstMatch(JwEcuplScriptParser.reCourseTable, html) != nil,
+           JwEcuplScriptParser.firstMatch(JwEcuplScriptParser.reNewActivity8, html) != nil,
+           html.contains("addActivityByTime(") {
+            return try parseHtmlStatic(html, JwProtocol.TYPE_ECUPL_SCRIPT)
+        }
         guard let parser = try? JwParserRegistry.parserFor(protocolType, html) else {
             // 已知 type 不在工厂表: 包装 JwParseError 给 T9 分类
             throw JwParseError(
@@ -261,6 +270,13 @@ final class JwImportViewModel: ObservableObject {
             || u.contains("kust.edu.cn")
             || u.contains("kmust.edu.cn") { return JwProtocol.TYPE_KUST }
         if u.contains("byxt.buaa.edu.cn") { return JwProtocol.TYPE_NEU }
+
+        // 清华选课系统独立主机; 仅业务域判型, oauth 门户页仍走上方网关守卫 ← kt:394-395
+        // ★ Kotlin u.matches() = 全串匹配 → ^…$ 锚定 (同 CQU/YETHAN 规则)
+        if u.range(of: #"^https?://zhjwxk\.cic\.tsinghua\.edu\.cn(/.*)?$"#, options: .regularExpression) != nil {
+            return JwProtocol.TYPE_THU
+        }
+
         if u.contains("/jwapp/") { return JwProtocol.TYPE_WISEDU }
 
         // ①a classic EAMS — server-rendered course table entry points (← kt:387-390).
@@ -414,6 +430,13 @@ final class JwImportViewModel: ObservableObject {
         // ⑤ WISEDU — 业务回调路径
         if lower.contains("/jwapp/sys/")
             || (lower.contains("authserver/login") && lower.contains("execution=")) { return JwProtocol.TYPE_WISEDU }
+
+        // ⑤ NEW_URP_SUPER — flat JSON 数组 + skzc 位图变体; 必须先于 URP_NEW
+        //    的 SM3 锚点 (课表 JSON 同页可能带 urpnova 脚本) ← kt:545-547
+        if lower.contains("\"skzc\"") && lower.contains("\"kcm\""),
+           JwNewUrpSuperParser(html).hasFlatArraySchema() {
+            return JwProtocol.TYPE_NEW_URP_SUPER
+        }
 
         // ⑤ URP_NEW — SM3 加密资源 + URPNova
         if lower.contains("/js/sm3/")

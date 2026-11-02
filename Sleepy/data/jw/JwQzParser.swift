@@ -118,6 +118,12 @@ class JwQzParser: JwParser, JwParserConfidenceReporting {
     func generateCourseList() throws -> [JwCourse] {
         var courseList: [JwCourse] = []
         guard let doc = try? SwiftSoup.parse(source) else { return courseList }
+        // v1.0.62: 新强智版式 (NNNU) 用显式分节 + 精细 #timetable 视图;
+        // 无 #kbtable 但有 table#timetable .kbcontent 时委托 JwQzTimetableParser。
+        if ((try? doc.getElementById("kbtable")) ?? nil) == nil,
+           ((try? doc.select("table#timetable .kbcontent").first()) ?? nil) != nil {
+            return try JwQzTimetableParser(source).generateCourseList()
+        }
         // T8: 找不到 #kbtable 抛 JwParseError(NO_TABLE_CONTAINER_MARKER)
         //   而不是静默 return courseList. 让 T9 区分"协议选错"和"课表页为空".
         guard let kbTable = (try? doc.getElementById("kbtable")) ?? nil else {
@@ -182,6 +188,10 @@ class JwQzParser: JwParser, JwParserConfidenceReporting {
     var confidenceValue: Int {
         guard let doc = try? SwiftSoup.parse(source) else { return 0 }
         guard let kbtable = (try? doc.getElementById("kbtable")) ?? nil else { return 0 }
+        // v1.0.62: #timetable 视图 (新强智) — 周次(节次) 列锚点即满分。
+        if ((try? doc.select("table#timetable .kbcontent [title='周次(节次)']").first()) ?? nil) != nil {
+            return 100
+        }
         let fontCount = ((try? doc.getElementsByAttributeValue("title", "老师").size()) ?? 0)
             + ((try? doc.getElementsByAttributeValue("title", "教师").size()) ?? 0)
             + ((try? doc.getElementsByAttributeValue("title", "教室").size()) ?? 0)
@@ -200,6 +210,7 @@ class JwQzParser: JwParser, JwParserConfidenceReporting {
         if ((try? doc.getElementsByAttributeValue("title", "教师")) ?? Elements()).isEmpty() == false { out.append("title=教师") }
         if ((try? doc.getElementsByAttributeValue("title", "教室")) ?? Elements()).isEmpty() == false { out.append("title=教室") }
         if ((try? doc.getElementsByAttributeValue("title", "周次(节次)")) ?? Elements()).isEmpty() == false { out.append("title=周次(节次)") }
+        if ((try? doc.select("table#timetable .kbcontent").first()) ?? nil) != nil { out.append("id=timetable") }
         return out
     }
 }

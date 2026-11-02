@@ -48,14 +48,19 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
         var result: [JwCourse] = []
 
         // 1. 从 HTML 里抠出 JSON 字符串
-        guard let jsonText = Self.extractJsonFromHtml(source) else { return result }
+        // v1.0.62: 三处形状不符回退 JwNewUrpSuperParser (flat-array/skzc 位图变体)
+        guard let jsonText = Self.extractJsonFromHtml(source) else {
+            return try JwNewUrpSuperParser(source).generateCourseList()
+        }
 
         // 2. 解析 JSON
         guard let data = jsonText.data(using: .utf8),
               let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-            return result
+            return try JwNewUrpSuperParser(source).generateCourseList()
         }
-        guard let dateList = root["dateList"] as? [Any] else { return result }
+        guard let dateList = root["dateList"] as? [Any] else {
+            return try JwNewUrpSuperParser(source).generateCourseList()
+        }
         if dateList.isEmpty { return result }
 
         // ← Android dateList.getJSONObject(0): 元素非对象时抛异常(不静默吞)
@@ -170,6 +175,10 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
     }
 
     private static func parseWeekBits(_ s: String) -> [Int] {
+        // v1.0.62: 位图护栏 — 空/超长/含非 0-1 字符一律空 (防脏数据伪周次)
+        if s.isEmpty || s.count > 60 || s.contains(where: { $0 != "0" && $0 != "1" }) {
+            return []
+        }
         var out: [Int] = []
         for (i, c) in s.enumerated() where c == "1" {
             out.append(i + 1)
@@ -199,9 +208,11 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
                     i = k + 1
                 case 2:
                     // 奇数开头→单周;偶数开头→双周
-                    // ← Kotlin: 循环前不给 end 赋值(2 元素段 end 保持 = start)
+                    // v1.0.62: 循环前 end 先落到 weeks[k] — 2 元素段
+                    // (while 不进) 的 end 不再停留在 start。
                     step = 2
                     var k = i + 1
+                    end = weeks[k]
                     while k + 1 < weeks.count && weeks[k + 1] - weeks[k] == 2 { k += 1; end = weeks[k] }
                     let type = start % 2 != 0 ? 1 : 2
                     i = k + 1

@@ -20,7 +20,7 @@ import SwiftSoup
 
 enum WakeUpCompat {
 
-    // 入口: JSON 课表 → JZ 兼容 JSON → JzHtml → marked table → plain CSV
+    // 入口: JSON 课表 → JZ 兼容 JSON → JzSuper(2026-10) → JzHtml → marked table → plain CSV
     static func parse(_ source: String, markers: Set<String>, jsonHint: Bool = false) -> [JwCourse] {
         if let root = parseJson(source) {
             let r = parseJsonCourses(root)
@@ -28,6 +28,8 @@ enum WakeUpCompat {
             let jz = parseJzJson(root)
             if !jz.isEmpty { return jz }
         }
+        let jzSuper = parseJzSuper(source)
+        if !jzSuper.isEmpty { return jzSuper }
         let jzHtml = parseJzHtml(source)
         if !jzHtml.isEmpty { return jzHtml }
         let marked = parseMarkedTable(source, markers: markers)
@@ -997,6 +999,344 @@ extension WakeUpCompat {
     }
 }
 
+// MARK: - v1.0.62 B7a: JZ super / Kingo super (← JwWakeUpCompatParsers.kt:51/263)
+
+extension WakeUpCompat {
+
+    // — Kotlin 字符串/正则小工具 (文件内私有) —
+
+    fileprivate static func wakeTag(_ el: Element) -> String {
+        ((try? el.tagName()) ?? "").lowercased()
+    }
+    /// Kotlin text().trim() — 各调用点都紧跟 trim, 合并处理。
+    fileprivate static func wakeText(_ el: Element) -> String {
+        ((try? el.text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    fileprivate static func wakeTrim(_ s: String) -> String {
+        s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    fileprivate static func fragmentText(_ s: String) -> String {
+        let d = (try? SwiftSoup.parse(s)) ?? Document("")
+        return wakeTrim((try? d.text()) ?? "")
+    }
+    fileprivate static func wakeAttr(_ el: Element, _ key: String) -> String {
+        (try? el.attr(key)) ?? ""
+    }
+    /// Kotlin matchEntire: 全串命中返回捕获组(0=全串, 未参与组=""), 否则 nil。
+    fileprivate static func matchEntire(_ pattern: String, _ s: String) -> [String]? {
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let ns = s as NSString
+        let full = NSRange(location: 0, length: ns.length)
+        guard let m = re.firstMatch(in: s, options: [], range: full), m.range == full else { return nil }
+        return (0..<m.numberOfRanges).map { i -> String in
+            let r = m.range(at: i)
+            return r.location == NSNotFound ? "" : ns.substring(with: r)
+        }
+    }
+    static func containsMatch(_ pattern: String, _ s: String) -> Bool {
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return false }
+        let ns = s as NSString
+        return re.firstMatch(in: s, options: [], range: NSRange(location: 0, length: ns.length)) != nil
+    }
+    fileprivate static func reFirstGroup(_ pattern: String, _ s: String) -> String {
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return "" }
+        let ns = s as NSString
+        guard let m = re.firstMatch(in: s, options: [], range: NSRange(location: 0, length: ns.length)) else { return "" }
+        let r = m.range(at: 1)
+        return r.location == NSNotFound ? "" : ns.substring(with: r)
+    }
+    /// Kotlin Regex(pat).split — 空段保留(与 CharacterSet.split 不同)。
+    fileprivate static func wakeSplitRegex(_ s: String, _ pattern: String, ci: Bool = false) -> [String] {
+        guard let re = try? NSRegularExpression(pattern: pattern, options: ci ? [.caseInsensitive] : []) else { return [s] }
+        let ns = s as NSString
+        var parts: [String] = []
+        var last = 0
+        for m in re.matches(in: s, options: [], range: NSRange(location: 0, length: ns.length)) {
+            parts.append(ns.substring(with: NSRange(location: last, length: m.range.location - last)))
+            last = m.range.location + m.range.length
+        }
+        parts.append(ns.substring(from: last))
+        return parts
+    }
+    fileprivate static func wakeSplitAny(_ s: String, _ chars: [Character]) -> [String] {
+        s.split(whereSeparator: { chars.contains($0) }).map(String.init)
+    }
+    /// Kotlin substringBefore(c): 无分隔符返回全串。
+    fileprivate static func before(_ s: String, _ ch: Character) -> String {
+        guard let i = s.firstIndex(of: ch) else { return s }
+        return String(s[..<i])
+    }
+    /// Kotlin substringBefore(c, missing): 无分隔符返回 missing。
+    fileprivate static func before(_ s: String, _ ch: Character, _ missing: String) -> String {
+        guard let i = s.firstIndex(of: ch) else { return missing }
+        return String(s[..<i])
+    }
+    /// Kotlin substringAfter(c, ""): 无分隔符返回 ""。
+    fileprivate static func after(_ s: String, _ ch: Character) -> String {
+        guard let i = s.firstIndex(of: ch) else { return "" }
+        return String(s[s.index(after: i)...])
+    }
+    /// Kotlin substringAfter(c): 无分隔符返回全串。
+    fileprivate static func afterKeep(_ s: String, _ ch: Character) -> String {
+        guard let i = s.firstIndex(of: ch) else { return s }
+        return String(s[s.index(after: i)...])
+    }
+    /// Kotlin substringBeforeLast(c, missing): 无分隔符返回 missing。
+    fileprivate static func beforeLast(_ s: String, _ ch: Character, _ missing: String = "") -> String {
+        guard let i = s.lastIndex(of: ch) else { return missing }
+        return String(s[..<i])
+    }
+    fileprivate static func hasKingoTdGrid(_ source: String) -> Bool {
+        let doc = (try? SwiftSoup.parse(source)) ?? Document("")
+        return !((try? doc.select("table#mytable td.td")) ?? Elements()).isEmpty()
+    }
+
+    // — JZ super (新强智 Njw2017 SPA 2026-10) —
+
+    /// 新强智 Njw2017 SPA (2026-10) 主入口 — ← Kotlin parseJzSuper (JwWakeUpCompatParsers.kt:51)。
+    /// 容器 .el-table__body-wrapper; tbody 6 行 × 8 td (col0=节次标签, col1..7=周一..周日);
+    /// 格内 div[style] 含 position:relative 者为课程包装器, 8 子 div: [3]课名(前导*剥) [4]教师 [6]节次(周次) [7]教室。
+    static func parseJzSuper(_ source: String, errors: inout [String]) -> [JwCourse] {
+        let doc = (try? SwiftSoup.parse(source)) ?? Document("")
+        guard let wrapper = ((try? doc.select(".el-table__body-wrapper")) ?? Elements()).array().first() else {
+            errors.append("INV-MARKER-MISS 失败: 未找到 el-table__body-wrapper 容器 (新强智 Njw2017 SPA 主入口)")
+            return []
+        }
+        guard let body = ((try? wrapper.select("tbody")) ?? Elements()).array().first() else {
+            errors.append("INV-TBODY-MISS 失败: el-table__body-wrapper 缺 tbody")
+            return []
+        }
+        let rows = ((try? body.select("tr")) ?? Elements()).array()
+        if rows.isEmpty {
+            errors.append("INV-ROW-COUNT 失败: tbody 无 tr 行")
+            return []
+        }
+        if rows.count < 6 {
+            errors.append("INV-ROW-COUNT-WARN: tbody tr 数 \(rows.count) (<6 行, 仅用于单元测试)")
+        }
+        // 行 → 默认节次 (QZParser.java#getSectionStart 共识, 仅当 div[6] 不含「节」字时降级)
+        let defaultStartByRow = [1, 3, 6, 8, 10, 13]
+        let defaultEndByRow = [2, 5, 7, 9, 12, 15]
+        let reRowSection = "^([0-9]{1,2})(?:\\s*[-~至]\\s*([0-9]{1,2}))?节$"
+        let rePosition = "(?:^|;)\\s*position\\s*:\\s*relative\\s*(?:;|$)"
+        let reWeek = "^([0-9]{1,2})(?:\\s*[-~至]\\s*([0-9]{1,2}))?\\s*周?\\s*(单|双)?\\s*周?$"
+        var out: [JwCourse] = []
+        for (rowIdx, row) in rows.enumerated() {
+            let tds = ((try? row.children()) ?? Elements()).array().filter { wakeTag($0) == "td" }
+            if tds.count < 8 { continue } // 0=节次标签, 1..7=周一..周日
+            let rowLabel = wakeText(tds[0])
+            var rowSections: (Int, Int)? = nil
+            if let m = matchEntire(reRowSection, rowLabel), let f = Int(m[1]) {
+                let l = m[2].isEmpty ? f : (Int(m[2]) ?? f)
+                if f >= 1 && f <= 30 && l >= f && l <= 30 { rowSections = (f, l) }
+            } else if rowLabel.isEmpty, rows.count == 6, rowIdx < defaultStartByRow.count {
+                rowSections = (defaultStartByRow[rowIdx], defaultEndByRow[rowIdx])
+            }
+            for col in 1...7 {
+                let td = tds[col]
+                // INV-POSITION-WRAPPER: 用 div[style] 选出 position: relative 课程包装器
+                let wrappers = ((try? td.select("div[style]")) ?? Elements()).array()
+                    .filter { containsMatch(rePosition, wakeAttr($0, "style")) }
+                for wrapperEl in wrappers {
+                    let info = ((try? wrapperEl.children()) ?? Elements()).array().filter { wakeTag($0) == "div" }
+                    if info.count < 8 { continue } // 8 字段包装器(实测), 不足视为非课程包装器
+                    let nameRaw = wakeText(info[3])
+                    if nameRaw.isEmpty { continue }
+                    // INV-NAME-STRIP-ASTERISK: QZParser.java#getClassName char[0]=='*' → 剥前导 *
+                    var name = nameRaw
+                    if name.hasPrefix("*") { name = String(name.dropFirst()) }
+                    name = wakeTrim(name)
+                    if name.isEmpty { continue }
+                    let teacher = wakeText(info[4])
+                    let weeksText = wakeText(info[6])
+                    let room = wakeText(info[7])
+                    let startNode: Int
+                    let endNode: Int
+                    if weeksText.contains("节") {
+                        let head = wakeTrim(before(before(weeksText, "("), "（"))
+                        guard let m = matchEntire(reRowSection, head), let f = Int(m[1]) else { continue }
+                        let l = m[2].isEmpty ? f : (Int(m[2]) ?? f)
+                        if !(1...30).contains(f) || !(f...30).contains(l) { continue }
+                        startNode = f
+                        endNode = l
+                    } else {
+                        guard let fb = rowSections else { continue } // INV-SECTIONS-FALLBACK
+                        startNode = fb.0
+                        endNode = fb.1
+                    }
+                    // INV-WEEKS-EXTRACT-PAREN: 取括号内周次 (QZParser.java#getWeeksList)
+                    let weeksRaw = reFirstGroup("[\\(（]([^\\)）]+)[\\)）]", weeksText)
+                    for token in wakeSplitAny(weeksRaw, [",", "，", ";", "；"]) {
+                        let cleaned = String(token.filter { !$0.isWhitespace })
+                        guard let m = matchEntire(reWeek, cleaned), let f = Int(m[1]) else { continue }
+                        let l = m[2].isEmpty ? f : (Int(m[2]) ?? f)
+                        if !(1...60).contains(f) || !(f...60).contains(l) { continue }
+                        let type: Int
+                        switch m[3] {
+                        case "单": type = 1
+                        case "双": type = 2
+                        default: type = 0
+                        }
+                        out.append(JwCourse(name: name, room: room, teacher: teacher, day: col,
+                                           startNode: startNode, endNode: endNode,
+                                           startWeek: f, endWeek: l, type: type))
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    static func parseJzSuper(_ source: String) -> [JwCourse] {
+        var errors: [String] = []
+        return parseJzSuper(source, errors: &errors)
+    }
+
+    // — Kingo super (新青果 2026-10) HTML 3 链降级 —
+
+    /// ← Kotlin parseKingoSuperHtml (JwWakeUpCompatParsers.kt:263)。
+    /// chain1 #mytable 正选网格(compact/xkinfo); chain2 thead 课程+节次 表; chain3 #kbDiv 7 列网格。
+    static func parseKingoSuperHtml(_ source: String, errors: inout [String]) -> [JwCourse] {
+        let doc = (try? SwiftSoup.parse(source)) ?? Document("")
+
+        func nodes(_ text: String) -> (Int, Int)? {
+            guard let m = matchEntire("^\\s*([0-9]{1,2})(?:\\s*[-~至]\\s*([0-9]{1,2}))?\\s*(?:节)?\\s*$", text),
+                  let f = Int(m[1]) else { return nil }
+            let l = m[2].isEmpty ? f : (Int(m[2]) ?? f)
+            return (f >= 1 && f <= 30 && l >= f && l <= 30) ? (f, l) : nil
+        }
+        func emit(_ name: String, _ teacher: String, _ room: String, _ day: Int,
+                  _ nodeText: String, _ weeksText: String) -> [JwCourse] {
+            guard let (start, end) = nodes(nodeText) else { return [] }
+            if wakeTrim(name).isEmpty || !(1...7).contains(day) { return [] }
+            // 本源周次语法保持严格 (Kotlin weekPattern); 泛兼容链才刻意宽松。
+            let re = "^([0-9]{1,2})(?:[-~至]([0-9]{1,2}))?周?(?:\\(([单双])\\)|([单双])周?)?$"
+            var out: [JwCourse] = []
+            for raw in wakeSplitAny(weeksText, [",", "，", ";", "；"]) {
+                let cleaned = String(raw.filter { !$0.isWhitespace })
+                guard let m = matchEntire(re, cleaned), let f = Int(m[1]) else { continue }
+                let l = m[2].isEmpty ? f : (Int(m[2]) ?? f)
+                if !(1...60).contains(f) || !(f...60).contains(l) { continue }
+                let parity = m[3].isEmpty ? m[4] : m[3]
+                let type: Int
+                switch parity {
+                case "单": type = 1
+                case "双": type = 2
+                default: type = 0
+                }
+                out.append(JwCourse(name: name, room: room, teacher: teacher, day: day,
+                                    startNode: start, endNode: end,
+                                    startWeek: f, endWeek: l, type: type))
+            }
+            return out
+        }
+
+        // chain1: #mytable
+        var myTable: [JwCourse] = []
+        for table in ((try? doc.select("#mytable")) ?? Elements()).array() {
+            for row in ((try? table.select("tr:not(.H)")) ?? Elements()).array() {
+                for (column, cell) in ((try? row.select("td")) ?? Elements()).array().enumerated() {
+                    let day = column + 1
+                    if !(1...7).contains(day) { continue }
+                    var compact = false
+                    for block in ((try? cell.children()) ?? Elements()).array().filter({ wakeTag($0) == "div" }) {
+                        if (try? block.hasClass("div1")) ?? false {
+                            let h = (try? block.html()) ?? ""
+                            compact = h.contains("xkinfo") && h.contains("&nbsp;")
+                            continue
+                        }
+                        let rawHtml = (try? block.html()) ?? ""
+                        let html = compact
+                            ? wakeSplitRegex(rawHtml, "(?:&nbsp;)+", ci: true).joined(separator: " ")
+                            : rawHtml
+                        let lines = wakeSplitRegex(html, "<br\\s*/?>", ci: true).map { fragmentText($0) }
+                        let detailIdx = compact ? 1 : 2
+                        guard lines.count > detailIdx else { continue }
+                        let detail = lines[detailIdx]
+                        let name = lines.first ?? ""
+                        let teacher = compact ? wakeTrim(before(detail, " ")) : (lines.count > 1 ? lines[1] : "")
+                        let roomIdx = compact ? 2 : 3
+                        let room = lines.count > roomIdx ? lines[roomIdx] : ""
+                        let timing = compact ? after(detail, " ") : detail
+                        let weekText = wakeTrim(before(timing, "["))
+                        let nodeText = wakeTrim(before(after(timing, "["), "]"))
+                        if !weekText.isEmpty && !nodeText.isEmpty {
+                            myTable.append(contentsOf: emit(name, teacher, room, day, nodeText, weekText))
+                        }
+                    }
+                }
+            }
+        }
+        if !myTable.isEmpty { return myTable }
+        errors.append("chain1 #mytable: no valid weekday cell")
+
+        // chain2: thead 课程+节次 表
+        var formatTwo: [JwCourse] = []
+        for table in ((try? doc.select("table")) ?? Elements()).array() {
+            guard let tr = ((try? table.select("thead tr")) ?? Elements()).array().first() else { continue }
+            let headers = ((try? tr.select("th,td")) ?? Elements()).array().map { wakeText($0) }
+            let nameIndex = headers.firstIndex(of: "课程") ?? -1
+            let nodeIndex = headers.firstIndex { $0.contains("节次") } ?? -1
+            if nameIndex < 0 || nodeIndex < 0 { continue }
+            let teacherIndex = headers.firstIndex { $0.contains("教师") } ?? -1
+            let roomIndex = headers.firstIndex { $0.contains("地点") } ?? -1
+            let weeksIndex = headers.firstIndex { $0.contains("周次") } ?? -1
+            let parityIndex = headers.firstIndex { $0.contains("单双周") } ?? -1
+            for row in ((try? table.select("tbody tr")) ?? Elements()).array() {
+                let cells = ((try? row.children()) ?? Elements()).array()
+                func cellText(_ i: Int) -> String {
+                    (i >= 0 && cells.indices.contains(i)) ? wakeText(cells[i]) : ""
+                }
+                let name = wakeTrim(afterKeep(cellText(nameIndex), "]"))
+                let timing = cellText(nodeIndex)
+                guard let day = extractDay(before(timing, "[")) else { continue }
+                let nodeText = before(after(timing, "["), "]")
+                let weeks = weeksIndex >= 0 ? cellText(weeksIndex)
+                    : before(after(timing, "("), "周")
+                let parity = cellText(parityIndex)
+                let typedWeeks = wakeSplitAny(weeks.replacingOccurrences(of: "，", with: ","), [","])
+                    .map { part -> String in
+                        let t = wakeTrim(part)
+                        return (t.contains("单") || t.contains("双") || parity.isEmpty) ? t : t + parity
+                    }
+                    .joined(separator: ",")
+                formatTwo.append(contentsOf: emit(name, wakeTrim(afterKeep(cellText(teacherIndex), "]")),
+                                                  cellText(roomIndex), day, nodeText, typedWeeks))
+            }
+        }
+        if !formatTwo.isEmpty { return formatTwo }
+        errors.append("chain2 thead: no valid course row")
+
+        // chain3: #kbDiv
+        var kbDiv: [JwCourse] = []
+        for table in ((try? doc.select("#kbDiv")) ?? Elements()).array() {
+            guard let body = ((try? table.select("tbody")) ?? Elements()).array().last() else { continue }
+            for (rowIndex, row) in ((try? body.select("tr")) ?? Elements()).array().enumerated() {
+                let allCells = ((try? row.select("td")) ?? Elements()).array()
+                if allCells.count < 7 { continue }
+                let cells = Array(allCells.suffix(7))
+                for (dayIndex, cell) in cells.enumerated() {
+                    let text = wakeText(cell)
+                    let name = wakeTrim(before(text, "("))
+                    let detail = beforeLast(after(text, "("), ")")
+                    let parts = wakeSplitRegex(detail, "\\s+").filter { !$0.isEmpty }
+                    if name.isEmpty || parts.isEmpty { continue }
+                    kbDiv.append(contentsOf: emit(name, "", parts.count > 1 ? parts[1] : "",
+                                                  dayIndex + 1, String(rowIndex + 1), parts[0]))
+                }
+            }
+        }
+        if !kbDiv.isEmpty { return kbDiv }
+        errors.append("chain3 #kbDiv: no valid timetable cell")
+        return []
+    }
+
+    static func parseKingoSuperHtml(_ source: String) -> [JwCourse] {
+        var errors: [String] = []
+        return parseKingoSuperHtml(source, errors: &errors)
+    }
+}
+
 // MARK: - WakeUpMarkerParser 基类与 8 concrete parsers
 
 class WakeUpMarkerParserBase: JwParser, JwParserConfidenceReporting {
@@ -1012,15 +1352,54 @@ class WakeUpMarkerParserBase: JwParser, JwParserConfidenceReporting {
 }
 
 final class JwKingoParser: WakeUpMarkerParserBase {
-    init(_ source: String) { super.init(source, ["kingosoft", "courseTableForStd", "courseTableStudent", "new TaskActivity"]) }
+    // v1.0.62: markers 扩至 8 (← Android JwWakeUpCompatParsers.kt:885), 覆盖 ScheduleTaskBean/xkinfo/kbDiv。
+    init(_ source: String) {
+        super.init(source, ["kingosoft", "courseTableForStd", "courseTableStudent", "new TaskActivity",
+                            "CourseTableForStd", "ScheduleTaskBean", "xkinfo", "kbDiv"])
+    }
+    override var confidenceValue: Int {
+        // td.td 正选老 ZX 网格 (首个 td 可能是节次水槽) → 让位 KINGO_ZX
+        if WakeUpCompat.hasKingoTdGrid(source) { return 0 }
+        if source.contains("id=\"kbDiv\"") || source.contains("id='kbDiv'") { return 95 }
+        if source.contains("<thead") && source.contains("课程") && source.contains("节次")
+            && WakeUpCompat.containsMatch(#"(?:星期|周)[一二三四五六日天1-7]"#, source) { return 93 }
+        if source.contains("id=\"mytable\"") || source.contains("id='mytable'") { return 91 }
+        return super.confidenceValue
+    }
     override func generateCourseList() throws -> [JwCourse] {
-        let primary = WakeUpCompat.parseKingoTaskActivity(source)
-        return primary.isEmpty ? try super.generateCourseList() : primary
+        // 声明 KINGO_NEW 的学校仍可能回供老正选网格 → 委托 ZX 保留节次水槽/稀疏周次语义
+        if WakeUpCompat.hasKingoTdGrid(source),
+           let legacy = try? JwKingoZxParser(source).generateCourseList(), !legacy.isEmpty {
+            return legacy
+        }
+        // Kingo Super 2026-10 三阶段降级: HTML 3 链 → TaskActivity JS grid → 父类 markers
+        var errors: [String] = []
+        let superHtml = WakeUpCompat.parseKingoSuperHtml(source, errors: &errors)
+        if !superHtml.isEmpty { return superHtml }
+        let taskActivity = WakeUpCompat.parseKingoTaskActivity(source)
+        if !taskActivity.isEmpty { return taskActivity }
+        let parent = try super.generateCourseList()
+        if !parent.isEmpty { return parent }
+        // 全失败 — INV-ERROR-AGGREGATE: 错误列表聚合抛出 (Kotlin IllegalStateException 同义)
+        errors.append("TaskActivity JS grid 链 (chain1/老 kingo) 解析为空")
+        errors.append("父类 WakeUpMarkerParser 链 (markers 命中回退) 解析为空")
+        throw JwParseError(message: "JwKingoParser (新青果 super 2026-10) 全链降级失败:\n" + errors.joined(separator: "\n"))
     }
 }
 
 final class JwJzParser: WakeUpMarkerParserBase {
     init(_ source: String) { super.init(source, ["courseTableForStd", "courseTableStudent", "wisedu", "JinZhi"]) }
+}
+
+final class JwJzSuperParser: WakeUpMarkerParserBase {
+    // ← Android JwJzSuperParser (kt:920): 新强智 super 形态专用; 主链 parse() 已含 parseJzSuper。
+    init(_ source: String) {
+        super.init(source, ["el-table__body-wrapper", "Njw2017", "course-list", "v-jsxsd", "studentTableVms", "JinZhi"])
+    }
+    override func generateCourseList() throws -> [JwCourse] {
+        let primary = WakeUpCompat.parseJzSuper(source)
+        return primary.isEmpty ? try super.generateCourseList() : primary
+    }
 }
 
 final class JwSouthSoftParser: WakeUpMarkerParserBase {

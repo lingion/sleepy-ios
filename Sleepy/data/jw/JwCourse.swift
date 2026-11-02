@@ -7,7 +7,9 @@
 //
 // 后续通过 JwImportViewModel.toCourseEntities 转成 CourseEntity
 
-struct JwCourse: Equatable {
+// Hashable: Kotlin data class 自带 hashCode/equals — Super 调度器去重
+// (JwEcuplSuperParser/KingoZx/QzTimetable/OldQzSuper 的 Set<JwCourse>) 依赖它。
+struct JwCourse: Hashable {
     let name: String
     var room: String = ""
     var teacher: String = ""
