@@ -739,7 +739,10 @@
 "about_qq_no_qq" = "群號已複製,未偵測到 QQ,請手動打開 QQ 搜尋加入";
 "about_qq_title" = "QQ 交流群";
 "about_update_dismiss" = "關閉更新提示";
-"appearance_header_hanging" = "左右移动 %@ 个开始时间宽度";
+"appearance_header_hanging" = "左右移動 %@ 個開始時間寬度";
+"appearance_header_time_alignment" = "時間對齊方式";
+"appearance_header_alignment_dash" = "短橫線對齊";
+"appearance_header_alignment_center" = "時間整體置中";
 "appearance_header_layout" = "佈局";
 "appearance_header_preview" = "即時預覽";
 "appearance_header_show_x" = "显示“第 X 节”";

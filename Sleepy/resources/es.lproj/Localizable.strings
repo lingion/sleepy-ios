@@ -740,6 +740,9 @@
 "about_qq_title" = "Grupo de QQ";
 "about_update_dismiss" = "Descartar el aviso de actualización";
 "appearance_header_hanging" = "Mover a izquierda/derecha %@ anchos de hora de inicio";
+"appearance_header_time_alignment" = "Alineación de la hora";
+"appearance_header_alignment_dash" = "Alinear guion";
+"appearance_header_alignment_center" = "Centrar hora completa";
 "appearance_header_layout" = "Diseño";
 "appearance_header_preview" = "Vista previa en vivo";
 "appearance_header_show_x" = "Mostrar «Período X»";

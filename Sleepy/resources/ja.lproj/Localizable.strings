@@ -740,6 +740,9 @@
 "about_qq_title" = "QQ グループ";
 "about_update_dismiss" = "更新のお知らせを閉じる";
 "appearance_header_hanging" = "開始時刻幅 %@ 個分 左右移動";
+"appearance_header_time_alignment" = "時刻の配置";
+"appearance_header_alignment_dash" = "ハイフンで揃える";
+"appearance_header_alignment_center" = "時刻全体を中央揃え";
 "appearance_header_layout" = "レイアウト";
 "appearance_header_preview" = "ライブプレビュー";
 "appearance_header_show_x" = "「第 X 限」を表示";
