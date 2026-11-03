@@ -53,6 +53,7 @@ struct PeriodHeaderCellContent: View {
     var scale: CGFloat = 1
     var hangingUnitsOverride: CGFloat? = nil
     var showXOverride: Bool? = nil
+    var centerTimeOverride: Bool? = nil
     var sharedFont: PeriodHeaderAdaptiveFont? = nil
     var sharedPlacement: PeriodHeaderPlacement? = nil
     var sharedLegacyAxis: CGFloat? = nil
@@ -63,6 +64,7 @@ struct PeriodHeaderCellContent: View {
             let cardW = geo.size.width
             let cardH = geo.size.height
             let showX = showXOverride ?? AppPrefs.shared.isPeriodHeaderShowX()  // ← showXOverride ?: AppPrefs.isPeriodHeaderShowX(context)
+            let centerTime = centerTimeOverride ?? (AppPrefs.shared.getPeriodHeaderTimeAlignment() == "center")
             let label: String = (showX && nodeStart == nodeEnd)
                 ? PeriodHeaderFormatter.fullLabel(nodeStart, style)
                 : PeriodHeaderFormatter.range(nodeStart, nodeEnd, style)
