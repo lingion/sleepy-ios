@@ -260,6 +260,145 @@ extension WakeUpCompat {
     }
 }
 
+// MARK: - parseKingoSuperHtml (Kingosoft HTML #mytable v1.0.63 fix)
+
+extension WakeUpCompat {
+
+    /// Kingo #mytable HTML 格式解析 — 修复星期偏移与无教室课程丢失 (v1.0.63 Android PR dea4ca9c)
+    ///
+    /// Kotlin 移植说明:
+    ///   - Jsoup → SwiftSoup, `select("#mytable")` 语法相同
+    ///   - Kotlin Regex → NSRegularExpression (保留 [0-9] 而非 \d)
+    ///   - distanceToLast = cells.count - 1 - column
+    ///   - listOf/buildList → Swift Array + append
+    static func parseKingoSuperHtml(_ source: String) -> [JwCourse] {
+        guard source.contains("#mytable") || (source.contains("mytable") && source.contains("<table")) else { return [] }
+        guard let doc = try? SwiftSoup.parse(source) else { return [] }
+        let tables = (try? doc.select("#mytable").array()) ?? []
+        if tables.isEmpty { return [] }
+
+        func isDayHeader(_ text: String, _ day: Int) -> Bool {
+            let t = text.trimmingCharacters(in: .whitespaces)
+            let name: String
+            switch day {
+            case 1: name = "一"; case 2: name = "二"; case 3: name = "三"
+            case 4: name = "四"; case 5: name = "五"; case 6: name = "六"; case 7: name = "日"
+            default: return false
+            }
+            return t == name || (day == 7 && t == "天") ||
+                t.contains("星期\(name)") || (day == 7 && t.contains("星期天")) ||
+                t.contains("周\(name)") || (day == 7 && t.contains("周天")) ||
+                t.contains("星期\(day)") || t.contains("周\(day)")
+        }
+
+        let nodeRe = try! NSRegularExpression(pattern: "\\[[[:space:]]*[0-9]+", options: [])
+
+        var out: [JwCourse] = []
+        for table in tables {
+            // 探测 totalDays
+            var totalDays = 7
+            for tr in (try? table.select("tr").array()) ?? [] {
+                let texts = (try? tr.children().array().map { (try? $0.text()) ?? "" }) ?? []
+                let hasMon = texts.contains { isDayHeader($0, 1) }
+                let hasSun = texts.contains { isDayHeader($0, 7) }
+                let hasSat = texts.contains { isDayHeader($0, 6) }
+                let hasFri = texts.contains { isDayHeader($0, 5) }
+                if hasMon && (hasSun || hasSat) { totalDays = 7; break }
+                else if hasMon && hasFri { totalDays = 5; break }
+            }
+
+            let tableCompact = ((try? table.select("div.div1").array()) ?? [])
+                .contains { (try? $0.html())?.contains("xkinfo") == true }
+
+            for row in (try? table.select("tr:not(.H)").array()) ?? [] {
+                // 跳过表头行
+                if !((try? row.select("th").array())?.isEmpty == true) { continue }
+                let rowTexts = (try? row.children().array().map { (try? $0.text()) ?? "" }) ?? []
+                if rowTexts.contains(where: { isDayHeader($0, 1) }) { continue }
+
+                let allCells = (try? row.select("td").array()) ?? []
+                if allCells.isEmpty { continue }
+
+                for (column, cell) in allCells.enumerated() {
+                    let day: Int
+                    if allCells.count >= totalDays {
+                        let distanceToLast = allCells.count - 1 - column
+                        if distanceToLast >= totalDays { continue }
+                        day = totalDays - distanceToLast
+                    } else {
+                        day = column + 1
+                    }
+                    if !(1...7).contains(day) { continue }
+
+                    var compact = tableCompact
+                    let rawBlocks = (try? cell.children().array().filter { ($0.tagName()) == "div" }) ?? []
+                    let cellText = (try? cell.text()) ?? ""
+                    let hasBracket = nodeRe.firstMatch(in: cellText, range: NSRange(cellText.startIndex..., in: cellText)) != nil
+                    let blocks: [Element] = rawBlocks.isEmpty && hasBracket ? [cell] : rawBlocks
+
+                    for block in blocks {
+                        let blockTag = block.tagName()
+                        if blockTag == "div", (try? block.hasClass("div1")) == true {
+                            compact = ((try? block.html())?.contains("xkinfo") == true) &&
+                                      ((try? block.html())?.contains("&nbsp;") == true)
+                            continue
+                        }
+                        guard let html = try? block.html() else { continue }
+                        let htmlNorm = compact ? html.replacingOccurrences(of: "(?i)(?:&nbsp;)+", with: " ", options: .regularExpression) : html
+                        let rawLines = htmlNorm.components(separatedBy: NSRegularExpression.escapedPattern("<br")).compactMap { seg -> String? in
+                            guard let t = try? SwiftSoup.parse(seg).text().trimmingCharacters(in: .whitespaces) else { return nil }
+                            return t.isEmpty ? nil : t
+                        }
+                        let lines = rawLines
+                        // 找 timingIdx: 含 [ + 数字
+                        let timingIdx = lines.indices.first { i in
+                            let l = lines[i]
+                            return l.contains("[") && l.contains("]") &&
+                                nodeRe.firstMatch(in: l, range: NSRange(l.startIndex..., in: l)) != nil
+                        }
+                        guard let tIdx = timingIdx, tIdx >= 0 else { continue }
+
+                        let name = lines.first ?? ""
+                        let detail = lines[tIdx]
+                        let beforeBracket = detail.components(separatedBy: "[").first?.trimmingCharacters(in: .whitespaces) ?? ""
+                        let nodeText: String = {
+                            let start = detail.range(of: "[").map { detail.index(after: $0.lowerBound) }
+                            let end = detail.range(of: "]")?.lowerBound
+                            guard let s = start, let e = end, s < e else { return "" }
+                            return String(detail[s..<e]).trimmingCharacters(in: .whitespaces)
+                        }()
+
+                        let compactMode = compact || (tIdx == 1 && beforeBracket.contains(" ") && !beforeBracket.contains(",") && !beforeBracket.contains("，"))
+                        let teacher: String
+                        let weekText: String
+                        if compactMode && beforeBracket.contains(" ") {
+                            teacher = detail.components(separatedBy: " ").first ?? ""
+                            weekText = detail.components(separatedBy: " ").dropFirst().joined(separator: " ").components(separatedBy: "[").first?.trimmingCharacters(in: .whitespaces) ?? ""
+                        } else {
+                            teacher = lines.dropFirst().prefix(tIdx - 1).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+                            weekText = beforeBracket
+                        }
+
+                        let room = lines.dropFirst(tIdx + 1).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+                        if !name.isEmpty && !weekText.isEmpty && !nodeText.isEmpty {
+                            // 解析节次范围: nodeText 形如 "1-2" 或 "3"
+                            let nodeParts = nodeText.components(separatedBy: "-")
+                            let startNode = Int(nodeParts.first?.trimmingCharacters(in: .whitespaces) ?? "") ?? 1
+                            let endNode = nodeParts.count > 1 ? Int(nodeParts.last?.trimmingCharacters(in: .whitespaces) ?? "") ?? startNode : startNode
+                            for (from, to, type) in parseWeekTokens(weekText) {
+                                out.append(JwCourse(name: name, room: room, teacher: teacher,
+                                    day: day, startNode: startNode, endNode: endNode,
+                                    startWeek: from, endWeek: to, type: type))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return out
+    }
+}
+
 // MARK: - parseKingoTaskActivity (Kingosoft courseTable JS)
 
 extension WakeUpCompat {
@@ -1012,10 +1151,12 @@ class WakeUpMarkerParserBase: JwParser, JwParserConfidenceReporting {
 }
 
 final class JwKingoParser: WakeUpMarkerParserBase {
-    init(_ source: String) { super.init(source, ["kingosoft", "courseTableForStd", "courseTableStudent", "new TaskActivity"]) }
+    init(_ source: String) { super.init(source, ["kingosoft", "courseTableForStd", "courseTableStudent", "new TaskActivity", "#mytable", "kingo"]) }
     override func generateCourseList() throws -> [JwCourse] {
-        let primary = WakeUpCompat.parseKingoTaskActivity(source)
-        return primary.isEmpty ? try super.generateCourseList() : primary
+        let html = WakeUpCompat.parseKingoSuperHtml(source)
+        if !html.isEmpty { return html }
+        let js = WakeUpCompat.parseKingoTaskActivity(source)
+        return js.isEmpty ? try super.generateCourseList() : js
     }
 }
 
