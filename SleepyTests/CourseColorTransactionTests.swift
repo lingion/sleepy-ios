@@ -12,7 +12,7 @@ final class CourseColorTransactionTests: XCTestCase {
 
     private func course(_ gid: String) -> CourseEntity {
         CourseEntity(groupId: gid, tableId: 1, courseName: gid,
-                     day: 1, startNode: 1, step: 1, startWeek: 1, endWeek: 16)
+                     day: 1, startNode: 1, step: 1, startWeek: 1, endWeek: 16, color: "")
     }
 
     func testTransactionSeesUncommittedHuesAndRollbackRemovesNewHues() throws {

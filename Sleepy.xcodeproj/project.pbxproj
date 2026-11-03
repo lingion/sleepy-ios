@@ -551,6 +551,7 @@
 		A7AE959FB32BEF67BDD67260 /* WidgetBindingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32FA87FAC3D04B6686F6E0DB /* WidgetBindingStore.swift */; };
 		A7E770E7D1250EBC905B0B8E /* JwCourse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39EE2EC9F37C40DBBE526D31 /* JwCourse.swift */; };
 		A808688636032E73620BC635 /* ScheduleExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEAA495471D6CEA3AECFD615 /* ScheduleExporter.swift */; };
+		A86A0B831056CDD79311DA2D /* CourseColorTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114C4887D4D14002A2FDBA2B /* CourseColorTransactionTests.swift */; };
 		A87E7CA1E97833B571A3416F /* JwImportDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9610BD61FF13088540D20D20 /* JwImportDraft.swift */; };
 		A8B387A7F0EC36880A5B1A52 /* PlatformParityNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0425392AD82917108D3BB908 /* PlatformParityNotes.swift */; };
 		A8CF5AF01135E80130904DDC /* XiaoaiPresetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68536393477E84721CF8AE2C /* XiaoaiPresetData.swift */; };
@@ -922,6 +923,7 @@
 		0F6A3A4DB6AEC3D8277B080A /* school_city_boundaries.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = school_city_boundaries.bin.gz; sourceTree = "<group>"; };
 		0FA955015388CB1ED0BE2085 /* JwOldZfParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwOldZfParser.swift; sourceTree = "<group>"; };
 		0FDE2278AA9973B95D65CDB7 /* JwEcuplParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwEcuplParser.swift; sourceTree = "<group>"; };
+		114C4887D4D14002A2FDBA2B /* CourseColorTransactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorTransactionTests.swift; sourceTree = "<group>"; };
 		1274843FE9312E87CD5807D5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		12B67FFE926875C9BA1433BE /* ButtonHitAreaUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonHitAreaUITests.swift; sourceTree = "<group>"; };
 		12CB5E397A61641128360FA3 /* WeekListWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekListWidgetView.swift; sourceTree = "<group>"; };
@@ -1825,6 +1827,7 @@
 				A41DA105DC235C6C99C97A0B /* ConflictLayoutEngineTests.swift */,
 				3A1FF9D29D0561321FEBCBF9 /* CourseColorHarmonyTests.swift */,
 				0BB53AB9E6835DF8A6C070C8 /* CourseColorMigrationTests.swift */,
+				114C4887D4D14002A2FDBA2B /* CourseColorTransactionTests.swift */,
 				5F19B09B9CF4562AD9450D43 /* CourseColorUtilTests.swift */,
 				D81A47CC19CD103543B9322D /* CourseColorWriteGlueTests.swift */,
 				425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */,
@@ -3002,6 +3005,7 @@
 				2911F2F82AF24F9DAC7F2CD5 /* ConflictLayoutEngineTests.swift in Sources */,
 				88437932F9E2E298F313850C /* CourseColorHarmonyTests.swift in Sources */,
 				EC281CA8CDDCD6B370B3D7C2 /* CourseColorMigrationTests.swift in Sources */,
+				A86A0B831056CDD79311DA2D /* CourseColorTransactionTests.swift in Sources */,
 				955AA3AAA68DB122F123785B /* CourseColorUtilTests.swift in Sources */,
 				48048B19335D586C4A1CF4B8 /* CourseColorWriteGlueTests.swift in Sources */,
 				2AB1C979346A5D643A0C2F16 /* CourseDaoChainTests.swift in Sources */,
