@@ -208,7 +208,7 @@ final class SystemCalendarManager {
             }
             .map { DateUtils.dayStart($0.targetDate) }
         // ← Android effectiveEnd = maxOf(semesterEnd, validTargets.max()?.plusDays(1) ?: semesterEnd)
-        let effectiveEnd = validTargets.max().map { Calendar.isoAddDays($0, 1) } ?? semesterEnd
+        let effectiveEnd = max(semesterEnd, validTargets.max().map { Calendar.isoAddDays($0, 1) } ?? semesterEnd)
         // ← Android start = maxOf(today, minOf(semesterStart, validTargets.min() ?: semesterStart))
         let rangeStart = validTargets.min().map { min(semesterStart, $0) } ?? semesterStart
         let start = max(DateUtils.dayStart(today), rangeStart)
