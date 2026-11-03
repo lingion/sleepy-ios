@@ -1127,6 +1127,7 @@ struct FullWeekView: View {
     var currentWeek: Int = 1
     let onCourseClick: (CourseEntity) -> Void
     var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7)
+    var showDate: Bool = false
 
     var body: some View {
         let byDay = Dictionary(grouping: courses, by: { $0.day })
@@ -1153,7 +1154,7 @@ struct FullWeekView: View {
                             twoColumn: AppPrefs.shared.isWeekTwoColumn(),
                             twoColumnMode: AppPrefs.shared.getWeekTwoColumnMode(),
                             hideEmptyDays: AppPrefs.shared.isWeekHideEmptyDays(),
-                            onCourseClick: onCourseClick)
+                            onCourseClick: onCourseClick, showDate: showDate)
                 // 悬浮底栏额外余量(→ Android LocalNavExtraBottomPadding Spacer):
                 //   镜像 Android FullWeekView 末行追加 Spacer(height = navExtra),
                 //   最后一张课不被悬浮药丸遮住。
@@ -1282,6 +1283,7 @@ private struct DetailPanel: View {
     var twoColumnMode: String = "days"
     var hideEmptyDays: Bool = false
     let onCourseClick: (CourseEntity) -> Void
+    var showDate: Bool = false
 
     var body: some View {
         let sd: (Double) -> CGFloat = { CGFloat($0 * scale) }
@@ -1314,16 +1316,16 @@ private struct DetailPanel: View {
                                 today: today, todayDate: todayDate,
                                 startDate: startDate, currentWeek: currentWeek,
                                 displayMode: displayMode, timeJson: timeJson,
-                                greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
-                                onCourseClick: onCourseClick)
+                                 greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
+                                onCourseClick: onCourseClick, showDate: showDate)
                     .frame(maxWidth: .infinity)
                 if !split.1.isEmpty {
                     DetailDayColumn(days: split.1, byDay: byDay,
                                     today: today, todayDate: todayDate,
                                     startDate: startDate, currentWeek: currentWeek,
                                     displayMode: displayMode, timeJson: timeJson,
-                                    greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
-                                    onCourseClick: onCourseClick)
+                                     greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
+                                    onCourseClick: onCourseClick, showDate: showDate)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -1339,7 +1341,8 @@ private struct DetailPanel: View {
                                   displayMode: displayMode, timeJson: timeJson,
                                   isGrey: greyDays.contains(day),
                                   scale: scale, cornerRatio: cornerRatio,
-                                  onCourseClick: onCourseClick)
+                                  onCourseClick: onCourseClick,
+                                  dateLabel: showDate ? DateUtils.dateOfWeek(startDate: startDate, week: currentWeek, dayOfWeek: day).map(DateUtils.shortDateChinese) : nil)
                 }
             }
             .padding(sd(12))
@@ -1364,6 +1367,7 @@ private struct DetailDayColumn: View {
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
     let onCourseClick: (CourseEntity) -> Void
+    var showDate: Bool = false
 
     var body: some View {
         VStack(spacing: 10 * scale) {
@@ -1375,7 +1379,8 @@ private struct DetailDayColumn: View {
                               displayMode: displayMode, timeJson: timeJson,
                               isGrey: greyDays.contains(day),
                               scale: scale, cornerRatio: cornerRatio,
-                              onCourseClick: onCourseClick)
+                              onCourseClick: onCourseClick,
+                              dateLabel: showDate ? DateUtils.dateOfWeek(startDate: startDate, week: currentWeek, dayOfWeek: day).map(DateUtils.shortDateChinese) : nil)
             }
         }
         .padding(10 * scale)
@@ -1396,6 +1401,7 @@ private struct DetailDayCard: View {
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
     let onCourseClick: (CourseEntity) -> Void
+    var dateLabel: String? = nil
 
     // v7.10.4 冲突栏字体压缩: lane 实宽按内容区宽算(行满宽 → 与卡内边距对齐)
     @State private var contentW: CGFloat = 0
@@ -1405,7 +1411,8 @@ private struct DetailDayCard: View {
         VStack(spacing: 8 * scale) {
             // 头部: 星期 + 今天标记
             HStack {
-                Text(DateUtils.localizedDay(day) + (isToday ? L10n.format("today_suffix") : ""))
+                Text(DateUtils.localizedDay(day) + (dateLabel.map { " ·\($0)" } ?? "")
+                     + (isToday ? L10n.format("today_suffix") : ""))
                     // ← Android titleSmall.copy(SemiBold): 14sp 不随 weekScale 缩放
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(isGrey ? greyFg : colors.onSurface)
