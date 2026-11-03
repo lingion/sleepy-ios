@@ -1098,11 +1098,11 @@ extension WakeUpCompat {
     /// 格内 div[style] 含 position:relative 者为课程包装器, 8 子 div: [3]课名(前导*剥) [4]教师 [6]节次(周次) [7]教室。
     static func parseJzSuper(_ source: String, errors: inout [String]) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
-        guard let wrapper = ((try? doc.select(".el-table__body-wrapper")) ?? Elements()).array().first() else {
+        guard let wrapper = ((try? doc.select(".el-table__body-wrapper")) ?? Elements()).array().first else {
             errors.append("INV-MARKER-MISS 失败: 未找到 el-table__body-wrapper 容器 (新强智 Njw2017 SPA 主入口)")
             return []
         }
-        guard let body = ((try? wrapper.select("tbody")) ?? Elements()).array().first() else {
+        guard let body = ((try? wrapper.select("tbody")) ?? Elements()).array().first else {
             errors.append("INV-TBODY-MISS 失败: el-table__body-wrapper 缺 tbody")
             return []
         }
@@ -1273,7 +1273,7 @@ extension WakeUpCompat {
         // chain2: thead 课程+节次 表
         var formatTwo: [JwCourse] = []
         for table in ((try? doc.select("table")) ?? Elements()).array() {
-            guard let tr = ((try? table.select("thead tr")) ?? Elements()).array().first() else { continue }
+            guard let tr = ((try? table.select("thead tr")) ?? Elements()).array().first else { continue }
             let headers = ((try? tr.select("th,td")) ?? Elements()).array().map { wakeText($0) }
             let nameIndex = headers.firstIndex(of: "课程") ?? -1
             let nodeIndex = headers.firstIndex { $0.contains("节次") } ?? -1
@@ -1310,7 +1310,7 @@ extension WakeUpCompat {
         // chain3: #kbDiv
         var kbDiv: [JwCourse] = []
         for table in ((try? doc.select("#kbDiv")) ?? Elements()).array() {
-            guard let body = ((try? table.select("tbody")) ?? Elements()).array().last() else { continue }
+            guard let body = ((try? table.select("tbody")) ?? Elements()).array().last else { continue }
             for (rowIndex, row) in ((try? body.select("tr")) ?? Elements()).array().enumerated() {
                 let allCells = ((try? row.select("td")) ?? Elements()).array()
                 if allCells.count < 7 { continue }

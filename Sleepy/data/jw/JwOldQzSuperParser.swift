@@ -57,14 +57,14 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
 
         // ── 变体 1: CCSU 固定格 id 显式编码节次组与星期 ──
         let allIded = ((try? doc.select("[id]")) ?? Elements()).array()
-            .filter { Self.matchesEntire(reFixedId, (try? $0.id()) ?? "") }
+            .filter { Self.matchesEntire(Self.reFixedId, (try? $0.id()) ?? "") }
         let distinctIds = Set(allIded.compactMap { try? $0.id() })
         if distinctIds.count == 35 {
             for cell in allIded {
                 if Self.isHidden(cell) { continue }
                 let f = Self.fields(cell)
                 let idStr = (try? cell.id()) ?? ""
-                guard let idGroups = Self.matchEntire(reFixedId, idStr) else { continue }
+                guard let idGroups = Self.matchEntire(Self.reFixedId, idStr) else { continue }
                 guard let group = Int(idGroups[1] ?? "") else { continue }
                 var i = 0
                 while i < f.count {
@@ -107,12 +107,12 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
                 .filter { Self.nearestTable($0) === table }
             let header = rows.first { row -> Bool in
                 let children = row.children()
-                return children.contains { Self.matchesEntire(reWeekday, ((try? $0.text()) ?? "") as String) }
+                return children.contains { Self.matchesEntire(Self.reWeekday, ((try? $0.text()) ?? "") as String) }
             }
             var days: [Int?]?
             if let header = header {
                 days = header.children().map { child -> Int? in
-                    guard let g = Self.matchEntire(reWeekday, ((try? child.text()) ?? "") as String),
+                    guard let g = Self.matchEntire(Self.reWeekday, ((try? child.text()) ?? "") as String),
                           let d = g[1]?.first else { return nil }
                     guard let idx = "一二三四五六日天".firstIndex(of: d) else { return nil }
                     let offset = "一二三四五六日天".distance(from: "一二三四五六日天".startIndex, to: idx)
@@ -141,7 +141,7 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
                         var recordStart = 0
                         var previousName = ""
                         for i in f.indices {
-                            if let m = Self.matchEntire(reWeekNode, f[i]), i >= 2, i + 1 < f.count {
+                            if let m = Self.matchEntire(Self.reWeekNode, f[i]), i >= 2, i + 1 < f.count {
                                 let raw = m[2] ?? ""
                                 let nodes: (Int, Int)?
                                 if raw.count == 4 && raw.allSatisfy({ $0.isNumber }) {
@@ -158,10 +158,10 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
                                 }
                                 previousName = name
                                 recordStart = i + 2
-                            } else if Self.matchEntire(reWeekNode, f[i]) == nil,
+                            } else if Self.matchEntire(Self.reWeekNode, f[i]) == nil,
                                       f[i].hasSuffix("周"), i >= 3, i + 1 < f.count {
                                 // CCUT: 分组格 id 显式给节次, 绝不从文本顺序推断。
-                                guard let idGroups = Self.matchEntire(reGroupDayId, blockId) else { continue }
+                                guard let idGroups = Self.matchEntire(Self.reGroupDayId, blockId) else { continue }
                                 guard Int(idGroups[2] ?? "") == day else { continue }
                                 guard let group = Int(idGroups[1] ?? "") else { continue }
                                 Self.add(&result, name: f[i - 3], teacher: f[i - 1], room: f[i + 1],
@@ -193,7 +193,7 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
         if ((try? doc?.getElementById("kb")) ?? nil) != nil { out.append("old-qz:title-table") }
         if let doc = doc,
            ((try? doc.select("[id]")) ?? Elements()).array().contains(where: { el in
-               Self.matchesEntire(reFixedId, (try? el.id()) ?? "")
+               Self.matchesEntire(Self.reFixedId, (try? el.id()) ?? "")
            }) {
             out.append("old-qz:fixed-cell-id")
         }
@@ -227,7 +227,7 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
 
     /// "1-16" / "3" → (start, end); 越界 → nil。
     private static func bounds(_ text: String, max: Int) -> (Int, Int)? {
-        guard let g = matchEntire(reRange, text), let start = Int(g[1] ?? "") else { return nil }
+        guard let g = Self.matchEntire(reRange, text), let start = Int(g[1] ?? "") else { return nil }
         let end = Int(g[2] ?? "") ?? start
         guard (1...max).contains(start), (start...max).contains(end) else { return nil }
         return (start, end)
@@ -344,6 +344,6 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
     }
 
     private static func matchesEntire(_ re: NSRegularExpression, _ s: String) -> Bool {
-        matchEntire(re, s) != nil
+        Self.matchEntire(re, s) != nil
     }
 }

@@ -57,7 +57,7 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
         // 挪到行首, parseImportBean 按 "<br><br>"/"<br><br><br>" 字符串切分课程
         // 块会整块错位 → 同格双课丢一条。关美化输出 → 序列化保持源形态,
         // 与 1.18.1 逐字节一致 (对照实验: 三个 zf fixture 两版本 diff 为空)。
-        doc.outputSettings().prettyPrint(false)
+        doc.outputSettings().prettyPrint(pretty: false)
         // T1 G5: #Table1 → table.blacktab → 文本含"星期一"的第一个 table
         let table1 = (try? doc.getElementById("Table1")) ?? nil
             ?? ((try? doc.select("table.blacktab").first()) ?? nil)
