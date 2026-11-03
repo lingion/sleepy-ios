@@ -210,6 +210,13 @@ final class JwEcuplScriptParser: JwParser, JwParserConfidenceReporting {
         let range: NSRange
         private let captured: [Int: String]
 
+        // 含 private 存储属性时, 隐式 memberwise init 降为 private,
+        // 同类型外的 firstMatch 静态方法无法构造 → 显式补 internal init。
+        init(range: NSRange, captured: [Int: String]) {
+            self.range = range
+            self.captured = captured
+        }
+
         func group(_ i: Int) -> String? { captured[i] }
     }
 
