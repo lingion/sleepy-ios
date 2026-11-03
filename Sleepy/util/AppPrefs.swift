@@ -19,6 +19,9 @@ final class AppPrefs {
     static let KEY_BEFORE_CLASS_MINUTES = "before_class_minutes"       // int default 10
     static let KEY_BEFORE_CLASS_BANNER = "before_class_banner"         // bool default true
     static let KEY_BEFORE_CLASS_FLUID = "before_class_fluid"            // bool default false
+    static let KEY_BEFORE_CLASS_MODE = "before_class_mode"
+    static let BEFORE_CLASS_MODE_BANNER = "banner"
+    static let BEFORE_CLASS_MODE_FLUID = "fluid"
     static let KEY_BEFORE_CLASS_FLUID_FIELDS = "before_class_fluid_fields" // legacy multi-select
     // ← v1.0.60 新增: 次日预告 + 当日提醒 + 上课自动勿扰
     static let KEY_TOMORROW_REMINDER_ENABLED = "tomorrow_reminder"             // bool default false
@@ -233,13 +236,32 @@ final class AppPrefs {
 
     // MARK: - v1.0.61 系统日历导入 (对齐)
 
-    func isBeforeClassBannerEnabled() -> Bool {
-        sp().object(forKey: Self.KEY_BEFORE_CLASS_BANNER) as? Bool ?? true
+    /// 新键优先，未迁移用户按旧 fluid 开关推导；banner/fluid 保持互斥。
+    func getBeforeClassMode() -> String {
+        if let mode = sp().string(forKey: Self.KEY_BEFORE_CLASS_MODE),
+           mode == Self.BEFORE_CLASS_MODE_BANNER || mode == Self.BEFORE_CLASS_MODE_FLUID {
+            return mode
+        }
+        return sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID)
+            ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER
     }
-    func setBeforeClassBannerEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_BANNER) }
 
-    func isBeforeClassFluidEnabled() -> Bool { sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID) }
-    func setBeforeClassFluidEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_FLUID) }
+    func setBeforeClassMode(_ mode: String) {
+        precondition(mode == Self.BEFORE_CLASS_MODE_BANNER || mode == Self.BEFORE_CLASS_MODE_FLUID)
+        sp().set(mode, forKey: Self.KEY_BEFORE_CLASS_MODE)
+    }
+
+    func isBeforeClassBannerEnabled() -> Bool {
+        getBeforeClassMode() == Self.BEFORE_CLASS_MODE_BANNER
+    }
+    func setBeforeClassBannerEnabled(_ v: Bool) {
+        if v { setBeforeClassMode(Self.BEFORE_CLASS_MODE_BANNER) }
+    }
+
+    func isBeforeClassFluidEnabled() -> Bool { getBeforeClassMode() == Self.BEFORE_CLASS_MODE_FLUID }
+    func setBeforeClassFluidEnabled(_ v: Bool) {
+        setBeforeClassMode(v ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER)
+    }
 
     /// legacy multi-select 读取(死写路径已删 — setBeforeClassFluidFields 全库零调用,读取仅通知组件用旧数据)
     func getBeforeClassFluidFields() -> Set<String> {
