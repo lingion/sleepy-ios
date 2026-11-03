@@ -128,6 +128,7 @@ struct PeriodHeaderSettingsScreen: View {
                 }
             }
             .onAppear { baselineHanging = hangingUnits }
+        }
     }
 }
 
