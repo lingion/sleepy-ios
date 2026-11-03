@@ -741,6 +741,9 @@
 "about_qq_title" = "QQ 交流群";
 "about_update_dismiss" = "关闭更新提示";
 "appearance_header_hanging" = "左右移动 %@ 个开始时间宽度";
+"appearance_header_time_alignment" = "时间对齐方式";
+"appearance_header_alignment_dash" = "短横线对齐";
+"appearance_header_alignment_center" = "时间整体居中";
 "appearance_header_layout" = "布局";
 "appearance_header_preview" = "实时预览";
 "appearance_header_show_x" = "显示“第 X 节”";

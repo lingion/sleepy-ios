@@ -737,6 +737,18 @@ final class AppPrefs {
         sp().set(value, forKey: Self.KEY_PERIOD_HEADER_HIDE_TIME)
     }
 
+    // ← Android AppPrefs.getPeriodHeaderTimeAlignment / setPeriodHeaderTimeAlignment (v1.0.63 #259)
+    static let KEY_PERIOD_HEADER_TIME_ALIGNMENT = "period_header_time_alignment" // "dash" / "center", default "dash"
+
+    func getPeriodHeaderTimeAlignment() -> String {
+        let v = sp().string(forKey: Self.KEY_PERIOD_HEADER_TIME_ALIGNMENT) ?? "dash"
+        return v == "center" ? "center" : "dash"
+    }
+    func setPeriodHeaderTimeAlignment(_ value: String) {
+        precondition(value == "dash" || value == "center")
+        sp().set(value, forKey: Self.KEY_PERIOD_HEADER_TIME_ALIGNMENT)
+    }
+
     // MARK: - 实验室开关组 getter(← AppPrefs.kt KEY_GRID_* / KEY_SHOW_VIEW_SWITCHER, v1.0.56)
     // GeneralSettingsScreen.LabPrefs / CourseTableView.GridLabPrefs 此前经 UserDefaults.standard
     // 同源直读(AppPrefs.shared 默认 suite 即 standard), 行为等价; 本组为正式归属地。

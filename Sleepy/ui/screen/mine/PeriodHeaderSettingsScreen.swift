@@ -17,6 +17,9 @@ struct PeriodHeaderSettingsScreen: View {
     @State private var style: String = AppPrefs.shared.getPeriodHeaderStyle()
     @State private var hangingUnits: Float = AppPrefs.shared.getPeriodHeaderHanging()
     @State private var showX: Bool = AppPrefs.shared.isPeriodHeaderShowX()
+    @State private var timeAlignment: String = AppPrefs.shared.getPeriodHeaderTimeAlignment()
+    // 幽灵基线 — 进页时捕获
+    @State private var baselineHanging: Float? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -74,23 +77,57 @@ struct PeriodHeaderSettingsScreen: View {
                                              String(format: "%+.1f", hangingUnits)))
                                 .font(.system(size: 14))   // ← bodyMedium
                                 .foregroundColor(colors.onSurfaceVariant)
-                            Slider(
-                                value: Binding(
-                                    get: { Double(hangingUnits) },
-                                    set: { v in
-                                        hangingUnits = Float((v * 10).rounded() / 10)
-                                    }),
-                                in: -1...1) { _ in
-                                    prefs.setPeriodHeaderHanging(hangingUnits)
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Slider(
+                                        value: Binding(
+                                            get: { Double(hangingUnits) },
+                                            set: { v in
+                                                hangingUnits = Float((v * 10).rounded() / 10)
+                                            }),
+                                        in: -1...1) { _ in
+                                            prefs.setPeriodHeaderHanging(hangingUnits)
+                                        }
+                                    // 幽灵细条
+                                    if let base = baselineHanging, abs(Double(hangingUnits) - Double(base)) > 0.05 {
+                                        let fraction = (Double(base) - (-1.0)) / 2.0
+                                        let trackPadding: CGFloat = 11
+                                        let trackWidth = geo.size.width - trackPadding * 2
+                                        let xPos = trackPadding + trackWidth * CGFloat(fraction)
+                                        Rectangle()
+                                            .fill(Color.accentColor.opacity(0.45))
+                                            .frame(width: 3, height: 16)
+                                            .cornerRadius(1.5)
+                                            .position(x: xPos, y: geo.size.height / 2)
+                                            .allowsHitTesting(false)
+                                    }
                                 }
+                            }
+                            .frame(height: 32)
                         }
                     }
+                    .padding(16)
+                    // ── 时间对齐选项 (← Android PR #259 v1.0.63) ──
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L10n.t("appearance_header_time_alignment"))
+                            .font(SleepyTypography.labelMedium)
+                            .foregroundColor(colors.onSurfaceVariant)
+                        SegmentedSwitcher(
+                            options: [("dash", L10n.t("appearance_header_alignment_dash")),
+                                      ("center", L10n.t("appearance_header_alignment_center"))],
+                            selected: timeAlignment,
+                            onSelect: { v in
+                                timeAlignment = v
+                                prefs.setPeriodHeaderTimeAlignment(v)
+                            },
+                            containerColor: colors.surfaceContainerHighest
+                        )
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
                 }
-                .padding(16)
             }
-        }
-        .background(colors.background)
-        .navigationBarHidden(true)
+            .onAppear { baselineHanging = hangingUnits }
     }
 }
 

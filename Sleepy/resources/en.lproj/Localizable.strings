@@ -740,6 +740,9 @@
 "about_qq_title" = "QQ Group";
 "about_update_dismiss" = "Dismiss update banner";
 "appearance_header_hanging" = "Move left/right by %@ start-time widths";
+"appearance_header_time_alignment" = "Time alignment";
+"appearance_header_alignment_dash" = "Align dash";
+"appearance_header_alignment_center" = "Center full time";
 "appearance_header_layout" = "Layout";
 "appearance_header_preview" = "Live preview";
 "appearance_header_show_x" = "Show “Period X”";
