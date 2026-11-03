@@ -41,7 +41,7 @@ final class JwEcuplScriptParser: JwParser, JwParserConfidenceReporting {
         pattern: "newActivity\\(\\s*\"[^\"]*\"\\s*,\\s*\"[^\"]*\"\\s*,\\s*\"[^\"]*\"\\s*,\\s*\"[01-]+\"\\s*,\\s*[0-9]+\\s*\\)")
     /// 八参 newActivity: g1=教师 g2=课名 g3=教室 g4=起始日 g5=周次位图。
     static let reNewActivity8 = try! NSRegularExpression(
-        pattern: "newActivity\\(\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([0-9-]+)\"\\s*,\\s*([0-9]+)\\s*\\)\\s*;?")
+        pattern: "newActivity\\(\\s*\"[^\"]*\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"[^\"]*\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"[^\"]*\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([0-9-]+)\"\\s*,\\s*([0-9]+)\\s*\\)\\s*;?")
     /// Kotlin `RE_NEW_ACTIVITY = RE_NEW_ACTIVITY_8` 别名。
     static let reNewActivity = JwEcuplScriptParser.reNewActivity8
 
