@@ -379,6 +379,10 @@ enum CourseColorUtil {
         return hueFromT(anchor: anchor, t: seedT(groupId))
     }
 
+    static func safeArcHue(_ anchor: Float, _ groupId: String) -> Float {
+        safeArcHue(anchor: anchor, groupId: groupId)
+    }
+
     /// safeArcHue 的 t 种子: hashCode → [0,240) 均匀映射（两段 120° 允许弧的参数域）。
     private static func seedT(_ groupId: String) -> Int {
         return Int(javaHash(groupId) & 0x7FFFFFFF) % ARC_UNITS
@@ -427,6 +431,12 @@ enum CourseColorUtil {
             t = (t + ARC_STEP_DEG) % ARC_UNITS
         }
         return hueFromT(anchor: anchor, t: bestT)
+    }
+
+    static func resolveHueWithSpacing(
+        _ anchor: Float, _ groupId: String, _ taken: [Float], minSep: Float = MIN_SEP_DEG
+    ) -> Float {
+        resolveHueWithSpacing(anchor: anchor, groupId: groupId, taken: taken, minSep: minSep)
     }
 
     /// 增量补色规划（spec §2.4「新课只增不改」/ §6 测试7 色相层）— 纯函数, 无 DB 依赖:

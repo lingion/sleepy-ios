@@ -25,6 +25,7 @@ struct CourseColorEntity: Codable, FetchableRecord, MutablePersistableRecord {
     }
 
     static let GLOBAL_TABLE_KEY = "__global__"
+    static let globalTableKey = GLOBAL_TABLE_KEY
 
     // MARK: - PersistableRecord
 

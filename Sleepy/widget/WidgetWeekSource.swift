@@ -73,7 +73,8 @@ enum WidgetWeekDataLoader {
         guard let repo = WidgetLoader.makeRepo() else { return nil }
         // ← Android WidgetWeekDataLoader.kt:66: runCatching { CourseHueStore.refresh(app) }
         //   widget 进程与 App 进程分离 → 装载点自刷持久色相快照, 保证 widget 与 App 同色。
-        CourseHueStore.shared.refresh()
+        await CourseHueStore.shared.refresh(mode: AppPrefs.shared.getCourseColorMode(),
+                                            dao: repo.database.courseColorDao)
         // ← WidgetTableResolver.resolveBoundTable(id) ?: resolveCurrentTable() ?: return null
         guard let table = WidgetBindingStore.resolveBoundTable(appWidgetId, repo: repo)
                 ?? WidgetTableResolver.resolveCurrentTable(repo) else { return nil }
