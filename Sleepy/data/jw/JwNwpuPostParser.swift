@@ -187,7 +187,7 @@ final class JwNwpuPostParser: JwParser, JwParserConfidenceReporting {
                         guard let startNum = Int(nodeNs.substring(with: m.range(at: 2))) else { continue }
                         let endNum = m.range(at: 3).location != NSNotFound
                             ? (Int(nodeNs.substring(with: m.range(at: 3))) ?? startNum) : startNum
-                        let base = sectionChar.flatMap { sectionBaseMap[$0.first] } ?? 0
+                        let base = sectionChar?.first.flatMap { sectionBaseMap[$0] } ?? 0
                         guard (1...13).contains(startNum), (startNum...13).contains(endNum),
                               base + endNum <= 13 else { continue }
                         for n in startNum...endNum {
