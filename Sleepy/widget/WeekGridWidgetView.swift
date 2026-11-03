@@ -65,7 +65,7 @@ struct WeekGridWidgetEntryView: View {
     @ViewBuilder
     private func gridBody(isGlass: Bool) -> some View {
         // today 高亮铺满整个 body, 分隔线跨全列, 三行表头墨迹可越出时间列 —
-        // 全部在 body 层用画布坐标绝对定位 (复刻 Android Canvas 绘制顺序)
+        // 全部在 body 层用画布坐标绝对定位 (复刻 原版本 Canvas 绘制顺序)
         WeekGridBody(data: entry.data, layout: WeekGridBody.GridLayout(), isGlass: isGlass)
     }
 }
@@ -79,7 +79,7 @@ private struct WeekGridBody: View {
         let headH: CGFloat = 56
         let gapH: CGFloat = 1.5
         let gapW: CGFloat = 2.5
-        /// Android: timeW = if (widgetHeaderHideTime) dp(36f) else dp(40f)
+        /// 原版本: timeW = if (widgetHeaderHideTime) dp(36f) else dp(40f)
         func timeWForHideTime(_ hideTime: Bool) -> CGFloat { hideTime ? 36 : 40 }
     }
 
@@ -100,7 +100,7 @@ private struct WeekGridBody: View {
         // issue#26: widget 全局一档别名开关 — 字号预算与绘制用同一个名字
         let useAlias = AppPrefs.shared.isWidgetUseAlias()
 
-        // ── 数据 ── (← Android: allSlots = timeSlotsFor(timeJson); slots = allSlots.take(maxNode))
+        // ── 数据 ── (← 原版本: allSlots = timeSlotsFor(timeJson); slots = allSlots.take(maxNode))
         let timeJson = data.days.first?.timeJson ?? ""
         let allSlots = TimeTableUtils.timeSlotsFor(timeJson: timeJson)
         let maxNode = max((allCourses.map { $0.startNode + $0.step - 1 }.max() ?? allSlots.count), 1)
@@ -152,7 +152,7 @@ private struct WeekGridBody: View {
                     let headH = layout.headH
                     let dayW = ctx.dayW
 
-                    // ★ 单一画布 (← Android renderBitmap 一张位图): header 与 body 同
+                    // ★ 单一画布 (renderBitmap 一张位图): header 与 body 同
                     //   原点、同 ctx.colX 几何源。此前两行分属 VStack 两个独立布局盒,
                     //   header 盒被重新居中 → 列头恒右偏 ~6pt 与课程列错位
                     //   (用户 2026-10-28「网格视图纵向没对齐」)。
@@ -206,7 +206,7 @@ private struct WeekGridBody: View {
                         // ── Body: today 高亮 → 分隔线 → 时间列 → 日列 (画布坐标绝对定位) ──
                         //   body 层 x 以 0 起, 整体下沉 headH (与 header 同原点同几何源)
                         ZStack(alignment: .topLeading) {
-                            // today 背景铺满整列 ← Android drawRect(colX, bodyTop, colX+dayW, +bodyH) α40
+                            // today 背景铺满整列 ← 原版本 drawRect(colX, bodyTop, colX+dayW, +bodyH) α40
                             ForEach(Array(sortedDays.enumerated()), id: \.element) { idx, dow in
                                 if let dayData = data.days.first(where: { $0.dayOfWeek == dow }),
                                    DateUtils.isDateToday(dayData.date) {
@@ -217,12 +217,12 @@ private struct WeekGridBody: View {
                                 }
                             }
 
-                            // 额外分隔线 (isGridShowSeparators, ← Android showSeparators 段)
+                            // 额外分隔线 (isGridShowSeparators, ← 原 showSeparators 段)
                             if showSeparators {
                                 WeekGridSeparators(ctx: ctx, color: s.surfaceVariant)
                             }
 
-                            // 时间列 (色带档仍画时间标签 — 日头保留 ← Android 分支顺序)
+                            // 时间列 (色带档仍画时间标签 — 日头保留 ← 原版本 分支顺序)
                             ForEach(1...maxNode, id: \.self) { i in
                                 WeekGridTimeCell(index: i,
                                                  slot: i <= slots.count ? slots[i - 1] : nil,
@@ -305,7 +305,7 @@ extension WeekGridBody {
             let crossed = mealBreakAfterRows.count { $0 + 1 <= index }
             return gapH + CGFloat(index) * (slotH + gapH) + CGFloat(crossed) * bandH
         }
-        /// spanHeightPx ← Android: rows 夹 maxNode; 餐段带不折进卡高 (行高刚性, 卡被带劈开)
+        /// spanHeightPx ← 原版本: rows 夹 maxNode; 餐段带不折进卡高 (行高刚性, 卡被带劈开)
         func spanH(_ index: Int, _ step: Int) -> CGFloat {
             let rows = min(index + step, maxNode) - index
             return max(slotH * CGFloat(rows) + gapH * CGFloat(max(rows - 1, 0)), 1)
@@ -324,7 +324,7 @@ extension WeekGridBody {
         var bodyBottom: CGFloat { bodyH - gapH }
     }
 
-    /// 系统字体缩放 ← Android configuration.fontScale (preferredFont(.body) 默认 17pt)
+    /// 系统字体缩放 ← 原版本 configuration.fontScale (preferredFont(.body) 默认 17pt)
     static func widgetFontScale() -> CGFloat {
         let p = UIFont.preferredFont(forTextStyle: .body).pointSize
         return p > 0 ? p / 17.0 : 1
@@ -346,7 +346,7 @@ extension WeekGridBody {
         let bandH: CGFloat = 24 * widgetFontScale()
 
         // 长课间薄带 ← mealBreakAfterRows: 开关 ON 且探测器命中;
-        // displayIndex = slots.indexOfLast{nodeEnd==leftNode}, 限 0..<slots.lastIndex (同 Android)
+        // displayIndex = slots.indexOfLast{nodeEnd==leftNode}, 限 0..<slots.lastIndex (同 原版本)
         let configuredRows = TimeTableUtils.parseTimeSlotRows(timeJson)
         var mealBreakAfterRows: Set<Int> = []
         if longBreakSpacing {
@@ -387,7 +387,7 @@ extension WeekGridBody {
     }
 
     /// v20b 字号统一到「全表最小理想值」— 每卡 cardH/unitH 理想字号, 全表取 min。
-    /// nameCeil = min(headH(56)*0.24 cap 13, (dayW−8)*0.92), 下限 11 (← Android 同式)
+    /// nameCeil = min(headH(56)*0.24 cap 13, (dayW−8)*0.92), 下限 11 (同式)
     static func computeUnifiedCharSize(allCourses: [CourseEntity], maxNode: Int,
                                        slotH: CGFloat, gapH: CGFloat, dayW: CGFloat,
                                        useAlias: Bool) -> CGFloat {
@@ -410,7 +410,7 @@ extension WeekGridBody {
         return minIdeal
     }
 
-    /// columnSharedFont ← Android: 逐行基准字号(11/12sp)实测墨迹, 整列统一自适应
+    /// columnSharedFont ← 原版本: 逐行基准字号(11/12sp)实测墨迹, 整列统一自适应
     static func columnSharedFont(slots: [TimeTableUtils.TimeSlotRow], timeW: CGFloat,
                                  slotH: CGFloat, headerStyle: String,
                                  showX: Bool) -> PeriodHeaderAdaptiveFont {
@@ -539,7 +539,7 @@ private struct WeekGridTimeCell: View {
     }
 
     // 基线锚定 → .position 居中换算: center = 行顶 + 行盒/2 = baseline − ascender + inkH/2
-    // (UIKit ascender 为正; cy 沿用 Android "center + 0.35em" 基线口径, 换算后中心≈row 中线)
+    // (UIKit ascender 为正; cy 沿用 原版本 "center + 0.35em" 基线口径, 换算后中心≈row 中线)
     private func baselineCentered(_ text: String, size: CGFloat, bold: Bool,
                                   color: Color, cx: CGFloat, baseline: CGFloat) -> some View {
         let font = UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
@@ -578,7 +578,7 @@ private struct WeekGridSeparators: View {
         let lineW: CGFloat = 0.7
         ZStack(alignment: .topLeading) {
             // 纵线: 每列左右缘 (列间中线即上一列右缘与下一列左缘 — 间隙 2.5dp 内两线并存,
-            // Android 对每列画 colX 与 colX+dayW 两条)。餐段带切断为多段 ← verticalSegments。
+            // 原版本 对每列画 colX 与 colX+dayW 两条)。餐段带切断为多段 ← verticalSegments。
             ForEach(0..<ctx.dayCount, id: \.self) { idx in
                 ForEach(ctx.mealBandCuts.indices, id: \.self) { seg in
                     line(x1: ctx.colX(idx), y1: ctx.mealBandCuts[seg].start,
@@ -699,7 +699,7 @@ private struct WeekGridDayColumn: View {
     }
 }
 
-// MARK: - 分栏课程卡 ← Android laneRect 定位逐值移植
+// MARK: - 分栏课程卡 ← 原 laneRect 定位逐值移植
 
 private struct WeekGridLaneCard: View {
     let rect: ConflictLayoutEngine.GridLaneRect
@@ -735,7 +735,7 @@ private struct WeekGridCourseCard: View {
     let course: CourseEntity
     let scheme: WidgetScheme
     let colorless: Bool
-    /// 分栏后本卡实际宽/高 (Android cardRect) — 教室截断用宽; 高由父级
+    /// 分栏后本卡实际宽/高 (原版本 cardRect) — 教室截断用宽; 高由父级
     /// spanH(startIdx, clampedStep) 给出 (含餐带劈开语义, 卡不在本层重算)
     let cardW: CGFloat
     let cardH: CGFloat
@@ -759,7 +759,7 @@ private struct WeekGridCourseCard: View {
             course, groupRows: groupRows.isEmpty ? [course] : groupRows,
             isDark: scheme.isDark, neutralColor: scheme.surfaceVariant, colorless: colorless,
             persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
-        // 文字色: 深底白字 / 浅底近黑 (isDarkOn); 灰显文字 alpha ← Android :740
+        // 文字色: 深底白字 / 浅底近黑 (isDarkOn); 灰显文字 alpha ← 原版本 :740
         let textColor = glass ? scheme.onSurface
             : (Self.isDarkOn(baseColor) ? Color.white : Color(0xFF1D1B20))
         // ← WidgetBitmapRenderers drawCourse :741: 灰显 × 「删除线」样式 → 删线
@@ -783,7 +783,7 @@ private struct WeekGridCourseCard: View {
         .padding(4)  // unifiedPad — 可用高预算 (cardH−8) 与实际留白同源
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(
-            // 卡底 alpha ← Android :723: 灰显列 120, 正常 200;
+            // 卡底 alpha ← 原版本 :723: 灰显列 120, 正常 200;
             // 玻璃档 = secondaryContainer (白 30%, 文字白 100% 对比足够)
             RoundedRectangle(cornerRadius: 10)
                 .fill(glass ? scheme.secondaryContainer
@@ -800,12 +800,12 @@ private struct WeekGridCourseCard: View {
         course.room.filter { $0 != "\n" && $0 != " " }
     }
 
-    /// hasRoom ← Android course.room.isNotBlank() (原串判空, 非过滤后) —
+    /// hasRoom ← 原版本 course.room.isNotBlank() (原串判空, 非过滤后) —
     /// roomReserve/字号预留与绘制条件同源
     private var hasRoom: Bool { !course.room.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     // issue#26: 展示名 = CourseDisplayUtil(useAlias→trim 别名, 空回退原名) —
-    // 字号预算(charSize)与绘制必须用同一个名字, 否则截断不一致 (← Android 同款注释)
+    // 字号预算(charSize)与绘制必须用同一个名字, 否则截断不一致 (同款注释)
     private var displayName: String { CourseDisplayUtil.displayName(course, useAlias) }
 
     /// availCardH ← cardRect.height() − unifiedPad×2 (:752)
@@ -846,7 +846,7 @@ struct VerticalNameView: View {
     let charSize: CGFloat
     let nameAvailH: CGFloat
     let textColor: Color
-    /// 灰显列文字透明度 ← Android p.alpha=153/255 (:740)
+    /// 灰显列文字透明度 ← 原版本 p.alpha=153/255 (:740)
     var textOpacity: CGFloat = 1
     /// 灰显 × 「删除线」样式 (:741) — 竖排逐字渲染, 全列删线以逐字删线呈现
     var strike: Bool = false
@@ -894,7 +894,7 @@ struct NameToken {
 }
 
 enum VerticalNameTokenizer {
-    /// 文本墨迹宽度 — ← Android paint.measureText 的 iOS 等价口径
+    /// 文本墨迹宽度 — ← 原版本 paint.measureText 的 iOS 等价口径
     /// (NSAttributedString.size, 与 App 层 CourseTableView textWidth 同源)。
     /// 三行表头几何/字号自适应与竖排截断必须实测, 不能再用固定系数近似。
     static func textWidth(_ s: String, font: UIFont) -> CGFloat {
@@ -1004,7 +1004,7 @@ enum VerticalNameTokenizer {
     }
 
     /// v22 字符级贪心截断 → 绘制 token 列表(任何 token 可拆到字符级, 杜绝溢出)
-    /// 高度口径 = ← Android p.measureText(textSize=charSize, BOLD): 实测而非固定系数
+    /// 高度口径 = ← 原版本 p.measureText(textSize=charSize, BOLD): 实测而非固定系数
     static func greedyDraw(tokens: [NameToken], charSize: CGFloat, nameAvailH: CGFloat) -> [NameToken] {
         struct DrawnToken {
             let type: TT
@@ -1069,7 +1069,7 @@ enum VerticalNameTokenizer {
 
 /// WeekGrid systemSmall: 不再"折叠成单列的网格脸", 直接渲染今日课程·小
 /// (数据侧 weekGridMinimumTodayData: WeekData → 今日 WidgetData, 纯函数;
-///  Android 今日·小已删纯文本脸改走常规渲染器 → iOS 直接复用 TodayWidgetEntryView)
+///  原版本 今日·小已删纯文本脸改走常规渲染器 → iOS 直接复用 TodayWidgetEntryView)
 private struct WeekGridMinimumTodayFace: View {
     let data: WeekData
 
@@ -1093,7 +1093,7 @@ struct WeekGridWidget: Widget {
             WeekGridWidgetEntryView(entry: entry)
         }
         .configurationDisplayName(L10n.format("widget_week_grid_label"))
-        // 三档全开: Android 13 变体是「放置预设」(S/M/L),且全部 minResize 40dp + 自由拖拽,
+        // 三档全开: 原版本 13 变体是「放置预设」(S/M/L),且全部 minResize 40dp + 自由拖拽,
         // 任何 widget 都能被拖成任意档 → iOS 三 family 全支持,档位由 WidgetLayoutTier 换算
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         // iOS 17+ 系统边距关闭, 维持既有自管 padding 布局 (iOS 16 及以下 no-op)

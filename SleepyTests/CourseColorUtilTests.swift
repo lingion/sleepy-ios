@@ -153,7 +153,7 @@ final class CourseColorUtilTests: XCTestCase {
         XCTAssertNil(CourseColorUtil.parseColor("notacolor"))
         // ← android.graphics.Color.parseColor 对齐: 无 '#' 前缀必抛异常 → 落空回退分支。
         // "FF5722" 照收会让坏 hex 自定义色两端走不同分支(GROUP/AUTO/CUSTOM 回落路径分歧)。
-        XCTAssertNil(CourseColorUtil.parseColor("FF5722"), "无 # 前缀必须判非法(Android 语义)")
+        XCTAssertNil(CourseColorUtil.parseColor("FF5722"), "无 # 前缀必须判非法(原语义)")
         XCTAssertNil(CourseColorUtil.parseColor("#FF57"), "位数不足")
         XCTAssertNil(CourseColorUtil.parseColor("#GGHHIIJK"), "非 hex 字符")
         XCTAssertNil(CourseColorUtil.parseColor(""), "空串")
@@ -219,7 +219,7 @@ final class CourseColorUtilTests: XCTestCase {
     }
 
     /// spec §5.2"组色变则自动跟随": forRow 的 hue = baseHue(组色源) + idx×黄金角。
-    /// iOS 真 UIColor/parseColor 可用(不像 Android JVM 桩), 直接锁组色源参与 + 行序发散。
+    /// iOS 真 UIColor/parseColor 可用(不像 原版本 JVM 桩), 直接锁组色源参与 + 行序发散。
     func testAutoRowHueConsumesGroupSourceAndDiverges() {
         let rows = [
             groupCourse(1, color: "#FFFF0000", mode: CourseColorMode.GROUP),
@@ -231,14 +231,14 @@ final class CourseColorUtilTests: XCTestCase {
         XCTAssertEqual(hue1, GoldenAngleColor.forRow(rows[0], rows, "#FFFF0000"), accuracy: 0)
         // 不同行 idx 发散(黄金角 137.508°)
         XCTAssertEqual(137.508, Double((Double(hue2) - Double(hue1) + 360).truncatingRemainder(dividingBy: 360)), accuracy: 0.01)
-        // 组色源参与 baseHue: 换组色源 → hue 变(Android JVM 不可断言, iOS 真解析可断言)
+        // 组色源参与 baseHue: 换组色源 → hue 变(原版本 JVM 不可断言, iOS 真解析可断言)
         let hue1OtherSource = GoldenAngleColor.forRow(rows[0], rows, "#FF00FF00")
         XCTAssertNotEqual(hue1, hue1OtherSource, accuracy: 0.001)
     }
 
     // ============================ issue#22 3 态取色镜像用例(← CourseColorUtilTest.kt) ============================
 
-    /// ← Android multiCourse(): 同组 g1、按 id 区分行
+    /// ← 原版本 multiCourse(): 同组 g1、按 id 区分行
     private func multiCourse(_ id: Int64, color: String, mode: Int, groupId: String = "g1") -> CourseEntity {
         var c = CourseEntity(groupId: groupId, tableId: 1, courseName: "x",
                              day: 1, startNode: 1, step: 1, startWeek: 1, endWeek: 16,
@@ -301,9 +301,9 @@ final class CourseColorUtilTests: XCTestCase {
     }
 
     /// ← `GoldenAngleColor baseHue 边界 — baseHue idx 1 回绕`。
-    /// 注: Android 用例注释称 #FFFF00C8 hue≈350、期望落 (100,150),两处均与事实不符:
+    /// 注: 原用例注释称 #FFFF00C8 hue≈350、期望落 (100,150),两处均与事实不符:
     ///   1. androidx RGBToHSL 实算 #FFFF00C8 hue = 312.94(非 350);
-    ///   2. Android JVM 环境 parseColor 为 mockable 桩恒返 0 → baseHue 恒 0,
+    ///   2. 原版本 JVM 环境 parseColor 为 mockable 桩恒返 0 → baseHue 恒 0,
     ///      其 (100,150) 断言靠 137.508 过,并未真正钉住组色 hue。
     /// iOS 真解析,按事实值钉桩: baseHue=312.94, idx1=(312.94+137.508)%360=90.45,
     /// 钉住 iOS rgbToHslHue 与 androidx colorToHSL 的 hue 值一致 + 值域 [0,360) 回绕正确。

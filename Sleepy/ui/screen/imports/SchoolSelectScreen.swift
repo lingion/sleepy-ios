@@ -36,7 +36,7 @@ struct SchoolSection {
     let schools: [JwSchoolInfo]
 }
 
-/// 跨 stage 往返状态仓 ← Android rememberSaveable(query / resumeLocationAfterSettings /
+/// 跨 stage 往返状态仓 ← 原版本 rememberSaveable(query / resumeLocationAfterSettings /
 /// rememberSaveable(city) expanded) + JwImportActivity stage 分支的 SaveableStateProvider
 /// (列表滚动位置) + viewModel() 作用域(学校列表/定位状态随同一 VM 实例跨 stage 存活)。
 ///
@@ -85,7 +85,7 @@ private struct SectionHeaderMinYKey: PreferenceKey {
 
 /// 滚动派生量宿主 ← rememberLazyListState + derivedStateOf。
 /// @StateObject 承载: preference 回调只写这里, 不直接 @State — 每帧滚动的更新
-/// 只重建依赖它的子树(与 Android derivedStateOf 只触发订阅者一致)。
+/// 只重建依赖它的子树(与 原 derivedStateOf 只触发订阅者一致)。
 final class SchoolSelectScrollModel: ObservableObject {
     @Published var headerYs: [String: CGFloat] = [:]
 
@@ -98,7 +98,7 @@ final class SchoolSelectScrollModel: ObservableObject {
 
     /// 跳转前清理陈旧观测: 滚动跳位后目标 header 锚定顶边、其后各组必然位于视口下方,
     /// 它们上一次深滚留下的 ≤1 值必为陈旧 → 删除, 防止派生高亮粘在旧底部字母
-    /// (Android firstVisibleItemIndex 无陈旧态, 此为 preference 方案的对应补正;
+    /// (原 firstVisibleItemIndex 无陈旧态, 此为 preference 方案的对应补正;
     /// 被删条目重新进入视口时会重新上报, 删除本身不会漏判)。
     func dropHeaders(after letter: String, in order: [String]) {
         guard let idx = order.firstIndex(of: letter), idx + 1 < order.count else { return }
@@ -167,7 +167,7 @@ struct SchoolSelectScreen: View {
         Binding(get: { store.expandedCity }, set: { store.expandedCity = $0 })
     }
 
-    /// ← Android `remember(schools) { SchoolSearchIndex(schools) }` +
+    /// ← 原 `remember(schools) { SchoolSearchIndex(schools) }` +
     ///   `remember(searchIndex, query) { searchIndex.search(query) }`:
     ///   索引由 ViewModel 按 schools 变更时重建, 每次按键只做匹配。
     ///   (索引缓存放在 VM — schools 是 VM 的 @Published, 索引与它同生命周期)
@@ -177,7 +177,7 @@ struct SchoolSelectScreen: View {
 
     private var isUrl: Bool { looksLikeUrl(query) }
     private var urlProtocol: String? { isUrl ? JwImportViewModel.detectProtocolFromUrl(query) : nil }
-    /// ← Android `SchoolDomainMatch.selectionsForUrl(normalizeUrl(query.trim()), schools, urlProtocol, "自定义教务")`:
+    /// ← 原 `SchoolDomainMatch.selectionsForUrl(normalizeUrl(query.trim()), schools, urlProtocol, "自定义教务")`:
     ///   精确命中的目录条目原样返回(多条 → 让用户选), 未命中才回退到单条自定义条目。
     ///   目录身份必须保留 — 否则用户输 URL 会绕过未验证学校的准入提示。
     private var urlSelections: [JwSchoolInfo] {
@@ -195,7 +195,7 @@ struct SchoolSelectScreen: View {
     private var showRecommendations: Bool { query.trimmingCharacters(in: .whitespaces).isEmpty }
     /// ← derivedStateOf { firstVisibleItemIndex in headerIdx..lastSchoolIdx }:
     ///   高亮 = 已滚过滚动容器顶边的最后一个分组 header(其分组正占据视口顶边);
-    ///   列表顶部区(推荐卡/入口行)无任何 header 越线 → nil, 与 Android 顶部无高亮一致。
+    ///   列表顶部区(推荐卡/入口行)无任何 header 越线 → nil, 与 原版本 顶部无高亮一致。
     ///   离屏回收的 header 保留最后一次观测值(越过顶边后恒 ≤0)。
     private var activeLetter: String? {
         var letter: String? = nil
@@ -214,7 +214,7 @@ struct SchoolSelectScreen: View {
     }
     private var openPermissionSettings: () -> Void {
         {
-            // ← Android openPermissionSettings 不碰 resume 标志(仅 locationDisabled 分支设)
+            // ← 原 openPermissionSettings 不碰 resume 标志(仅 locationDisabled 分支设)
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }
@@ -222,7 +222,7 @@ struct SchoolSelectScreen: View {
     }
     private var retryLocation: () -> Void {
         {
-            // ← Android retryLocation: LocationDisabled → 开系统设置 + resume 标志;
+            // ← 原版本 retryLocation: LocationDisabled → 开系统设置 + resume 标志;
             //   其余 → requestLocation(): 有权限直接定位, 无权限走授权结果回调定位。
             if CLLocationManager.locationServicesEnabled() {
                 if hasLocationPermission {
@@ -273,7 +273,7 @@ struct SchoolSelectScreen: View {
                 .padding(.trailing, 16)
                 .padding(.bottom, 2)
 
-            // 计数行 ← Android jw_catalog_counts(总数 / 已支持且可导入 / 待验证)
+            // 计数行 ← 原版本 jw_catalog_counts(总数 / 已支持且可导入 / 待验证)
             HStack {
                 Text(L10n.format("jw_catalog_counts",
                                  viewModel.schools.count,
@@ -292,7 +292,7 @@ struct SchoolSelectScreen: View {
             .padding(.vertical, 4)
 
             if isUrl {
-                // ← Android: 单条 → UrlDirectRow; 多条 → 240dp 高的候选列表(让用户选)
+                // ← 原版本: 单条 → UrlDirectRow; 多条 → 240dp 高的候选列表(让用户选)
                 if urlSelections.count == 1 {
                     let school = urlSelections[0]
                     UrlDirectRow(url: query.trimmingCharacters(in: .whitespaces),
@@ -318,14 +318,14 @@ struct SchoolSelectScreen: View {
 
             if filtered.isEmpty && !isUrl {
                 Text(viewModel.schools.isEmpty ? L10n.format("loading") : L10n.format("no_school_found"))
-                    .font(.system(size: 16))   // ← Android 无 style 参数 = bodyLarge 16
+                    .font(.system(size: 16))   // ← 原 无 style 参数 = bodyLarge 16
                     .foregroundColor(colors.onSurfaceVariant)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if !(isUrl && filtered.isEmpty) {
                 // 布局回归修复(本会话引入): ScrollViewReader 的内容闭包是普通 ViewBuilder,
                 // 把 AlphabetIndexBar 与 ScrollView 并列为它的两个子节点 = 隐式 VStack 堆叠
                 // → 索引栏整条沉到列表下方(iPhone 6 实测「跑到页面底部」)。
-                // Android 真值 SchoolSelectScreen.kt: Row { LazyColumn(Modifier.weight(1f));
+                // 原版本 真值 SchoolSelectScreen.kt: Row { LazyColumn(Modifier.weight(1f));
                 // AlphabetIndexBar(Modifier.width(32.dp).fillMaxSize()) } — 索引栏是贴右缘的
                 // 水平并列兄弟。此处把整个 HStack 包进 ScrollViewReader(proxy 对尾部索引栏
                 // 仍可见), 恢复 HEAD 的兄弟结构。
@@ -403,7 +403,7 @@ struct SchoolSelectScreen: View {
             }
         }
         .background(colors.background)
-        // ← Android DisposableEffect: ON_STOP 取消; ON_RESUME 且来自设置页 → 续定位
+        // ← 原版本 DisposableEffect: ON_STOP 取消; ON_RESUME 且来自设置页 → 续定位
         .onChange(of: scenePhase) { phase in
             if phase != .active {
                 viewModel.cancelSchoolLocation()
@@ -420,7 +420,7 @@ struct SchoolSelectScreen: View {
     }
 }
 
-// ← PossibleSchoolsCard(Android 434-530): 同城推荐单卡 — 标题/8 态副标题/定位按钮/
+// ← PossibleSchoolsCard(原版本 434-530): 同城推荐单卡 — 标题/8 态副标题/定位按钮/
 // Ready 空表→loading|no_matches/有表→city_hint+行(expanded?全部:take 5)+分隔线/
 // 底部 FlowRow: Ready&&>5 展开/收起 + 恒显权限设置。行走 SchoolRow 原点击路径。
 private struct PossibleSchoolsCard: View {
@@ -501,7 +501,7 @@ private struct PossibleSchoolsCard: View {
                         .padding(.top, 8)
                     let visible = isExpanded ? schools : Array(schools.prefix(5))
                     ForEach(visible, id: \.stableKey) { school in
-                        // ← Android 卡内行走共享 SchoolRow(含 badge/URL 行), 非独立 inline
+                        // ← 原版本 卡内行走共享 SchoolRow(含 badge/URL 行), 非独立 inline
                         SchoolRow(school: school) {
                             onSchoolSelected(school)
                         }
@@ -656,9 +656,9 @@ private struct SchoolRow: View {
     let school: JwSchoolInfo
     let onClick: () -> Void
 
-    /// ← Android SchoolRow: `val isClickable = school.canImport`
+    /// ← 原版本 SchoolRow: `val isClickable = school.canImport`
     ///   (已支持, 或未验证且该协议有 parser, 并且有可用 URL)。
-    ///   该标志在 Android 只影响校名文字颜色 — 行本身永远可点(noRippleClickable 恒挂 onClick),
+    ///   该标志在 原版本 只影响校名文字颜色 — 行本身永远可点(noRippleClickable 恒挂 onClick),
     ///   待适配条目照样进 onSchoolSelected, 由 JwImportFlow 弹「待适配」告知框。
     ///   iOS 若把 Button 门禁绑到该标志上, 待适配行将永远点不动 → 少了 catalogNotice 那一路。
     private var isClickable: Bool {
@@ -666,7 +666,7 @@ private struct SchoolRow: View {
     }
 
     var body: some View {
-        // ← Android: 行恒可点(availability 只由文字颜色表达), 准入判定在 Activity 侧。
+        // ← 原版本: 行恒可点(availability 只由文字颜色表达), 准入判定在 Activity 侧。
         Button(action: onClick) {
             rowContent
         }
@@ -675,7 +675,7 @@ private struct SchoolRow: View {
 
     private var rowContent: some View {
         HStack(spacing: 12) {
-            Image(systemName: "graduationcap")   // ← Android Icons.Outlined.School
+            Image(systemName: "graduationcap")   // ← 原 Icons.Outlined.School
                 .font(.system(size: 20))
                 .foregroundColor(colors.onPrimaryContainer)
                 .frame(width: 36, height: 36)
@@ -704,7 +704,7 @@ private struct SchoolRow: View {
         .padding(.horizontal, 4)
     }
 
-    /// ← Android SchoolRow: `if (school.status != STATUS_SUPPORTED && !school.isUnverified)`
+    /// ← 原版本 SchoolRow: `if (school.status != STATUS_SUPPORTED && !school.isUnverified)`
     ///   — supported 与 unverified 都不渲染徽章(未验证占列表绝大多数, 满屏徽章会淹没其余信号;
     ///   提示职责移到点进前的 catalogNotice 确认 + 导入成功后的报告弹窗)。
     @ViewBuilder
@@ -746,7 +746,7 @@ private struct SchoolRow: View {
     }
 }
 
-// ← CustomUrlEntryRow(Android 520-565): 「自定义教务链接」引导入口 —
+// ← CustomUrlEntryRow(原版本 520-565): 「自定义教务链接」引导入口 —
 // 与 UrlDirectRow 同构(Link 图标 + primary 色)但语义是引导: 点击不导入,
 // 聚焦搜索框弹键盘, 用户把教务 URL 输进去后搜索框下方出现 UrlDirectRow 完成导入。
 private struct CustomUrlEntryRow: View {

@@ -1,7 +1,7 @@
 // SegmentedSwitcher.swift — ← ui/component/SegmentedSwitcher.kt
 // 单选分段按钮 — 主视图模式切换(整周/卡片)。
 //
-// 2026-09-10 原生化审计重写:旧版为复刻 Android M3 thumb「逐字符扫过变色」,
+// 2026-09-10 原生化审计重写:旧版为复刻 原版本 M3 thumb「逐字符扫过变色」,
 // 用 CoreText 逐字形测量 + 每字符矩形∩thumb 覆盖率 lerp(~230 行),
 // 且 minimumScaleFactor 缩字时字符矩形与渲染字号失准。属边际效用递减,删除。
 // iOS 原生即 SwiftUI 弹簧动画驱动 thumb 滑动(同一弹簧参数 response 0.18 /
@@ -17,15 +17,15 @@ struct SegmentedSwitcher<T: Hashable>: View {
     let options: [(T, String)]
     let selected: T
     let onSelect: (T) -> Void
-    /// ← Android containerColor: Color? = null — 默认 surfaceContainer(课表页直接铺在
+    /// ← 原版本 containerColor: Color? = null — 默认 surfaceContainer(课表页直接铺在
     /// 页面 background 上);嵌进 surfaceContainer 卡片时同色会隐形,调用方传
     /// surfaceContainerHighest 降一级保持对比(SettingsCards / ScheduleDisplayScreen 同款)。
-    /// nil = 跟随默认,与 Android null 语义一致。
+    /// nil = 跟随默认,与 原 null 语义一致。
     var containerColor: Color? = nil
-    /// ← Android 调用方 `Modifier.height(36.dp)` 覆盖组件默认 `.height(42.dp)`
+    /// ← 原版本 调用方 `Modifier.height(36.dp)` 覆盖组件默认 `.height(42.dp)`
     /// (SettingsCards.kt:150-151)。Compose 里外层约束会夹紧子节点固定高, SwiftUI
     /// 不会把外层 frame 高度透传进内部几何, 故以参数化 42 默认值 + thumb = height-8
-    /// (上下各 4pt 内边距)复刻同一几何不变量。默认 42 与 Android 组件默认一致。
+    /// (上下各 4pt 内边距)复刻同一几何不变量。默认 42 与 原版本 组件默认一致。
     var height: CGFloat = 42
 
     private var selectedIndex: Int {
@@ -49,7 +49,7 @@ struct SegmentedSwitcher<T: Hashable>: View {
                 .fill(colors.secondaryContainer)
                 .frame(width: segW, height: height - 8)
                 .offset(x: 4 + CGFloat(selectedIndex) * segW, y: 4)
-                // 同款 — Android SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
+                // 同款 — 原版本 SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
                 .animation(sleepyThumbSpring, value: selectedIndex)
 
             // 层1: 点击段 + 整词单色标签
@@ -61,7 +61,7 @@ struct SegmentedSwitcher<T: Hashable>: View {
                     } label: {
                         Text(pair.1)
                             .font(.system(size: 14, weight: isSel ? .semibold : .medium))
-                            // ← Android labelLarge: letterSpacing 0.1.sp / lineHeight 20.sp
+                            // ← 原版本 labelLarge: letterSpacing 0.1.sp / lineHeight 20.sp
                             // (14pt 单行字串在段内垂直居中,行高差由居中吸收,无需额外行距修饰)
                             .tracking(0.1)
                             .foregroundColor(isSel ? colors.onSecondaryContainer : colors.onSurfaceVariant)

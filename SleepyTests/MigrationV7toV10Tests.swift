@@ -1,4 +1,4 @@
-// MigrationV7toV10Tests.swift — Android MigrationTest 等价物 (GPL-3.0)
+// MigrationV7toV10Tests.swift — 原 MigrationTest 等价物 (GPL-3.0)
 // 验证 v6 旧库逐级升到 v10: import_drafts 建表(v7)、period_tables 建表+回填(v8)、
 // preBindSnapshotJson 加列(v9)、calendar_import_records 建表+唯一索引(v10)。
 // issue#40 回填契约: 每张旧课表恰得一张同 id 独立节次表, periodTableId 指过去。

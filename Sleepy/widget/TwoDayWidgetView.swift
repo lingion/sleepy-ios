@@ -7,14 +7,14 @@
 //   targetDate + targetDate+1 兜底)。星期取课走 HolidayTransferHelper 调休映射,
 //   灰显走 HolidayManager.shouldGrey (issue#44)。
 //
-// 对齐 Android 定稿语义 (2dbad515 / 8c0fcbea / ab27230c / 895fe72f / f7e80c84):
+// 对齐 原版本 定稿语义 (2dbad515 / 8c0fcbea / ab27230c / 895fe72f / f7e80c84):
 //  1. 顶部「最近两天」标题行已删 (2dbad515), 直接以列标题起排;
 //  2. 每列 FIXED 窗口独立 (今天列 TIME_WINDOW / 明天列 HEAD), 行高 36 / 行距 6 / 堆叠 3;
 //  3. 每列「+N」胶囊恒画且各说各的 (合并求和禁回流), 上完/没课列显示「+0」;
 //  4. ALL_DONE 列正文留空 —— 「无课程」文案不残留, 只剩列底「+0」标记 (ab27230c);
-//  5. 三档同一渲染器 (Android renderTwoDay 已无 compact 分支), 2×2 靠窗口数学装 2 节;
+//  5. 三档同一渲染器 (原 renderTwoDay 已无 compact 分支), 2×2 靠窗口数学装 2 节;
 //  6. 课程边界即刷新窗口 (f7e80c84 的 iOS 等价 = timeline entry 落在 end+1)。
-//  7. forceScroll 条带 (WidgetScrollStore/ScrollStripService) = Android 专有宿主,
+//  7. forceScroll 条带 (WidgetScrollStore/ScrollStripService) = 原版本 专有宿主,
 //     iOS 由列底「+N」胶囊等价承担 (平台差异, 非缺陷)。
 
 import SwiftUI
@@ -30,17 +30,17 @@ struct TwoDayWidgetEntry: TimelineEntry {
 // MARK: - loadDataSync ← TwoDayWidgetReceiver.Companion.loadDataSync (v1.0.61 对齐)
 
 /// TwoDay 专用装载器 — 与 WidgetDataLoaders.swift 的通用版不同, 本实现逐行对齐
-/// Android companion: resolve(appWidgetId) → NEAREST_BUSY_DAY 选两列日 (用户
+/// 原版本 companion: resolve(appWidgetId) → NEAREST_BUSY_DAY 选两列日 (用户
 /// 2026-09-23 定稿 11/2+12/2) → 调休映射星期 → 按日 semesterStatus → 灰显。
-/// Android runBlocking → iOS async (TimelineProvider completion 允许异步回调)。
+/// 原 runBlocking → iOS async (TimelineProvider completion 允许异步回调)。
 enum TwoDayWidgetDataLoader {
 
     static func loadData(kind: String) async -> TwoDayData {
-        // 自然日零点锚 (← Android LocalDate.now()); 明天 = +1 自然日, 不用 86400 秒
+        // 自然日零点锚 (LocalDate.now()); 明天 = +1 自然日, 不用 86400 秒
         // 算术 (DST/时区下不保日界)
         let today = DateUtils.isoCalendar.startOfDay(for: Date())
         let prefs = AppPrefs.shared
-        // ← Android TwoDayWidget.kt:184: isSystemDark 取 widget 宿主 Context 的
+        // ← 原版本 TwoDayWidget.kt:184: isSystemDark 取 widget 宿主 Context 的
         //   uiMode 夜间标志; iOS 默认参数 false 会让 system 主题下 widget 永远浅色。
         let isDark = prefs.isDarkMode(isSystemDark: currentSystemDark())
         let themeKey = prefs.getThemeKey()
@@ -74,7 +74,7 @@ enum TwoDayWidgetDataLoader {
         let status = DateUtils.semesterStatus(startDate: table.startDate,
                                               maxWeek: table.maxWeek,
                                               today: dates.first ?? today)
-        // ← Android L210-219: 取课 source.coursesOn(date) (调休按日期反向查, 学期外
+        // ← 原版本 L210-219: 取课 source.coursesOn(date) (调休按日期反向查, 学期外
         // 由 coursesForDate 内部清空; 审计 [A]-2 修复 — 旧 effectiveDayOfWeek 正向
         // 映射周次不随 source 日反解、补班日取错课), dayOfWeek 取自然星期。
         var days: [DayData] = []
@@ -119,7 +119,7 @@ struct TwoDayWidgetProvider: TimelineProvider {
             let data = await TwoDayWidgetDataLoader.loadData(kind: "TwoDayWidgetRV")
             var entries = [TwoDayWidgetEntry(date: now, data: data, nowMin: WidgetWindows.nowMinutes(now))]
             // ← WidgetBoundaryScheduler: 今天列每节课下课的下一分钟一颗边界,窗口跟着前移
-            //   (NEAREST_BUSY_DAY 选日下两列都不是今天 → 天然无边界, 与 Android 同语义)
+            //   (NEAREST_BUSY_DAY 选日下两列都不是今天 → 天然无边界, 与 原版本 同语义)
             if let today = data.days.first(where: { $0.isToday }),
                data.hasTable, data.semesterStatus == .inRange {
                 for at in WidgetWindows.boundaryDates(courses: today.courses, timeJson: today.timeJson, from: now) {
@@ -183,7 +183,7 @@ struct TwoDayWidgetEntryView: View {
                          : L10n.format("semester_ended"))
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(s.onSurface)
-                        .padding(.bottom, 4) // 底部前进量 ≈22 (15pt 行高≈18 + 4) ← Android y+=22f
+                        .padding(.bottom, 4) // 底部前进量 ≈22 (15pt 行高≈18 + 4) ← 原 y+=22f
                     Text(L10n.format("today_semester_out_hint"))
                         .font(.system(size: 11))
                         .foregroundColor(s.onSurfaceVariant)
@@ -191,7 +191,7 @@ struct TwoDayWidgetEntryView: View {
                 } else {
                     // ★ 左右两栏: 每天一列, 中间竖直分隔 (id 用列序 — 调休映射下
                     //   两列 dayOfWeek 可能相同, 不能作 identity)
-                    HStack(alignment: .top, spacing: 10) { // 列间距 10 ← Android colGap 10dp (:1328)
+                    HStack(alignment: .top, spacing: 10) { // 列间距 10 ← 原 colGap 10dp (:1328)
                         ForEach(Array(data.days.enumerated()), id: \.offset) { colIdx, day in
                             TwoDayColumn(day: day, scheme: s, colorless: colorless,
                                          displayMode: displayMode, showDate: showDate,
@@ -202,7 +202,7 @@ struct TwoDayWidgetEntryView: View {
                     }
                 }
             }
-            .padding(12)  // 外边距 12 ← Android renderTwoDayRegular pad=12dp (:1279), 与窗口扣减 44 同源
+            .padding(12)  // 外边距 12 ← 原 renderTwoDayRegular pad=12dp (:1279), 与窗口扣减 44 同源
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -240,10 +240,10 @@ private struct TwoDayColumn: View {
             // 列标题: 今天/明天/星期 + 日期(★ showDate=false 时隐藏)
             HStack(alignment: .firstTextBaseline, spacing: 6) { // 安卓日期间隔 titleW+6dp
                 Text(title)
-                    .font(.system(size: 12, weight: .bold))  // 列标题 12 ← Android :1370 12f
+                    .font(.system(size: 12, weight: .bold))  // 列标题 12 ← 原:1370 12f
                     .foregroundColor(s.primary)
                 if showDate {
-                    // MM-dd ← Android :1376 画 day.dayLabel (DateUtils.shortDate = "MM-dd",
+                    // MM-dd ← 原版本 :1376 画 day.dayLabel (DateUtils.shortDate = "MM-dd",
                     // 非 shortDateSlash M/d)
                     Text(day.dayLabel)
                         .font(.system(size: 10))
@@ -280,7 +280,7 @@ private struct TwoDayColumn: View {
             }
             Spacer(minLength: 0)
             // ← 8c0fcbea / ab27230c: 每列「+N」恒画 (含「+0」), 各列独立计数, 不可点
-            // 定稿: 宽度上限 46 (Android pillW coerceAtMost(colW) 语义的 iOS 固定上界近似;
+            // 定稿: 宽度上限 46 (原 pillW coerceAtMost(colW) 语义的 iOS 固定上界近似;
             //   胶囊本体圆角 = 高/2 = 9、字号 11 bold 见 WidgetCourseCard.WidgetCapsulePill)
             WidgetFooterCapsule(
                 text: window.map { WidgetWindowCore.capsuleText(hidden: $0.hiddenAheadCourses) },
@@ -288,7 +288,7 @@ private struct TwoDayColumn: View {
                 .frame(maxWidth: 46)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        // 列间竖直分隔线 ← Android :1448-50 — 全高 listTop→listBottom (列组件本身
+        // 列间竖直分隔线 ← 原版本 :1448-50 — 全高 listTop→listBottom (列组件本身
         //   即覆盖该区), 1dp 线位于列间距中心 (trailing −5 = 间距 10 的中点)
         .overlay(alignment: .trailing) {
             if !isLast {
@@ -301,7 +301,7 @@ private struct TwoDayColumn: View {
     }
 
     private var title: String {
-        // ← Android :1373-77: 仅 isToday/明天/星期 三分支, 无跳转态标题
+        // ← 原版本 :1373-77: 仅 isToday/明天/星期 三分支, 无跳转态标题
         // (NEAREST_BUSY_DAY 只换日期列内容, 标题保持星期口径)
         if day.isToday { return L10n.format("today_today") }
         if day.isTomorrow { return L10n.format("tomorrow") }

@@ -6,8 +6,8 @@
 //      同键裸 INSERT 必被拒(防「误用旧式双列主键」);
 //   3. 迁移链尾必须到 v12。
 //
-// 平台差异: Android 用 Room Migration 单一事实来源 MIGRATION_11_12_STATEMENTS;
-// iOS 用 GRDB DatabaseMigrator, DDL 逐字与 Android 11_12 一致(见 AppDatabase.migrator)。
+// 平台差异: 原版本 用 Room Migration 单一事实来源 MIGRATION_11_12_STATEMENTS;
+// iOS 用 GRDB DatabaseMigrator, DDL 逐字与 原版本 11_12 一致(见 AppDatabase.migrator)。
 
 import XCTest
 import GRDB

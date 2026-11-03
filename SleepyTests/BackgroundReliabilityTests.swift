@@ -15,7 +15,7 @@ final class BackgroundReliabilityTests: XCTestCase {
     }
 
     func testTransportStateDegradedWhenTimeSensitiveUnavailable() {
-        // ≙ Android: exact alarm 未授权 → DEGRADED_INEXACT_ALARM
+        // ≙ 原版本: exact alarm 未授权 → DEGRADED_INEXACT_ALARM
         let s = BackgroundReliabilitySnapshot(
             notificationPermissionGranted: true, timeSensitiveAllowed: false, lowPowerModeActive: false)
         XCTAssertEqual(s.reminderTransportState(), .degradedInexactAlarm)
@@ -40,7 +40,7 @@ final class BackgroundReliabilityTests: XCTestCase {
         XCTAssertTrue(BackgroundReliabilitySnapshot(
             notificationPermissionGranted: true, timeSensitiveAllowed: true, lowPowerModeActive: false)
             .backgroundPermissionFactsSatisfied())
-        // 低电量模式开启 = ≙ Android 电池优化未忽略
+        // 低电量模式开启 = ≙ 原版本 电池优化未忽略
         XCTAssertFalse(BackgroundReliabilitySnapshot(
             notificationPermissionGranted: true, timeSensitiveAllowed: true, lowPowerModeActive: true)
             .backgroundPermissionFactsSatisfied())

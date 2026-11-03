@@ -1,5 +1,5 @@
 // DialogButtonsLayoutPolicyTests.swift — ← util/DialogButtonsLayoutPolicyTest.kt 8 用例逐字对齐 (GPL-3.0)
-// Sleepy iOS — 100% port of sleepy Android
+// Sleepy iOS — 100% port of 原版本
 
 import XCTest
 @testable import Sleepy

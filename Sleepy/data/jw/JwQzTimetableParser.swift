@@ -3,10 +3,10 @@
 // 强智新式 table#timetable 详细视图解析器 — 每门课自带显式节次
 // ([01-02-03-04节] 形态), 与老 #kbtable 网格互斥。
 //
-// Android 侧证据: v1.0.62 新增 (NNNU 南宁师范大学形态); JwQzParser 在
+// 原版本 侧证据: v1.0.62 新增 (NNNU 南宁师范大学形态); JwQzParser 在
 // 缺 #kbtable 且有 table#timetable .kbcontent 时委托本 parser。
 //
-// 与 Android 的实现差异(等价翻译):
+// 与 原版本 的实现差异(等价翻译):
 //   a. Jsoup `closest("table") == table` → 手写最近 table 祖先比对
 //      (SwiftSoup 无 closest API)。
 //   b. Jsoup parseBodyFragment → SwiftSoup.parse + body() (fragment 语义等价)。

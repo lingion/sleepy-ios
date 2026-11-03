@@ -13,14 +13,14 @@ struct AppearanceScreen: View {
     let onDismiss: () -> Void
     var themeMode: String = AppPrefs.THEME_MODE_SYSTEM
     var onThemeModeChange: (String) -> Void = { _ in }
-    // ← Android themeKeyFlow.collectAsState: 选色即时生效,经 AppRoot 回写 themeKey
+    // ← 原版本 themeKeyFlow.collectAsState: 选色即时生效,经 AppRoot 回写 themeKey
     var onThemeKeyChange: () -> Void = {}
-    // ← Android onOpenPeriodHeaderSettings(Section④ 节次表头入口, 默认 no-op 保持 API 兼容,
+    // ← 原版本 onOpenPeriodHeaderSettings(Section④ 节次表头入口, 默认 no-op 保持 API 兼容,
     //   接线 .periodHeaderSettings 路由归共享文件 SleepyApp/SleepyNavigator, 见 needs_shared_wiring)
     var onOpenPeriodHeaderSettings: () -> Void = {}
 
     @State private var currentKey: String
-    // 自定义主题列表(编辑器保存/删除后重载)← Android customListVersion
+    // 自定义主题列表(编辑器保存/删除后重载)← 原版本 customListVersion
     @State private var customThemes: [CustomTheme] = CustomThemeStore.getAll()
     @State private var showEditor = false
     @State private var editingTheme: CustomTheme?
@@ -79,7 +79,7 @@ struct AppearanceScreen: View {
                                     )
                                 }
                                 // 奇数行补空位:用等弹性占位而非 Spacer,保证单卡也严格半宽
-                                // (与 Android Box(Modifier.weight(1f)) 等价)
+                                // (与 原版本 Box(Modifier.weight(1f)) 等价)
                                 if row.count == 1 {
                                     Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
                                 }
@@ -88,7 +88,7 @@ struct AppearanceScreen: View {
                     }
 
                     // ── 分组② 外观深浅 ──
-                    // ← Android: SectionHeader(theme_appearance) 独立 item +
+                    // ← 原版本: SectionHeader(theme_appearance) 独立 item +
                     //   外层 clip(shapes.large)+surfaceContainer+padding(4)+spacedBy(4),
                     //   未选中段 background=surfaceContainerHigh(与容器拉开层级)
                     SectionHeader(title: L10n.format("theme_appearance"))
@@ -135,7 +135,7 @@ struct AppearanceScreen: View {
                         }
 
                     // ── 分组③ 课表显示: 冲突样式及参数仍属于本组 ──
-                    // ← Android SectionHeader(appearance_section_schedule_display) +
+                    // ← 原版本 SectionHeader(appearance_section_schedule_display) +
                     //   Surface(shapes.large, surfaceContainer) 内嵌 ScheduleDisplayContent(padding 16)
                     SectionHeader(title: L10n.format("appearance_section_schedule_display"))
                     ScheduleDisplayContent()
@@ -145,7 +145,7 @@ struct AppearanceScreen: View {
                         .cornerRadius(SleepyShapes.large)
 
                     // ── 分组④ 节次表头 ──
-                    // ← Android SectionHeader(appearance_period_header) +
+                    // ← 原版本 SectionHeader(appearance_period_header) +
                     //   AppearanceNavigationRow(onClick = onOpenPeriodHeaderSettings)
                     SectionHeader(title: L10n.format("appearance_period_header"))
                     AppearanceNavigationRow(
@@ -157,7 +157,7 @@ struct AppearanceScreen: View {
             }
         }
         .background(colors.background)
-        // 自定义主题编辑器 ← Android 全屏 overlay;iOS 用 sheet 承载,
+        // 自定义主题编辑器 ← 原版本 全屏 overlay;iOS 用 sheet 承载,
         // 这样编辑器内部的 .interactiveDismissDisabled(dirty) 才真正挡住下滑手势。
         .sheet(isPresented: $showEditor, onDismiss: { editingTheme = nil }) {
             CustomThemeEditorScreen(
@@ -214,7 +214,7 @@ struct AppearanceScreen: View {
 
     /// 编辑器保存 → 落库 + 重排网格;保存即应用(2026-09-21 用户反馈): 无条件把 theme_key
     /// 落到本次保存的主题 —— 此前 iOS 只在「改的正是当前主题」时才刷新, 新建主题保存后
-    /// 从不生效, 正是 Android 明确修掉的「保存了但从没被应用过」行为。
+    /// 从不生效, 正是 原版本 明确修掉的「保存了但从没被应用过」行为。
     private func saveTheme(_ saved: CustomTheme) {
         CustomThemeStore.save(saved)
         let savedKey = ThemePresets.CUSTOM_KEY_PREFIX + saved.id
@@ -326,7 +326,7 @@ private struct PresetThemeCard: View {
     let onClick: () -> Void
 
     var body: some View {
-        // ← Android: if (colors.background.red < 0.5f) preset.light else preset.dark
+        // ← 原版本: if (colors.background.red < 0.5f) preset.light else preset.dark
         //   探针是红通道(非亮度), 且分支方向: 深色底展示 light 预览板
         let scheme = isDarkBackgroundByRedChannel(colors.background) ? preset.light : preset.dark
         Button(action: onClick) {
@@ -342,7 +342,7 @@ private struct PresetThemeCard: View {
                         .foregroundColor(colors.onSurface)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     // ✓槽位恒定 20pt 占位,图标仅在选中时渲染进槽位 —— 禁改回 raw
-                    // `if selected { Image }`(← Android 2026-09-22 用户实测: 条件渲染
+                    // `if selected { Image }`(2026-09-22 用户实测: 条件渲染
                     // =选中那刻凭空多一个决定行高的孩子=选中卡比未选中卡高)。
                     // 不用 opacity(0) 隐藏: 读屏会照常播报"已选中", 占位槽才是布局+a11y 双正确。
                     CheckmarkSlot(selected: selected)
@@ -358,7 +358,7 @@ private struct PresetThemeCard: View {
     }
 }
 
-/// 固定 20×20 对勾槽位(← Android Box(Modifier.size(20.dp)) + 条件 Icon)
+/// 固定 20×20 对勾槽位(Box(Modifier.size(20.dp)) + 条件 Icon)
 private struct CheckmarkSlot: View {
     @Environment(\.localWakeUpColors) private var colors
     let selected: Bool
@@ -377,9 +377,9 @@ private struct CheckmarkSlot: View {
     }
 }
 
-/// ← Android `colors.background.red < 0.5f` 语义探针: 取 SwiftUI Color 的红通道分量。
+/// ← 原 `colors.background.red < 0.5f` 语义探针: 取 SwiftUI Color 的红通道分量。
 /// 注意与 CourseColorUtil.luminance(BT.601 加权亮度)不同 —— 红通道值与整体亮度
-/// 可在偏暗绿/蓝主题上给出相反判定, 1.0.61 Android 定稿是红通道, iOS 必须同语义。
+/// 可在偏暗绿/蓝主题上给出相反判定, 1.0.61 原版本 定稿是红通道, iOS 必须同语义。
 private func isDarkBackgroundByRedChannel(_ color: Color) -> Bool {
     let ui = UIColor(color)
     var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
@@ -409,7 +409,7 @@ private struct CustomThemeCard: View {
 
     var body: some View {
         // 卡片色板预览按当前深浅模式派生(与 PresetThemeCard 的探针逻辑一致:
-        // ← Android `colors.background.red < 0.5f` 红通道语义)
+        // ← 原 `colors.background.red < 0.5f` 红通道语义)
         let isDark = isDarkBackgroundByRedChannel(colors.background)
         let scheme = CustomSchemeDeriver.derive(theme: theme, isDark: isDark)
         Button(action: onClick) {
@@ -420,7 +420,7 @@ private struct CustomThemeCard: View {
                     ColorSwatch(color: scheme.tertiary)
                     Spacer(minLength: 0)
                     // edit 色块:surfaceContainerHighest 与卡片底色拉开层级;
-                    // ← Android 28dp(与色板同高, 内嵌 16dp Edit 图标), 首行结构与
+                    // ← 原版本 28dp(与色板同高, 内嵌 16dp Edit 图标), 首行结构与
                     // 预设卡严格同构不撑高(24 会差 4pt)
                     Button(action: onEdit) {
                         Image(systemName: "pencil")
@@ -440,7 +440,7 @@ private struct CustomThemeCard: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colors.onSurface)
                         .lineLimit(1)
-                        // ← Android Text(modifier = Modifier.weight(1f))
+                        // ← 原版本 Text(modifier = Modifier.weight(1f))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     // 与预设卡相同:固定 20pt 槽位,避免选中态改变标题行高度。
                     CheckmarkSlot(selected: selected)
@@ -495,7 +495,7 @@ private struct DashedCircleWithPlus: View {
 }
 
 // ── v1.0.62 B1: 课程配色分段 (Section②·5) ──
-// ← Android CourseColorSection.kt: SegmentedSwitcher 4 段(uniform/CLASSIC/FOLLOW_THEME/CUSTOM)
+// ← 原版本 CourseColorSection.kt: SegmentedSwitcher 4 段(uniform/CLASSIC/FOLLOW_THEME/CUSTOM)
 //   + CUSTOM 时 HueSlider + 实时群色预览 + 底部「重新编排」按钮。
 
 private struct CourseColorSection: View {
@@ -518,7 +518,7 @@ private struct CourseColorSection: View {
             SectionHeader(title: L10n.format("appearance_section_course_color"))
 
             VStack(spacing: 16) {
-                // ← Android SegmentedSwitcher(options, selected, onSelect);
+                // ← 原版本 SegmentedSwitcher(options, selected, onSelect);
                 //   uniform = colorless=true, 其它档 = colorless=false + setMode。
                 let options: [(Int, String)] = [
                     (-1, L10n.t("course_color_uniform")),

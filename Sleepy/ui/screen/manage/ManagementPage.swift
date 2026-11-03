@@ -14,11 +14,11 @@ struct ManagementPage: View {
     let onEditCurrentTable: () -> Void
     var onExportRequested: () -> Void = {}
     var onImported: () -> Void = {}
-    // 2026-09-21 用户令: 点当前课表大卡 → 跳「所有课表」页(← Android onOpenAllTables)
+    // 2026-09-21 用户令: 点当前课表大卡 → 跳「所有课表」页(onOpenAllTables)
     var onOpenAllTables: () -> Void = {}
     // v1.0.56 T7: 新建作息表 — 内部建表(自动命名+全局唯一)落库后回调新 id, 调用方进其编辑页
     var onCreateNewPeriodTableRequested: (Int64) -> Void = { _ in }
-    // ← Android drafts/onRestoreDraft/onDeleteDraft(默认空 = 零行为变化)
+    // ← 原版本 drafts/onRestoreDraft/onDeleteDraft(默认空 = 零行为变化)
     var drafts: [ImportDraftRowModel] = []
     var onRestoreDraft: (String) -> Void = { _ in }
     var onDeleteDraft: (String) -> Void = { _ in }
@@ -67,10 +67,10 @@ struct ManagementPage: View {
                     .accessibilityIdentifier("manage_page_title")
 
                 // 当前课表摘要
-                // 2026-09-21 用户令: 点整卡 → 跳「所有课表」页(← Android noRippleClickable(onOpenAllTables))
+                // 2026-09-21 用户令: 点整卡 → 跳「所有课表」页(noRippleClickable(onOpenAllTables))
                 if let table = table {
                     VStack(alignment: .leading, spacing: 8) {
-                        // ← Android L114-126: Row[manage_current_table(weight 1f), manage_view_all_tables]
+                        // ← 原版本 L114-126: Row[manage_current_table(weight 1f), manage_view_all_tables]
                         HStack(spacing: 0) {
                             Text(L10n.format("manage_current_table"))
                                 .font(.system(size: 14, weight: .semibold))
@@ -109,7 +109,7 @@ struct ManagementPage: View {
                                title: L10n.format("manage_new_table"),
                                subtitle: L10n.format("manage_new_table_sub"),
                                onClick: onCreateNewTableRequested)
-                    // v1.0.56 T7: 新建作息表 — 插在「新建课表」正下方(用户指定卡位, ← Android L158-173)
+                    // v1.0.56 T7: 新建作息表 — 插在「新建课表」正下方(用户指定卡位, ← 原版本 L158-173)
                     ManageCard(id: "manage_new_period_table", icon: "clock",
                                title: L10n.format("manage_new_period_table"),
                                subtitle: L10n.format("manage_new_period_table_sub")) {
@@ -134,7 +134,7 @@ struct ManagementPage: View {
                 }
             }
             .padding(16)
-            // 悬浮底栏额外余量(→ Android LocalNavExtraBottomPadding): 镜像 Android
+            // 悬浮底栏额外余量(→ 原版本 LocalNavExtraBottomPadding): 镜像原实现
             //   padding(bottom = 16.dp + navExtra) 让列表最后一行不被悬浮药丸遮住。
             .padding(.bottom, navExtra)
         }

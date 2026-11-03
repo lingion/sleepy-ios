@@ -22,7 +22,7 @@ final class JwUcasParserTests: XCTestCase {
     private func jsonFixture() throws -> String { try fixture("course-time-list.sample", "json") }
     private func detailFixture(_ name: String) throws -> String { try fixture(name, "html") }
 
-    /// ← Android detailSection(): 标记里的 URL 仅信息性
+    /// ← 原版本 detailSection(): 标记里的 URL 仅信息性
     private func detailSection(_ url: String, _ html: String) -> String {
         JwUcasParser.DETAIL_MARKER_OPEN + url + "-->\n" + html + "\n" + JwUcasParser.DETAIL_MARKER_CLOSE + "\n"
     }
@@ -450,7 +450,7 @@ final class JwUcasParserTests: XCTestCase {
         XCTAssertEqual("", emptyOut)
     }
 
-    func testDetailFetchTimeoutAndCapMatchAndroid() {
+    func testDetailFetchTimeoutAndCapMatchOriginal() {
         XCTAssertEqual(50, UcasDetailFetch.MAX_DETAILS)
     }
 
@@ -461,7 +461,7 @@ final class JwUcasParserTests: XCTestCase {
         XCTAssertNil(UcasDetailFetch.charsetName("text/html"))
         XCTAssertNil(UcasDetailFetch.charsetName(nil))
         XCTAssertNil(UcasDetailFetch.charsetName(""))
-        // 缺失/未知字符集 → UTF-8 (← Android charset(name) 默认值)
+        // 缺失/未知字符集 → UTF-8 (charset(name) 默认值)
         XCTAssertEqual(String.Encoding.utf8, UcasDetailFetch.encoding(forContentType: nil))
         XCTAssertEqual(String.Encoding.utf8, UcasDetailFetch.encoding(forContentType: "text/html"))
         XCTAssertEqual(String.Encoding.utf8, UcasDetailFetch.encoding(forContentType: "text/html;charset=bogus-9"))

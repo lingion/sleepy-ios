@@ -11,7 +11,7 @@
 //
 // 真源: tools/reverse/wakeup-fresh/smali_classes4/.../o0O0o.smali (反编译)。
 //
-// 与 Android 的实现差异(等价翻译):
+// 与 原版本 的实现差异(等价翻译):
 //   a. org.json JSONArray → JSONSerialization (严格模式, 不开 fragments)。
 //   b. Jsoup script.data() → 原始源码 `<script>` 块正则抽取 (内容等价, 免依赖
 //      SwiftSoup data 节点 API 的行为差异)。

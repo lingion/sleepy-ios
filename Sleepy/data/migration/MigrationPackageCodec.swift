@@ -1,12 +1,12 @@
 // MigrationPackageCodec.swift — ← data/migration/MigrationPackageCodec.kt
 // .sleepybackup ZIP 容器读写。坏包在写入本机数据前被拒绝。
-// 1:1 对照 Android MigrationPackageCodec.kt,entry 命名/目录结构保持完全一致
+// 1:1 对照 原版本 MigrationPackageCodec.kt,entry 命名/目录结构保持完全一致
 // (manifest.json + modules/<name>.json),让跨端包互通。
 
 import Foundation
 import ZIPFoundation
 
-/// ZIP 容器读写 — 兼容 Android java.util.zip 输出(标准 DEFLATE 模式)。
+/// ZIP 容器读写 — 兼容 原版本 java.util.zip 输出(标准 DEFLATE 模式)。
 enum MigrationPackageCodec {
 
     static func moduleEntryName(_ module: MigrationModule) -> String {
@@ -14,7 +14,7 @@ enum MigrationPackageCodec {
     }
 
     /// 写包: manifest.json + 每个模块一个 <name>.json。
-    /// 排序规则: 模 entryName 字典序(与 Android sortedBy { it.entryName } 一致)。
+    /// 排序规则: 模 entryName 字典序(与 原 sortedBy { it.entryName } 一致)。
     static func write(modules: [MigrationModule: String], createdAt: Int64) throws -> Data {
         guard !modules.isEmpty else {
             throw MigrationPackageException(message: "migration package needs at least one module")
@@ -76,7 +76,7 @@ enum MigrationPackageCodec {
 
         for entry in archive {
             let name = entry.path
-            // Path traversal 防御: 与 Android 1:1
+            // Path traversal 防御: 与 原版本 1:1
             if name.hasPrefix("/") || name.contains("..") {
                 throw MigrationPackageException(message: "illegal zip entry: \(name)")
             }
@@ -84,7 +84,7 @@ enum MigrationPackageCodec {
                 throw MigrationPackageException(message: "duplicate zip entry: \(name)")
             }
             if name == MigrationBackup.ENTRY_MANIFEST {
-                // Android: entry 解压异常走外层 catch → "backup ZIP unreadable" 整体失败;
+                // 原版本: entry 解压异常走外层 catch → "backup ZIP unreadable" 整体失败;
                 // 仅 decode 失败才是 "manifest unreadable"。fail-fast, 不留半成品。
                 let text: String
                 do {
@@ -100,7 +100,7 @@ enum MigrationPackageCodec {
             } else if name.hasPrefix("\(MigrationBackup.ENTRY_MODULES_DIR)/") && name.hasSuffix(".json") {
                 let prefix = "\(MigrationBackup.ENTRY_MODULES_DIR)/"
                 let base = String(name.dropFirst(prefix.count).dropLast(".json".count))
-                // 与 Android fail-fast 对齐: 坏 entry 必须中止整个 read(),
+                // 与 原版本 fail-fast 对齐: 坏 entry 必须中止整个 read(),
                 // 禁止 `try? ... else { continue }` 静默丢模块后半包导入(坏包在写入本机数据前被拒绝)。
                 let text: String
                 do {
@@ -114,7 +114,7 @@ enum MigrationPackageCodec {
                     unknown.append(base)
                 }
             }
-            // 其余 entry(extensions/、未知顶层)静默跳过 — Android 走 zip.closeEntry 也不抛
+            // 其余 entry(extensions/、未知顶层)静默跳过 — 原版本 走 zip.closeEntry 也不抛
         }
 
         guard let m = manifest else {

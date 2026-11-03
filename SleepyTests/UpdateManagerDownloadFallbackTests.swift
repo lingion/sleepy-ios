@@ -7,7 +7,7 @@ import XCTest
 
 final class UpdateManagerDownloadFallbackTests: XCTestCase {
 
-    /// 空 URL 必须显式报错(← Android URL("") MalformedURLException "no protocol",
+    /// 空 URL 必须显式报错(URL("") MalformedURLException "no protocol",
     /// 而非 silently 404 下载)。链路: downloadOnce 先抛 .emptyDownload →
     /// toDirectGithubUrl("") == ""(非镜像前缀原样返回)→ direct == 原 URL → 抛主错误, 全程零网络。
     func testEmptyDownloadUrlThrowsExplicitErrorWithoutNetwork() async {

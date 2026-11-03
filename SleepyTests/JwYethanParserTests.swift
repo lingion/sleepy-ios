@@ -1,6 +1,6 @@
 // JwYethanParserTests.swift — regression contracts for JwYethanParser drift fixes (F038)
 //
-// 锁定两处与 Android JwYethanParser.kt 的行为对齐:
+// 锁定两处与 原版本 JwYethanParser.kt 的行为对齐:
 //   1. 多连字符只按「首个 '-'」切分(substringBefore/After 语义):
 //      nodeStr "5-6-7" → start=5, end 回落 5; weekRun "7-8-9" → 整项丢弃。
 //   2. trim 语义对齐 Kotlin .trim(): 首尾 \n/\r 一并去除。
@@ -22,14 +22,14 @@ final class JwYethanParserTests: XCTestCase {
         return "{\"code\":\"00000\",\"data\":[{\"courseName\":\"课程A\",\"staffName\":\"教师甲\",\"classTime1\":\"\(jsonEscape(classTime))\",\"classPlace1\":\"\(jsonEscape(classPlace))\"}]}"
     }
 
-    // MARK: - 多连字符节次: "5-6-7" → start=5,end=5(Android substringAfter("6-7").toIntOrNull()=null → ?: startNode)
+    // MARK: - 多连字符节次: "5-6-7" → start=5,end=5(原版本 substringAfter("6-7").toIntOrNull()=null → ?: startNode)
 
     func test_multiHyphenNodeRange_fallsBackToStartNode() throws {
         let courses = try JwYethanParser(scheduleJSON(classTime: "1-8周 星期三 5-6-7节")).generateCourseList()
         XCTAssertEqual(courses.count, 1) // 周次段 (1,8) 共 1 门课
         XCTAssertEqual(courses.first?.startNode, 5)
         XCTAssertEqual(courses.first?.endNode, 5,
-                       "多连字符节次必须回落 startNode(Android substringAfter 语义), 得 got \(String(describing: courses.first?.endNode))")
+                       "多连字符节次必须回落 startNode(原 substringAfter 语义), 得 got \(String(describing: courses.first?.endNode))")
     }
 
     func test_multiHyphenWeekRun_isDropped() {
@@ -53,7 +53,7 @@ final class JwYethanParserTests: XCTestCase {
     }
 
     func test_newlineOnlyCourseName_isSkipped() throws {
-        // "\ncourseName":"\n"" → trim 后空 → continue(Android 行为)
+        // "\ncourseName":"\n"" → trim 后空 → continue(原版本 行为)
         let json = "{\"code\":\"00000\",\"data\":[{\"courseName\":\"\\n\",\"classTime1\":\"1周 星期一 1节\"}]}"
         XCTAssertEqual(try JwYethanParser(json).generateCourseList().count, 0)
     }

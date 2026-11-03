@@ -5,11 +5,11 @@
 import Foundation
 
 /// ← DailyAgendaItem: 一次合并后的议程条目(sources = 各表来源, 至少 1 条)
-/// sources 为 var ← Android buildDailyAgenda 的 `groups[index] = copy(sources = ... + entry)`:
-/// 合并命中时向既有组追加来源(struct 值语义下 let 不可变, Android 的 copy-with 是重建)。
+/// sources 为 var ← 原 buildDailyAgenda 的 `groups[index] = copy(sources = ... + entry)`:
+/// 合并命中时向既有组追加来源(struct 值语义下 let 不可变, 原版本 的 copy-with 是重建)。
 struct DailyAgendaItem {
     var sources: [DailyScheduleEntry]
-    /// 解析成功的结束时间(当日分钟数) ← Android endTime: LocalTime?
+    /// 解析成功的结束时间(当日分钟数) ← 原版本 endTime: LocalTime?
     let endTimeMinutes: Int?
 
     var first: DailyScheduleEntry { sources[0] }
@@ -63,7 +63,7 @@ struct DailyAgenda {
 }
 
 private struct AgendaIdentity: Hashable {
-    // date 恒等于构建入参(单日构建), 不参与分桶 ← Android Identity 含 date 但同构建恒同值
+    // date 恒等于构建入参(单日构建), 不参与分桶 ← 原版本 Identity 含 date 但同构建恒同值
     let start: Int
     let end: Int
     let name: String
@@ -78,7 +78,7 @@ func buildDailyAgenda(
     summary: DailyScheduleSummary,
     sourceTables: [TimeTableEntity] = []
 ) -> DailyAgenda {
-    // Android 默认参 = summary.entries.map { it.table }.distinctBy { it.id }
+    // 原版本 默认参 = summary.entries.map { it.table }.distinctBy { it.id }
     let effectiveSourceTables: [TimeTableEntity] = sourceTables.isEmpty
         ? summary.entries.map { $0.table }.reduce([]) { acc, t in
             acc.contains(where: { $0.id == t.id }) ? acc : acc + [t]
@@ -138,9 +138,9 @@ func notificationSourceLabels(
     for table in distinct {
         let name = table.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? unknownTable : table.name
-        // ← Android name.codePoints(): Swift unicode scalar ≙ Java code point
-        // (代理对成对计 1, emoji 计 1 — 与 Android codePointCount 同口径)
-        // ← Android String(points, 0, 8) / String(points, size-7, 7): [UnicodeScalar] 切片
+        // ← 原版本 name.codePoints(): Swift unicode scalar ≙ Java code point
+        // (代理对成对计 1, emoji 计 1 — 与 原 codePointCount 同口径)
+        // ← 原版本 String(points, 0, 8) / String(points, size-7, 7): [UnicodeScalar] 切片
         //   不能直接 String.init, 必须经 UnicodeScalarView 重组 (首尾各保 8/7 个码点)。
         let points = Array(name.unicodeScalars)
         labels[table.id] = points.count <= 16
@@ -161,7 +161,7 @@ func notificationSourceLabels(
 
 /// ← dailyNotificationLifetime: 相对"今天/明天"文案在下一个本地午夜过期(含 DST 日)。
 /// 返回毫秒数, 下限 1ms。iOS 无 setTimeoutAfter 等价物(平台缺口, 见 NotificationScheduler
-/// 注释) — 纯函数保留与 Android 同口径, 由单测锁定行为。
+/// 注释) — 纯函数保留与 原版本 同口径, 由单测锁定行为。
 /// (本仓库无 Kotlin coerceAtLeast 扩展, 就地 max(...) 同义 — 见 JwWiseduParser 同款处理)
 func dailyNotificationLifetime(now: Date, calendar: Calendar = DateUtils.isoCalendar) -> Int64 {
     let nextMidnight = calendar.startOfDay(

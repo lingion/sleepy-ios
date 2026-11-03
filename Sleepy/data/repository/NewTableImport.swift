@@ -5,7 +5,7 @@
 // 纯函数半边(normalizedImportGroups / importNameKey / knownNameToGroupId)已落
 // ImportRoster.swift(同名函数逐条对齐), 本文件只保留 store 协议 + 原子编排。
 //
-// iOS 适配(记录在案): Android 的 store 方法跑在 Room withTransaction 内,
+// iOS 适配(记录在案): 原版本 的 store 方法跑在 Room withTransaction 内,
 // DAO 调用自动并入当前事务; GRDB 的 DatabaseQueue.write 禁止重入(DAO 的
 // db.read/db.write 在写事务里会死锁), 故协议方法统一携带事务句柄 dbw 下传,
 // 实现侧必须用 InDb 变体 / dbw 直查(与 JwImportViewModel.importAsNewTable 同手法)。
@@ -13,17 +13,17 @@
 import Foundation
 import GRDB
 
-/// 挂到协议上的错误 — Android `require(...) { "Selected period table no longer exists" }`。
+/// 挂到协议上的错误 — 原 `require(...) { "Selected period table no longer exists" }`。
 enum NewTableImportError: Error {
     case selectedPeriodTableMissing
 }
 
-/// 导入写面抽象 — Android NewTableImportStore(测试可注入假仓库, 生产走 GRDB 适配)。
+/// 导入写面抽象 — 原版本 NewTableImportStore(测试可注入假仓库, 生产走 GRDB 适配)。
 protocol NewTableImportStore {
     /// 事务边界 — block 内所有方法调用共用同一 dbw(GRDB 禁重入, 句柄必须下传)。
     func atomic(_ block: (Database) throws -> Int64) throws -> Int64
     func periodExists(_ id: Int64, in dbw: Database) throws -> Bool
-    /// 撤回快照 — Android 在事务内拍(require 之后、首写之前); iOS 用 dbw 直读同序。
+    /// 撤回快照 — 原版本 在事务内拍(require 之后、首写之前); iOS 用 dbw 直读同序。
     func captureUndo(in dbw: Database) throws
     func insertPeriod(_ period: PeriodTableEntity, in dbw: Database) throws -> Int64
     func insertTable(_ table: TimeTableEntity, in dbw: Database) throws -> Int64
@@ -43,7 +43,7 @@ extension NewTableImportStore {
 }
 
 /// 生产适配 — 协议方法直通 GRDB InDb DAO 变体; 事务包 dbQueue.write。
-/// (← Android ScheduleRepository.importNewTable 的匿名 NewTableImportStore)
+/// (ScheduleRepository.importNewTable 的匿名 NewTableImportStore)
 final class GRDBNewTableImportStore: NewTableImportStore {
     private let db: AppDatabase
 
@@ -101,7 +101,7 @@ final class GRDBNewTableImportStore: NewTableImportStore {
     }
 }
 
-/// 原子导入编排 — ← Android importNewTableAtomically。
+/// 原子导入编排 — ← 原版本 importNewTableAtomically。
 /// 顺序: 悬空绑定拒绝 → 撤回快照 → (私有作息表) → 课表 → 课程(认亲) → 补色 → 设默认。
 /// 任一步抛错 = 整笔事务回滚, 库态与调用前完全一致。
 func importNewTableAtomically(store: NewTableImportStore,

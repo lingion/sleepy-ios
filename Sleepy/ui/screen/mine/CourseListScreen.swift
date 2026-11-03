@@ -60,7 +60,7 @@ struct CourseListScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ← Android TopAppBar(containerColor=background, titleContentColor/navigationIconContentColor
+            // ← 原版本 TopAppBar(containerColor=background, titleContentColor/navigationIconContentColor
             //   =onBackground, titleLarge 22 左对齐, 高度 64): 复用兄弟页同款 SettingsTopBar
             SettingsTopBar(title: L10n.t("course_list_title"), onBack: onBack)
             if grouped.isEmpty {
@@ -86,7 +86,7 @@ struct CourseListScreen: View {
                 }
             }
         }
-        .background(colors.background) // ← Android Scaffold containerColor = colors.background
+        .background(colors.background) // ← 原 Scaffold containerColor = colors.background
         .navigationBarHidden(true)
     }
 }
@@ -121,7 +121,7 @@ private struct CourseGroupCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(colors.surfaceContainer)
-        .cornerRadius(SleepyShapes.large) // ← 16, 对齐 Android shapes.large 及兄弟文件惯例
+        .cornerRadius(SleepyShapes.large) // ← 16, 对齐原实现 shapes.large 及兄弟文件惯例
     }
 }
 
@@ -133,11 +133,11 @@ private struct MetaRow: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 14)) // ← Android Modifier.size(14.dp)
+                .font(.system(size: 14)) // ← 原 Modifier.size(14.dp)
                 .foregroundColor(colors.onSurfaceVariant)
             Text(text)
                 .font(.system(size: 12)) // ← bodySmall(12sp)
-                .foregroundColor(colors.onSurface) // ← Android 显式 onSurface
+                .foregroundColor(colors.onSurface) // ← 原 显式 onSurface
         }
     }
 }
@@ -147,14 +147,14 @@ private struct ArrangementRowView: View {
     let row: CourseEntity
 
     var body: some View {
-        // ← Android when(row.day) 1..7 else 回落 day_short_1(非法 day 不显示键名)
+        // ← 原版本 when(row.day) 1..7 else 回落 day_short_1(非法 day 不显示键名)
         let dayNum = (1...7).contains(row.day) ? row.day : 1
         let dayLabel = L10n.t("day_short_\(dayNum)")
         let nodeLabel = row.nodeString(isShort: true)
         let weekRangeLabel = L10n.format("course_week_range", nodeLabel, row.startWeek, row.endWeek)
         return HStack(spacing: 4) {
             Image(systemName: "book")
-                .font(.system(size: 12)) // ← Android Modifier.size(12.dp)
+                .font(.system(size: 12)) // ← 原 Modifier.size(12.dp)
                 .foregroundColor(colors.onSurfaceVariant)
             Text("\(dayLabel) · \(weekRangeLabel)")
                 .font(.system(size: 12)) // ← bodySmall(12sp)

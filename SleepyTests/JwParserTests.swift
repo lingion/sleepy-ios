@@ -133,7 +133,7 @@ final class JwParserTests: XCTestCase {
     func testJwQzParserParsesQZMockHTML() throws {  // ← `JwQzParser parses QZ mock HTML`
         let courses = try JwQzParser(mockQzHtml).generateCourseList()
         XCTAssertTrue(courses.count >= 1, "应至少 1 门课")
-        // Android 侧只打日志不断言字段。iOS 补字段断言,但对齐真实语义:
+        // 原版本 侧只打日志不断言字段。iOS 补字段断言,但对齐真实语义:
         // - name: 无 <font> 标签时 substringBefore("<font")=整块 → text() 拼全部
         // - day: td 顺序计数,节次格("1")也算第 1 天 → 课程在 td[1] = day 2
         // - 周: title="周次(节次)" 1-16周 → (1,16)
@@ -337,11 +337,11 @@ final class JwWiseduParserTests: XCTestCase {
 final class JwImportViewModelLogicTests: XCTestCase {
 
     func testDetectProtocolFromUrl() {
-        // ← detectProtocolFromUrlImpl 判型链(Android JwOldZfParserTest.kt:519 + JwProtocolDetectionUnitTest 为准)
+        // ← detectProtocolFromUrlImpl 判型链(原 JwOldZfParserTest.kt:519 + JwProtocolDetectionUnitTest 为准)
         XCTAssertEqual(JwProtocol.TYPE_WISEDU, JwImportViewModel.detectProtocolFromUrl("https://jwgl.hrbeu.edu.cn/jwapp/sys/"))
         XCTAssertEqual(JwProtocol.TYPE_ZF_NEW, JwImportViewModel.detectProtocolFromUrl("http://x/jwglxt/kbcx"))
         XCTAssertEqual(JwProtocol.TYPE_ZF_NEW, JwImportViewModel.detectProtocolFromUrl("http://x/xtgl/login"))
-        // ahut /jsxsd/ → QZ(Android 实测: assertEquals("qz", detectProtocolFromUrl("http://jwxt.ahut.edu.cn/jsxsd/")))
+        // ahut /jsxsd/ → QZ(原版本 实测: assertEquals("qz", detectProtocolFromUrl("http://jwxt.ahut.edu.cn/jsxsd/")))
         XCTAssertEqual(JwProtocol.TYPE_QZ, JwImportViewModel.detectProtocolFromUrl("http://jwxt.ahut.edu.cn/jsxsd/"))
         // B3: 裸 urp 不再钉死 URP_NEW → nil 走 HTML/tryAllParsers 兜底
         XCTAssertNil(JwImportViewModel.detectProtocolFromUrl("http://x/urp/main"))
@@ -363,11 +363,11 @@ final class JwImportViewModelLogicTests: XCTestCase {
         """
         let courses = try JwImportViewModel.parseHtml(qz, protocolType: "qz")
         // 注: td.getElementsByTag("div") 含嵌套内外两层 div,各命中一次 kbcontent →
-        // 与 Android/Jsoup 相同,单课格产出 2 条(Kotlin 测试用 >=1 掩盖;忠实移植保持一致)
+        // 与 原版本/Jsoup 相同,单课格产出 2 条(Kotlin 测试用 >=1 掩盖;忠实移植保持一致)
         XCTAssertGreaterThanOrEqual(courses.count, 1)
         XCTAssertTrue(courses[0].name.contains("课A"))
 
-        // 不支持协议 → 抛(Android dispatch_未知协议仍抛暂不支持 同语义,type 用无工厂的假值)
+        // 不支持协议 → 抛(原版本 dispatch_未知协议仍抛暂不支持 同语义,type 用无工厂的假值)
         XCTAssertThrowsError(try JwImportViewModel.parseHtml("<html/>", protocolType: "nope"))
     }
 

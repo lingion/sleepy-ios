@@ -1,14 +1,14 @@
 // GeneralSettingsScreen.swift — ← ui/screen/mine/GeneralSettingsScreen.kt
 // 通用设置页(决策 D1 L1 ⑤): 五组 — ①课表显示 / ②画面与导航 / ③语言 /
-// ④实验室 / ⑤数据迁移 (2026-09-21 Android 定稿分组与顺序, 本文件 v1.0.61 对齐重排;
-// v1.0.62 B4: 原分组② 小组件整块移出至 WidgetSettingsScreen 独立页, Android −78 同口径)。
+// ④实验室 / ⑤数据迁移 (2026-09-21 原版本 定稿分组与顺序, 本文件 v1.0.61 对齐重排;
+// v1.0.62 B4: 原分组② 小组件整块移出至 WidgetSettingsScreen 独立页, 原版本 −78 同口径)。
 // 显示项变更后即时刷新小组件;语言切换 → LocaleHelper.applyLanguage(无 Activity.recreate,
 // 等价适配:iOS 由窗口重建语言环境)。
 // 分组②③④⑤与各折叠卡抽为子视图 — SwiftUI ViewBuilder 单闭包 10 子视图上限。
 // 平台适配说明:
 // - 高刷新率行: iOS 无公开刷率 API(ProMotion 系统调度), 不移植 — 已载于
 //   PlatformParityNotes.swift; ③组仅 启动默认页 + 底栏样式。
-// - 数据迁移: Android CreateDocument/OpenDocument → fileExporter(临时 .sleepybackup
+// - 数据迁移: 原版本 CreateDocument/OpenDocument → fileExporter(临时 .sleepybackup
 //   文件分享落盘) + fileImporter; Toast → 底部胶囊浮层(仓库同款模式)。
 
 import SwiftUI
@@ -22,7 +22,7 @@ struct GeneralSettingsScreen: View {
     //   holiday 子页由本屏内 NavigationView + NavigationLink 承载, 不再走 AppRoot enum
     let onDismiss: () -> Void
 
-    /// issue#44 调休映射接线 ← Android SleepyNavHost.kt:299-303(`tableId = currentTableId,
+    /// issue#44 调休映射接线 ← 原版本 SleepyNavHost.kt:299-303(`tableId = currentTableId,
     /// viewModel = mainVm`): 节假日子页需要「当前选中课表 id」与「映射变更后的课表页刷新回调」。
     /// 选中表 id 在 iOS 侧唯一真源 = ScheduleViewModel.state.selectedTableId(AppPrefs 不持久化),
     /// 故本屏须能读到 VM。可选(nil = 调用方尚未接线 → tableId 退化为 nil、refreshTransfer 不触发,
@@ -38,12 +38,12 @@ struct GeneralSettingsScreen: View {
     @State private var gridSubInfo: String = AppPrefs.shared.getGridSubInfo()
     @State private var showDate: Bool = AppPrefs.shared.isShowDate()
     @State private var showViewSwitcher: Bool = AppPrefs.shared.isShowViewSwitcher()
-    /// 启动默认视图 — ← AppPrefs.getStartView Android (默认 "full")。仅通用设置里设置,
-    /// 手动切换课表顶部视图不写入(Android 注释硬规则, iOS 一致遵循)。
+    /// 启动默认视图 — ← AppPrefs.getStartView 原版本 (默认 "full")。仅通用设置里设置,
+    /// 手动切换课表顶部视图不写入(原版本 注释硬规则, iOS 一致遵循)。
     @State private var startView: String = AppPrefs.shared.getStartView()
     @State private var visibleDays: Set<Int> = AppPrefs.shared.getVisibleDays()
     @State private var courseColorless: Bool = AppPrefs.shared.isCourseColorless()
-    // ★ issue#8 主页显示 pill 组(← Android GeneralSettingsScreen)
+    // ★ issue#8 主页显示 pill 组(GeneralSettingsScreen)
     @State private var weekUseAlias: Bool = AppPrefs.shared.isWeekUseAlias()
     @State private var gridUseAlias: Bool = AppPrefs.shared.isGridUseAlias()
     @State private var weekTwoColumn: Bool = AppPrefs.shared.isWeekTwoColumn()
@@ -52,7 +52,7 @@ struct GeneralSettingsScreen: View {
     /// 底栏样式三档(2026-10-26 设备自适应): 0=自动(prefs 无键) / 1=贴底 / 2=悬浮。
     /// 初值从 AppPrefs 读存在性 — 未写入即自动(缺省 false 不是用户意志)。
     @State private var navStyleIdx: Int = DisplayNavigationSection.initialNavStyleIndex()
-    // ★ v1.0.61 数据迁移组(← Android GeneralSettingsScreen.kt 分组⑥)
+    // ★ v1.0.61 数据迁移组(GeneralSettingsScreen.kt 分组⑥)
     @State private var migrationBusy = false
     @State private var pendingImportBytes: Data? = nil
     @State private var showImportDialog = false
@@ -74,9 +74,9 @@ struct GeneralSettingsScreen: View {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    // ── 数据迁移(← Android runMigrationImport / onMigrationExportClick / launchers) ──
+    // ── 数据迁移(runMigrationImport / onMigrationExportClick / launchers) ──
 
-    /// Android prefs store: context.getSharedPreferences(name) →
+    /// 原 prefs store: context.getSharedPreferences(name) →
     /// iOS 同名 suite(AppPrefs.standardUserDefaults() 的 sleepy_prefs 主文件按
     /// suiteName "sleepy_prefs" 打开即同一存储; 二级文件走各自 suiteName —
     /// 与 MigrationExecutorTests 的 FakeMigrationPrefsStore 同构)。
@@ -103,7 +103,7 @@ struct GeneralSettingsScreen: View {
                 )
                 await MainActor.run {
                     migrationBusy = false
-                    // ← Android Toast settings_migration_import_done(课表数, 课程数)
+                    // ← 原版本 Toast settings_migration_import_done(课表数, 课程数)
                     migrationToast = L10n.format("settings_migration_import_done",
                                                  report.counts.timeTables, report.counts.courses)
                     // 偏好与小组件配置可能被替换, 迁移后统一刷新小组件
@@ -126,7 +126,7 @@ struct GeneralSettingsScreen: View {
             let db = AppDatabase.getShared()
             let store = RuntimeMigrationPrefsStore()
             do {
-                // ← Android modules = {DATABASE, PREFERENCES, WIDGETS}(依赖闭包
+                // ← 原 modules = {DATABASE, PREFERENCES, WIDGETS}(依赖闭包
                 //   由 MigrationModuleDeps.resolve 自动补 PERSISTED_STATE, 两端同)
                 let result = try MigrationExecutor.export(
                     selected: [.DATABASE, .PREFERENCES, .WIDGETS],
@@ -135,7 +135,7 @@ struct GeneralSettingsScreen: View {
                     periodTableDao: db.periodTableDao, importDraftDao: db.importDraftDao,
                     dbQueue: db.dbQueue
                 )
-                // ← Android stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+                // ← 原 stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
                 let f = DateFormatter()
                 f.dateFormat = "yyyyMMdd-HHmmss"
                 f.locale = Locale(identifier: "en_US_POSIX")
@@ -144,7 +144,7 @@ struct GeneralSettingsScreen: View {
                     .appendingPathComponent(fileName)
                 try result.bytes.write(to: url)
                 await MainActor.run {
-                    // migrationBusy 保持 true 直到保存面板出结果(← Android busy 锁到
+                    // migrationBusy 保持 true 直到保存面板出结果(busy 锁到
                     // exportLauncher 回调; iOS 对「用户取消」额外解锁, 防卡死)
                     exportURL = url
                     showExportPicker = true
@@ -160,7 +160,7 @@ struct GeneralSettingsScreen: View {
     }
 
     private func onImportFileResult(_ result: Result<[URL], Error>) {
-        // ← Android uri == null 静默取消(OpenDocument 取消路径)
+        // ← 原 uri == null 静默取消(OpenDocument 取消路径)
         guard case .success(let urls) = result, let url = urls.first else { return }
         migrationBusy = true
         Task.detached(priority: .userInitiated) {
@@ -170,7 +170,7 @@ struct GeneralSettingsScreen: View {
             await MainActor.run {
                 migrationBusy = false
                 if let bytes {
-                    // ← Android: 读成功 → 弹模式选择对话框
+                    // ← 原版本: 读成功 → 弹模式选择对话框
                     pendingImportBytes = bytes
                     showImportDialog = true
                 } else {
@@ -190,7 +190,7 @@ struct GeneralSettingsScreen: View {
                     SettingsTopBar(title: L10n.format("mine_general"), onBack: onDismiss)
                     ScrollView {
                         VStack(spacing: 16) {
-                            // ── 分组① 课表显示 (2026-09-21 Android 改名: 与③「画面与导航」拉开边界) ──
+                            // ── 分组① 课表显示 (2026-09-21 原版本 改名: 与③「画面与导航」拉开边界) ──
                             Group {
                                 Group {
                                     SectionHeader(title: L10n.format("appearance_section_schedule_display"))
@@ -212,7 +212,7 @@ struct GeneralSettingsScreen: View {
                             //    移出至 WidgetSettingsScreen 独立页, 「我的」页进入) ──
                             Group {
                                 // 分组③ (启动默认页 + 底栏样式;
-                                //    高刷新率 = Android 专有, iOS 无公开刷率 API, 不移植)
+                                //    高刷新率 = 原版本 专有, iOS 无公开刷率 API, 不移植)
                                 DisplayNavigationSection(
                                     startView: $startView,
                                     navStyleIdx: $navStyleIdx,
@@ -240,7 +240,7 @@ struct GeneralSettingsScreen: View {
                             MigrationSection(busy: migrationBusy,
                                              onExport: onMigrationExportClick,
                                              onImport: {
-                                                 // ← Android: if (!migrationBusy) importLauncher.launch(...)
+                                                 // ← 原版本: if (!migrationBusy) importLauncher.launch(...)
                                                  if !migrationBusy { showImportPicker = true }
                                              })
                         }
@@ -248,14 +248,14 @@ struct GeneralSettingsScreen: View {
                     }
                 }
                 .background(colors.background)
-                // ← Android rememberSaveable(expandedSections): AppRoot 状态恢复时折叠
+                // ← 原版本 rememberSaveable(expandedSections): AppRoot 状态恢复时折叠
                 //   展开集保真。iOS 等价 = 变更即落 sleepy_prefs, 页面重建(load())回填。
                 //   单一收口挂在父级 State 上 — WidgetSection 经 $expandedSections 改动
                 //   同样触发。
                 .onChange(of: expandedSections) { SettingsExpandedSectionsStore.save($0) }
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationBarHidden(true)
-                // ← Android Toast(迁移结果) → 底部胶囊浮层(仓库同款, 1.8s 自动消失)
+                // ← 原版本 Toast(迁移结果) → 底部胶囊浮层(仓库同款, 1.8s 自动消失)
                 .overlay(alignment: .bottom) {
                     if let msg = migrationToast {
                         Text(msg)
@@ -276,7 +276,7 @@ struct GeneralSettingsScreen: View {
                             .accessibilityIdentifier("settings_migration_toast")
                     }
                 }
-                // ← Android AlertDialog(导入模式选择): 标题/正文/覆盖·合并/取消
+                // ← 原版本 AlertDialog(导入模式选择): 标题/正文/覆盖·合并/取消
                 .alert(L10n.format("settings_migration_import_dialog_title"),
                        isPresented: $showImportDialog) {
                     Button(L10n.format("settings_migration_import_overwrite")) {
@@ -291,8 +291,8 @@ struct GeneralSettingsScreen: View {
                 } message: {
                     Text(L10n.format("settings_migration_import_dialog_text"))
                 }
-                // ← Android CreateDocument("application/zip") 保存对话框 → fileExporter。
-                //   完成回调对齐 Android exportLauncher: 写成功 export_ok toast,
+                // ← 原版本 CreateDocument("application/zip") 保存对话框 → fileExporter。
+                //   完成回调对齐 原版本 exportLauncher: 写成功 export_ok toast,
                 //   失败 export_fail toast, 取消(uri==null)静默。
                 .fileExporter(isPresented: $showExportPicker,
                               document: ExportedBackupFile(url: exportURL),
@@ -303,13 +303,13 @@ struct GeneralSettingsScreen: View {
                     case .success:
                         migrationToast = L10n.format("settings_migration_export_ok")
                     case .failure(let error):
-                        // 用户取消面板 = CancellationError(静默, ← Android uri==null 早退)
+                        // 用户取消面板 = CancellationError(静默, ← 原版本 uri==null 早退)
                         if error is CancellationError { return }
                         NSLog("SleepyMigration: export failed: %@", String(describing: error))
                         migrationToast = L10n.format("settings_migration_export_fail")
                     }
                 }
-                // ← Android OpenDocument(["application/zip","application/octet-stream"])
+                // ← 原版本 OpenDocument(["application/zip","application/octet-stream"])
                 //   = UTType.zip + UTType.data(octet-stream); .sleepybackup 内容即 zip,
                 //   动态 extension UTType 不进 allowedContentTypes(未声明类型有崩溃风险)
                 .fileImporter(isPresented: $showImportPicker,
@@ -320,7 +320,7 @@ struct GeneralSettingsScreen: View {
         .navigationViewStyle(.stack)
     }
 
-    // 课程时间显示: 节次 / 时间 — ← Android SettingsFlatCard(标题行右侧 tab)
+    // 课程时间显示: 节次 / 时间 — ← 原版本 SettingsFlatCard(标题行右侧 tab)
     private var displayModeCard: some View {
         SettingsFlatCard(
             title: L10n.format("settings_display_mode"),
@@ -342,7 +342,7 @@ struct GeneralSettingsScreen: View {
         )
     }
 
-    // 网格卡片副信息: 教室 / 教师 / 无 — ← Android SettingsFlatCard
+    // 网格卡片副信息: 教室 / 教师 / 无 — ← 原版本 SettingsFlatCard
     private var gridSubInfoCard: some View {
         SettingsFlatCard(
             title: L10n.format("settings_grid_sub_info"),
@@ -391,7 +391,7 @@ struct GeneralSettingsScreen: View {
         }
     }
 
-    // 主页显示(← Android SettingsCard "settings_pill" 2026-09-21 定稿):
+    // 主页显示(SettingsCard "settings_pill" 2026-09-21 定稿):
     // 样式参数(缩放/圆角)已迁外观与主题页(ScheduleDisplayScreen), 这里只保留内容/可见性参数 —
     // 两栏 → 分栏标准(条件) → 隐藏无课日 → 周/网格别名 → 表头日期 → 视图切换栏。
     private var pillCard: some View {
@@ -470,8 +470,8 @@ struct GeneralSettingsScreen: View {
         }
     }
 
-    // 课程胶囊统一底色: 标题行开关 — ← Android flat title-plus-switch row
-    // (2026-09-21 Android 标签补主语「App 内」— 文案随 L10n 键更新, 结构不变)
+    // 课程胶囊统一底色: 标题行开关 — ← 原 flat title-plus-switch row
+    // (2026-09-21 原版本 标签补主语「App 内」— 文案随 L10n 键更新, 结构不变)
     private var courseColorlessCard: some View {
         HStack {
             Text(L10n.format("settings_course_colorless"))
@@ -497,7 +497,7 @@ struct GeneralSettingsScreen: View {
         .accessibilityLabel(Text(L10n.format("settings_course_colorless")))
     }
 
-    // ← 节假日课程灰显: 点击进入二级页 — ← Android GeneralSettingsScreen.kt: titleSmall 单行, 无副标题
+    // ← 节假日课程灰显: 点击进入二级页 — ← 原版本 GeneralSettingsScreen.kt: titleSmall 单行, 无副标题
     private var holidayEntryCard: some View {
         Button { holidaySettingsItem = HolidaySettingsItem() } label: {
             HStack {
@@ -518,7 +518,7 @@ struct GeneralSettingsScreen: View {
         .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("settings_holiday_entry")
         .sheet(item: $holidaySettingsItem) { _ in
-            // issue#44 接线(F095): 传当前选中课表 id + 映射刷新回调 ← Android
+            // issue#44 接线(F095): 传当前选中课表 id + 映射刷新回调 ← 原实现
             // SleepyNavHost.kt:299-303 `tableId = currentTableId, viewModel = mainVm`。
             // 不传则 HolidaySettingsScreen 的 tableId 恒 nil → 调休卡显示
             // holiday_makeup_no_table 且 saveTransfer 在 guard let id = activeTableId 早退。
@@ -530,7 +530,7 @@ struct GeneralSettingsScreen: View {
     }
 }
 
-// 单行星期开关(整行可点 + 独立 Switch 双通路, ← Android Row.noRippleClickable + Switch;
+// 单行星期开关(整行可点 + 独立 Switch 双通路, ← 原版本 Row.noRippleClickable + Switch;
 // 抽行: 类型推断上限)
 private struct VisibleDayRow: View {
     @Environment(\.localWakeUpColors) private var colors
@@ -544,7 +544,7 @@ private struct VisibleDayRow: View {
 
     private func commit(_ on: Bool) {
         let n = toggled(on)
-        // ← Android n.isNotEmpty() 守卫: 至少留 1 天
+        // ← 原版本 n.isNotEmpty() 守卫: 至少留 1 天
         guard !n.isEmpty else { return }
         onChange(n)
     }
@@ -566,22 +566,22 @@ private struct VisibleDayRow: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
-        // ← Android 整行 noRippleClickable 通路(文本区点击 = 切换)
+        // ← 原版本 整行 noRippleClickable 通路(文本区点击 = 切换)
         .contentShape(Rectangle())
         .onTapGesture { commit(!checked) }
         // 不做 .accessibilityElement(children: .combine): 合并后整行变合成 button 叶,
         // 吞掉 switch 可命中性(XCUITest taps[Mon] 落合成体, switch 永不触发 —
         // 2026-10 全量 run「点可见日行应翻转状态」失败根因)。
-        // 不合并 = 文本+switch 皆可达, 与 Android 整行可点语义等价。
+        // 不合并 = 文本+switch 皆可达, 与 原版本 整行可点语义等价。
     }
 }
 
 // ← 分组② 小组件 — v1.0.62 B4 整块移出至 WidgetSettingsScreen(独立页, 「我的」页进入;
-//   Android GeneralSettingsScreen.kt −78 同口径: widget 块自通用页移出)。
+//   原版本 GeneralSettingsScreen.kt −78 同口径: widget 块自通用页移出)。
 //   偏好键零迁移: settings_widget_colorless / separator / nearest_busy_day 三开关
 //   与「管理桌面小组件」入口行现宿主于 ui/screen/mine/WidgetSettingsScreen.swift。
 
-// ← 分组③ 画面与导航: 启动默认页 + 底栏样式(高刷新率 = Android 专有, 见 PlatformParityNotes)
+// ← 分组③ 画面与导航: 启动默认页 + 底栏样式(高刷新率 = 原版本 专有, 见 PlatformParityNotes)
 private struct DisplayNavigationSection: View {
     // 卡片样式由 SettingsFlatCard 自带(surfaceContainer + 内嵌 tab), 本组无需直读 colors
     @Binding var startView: String
@@ -596,7 +596,7 @@ private struct DisplayNavigationSection: View {
     var body: some View {
         VStack(spacing: 16) {
             SectionHeader(title: L10n.format("settings_section_display_navigation"))
-            // 启动默认页: App 级启动偏好, 与课程/小组件渲染参数分组 — ← Android SettingsFlatCard
+            // 启动默认页: App 级启动偏好, 与课程/小组件渲染参数分组 — ← 原版本 SettingsFlatCard
             SettingsFlatCard(
                 title: L10n.format("settings_start_view"),
                 options: [
@@ -630,7 +630,7 @@ private struct DisplayNavigationSection: View {
                 selectedIndex: Binding(
                     get: { navStyleIdx },
                     set: { idx in
-                        // ← Android if (navDock != on) 守卫精神: 同值不回写、不重渲底栏
+                        // ← 原 if (navDock != on) 守卫精神: 同值不回写、不重渲底栏
                         guard idx != navStyleIdx else { return }
                         navStyleIdx = idx
                         onNavStyleChange(idx)
@@ -655,7 +655,7 @@ private struct DisplayNavigationSection: View {
 private struct LanguageSection: View {
     @Environment(\.localWakeUpColors) private var colors
     @State private var language: String = AppPrefs.shared.getLanguage()
-    // ← Android languageExpanded 默认 false(会话态足够: 选择语言即重建)
+    // ← 原 languageExpanded 默认 false(会话态足够: 选择语言即重建)
     @State private var expanded = false
 
     private let languages: [(String, String)] = [
@@ -666,7 +666,7 @@ private struct LanguageSection: View {
         ("es", "Español")
     ]
 
-    // ← Android AnimatedVisibility expandVertically+fadeIn 默认 spec → 同 SettingsCards.swift
+    // ← 原版本 AnimatedVisibility expandVertically+fadeIn 默认 spec → 同 SettingsCards.swift
     //   sleepySettingsExpand(NoBouncy, response≈0.31)
     private let expandAnimation = Animation.spring(response: 0.31, dampingFraction: 1.0)
 
@@ -737,7 +737,7 @@ private struct LanguageSection: View {
 }
 
 // ← 分组⑤ 实验室 (2026-09-16 用户令): 实验性功能默认全关, 可能随版本调整。
-// 非折叠平铺卡(← Android Column clip+surfaceContainer padding horizontal 16):
+// 非折叠平铺卡(Column clip+surfaceContainer padding horizontal 16):
 // 自适应行高 / 双指捏放 / 自动收起空白晚间(+晚间起始时间条件行) / 竖排标点 /
 // 网格分隔线 / 长课间留白。
 private struct LabSection: View {
@@ -757,7 +757,7 @@ private struct LabSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(title: L10n.format("settings_lab"))
-            // ← Android labelSmall(11sp) + bottom padding 8
+            // ← 原版本 labelSmall(11sp) + bottom padding 8
             Text(L10n.format("settings_lab_sub"))
                 .font(.system(size: 11))
                 .foregroundColor(colors.onSurfaceVariant)
@@ -801,7 +801,7 @@ private struct LabSection: View {
                                 },
                                 label: ""
                             )
-                            .frame(width: 150) // ← Android modifier=width(150.dp)
+                            .frame(width: 150) // ← 原 modifier=width(150.dp)
                         }
                         .padding(.vertical, 10)
                     }
@@ -843,7 +843,7 @@ private struct LabSection: View {
 }
 
 // ← 分组⑥ 数据迁移 (.sleepybackup 全量迁移): 导出行 / 导入行
-//   busy 时两行内容半透明(alpha 0.5), 重复点击由回调自身的 busy 守卫挡掉(同 Android)。
+//   busy 时两行内容半透明(alpha 0.5), 重复点击由回调自身的 busy 守卫挡掉(同 原版本)。
 private struct MigrationSection: View {
     @Environment(\.localWakeUpColors) private var colors
     let busy: Bool
@@ -853,7 +853,7 @@ private struct MigrationSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(title: L10n.format("settings_migration"))
-            // ← Android labelSmall(11sp) + bottom padding 8
+            // ← 原版本 labelSmall(11sp) + bottom padding 8
             Text(L10n.format("settings_migration_sub"))
                 .font(.system(size: 11))
                 .foregroundColor(colors.onSurfaceVariant)
@@ -875,7 +875,7 @@ private struct MigrationSection: View {
                             .foregroundColor(colors.onSurfaceVariant)
                     }
                     .padding(16)
-                    // ← Android Row.modifier .alpha(if (migrationBusy) 0.5f else 1f) 挂在**每行**
+                    // ← 原版本 Row.modifier .alpha(if (migrationBusy) 0.5f else 1f) 挂在**每行**
                     //   的 modifier 链上(812), 不在外层 Column(807 只有 clip+background)——
                     //   因此 busy 时卡底色与行分隔线保持全不透明, 只有行内容半透明。
                     //   早先实现把 opacity 加在整卡上, 会让底色/分隔线一起变灰 = 视觉漂移。
@@ -901,7 +901,7 @@ private struct MigrationSection: View {
                             .foregroundColor(colors.onSurfaceVariant)
                     }
                     .padding(16)
-                    // ← 同上行: Android 840 也是每行 .alpha, 不加在卡容器上
+                    // ← 同上行: 原版本 840 也是每行 .alpha, 不加在卡容器上
                     .opacity(busy ? 0.5 : 1)
                     .contentShape(Rectangle())
                 }
@@ -911,7 +911,7 @@ private struct MigrationSection: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(colors.surfaceContainer)
             .cornerRadius(SleepyShapes.large)
-            // busy 时不挂 allowsHitTesting(false): Android 也没禁命中——
+            // busy 时不挂 allowsHitTesting(false): 原版本 也没禁命中——
             // 两行的点击回调各自早退(onMigrationExportClick 的 if (migrationBusy) return /
             // 导入行 if (!migrationBusy) importLauncher.launch), iOS 同构由
             // onMigrationExportClick 的 guard 与 MigrationSection.onImport 的 if 守卫承担。
@@ -920,7 +920,7 @@ private struct MigrationSection: View {
 }
 
 // fileExporter 载体: 字节已在临时目录落盘(导出编排里写完), 这里只做 URL 搬运 —
-// ← Android exportLauncher 写 contentResolver 输出流。fileExporter 会把该文件拷到
+// ← 原 exportLauncher 写 contentResolver 输出流。fileExporter 会把该文件拷到
 // 用户选定的目标 URL(等价 CreateDocument 保存)。
 private struct ExportedBackupFile: FileDocument {
     static var readableContentTypes: [UTType] { [.data] }
@@ -944,9 +944,9 @@ private struct ExportedBackupFile: FileDocument {
     }
 }
 
-// 折叠展开集跨页恢复(← Android rememberSaveable + Saver<Set<String>, ArrayList<String>>):
+// 折叠展开集跨页恢复(rememberSaveable + Saver<Set<String>, ArrayList<String>>):
 // AppRoot 状态恢复回到本页时, 折叠卡展开集按原样回来。iOS 等价 = 变更写 sleepy_prefs
-// 主文件(Set ↔ 排序 [String]), 页面重建 load() 回填 — 比 Android Bundle 更强(跨启动
+// 主文件(Set ↔ 排序 [String]), 页面重建 load() 回填 — 比 原版本 Bundle 更强(跨启动
 // 也保真), 行为方向一致。
 private enum SettingsExpandedSectionsStore {
     static let KEY = "settings_expanded_sections"

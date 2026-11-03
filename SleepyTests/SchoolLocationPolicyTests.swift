@@ -1,6 +1,6 @@
 // SchoolLocationPolicyTests.swift — ← data/jw/SchoolLocationPolicyTest.kt (v1.0.61)
 //
-// 八个用例逐一对应 Android 侧 SchoolLocationPolicyTest:
+// 八个用例逐一对应 原版本 侧 SchoolLocationPolicyTest:
 //   1. 权限组合 → precise / approximate / nil
 //   2. approximate 排除 "gps"(含早前 fine 授权场景) + distinct 保序
 //   3. 年龄边界 30s 可用 / 31s / -1s / 300s 拒绝(双模式)
@@ -22,7 +22,7 @@ import XCTest
 
 final class SchoolLocationPolicyTests: XCTestCase {
 
-    // MARK: - fixtures(镜像 Android 测试助手)
+    // MARK: - fixtures(镜像 原版本 测试助手)
 
     private func makeFix(accuracy: Double = 30.0, ageSeconds: Int64 = 1,
                          latitude: Double = 23.123456, longitude: Double = 114.456789) -> SchoolLocationFix {

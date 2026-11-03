@@ -28,7 +28,7 @@ private let MAX_YEAR = 2049
 struct HolidaySettingsScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     let onDismiss: () -> Void
-    /// 进入本页时全局选中的课表 id ← Android tableId: Long? = null;
+    /// 进入本页时全局选中的课表 id ← 原版本 tableId: Long? = null;
     /// nil = 无课表(调休映射不落盘, 说明卡提示"请先创建课表")。
     var tableId: Int64? = nil
     /// 当前选中表映射变化后的课表页刷新回调 ← viewModel.refreshTransfer(); 接线归集成者。
@@ -187,7 +187,7 @@ struct HolidaySettingsScreen: View {
     }
 
     // ← 年份切换行(ChevronLeft / 年份 / ChevronRight)。
-    //   Android horizontalArrangement = Arrangement.Center: 两箭头紧贴年份文字两侧
+    //   原 horizontalArrangement = Arrangement.Center: 两箭头紧贴年份文字两侧
     //   (文字水平 padding 16), 整行居中 — 不顶卡片两边。
     private var yearSwitcher: some View {
         HStack(spacing: 0) {
@@ -245,7 +245,7 @@ struct HolidaySettingsScreen: View {
                         .controlSize(.small)
                         .frame(width: 36, height: 36)
                 } else {
-                    // 刷新=图标(与 Android Icons.Outlined.Refresh 同位): failed/empty/loaded 均可点
+                    // 刷新=图标(与 原版本 Icons.Outlined.Refresh 同位): failed/empty/loaded 均可点
                     Button {
                         load(year, force: true)
                     } label: {
@@ -326,7 +326,7 @@ struct HolidaySettingsScreen: View {
             Text(L10n.format("holiday_mapping_explanation"))
                 .font(.system(size: 12))
                 .foregroundColor(colors.onSurfaceVariant)
-            // 只有带着已选课表进入且存在多张表才渲染切换器 — 与 Android 条件一致
+            // 只有带着已选课表进入且存在多张表才渲染切换器 — 与 原版本 条件一致
             if tableId != nil && tables.count > 1 {
                 Spacer().frame(height: 4)
                 SegmentedSwitcher(
@@ -367,7 +367,7 @@ struct HolidaySettingsScreen: View {
     }
 
     /// 覆盖变化时基于原始网络数据即时重合并, 不重新走网络 ← Loaded 分支。
-    /// Android 1.0.61 不再渲染"法定节假日/补班日"两列清单 — 放假日段直接渲染
+    /// 原版本 1.0.61 不再渲染"法定节假日/补班日"两列清单 — 放假日段直接渲染
     /// HolidayTransferCard(逐日映射行), 补班日数据只作为下拉候选; 无节卡时不显示孤儿卡。
     @ViewBuilder
     private func segmentSections(_ entries: [HolidayEntry]) -> some View {
@@ -700,7 +700,7 @@ private struct HolidayTransferRow: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 6)
-        // "其他日期…" → 系统日期滚轮确认 ← Android DatePickerDialog(ZoneId Asia/Shanghai)
+        // "其他日期…" → 系统日期滚轮确认 ← 原版本 DatePickerDialog(ZoneId Asia/Shanghai)
         .sheet(isPresented: $showDatePicker) {
             makeupDatePicker
         }
@@ -791,7 +791,7 @@ private struct HolidayRemovedCard: View {
                     .buttonStyle(SleepyButtonStyle())
                 }
                 .padding(.vertical, 6)
-                // ← Android HorizontalDivider: outlineVariant @ hairline
+                // ← 原版本 HorizontalDivider: outlineVariant @ hairline
                 if index != segments.count - 1 {
                     Rectangle()
                         .fill(colors.outlineVariant.opacity(SleepyTheme.Alpha.hairline))
@@ -814,9 +814,9 @@ private struct HolidayRemovedCard: View {
  *
  * iOS 原生化:
  *   - 起止日期 → native DatePicker(.compact) 双字段, 点击展开滚轮。
- *     Android 用自由文本 DatePickerField, end 可填出早于 start 的值 → 错误行出现;
+ *     原实现用自由文本 DatePickerField, end 可填出早于 start 的值 → 错误行出现;
  *     iOS 端不钳制 end 的范围(去掉 in: startDate...), 否则 endDate >= startDate 恒真,
- *     holiday_date_invalid 分支成为死代码 — 与 Android 校验路径保持等价可达。
+ *     holiday_date_invalid 分支成为死代码 — 与原实现校验路径保持等价可达。
  *   - 名称 → TextField (SwiftUI 已是原生, 不变)
  *   - 类型 → SegmentedSwitcher 二选一
  *   - 删除/取消/保存 → 自制色块按钮(与全 app 统一)
@@ -852,17 +852,17 @@ private struct HolidayRangeEditDialog: View {
     private var datesValid: Bool { endDate >= startDate }
 
     var body: some View {
-        // ← Android AlertDialog text Column spacedBy(12)
+        // ← 原版本 AlertDialog text Column spacedBy(12)
         VStack(alignment: .leading, spacing: 12) {
             Text(L10n.format(isNew ? "holiday_add_title" : "holiday_edit_title"))
-                .font(.system(size: 24)) // ← Android AlertDialog headlineSmall 24
+                .font(.system(size: 24)) // ← 原 AlertDialog headlineSmall 24
                 .foregroundColor(colors.onSurface)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             // ← native iOS DatePicker(.compact): 点击展开滚轮, 系统级体验
             //   手动 HStack 替代 LabeledContent (iOS 16+), 保持 iOS 15.6 兼容。
             //   end 不钳制下限 — 允许 end < start, 走下方 holiday_date_invalid 提示
-            //   (Android DatePickerField 同样允许填出倒挂区间并报错, 校验路径等价)。
+            //   (原版本 DatePickerField 同样允许填出倒挂区间并报错, 校验路径等价)。
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(L10n.format("holiday_name_label_date"))
@@ -898,7 +898,7 @@ private struct HolidayRangeEditDialog: View {
                 .background(colors.surfaceContainer)
                 .cornerRadius(SleepyTheme.fieldShape)
 
-            // ← SegmentedSwitcher 全宽(与设置页 Tab 同款, 替代散排 chip) — Android 1.0.51
+            // ← SegmentedSwitcher 全宽(与设置页 Tab 同款, 替代散排 chip) — 原版本 1.0.51
             SegmentedSwitcher(
                 options: [(0, L10n.format("holiday_type_holiday")),
                           (1, L10n.format("holiday_type_workday"))],
@@ -931,7 +931,7 @@ private struct HolidayRangeEditDialog: View {
             HStack(spacing: 8) {
                 Button(action: onDismiss) {
                     Text(L10n.format("cancel"))
-                        .font(.system(size: 14, weight: .medium)) // ← Android TextButton labelLarge 14sp Medium
+                        .font(.system(size: 14, weight: .medium)) // ← 原 TextButton labelLarge 14sp Medium
                         .foregroundColor(colors.onSurfaceVariant)
                         .frame(maxWidth: .infinity)
                         .frame(height: 40)

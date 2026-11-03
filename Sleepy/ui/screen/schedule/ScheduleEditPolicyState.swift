@@ -35,7 +35,7 @@ enum SchedulePolicy: Equatable {
 ///   6. cancelPolicy → draft 恢复 original, 策略归零
 ///
 /// 独立 holder (← Kotlin 注释: 不依赖 ScheduleViewModel 字段初始化器, 纯测可构造)。
-/// Android data class equals → PeriodTableEntity 全字段值等价 (见下方 Equatable 扩展)。
+/// 原 data class equals → PeriodTableEntity 全字段值等价 (见下方 Equatable 扩展)。
 final class ScheduleEditPolicyState: ObservableObject {
     let tableId: Int64
     private let originalEffectiveSchedule: PeriodTableEntity?
@@ -77,7 +77,7 @@ final class ScheduleEditPolicyState: ObservableObject {
 }
 
 // ← Kotlin data class 自动 equals → Swift 结构体无合成 ==, 按全字段补值等价
-//   (id/createdAt/updatedAt 也在 Android equals 内, 一并比较保持语义 1:1)。
+//   (id/createdAt/updatedAt 也在 原 equals 内, 一并比较保持语义 1:1)。
 extension PeriodTableEntity: Equatable {
     static func == (lhs: PeriodTableEntity, rhs: PeriodTableEntity) -> Bool {
         lhs.id == rhs.id

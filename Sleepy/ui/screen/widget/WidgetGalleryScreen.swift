@@ -2,10 +2,10 @@
 // 添加小组件画廊页(设计 §3 末层): WidgetManagementScreen 右上「＋」进入, 把
 // allWidgetVariants 全部渲染成预览卡片(数量随注册表走, 零硬编码)。
 //
-// ★ 平台差异(差异表#8 附注): Android 点卡片 = WidgetPinRequest.request 发起系统
+// ★ 平台差异(差异表#8 附注): 原版本 点卡片 = WidgetPinRequest.request 发起系统
 //   「添加到主屏幕」确认(requestPinAppWidget); iOS WidgetKit 无程序化 pin API
-//   (AppWidgetManager.requestPinAppWidget 为 Android launcher 机制, PinWidget/Render/
-//   Configure Activity 亦属 Android 独占暂缓清单) → 点卡片恒走 Android 的
+//   (AppWidgetManager.requestPinAppWidget 为 原 launcher 机制, PinWidget/Render/
+//   Configure Activity 亦属 原平台独占暂缓清单) → 点卡片恒走 原版本 的
 //   NOT_SUPPORTED/FAILED 分支同款反馈: 手动添加指引 snackbar。
 //   点后该卡禁用 ~2s 防连点(冷却)照搬。
 
@@ -48,7 +48,7 @@ struct WidgetGalleryScreen: View {
         .overlay(alignment: .bottom) {
             if let msg = hintMessage {
                 Text(msg)
-                    .font(.system(size: 14)) // ← Android Snackbar bodyMedium 14
+                    .font(.system(size: 14)) // ← 原 Snackbar bodyMedium 14
                     .accessibilityIdentifier("widget_gallery_hint")
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
@@ -125,12 +125,12 @@ private struct GalleryCard: View {
 // MARK: - schematic 预览(← previewImageRes 的 iOS 等价物)
 
 /// 预览占位块: 按 kind 画该 widget 的形态骨架(色块布局示意, 非真实渲染 —
-/// Android 预览同为静态图, 不承载真实数据)。
+/// 原版本 预览同为静态图, 不承载真实数据)。
 private struct WidgetGalleryPreview: View {
     @Environment(\.localWakeUpColors) private var colors
     let kind: String
 
-    /// 占位块底色(与 Android 预览图 surfaceContainerHighest 底 + 内容块对比同精神)
+    /// 占位块底色(与 原版本 预览图 surfaceContainerHighest 底 + 内容块对比同精神)
     private var block: Color { colors.onSurfaceVariant.opacity(0.28) }
     private var accent: Color { colors.primary.opacity(0.55) }
 

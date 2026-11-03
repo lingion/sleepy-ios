@@ -1,7 +1,7 @@
 # sleepy→iOS 移植风险矩阵(risk-based-testing 六相输出)
 
 评分轴: Impact(1-5 失败多糟) × Probability(1-5 移植中多可能失败) → 区(CRITICAL 15-25 / HIGH 10-14 / MEDIUM 5-9 / LOW 1-4)
-概率依据: 代码量×复杂度×Android/iOS 语义差异度。测试密度按区配,不撒胡椒面。
+概率依据: 代码量×复杂度×iOS/原平台语义差异度。测试密度按区配,不撒胡椒面。
 
 ## Phase 2 风险分类表
 
@@ -17,7 +17,7 @@
 | R8 | 主题(5预设×2模式+HSV+跟随系统) | 2 | 3 | 6 | MEDIUM | 色值 hex 对齐测试+Preview |
 | R9 | UI 屏幕(19屏 SwiftUI 还原) | 3 | 3 | 9 | MEDIUM | XCUITest 冒烟+D8 截屏对照 |
 | R10 | 字符串/本地化(389×5) | 2 | 2 | 4 | LOW | G3 parity 机械跑 |
-| R11 | PinyinMatcher(311行数据表搬运) | 2 | 3 | 6 | MEDIUM | 移植其 Android 测试若有+抽查 |
+| R11 | PinyinMatcher(311行数据表搬运) | 2 | 3 | 6 | MEDIUM | 移植其原测试若有+抽查 |
 | R12 | 版本/更新(VersionUtils+UpdateManager) | 2 | 2 | 4 | LOW | 两个原测试文件 |
 | R13 | 无签名 IPA→AltStore 重签装机链 | 4 | 3 | 12 | HIGH | T8.2 真机实测(模拟器不可代) |
 
@@ -25,7 +25,7 @@
 
 ### R1 教务导入链(20)
 - 失败模式1: WebView 登录 cookie 未随 API 请求带上 → 抓课表 401
-  - 触发: WKHTTPCookieStore 异步性与 Android CookieManager 同步语义差异
+  - 触发: WKHTTPCookieStore 异步性与 原 CookieManager 同步语义差异
   - 波及: 全部 14 协议直连导入不可用
   - 检测: fixture 服务器断言请求带 cookie;真站冒烟
   - 现缓解: T6.5b fixture 全链
@@ -44,7 +44,7 @@
 ### R3 数据层(15)
 - 失败模式: GRDB 类型映射错(如 Int 回退 null/默认值) → 课程字段静默丢失
   - 检测: database-testing parity(逐列 roundtrip)+ln-25 审计
-  - 缺口: 无 Android 数据直接迁移需求(自用新建),迁移场景不做
+  - 缺口: 无原平台数据直接迁移需求(自用新建),迁移场景不做
 
 ### R6 Widget 同步(16)
 - 失败模式: 免费重签 App Group 不生效 → widget 读不到课程
@@ -68,7 +68,7 @@ I2          R12 R10 R8/R11
 | CRITICAL×4 | 单元+链条+fixture链+真机 | 0 | T1/T2/T3/T6.5b/T7.0/T8.2 |
 | HIGH×2 | 单测+模拟器断言+真机复测 | 0 | T7.4/T8.2 |
 | MEDIUM×3 | 单测+Preview | 0 | T1.3/T4/T6 |
-| LOW×2 | 原 Android 测试移植 | 0 | T1.5/T1.6 |
+| LOW×2 | 原测试移植 | 0 | T1.5/T1.6 |
 
 ## Phase 6 重评触发
 - 每批 checkpoint 重跑本表概率列(实现中发现语义差异→升 P)

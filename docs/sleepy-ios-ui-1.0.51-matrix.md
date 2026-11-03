@@ -1,10 +1,10 @@
-# iOS / Android 1.0.51 UI alignment matrix
+# iOS / original 1.0.51 UI alignment matrix
 
 Baseline: [`sleepy-ios-ui-1.0.51-baseline.md`](sleepy-ios-ui-1.0.51-baseline.md)
 
 Status values: `pending` means source comparison is still required; `in-progress` means the current worktree already contains a related change; `verified` requires source comparison plus a successful iOS build.
 
-| Priority | iOS surface | iOS source | Android 1.0.51 source | Current status | Alignment focus |
+| Priority | iOS surface | iOS source | original 1.0.51 source | Current status | Alignment focus |
 |---|---|---|---|---|---|
 | P0 | Root navigation / dock | `Sleepy/SleepyApp.swift`, `ui/component/PillNavigationBar.swift` | `MainActivity.kt`, `ui/component/PillNavigationBar.kt` | verified | selected state timing, docked/floating geometry, background continuity, bottom inset |
 | P0 | Schedule | `ui/screen/schedule/ScheduleScreen.swift`, `ScheduleViewModel.swift` | `ui/screen/schedule/ScheduleScreen.kt`, `ScheduleViewModel.kt` | verified | toolbar, week display, grid, empty/loading states, conflict layout |
@@ -24,10 +24,10 @@ Status values: `pending` means source comparison is still required; `in-progress
 | P2 | Export/share | `ExportScreen.swift`, `ShareScheduleSheet.swift` | matching `*.kt` | verified | format selection, share actions, empty/error states; sleepy-v1 native export row documented as a data-layer gap pending `SleepyNativeExporter` port |
 | P2 | About/license | `AboutScreen.swift`, `LicenseScreen.swift` | matching `*.kt` | verified | version/about content, feedback entries (GitHub Issue + email), two-tier acknowledgements with expandable per-school cards, localization; UpdateNotifier banner + auto-check toggle documented as a behavior-layer gap (new preference + launch-time network check outside the UI contract) |
 | P2 | Shared sheets/editors | `CourseDetailSheet.swift`, `DateTimePickers.swift`, `SmartPeriodEditor.swift`, `TimeSlotEditor.swift`, `SettingsCards.swift` | matching component sources | verified | sheet detents, controls, spacing, typography; SettingsCards no-drift confirmed, whole-card tap documented as iOS adaptation, M3 56dp field height documented as app-wide iOS field height |
-| P3 | Localization/layout stress | all user-visible SwiftUI strings | Android locale resources | verified | 431 keys + dynamic format_* expansions present in all 5 locales; lineLimit↔maxLines audit (1 fix); Android contentDescription coverage mirrored to accessibilityLabel; AddCourseScreen delete_slot documented as deferred (user-dirty file) |
+| P3 | Localization/layout stress | all user-visible SwiftUI strings | 原 locale resources | verified | 431 keys + dynamic format_* expansions present in all 5 locales; lineLimit↔maxLines audit (1 fix); 原 contentDescription coverage mirrored to accessibilityLabel; AddCourseScreen delete_slot documented as deferred (user-dirty file) |
 
 ## Rules
 
-- A row becomes `verified` only after its Android source and iOS source have been read, the minimal implementation diff is applied, and the relevant generic iOS build passes.
+- A row becomes `verified` only after its 原 source and iOS source have been read, the minimal implementation diff is applied, and the relevant generic iOS build passes.
 - Parser, DAO, repository, widget, and preference-default changes are outside this matrix.
 - Existing worktree changes are evidence to preserve, not permission to overwrite.

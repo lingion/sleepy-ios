@@ -1,13 +1,13 @@
-// SleepyNavHost — Android SleepyNavHost.kt → iOS 文档式对齐文件.
+// SleepyNavHost — 原版本 SleepyNavHost.kt → iOS 文档式对齐文件.
 //
-// Android 侧: Composable NavHost — 每个 SleepyRoute 对应一个页面 composable,
+// 原版本 侧: Composable NavHost — 每个 SleepyRoute 对应一个页面 composable,
 // 按路由类型挂 BackHandler (EditTable pendingNew 丢弃兜底; PeriodEdit 未保存新期丢弃),
 // MainRoute 双击返回 2s 内退 App, 平板 master-detail 分栏.
 //
 // iOS 侧无 Composable NavHost 等价物 — 导航由既有构件承担, 本文件只固化
 // "谁驱动什么"的映射, 让路由表 (SleepyRoutes) 与导航实现可审计对应:
 //
-//   Android 构件                  →  iOS 承接
+//   原版本 构件                  →  iOS 承接
 //   ─────────────────────────────────────────────────────────────────
 //   NavHost (composable 分发表)   →  AppRoot.content + PresentOverlay.overlayContent
 //                                     (SleepyApp.swift; 按 OverlayScreen 分发页面)
@@ -40,7 +40,7 @@
 //   PeriodTables            .periodTables
 //   PeriodEdit              .periodEdit (periodEditId/pendingNewPeriodTableId 参数在 VM)
 //
-// 每路由返回不变量 (与 Android BackHandler 契约一致):
+// 每路由返回不变量 (与 原版本 BackHandler 契约一致):
 //   • EditTable + pendingNew: 返回/侧滑 → 丢弃新表, 回退到 previousDefault (handleBack 已实现)
 //   • 已落地路由: 单值 overlay, 返回 = overlayScreen = nil, 无栈深
 //   • 连续同路由去重由单值语义天然保证 (无二次 push)
@@ -48,7 +48,7 @@
 import SwiftUI
 
 extension AppRootViewModel {
-    /// 路由 → iOS 导航态 单点入口 (Android SleepyNavigator.openXxx 的 VM 直驱版).
+    /// 路由 → iOS 导航态 单点入口 (原版本 SleepyNavigator.openXxx 的 VM 直驱版).
     /// 未落地路由在此集中留痕, 避免散落的 no-op.
     @discardableResult
     func navigate(to route: SleepyRoute) -> Bool {

@@ -39,7 +39,7 @@ struct TimeTableDao {
         try dbw.execute(sql: "UPDATE time_tables SET isDefault = (id = ?)", arguments: [id])
     }
 
-    // @Query("UPDATE time_tables SET reminderEnabled = :enabled WHERE id = :id") — ← Android TimeTableDao.setReminderEnabled
+    // @Query("UPDATE time_tables SET reminderEnabled = :enabled WHERE id = :id") — ← 原版本 TimeTableDao.setReminderEnabled
     func setReminderEnabledInDb(_ dbw: Database, _ id: Int64, _ enabled: Bool) throws -> Int {
         try dbw.execute(sql: "UPDATE time_tables SET reminderEnabled = ? WHERE id = ?", arguments: [enabled, id])
         return dbw.changesCount
@@ -95,7 +95,7 @@ struct TimeTableDao {
 
     // SELECT * FROM time_tables WHERE periodTableId = :periodTableId ORDER BY createdAt DESC
     // 甲案 (设计 §4.1): 绑定到指定作息表的全部课表 — 弹窗"另有 N 张课表绑定"提示 +
-    // 三选项作用域语义共用 (← Android ScheduleRepository.getTablesBoundTo /
+    // 三选项作用域语义共用 (ScheduleRepository.getTablesBoundTo /
     // repoTablesBoundToCount, EditTableScreen.kt:343/404)。
     func getAllBoundTo(_ periodTableId: Int64) throws -> [TimeTableEntity] {
         try db.read {

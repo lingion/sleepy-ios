@@ -23,7 +23,7 @@ final class JwNuitParser: JwParser, JwParserConfidenceReporting {
     // MARK: - T8
 
     func generateCourseList() throws -> [JwCourse] {
-        // 对齐 Android `Json { ignoreUnknownKeys = true; isLenient = true }`: 宽松解析 +
+        // 对齐 原 `Json { ignoreUnknownKeys = true; isLenient = true }`: 宽松解析 +
         // 标量/非对象 root 落到空列表; rows 逐元素判类型, 非对象行跳过(不整表作废)。
         guard let root = jsonObj(jwParseJSONLenient(source)),
               let rows = jsonArr(root["datas"]) else {
@@ -42,19 +42,19 @@ final class JwNuitParser: JwParser, JwParserConfidenceReporting {
             let details = jstr(obj, "classDateAndPlace")
             if name.isEmpty || details.isEmpty { continue }
 
-            // Android details.split('，', ','): 全角与半角逗号都是分隔符
+            // 原版本 details.split('，', ','): 全角与半角逗号都是分隔符
             let parts = details.components(separatedBy: CharacterSet(charactersIn: "，,"))
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .flatMap { detail -> [JwCourse] in
                     let range = NSRange(detail.startIndex..., in: detail)
-                    // Android matchEntire: 必须整段匹配, 前后缀垃圾直接丢弃
+                    // 原版本 matchEntire: 必须整段匹配, 前后缀垃圾直接丢弃
                     guard let m = regex.firstMatch(in: detail, options: [.anchored], range: range),
                           m.range == range else { return [] }
                     let ns = detail as NSString
                     let weekPart = ns.substring(with: m.range(at: 1))
                     guard let dayChar = ns.substring(with: m.range(at: 2)).first,
                           let day = dayMap[String(dayChar)] else { return [] }
-                    // Android toIntOrNull() ?: return emptyList(): 起始节数解析失败整条丢弃
+                    // 原版本 toIntOrNull() ?: return emptyList(): 起始节数解析失败整条丢弃
                     guard let start = Int(ns.substring(with: m.range(at: 3))) else { return [] }
                     let end = Int(ns.substring(with: m.range(at: 4))) ?? start
                     let teacher = ns.substring(with: m.range(at: 5)).trimmingCharacters(in: .whitespaces)
@@ -86,7 +86,7 @@ final class JwNuitParser: JwParser, JwParserConfidenceReporting {
                 let clean = segment.replacingOccurrences(of: "(单)", with: "")
                     .replacingOccurrences(of: "(双)", with: "")
 
-                // Android clean.split('-', limit = 2).mapNotNull { it.toIntOrNull() }:
+                // 原版本 clean.split('-', limit = 2).mapNotNull { it.toIntOrNull() }:
                 // 只在第一个 '-' 处切两段, 每侧整段必须是纯 Int
                 // ("1-3-5" -> ["1","3-5"] -> [1] -> 1..1; "第1-3" -> ["第1","3"] -> 3..3),
                 // 倒挂区间(5..1)在 Kotlin 为空 IntRange → 不产出周次, 不交换。
@@ -112,7 +112,7 @@ final class JwNuitParser: JwParser, JwParserConfidenceReporting {
     // MARK: - T9
 
     var confidenceValue: Int {
-        // Android: datas 只要是 JsonArray 且 source 含 "classDateAndPlace" 即 90,
+        // 原版本: datas 只要是 JsonArray 且 source 含 "classDateAndPlace" 即 90,
         // 不要求元素是对象({"datas":["x"]} 也得分)。
         guard let root = jsonObj(jwParseJSONLenient(source)),
               root["datas"] is [Any],

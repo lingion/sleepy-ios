@@ -1,10 +1,10 @@
-// JwEcuplScriptParserTests.swift — ← Android v1.0.62 JwEcuplScriptParserTest.kt (逐用例移植)
+// JwEcuplScriptParserTests.swift — ← 原版本 v1.0.62 JwEcuplScriptParserTest.kt (逐用例移植)
 //
 // ECUPL script 子协议 (R5/R6/R7) 解析器测试。
 // 覆盖 3 个 regex_invariants + isolation tests。
 //
 // fixture: SleepyTests/resources/ecupl_script_sample.html / ecupl_super_sample.html
-//   (与 Android app/src/test/resources/jw/ 同名文件逐字节一致, md5 已校验)
+//   (与 原版本 app/src/test/resources/jw/ 同名文件逐字节一致, md5 已校验)
 
 import XCTest
 @testable import Sleepy
@@ -13,7 +13,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
 
     // MARK: - 载入工具
 
-    /// ← Android `javaClass.classLoader.getResourceAsStream("jw/$name")`
+    /// ← 原 `javaClass.classLoader.getResourceAsStream("jw/$name")`
     private func res(_ name: String) throws -> String {
         let bundle = Bundle(for: JwEcuplScriptParserTests.self)
         guard let url = bundle.url(forResource: name, withExtension: "html")
@@ -41,7 +41,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
 
     // MARK: - A. R5: CourseTable 锚点
 
-    // ← Android JwEcuplScriptParserTest.kt: `R5 new CourseTable matches across newlines`
+    // ← 原 JwEcuplScriptParserTest.kt: `R5 new CourseTable matches across newlines`
     func testR5NewCourseTableMatchesAcrossNewlines() throws {
         let src = try scriptSample()
         let match = JwEcuplScriptParser.reCourseTable
@@ -53,7 +53,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
 
     // MARK: - B. R6: 时间矩阵 ≥ 1 对
 
-    // ← Android JwEcuplScriptParserTest.kt: `R6 time pair regex finds at least 12 pairs`
+    // ← 原 JwEcuplScriptParserTest.kt: `R6 time pair regex finds at least 12 pairs`
     func testR6TimePairRegexFindsAtLeast12Pairs() throws {
         let src = try scriptSample()
         let pairs = allMatches(JwEcuplScriptParser.reTimePair, src)
@@ -64,7 +64,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
 
     // MARK: - C. R7: newActivity + addActivityByTime 配对 emit 课程
 
-    // ← Android JwEcuplScriptParserTest.kt: `R7 newActivity yields 4 observed slots via script path`
+    // ← 原 JwEcuplScriptParserTest.kt: `R7 newActivity yields 4 observed slots via script path`
     func testR7NewActivityYields4ObservedSlotsViaScriptPath() throws {
         let courses = try JwEcuplScriptParser(scriptSample()).generateCourseList()
         XCTAssertEqual(4, courses.count)
@@ -85,7 +85,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
 
     // MARK: - D. End-to-end: super fixture 同时含 HTML + script, script 路径仍 emit 课程
 
-    // ← Android JwEcuplScriptParserTest.kt: `super fixture yields 3 courses via R7 path`
+    // ← 原 JwEcuplScriptParserTest.kt: `super fixture yields 3 courses via R7 path`
     func testSuperFixtureYields3CoursesViaR7Path() throws {
         let courses = try JwEcuplScriptParser(superSample()).generateCourseList()
         XCTAssertEqual(3, courses.count)
@@ -95,7 +95,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
         XCTAssertTrue(names.contains("法理学"))
     }
 
-    // ← Android JwEcuplScriptParserTest.kt: `unmatched minutes and overflowing bitmap emit no invented courses`
+    // ← 原 JwEcuplScriptParserTest.kt: `unmatched minutes and overflowing bitmap emit no invented courses`
     func testUnmatchedMinutesAndOverflowingBitmapEmitNoInventedCourses() throws {
         let base = try scriptSample()
         let unmatched = base.replacingOccurrences(of: "activity,1,480,580", with: "activity,1,481,580")
@@ -104,7 +104,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
         XCTAssertEqual(0, try JwEcuplScriptParser(overflow).generateCourseList().count)
     }
 
-    // ← Android JwEcuplScriptParserTest.kt: `sparse decimal bitmap retains gaps and date offset`
+    // ← 原 JwEcuplScriptParserTest.kt: `sparse decimal bitmap retains gaps and date offset`
     func testSparseDecimalBitmapRetainsGapsAndDateOffset() throws {
         let html = try scriptSample().replacingOccurrences(of: "\"2024-02-26\",65535", with: "\"2024-03-04\",21")
         let courses = try JwEcuplScriptParser(html).generateCourseList()
@@ -119,14 +119,14 @@ final class JwEcuplScriptParserTests: XCTestCase {
         XCTAssertEqual([2, 4, 6], weeks)
     }
 
-    // ← Android JwEcuplScriptParserTest.kt: `separate scripts do not cross pair slots`
+    // ← 原 JwEcuplScriptParserTest.kt: `separate scripts do not cross pair slots`
     func testSeparateScriptsDoNotCrossPairSlots() throws {
         let unrelated = "<script language=\"JavaScript\">newActivity(\"bad\",\"bad\",\"x\",\"bad\",\"x\",\"bad\",\"2024-02-26\",65535);addActivityByTime(activity,7,480,525);</script>"
         let courses = try JwEcuplScriptParser(unrelated + scriptSample()).generateCourseList()
         XCTAssertEqual(4, courses.count)
     }
 
-    // ← Android JwEcuplScriptParserTest.kt: `classic routing uses script matrix for spaced activity with empty room`
+    // ← 原 JwEcuplScriptParserTest.kt: `classic routing uses script matrix for spaced activity with empty room`
     func testClassicRoutingUsesScriptMatrixForSpacedActivityWithEmptyRoom() throws {
         let html = try scriptSample()
             .replacingOccurrences(of: "\"明法楼A101\"", with: "\"\"")
@@ -140,7 +140,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
 
     // MARK: - E. confidence
 
-    // ← Android JwEcuplScriptParserTest.kt: `scriptSample yields high confidence`
+    // ← 原 JwEcuplScriptParserTest.kt: `scriptSample yields high confidence`
     func testScriptSampleYieldsHighConfidence() throws {
         let parser = JwEcuplScriptParser(try scriptSample())
         let conf = parser.protocolConfidence
@@ -149,7 +149,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
 
     // MARK: - F. Isolation - empty HTML
 
-    // ← Android JwEcuplScriptParserTest.kt: `empty HTML yields zero courses and zero confidence`
+    // ← 原 JwEcuplScriptParserTest.kt: `empty HTML yields zero courses and zero confidence`
     func testEmptyHtmlYieldsZeroCoursesAndZeroConfidence() throws {
         let parser = JwEcuplScriptParser("<html><body></body></html>")
         let courses = try parser.generateCourseList()
@@ -159,7 +159,7 @@ final class JwEcuplScriptParserTests: XCTestCase {
 
     // MARK: - G. Non-ECUPL script
 
-    // ← Android JwEcuplScriptParserTest.kt: `non-ecupl script yields empty list`
+    // ← 原 JwEcuplScriptParserTest.kt: `non-ecupl script yields empty list`
     func testNonEcuplScriptYieldsEmptyList() throws {
         let html = "<html><body><script>alert('hello');</script></body></html>"
         let courses = try JwEcuplScriptParser(html).generateCourseList()

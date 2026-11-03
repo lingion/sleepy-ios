@@ -2,18 +2,18 @@
 // 偏好/小部件/持久态 三模块共用的 codec。值带类型信封,导入端按信封还原,不靠运行时类型猜测。
 //
 // iOS 适配:
-//   - Android SharedPreferences → UserDefaults (同 key-value 语义,UserDefaults 全是单 suite)
+//   - 原版本 SharedPreferences → UserDefaults (同 key-value 语义,UserDefaults 全是单 suite)
 //   - 文件名 → suiteName 映射: iOS 用 UserDefaults(suiteName: <file>) 模拟多文件;
 //     共享主 prefs("sleepy_prefs") 走 UserDefaults.standard 保持向后兼容
 //     (UserDefaults.standard 持久化的 key 实际就在 app group-less 默认 suite 中)。
-//   - 与 Android editor.clear() 等价 (v1.0.61 对齐修复): 只清"该实例所属域"实际
+//   - 与 原版本 editor.clear() 等价 (v1.0.61 对齐修复): 只清"该实例所属域"实际
 //     持久化的键。绝不对 suite 实例调 removePersistentDomain(bundleId) —
 //     suite 的域按 suiteName 命名, 按 bundleId 清会误伤标准域、漏清目标域。
 //   - collect/清空 的"本域实际持久化键"通过 CFPreferencesCopyKeyList 枚举
 //     (dictionaryRepresentation() 会混入注册域默认值与全局域系统键, 不能直接用)。
-//   - INT/LONG 判别按存储宽度 (NSNumber.objCType), 与 Android putInt/putLong
-//     运行时类型判别一一对应; 写回按信封类型还原对应宽度, Android→iOS→Android
-//     往返类型不丢 (旧实现按数值范围判别: 小值 Long 被误标 INT, 回灌 Android 后
+//   - INT/LONG 判别按存储宽度 (NSNumber.objCType), 与 原版本 putInt/putLong
+//     运行时类型判别一一对应; 写回按信封类型还原对应宽度, 原版本→iOS→原版本
+//     往返类型不丢 (旧实现按数值范围判别: 小值 Long 被误标 INT, 回灌 原版本 后
 //     getLong 抛 ClassCastException / `v is Long` 过滤整类丢键)。
 //   - Bool: UserDefaults 落 __NSCFBoolean (objCType 'c'), 必须先按 CFBoolean 判别,
 //     旧实现的 case "B" 永不命中 → 布尔被误分为 INT。
@@ -24,7 +24,7 @@
 import Foundation
 
 /// 偏好快照 codec。
-/// 与 Android MigrationPrefsCodec.kt 1:1 — JSON 协议必须保持向后兼容。
+/// 与 原版本 MigrationPrefsCodec.kt 1:1 — JSON 协议必须保持向后兼容。
 enum MigrationPrefsCodec {
 
     /// 值的类型信封 — 未知 type 直接 skip, 不阻断导出。
@@ -37,7 +37,7 @@ enum MigrationPrefsCodec {
         case STRING_SET
     }
 
-    /// 单个偏好值 — 一次只承载一个字段(type 决定哪个),与 Android JSON 协议一致。
+    /// 单个偏好值 — 一次只承载一个字段(type 决定哪个),与 原版本 JSON 协议一致。
     struct PrefValue: Codable, Equatable {
         var type: PrefType
         var bool: Bool = false
@@ -47,7 +47,7 @@ enum MigrationPrefsCodec {
         var string: String = ""
         var stringSet: [String] = []
 
-        // 兼容 Android JSON 字段名 'number'(JS 端 number 精度内)
+        // 兼容 原版本 JSON 字段名 'number'(JS 端 number 精度内)
     }
 
     struct PrefsFileSnapshot: Codable, Equatable {
@@ -91,10 +91,10 @@ enum MigrationPrefsCodec {
 
     /// 从一个 UserDefaults 实例收集全量键值(类型按运行时实际值判别)。
     ///
-    /// Android `prefs.all` 只含"真正写进该文件"的键, 未知键名原样保留。iOS 的
+    /// 原 `prefs.all` 只含"真正写进该文件"的键, 未知键名原样保留。iOS 的
     /// dictionaryRepresentation() 会把注册域默认值与全局域系统键一并合并进来,
-    /// 直接用会导出 Android 不会导出的条目 — 键清单一律取自 persistedKeys
-    /// (本域实际键, == prefs.all), 键名不做任何过滤, 与 Android "未知键原样保留"
+    /// 直接用会导出 原版本 不会导出的条目 — 键清单一律取自 persistedKeys
+    /// (本域实际键, == prefs.all), 键名不做任何过滤, 与 原版本 "未知键原样保留"
     /// 契约一致。
     ///
     /// - Parameter suiteName: 该实例对应的 suite 名 / 文件名映射;
@@ -164,25 +164,25 @@ enum MigrationPrefsCodec {
     private static func makePrefValue(_ raw: Any) -> PrefValue? {
         // UserDefaults 中 Bool 与数字都以 NSNumber 持有 — Swift/OC 的布尔实际是
         // __NSCFBoolean (objCType 'c'), 必须先用 CFBooleanGetTypeID 判别,
-        // 否则布尔会被下面的整型分支误分为 INT (Android Boolean → PrefType.BOOL)。
+        // 否则布尔会被下面的整型分支误分为 INT (原版本 Boolean → PrefType.BOOL)。
         if let n = raw as? NSNumber {
             if CFGetTypeID(n as CFTypeRef) == CFBooleanGetTypeID() {
                 return PrefValue(type: .BOOL, bool: n.boolValue)
             }
-            // NSNumber 的 objCType 宽度即"存储类型": Android putInt 对应 ≤32 位
+            // NSNumber 的 objCType 宽度即"存储类型": 原 putInt 对应 ≤32 位
             // ('c','s','i','l' 及无符号), putLong / iOS 原生 Int/Int64 对应 64 位
-            // ('q')。按宽度而非数值范围判别, 与 Android 运行时类型判别一致。
+            // ('q')。按宽度而非数值范围判别, 与 原版本 运行时类型判别一致。
             switch String(cString: n.objCType) {
             case "c", "s", "i", "l", "C", "S", "I", "L":
                 return PrefValue(type: .INT, number: n.int64Value)
             case "q", "Q":
                 return PrefValue(type: .LONG, number: n.int64Value)
             case "f", "d":
-                // Android 无 double 型; Double 按 FLOAT 收敛 (两端类型集差异,
+                // 原版本 无 double 型; Double 按 FLOAT 收敛 (两端类型集差异,
                 // 与旧行为一致)
                 return PrefValue(type: .FLOAT, float: n.floatValue)
             default:
-                return nil   // 未来新类型,跳过不阻断 (Android else -> null)
+                return nil   // 未来新类型,跳过不阻断 (原 else -> null)
             }
         }
         if let s = raw as? String {
@@ -216,13 +216,13 @@ enum MigrationPrefsCodec {
 
     /// 写回单个 UserDefaults。
     /// - Parameters:
-    ///   - merge: true=仅覆盖同名键 (Android editor 逐项 put 语义, 绝不清空);
+    ///   - merge: true=仅覆盖同名键 (原 editor 逐项 put 语义, 绝不清空);
     ///     false=先清空"本域实际持久化键"再写入, 即 editor.clear() + put... 的
     ///     整文件替换。
     ///   - suiteName: 该实例的域名 (文件名映射; 传文件名即可, standard 主 prefs
     ///     会在 persistedKeys 内自动回落 app 域)。省略时不透明实例走对照域差分
     ///     (见 persistedKeys 第 3 层) — 只删实例本域真写过的键; 与全局域同值的键
-    ///     在实例读取上本就不可区分, 删留语义均与 Android 一致。
+    ///     在实例读取上本就不可区分, 删留语义均与原实现一致。
     ///   清空绝不用 removePersistentDomain(Bundle.main.bundleIdentifier):
     ///   suite 实例的域按 suiteName 命名, 按 bundleId 清会误伤标准域、漏清目标域。
     static func apply(_ defaults: UserDefaults,
@@ -239,13 +239,13 @@ enum MigrationPrefsCodec {
             case .BOOL:
                 defaults.set(value.bool, forKey: key)
             case .INT:
-                // 按 32 位宽度落存储 (对齐 Android putInt), 重导出仍判回 INT —
-                // Android→iOS→Android 往返类型不丢。越界截断语义与 Kotlin
+                // 按 32 位宽度落存储 (对齐 原版本 putInt), 重导出仍判回 INT —
+                // 原版本→iOS→原版本 往返类型不丢。越界截断语义与原实现
                 // value.number.toInt() 一致。
                 let truncated = Int32(bitPattern: UInt32(truncatingIfNeeded: value.number))
                 defaults.set(NSNumber(value: truncated), forKey: key)
             case .LONG:
-                // 64 位宽度 (对齐 Android putLong); integer/int64 读取端不受影响
+                // 64 位宽度 (对齐 原版本 putLong); integer/int64 读取端不受影响
                 defaults.set(NSNumber(value: value.number), forKey: key)
             case .FLOAT:
                 defaults.set(NSNumber(value: value.float), forKey: key)

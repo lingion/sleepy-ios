@@ -1,12 +1,12 @@
 // WidgetTextWrap.swift — ← WidgetBitmapRenderers.wrapMax2Lines
 // Canvas Paint 手动换行的纯函数移植。渲染本体走 SwiftUI lineLimit(2) (平台等价),
-// 但 WeekView FIXED 窗口的 heightOf 预算 (行数 × lineH + 3dp) 必须与 Android
+// 但 WeekView FIXED 窗口的 heightOf 预算 (行数 × lineH + 3dp) 必须与原实现
 // push() 闸门同一 wrapMax2Lines 口径 → 行数判定用本文件, 禁另起炉灶。
 
 import UIKit
 
 enum WidgetTextWrap {
-    /// 9sp 常规字重 — WeekView 课名/页脚字号 (Android 闸门 paint 同参)
+    /// 9sp 常规字重 — WeekView 课名/页脚字号 (原版本 闸门 paint 同参)
     static let font = UIFont.systemFont(ofSize: 9)
 
     /// fontMetrics 行高 ← (fm.descent − fm.ascent) / density

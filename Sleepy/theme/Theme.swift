@@ -180,11 +180,11 @@ private struct CoursePaletteKey: EnvironmentKey {
     static let defaultValue: CoursePalette = lightCoursePalette
 }
 
-// ★ v1.0.45 悬浮底栏: 镜像 Android LocalNavExtraBottomPadding
+// ★ v1.0.45 悬浮底栏: 镜像 原版本 LocalNavExtraBottomPadding
 //   浮动模式下由 MainActivity 把 dockExtraDp 注入 CompositionLocal,
 //   各 scroll 容器消费并 padding(bottom = 16.dp + navExtra) → 列表最后一行
 //   不被悬浮药丸遮挡。iOS 端保持同名契约,AppRoot.floatingTabs 注入,scroll
-//   容器读 .localNavExtraBottomPadding 与 Android 一字对齐。docked 模式下为 0。
+//   容器读 .localNavExtraBottomPadding 与 原版本 一字对齐。docked 模式下为 0。
 private struct NavExtraBottomPaddingKey: EnvironmentKey {
     static let defaultValue: CGFloat = 0
 }
@@ -198,7 +198,7 @@ extension EnvironmentValues {
         get { self[CoursePaletteKey.self] }
         set { self[CoursePaletteKey.self] = newValue }
     }
-    /// 悬浮底栏额外底部间距(与 Android LocalNavExtraBottomPadding 对齐)
+    /// 悬浮底栏额外底部间距(与 原版本 LocalNavExtraBottomPadding 对齐)
     var localNavExtraBottomPadding: CGFloat {
         get { self[NavExtraBottomPaddingKey.self] }
         set { self[NavExtraBottomPaddingKey.self] = newValue }
@@ -207,7 +207,7 @@ extension EnvironmentValues {
 
 // MARK: - Material You 字体系统 ← SleepyTypography(M3 type scale)
 
-/// 完整 M3 type scale,对应 Android 1.0.51 的官方字号。
+/// 完整 M3 type scale,对应 原版本 1.0.51 的官方字号。
 enum SleepyTypography {
     static let displaySmall = Font.system(size: 36)
     static let headlineMedium = Font.system(size: 28)
@@ -236,7 +236,7 @@ enum SleepyShapes {
 
 /// PlainButtonStyle 的 hit-test 只认 label 前景内容(图标/文字 glyph),
 /// padding+background 色块不参与命中 → 用户点色块无反应, 必须点中图标/文字。
-/// Android Material 按钮整个 View bounds 可点; SleepyButtonStyle 用
+/// 原版本 Material 按钮整个 View bounds 可点; SleepyButtonStyle 用
 /// contentShape(Rectangle()) 恢复该语义, 全 app Button 一律用它, 禁 .plain。
 struct SleepyButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -306,9 +306,9 @@ struct SleepyThemeProvider: ViewModifier {
         _ = customThemeInvalidation
         // "custom:<id>" 走用户自定义主题:CustomThemeStore 读种子 → CustomSchemeDeriver
         //   派生整套深浅 scheme(与 widget resolveWidgetScheme 同一派生函数);已删 id
-        //   读不到 → 用默认淡紫种子派生(与 Android Theme.kt 回落语义逐字一致)。
+        //   读不到 → 用默认淡紫种子派生(与 原版本 Theme.kt 回落语义逐字一致)。
         let isCustom = themeKey.hasPrefix(ThemePresets.CUSTOM_KEY_PREFIX)
-        // preset==nil 仅在 "system" → dynamic 分支(Android preset==null 同义)
+        // preset==nil 仅在 "system" → dynamic 分支(原版本 preset==null 同义)
         let preset: ThemePreset? = (isCustom || themeKey == ThemePresets.KEY_SYSTEM)
             ? nil
             : ThemePresets.byKey(themeKey)
@@ -332,7 +332,7 @@ struct SleepyThemeProvider: ViewModifier {
     }
 
     /// "custom:<id>" 的 id 读不到(已删/损坏)时的回落种子 = 默认淡紫。
-    /// ← Android Theme.kt 里就地构造的 CustomTheme(#6750A4/#625B71/#7D5260, 265/8)
+    /// ← 原版本 Theme.kt 里就地构造的 CustomTheme(#6750A4/#625B71/#7D5260, 265/8)
     static let defaultSeedTheme = CustomTheme(
         id: "",
         name: "",
@@ -344,7 +344,7 @@ struct SleepyThemeProvider: ViewModifier {
         createdAt: 0
     )
 
-    /// Android dynamicColorScheme(context) 的 iOS 等价:系统语义色映射到 M3 槽位
+    /// 原版本 dynamicColorScheme(context) 的 iOS 等价:系统语义色映射到 M3 槽位
     static func dynamicSystemScheme(dark: Bool) -> WakeUpColorScheme {
         #if os(watchOS)
         // watchOS SDK 无 iOS 语义色族(systemPurple/systemBackground/label 等

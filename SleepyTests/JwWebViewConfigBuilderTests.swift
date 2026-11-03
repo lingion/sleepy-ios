@@ -1,7 +1,7 @@
 // JwWebViewConfigBuilderTests.swift — ← JwWebViewClientBuilder.kt 装配层单测
 //
 // 覆盖 fix_hint 指定两项: SslBypassRegistry 纯逻辑 + assembleInterceptors/build
-// 装配语义。registrableDomain 用例对齐 Android SchoolDomainMatchTest(同一启发式
+// 装配语义。registrableDomain 用例对齐 原 SchoolDomainMatchTest(同一启发式
 // 算法, JwWebViewCallbackThreadAffinenessTest 之外的第二道契约锁)。
 //
 // 平台注: WKWebView 实例化/真实 challenge 不在单测驱动 — SSL 放行决策就是
@@ -18,7 +18,7 @@ final class JwWebViewConfigBuilderTests: XCTestCase {
         JwSchoolInfo(sortKey: "T", name: "测试大学", url: url, type: "zf_new")
     }
 
-    // MARK: - SslBypassRegistry.registrableDomain(← Android 同算法契约)
+    // MARK: - SslBypassRegistry.registrableDomain(同算法契约)
 
     func testRegistrableDomainSubdomainsCollapse() {
         XCTAssertEqual(SslBypassRegistry.registrableDomain("one.hfut.edu.cn"), "hfut.edu.cn")
@@ -34,7 +34,7 @@ final class JwWebViewConfigBuilderTests: XCTestCase {
     }
 
     func testRegistrableDomainCaseAndDotNormalization() {
-        // 大小写折叠 + 首尾空白/尾点剥离(← Android .lowercase().trim().trimEnd('.'))
+        // 大小写折叠 + 首尾空白/尾点剥离(.lowercase().trim().trimEnd('.'))
         XCTAssertEqual(
             SslBypassRegistry.registrableDomain(" ONE.HFUT.EDU.CN. "),
             "hfut.edu.cn")
@@ -106,11 +106,13 @@ final class JwWebViewConfigBuilderTests: XCTestCase {
                           JwWebViewClientBuilder.desktopUserAgent)
     }
 
-    // MARK: - 常量逐字契约(与 Android JwWebViewLoginScreen.kt 对齐)
+    // MARK: - 常量逐字契约(与 原版本 JwWebViewLoginScreen.kt 对齐)
 
     func testDesktopConstantsVerbatim() {
         XCTAssertTrue(JwWebViewClientBuilder.desktopUserAgent.contains("Chrome/121.0.0.0"))
         XCTAssertFalse(JwWebViewClientBuilder.desktopUserAgent.contains("iPhone"))
+        // 测试桌面 User-Agent 不包含移动平台标识
+
         XCTAssertFalse(JwWebViewClientBuilder.desktopUserAgent.contains("Android"))
         XCTAssertTrue(JwWebViewClientBuilder.desktopViewportJs.contains("width=1024"))
         XCTAssertTrue(JwWebViewClientBuilder.desktopViewportJs.contains("scrollTo(0,0)"))
@@ -127,7 +129,7 @@ final class JwWebViewConfigBuilderTests: XCTestCase {
     }
 
     func testDelegateDesktopViewportRuntimeToggle() {
-        // Android UA 切换销毁重建 client → viewport 开关恒为当前态;iOS 原地
+        // 原版本 UA 切换销毁重建 client → viewport 开关恒为当前态;iOS 原地
         // customUserAgent+reload 不重建 delegate → 开关必须运行时可翻转
         // (「手机模式打开 → 切桌面」主路径的回归锁, 契约: 先 set 再 reload)。
         let delegate = JwWebViewClientBuilder.makeNavigationDelegate(
@@ -164,7 +166,7 @@ final class JwWebViewConfigBuilderTests: XCTestCase {
     }
 
     func testStashRequestPairingRoundTrip() {
-        // ← Android shouldInterceptRequest 同时拿 request+response; iOS 拆两次
+        // ← 原 shouldInterceptRequest 同时拿 request+response; iOS 拆两次
         // 回调, 配对逻辑(精确 URL 命中 → 消费; redirect 后 URL 变了 → 回退最近
         // 暂存)必须是纯逻辑可测的, 否则 recordRequest 字段错配。
         let delegate = JwWebViewClientBuilder.makeNavigationDelegate(

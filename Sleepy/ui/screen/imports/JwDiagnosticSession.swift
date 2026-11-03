@@ -56,7 +56,7 @@ final class JwDiagnosticSession {
     private var sessionId: String = JwDiagnosticSession.makeSessionId()
     private let lock = NSLock()
 
-    /// 单调毫秒时钟 — 对标 Android SystemClock.elapsedRealtime(): 自设备启动计数,
+    /// 单调毫秒时钟 — 对标 原版本 SystemClock.elapsedRealtime(): 自设备启动计数,
     /// 不受 NTP 校时/手动改表影响, ts 偏移恒为非负、不跳变。
     private static func monotonicMs() -> Int64 {
         Int64(ProcessInfo.processInfo.systemUptime * 1000)
@@ -66,7 +66,7 @@ final class JwDiagnosticSession {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyyMMdd-HHmmss"
         fmt.locale = Locale(identifier: "en_US_POSIX")
-        // 时区跟随设备本地 — 对齐 Android SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+        // 时区跟随设备本地 — 对齐 原版本 SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
         // 的设备默认时区; 强行 UTC 会让 UTC+8 用户的会话 id 比本机时刻早 8 小时。
         return fmt.string(from: Date())
     }

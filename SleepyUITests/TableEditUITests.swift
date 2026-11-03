@@ -41,7 +41,7 @@ final class TableEditUITests: XCTestCase {
 
     // MARK: 2 个文本字段 + 周数数字输入
     // (周数现态 = FieldTextField numberPad — d03c426 曾 Stepper 化, 后续按
-    //  Android maxWeekText 语义改回数字文本; 锚点 field_Total Weeks)
+    //  原 maxWeekText 语义改回数字文本; 锚点 field_Total Weeks)
 
     func testBasicInfoFieldsAcceptInput() {
         let nameField = app.descendants(matching: .any)["field_Schedule Name"]

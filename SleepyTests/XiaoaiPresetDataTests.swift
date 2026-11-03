@@ -1,5 +1,5 @@
 // XiaoaiPresetDataTests.swift — ← app/src/test/java/com/lingion/sleepy/data/parser/XiaoaiPresetDataTest.kt (v1.0.62 B6)
-// 小爱课程表 presetData 契约 — 按官方 H5 (umi.js) 验证器逐条锁死, 期望值照抄 Android 测试:
+// 小爱课程表 presetData 契约 — 按官方 H5 (umi.js) 验证器逐条锁死, 期望值照抄 原版本 测试:
 //
 // - courseInfos[].weeks / sections 必须是 int 数组 (验证器 d(): Array.isArray,
 //   字符串 errCode 4 直接拒收; 预览渲染 sections.filter 亦要求数组)
@@ -14,7 +14,7 @@ import XCTest
 
 final class XiaoaiPresetDataTests: XCTestCase {
 
-    // ← Android DEFAULT_TIME_JSON (10 节, 与 TimeTableUtils.DEFAULT_TIME_JSON 无关)
+    // ← 原版本 DEFAULT_TIME_JSON (10 节, 与 TimeTableUtils.DEFAULT_TIME_JSON 无关)
     private let defaultTimeJson = """
         [{"node":1,"start":"08:00","end":"08:45"},
          {"node":2,"start":"08:55","end":"09:40"},
@@ -43,7 +43,7 @@ final class XiaoaiPresetDataTests: XCTestCase {
                      startWeek: startWeek, endWeek: endWeek, type: type, color: "#FF6750A4")
     }
 
-    /// ← Android parseImportData: 外层 {importData:"<json>"} 两段解析
+    /// ← 原版本 parseImportData: 外层 {importData:"<json>"} 两段解析
     private func parseImportData(_ presetData: String) throws -> [String: Any] {
         let outer = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(presetData.utf8)) as? [String: Any])
         let inner = try XCTUnwrap(outer["importData"] as? String)

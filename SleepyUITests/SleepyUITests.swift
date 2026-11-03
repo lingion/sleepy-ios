@@ -8,7 +8,7 @@
 //   - 不依赖截图;不依赖具体课件(数据库被 AppPrefs 清空)
 //   - 真实 devicectl install 路径在 CI 验证;这里只跑模拟器
 //
-// 平台映射: ← Android UiAutomator dump → XCUITest XCUIApplication().descendants(matching:)
+// 平台映射: ← 原版本 UiAutomator dump → XCUITest XCUIApplication().descendants(matching:)
 import XCTest
 
 final class SleepyUITests: XCTestCase {

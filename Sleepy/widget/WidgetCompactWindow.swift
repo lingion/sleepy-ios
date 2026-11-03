@@ -7,7 +7,7 @@
 // 因此窗口可以越出本周: 周一「今日居第二位」= 上周日(上周周次)/周一/周二(下周周次)。
 // 学期后日期课程清空(与整周口径一致); 学期前钳制到第 1 周(预习口径, currentWeek 自带)。
 //
-// ★ 平台差异 (WidgetBindingStore.swift 头注同源): Android per-appWidgetId → iOS per-kind。
+// ★ 平台差异 (WidgetBindingStore.swift 头注同源): 原版本 per-appWidgetId → iOS per-kind。
 //   Core 的 key 形状按 kind 字符串 1:1 保留 (raw map 进出, 迁移语义逐条对齐);
 //   Store 的持久层 = App Group 共享容器 JSON 文件 (等价 SharedPreferences 文件)。
 
@@ -47,7 +47,7 @@ enum WidgetCompactWindowCore {
 
 // MARK: - WidgetCompactWindowStore (持久化 facade)
 
-/// [WidgetCompactWindowCore] 的 JSON 文件读写壳 (等价 Android SharedPreferences)。
+/// [WidgetCompactWindowCore] 的 JSON 文件读写壳 (等价 原版本 SharedPreferences)。
 ///
 /// 控制「· 小」变体 compact 脸的三天窗口方向: true = 今日居第一位
 /// (今天/明天/后天), false = 今日居第二位 (昨天/今天/明天)。
@@ -73,7 +73,7 @@ enum WidgetCompactWindowStore {
         saveAll(raw)
     }
 
-    // 读改写互斥 (← Android synchronized(writeLock): 读全量→改一条→重写全量非原子)
+    // 读改写互斥 (synchronized(writeLock): 读全量→改一条→重写全量非原子)
     private static let lock = NSLock()
 
     private static func storeURL() -> URL {
@@ -100,7 +100,7 @@ enum WidgetCompactWindowStore {
 
 // MARK: - WidgetCompactWindow (数据构建) ← WidgetCompactWindow.kt
 
-/// 最小档三天窗口数据构建 — Android suspend → Swift async, 语义逐行对齐。
+/// 最小档三天窗口数据构建 — 原 suspend → Swift async, 语义逐行对齐。
 enum WidgetCompactWindow {
 
     static func build(
@@ -120,7 +120,7 @@ enum WidgetCompactWindow {
         var result: [DayData] = []
         for effectiveDate in dates {
             let dow = HolidayTransferHelper.effectiveDayOfWeek(tableId, effectiveDate)
-            // ← Android coerceIn(1, maxWeek) = min(max(x,1),maxWeek); 先钳下限再钳上限
+            // ← 原版本 coerceIn(1, maxWeek) = min(max(x,1),maxWeek); 先钳下限再钳上限
             let week = min(max(DateUtils.currentWeek(startDate: startDate, today: effectiveDate), 1), maxWeek)
             let afterEnd = DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek, today: effectiveDate) == .afterEnd
             let visible: [CourseEntity] = afterEnd ? []

@@ -1,7 +1,7 @@
 // ButtonHitAreaUITests.swift — a.v.1.0.41 按钮热区修复(用户报障端到端):
 // "所有 material 按钮点击那一整条色块不行, 必须点击图标或者文字才触发"。
 // 根因: PlainButtonStyle hit-test 只认 label 前景内容 glyph 边界, padding +
-// background 色块不参与命中(Android Material 按钮整个 View bounds 可点)。
+// background 色块不参与命中(原版本 Material 按钮整个 View bounds 可点)。
 // 修复: SleepyButtonStyle(.plain 语义 + contentShape(Rectangle())), 全 app
 // buttonStyle(.plain) 机械替换。
 // 验证: 取按钮真实 frame, 点它的"色块边缘"(frame 内但文字 glyph 外,
@@ -58,7 +58,7 @@ final class ButtonHitAreaUITests: XCTestCase {
             .matching(NSPredicate(format: "label CONTAINS 'New version' OR label == 'Download' OR label == 'Retry' OR label == 'Cancel'"))
             .firstMatch
         let snackbar = app.descendants(matching: .any)["about_snackbar"]
-        // 25s: fetch 走 UpdateManager 15s 超时(对齐 Android connectTimeout)→
+        // 25s: fetch 走 UpdateManager 15s 超时(对齐 原版本 connectTimeout)→
         // failed sheet 最迟 ~15s+渲染 才出现; 15s 等待与 app 超时同值必竞态
         //
         // ★ 条件等待(轮询), 不给固定 sleep。

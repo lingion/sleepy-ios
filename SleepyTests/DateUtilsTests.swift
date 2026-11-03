@@ -9,7 +9,7 @@ final class DateUtilsTests: XCTestCase {
         DateUtils.parseDate(s)!
     }
 
-    // ==== Android 原用例 ====
+    // ==== 原版本 原用例 ====
 
     func testBeforeSemesterNeverProducesNegativeWeek() {
         XCTAssertEqual(1, DateUtils.currentWeek(startDate: "2026-09-07", today: d("2026-08-24")))

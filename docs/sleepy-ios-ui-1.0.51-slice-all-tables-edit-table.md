@@ -2,7 +2,7 @@
 
 ## What
 
-Aligned the All Tables and Edit Table flows with Android 1.0.51 while preserving the existing SwiftUI form and persistence behavior.
+Aligned the All Tables and Edit Table flows with original 1.0.51 while preserving the existing SwiftUI form and persistence behavior.
 
 - `AllTablesScreen` now uses a semantic selection `Button` for each table row instead of a row-level tap gesture. Duplicate and edit actions remain independent buttons so their actions do not bubble into table selection.
 - Table selection keeps the Android-aligned current-row `primaryContainer` styling, selected checkmark, current-week subtitle, and non-current `surfaceContainer` styling.
@@ -12,7 +12,7 @@ Aligned the All Tables and Edit Table flows with Android 1.0.51 while preserving
 
 ## Evidence
 
-- Android sources:
+- original sources:
   - `app/src/main/java/com/lingion/sleepy/ui/screen/mine/AllTablesScreen.kt`
   - `app/src/main/java/com/lingion/sleepy/ui/screen/mine/EditTableScreen.kt`
 - iOS sources:
@@ -28,4 +28,4 @@ Only `AllTablesScreen.swift`, `EditTableScreen.swift`, this report, and the two 
 
 ## Known remaining work
 
-- Appearance, General Settings, Import Flow, Holiday/Reminder, Export/Share, About/License, shared sheets/editors, and localization/layout stress still require their own Android 1.0.51 comparison and verification slices.
+- Appearance, General Settings, Import Flow, Holiday/Reminder, Export/Share, About/License, shared sheets/editors, and localization/layout stress still require their own original 1.0.51 comparison and verification slices.

@@ -1,6 +1,6 @@
 // AboutScreen.swift — ← ui/screen/mine/AboutScreen.kt + UpdateChangelogDialog.kt
 // 关于页: App 名+版本 / 一键更新(检查+changelog+下载 IPA)/作者/源码/许可证。
-// 平台差异表#2: Android 下载 APK 自装 → iOS 下载 IPA 后提示重新侧载(install 动作降级)。
+// 平台差异表#2: 原版本 下载 APK 自装 → iOS 下载 IPA 后提示重新侧载(install 动作降级)。
 
 import SwiftUI
 
@@ -32,7 +32,7 @@ struct AboutScreen: View {
     @State private var downloadTask: Task<Void, Never>? = nil
     @State private var snackMessage: String? = nil
     @State private var downloadedIpa: URL? = nil
-    // ← 1.0.51: 冷启动更新检查结果(横幅/高亮) + 自动检查开关(持久化 key 同 Android)
+    // ← 1.0.51: 冷启动更新检查结果(横幅/高亮) + 自动检查开关(持久化 key 同 原版本)
     @ObservedObject private var updateNotifier = UpdateNotifier.shared
     @State private var updateCheckEnabled = UpdateCheckPrefs.isEnabled
 
@@ -55,7 +55,7 @@ struct AboutScreen: View {
                         )
                         Spacer().frame(height: 8)
                     }
-                    // ← Android 无横幅时也恒有 Spacer(24): 名字上方 8+24=32, 有横幅时 12+banner+8+24
+                    // ← 原版本 无横幅时也恒有 Spacer(24): 名字上方 8+24=32, 有横幅时 12+banner+8+24
                     Spacer().frame(height: 24)
 
                     appNameHeader
@@ -281,7 +281,7 @@ struct AboutScreen: View {
                     // License 入口行(v1.0.46 用户令): 长卡拆独立二级页, 这里只留入口
                     InfoCard {
                         Button(action: onOpenLicense) {
-                            // ← Android 无前导图标: 标题+副题+尾随 ChevronRight(20dp)
+                            // ← 原版本 无前导图标: 标题+副题+尾随 ChevronRight(20dp)
                             HStack(spacing: 0) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(L10n.format("about_license_title"))
@@ -331,12 +331,12 @@ struct AboutScreen: View {
         }
         // ← 1.0.51: 有更新可用且提醒未被该版本叉掉时页面底色高亮 primary 5% (门控同横幅 = noticeVisible)
         .background(updateNotifier.noticeVisible ? colors.primary.opacity(0.05) : colors.background)
-        // Android 在 MainActivity.onCreate 检查; iOS 入口不可改, 由关于页触发(一次进程最多一次)
+        // 原版本 在 MainActivity.onCreate 检查; iOS 入口不可改, 由关于页触发(一次进程最多一次)
         .task { updateNotifier.maybeCheckOnStart() }
         .overlay(alignment: .bottom) {
             if let msg = snackMessage {
                 Text(msg)
-                    .font(.system(size: 14)) // ← Android Snackbar bodyMedium 14
+                    .font(.system(size: 14)) // ← 原 Snackbar bodyMedium 14
                     // ← G5: 稳定锚点 — 「已是最新版本」是「检查更新」在无更新时的
                     //   正常结果信号(不是 sheet), 无 id 时 UI 测试无法断言该分支。
                     .accessibilityIdentifier("about_snackbar")
@@ -385,7 +385,7 @@ struct AboutScreen: View {
     }
 
     // App name(← 1.0.51: 纯文字, 无 logo 图; headlineMedium bold 28sp)
-    //   间距 1:1 Android 头部 Column: Spacer(8)+name+Spacer(4)+version+Spacer(24)
+    //   间距 1:1 原版本 头部 Column: Spacer(8)+name+Spacer(4)+version+Spacer(24)
     @ViewBuilder
     private var appNameHeader: some View {
         VStack(spacing: 0) {
@@ -405,14 +405,14 @@ struct AboutScreen: View {
         if let url = URL(string: s) { UIApplication.shared.open(url) }
     }
 
-    // ← Android `e.message ?: unknownErrorMessage`: 错误无有效信息时兜底 error_unknown
+    // ← 原 `e.message ?: unknownErrorMessage`: 错误无有效信息时兜底 error_unknown
     private func errorMessage(_ error: Error) -> String {
         let raw = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         return raw.isEmpty ? L10n.format("error_unknown") : raw
     }
 
     // ← joinQqGroup: 复制群号 → 五级拉起降级链(群资料卡 → ALT → TIM → QQ 首页 → 浏览器加群页)。
-    //   Android 用 getPackageInfo 判定 TIM/QQ 是否安装; iOS canOpenURL 需 QQ scheme 在
+    //   原版本 用 getPackageInfo 判定 TIM/QQ 是否安装; iOS canOpenURL 需 QQ scheme 在
     //   Info.plist LSApplicationQueriesSchemes(未配置则恒 false), 失败继续 web 兜底, 语义等价。
     //   全失败(连浏览器都打不开)只提示已复制 ← about_qq_no_qq。
     private func joinQqGroup() {
@@ -429,9 +429,9 @@ struct AboutScreen: View {
         } else if canOpen(QqJoin.groupCardUriAlt(group)) {
             openURL(QqJoin.groupCardUriAlt(group)); launched = true
         } else if canOpen("tim://") {
-            openURL("tim://"); launched = true // ← Android getLaunchIntentForPackage("com.tencent.tim")
+            openURL("tim://"); launched = true // ← 原 getLaunchIntentForPackage("com.tencent.tim")
         } else if canOpen("mqq://") {
-            openURL("mqq://"); launched = true // ← Android getLaunchIntentForPackage("com.tencent.mobileqq")
+            openURL("mqq://"); launched = true // ← 原 getLaunchIntentForPackage("com.tencent.mobileqq")
         }
         if !launched, canOpen(QqJoin.webFallbackUri(group)) {
             openURL(QqJoin.webFallbackUri(group)); launched = true
@@ -439,7 +439,7 @@ struct AboutScreen: View {
         snackMessage = launched ? L10n.format("about_qq_copied") : L10n.format("about_qq_no_qq")
     }
 
-    // ← diagnostic(): Android FeedbackComposer.Diagnostic 的 iOS 填实
+    // ← diagnostic(): 原版本 FeedbackComposer.Diagnostic 的 iOS 填实
     private func diagnostic() -> FeedbackComposer.Diagnostic {
         let scale = UIScreen.main.scale
         let bounds = UIScreen.main.bounds.size
@@ -462,7 +462,7 @@ struct AboutScreen: View {
         #endif
     }
 
-    // ← openGitHubFeedback: bug_report.yml 模板 + 诊断块(标题/正文与 Android 同源)
+    // ← openGitHubFeedback: bug_report.yml 模板 + 诊断块(标题/正文与 原版本 同源)
     private func openGitHubFeedback() {
         openURL(FeedbackComposer.githubIssueUrl(
             title: "[Sleepy] ",
@@ -500,7 +500,7 @@ struct AboutScreen: View {
                     uiState = .idle
                 }
             } catch {
-                // ← Android `e.message ?: unknownErrorMessage`: 空/无信息错误兜底 error_unknown
+                // ← 原 `e.message ?: unknownErrorMessage`: 空/无信息错误兜底 error_unknown
                 uiState = .failed(message: errorMessage(error), version: "", changelog: "",
                                   url: "", isCheckFailure: true)
             }
@@ -521,7 +521,7 @@ struct AboutScreen: View {
             } catch is CancellationError {
                 uiState = .updateAvailable(version: version, changelog: changelog, url: url)
             } catch {
-                // ← Android `e.message ?: unknownErrorMessage`
+                // ← 原 `e.message ?: unknownErrorMessage`
                 uiState = .failed(message: errorMessage(error), version: version,
                                   changelog: changelog, url: url, isCheckFailure: false)
             }
@@ -563,7 +563,7 @@ private struct UpdateBanner: View {
             .buttonStyle(SleepyButtonStyle())
             Button(action: onDismiss) { // ← Icons.Outlined.Close IconButton, 默认图标 24dp, contentDescription about_update_dismiss
                 Image(systemName: "xmark")
-                    .font(.system(size: 24)) // ← Android Icon 无 size modifier = 默认 24dp
+                    .font(.system(size: 24)) // ← 原 Icon 无 size modifier = 默认 24dp
                     .foregroundColor(colors.primary)
                     .padding(8)
                     .contentShape(Rectangle())
@@ -571,7 +571,7 @@ private struct UpdateBanner: View {
             .buttonStyle(SleepyButtonStyle())
             .accessibilityLabel(L10n.format("about_update_dismiss"))
         }
-        .padding(.init(top: 8, leading: 16, bottom: 8, trailing: 4)) // ← Android padding(start16/end4/vert8)
+        .padding(.init(top: 8, leading: 16, bottom: 8, trailing: 4)) // ← 原 padding(start16/end4/vert8)
         .background(colors.primary.opacity(0.12))
         .cornerRadius(SleepyShapes.large) // ← clip(shapes.large) = 16dp
     }
@@ -615,7 +615,7 @@ private struct MarkdownChangelog: View {
     @ViewBuilder
     private func headingView(level: Int, text: String) -> some View {
         // ← titleLarge 22 / titleMedium 16 / titleSmall 14, 均 Bold
-        //   Android UpdateChangelogDialog.kt:216 标题用 raw block.text, 不做行内解析
+        //   原版本 UpdateChangelogDialog.kt:216 标题用 raw block.text, 不做行内解析
         let size = level == 1 ? 22.0 : (level == 2 ? 16.0 : 14.0)
         Text(text)
             .font(.system(size: size, weight: .bold))
@@ -639,8 +639,8 @@ private struct MarkdownChangelog: View {
         .padding(.vertical, 2)
     }
 
-    /// ← inlineAnnotated: 确定性 span 渲染(对齐 Android inlineAnnotated), 不再走
-    ///   AttributedString(markdown:) 黑盒; 链接截断语义随 Android 正则(首 ')' 截止)
+    /// ← inlineAnnotated: 确定性 span 渲染(对齐 原版本 inlineAnnotated), 不再走
+    ///   AttributedString(markdown:) 黑盒; 链接截断语义随 原版本 正则(首 ')' 截止)
     private func inlineText(_ text: String) -> AttributedString {
         var out = AttributedString()
         for span in MarkdownBlocks.parseInline(text) {

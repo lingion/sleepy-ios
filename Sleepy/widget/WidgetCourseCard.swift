@@ -5,12 +5,12 @@
 import SwiftUI
 import UIKit
 
-/// meta 行「时间 · 地点」 ← Android courseMetaLines (WidgetBitmapRenderers.kt:1060) 四分支:
-/// 任一侧空白 → 只画另一侧(整宽截断, = Android 单侧 listOf 后 ellipsize 全宽);
-/// 双侧都有 → 合并单行放得下就**不截断**(Android fits 分支, 不加省略号);
+/// meta 行「时间 · 地点」 ← 原 courseMetaLines (WidgetBitmapRenderers.kt:1060) 四分支:
+/// 任一侧空白 → 只画另一侧(整宽截断, = 原版本 单侧 listOf 后 ellipsize 全宽);
+/// 双侧都有 → 合并单行放得下就**不截断**(原 fits 分支, 不加省略号);
 /// 放不下 → 同一行内时间/地点各占一半宽(分隔符宽度对半摊), 各自字符级截断加省略号
-/// (Android ellipsizeBy:1070)。旧实现合并串整串尾部截断 → 窄列地点整段消失。
-/// ★ 测量口径差异 [B]: Android paint.measureText / iOS NSAttributedString.size,
+/// (原版本 ellipsizeBy:1070)。旧实现合并串整串尾部截断 → 窄列地点整段消失。
+/// ★ 测量口径差异 [B]: 原版本 paint.measureText / iOS NSAttributedString.size,
 ///   同字号下宽度近似但不逐位相等; 仅影响截断点 ±1 字, 不影响布局几何。
 private struct WidgetMetaLine: View {
     let time: String
@@ -23,12 +23,12 @@ private struct WidgetMetaLine: View {
     var body: some View {
         let combined = time.isEmpty ? room : (time + Self.sep + room)
         if time.isEmpty || room.isEmpty {
-            // 单侧: 占满整行, 超宽 SwiftUI 尾部省略 ≈ Android ellipsize 全宽
+            // 单侧: 占满整行, 超宽 SwiftUI 尾部省略 ≈ 原 ellipsize 全宽
             Text(combined)
                 .font(.system(size: fontSize))
                 .lineLimit(1)
         } else {
-            // 双侧: GeometryReader 拿真实预算宽后按 Android 同逻辑判定 —
+            // 双侧: GeometryReader 拿真实预算宽后按 原版本 同逻辑判定 —
             // 整串放得下 → 不截断 (fits 分支); 放不下 → 时间/地点各占半宽
             // (分隔符宽对半摊, ellipsizeBy:1070)。不用 ViewThatFits (iOS 16+,
             // 目标 15.6); 测量口径见头注 [B]。
@@ -57,7 +57,7 @@ private struct WidgetMetaLine: View {
         ceil((s as NSString).size(withAttributes: [.font: uiFont]).width)
     }
 
-    /// 字符级贪心截断 + "…" ← Android ellipsizeBy (1070-1075)
+    /// 字符级贪心截断 + "…" ← 原 ellipsizeBy (1070-1075)
     private func ellipsize(_ s: String, maxW: CGFloat) -> String {
         if width(s) <= maxW { return s }
         var t = s
@@ -138,7 +138,7 @@ struct WidgetCourseCard: View {
         return course.nodeString(isShort: true)
     }
 
-    // Android: measureText 超 maxWidth → 逐字截断加 "…"(SwiftUI lineLimit(1) 等价)
+    // 原版本: measureText 超 maxWidth → 逐字截断加 "…"(SwiftUI lineLimit(1) 等价)
     // issue#26: 展示名走 CourseDisplayUtil — useAlias→trim 别名, 空回退原名
     private var displayName: String { CourseDisplayUtil.displayName(course, useAlias) }
 }
@@ -170,7 +170,7 @@ private struct WidgetCapsulePill: View {
     }
 }
 
-/// minWidth==0 时不加 frame (页脚无最小宽, 对齐 Android text+16 公式)
+/// minWidth==0 时不加 frame (页脚无最小宽, 对齐 原版本 text+16 公式)
 private struct OptionalMinWidth: ViewModifier {
     let width: CGFloat
     func body(content: Content) -> some View {
@@ -181,13 +181,13 @@ private struct OptionalMinWidth: ViewModifier {
 
 /// Today 底部条「+N」胶囊 (8c0fcbea 恒画 / ab27230c 结束态「+0」): surfaceVariant 底 +
 /// onSurfaceVariant 字 · 全圆角,不可点。
-/// ★ 几何 = Android **显示态**尺寸: bitmap 按 20dp 高 / 整胶囊最小宽 30dp 渲染
+/// ★ 几何 = 原版本 **显示态**尺寸: bitmap 按 20dp 高 / 整胶囊最小宽 30dp 渲染
 ///   (WidgetBitmapRenderers.kt:580-595), 但真实视图塞进 16dp 高 ImageView 且
 ///   adjustViewBounds 等比缩放 ×0.8 (widget_today_nav_static.xml:38-43)
 ///   → 显示态 = 高 16 · 最小宽 30×0.8=24 · 字 ≈ 8.8 · 内距 6.4 · 圆角 8。
-///   文本比 30dp 宽时, Android 显示 max(30,文本+16)×0.8 = 文本×0.8+16×0.8×? ——
+///   文本比 30dp 宽时, 原版本 显示 max(30,文本+16)×0.8 = 文本×0.8+16×0.8×? ——
 ///   注意 ×0.8 同时缩文本与内距: 等价于按显示尺寸直接绘制 字 8.8 + 内距 6.4。
-/// Android 侧它是底部条里的 ImageView 且**不挂 PendingIntent**(不可点);
+/// 原版本 侧它是底部条里的 ImageView 且**不挂 PendingIntent**(不可点);
 /// iOS 侧 widget 整体只有一个 widgetURL,胶囊本身同样不单独响应点击 → 语义一致。
 struct WidgetMoreCapsule: View {
     let hidden: Int

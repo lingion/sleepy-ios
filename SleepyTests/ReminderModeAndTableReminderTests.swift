@@ -38,7 +38,7 @@ final class BeforeClassModePrefsTests: XCTestCase {
     }
 
     func testLegacyFluidKeyMigratesToFluidMode() {
-        // ← Android: legacyFluid ? FLUID : BANNER — 旧双开关用户无损迁移
+        // ← 原版本: legacyFluid ? FLUID : BANNER — 旧双开关用户无损迁移
         defaults.set(true, forKey: AppPrefs.KEY_BEFORE_CLASS_FLUID)
         XCTAssertEqual(AppPrefs.BEFORE_CLASS_MODE_FLUID, prefs.getBeforeClassMode())
         XCTAssertTrue(prefs.isBeforeClassFluidEnabled())
@@ -114,7 +114,7 @@ final class TableReminderEnabledRepoTests: XCTestCase {
         UndoManager.shared.clear()
         try repo.setTableReminderEnabled(id: id, enabled: true) // 与默认值相同
         XCTAssertTrue(try appdb.timeTableDao.getById(id)!.reminderEnabled)
-        XCTAssertFalse(UndoManager.shared.hasSnapshot, "同值 no-op 不得抓 undo (Android return@withTransaction false)")
+        XCTAssertFalse(UndoManager.shared.hasSnapshot, "同值 no-op 不得抓 undo (原 return@withTransaction false)")
         XCTAssertEqual(0, fired, "同值 no-op 不得触发 onDataChanged")
     }
 

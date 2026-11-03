@@ -1,15 +1,15 @@
 // JwWebViewLoginScreen.swift — ← ui/screen/imports/JwWebViewLoginScreen.kt (v1.0.61, 2514 行)
 // 教务 WebView 登录页。
-// Android WebView+JS 桥 → WKWebView + WKScriptMessageHandler:
+// 原版本 WebView+JS 桥 → WKWebView + WKScriptMessageHandler:
 //   - loadUrl("javascript:") → evaluateJavaScript(直接回调, 无需桥)
 //   - addJavascriptInterface(__sleepyBridge) → WKScriptMessageHandler(name: "__sleepyBridge")
 //   - SSL 自签 proceed → didReceive serverTrust challenge (JwWebViewNavigationDelegate
 //     已实现注册域豁免; 本屏 coordinator 走同一 SslBypassRegistry? — 见 coordinator 注释)
 //   - 新窗(target=_blank/window.open) → NavUIDelegate.createWebViewWith 在当前
-//     webview 内加载(Android WebView 默认语义); 无它教务卡片点不动(a.v.1.0.41)
+//     webview 内加载(原版本 WebView 默认语义); 无它教务卡片点不动(a.v.1.0.41)
 //   - 桌面 UA 切换(#18) → TopBar 原生按钮: customUserAgent + reload + 每跳注入
 //     DESKTOP_VIEWPORT_JS(布局由 meta viewport 宽度驱动, UA 字符串对布局零影响 —
-//     2026-09-13 实锤; ← Android onPageFinished 注入)
+//     2026-09-13 实锤; ← 原 onPageFinished 注入)
 //   - 刷新 → TopBar 原生按钮 webView.reload(), 进度走 estimatedProgress KVO
 //   - 浏览器式地址栏(← editingUrl/urlDraft/submitUrl): http/https 白名单挡
 //     javascript: 注入 + 无 scheme 自动补 https:// + ImeAction.Go 等价 submitLabel(.go)
@@ -25,7 +25,7 @@
 import SwiftUI
 import WebKit
 
-// ← DESKTOP_USER_AGENT: Chrome 121 / Windows 10 桌面 UA — 无 Android/iPhone 词汇,
+// ← DESKTOP_USER_AGENT: Chrome 121 / Windows 10 桌面 UA — 无 原版本/iPhone 词汇,
 // 触发门户桌面版布局(UCAS SEP 等门户手机 UA 下无"个人课表"入口)
 private let jwDesktopUserAgent =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -35,7 +35,7 @@ private let jwDesktopUserAgent =
 // 回调即报超时, 禁无限 pending。
 private let jwFetchTimeoutSeconds: Double = 20
 
-// ← WebVPN 重写形态指纹 "/http/<hex>/" (Android Regex 原文, 大小写敏感同 Android)
+// ← WebVPN 重写形态指纹 "/http/<hex>/" (原 Regex 原文, 大小写敏感同 原版本)
 private let jwWebvpnHexRegex = try! NSRegularExpression(pattern: #"/http/[0-9a-f]{4,8}/"#)
 
 /// ← evaluateFetchWithTimeout 的 answered 标志盒 (Swift 局部可变捕获需引用盒)。
@@ -43,10 +43,10 @@ private final class JwTimeoutGate {
     var answered = false
 }
 
-/// console 桥注入 JS — iOS 平台等价物: WKWebView 无 Android WebChromeClient.
+/// console 桥注入 JS — iOS 平台等价物: WKWebView 无 原版本 WebChromeClient.
 /// onConsoleMessage 公开回调, 以 JS shim 包 console.log/info/warn/error →
 /// postMessage 到 __sleepyConsole → coordinator 转 JwDiagnosticSession.recordConsole。
-/// (← Android recordConsole(msg) 接线; level/sourceId 语义一一对应)
+/// (recordConsole(msg) 接线; level/sourceId 语义一一对应)
 let jwConsoleShimJs = """
 (function(){
   if (window.__sleepyConsoleInstalled) return;
@@ -75,15 +75,15 @@ struct JwWebViewLoginScreen: View {
 
     @Environment(\.localWakeUpColors) private var colors
     let school: JwSchoolInfo
-    // termStartDate ← Android JwWebViewLoginScreen 第 4 回调参数: JSON 直连协议
+    // termStartDate ← 原版本 JwWebViewLoginScreen 第 4 回调参数: JSON 直连协议
     // (boya_pp 等) 从接口拿到的第一周周一, 供确认页开学日期预填; 无则空串
     let onHtmlCaptured: (String, JwSchoolInfo, [(Int, String, String)], String) -> Void
     var onBack: (() -> Void)? = nil
     let onDismiss: () -> Void
-    // 排查包导出通道 (← Android webViewForDump / onWebViewReady): coordinator 就绪时
+    // 排查包导出通道 (webViewForDump / onWebViewReady): coordinator 就绪时
     // 上抛一次, 调用方持有引做 dump JS 段 evaluate. 默认 nil — 不传 = 不启用.
     var onWebViewReady: ((WebViewCoordinator) -> Void)? = nil
-    // ← Android 参数 onCaptureError: (FrameCaptureResult, hint) -> Unit: 状态路由/
+    // ← 原版本 参数 onCaptureError: (FrameCaptureResult, hint) -> Unit: 状态路由/
     // 超时闸的失败通道 (Activity 弹失败对话框带排查包入口)。调用方传入即上抛;
     // 默认 nil = 本屏以 snackbar 呈现 hint (不落 onHtmlCaptured 伪"0 课")。
     // 接线对话框归集成者(JwImportFlow 侧), 见 needs_shared_wiring。
@@ -93,10 +93,10 @@ struct JwWebViewLoginScreen: View {
     @State private var webViewCoordinator: WebViewCoordinator? = nil
     @State private var snackMessage: String? = nil
     // ← desktopUa = remember { mutableStateOf(false) } — 默认手机 UA。
-    // Android 本屏无持久化(纯会话态, 离开页面即重置), iOS @State 等价
+    // 原版本 本屏无持久化(纯会话态, 离开页面即重置), iOS @State 等价
     @State private var desktopUa = false
     // ← currentUrl = remember { mutableStateOf(school.url) } — 导航回调回写的实时 URL,
-    // 顶栏副标题显示(← Android title Column 第二行 Text(currentUrl))
+    // 顶栏副标题显示(title Column 第二行 Text(currentUrl))
     @State private var currentUrl: String = ""
     // ← editingUrl = remember { mutableStateOf(false) } + urlDraft
     // (rememberTextFieldState(school.url)) — 浏览器式地址栏编辑态
@@ -112,7 +112,7 @@ struct JwWebViewLoginScreen: View {
                     if editingUrl { editingUrl = false } else { backOrDismiss() }
                 }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 24))   // ← Android ArrowBack 默认 24dp regular
+                        .font(.system(size: 24))   // ← 原 ArrowBack 默认 24dp regular
                         .foregroundColor(colors.onBackground)
                 }
                 .buttonStyle(SleepyButtonStyle())
@@ -138,7 +138,7 @@ struct JwWebViewLoginScreen: View {
                         Text(school.name)
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(colors.onBackground)
-                        // ← Android 顶栏副标题 = currentUrl (实时导航 URL, maxLines=1),
+                        // ← 原版本 顶栏副标题 = currentUrl (实时导航 URL, maxLines=1),
                         //   非协议名 (v1.0.61 对齐修正); 初始未导航时显示 school.url
                         //   (← currentUrl = remember { mutableStateOf(school.url) })
                         Text(currentUrl.isEmpty ? school.url : currentUrl)
@@ -171,7 +171,7 @@ struct JwWebViewLoginScreen: View {
                 .accessibilityIdentifier("jw_edit_url")
                 if !editingUrl {
                     // ← actions UA IconButton(#18): 部分门户手机 UA 下无"个人课表"入口。
-                    // 图标随状态切换: 手机 UA → Computer(点了变桌面), 桌面 UA → PhoneAndroid
+                    // 图标随状态切换: 手机 UA → Computer(点了变桌面), 桌面 UA → PhoneMobile
                     // (点了回手机); enabled = webViewRef != null
                     Button(action: toggleDesktopUa) {
                         Image(systemName: uaToggleSymbol)
@@ -188,7 +188,7 @@ struct JwWebViewLoginScreen: View {
                                                               : "jw_toggle_desktop_ua"))
                     .accessibilityIdentifier("jw_toggle_ua")
                     // ← actions 刷新 IconButton: webViewRef?.reload(); 刷新进度表现由
-                    // estimatedProgress KVO 驱动上方进度条(Android progress 1..99 同判)
+                    // estimatedProgress KVO 驱动上方进度条(原 progress 1..99 同判)
                     Button(action: { webViewCoordinator?.reload() }) {
                         Image(systemName: "arrow.clockwise")   // ← Icons.Outlined.Refresh
                             .font(.system(size: 24))
@@ -250,22 +250,22 @@ struct JwWebViewLoginScreen: View {
                 Button(action: capture) {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle")
-                            .font(.system(size: 24))   // ← Android CheckCircle 默认 24dp
+                            .font(.system(size: 24))   // ← 原 CheckCircle 默认 24dp
                         Text(L10n.format("jw_import_page"))
                     }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(webViewCoordinator == nil
-                        ? colors.onSurface.opacity(0.38)   // ← Android disabled: onSurface 38%
+                        ? colors.onSurface.opacity(0.38)   // ← 原 disabled: onSurface 38%
                         : colors.onPrimary)
                     .padding(.horizontal, 24)   // ← M3 Button ContentPadding 24/8 (高 40)
                     .padding(.vertical, 8)
                     .background(webViewCoordinator == nil
-                        ? colors.onSurface.opacity(0.12)   // ← Android disabled: onSurface 12% 容器
+                        ? colors.onSurface.opacity(0.12)   // ← 原 disabled: onSurface 12% 容器
                         : colors.primary)
                     .cornerRadius(SleepyShapes.extraLarge)
                 }
                 .buttonStyle(SleepyButtonStyle())
-                .disabled(webViewCoordinator == nil)   // ← Android enabled = webViewRef != null
+                .disabled(webViewCoordinator == nil)   // ← 原 enabled = webViewRef != null
             }
             .padding(16)
             .background(colors.surface)
@@ -273,7 +273,7 @@ struct JwWebViewLoginScreen: View {
         .overlay(alignment: .bottom) {
             if let msg = snackMessage {
                 Text(msg)
-                    .font(.system(size: 14)) // ← Android Snackbar bodyMedium 14
+                    .font(.system(size: 14)) // ← 原 Snackbar bodyMedium 14
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -281,7 +281,7 @@ struct JwWebViewLoginScreen: View {
                     .cornerRadius(8)
                     .padding(.bottom, 80)
                     .task(id: msg) {
-                        // ← M3 SnackbarDuration.Short ≈ 4s (Android 默认系统时长);
+                        // ← M3 SnackbarDuration.Short ≈ 4s (原版本 默认系统时长);
                         //   旧自造 2.5s 漂移修正 (F083 UI 细节项)
                         try? await Task.sleep(nanoseconds: 4_000_000_000)
                         guard !Task.isCancelled else { return }
@@ -291,7 +291,7 @@ struct JwWebViewLoginScreen: View {
         }
     }
 
-    // ← Icons.Outlined.Computer / PhoneAndroid; "iphone" SF Symbol 需 iOS16, 低版本回退
+    // ← Icons.Outlined.Computer / Phone原版本; "iphone" SF Symbol 需 iOS16, 低版本回退
     private var uaToggleSymbol: String {
         guard desktopUa else { return "desktopcomputer" }
         if #available(iOS 16.0, *) { return "iphone" }
@@ -336,7 +336,7 @@ struct JwWebViewLoginScreen: View {
     }
 
     // ← onCaptureError 通道: FrameCaptureResult 状态路由失败的展示出口。
-    // Android 把 (result, hint) 上抛给 Activity 弹失败对话框(带排查包入口);
+    // 原版本 把 (result, hint) 上抛给 Activity 弹失败对话框(带排查包入口);
     // iOS 调用方(JwImportFlow)传入 onCaptureError 即原样上抛; 未传时以 snackbar
     // 呈现 hint, 避免伪"0 课"落库。对话框接线需求见 needs_shared_wiring。
     private func showCaptureError(_ result: FrameCaptureResult, _ hint: String) {
@@ -348,7 +348,7 @@ struct JwWebViewLoginScreen: View {
     }
 
     // ← actions UA IconButton onClick: desktopUa = !desktopUa; uaSwitchReload++。
-    // Android 因 UA 仅创建期可靠而销毁重建 WebView(cookie 全局共享、当前 URL 保留);
+    // 原版本 因 UA 仅创建期可靠而销毁重建 WebView(cookie 全局共享、当前 URL 保留);
     // iOS 等价 customUserAgent(对 reload/后续导航生效)+ reload — cookie 走默认共享
     // WKWebsiteDataStore。先设 delegate desktopViewport 标志再 reload, 顺序不可反
     // (← JwWebViewConfigBuilder 消费方契约: didFinish 注入时机在 reload 之后)
@@ -362,7 +362,7 @@ struct JwWebViewLoginScreen: View {
     // (evaluateFetchWithTimeout, 禁无限 pending — 教务宕机时桥回调永不到达)。
     private func capture() {
         guard let coordinator = webViewCoordinator else {
-            // ← Android webViewRef==null 分支走 onCaptureError(webviewNotReadyMsg)
+            // ← 原版本 webViewRef==null 分支走 onCaptureError(webviewNotReadyMsg)
             showCaptureError(FrameCaptureResult(selectedFramePath: nil, html: "",
                                                 matchedAnchors: [], status: .unknown),
                              L10n.format("jw_webview_not_ready"))
@@ -442,8 +442,8 @@ struct JwWebViewLoginScreen: View {
             || lowerURL.contains("/kbcx/")
             || hasHexWebvpn)
         if isZfNew {
-            // ← Android: ZF_NEW 派发是裸 evaluateJavascript(不经超时闸)——该 JS 同步路径
-            // 必有回调, 与其余 fetch 模板同口径闸反而偏离 Android 行为, 保持镜像
+            // ← 原版本: ZF_NEW 派发是裸 evaluateJavascript(不经超时闸)——该 JS 同步路径
+            // 必有回调, 与其余 fetch 模板同口径闸反而偏离 原版本 行为, 保持镜像
             coordinator.evaluate(JwZfNewFetchJs.js)
             return
         }
@@ -452,7 +452,7 @@ struct JwWebViewLoginScreen: View {
         // 其余状态 → onCaptureError (避免伪"0 课")。
         // #18: UCAS 入口是 SEP 门户, 学生登录后常停在 SEP 应用列表页点导入
         // (还没跳到 xkgo 课表页) → WRONG_PAGE 且域为 sep.ucas.ac.cn 时 hint 换精确动线指引
-        // (← Android 回调内重读 wv.url, 非派发时快照)。
+        // (回调内重读 wv.url, 非派发时快照)。
         coordinator.captureWithRetry(retryCount: 0) { r in
             let liveURL = coordinator.currentURLString ?? fetchURL
             let hint: String
@@ -473,7 +473,7 @@ struct JwWebViewLoginScreen: View {
     }
 
     // ← handleWiseduResult: {ok:true,data:...} / {ok:false,err:...}
-    // 失败/空数据走 onCaptureError 通道(← Android), 不落 onHtmlCaptured 伪"0 课"。
+    // 失败/空数据走 onCaptureError 通道(← 原版本), 不落 onHtmlCaptured 伪"0 课"。
     private func handleWiseduResult(_ json: String) {
         guard let data = json.data(using: .utf8),
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
@@ -538,7 +538,7 @@ struct JwWebViewLoginScreen: View {
     }
 }
 
-// MARK: - 新窗拦截(← Android WebView 默认"当前页打开新窗"语义)
+// MARK: - 新窗拦截(WebView 默认"当前页打开新窗"语义)
 
 /// WKUIDelegate: 拦截 target="_blank" / window.open, 在当前 webview 内加载。
 /// 无此 delegate 时 WKWebView 静默丢弃新窗请求 → 教务卡片点不动。
@@ -551,7 +551,7 @@ final class NavUIDelegate: NSObject, WKUIDelegate {
         guard let url = navigationAction.request.url else { return nil }
         // 非 http(s)(如 about:blank / javascript:)不接管, 返回 nil 丢弃
         guard url.scheme == "http" || url.scheme == "https" else { return nil }
-        // 在当前 webview 内加载(对齐 Android WebView 默认行为)
+        // 在当前 webview 内加载(对齐 原版本 WebView 默认行为)
         webView.load(URLRequest(url: url))
         return nil
     }
@@ -562,20 +562,20 @@ final class NavUIDelegate: NSObject, WKUIDelegate {
 /// WKWebView 协调器(← WebView + WebViewClient + WebChromeClient + JS 桥 + 诊断接线)
 ///
 /// 导航代理分工: WKWebView 只容一个 navigationDelegate — coordinator 挂前位,
-/// 逐回调转发给 JwWebViewClientBuilder 装配出的 delegate(← Android
+/// 逐回调转发给 JwWebViewClientBuilder 装配出的 delegate(← 原实现
 /// webViewClient = JwWebViewClientBuilder.build(...)), 仅在 navigationResponse
-/// 处截下载(← Android setDownloadListener 的"不可内嵌展示即下载"同触发条件)。
+/// 处截下载(setDownloadListener 的"不可内嵌展示即下载"同触发条件)。
 final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     var webView: WKWebView?
     private let onProgressChange: (Double) -> Void
     private let onHtmlCaptured: (String) -> Void
-    // ← Android onCaptureError(FrameCaptureResult, hint) 通道(超时闸/状态路由共用)
+    // ← 原版本 onCaptureError(FrameCaptureResult, hint) 通道(超时闸/状态路由共用)
     private let onCaptureError: (FrameCaptureResult, String) -> Void
     private let onWiseduResult: (String) -> Void
     private var progressObserver: NSKeyValueObservation?
     private var urlObserver: NSKeyValueObservation?
     // WKWebView 弱持 navigationDelegate — 强持有 builder 装配的 delegate,
-    // ← Android webViewClient 强引用同语义
+    // ← 原 webViewClient 强引用同语义
     private var clientDelegate: JwWebViewNavigationDelegate?
     private let school: JwSchoolInfo
     private let initialDesktopUa: Bool
@@ -617,8 +617,8 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
         config.userContentController.add(self, name: "__sleepyConsole")
         config.userContentController.addUserScript(WKUserScript(
             source: jwConsoleShimJs, injectionTime: .atDocumentStart, forMainFrameOnly: false))
-        // ← 诊断 recorder 文档级首注入(≈ Android 工厂期 evaluateJavascript) +
-        //   每次 didFinish 重装(页面脚本可能替换 fetch/XHR 全局 — Android 同注释)。
+        // ← 诊断 recorder 文档级首注入(≈ 原版本 工厂期 evaluateJavascript) +
+        //   每次 didFinish 重装(页面脚本可能替换 fetch/XHR 全局 — 原版本 同注释)。
         config.userContentController.addUserScript(WKUserScript(
             source: DiagNetworkInstallJs.js, injectionTime: .atDocumentStart, forMainFrameOnly: false))
 
@@ -627,7 +627,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
         // 与 applyDesktopUserAgent 同一机制; ctx.userAgent 空串 = 平台默认手机 UA)
         wv.customUserAgent = ctx.userAgent.isEmpty ? nil : ctx.userAgent
         // ★ 教务系统功能卡片大量使用 target="_blank" / window.open。
-        //   Android WebView 默认在当前 WebView 内打开新窗; WKWebView 无 UIDelegate
+        //   原版本 WebView 默认在当前 WebView 内打开新窗; WKWebView 无 UIDelegate
         //   时静默丢弃新窗请求 → 用户卡在教务中间页点卡片无反应(a.v.1.0.41 修复)。
         //   NavUIDelegate 拦截 createWebViewWith, 在当前 webview 内加载新窗 URL。
         wv.uiDelegate = NavUIDelegate.shared
@@ -636,7 +636,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
 
         // ← webViewClient = JwWebViewClientBuilder.build(...): SSL 注册域豁免 /
         //   主框架请求记录 / 桌面 viewport 双注入(立即 + 300ms)在 delegate 内;
-        //   onPageFinished 回调里重装诊断 recorder(← Android 每跳 evaluateJavascript)。
+        //   onPageFinished 回调里重装诊断 recorder(每跳 evaluateJavascript)。
         //   本 coordinator 作为外层 navigationDelegate 逐回调转发(下载处截获)。
         let delegate = JwWebViewClientBuilder.makeNavigationDelegate(
             school: school,
@@ -658,11 +658,11 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
                 self?.onProgressChange((change.newValue ?? 0) * 100)
             }
         }
-        // SPA pushState/replaceState 型 URL 变化 = Android doUpdateVisitedHistory 全语义
+        // SPA pushState/replaceState 型 URL 变化 = 原 doUpdateVisitedHistory 全语义
         urlObserver = delegate.observeUrlChanges(of: wv)
 
         // ← JwDiagnosticSession.resetSession() 工厂期重置 + recorder 首装(文档级
-        //   userScript 已挂, 此处覆盖当前文档场景 — Android 工厂期同双保险)
+        //   userScript 已挂, 此处覆盖当前文档场景 — 原版本 工厂期同双保险)
         JwDiagnosticSession.shared.resetSession()
         wv.evaluateJavaScript(DiagNetworkInstallJs.js, completionHandler: nil)
         wv.load(URLRequest(url: url))
@@ -725,7 +725,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
                 return
             }
             // evaluateJavaScript 回传 String 即 JS 字符串值本身; 防御性兼容
-            // JSON 字面量形态(带外层引号+转义 — Android 侧需 JSONTokener 解一层)
+            // JSON 字面量形态(带外层引号+转义 — 原版本 侧需 JSONTokener 解一层)
             var payload = raw
             if raw.hasPrefix("\""),
                let unquoted = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? String {
@@ -786,9 +786,9 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
         }
     }
 
-    /// 下载实体抓取 — ← Android setDownloadListener + DOWNLOAD_FETCH_EXECUTOR:
+    /// 下载实体抓取 — ← 原 setDownloadListener + DOWNLOAD_FETCH_EXECUTOR:
     /// 有界 GET 下载字节(上限 2MB、Cookie 回放)→ recordDownload(..., body)。
-    /// iOS 等价: 导航响应不可内嵌展示(canShowMIMEType == false)即 Android 下载监听器
+    /// iOS 等价: 导航响应不可内嵌展示(canShowMIMEType == false)即 原版本 下载监听器
     /// 的同触发条件 → 后台 URLSession GET 取字节。
     /// Cookie 回放: 读 WKWebsiteDataStore.default 的 httpCookieStore(与 WebView 同一
     ///   存储, ← CookieManager.getInstance().getCookie(downloadUrl)); URLSessionConfiguration
@@ -878,9 +878,9 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
         }
     }
 
-    // ← Android UA 切换 = key(recreateKey) 销毁重建 (userAgentString 仅创建期可靠)。
+    // ← 原版本 UA 切换 = key(recreateKey) 销毁重建 (userAgentString 仅创建期可靠)。
     // WKWebView 的 customUserAgent 设置后对 reload/后续导航即生效, set + reload 等价;
-    // 传 nil 恢复默认手机 UA(← Android 重建时不设 userAgentString)。
+    // 传 nil 恢复默认手机 UA(重建时不设 userAgentString)。
     // ★ 先翻 delegate desktopViewport 再 reload — JwWebViewConfigBuilder 消费方契约,
     //   顺序不可反, 否则「手机打开→切桌面」主路径 viewport 注入缺失(#18 回归)。
     func applyDesktopUserAgent(_ desktop: Bool) {
@@ -963,7 +963,7 @@ struct JwWebView: UIViewRepresentable {
 // MARK: - WISEDU_FETCH_JS(逐行移植, 桥回调改 WKScriptMessage postMessage)
 //
 // 路径指纹判定(/jwapp/ 在路径中即可, 不锁定单一 hostname — T5/T11 拆雷):
-// Android 按 location.pathname.indexOf('/jwapp/') >= 0, 覆盖所有金智部署校
+// 原版本 按 location.pathname.indexOf('/jwapp/') >= 0, 覆盖所有金智部署校
 // (哈工程只是其中之一; 硬编码 hostname 会让 ahyz 等校 iOS 点导入必失败)。
 
 enum WiseduFetchJs {

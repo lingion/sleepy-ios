@@ -54,7 +54,7 @@ final class JwHnustParser: JwParser, JwParserConfidenceReporting {
                     }
 
                     // H6: SwiftSoup 把 void 元素序列化为 "<br />"（Jsoup 输出 "<br>"），
-                    // 先归一化再按 "<br>" 切分，语义与 Android 侧 div.html().split("<br>") 一致
+                    // 先归一化再按 "<br>" 切分，语义与 原版本 侧 div.html().split("<br>") 一致
                     let split = ((try? div.html()) ?? "")
                         .replacingOccurrences(of: #"<br\s*/?>"#, with: "<br>", options: .regularExpression)
                         .components(separatedBy: "<br>")

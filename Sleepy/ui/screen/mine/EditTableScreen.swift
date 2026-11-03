@@ -35,7 +35,7 @@ struct EditTableScreen: View {
     @State private var loadedScheduleKey: String? = nil
     @State private var name = ""
     @State private var startDate = ""
-    // ← Android maxWeekText: 数字文本(可输任意值, toIntOrNull ?: 20 兜底), 非 Stepper 硬顶 60
+    // ← 原版本 maxWeekText: 数字文本(可输任意值, toIntOrNull ?: 20 兜底), 非 Stepper 硬顶 60
     @State private var maxWeekText = ""
     @State private var timeSlotsExpanded = false
     @State private var error: String? = nil
@@ -48,7 +48,7 @@ struct EditTableScreen: View {
     @State private var pendingBind: Int64? = nil
     // issue#40 §5.3: 换绑确认弹窗 — 非 nil 时弹「确认换绑」, 确认才真正写 periodTableId
     @State private var pendingRebind: Int64? = nil
-    // 弹窗显隐与数据解耦: Android AlertDialog(pendingRebind != null) 且确认回调先取
+    // 弹窗显隐与数据解耦: 原版本 AlertDialog(pendingRebind != null) 且确认回调先取
     // targetId 后置 null — iOS alert 关闭会先复位 Binding, 故单独持有显示态防竞态。
     @State private var showRebindConfirm = false
     // 换绑确认跨越保存按钮与弹窗回调, 暂存待写回的课程表元数据。
@@ -69,16 +69,16 @@ struct EditTableScreen: View {
     @State private var scheduleEpoch = 0
 
     // issue#40: 全部时间节次表(换绑选择器数据源 §4.3) — 直读 VM 观察流。
-    // ← Android viewModel.allPeriodTables.collectAsState(): GRDB ValueObservation 订阅即推
+    // ← 原版本 viewModel.allPeriodTables.collectAsState(): GRDB ValueObservation 订阅即推
     //   最新值, 屏外改了作息表(管理页/编辑页)本屏选项随之更新;
     //   旧实现进会话时 loadAllPeriodTables() 拍快照 → 会话期陈旧, 已改为实时源。
     private var allPeriodTables: [PeriodTableEntity] { viewModel.allPeriodTables }
 
     /// issue#40: 有效作息表跟随 pendingBind(用户在下拉里改选时立即切换编辑区来源),
     /// 否则已绑定的表恒非空, 保存永远走"写回旧表"分支, 换绑成死代码。
-    /// ← Android state.effectivePeriodTable?.takeIf { pendingBind != null && it.id == pendingBind }
+    /// ← 原版本 state.effectivePeriodTable?.takeIf { pendingBind != null && it.id == pendingBind }
     ///   ?: allPeriodTables.find { it.id == pendingBind } — 先取 VM 水合源(本课表绑定的
-    ///   observeEffectivePeriodTable 最新 emit), 命中条件同 Android; 未命中再回落全表列表。
+    ///   observeEffectivePeriodTable 最新 emit), 命中条件同 原版本; 未命中再回落全表列表。
     ///   pendingBind == nil 两支皆 nil(表 id 恒非 nil) = 未绑定, 编辑区读本表兼容列。
     ///   body 与 enterSession 两处同源(命名不与局部量重名, 免「自身初始值」歧义)。
     private func resolveEffectivePeriodTable(from state: ScheduleState) -> PeriodTableEntity? {
@@ -91,7 +91,7 @@ struct EditTableScreen: View {
 
     var body: some View {
         let state = viewModel.state
-        // ← Android: tableId == null 编辑当前表; 显式 tableId 未命中 → edit_table_not_found 空态。
+        // ← 原版本: tableId == null 编辑当前表; 显式 tableId 未命中 → edit_table_not_found 空态。
         // 新建场景不兜底到首张表(createEmptyTable 已同步补入 state.tables, 按 id 必命中),
         // 显式 id 查不到就是查不到 — 编辑错表(首张表)比短暂 not-found 严重。
         let resolved: TimeTableEntity? = {
@@ -118,12 +118,12 @@ struct EditTableScreen: View {
         // ← remember(table.id, effective?.id, timeJson, scheduleEpoch) 的重建键:
         //   绑定切换/会话重建/取消撤销都会换键 → slotRows/smartConfig 从新来源重建。
         //   timeJson 取实体来源(effective/table)的列值, 用户编辑 slotRows 不改动它,
-        //   故编辑期键稳定(与 Android 一致: 编辑只动 mutableStateListOf, 不换 remember 键)。
+        //   故编辑期键稳定(与原实现一致: 编辑只动 mutableStateListOf, 不换 remember 键)。
         let timeJson = effective?.timeJson ?? table.timeJson
         // v1.0.62 B7b(用户 2026-10-05): 草稿载体三入口统一 — 未绑定课表用本表兼容列合成载体,
         // 手动改动同样进 editState 草稿(与绑定态一致); 原 effectivePeriodTable != null
         // 守卫把未绑定路径整个跳过 = 手动↔自动同步断链的根因。
-        // ← Android draftScheduleCarrier
+        // ← 原版本 draftScheduleCarrier
         let draftScheduleCarrier = effective ?? PeriodTableEntity(
             name: table.name,
             nodesPerDay: table.nodesPerDay,
@@ -142,20 +142,20 @@ struct EditTableScreen: View {
                         VStack(spacing: 12) {
                             FieldTextField(text: $name, label: L10n.format("edit_table_name"))
                             // 学期开始日期: 文本 + 日历图标弹原生 DatePicker(与导入确认弹窗同款组件)。
-                            //   ← Android DatePickerField(value, onValueChange, label, isError)
+                            //   ← 原版本 DatePickerField(value, onValueChange, label, isError)
                             DatePickerField(
                                 value: startDate,
                                 onValueChange: { startDate = $0 },
                                 label: L10n.format("edit_table_start_date"),
                                 isError: error != nil,
                                 fillsWidth: true)
-                            // 周数 ← Android 数字 TextField: 过滤非数字、任意值, 保存 toIntOrNull ?: 20
+                            // 周数 ← 原版本 数字 TextField: 过滤非数字、任意值, 保存 toIntOrNull ?: 20
                             // (原 Stepper 1...60 硬顶 — 超出 60 的课表在 iOS 无法保存, 已对齐语义)
                             FieldTextField(text: $maxWeekText,
                                            label: L10n.format("edit_table_max_week"),
                                            keyboardType: .numberPad)
                                 .onChange(of: maxWeekText) { newValue in
-                                    // ← Android onValueChange = it.filter { ch.isDigit() }
+                                    // ← 原 onValueChange = it.filter { ch.isDigit() }
                                     //   isDigit() = Unicode Nd(十进制数字); Swift isNumber 含
                                     //   No/Nl(² ½ 之类), 会让这类字符混进文本 → Int() 解析失败
                                     //   → 静默回落 20。按 unicodeScalars 过 decimalDigits
@@ -173,7 +173,7 @@ struct EditTableScreen: View {
                             withAnimation { timeSlotsExpanded.toggle() }
                         } label: {
                             HStack {
-                                VStack(alignment: .leading, spacing: 0) {   // ← Android Column 默认无间距
+                                VStack(alignment: .leading, spacing: 0) {   // ← 原 Column 默认无间距
                                     Text(L10n.format("edit_table_time_slots"))
                                         .font(.system(size: 16, weight: .semibold))
                                         .foregroundColor(colors.onSurface)
@@ -184,7 +184,7 @@ struct EditTableScreen: View {
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.down")
-                                    .font(.system(size: 24))   // ← Android ExpandMore Icon 默认 24dp
+                                    .font(.system(size: 24))   // ← 原 ExpandMore Icon 默认 24dp
                                     .foregroundColor(colors.onSurfaceVariant)
                                     .rotationEffect(.degrees(timeSlotsExpanded ? 180 : 0))
                             }
@@ -255,7 +255,7 @@ struct EditTableScreen: View {
                     // 作息草稿再变 → 策略自动作废(updateDraft 内), Banner 随 NONE 消失。
                     if pendingPolicy != .none {
                         PendingPolicyBanner(policy: pendingPolicy, onModify: {
-                            // ← Android: showConflictSheet && effectivePeriodTable != null 才渲染弹窗
+                            // ← 原版本: showConflictSheet && effectivePeriodTable != null 才渲染弹窗
                             guard let effective = effective else { return }
                             boundCount = tablesBoundToCount(effective.id)
                             showConflictSheet = true
@@ -266,7 +266,7 @@ struct EditTableScreen: View {
                     Button(action: { save(table: table, effective: effective) }) {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 24))   // ← Android Check Icon 默认 24dp
+                                .font(.system(size: 24))   // ← 原 Check Icon 默认 24dp
                             Text(L10n.format("edit_table_save"))
                                 .font(.system(size: 14, weight: .medium))   // ← labelLarge 14 Medium
                         }
@@ -284,7 +284,7 @@ struct EditTableScreen: View {
                         Button(action: { showDeleteConfirm = true }) {
                             HStack(spacing: 8) {
                                 Image(systemName: "trash")
-                                    .font(.system(size: 24))   // ← Android Delete Icon 默认 24dp
+                                    .font(.system(size: 24))   // ← 原 Delete Icon 默认 24dp
                                 Text(L10n.format("edit_table_delete"))
                                     .font(.system(size: 14, weight: .medium))   // ← labelLarge 14 Medium
                             }
@@ -305,7 +305,7 @@ struct EditTableScreen: View {
         }
         .background(colors.background)
         .onChange(of: table.id) { _ in enterSession(table: table) }
-        // ← Android remember(table.id, table.periodTableId): 绑定列被外部改动(如撤回)
+        // ← 原版本 remember(table.id, table.periodTableId): 绑定列被外部改动(如撤回)
         //   时仅重播选择器初值 pendingBind, 不重建整个会话
         .onChange(of: table.periodTableId) { _ in pendingBind = table.periodTableId }
         .onChange(of: scheduleKey) { _ in reloadSchedule(table: table, effective: effective) }
@@ -368,9 +368,9 @@ struct EditTableScreen: View {
         if pendingNewTableId != nil { onDiscardPending() } else { onDismiss() }
     }
 
-    // MARK: - 会话状态 (← Android remember(table.id) 族)
+    // MARK: - 会话状态 (remember(table.id) 族)
 
-    /// 进入/切换课表时重建整套会话状态(← Android remember(table.id) + startEditSession)。
+    /// 进入/切换课表时重建整套会话状态(remember(table.id) + startEditSession)。
     private func enterSession(table: TimeTableEntity) {
         guard loadedTableId != table.id || editState == nil else { return }
         loadedTableId = table.id
@@ -392,7 +392,7 @@ struct EditTableScreen: View {
         showConflictSheet = false
         boundCount = 0
         scheduleEpoch = 0
-        // 甲案: 会话重建 — ← Android remember(table.id) { viewModel.startEditSession(...) }:
+        // 甲案: 会话重建 — ← 原版本 remember(table.id) { viewModel.startEditSession(...) }:
         // 走 VM 注册(返回对象入 editStates[tableId]), 执行策略的
         // viewModel.executePolicyAndSave 按 tableId 取回同一对象 — 屏外(如撤回页)查
         // hasPendingPolicy 也读到同一会话。original = 进入时刻实际生效作息快照
@@ -408,7 +408,7 @@ struct EditTableScreen: View {
                        effective: resolveEffectivePeriodTable(from: viewModel.state))
     }
 
-    /// ← Android remember(table.id, effective?.id, timeJson, scheduleEpoch):
+    /// ← 原版本 remember(table.id, effective?.id, timeJson, scheduleEpoch):
     ///   键变即从有效来源重建 slotRows + smartConfig。
     private func reloadSchedule(table: TimeTableEntity, effective: PeriodTableEntity?) {
         let timeJson = effective?.timeJson ?? table.timeJson
@@ -429,7 +429,7 @@ struct EditTableScreen: View {
         pendingPolicy = editState?.pendingSchedulePolicy ?? .none
     }
 
-    // MARK: - 保存四分支链 (← Android 保存按钮 onClick 全链)
+    // MARK: - 保存四分支链 (保存按钮 onClick 全链)
 
     /// ← Kotlin String.matches(Regex): 全串匹配。.anchored 从左端起, 再校验命中区间
     ///   == 整串尾端 —— 比 `^…$` + range(of:) 严格: ICU 的 `$` 允许串尾换行(实测
@@ -440,7 +440,7 @@ struct EditTableScreen: View {
 
     private func save(table: TimeTableEntity, effective: PeriodTableEntity?) {
         let maxWeek = Int(maxWeekText) ?? 20
-        // ← Android startDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) 全串匹配
+        // ← 原版本 startDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) 全串匹配
         let dateOK = matchesFull(startDate, #"\d{4}-\d{2}-\d{2}"#)
         let timeFmtOK = slotRows.allSatisfy {
             matchesFull($0.start, #"\d{2}:\d{2}"#) && matchesFull($0.end, #"\d{2}:\d{2}"#)
@@ -462,10 +462,10 @@ struct EditTableScreen: View {
         let smartConfigJson = encodeSmartConfig(smartConfig)
         let newTimeJson = TimeTableUtils.buildTimeJsonFromRows(slotRows)
         var updated = table
-        // ← Android name.ifBlank { table.name }: isBlank 含换行(工程 String 扩展),
+        // ← 原版本 name.ifBlank { table.name }: isBlank 含换行(工程 String 扩展),
         //   原 trimmingCharacters(in: .whitespaces) 漏 newline → "\n" 名会写库
         updated.name = name.isBlank ? table.name : name
-        // ← Android DateUtils.normalizeStartDate(startDate)(同类实现, 取工程通用
+        // ← 原版本 DateUtils.normalizeStartDate(startDate)(同类实现, 取工程通用
         //   DateUtils 源, 与本屏其余工具调用同域; 原引 JwImportViewModel 副本跨域)
         updated.startDate = DateUtils.normalizeStartDate(startDate)
         updated.maxWeek = maxWeek
@@ -500,7 +500,7 @@ struct EditTableScreen: View {
                 return
             }
             if pendingPolicy != .none {
-                // ← Android: viewModel.executePolicyAndSave(tableId:editedTable:newTimeJson:
+                // ← 原版本: viewModel.executePolicyAndSave(tableId:editedTable:newTimeJson:
                 //   smartConfigJson:nodesPerDay:onFinish) — 会话从 VM editStates 取回,
                 //   全程 UndoManager 批内(§7 单撤回单元), 执行完清策略(invariant ④)
                 viewModel.executePolicyAndSave(
@@ -513,7 +513,7 @@ struct EditTableScreen: View {
                 return
             }
         }
-        // ← Android scope.launch { viewModel.updateTableMetadataAndBind / ...WithPeriodTable /
+        // ← 原版本 scope.launch { viewModel.updateTableMetadataAndBind / ...WithPeriodTable /
         //   updateTableRemappingCourses; onSaved() } — 写库统一经 VM(内部单事务触 repo)
         if bindChanged {
             // 解绑: 元数据+时间域(解绑后兼容列是真值)+periodTableId=null,
@@ -536,7 +536,7 @@ struct EditTableScreen: View {
         onSaved()
     }
 
-    /// ← Android viewModel.executePolicyAndSave 对应实现已收敛到 ScheduleViewModel
+    /// ← 原版本 viewModel.executePolicyAndSave 对应实现已收敛到 ScheduleViewModel
     ///   (startEditSession 注册会话 + editStates 取回 + UndoManager 批 + 三分支写库),
     ///   本屏只负责触发, 不再重复一份写库逻辑。
 
@@ -562,12 +562,12 @@ struct EditTableScreen: View {
     }
 
     /// 甲案 §4.1: 弹窗「另有 N 张课表绑定」提示 — 绑定到指定作息表的课表数。
-    /// ← Android viewModel.repoTablesBoundToCount(同语义, 经 VM 触库)。
+    /// ← 原版本 viewModel.repoTablesBoundToCount(同语义, 经 VM 触库)。
     private func tablesBoundToCount(_ periodTableId: Int64) -> Int {
         return viewModel.repoTablesBoundToCount(periodTableId: periodTableId)
     }
 
-    /// ← Android runCatching { Json.encodeToString(cfg) }.getOrDefault("")
+    /// ← 原 runCatching { Json.encodeToString(cfg) }.getOrDefault("")
     private func encodeSmartConfig(_ cfg: SmartPeriodConfig) -> String {
         guard let data = try? JSONEncoder().encode(cfg),
               let json = String(data: data, encoding: .utf8) else { return "" }
@@ -612,7 +612,7 @@ struct FieldTextField: View {
             .frame(minHeight: 56, alignment: .bottom)   // ← M3 TextField MinHeight 56dp, 文字贴底(原约 40)
             .background(colors.surfaceContainerLowest)
             .cornerRadius(SleepyTheme.fieldShape)
-            // ← Android filled TextField, 无描边
+            // ← 原 filled TextField, 无描边
             .accessibilityIdentifier("field_\(label)")   // ← G5: 字段锚点(label 原文)
             .overlay(alignment: .leading) {
                 if !placeholder.isEmpty {

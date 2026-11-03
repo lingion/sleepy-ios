@@ -54,14 +54,14 @@ private func matchStr(_ pattern: String, in s: String, group: Int = 0) -> String
     return v.isEmpty ? nil : v
 }
 
-/// Android `Regex.containsMatchIn` 等价物。
+/// 原 `Regex.containsMatchIn` 等价物。
 private func regexHasMatch(_ pattern: String, in s: String) -> Bool {
     guard let re = try? NSRegularExpression(pattern: pattern, options: []) else { return false }
     let range = NSRange(location: 0, length: (s as NSString).length)
     return re.firstMatch(in: s, options: [], range: range) != nil
 }
 
-/// Android `Regex.find(input, startIndex)` 等价物 (UTF-16 偏移)。
+/// 原 `Regex.find(input, startIndex)` 等价物 (UTF-16 偏移)。
 private func regexFirstMatchRange(_ pattern: String, in s: String, from location: Int) -> NSRange? {
     guard let re = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
     let ns = s as NSString
@@ -70,7 +70,7 @@ private func regexFirstMatchRange(_ pattern: String, in s: String, from location
     return re.firstMatch(in: s, options: [], range: searchRange)?.range
 }
 
-/// Android `Regex.matches(input)` 等价物 — 全串匹配。
+/// 原 `Regex.matches(input)` 等价物 — 全串匹配。
 private func regexMatchesEntire(_ pattern: String, in s: String) -> Bool {
     guard let re = try? NSRegularExpression(pattern: "^(" + pattern + ")$", options: []) else { return false }
     let ns = s as NSString
@@ -78,7 +78,7 @@ private func regexMatchesEntire(_ pattern: String, in s: String) -> Bool {
     return m.range.location == 0 && m.range.length == ns.length
 }
 
-/// Android `Regex.findAll(input).map { it.value }` 等价物。
+/// 原 `Regex.findAll(input).map { it.value }` 等价物。
 private func regexAllMatches(_ pattern: String, in s: String) -> [String] {
     guard let re = try? NSRegularExpression(pattern: pattern, options: []) else { return [] }
     let ns = s as NSString
@@ -158,12 +158,12 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
         if !source.contains("function setInitValue") || !source.contains("Event.observe") {
             return []
         }
-        // Android: RE_SET_INIT_VALUE.find(source) ?: return emptyList() — 需完整 "function setInitValue()"
+        // 原版本: RE_SET_INIT_VALUE.find(source) ?: return emptyList() — 需完整 "function setInitValue()"
         guard let startRange = regexFirstMatchRange(Self.RE_SET_INIT_VALUE, in: source, from: 0) else {
             return []
         }
         let startIdx = startRange.location
-        // Android: RE_EVENT_OBSERVE.find(source, startIdx) ?: source.length — observe 缺失时解析至源文末尾
+        // 原版本: RE_EVENT_OBSERVE.find(source, startIdx) ?: source.length — observe 缺失时解析至源文末尾
         let nsSource = source as NSString
         let endIdx = regexFirstMatchRange(Self.RE_EVENT_OBSERVE, in: source, from: startIdx)?.location ?? nsSource.length
         let jsBlock = nsSource.substring(with: NSRange(location: startIdx, length: max(0, endIdx - startIdx)))
@@ -282,7 +282,7 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
     // MARK: - Emit
     /// v1.0.62: emit 失败返回 nil (调用方计 skipped), 不再伪造占位课。
     private func emitCourse(_ p: PendingCourse) -> JwCourse? {
-        // Android: p.name.isBlank() — 纯空白名也算空
+        // 原版本: p.name.isBlank() — 纯空白名也算空
         guard !p.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               (1...6).contains(p.big), (1...7).contains(p.day) else { return nil }
         let startNode = Self.START_NODE_MAP[p.big]
@@ -343,7 +343,7 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
     ///  "单周"→(1,16,1); "双周"→(2,16,2);
     ///  "X-Y周"→(X,Y,0); "第X-Y周"→(X,Y,0); "第X-Y周(单/双)"→(X,Y,1/2); "第X周"→(X,X,0)
     static func parseKnownWeekText(_ text: String) -> (startWeek: Int, endWeek: Int, parity: Int)? {
-        // Android: text.trim().trimStart('；',';') — 只去前导分号, 保留尾部分号
+        // 原版本: text.trim().trimStart('；',';') — 只去前导分号, 保留尾部分号
         let spaceTrimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let t = String(spaceTrimmed.drop { $0 == "\u{FF1B}" || $0 == ";" })
         var parsed: (Int, Int, Int)?
@@ -401,7 +401,7 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
     }
 
     // MARK: - Static confidence (协议指纹 6 件套)
-    /// Android confidence(): 6 个 regex containsMatchIn 计 hits,
+    /// 原版本 confidence(): 6 个 regex containsMatchIn 计 hits,
     /// hits>=6→95, 5→80, 4→70, 3→50, 2→30, 1→10, else 0 (阶梯映射, 与 Registry 打分对齐)。
     static func confidenceValueFor(source: String) -> Int {
         var hits = 0
@@ -419,7 +419,7 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
         if hits >= 1 { return 10 }
         return 0
     }
-    /// Android matchedFeatures(): 8 项特征检查 (v1.0.62 首位 thu:skipped-unsupported=N),
+    /// 原版本 matchedFeatures(): 8 项特征检查 (v1.0.62 首位 thu:skipped-unsupported=N),
     /// 仅当特征列表为空时追加 guard 项 (不对 login-only 页面短路)。
     static func matchedFeaturesFor(source: String, skippedCount: Int = 0) -> [String] {
         var feats: [String] = []

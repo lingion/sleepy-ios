@@ -47,7 +47,7 @@ enum SchoolLocationPolicy {
     /// approximate 模式的城市查询降精度: 坐标取 2 位小数 + 精度半径 +800m。
     /// 早前 fine 授权不得让 approximate 选择用 fine 坐标。
     /// 取整用 floor(x+0.5) 语义精确对齐 Kotlin Math.round(向 +∞ 破 .5 平局),
-    /// Swift 默认 .rounded() 是"远离零"破平局, 负坐标(南/西半球)的 .5 平局会与 Android 差 1。
+    /// Swift 默认 .rounded() 是"远离零"破平局, 负坐标(南/西半球)的 .5 平局会与 原版本 差 1。
     static func forCityLookup(mode: SchoolLocationMode, fix: SchoolLocationFix) -> SchoolLocationFix {
         guard mode == .approximate else { return fix }
         let lat = (fix.latitude * 100 + 0.5).rounded(.down) / 100

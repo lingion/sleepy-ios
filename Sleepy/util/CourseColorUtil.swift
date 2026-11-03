@@ -194,7 +194,7 @@ enum CourseColorUtil {
 
     /// "#RRGGBB" 或 "#AARRGGBB" 解析(= android.graphics.Color.parseColor 语义)
     /// 6 位省略 alpha=FF; 8 位完整。
-    /// 与 Android 对齐的硬校验: '#' 前缀必带 —— android.graphics.Color.parseColor 对无 '#'
+    /// 与 原版本 对齐的硬校验: '#' 前缀必带 —— android.graphics.Color.parseColor 对无 '#'
     /// 输入抛 IllegalArgumentException,上层 runCatching 落空回退 neutral/HSL 分支;
     /// iOS 若照收裸 hex(如 "FF5722")会让坏 hex 自定义色在两端走不同分支。
     static func parseColor(_ hex: String) -> Int? {

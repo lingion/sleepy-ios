@@ -2,7 +2,7 @@
 //
 // WebView 客户端配置装配器 — WKWebView 形态移植。
 //
-// ## Android 原架构 (HEBZYHJ 闪退根因, 2026-09-09)
+// ## 原版本 原架构 (HEBZYHJ 闪退根因, 2026-09-09)
 // 旧实现 inline 在 JwWebViewLoginScreen factory 闭包内 new 出 WebViewClient,
 // callback 体内触碰 view.settings.userAgentString → WebView.checkThread() →
 // RuntimeException → 进程终止。修复 = 架构边界:
@@ -12,7 +12,7 @@
 //   4. JwWebViewCallbackThreadAffinenessTest 锁死架构边界
 //
 // ## iOS 平台差异 (装配件对照表)
-//   Android WebViewClient              → 本文件 JwWebViewNavigationDelegate
+//   原版本 WebViewClient              → 本文件 JwWebViewNavigationDelegate
 //                                         (WKNavigationDelegate 实现, ← JwWebViewClientImpl)
 //   shouldInterceptRequest 拦截链       → WKWebView 不暴露逐请求同步拦截 API。
 //         WKURLSchemeHandler 只对自定义 scheme 生效(教务是 http/https, 挂不上)。
@@ -24,10 +24,10 @@
 //         decidePolicyFor(navigationResponse) 两回调配对(仅主框架导航; 子资源不
 //         可见, fetch/XHR 层由 DIAGNOSTIC_NETWORK_INSTALL_JS 覆盖)。recordRequest
 //         在响应回调与暂存请求配对后接线 —
-//         ← Android JwDiagnosticSession.recordRequest(request, response)。
+//         ← 原版本 JwDiagnosticSession.recordRequest(request, response)。
 //   onReceivedSslError + SslBypassRegistry → didReceive serverTrust challenge
 //         (JwWebViewNavigationDelegate 已实现: 注册域内 useCredential 放行自签,
-//          其余 performDefaultHandling = 系统校验失败即拒 — 与 Android
+//          其余 performDefaultHandling = 系统校验失败即拒 — 与原实现
 //          proceed()/cancel() 语义对齐)。ATS 对 TLS 版本/明文限制的例外仍需
 //         Info.plist — 保守不放开, 消费方接入由集成者决策。
 //   doUpdateVisitedHistory / onPageFinished → didCommit / didFinish navigation
@@ -40,7 +40,7 @@
 //
 // ## 生命周期
 // 装配完成后 delegate 不额外持有 webView 引用(回调形参临时传递, 不存字段 —
-// ← Android JwWebViewClientImpl 同不变量)。userAgent / schoolHost / cookieStore
+// ← 原版本 JwWebViewClientImpl 同不变量)。userAgent / schoolHost / cookieStore
 // 都是 immutable 引用, 无 GC/线程问题(WKWebView 所有 delegate 回调本身就在主线程)。
 //
 // ## 消费方接线 (集成者, 不在本文件范围)
@@ -55,7 +55,7 @@
 //   urlObserver = delegate.observeUrlChanges(of: wv)  // pushState 型 URL 变化
 // applyDesktopUserAgent(desktop:) 中必须先
 //   delegate.desktopViewport = desktop      // 再 reload(顺序不可反)。
-// Android 端 UA 切换 = key(recreateKey) 销毁重建 WebView+client, desktopViewport
+// 原版本 端 UA 切换 = key(recreateKey) 销毁重建 WebView+client, desktopViewport
 // 恒等于当前 desktopMode; iOS 原地 reload 不重建 delegate, 若标志停留在构造期
 // false, 「手机模式打开 → 切桌面」主路径就复现 2026-09-13 修掉的 viewport 缺失。
 
@@ -63,11 +63,11 @@ import Foundation
 import WebKit
 
 /// 拦截器上下文 — 工厂期(主线程)一次性捕获的平台资源。
-/// (← Android JwInterceptorContext; cookieManager 类型换成 WKHTTPCookieStore)
+/// (JwInterceptorContext; cookieManager 类型换成 WKHTTPCookieStore)
 struct JwInterceptorContext {
     /// 生效 UA 快照 — desktopMode 时为 desktopUserAgent; 默认手机 UA 时 WKWebView
     /// 无公开同步读 UA 的 API, 以空串表示「平台默认」(消费方 customUserAgent = nil)。
-    /// (← Android webView.settings.userAgentString 工厂期一次捕获; 差异已在语义注释)
+    /// (webView.settings.userAgentString 工厂期一次捕获; 差异已在语义注释)
     let userAgent: String
     /// WKWebsiteDataStore.default().httpCookieStore — 主线程捕获的共享单例引用
     let cookieStore: WKHTTPCookieStore
@@ -85,7 +85,7 @@ enum JwWebViewClientBuilder {
     ///   - school: 学校信息 — 决定 interceptor 装配 + 提取 schoolHost。
     ///   - desktopMode: 桌面 UA 模式 (issue #18 PCUA)。true 时附加 viewport 覆盖
     ///     WKUserScript(钉布局宽 1024px, 触发 Bootstrap 桌面分支 — UA 字符串本身
-    ///     对布局零影响)。全协议启用(2026-09-13 Android 侧同步决策: 只换 UA 不注
+    ///     对布局零影响)。全协议启用(2026-09-13 原版本 侧同步决策: 只换 UA 不注
     ///     viewport 时非 UCAS 校切换毫无反应)。
     ///   - messageHandlerName: JS 桥名(默认 __sleepyBridge, 桥接约定)。
     /// - Returns: 已完成全部静态配置(桥/UA/脚本)的 configuration + ctx。
@@ -113,11 +113,11 @@ enum JwWebViewClientBuilder {
         prefs.javaScriptCanOpenWindowsAutomatically = true
         config.preferences = prefs
 
-        // 桌面 viewport 覆盖全协议启用(同 Android 2026-09-13 决策):
+        // 桌面 viewport 覆盖全协议启用(同 原版本 2026-09-13 决策):
         // 桌面 UA + 1024px 视口 = 响应式门户真正切桌面分支。
         // WKUserScript atDocumentEnd = 首注入; SPA 迟挂 meta 的兜底重注入由
         // makeNavigationDelegate 产出的 delegate 在 didFinish 双注入完成
-        // (← Android onPageFinished 立即 + postDelayed 300ms)。
+        // (onPageFinished 立即 + postDelayed 300ms)。
         if desktopMode {
             config.userContentController.addUserScript(WKUserScript(
                 source: desktopViewportJs,
@@ -130,7 +130,7 @@ enum JwWebViewClientBuilder {
         return (config, ctx)
     }
 
-    /// 装配导航 delegate — ← Android build(...) 返回的 JwWebViewClientImpl。
+    /// 装配导航 delegate — ← 原版本 build(...) 返回的 JwWebViewClientImpl。
     /// 覆盖 onPageFinished/onUrlChanged 回调、桌面 viewport 双注入、主框架诊断
     /// 记录、SSL 注册域豁免。callback 体内禁止触碰 webView 的 main-thread-only
     /// 现场读取, 全部走 ctx 快照(← JwWebViewCallbackThreadAffinenessTest 不变量)。
@@ -149,18 +149,18 @@ enum JwWebViewClientBuilder {
         _ = assembleInterceptors(school)  // 装配点保留(见函数注释), iOS 当前无逐请求改写
         return JwWebViewNavigationDelegate(
             ctx: ctx,
-            desktopViewport: desktopMode,  // ← Android val desktopViewport = desktopMode
+            desktopViewport: desktopMode,  // ← 原 val desktopViewport = desktopMode
             onPageFinished: onPageFinished,
             onUrlChanged: onUrlChanged
         )
     }
 
-    /// 按 school 协议族装配拦截器链。当前 Android 侧只挂 SEP XRW 剥离 (UCAS #18) —
+    /// 按 school 协议族装配拦截器链。当前 原版本 侧只挂 SEP XRW 剥离 (UCAS #18) —
     /// iOS 无 chromium 强注 XRW 头的根因, 链为空但保留结构: 新协议在这里加一行即可。
     /// (← assembleInterceptors; 返回 UA 覆盖建议而非 response 改写器)
     static func assembleInterceptors(_ school: JwSchoolInfo) -> [String] {
         var list: [String] = []
-        // UCAS #18: Android SEP SSO 域 (sep.ucas.ac.cn) 剥 X-Requested-With;
+        // UCAS #18: 原版本 SEP SSO 域 (sep.ucas.ac.cn) 剥 X-Requested-With;
         // iOS WKWebView 不强注该头, 无操作。保留分支注释作装配点。
         if school.url.lowercased().contains(UCAS_DOMAIN) {
             // list.append(...) — 未来 iOS 特有协议问题在此装配
@@ -175,14 +175,14 @@ enum JwWebViewClientBuilder {
     }
 
     /// ← DESKTOP_USER_AGENT (JwWebViewLoginScreen.kt): Chrome 121 / Windows 10
-    /// 桌面 UA — 无 Android/iPhone 词汇, 触发门户桌面版布局。
+    /// 桌面 UA — 无 原版本/iPhone 词汇, 触发门户桌面版布局。
     /// (登录屏 jwDesktopUserAgent 为 private; 此处独立常量, 值逐字一致)
     static let desktopUserAgent =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
         "Chrome/121.0.0.0 Safari/537.36"
 
     /// ← DESKTOP_VIEWPORT_JS: meta viewport 钉 1024px + 回顶。
-    /// (与 Android JwWebViewLoginScreen.kt 顶部常量逐字一致)
+    /// (与 原版本 JwWebViewLoginScreen.kt 顶部常量逐字一致)
     static let desktopViewportJs =
         "(function(){var m=document.querySelector('meta[name=\"viewport\"]');" +
         "if(m){m.setAttribute('content','width=1024');}" +
@@ -190,7 +190,7 @@ enum JwWebViewClientBuilder {
         "m.setAttribute('content','width=1024');document.head.appendChild(m);}" +
         "setTimeout(function(){window.scrollTo(0,0);},0);})()"
 
-    /// 桌面 viewport 双注入 — ← Android JwWebViewClientImpl.onPageFinished:
+    /// 桌面 viewport 双注入 — ← 原版本 JwWebViewClientImpl.onPageFinished:
     ///   view?.evaluateJavascript(DESKTOP_VIEWPORT_JS) + postDelayed 同 JS 300ms。
     /// chromium/Safari 对 meta 变更的重排时机不定(SO 19953717 重复注入模式),
     /// 第二次兜底 SPA 迟挂的 meta 重写。JS 幂等(设同一 content 值), 注入多次无副作用。
@@ -208,12 +208,12 @@ enum JwWebViewClientBuilder {
 // MARK: - 导航 delegate (← JwWebViewClientImpl, 装配产物)
 
 /// 装配出的导航代理。callback 体内**禁止**触碰 webView.settings / webView 现场状态
-/// 读取 — ctx 快照是唯一数据源(← Android checkThread 架构边界, WK 侧等价约束:
-/// 回调期读 webView.url 允许但统一走回调参数, 与 Android 传 url 语义一致)。
+/// 读取 — ctx 快照是唯一数据源(checkThread 架构边界, WK 侧等价约束:
+/// 回调期读 webView.url 允许但统一走回调参数, 与 原版本 传 url 语义一致)。
 final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
 
     let ctx: JwInterceptorContext
-    /// 桌面 viewport 双注入开关。**运行时可翻转** — Android 端 UA 切换 =
+    /// 桌面 viewport 双注入开关。**运行时可翻转** — 原版本 端 UA 切换 =
     /// key(recreateKey) 销毁重建整棵 WebView+client, desktopViewport 恒与当前
     /// desktopMode 一致; iOS 端 applyDesktopUserAgent 是 customUserAgent + reload
     /// 原地切换(不重建 delegate), 若此处不可变, 「手机模式打开 → 切桌面」后
@@ -242,7 +242,7 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
     }
 
     /// 响应回调取配对请求: 精确 URL 命中 → 取并删; 未命中 → 回退最近一次暂存
-    /// (仅当它尚未被消费)。← Android shouldInterceptRequest 的 request↔response 配对。
+    /// (仅当它尚未被消费)。← 原 shouldInterceptRequest 的 request↔response 配对。
     func takeStashedRequest(matching url: String) -> WKStashedRequest? {
         if let hit = stashedRequests[url] {
             stashedRequests[url] = nil
@@ -266,7 +266,7 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
     }
 
     /// 主框架导航请求侧 → 暂存请求字段 + 放行。
-    /// ← Android shouldInterceptRequest 同时拿到 request 与 response;
+    /// ← 原 shouldInterceptRequest 同时拿到 request 与 response;
     /// WKNavigationDelegate 把两者拆成 decidePolicyFor(navAction) 与
     /// decidePolicyFor(navResponse) 两次回调, 这里先存请求侧, 响应回调配对后
     /// 一次性 recordRequest, 避免半截记录/重复记录。
@@ -284,7 +284,7 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
     }
 
     /// 主框架导航响应侧 → 与暂存请求配对后记录诊断 + 放行。
-    /// ← Android shouldInterceptRequest 的 JwDiagnosticSession.recordRequest。
+    /// ← 原 shouldInterceptRequest 的 JwDiagnosticSession.recordRequest。
     /// 平台差异: WKWebView 只暴露主框架导航(子资源不可见, 无同步拦截点);
     /// fetch/XHR 层的逐请求证据由登录屏 DIAGNOSTIC_NETWORK_INSTALL_JS 补齐。
     func webView(_ webView: WKWebView,
@@ -298,13 +298,13 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
         JwDiagnosticSession.shared.recordRequest(
             method: stashed?.method ?? "GET",
             url: stashed?.url ?? responseURL,
-            // Android: response==null → -1。iOS 此处必有 response, 非 HTTP 响应记 -1 对齐
+            // 原版本: response==null → -1。iOS 此处必有 response, 非 HTTP 响应记 -1 对齐
             status: http?.statusCode ?? -1,
             // ← WebResourceResponse.mimeType: iOS 侧同义取 Content-Type 头
             mime: http?.value(forHTTPHeaderField: "Content-Type"),
             requestHeaders: stashed?.requestHeaders,
             // allHeaderFields 是 [AnyHashable: Any] — 折叠成 [String: String]
-            // (← Android response.responseHeaders Map<String,String>)
+            // (response.responseHeaders Map<String,String>)
             responseHeaders: http.map { r in
                 var out: [String: String] = [:]
                 for (k, v) in r.allHeaderFields {
@@ -319,12 +319,12 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
         decisionHandler(.allow)
     }
 
-    /// 导航提交 = Android doUpdateVisitedHistory(历史更新) → onUrlChanged。
+    /// 导航提交 = 原版本 doUpdateVisitedHistory(历史更新) → onUrlChanged。
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         onUrlChanged(webView.url?.absoluteString)
     }
 
-    /// SPA pushState/replaceState 型 URL 变化 = Android doUpdateVisitedHistory 的
+    /// SPA pushState/replaceState 型 URL 变化 = 原 doUpdateVisitedHistory 的
     /// 全语义覆盖 — didCommit/didFinish 只在整页导航触发, 前端路由改历史不回调它们。
     /// 消费方(coordinator)接线时调用并**持有**返回的 observation, 销毁时释放。
     func observeUrlChanges(of webView: WKWebView) -> NSKeyValueObservation {
@@ -333,7 +333,7 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
         }
     }
 
-    /// 页面加载完成 = Android onPageFinished → 回调 + 桌面 viewport 双注入。
+    /// 页面加载完成 = 原 onPageFinished → 回调 + 桌面 viewport 双注入。
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         let url = webView.url?.absoluteString
         onPageFinished(url)
@@ -346,10 +346,10 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
         }
     }
 
-    /// SSL 豁免 — ← Android onReceivedSslError(error.url.host 判定注册域)。
+    /// SSL 豁免 — ← 原版本 onReceivedSslError(error.url.host 判定注册域)。
     /// 注册域内(私签/私有 CA 教务) → useCredential 放行;
     /// 其余 → performDefaultHandling(= 系统信任链校验, 失败即拒 — 中间人防护,
-    /// 对应 Android 默认 cancel)。TLS 版本/明文类 ATS 限制仍需 Info.plist 例外。
+    /// 对应 原版本 默认 cancel)。TLS 版本/明文类 ATS 限制仍需 Info.plist 例外。
     func webView(_ webView: WKWebView,
                  didReceive challenge: URLAuthenticationChallenge,
                  completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
@@ -359,7 +359,7 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
             completionHandler(.performDefaultHandling, nil)
             return
         }
-        // 用 protectionSpace.host(回调参数), 不读 webView.url — 同 Android 用
+        // 用 protectionSpace.host(回调参数), 不读 webView.url — 同 原版本 用
         // error.url 而非 view.url 的线程亲和约束
         if SslBypassRegistry.isAllowed(host: challenge.protectionSpace.host,
                                        schoolHost: ctx.schoolHost) {
@@ -376,15 +376,15 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
 // 部分高校教务确用私有 CA。除此之外的 SSL 错误一律 cancel (中间人防护)。
 //
 // iOS 消费点: JwWebViewNavigationDelegate.webView(_:didReceive:challenge:)
-// 的 serverTrust 分支 — 注册域内 useCredential(forTrust:) 即 Android
+// 的 serverTrust 分支 — 注册域内 useCredential(forTrust:) 即原实现
 // handler.proceed() 的等价; TLS 握手层之外的 ATS 限制仍需 Info.plist 例外。
 // 纯逻辑, 单测可直跑 (SleepyTests/JwWebViewConfigBuilderTests)。
 
 enum SslBypassRegistry {
 
     /// 取注册域: 无公共后缀库, 用启发式 — 取末两段 (xx.edu.cn 形态取末三段)。
-    /// 剥离序列逐字对齐 Android `host.lowercase().trim().trimEnd('.')`:
-    /// 先两侧剥空白, 再尾部剥任意个 '.'(前导点保留 — 与 Android 同语义,
+    /// 剥离序列逐字对齐 原 `host.lowercase().trim().trimEnd('.')`:
+    /// 先两侧剥空白, 再尾部剥任意个 '.'(前导点保留 — 与 原版本 同语义,
     /// 三段后缀形态下 takeLast(3) 结果一致)。
     static func registrableDomain(_ host: String) -> String {
         var h = host.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)[...]

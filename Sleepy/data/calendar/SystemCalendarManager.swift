@@ -1,25 +1,25 @@
-// SystemCalendarManager.swift — 系统日历导入引擎 (v1.0.61 对齐, ← Android SystemCalendarManager.kt 441L, 行为对齐非逐行翻译)
+// SystemCalendarManager.swift — 系统日历导入引擎 (v1.0.61 对齐, ← 原版本 SystemCalendarManager.kt 441L, 行为对齐非逐行翻译)
 //
 // 平台映射:
 // - 内容库 ContentProvider 写系统日历 → EventKit EKEventStore (系统 framework, 无新 SPM 依赖)
 // - WRITE/READ_CALENDAR 权限 → EKEventStore.requestAccess(to: .event);
 //   16.4 SDK 无 .fullAccess/.writeOnly 分支, 授权即 authorizationStatus == .authorized
-// - 可写日历 = allowsContentModifications && type != .local/.calDAV (← Android ACCESS_LEVEL >= CONTRIBUTOR && VISIBLE, 16.4 无 isSelectable)
+// - 可写日历 = allowsContentModifications && type != .local/.calDAV (ACCESS_LEVEL >= CONTRIBUTOR && VISIBLE, 16.4 无 isSelectable)
 // - v1.0.62 B6: writableCalendars 改走 LocalCalendarFallback — 可写日历为空时
-//   ensureCalendar 兜底自建「Sleepy」本地日历(← Android LocalCalendarFallback);
+//   ensureCalendar 兜底自建「Sleepy」本地日历(LocalCalendarFallback);
 //   自建日历恒纳入可写列表, 否则兜底产物永远选不中
 // - 记录 eventId ← 内容库 _ID(Long) → EKCalendarItem.externalIdentifier (String)
 // - 描述行尾 marker "Sleepy import key: tableId:courseId:yyyy-MM-dd" 保留(存 EKCalendarItem.notes),
-//   记录丢失后可按 marker 恢复, 对齐 Android findEventByMarker
-// - Android "ALARM(闹钟)" 提醒 → iOS 16.4 EKAlarm 无 type/soundName(.audio/.display 均不可用),
+//   记录丢失后可按 marker 恢复, 对齐 原版本 findEventByMarker
+// - 原版本 "ALARM(闹钟)" 提醒 → iOS 16.4 EKAlarm 无 type/soundName(.audio/.display 均不可用),
 //   提醒恒以 EKAlarm(relativeOffset:) 写入、系统默认提醒呈现; 期望的 method(ALARM/ALERT) 由我方记录
-//   alarmRequested 字段承载, 读回(readReminder)恒分类为 .alert。alarmFallback 计数对齐 Android 语义:
-//   Android 仅在 METHOD_ALARM 插入失败且 METHOD_ALERT 兜底插入成功时计数; iOS EKAlarm 为单阶段写入、
-//   不存在两阶段兜底 → 写入成功即视为期望 method 生效(← Android insertReminder(method) 成功分支),
-//   写入失败返回 nil 计 errors(← Android 两阶段均失败分支)。成功路径 alarmFallback 不增长, 与 Android 一致。
-// - 事件时区 EKEvent 无公开 API → 指纹恒以 TimeZone.current.identifier 固定(与 Android ZoneId.systemDefault().id 同位)
+//   alarmRequested 字段承载, 读回(readReminder)恒分类为 .alert。alarmFallback 计数对齐 原版本 语义:
+//   原版本 仅在 METHOD_ALARM 插入失败且 METHOD_ALERT 兜底插入成功时计数; iOS EKAlarm 为单阶段写入、
+//   不存在两阶段兜底 → 写入成功即视为期望 method 生效(insertReminder(method) 成功分支),
+//   写入失败返回 nil 计 errors(两阶段均失败分支)。成功路径 alarmFallback 不增长, 与原实现一致。
+// - 事件时区 EKEvent 无公开 API → 指纹恒以 TimeZone.current.identifier 固定(与 原版本 ZoneId.systemDefault().id 同位)
 // - EventKit 无"导入历史"原生概念 → 仓内 CalendarImportRecordDao/Entity (calendar_import_records 表) 承担记录职责
-// - v1.0.62 B6 调休口径(← Android SystemCalendarManager.kt v1.0.62):
+// - v1.0.62 B6 调休口径(SystemCalendarManager.kt v1.0.62):
 //   导入日期范围纳入调休目标日(源日在学期内的 targetDate 可把区间撑出学期末);
 //   事件内容按源日(courseDateForDate/coursesForDate — 放假日无课、补班日上源日的课),
 //   显示与闹钟按目标日(事件落位在 targetDate 当天)。
@@ -28,9 +28,9 @@ import EventKit
 import Foundation
 import CryptoKit
 
-// MARK: - 选项 / 预览 / 结果 (与 Android data class 同名同字段)
+// MARK: - 选项 / 预览 / 结果 (与 原 data class 同名同字段)
 
-/// 日历导入范围枚举 (← Android CalendarImportRange enum)
+/// 日历导入范围枚举 (CalendarImportRange enum)
 enum CalendarImportRange: String, CaseIterable, Identifiable {
     case NEXT_WEEK = "NEXT_WEEK"
     case NEXT_MONTH = "NEXT_MONTH"
@@ -38,7 +38,7 @@ enum CalendarImportRange: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// 可写日历信息 (← Android SystemCalendarInfo data class)
+/// 可写日历信息 (SystemCalendarInfo data class)
 struct SystemCalendarInfo: Identifiable {
     let id: String          // EKCalendar.calendarIdentifier
     let displayName: String // EKCalendar.title
@@ -46,15 +46,15 @@ struct SystemCalendarInfo: Identifiable {
 }
 
 struct CalendarImportOptions {
-    /// 目标 EKCalendar.calendarIdentifier (← Android calendarId: Long, 平台映射)
+    /// 目标 EKCalendar.calendarIdentifier (calendarId: Long, 平台映射)
     var calendarId: String
     /// 导入范围
     var range: CalendarImportRange
     var applyHolidayTransfers: Bool
-    /// 普通提醒提前分钟; nil = 不加普通提醒 (← Android reminderMinutes: Int?)
+    /// 普通提醒提前分钟; nil = 不加普通提醒 (reminderMinutes: Int?)
     var reminderMinutes: Int?
     var firstPeriodAlarmEnabled: Bool
-    /// 首次课强制提醒提前分钟 (← Android firstPeriodAlarmMinutes)
+    /// 首次课强制提醒提前分钟 (firstPeriodAlarmMinutes)
     var firstPeriodAlarmMinutes: Int
 
     init(
@@ -76,7 +76,7 @@ struct CalendarImportOptions {
 
 enum CalendarImportError: Error { case permissionDenied, noWritableCalendar }
 
-/// ← Android CalendarImportPreviewRow (UI 预览行, 与 CalendarPreviewRow 同构)
+/// ← 原版本 CalendarImportPreviewRow (UI 预览行, 与 CalendarPreviewRow 同构)
 typealias CalendarImportPreviewRow = CalendarPreviewRow
 
 struct CalendarPreviewRow {
@@ -109,9 +109,9 @@ struct CalendarImportResult {
     var unchanged: Int = 0
     var skippedEdited: Int = 0
     var skippedInvalidTime: Int = 0
-    /// ← Android imported.alarmFallback: 仅当期望闹钟(.alarm)但闹钟提醒未能按期望生效时计数。
+    /// ← 原版本 imported.alarmFallback: 仅当期望闹钟(.alarm)但闹钟提醒未能按期望生效时计数。
     /// 平台裁决: iOS EKAlarm 单阶段写入无两阶段兜底 → 写入成功即视为期望 method 生效, 成功路径不计数;
-    /// 计数保留给未来的真实兜底场景(当前 16.4 恒为 0, 语义与 Android 成功路径一致)。
+    /// 计数保留给未来的真实兜底场景(当前 16.4 恒为 0, 语义与 原版本 成功路径一致)。
     var alarmFallback: Int = 0
     var errors: Int = 0
 }
@@ -123,7 +123,7 @@ final class SystemCalendarManager {
     let store = EKEventStore()
     private let markerPrefix = "Sleepy import key:"
 
-    // v1.0.62 B6 ← Android localCalendarFallback: 可写日历走兜底策略(空则自建「Sleepy」本地日历)
+    // v1.0.62 B6 ← 原版本 localCalendarFallback: 可写日历走兜底策略(空则自建「Sleepy」本地日历)
     private static let fallback = LocalCalendarFallback()
     /// 与 shared.store 同实例 — 自建日历创建后立即可见可写
     private static let eventKitStore = EventKitLocalCalendarStore(store: shared.store)
@@ -147,13 +147,13 @@ final class SystemCalendarManager {
         var description: String
         var key: String
         var reminderMinutes: Int?
-        /// 首次课且早间课 (← Android wantsAlarm)
+        /// 首次课且早间课 (wantsAlarm)
         var wantsAlarm: Bool
     }
 
     // MARK: - 权限 / 日历发现
 
-    /// ← Android hasCalendarPermissions (iOS 16.4: 静态 authorizationStatus, 授权即 .authorized)
+    /// ← 原 hasCalendarPermissions (iOS 16.4: 静态 authorizationStatus, 授权即 .authorized)
     func hasCalendarPermissions() -> Bool {
         EKEventStore.authorizationStatus(for: .event) == .authorized
     }
@@ -169,27 +169,27 @@ final class SystemCalendarManager {
         }
     }
 
-    /// ← Android findWritableCalendar: 可写(AccessLevel>=CONTRIBUTOR & VISIBLE) && 非 calDAV
+    /// ← 原版本 findWritableCalendar: 可写(AccessLevel>=CONTRIBUTOR & VISIBLE) && 非 calDAV
     /// (16.4 无 isSelectable; 平台等价 = allowsContentModifications 且排除 .local/.calDAV 源)
-    /// 排序对齐 Android `ORDER BY IS_PRIMARY DESC, CALENDAR_DISPLAY_NAME COLLATE NOCASE`:
+    /// 排序对齐 原 `ORDER BY IS_PRIMARY DESC, CALENDAR_DISPLAY_NAME COLLATE NOCASE`:
     /// EKCalendar 无 isPrimary API → defaultCalendarForNewEvents 作为 primary 代理恒排首位,
     /// 其余按 title  localizedCaseInsensitive 比较(← COLLATE NOCASE)。
-    /// displayName = title.isBlank ? accountName : title (← Android displayName.ifBlank { accountName }, 含纯空白)
+    /// displayName = title.isBlank ? accountName : title (displayName.ifBlank { accountName }, 含纯空白)
     ///
-    /// v1.0.62 B6 ← Android writableCalendars(context): 改走 LocalCalendarFallback —
+    /// v1.0.62 B6 ← 原版本 writableCalendars(context): 改走 LocalCalendarFallback —
     /// 可写日历为空时 ensureCalendar 兜底自建「Sleepy」本地日历; 查询失败整体回落空列表。
     static func writableCalendars() async -> [SystemCalendarInfo] {
         await fallback.writable(store: eventKitStore)
     }
 
-    /// ← Android ensureLocalCalendar(context): 无可写日历时自建本地日历(幂等, 串行化)。
+    /// ← 原版本 ensureLocalCalendar(context): 无可写日历时自建本地日历(幂等, 串行化)。
     static func ensureLocalCalendar() async -> SystemCalendarInfo? {
         await fallback.ensure(store: eventKitStore)
     }
 
-    // MARK: - 日期区间 (← Android selectedDateRange, 公式逐一对齐)
+    // MARK: - 日期区间 (selectedDateRange, 公式逐一对齐)
 
-    /// v1.0.62 B6 ← Android: 导入日期范围纳入调休目标日 — 源日在学期内的 targetDate
+    /// v1.0.62 B6 ← 原版本: 导入日期范围纳入调休目标日 — 源日在学期内的 targetDate
     /// 可把 effectiveEnd 撑出学期末, 也可把 start 提前到学期初之前(补班日早于开学)。
     static func selectedDateRange(
         table: TimeTableEntity,
@@ -201,15 +201,15 @@ final class SystemCalendarManager {
         let tableStart = DateUtils.parseDate(table.startDate) ?? today
         let semesterStart = Calendar.isoMondayOfWeek(tableStart)
         let semesterEnd = Calendar.isoAddDays(semesterStart, 7 * table.maxWeek)
-        // ← Android validTargets: 源日仍在学期内的映射才参与区间扩展
+        // ← 原版本 validTargets: 源日仍在学期内的映射才参与区间扩展
         let validTargets = transfers
             .filter {
                 DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: $0.sourceDate) == .inRange
             }
             .map { DateUtils.dayStart($0.targetDate) }
-        // ← Android effectiveEnd = maxOf(semesterEnd, validTargets.max()?.plusDays(1) ?: semesterEnd)
+        // ← 原 effectiveEnd = maxOf(semesterEnd, validTargets.max()?.plusDays(1) ?: semesterEnd)
         let effectiveEnd = validTargets.max().map { Calendar.isoAddDays($0, 1) } ?? semesterEnd
-        // ← Android start = maxOf(today, minOf(semesterStart, validTargets.min() ?: semesterStart))
+        // ← 原 start = maxOf(today, minOf(semesterStart, validTargets.min() ?: semesterStart))
         let rangeStart = validTargets.min().map { min(semesterStart, $0) } ?? semesterStart
         let start = max(DateUtils.dayStart(today), rangeStart)
         let requestedEnd: Date
@@ -223,14 +223,14 @@ final class SystemCalendarManager {
 
     // MARK: - 预览
 
-    /// ← Android buildPreview(table, courses, options, today) — today 可注入, 默认当前日期 (← Android today: LocalDate = LocalDate.now())
+    /// ← 原版本 buildPreview(table, courses, options, today) — today 可注入, 默认当前日期 (today: LocalDate = LocalDate.now())
     static func buildPreview(
         table: TimeTableEntity,
         courses: [CourseEntity],
         options: CalendarImportOptions,
         today: Date = Date()
     ) -> CalendarImportPreview {
-        // ← Android: 区间扩展用与事件展开同一份调休映射(applyHolidayTransfers 闸门一致)
+        // ← 原版本: 区间扩展用与事件展开同一份调休映射(applyHolidayTransfers 闸门一致)
         let transfers = options.applyHolidayTransfers ? AppPrefs.shared.getHolidayTransfers(table.id) : []
         let (from, until) = selectedDateRange(table: table, range: options.range, today: today, transfers: transfers)
         let (specs, invalid) = shared.buildEventSpecs(table: table, courses: courses, options: options, from: from, until: until)
@@ -251,7 +251,7 @@ final class SystemCalendarManager {
         return CalendarImportPreview(rows: rows, skippedInvalidTime: invalid, from: from, until: until)
     }
 
-    /// 生成事件 spec (← Android buildEventSpecs: 逐日 调课映射 + 周过滤 + 节次→时间 + marker 描述)
+    /// 生成事件 spec (buildEventSpecs: 逐日 调课映射 + 周过滤 + 节次→时间 + marker 描述)
     func buildEventSpecs(
         table: TimeTableEntity,
         courses: [CourseEntity],
@@ -268,7 +268,7 @@ final class SystemCalendarManager {
         var day = DateUtils.dayStart(from)
         let limit = DateUtils.dayStart(until)
         while day < limit {
-            // v1.0.62 B6 ← Android: 事件内容按源日、显示与闹钟按目标日 —
+            // v1.0.62 B6 ← 原版本: 事件内容按源日、显示与闹钟按目标日 —
             // sourceDate = 该展示日的课实际来自哪天(放假日 nil / 补班日 = 被调走的源日);
             // selected = coursesForDate 按源日星期+源日周次取课(学期外空)。
             let sourceDate = HolidayTransferOps.courseDateForDate(day, transfers)
@@ -294,7 +294,7 @@ final class SystemCalendarManager {
                 let start = appendTime(day, startHHmm)
                 let end = appendTime(day, endHHmm)
                 guard end > start else { invalid += 1; continue }
-                // ← Android transferred = sourceDate != date: 仅补班日为 true(放假日 sourceDate=nil → false)
+                // ← 原 transferred = sourceDate != date: 仅补班日为 true(放假日 sourceDate=nil → false)
                 let transferred = sourceDate.map { HolidayTransferOps.dayKey($0) != HolidayTransferOps.dayKey(day) } ?? false
                 specs.append(EventSpec(
                     course: course,
@@ -318,11 +318,11 @@ final class SystemCalendarManager {
         return (specs, invalid)
     }
 
-    /// 描述 (← Android: 周/节次 + 教师 + 备注 + 调课提示 + 行尾 marker)
-    /// marker 与 EventSpec.key 同源 table.id (← Android "$SLEEPY_MARKER_PREFIX${table.id}:${course.id}:${fullDate}")
+    /// 描述 (← 原版本: 周/节次 + 教师 + 备注 + 调课提示 + 行尾 marker)
+    /// marker 与 EventSpec.key 同源 table.id ("$SLEEPY_MARKER_PREFIX${table.id}:${course.id}:${fullDate}")
     private func buildDescription(tableId: Int64, course: CourseEntity, week: Int, transferred: Bool, classDay: Int, eventDate: Date) -> String {
         var text = "第\(week)周 · 第\(course.startNode)—\(course.startNode + course.step - 1)节"
-        // ← Android isNotBlank(): 纯空白不算有内容(教师/备注行为对齐)
+        // ← 原 isNotBlank(): 纯空白不算有内容(教师/备注行为对齐)
         if !course.teacher.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { text += "\n教师：\(course.teacher)" }
         if !course.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { text += "\n备注：\(course.note)" }
         if transferred { text += "\n调课安排：按\(DateUtils.chineseDay(classDay))课程" }
@@ -330,7 +330,7 @@ final class SystemCalendarManager {
         return text
     }
 
-    /// 每天只取最早的 (起始时间, courseId) 那条 spec 的 key (← Android firstPeriodAlarmKeys)
+    /// 每天只取最早的 (起始时间, courseId) 那条 spec 的 key (firstPeriodAlarmKeys)
     func firstPeriodAlarmKeys(_ specs: [EventSpec]) -> [Date: String] {
         var best: [Date: (start: Date, courseKey: Int64, key: String)] = [:]
         for spec in specs where spec.wantsAlarm {
@@ -346,7 +346,7 @@ final class SystemCalendarManager {
         return best.mapValues { $0.key }
     }
 
-    // MARK: - 导入 (← Android import: 逐 spec 读旧/比对/写入 → 记录 upsert)
+    // MARK: - 导入 (import: 逐 spec 读旧/比对/写入 → 记录 upsert)
 
     @discardableResult
     func importCourses(
@@ -359,7 +359,7 @@ final class SystemCalendarManager {
     ) throws -> CalendarImportResult {
         guard hasCalendarPermissions() else { throw CalendarImportError.permissionDenied }
         let db = AppDatabase.getShared()
-        // batchId = 调用方生成并持久化 (← Android import(batchId) 透传, 不再重新生成)
+        // batchId = 调用方生成并持久化 (import(batchId) 透传, 不再重新生成)
         let (specs, invalid) = buildEventSpecs(table: table, courses: courses, options: options, from: from, until: until)
         let alarmKeys = firstPeriodAlarmKeys(specs)
 
@@ -388,7 +388,7 @@ final class SystemCalendarManager {
             if let rec = record {
                 let old = readEvent(eventId: rec.eventId)
                 if old == nil {
-                    // ← Android: 记录有但事件没了 → 删记录后 fall-through 到 marker 恢复/新建
+                    // ← 原版本: 记录有但事件没了 → 删记录后 fall-through 到 marker 恢复/新建
                     try? db.calendarImportRecordDao.deleteById(rec.id)
                     record = nil
                 } else {
@@ -453,7 +453,7 @@ final class SystemCalendarManager {
             )
             try db.calendarImportRecordDao.upsert(newRecord)
             if recovered != nil {
-                unchanged += 1  // ← Android: marker 恢复路径计 unchanged
+                unchanged += 1  // ← 原实现: marker 恢复路径计 unchanged
             } else {
                 inserted += 1
             }
@@ -469,9 +469,9 @@ final class SystemCalendarManager {
         )
     }
 
-    // MARK: - 删除已管理事件 (← Android deleteManagedForTable: 指纹不一致 = 用户改过 → 保留)
+    // MARK: - 删除已管理事件 (deleteManagedForTable: 指纹不一致 = 用户改过 → 保留)
 
-    /// 返回 (deleted, skippedEdited, missing) — 与 Android CalendarDeleteResult 同构
+    /// 返回 (deleted, skippedEdited, missing) — 与 原版本 CalendarDeleteResult 同构
     func deleteManagedForTable(tableId: Int64, calendarId: String? = nil) -> (deleted: Int, skippedEdited: Int, missing: Int) {
         guard hasCalendarPermissions() else { return (0, 0, 0) }
         let db = AppDatabase.getShared()
@@ -503,7 +503,7 @@ final class SystemCalendarManager {
 
     // MARK: - 静态接口 (UI 直接调用 SystemCalendarManager.import / buildPreview / deleteManagedForTable)
 
-    /// ← Android import: 计算区间 → 导入 → 返回结果
+    /// ← 原版本 import: 计算区间 → 导入 → 返回结果
     @discardableResult
     static func `import`(
         table: TimeTableEntity,
@@ -512,11 +512,11 @@ final class SystemCalendarManager {
         batchId: String
     ) async -> CalendarImportResult {
         let today = Date()
-        // ← Android: 区间扩展与事件展开用同一份调休映射
+        // ← 原版本: 区间扩展与事件展开用同一份调休映射
         let transfers = options.applyHolidayTransfers ? AppPrefs.shared.getHolidayTransfers(table.id) : []
         let (from, until) = selectedDateRange(table: table, range: options.range, today: today, transfers: transfers)
         do {
-            // ← Android: options.calendarId 必须在 fallback 感知的可写集合内(可写且可见),
+            // ← 原版本: options.calendarId 必须在 fallback 感知的可写集合内(可写且可见),
             //   仅在 store.calendars 中存在不足以证明可写; 兜底自建日历也在该集合内。
             let calendars = await writableCalendars()
             guard calendars.contains(where: { $0.id == options.calendarId }) else {
@@ -525,7 +525,7 @@ final class SystemCalendarManager {
             return try shared.importCourses(table: table, courses: courses, options: options,
                                             from: from, until: until, batchId: batchId)
         } catch {
-            // ← Android L166/L169: permissionDenied / noWritableCalendar → errors = 1
+            // ← 原版本 L166/L169: permissionDenied / noWritableCalendar → errors = 1
             //   (全零结果在对话框结果行(CalendarImportDialog L400 显示 r.errors)与空成功不可区分)
             return CalendarImportResult(
                 inserted: 0, updated: 0, unchanged: 0,
@@ -535,7 +535,7 @@ final class SystemCalendarManager {
         }
     }
 
-    /// ← Android deleteManagedForTable (异步包装)
+    /// ← 原 deleteManagedForTable (异步包装)
     static func deleteManagedForTable(tableId: Int64) async -> (deleted: Int, skippedEdited: Int, missing: Int) {
         await withCheckedContinuation { cont in
             cont.resume(returning: shared.deleteManagedForTable(tableId: tableId))
@@ -562,7 +562,7 @@ final class SystemCalendarManager {
         }
     }
 
-    /// marker 恢复: 当天窗口内按 notes 尾部 key 精确匹配 (← Android LIKE %"Sleepy import key:…"% 于当天事件)
+    /// marker 恢复: 当天窗口内按 notes 尾部 key 精确匹配 (LIKE %"Sleepy import key:…"% 于当天事件)
     private func findEventByMarker(calendarId: String, key: String, date: Date) -> EKEvent? {
         guard let cal = store.calendar(withIdentifier: calendarId) else { return nil }
         let rangeEnd = Calendar.isoAddDays(date, 1)
@@ -598,10 +598,10 @@ final class SystemCalendarManager {
         return (try? store.save(event, span: .thisEvent, commit: true)) != nil
     }
 
-    /// 提醒替换 (← Android replaceReminder; 返回值 = 实际生效的 method, nil = 未挂提醒或写入失败)
-    /// 平台裁决: iOS EKAlarm 单阶段写入, 不存在 Android 的 ALARM 失败→ALERT 兜底两阶段。
-    /// 语义映射: 写入成功 = Android insertReminder(method) 成功分支 → 返回期望 method(不降为 .alert),
-    /// 成功路径 alarmFallback 不增长; 写入失败 = Android 两阶段均失败 → 返回 nil(← 计 errors)。
+    /// 提醒替换 (replaceReminder; 返回值 = 实际生效的 method, nil = 未挂提醒或写入失败)
+    /// 平台裁决: iOS EKAlarm 单阶段写入, 不存在 原版本 的 ALARM 失败→ALERT 兜底两阶段。
+    /// 语义映射: 写入成功 = 原版本 insertReminder(method) 成功分支 → 返回期望 method(不降为 .alert),
+    /// 成功路径 alarmFallback 不增长; 写入失败 = 原版本 两阶段均失败 → 返回 nil(← 计 errors)。
     /// 期望 method(ALARM/ALERT) 的呈现差异由记录 alarmRequested 字段承载, 读回恒 .alert。
     private func replaceReminder(event: EKEvent, desiredMethod: ReminderMethod?, desiredMinutes: Int?) -> ReminderMethod? {
         for alarm in (event.alarms ?? []) { event.removeAlarm(alarm) }
@@ -612,12 +612,12 @@ final class SystemCalendarManager {
         // 16.4: EKAlarm 无 type/soundName → 系统默认提醒呈现; 期望 .alarm 由 alarmRequested 记录承载
         event.addAlarm(EKAlarm(relativeOffset: -Double(minutes * 60)))
         guard (try? store.save(event, span: .thisEvent, commit: true)) != nil else {
-            return nil  // ← Android: 期望 method 与 ALERT 兜底均插入失败 → null
+            return nil  // ← 原实现: 期望 method 与 ALERT 兜底均插入失败 → null
         }
         return method
     }
 
-    // MARK: - 指纹 / 比对 (← Android fingerprint / eventMatchesSpec / remindersMatch, 字段顺序一致)
+    // MARK: - 指纹 / 比对 (fingerprint / eventMatchesSpec / remindersMatch, 字段顺序一致)
 
     /// SHA-256 hex of [calendarId, title, location, notes, startMs, endMs, tz, 排序 "method:minutes"] (分隔符 \u{1F})
     func fingerprint(_ event: EKEvent, _ reminders: [ReminderDesc]) -> String {
@@ -638,7 +638,7 @@ final class SystemCalendarManager {
         return SHA256.hash(data: Data(joined.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// ← Android eventMatchesSpec: 字段逐一比对(用户没改过才重挂提醒)
+    /// ← 原版本 eventMatchesSpec: 字段逐一比对(用户没改过才重挂提醒)
     func eventMatchesSpec(_ event: EKEvent, spec: EventSpec, calendarId: String) -> Bool {
         guard event.calendar?.calendarIdentifier == calendarId else { return false }
         guard event.title == spec.course.courseName else { return false }
@@ -648,7 +648,7 @@ final class SystemCalendarManager {
         return true
     }
 
-    /// ← Android remindersMatch
+    /// ← 原版本 remindersMatch
     func remindersMatch(
         _ actual: [ReminderDesc],
         expectedMethod: ReminderMethod?,
@@ -683,7 +683,7 @@ final class SystemCalendarManager {
     }
 }
 
-/// ← Android coerceIn(0, 999)
+/// ← 原版本 coerceIn(0, 999)
 private extension Int {
     var clamped0999: Int { Swift.min(Swift.max(self, 0), 999) }
 }

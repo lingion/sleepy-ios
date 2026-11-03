@@ -1,5 +1,5 @@
 // TableSwitchUITests.swift — 表切换/新建/删除全链路测试(AllTables 深挖)
-// 导航语义(与 Android MainActivity.kt:220-224 一致):
+// 导航语义(与 原版本 MainActivity.kt:220-224 一致):
 //   新建→编辑页; back=discard(pendingNewTableId); save=overlay 全关→Mine;
 //   delete=overlay 全关→Schedule 页; AllTables 行点击非当前表=切换+onBack→Mine。
 //   删除/切表后回退与刷新由 observeAllTables sink 驱动(异步)。
@@ -82,7 +82,7 @@ final class TableSwitchUITests: XCTestCase {
         XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
     }
 
-    /// 行点击切表(d3200bb ← Android ce7f7924: 选表后留在本页, 选中态就地高亮)。
+    /// 行点击切表(d3200bb ← 原版本 ce7f7924: 选表后留在本页, 选中态就地高亮)。
     /// 断言 "Current · Week" 副标题出现在该表名同一行(y 中心差 < 40 = 就地变当前)。
     private func selectTableRowInPlace(_ name: String) {
         let row = app.staticTexts[name].firstMatch
@@ -115,7 +115,7 @@ final class TableSwitchUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS %@", name)).firstMatch
     }
 
-    // MARK: 1. 新建表不保存 = discard(pendingNewTableId 语义, Android 同构)
+    // MARK: 1. 新建表不保存 = discard(pendingNewTableId 语义, 原版本 同构)
 
     func testUnsavedNewTableIsDiscarded() {
         openAllTables()

@@ -80,7 +80,7 @@ enum WakeUpCompat {
                 let day = col + 1
                 let html = (try? td.html()) ?? ""
                 // SwiftSoup 把 <hr>/<br> 序列化为自闭合 "<hr />"/"<br />"(Jsoup 输出字面 "<hr>"/"<br>"),
-                // 字面量分隔符永远切不开 → 整格塌成一行。正则分隔才是 Android 行为的等价翻译。
+                // 字面量分隔符永远切不开 → 整格塌成一行。正则分隔才是 原版本 行为的等价翻译。
                 for chunk in splitByRegex(html, #"<hr\s*/?>"#) {
                     let lines = splitByRegex(chunk, #"<br\s*/?>"#).map { s -> String in
                         let d = (try? SwiftSoup.parse(s)) ?? Document("")
@@ -624,7 +624,7 @@ extension WakeUpCompat {
     static func parseSuda(_ source: String) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
         // Kotlin: selectFirst("#DataGrid1") ?: selectFirst("#MainWork_DataGrid1")
-        // — Android 单测(171/195)喂 <table id="MainWork_DataGrid1">, 缺回退这些页面 iOS 返回 []
+        // — 原版本 单测(171/195)喂 <table id="MainWork_DataGrid1">, 缺回退这些页面 iOS 返回 []
         guard let table = (try? doc.select("#DataGrid1"))?.first()
                 ?? (try? doc.select("#MainWork_DataGrid1"))?.first() else { return [] }
         var out: [JwCourse] = []
@@ -872,7 +872,7 @@ extension WakeUpCompat {
             // 必须按 blank 判断回退单元格文本
             let name = isBlank(nameAttr) ? (texts.first ?? "") : nameAttr
             // Kotlin: row.attr("data-day").toIntOrNull() ?: extractDay(text) ?: continue —
-            // 无 >0 范围校验, data-day=0/-1 照常出行(异形标记表与 Android 行集一致)
+            // 无 >0 范围校验, data-day=0/-1 照常出行(异形标记表与 原版本 行集一致)
             guard let dayAttr = Int((try? row.attr("data-day")) ?? "") ?? extractDay(text) else { continue }
             guard let nodeAttr = Int((try? row.attr("data-node")) ?? "") ?? extractNode(text) else { continue }
             let rawRoomAttr = (try? row.attr("data-room")) ?? ""
@@ -1352,7 +1352,7 @@ class WakeUpMarkerParserBase: JwParser, JwParserConfidenceReporting {
 }
 
 final class JwKingoParser: WakeUpMarkerParserBase {
-    // v1.0.62: markers 扩至 8 (← Android JwWakeUpCompatParsers.kt:885), 覆盖 ScheduleTaskBean/xkinfo/kbDiv。
+    // v1.0.62: markers 扩至 8 (JwWakeUpCompatParsers.kt:885), 覆盖 ScheduleTaskBean/xkinfo/kbDiv。
     init(_ source: String) {
         super.init(source, ["kingosoft", "courseTableForStd", "courseTableStudent", "new TaskActivity",
                             "CourseTableForStd", "ScheduleTaskBean", "xkinfo", "kbDiv"])
@@ -1392,7 +1392,7 @@ final class JwJzParser: WakeUpMarkerParserBase {
 }
 
 final class JwJzSuperParser: WakeUpMarkerParserBase {
-    // ← Android JwJzSuperParser (kt:920): 新强智 super 形态专用; 主链 parse() 已含 parseJzSuper。
+    // ← 原版本 JwJzSuperParser (kt:920): 新强智 super 形态专用; 主链 parse() 已含 parseJzSuper。
     init(_ source: String) {
         super.init(source, ["el-table__body-wrapper", "Njw2017", "course-list", "v-jsxsd", "studentTableVms", "JinZhi"])
     }
@@ -1473,16 +1473,16 @@ extension WakeUpCompat {
     /// UMOOC 教务课表: 容器 `.timetable` 或 `#timetable`, 行内单元格文本按行拆成
     /// [课程名, 教师, 教室, 周次信息], 周次信息形如 "1-16周" / "1-16周(单)"。
     ///
-    /// ★ 与 Android 的实现差异(两处, 均有实证):
-    ///   a. Android 写 `cell.text().trim().split("\n")` 并要求 `lines.size >= 2`。
+    /// ★ 与 原版本 的实现差异(两处, 均有实证):
+    ///   a. 原版本 写 `cell.text().trim().split("\n")` 并要求 `lines.size >= 2`。
     ///      Jsoup 的 `Element.text()` 会把 `<br>` 折成一个空格、并把换行也折成空格,
-    ///      所以 split("\n") 永远只得到 1 行 ⇒ **Android 的 parseUmooc/parseYl 是死代码,
+    ///      所以 split("\n") 永远只得到 1 行 ⇒ **原版本 的 parseUmooc/parseYl 是死代码,
     ///      永远返回空列表**。本实现改用 `html()` + `<br>` 正则切分(与 Jsoup 的
     ///      `html()` 行为等价), 才能真正取到多行字段。
-    ///   b. 单双周 type 取值: Android 写 单→1 / 双→0 / 其余→2, 与 `JwCourse.type`
+    ///   b. 单双周 type 取值: 原版本 写 单→1 / 双→0 / 其余→2, 与 `JwCourse.type`
     ///      的 0=每周 / 1=单周 / 2=双周 语义以及 `JwParity.adjustedRange` 冲突 ——
     ///      双周课会被当每周、每周课会被当双周。本实现取自然映射 单→1 / 双→2 / 其余→0。
-    ///      Android 侧没有 UMOOC/YL 的单测与 fixture, 该差异无上游断言覆盖。
+    ///      原版本 侧没有 UMOOC/YL 的单测与 fixture, 该差异无上游断言覆盖。
     static func parseUmooc(_ source: String) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
         // Kotlin: selectFirst(".timetable") ?: selectFirst("#timetable") ?: return emptyList()
@@ -1534,7 +1534,7 @@ extension WakeUpCompat {
     }
 
     /// 奕联(YL) 教务课表: 容器 class 含 "CourseTimeTable" 的表, 取其 tbody 的行。
-    /// 字段与 UMOOC 相同(见 parseUmooc 的注释, 含与 Android 的两处差异说明)。
+    /// 字段与 UMOOC 相同(见 parseUmooc 的注释, 含与 原版本 的两处差异说明)。
     static func parseYl(_ source: String) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
         // Kotlin: selectFirst(".app-components-CourseTimeTable-styles-timeTable")

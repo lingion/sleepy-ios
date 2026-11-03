@@ -5,7 +5,7 @@
 //      沙箱读不了系统日志库, App Group 是 app/widget 共享的唯一可读通道。
 //   2. 真机排查 widget 空白/不刷新: 用户描述现象 → 拿这份日志即可定位
 //      是 timeline 未触发(无记录)还是归档失败(有记录但 error)。
-//      (Android 侧等价物为 logcat, iOS 无控制台时此文件即观测点)
+//      (原版本 侧等价物为 logcat, iOS 无控制台时此文件即观测点)
 //
 // 写入点: 各 Provider.getTimeline 完成前(见各 WidgetView.swift)。
 // 文件: AppGroup/widget_archive.log, 追加模式, 每次写入裁剪到 256KB 内。

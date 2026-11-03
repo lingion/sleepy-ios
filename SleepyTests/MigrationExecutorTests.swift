@@ -1,20 +1,20 @@
 // MigrationExecutorTests.swift — ← app/src/test/java/com/lingion/sleepy/data/migration/MigrationExecutorTest.kt (逐用例)
 //
 // 平台适配说明:
-// - Android FakeCourseDao 等内存 DAO → iOS DAO 是持有 DatabaseWriter 的具体 struct,
+// - 原版本 FakeCourseDao 等内存 DAO → iOS DAO 是持有 DatabaseWriter 的具体 struct,
 //   无法注入替身 → 用 AppDatabase.inMemory() 起真 GRDB 内存库(等价隔离, 不落盘)。
-// - Android FakePrefsStore(vararg fileNames) → iOS FakeMigrationPrefsStore:
+// - 原版本 FakePrefsStore(vararg fileNames) → iOS FakeMigrationPrefsStore:
 //   open(fileName:) 按 suiteName 懒建 UserDefaults; 每个测试用唯一 prefix(UUID)
 //   隔离 suite, 避免测试间/跨运行污染, tearDown 清空全部键。
 // - 依赖注: test 3 的 OVERWRITE 整文件替换依赖 MigrationPrefsCodec.apply(merge:false)
-//   的 clear 语义(F047 修复项); 语义正确时本用例与 Android 行为一致。
+//   的 clear 语义(F047 修复项); 语义正确时本用例与 原版本 行为一致。
 
 import XCTest
 import GRDB
 @testable import Sleepy
 
 /// 文件名→UserDefaults(suiteName) 的注入版 prefs store; 未预置文件名按需创建空 prefs,
-/// 与 Android FakePrefsStore 的 getOrPut 语义一致。
+/// 与 原版本 FakePrefsStore 的 getOrPut 语义一致。
 final class FakeMigrationPrefsStore: MigrationPrefsStoreProtocol {
     private let prefix: String
     private var opened: [String: UserDefaults] = [:]
@@ -240,7 +240,7 @@ final class MigrationExecutorTests: XCTestCase {
         let store = makeStore("sleepy_prefs")
         store.open(fileName: "sleepy_prefs").set("untouched", forKey: "safe")
         let db = try newDb()
-        // FK: 本机课引用 tableId=1, 先补 time_tables id=1(Android Fake DAO 无 FK 约束)
+        // FK: 本机课引用 tableId=1, 先补 time_tables id=1(原版本 Fake DAO 无 FK 约束)
         var seedTable = TimeTableEntity(name: "seed", startDate: "", timeJson: "[]", createdAt: 1)
         seedTable.id = 1
         _ = try db.timeTableDao.insert(seedTable)
@@ -264,7 +264,7 @@ final class MigrationExecutorTests: XCTestCase {
     }
 
     // iOS 补充: manifest.modules 确定性 — 覆盖 F045 issue#1
-    // (Android LinkedHashMap 插入序 = ordinal 序; iOS payloads 是无序 Dictionary,
+    // (原版本 LinkedHashMap 插入序 = ordinal 序; iOS payloads 是无序 Dictionary,
     //  修复后 manifest.modules 必须按 ordinal 输出, 多次导出结果一致)
     func testManifestModulesOrderIsDeterministicOrdinal() throws {
         let db = try newDb()
@@ -280,6 +280,6 @@ final class MigrationExecutorTests: XCTestCase {
         )
         XCTAssertEqual(["database", "preferences", "widgets", "persisted_state"],
                        result.manifest.modules,
-                       "manifest.modules 必须按 Android ordinal 序确定性输出")
+                       "manifest.modules 必须按 原 ordinal 序确定性输出")
     }
 }

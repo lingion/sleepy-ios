@@ -5,7 +5,7 @@
 //   - layout == "three_line": 悬挂式 (hanging) 三行, 字号自适应 (PeriodHeaderAdaptiveFont)
 //   - layout == "legacy"      : 两行, dash 轴对齐 (LegacyDashColumn / VerticalFit)
 //   - sharedFont / sharedPlacement / sharedLegacyAxis 整列同源, 来自上游网格侧
-//   - 内边距 0 — 卡片层负责 (与 Android 同一契约)
+//   - 内边距 0 — 卡片层负责 (与 原版本 同一契约)
 
 import SwiftUI
 
@@ -21,7 +21,7 @@ func headerLabelStyle(scale: CGFloat) -> Font {
     .system(size: 12 * scale, weight: .semibold) // ← SleepyTextStyle.smallMeta SemiBold 12*scale
 }
 
-/// ← headerTimeStyle lineHeight = (13f * scale).sp — Android 强制行高, 与字号 11sp 不成自然比例,
+/// ← headerTimeStyle lineHeight = (13f * scale).sp — 原版本 强制行高, 与字号 11sp 不成自然比例,
 /// 宽度预算/legacy 行高都必须用这一常数, 禁用 UIFont.lineHeight (≈1.19×) 近似。
 func headerTimeLineHeightPx(scale: CGFloat) -> CGFloat { 13 * scale }
 /// ← headerLabelStyle lineHeight = (14f * scale).sp
@@ -54,7 +54,7 @@ struct PeriodHeaderCellContent: View {
     var hangingUnitsOverride: CGFloat? = nil
     var showXOverride: Bool? = nil
     // v1.0.62 B4: hideTimeOverride (旧式表头「隐藏时间行」) — nil = 直读 prefs,
-    //   设置页预览传实时值(开关拨动即时反映, ← Android hideTimeOverride)
+    //   设置页预览传实时值(开关拨动即时反映, ← 原版本 hideTimeOverride)
     var hideTimeOverride: Bool? = nil
     var sharedFont: PeriodHeaderAdaptiveFont? = nil
     var sharedPlacement: PeriodHeaderPlacement? = nil
@@ -121,7 +121,7 @@ struct PeriodHeaderCellContent: View {
         var endWidth = textWidth(displayEnd, font: adTimeFont)
         var labelWidth = textWidth(label, font: adLabelFont)
         // 行盒高 = 强制 lineHeight = size × 1.25 × scale (← adaptiveHeaderTimeStyle/LabelStyle),
-        // 禁用 UIFont.lineHeight (自然行高 ≈1.19–1.21×, 比 Android 小 ~5% → 缩字守卫/行距不像素同源)
+        // 禁用 UIFont.lineHeight (自然行高 ≈1.19–1.21×, 比 原版本 小 ~5% → 缩字守卫/行距不像素同源)
         var startH = adaptiveHeaderLineHeightPx(size: adaptiveFont.timeSize, scale: scale)
         var labelH = adaptiveHeaderLineHeightPx(size: adaptiveFont.labelSize, scale: scale)
         var endH = adaptiveHeaderLineHeightPx(size: adaptiveFont.timeSize, scale: scale)
@@ -173,13 +173,13 @@ struct PeriodHeaderCellContent: View {
         let timeBaseLeft = m.timeBaseLeft
         let labelLeft = m.labelLeft
 
-        // ← Android 结构: 外层 Box(fillMaxSize, Center) { 内层 Box(inkUnionWidth × contentHeight) {
+        // ← 原版本 结构: 外层 Box(fillMaxSize, Center) { 内层 Box(inkUnionWidth × contentHeight) {
         //     Text(start) TopStart.offset(timeBaseLeft); Text(label) CenterStart.offset(labelLeft);
         //     Text(end) BottomStart.offset(timeBaseLeft) } }
         // 三行行盒总高可能 < 卡高 (缩字守卫触发时) — 盒高 = 行盒总高, 外层 Center 上下间隙均分,
-        // 水平同理左右均分 (Android 2026-10-04 实测: 盒左对齐使整块贴卡左而非居中)。
+        // 水平同理左右均分 (原版本 2026-10-04 实测: 盒左对齐使整块贴卡左而非居中)。
         let topPad = (cardH - contentHeight) / 2
-        // 左不钳 0: 墨迹盒 > 卡宽时 Android Center 让两侧均分溢出 (overflow Visible 同口径)
+        // 左不钳 0: 墨迹盒 > 卡宽时 原版本 Center 让两侧均分溢出 (overflow Visible 同口径)
         let leftPad = (cardW - m.inkUnionWidthPx) / 2
 
         ZStack(alignment: .topLeading) {
@@ -219,7 +219,7 @@ struct PeriodHeaderCellContent: View {
 
     @ViewBuilder
     private func legacyBody(cardW: CGFloat, cardH: CGFloat, label: String, hideTime: Bool) -> some View {
-        // 测量走共享路径 ← Android legacyRowInk (基准字号, 行高 13×scale/14×scale)
+        // 测量走共享路径 ← 原 legacyRowInk (基准字号, 行高 13×scale/14×scale)
         let rowInk = legacyRowInk(displayStart: displayStart, displayEnd: displayEnd,
                                   label: label, scale: scale)
         let axisX = sharedLegacyAxis ?? max(rowInk.labelPx / 2, rowInk.timeLeftPx)
@@ -271,7 +271,7 @@ struct PeriodHeaderCellContent: View {
                 .offset(x: labelLeft, y: vertical.labelTopPx)
             // 第二行: 时间串 start/dash/end 整体左缘 = timeLeft
             // (行盒高钉回 time 强制 lineHeight, 与 label 行同口径)
-            // ← Android Box{ Text(CenterStart).width(startW) / offset(x=startW).width(dashW) /
+            // ← 原版本 Box{ Text(CenterStart).width(startW) / offset(x=startW).width(dashW) /
             //   offset(x=startW+dashW) }: 每段钉在"基准字号实测宽"的盒里, 缩字 (fontScale<1)
             //   时 dash/end 锚点不随字形收拢漂移 (HStack 固有宽布局会把 dash 左移, dash 轴偏)。
             ZStack(alignment: .topLeading) {
@@ -298,7 +298,7 @@ struct PeriodHeaderCellContent: View {
             .frame(height: adaptiveHeaderLineHeightPx(size: baseFont.timeSize, scale: effectiveScale))
             .offset(x: timeLeft, y: vertical.timeTopPx)
         }
-        // ← Android Box(fillMaxSize) 默认 TopStart: 两行按 vertical/axis 解出的绝对
+        // ← 原版本 Box(fillMaxSize) 默认 TopStart: 两行按 vertical/axis 解出的绝对
         // offset 从盒左上起算; 缺 alignment 参数会退化为 center, 卡大于内容时整体下移
         // (label/time 的 offset 语义 = 相对盒顶, 不是相对中心)。
         .frame(width: cardW, height: cardH, alignment: .topLeading)
@@ -319,7 +319,7 @@ func textWidth(_ s: String, font: UIFont) -> CGFloat {
 }
 
 /// ← adaptiveHeaderTimeStyle / adaptiveHeaderLabelStyle 强制 lineHeight = size × 1.25 × scale
-/// (Android 渲染侧不用系统自然行高; Compose 单行测量高 = lineHeight 整值)。
+/// (原版本 渲染侧不用系统自然行高; Compose 单行测量高 = lineHeight 整值)。
 func adaptiveHeaderLineHeightPx(size: CGFloat, scale: CGFloat) -> CGFloat { size * 1.25 * scale }
 
 /// 三行表头列所需宽度(pt ← threeLineWidthDp, dp→pt 1:1 项目惯例):
@@ -374,7 +374,7 @@ func legacyLineWidthDp(
         let label = (showX && slot.nodeStart == slot.nodeEnd)
             ? PeriodHeaderFormatter.fullLabel(slot.nodeStart, headerStyle)
             : PeriodHeaderFormatter.range(slot.nodeStart, slot.nodeEnd, headerStyle)
-        // 宽度预算只用横向墨迹 — 行高留 0 (与 Android LegacyDashRowInk 默认一致)
+        // 宽度预算只用横向墨迹 — 行高留 0 (与 原版本 LegacyDashRowInk 默认一致)
         return LegacyDashRowInk(
             labelPx: textWidth(label, font: labelFont),
             timeLeftPx: textWidth(slot.displayStart, font: timeFont),
@@ -411,7 +411,7 @@ func legacyTimeWidthDp(
     return max(content, 36 * scale)
 }
 
-/// 老式表头单行墨迹 ← Android legacyRowInk: 标签整宽 + 时间串三段 (start / dash / end,
+/// 老式表头单行墨迹 ← 原版本 legacyRowInk: 标签整宽 + 时间串三段 (start / dash / end,
 /// px 实测, 含行高)。网格侧轴求解与 legacyBody 渲染共享本测量路径。
 func legacyRowInk(
     displayStart: String,

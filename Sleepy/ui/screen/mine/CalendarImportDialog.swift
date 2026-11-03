@@ -80,7 +80,7 @@ struct CalendarImportDialog: View {
             }
         }
         .alert(L10n.t("calendar_final_confirm_title"), isPresented: $showFinalConfirm) {
-            // ← Android TextButton(enabled = !busy): iOS 15 alert 按钮无 disabled API,
+            // ← 原版本 TextButton(enabled = !busy): iOS 15 alert 按钮无 disabled API,
             //   busy 屏蔽下沉到动作本体 (runImport/runDelete 首行 guard !busy)。
             Button(L10n.t("calendar_final_import_action")) { runImport() }
             Button(L10n.t("cancel"), role: .cancel) {}
@@ -97,9 +97,9 @@ struct CalendarImportDialog: View {
 
     // MARK: - 段落
 
-    // ← Android SettingsFlatCard(title = calendar_target_label, subtitle = calendar_choose_target):
+    // ← 原版本 SettingsFlatCard(title = calendar_target_label, subtitle = calendar_choose_target):
     //   副标题恒可见; 按钮标签 = 已选日历或占位文案(↔ TextButton 双写)。
-    //   options 为空 = 单开关卡, 控件由 content 露出(↔ Android content 尾槽)。
+    //   options 为空 = 单开关卡, 控件由 content 露出(↔ 原 content 尾槽)。
     private var targetPicker: some View {
         SettingsFlatCard(
             title: L10n.t("calendar_target_label"),
@@ -278,7 +278,7 @@ struct CalendarImportDialog: View {
                         .font(.caption)
                         .foregroundColor(colors.onSurfaceVariant)
                 }
-                // ← Android p.rows.take(8).forEach 位置迭代。date 可重复(同日多课=常态),
+                // ← 原版本 p.rows.take(8).forEach 位置迭代。date 可重复(同日多课=常态),
                 //   id: \.date 会因重复 id 产生 SwiftUI 未定义行为(丢行/错行更新),
                 //   用 enumerated offset 作位置 id。
                 ForEach(Array(p.rows.prefix(8).enumerated()), id: \.offset) { _, row in
@@ -339,7 +339,7 @@ struct CalendarImportDialog: View {
         }
     }
 
-    // ← Android DialogActionButtons(ok/cancel): 全 app 弹窗动作行唯一入口,
+    // ← 原版本 DialogActionButtons(ok/cancel): 全 app 弹窗动作行唯一入口,
     //   替代手写 .bordered/.borderedProminent(视觉语言不一致 + 无换行布局策略)。
     private var doneButtons: some View {
         DialogActionButtons(
@@ -366,7 +366,7 @@ struct CalendarImportDialog: View {
     private func loadState() {
         selectedCalendarId = prefs.getCalendarTargetId() ?? ""
         range = CalendarImportRange(rawValue: prefs.getCalendarImportRange()) ?? .NEXT_WEEK
-        // ← Android AppPrefs.isCalendarApplyTransfers 默认 true (AppPrefs.kt getBoolean(KEY, true))。
+        // ← 原版本 AppPrefs.isCalendarApplyTransfers 默认 true (AppPrefs.kt getBoolean(KEY, true))。
         //   iOS UserDefaults.bool(forKey:) 未设置恒 false → 首运行开关状态漂移, 此处直读原始键补 true 默认。
         //   根修在 AppPrefs.isCalendarApplyTransfers()(共享文件, 本任务禁改, 已报 needs_shared_wiring)。
         transfersEnabled = (prefs.sharedBackedStore.object(forKey: AppPrefs.KEY_CALENDAR_APPLY_TRANSFERS) as? Bool) ?? true
@@ -377,7 +377,7 @@ struct CalendarImportDialog: View {
         hasTransfers = !prefs.getHolidayTransfers(table.id).isEmpty
 
         Task {
-            // v1.0.62 B6 ← Android: writableCalendars 改走 LocalCalendarFallback(空则自建) → async
+            // v1.0.62 B6 ← 原版本: writableCalendars 改走 LocalCalendarFallback(空则自建) → async
             calendars = await SystemCalendarManager.writableCalendars()
             if !calendars.contains(where: { $0.id == selectedCalendarId }) {
                 selectedCalendarId = calendars.first?.id ?? ""
@@ -407,7 +407,7 @@ struct CalendarImportDialog: View {
     }
 
     private func runImport() {
-        // ← Android TextButton(enabled = !busy): iOS 15 alert 按钮无法置灰,
+        // ← 原版本 TextButton(enabled = !busy): iOS 15 alert 按钮无法置灰,
         //   busy 屏蔽落在动作入口 — busy 期间再次确认直接忽略。
         guard !busy else { return }
         busy = true
@@ -425,7 +425,7 @@ struct CalendarImportDialog: View {
     }
 
     private func runDelete() {
-        // ← Android TextButton(enabled = !busy): 同上, busy 期间再次确认直接忽略。
+        // ← 原版本 TextButton(enabled = !busy): 同上, busy 期间再次确认直接忽略。
         guard !busy else { return }
         busy = true
         Task {

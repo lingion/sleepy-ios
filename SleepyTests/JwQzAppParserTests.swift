@@ -1,7 +1,7 @@
 import XCTest
 @testable import Sleepy
 
-/// 强智移动教务 SPA 课表解析器 (type=qz_app) 单元测试 —— 移植 Android JwQzAppParserTest。
+/// 强智移动教务 SPA 课表解析器 (type=qz_app) 单元测试 —— 移植自原版本 JwQzAppParserTest。
 ///
 /// 数据：resources/qz_app/curriculum.sample.json — 河北资源环境职业技术学院 2026-09-09
 /// 学生回传采集包 (去敏后 fixture, PII 已清)。10 行 → 展开 20 个 JwCourse。
@@ -202,7 +202,7 @@ final class JwQzAppParserTests: XCTestCase {
                        .generateCourseList().count, 0)
     }
 
-    /// courses 数组混入 null/字符串坏行 → 只跳过坏行 (← Android `if (el !is JsonObject) continue`),
+    /// courses 数组混入 null/字符串坏行 → 只跳过坏行 (`if (el !is JsonObject) continue`),
     /// 不得像整体 `as? [[String: Any]]` 强转那样丢掉整个 grid。
     func testCoursesArrayWithJunkElementsKeepsGoodRows() throws {
         let src = #"{"code":"1","data":[{"courses":[null,"x",42,{"classTime":"10304","classWeek":"1-4","courseName":"好课"}]}]}"#
@@ -211,7 +211,7 @@ final class JwQzAppParserTests: XCTestCase {
         XCTAssertEqual(courses.first?.name, "好课")
     }
 
-    // MARK: - confidence / matchedFeatures (← Android JwQzAppParserTest 锚点案)
+    // MARK: - confidence / matchedFeatures (← 原 JwQzAppParserTest 锚点案)
 
     func testConfidenceAnchors() {
         let strong = """
@@ -290,10 +290,10 @@ final class JwQzAppParserTests: XCTestCase {
         XCTAssertEqual(JwQzAppParser.parseWeekSpec("abc"), [])
         XCTAssertEqual(JwQzAppParser.parseWeekSpec("9-3"), [], "end<start 拒")
         XCTAssertEqual(JwQzAppParser.parseWeekSpec("0,31"), [], "域外拒")
-        // ← Android `parseWeekSpec handles range single and mixed tokens` 域外/倒序案
+        // ← 原 `parseWeekSpec handles range single and mixed tokens` 域外/倒序案
         XCTAssertEqual(JwQzAppParser.parseWeekSpec("1,30,31,0,-1,abc,1-"), [1, 30], "域外/非法 token 忽略")
         XCTAssertEqual(JwQzAppParser.parseWeekSpec("1-3,5-2"), [1, 2, 3], "倒序区间忽略, 合法段保留")
-        // ← Android 锚定正则: 多段 token "1-2-3" 整串不匹配 ^(\d+)-(\d+)$ → 忽略
+        // ← 原版本 锚定正则: 多段 token "1-2-3" 整串不匹配 ^(\d+)-(\d+)$ → 忽略
         XCTAssertEqual(JwQzAppParser.parseWeekSpec("1-2-3"), [], "三段 token 整串拒")
     }
 

@@ -1,7 +1,7 @@
-# Slice: Localization / layout stress (P3) — Android 1.0.51 alignment
+# Slice: Localization / layout stress (P3) — original 1.0.51 alignment
 
 Commit `6a5bf94` · 8 files · localization + truncation + accessibility
-parity with Android 1.0.51 `ui/` sources.
+parity with original 1.0.51 `ui/` sources.
 
 ## Key parity (mechanical check, all 5 locales)
 
@@ -11,12 +11,12 @@ parity with Android 1.0.51 `ui/` sources.
   format families verified present in all 5 locales (0 missing).
 - New key this alignment: `jw_table_name_label` (import slice commit
   `1670e68`).
-- Android `%1$s`-style positional args map to `%1$@`/`%d` via the existing
+- 原 `%1$s`-style positional args map to `%1$@`/`%d` via the existing
   `L10n.format` bridge — unchanged.
 
 ## Truncation / wrapping parity
 
-`lineLimit` distribution mirrors Android `maxLines` per file
+`lineLimit` distribution mirrors 原 `maxLines` per file
 (CourseTableView 13↔13, ConflictCard 5↔5, SchoolSelect 2↔2, Today 3↔2,
 Schedule 2↔1, PillNavBar 2↔1, CourseDetailSheet 2↔2). One gap fixed:
 preview append-conflict button now `lineLimit(1)` (Android maxLines=1);
@@ -26,7 +26,7 @@ default (wrap), no forced single-line spots beyond the audited ones.
 
 ## Accessibility label parity
 
-Android `contentDescription` sweep over `ui/` (72 usages, mostly
+原 `contentDescription` sweep over `ui/` (72 usages, mostly
 decorative `= null`). Meaningful ones mapped to iOS `accessibilityLabel`:
 
 - Schedule toolbar: `schedule_switch_table`, `schedule_undo`,

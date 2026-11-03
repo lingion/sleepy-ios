@@ -1,11 +1,11 @@
-// JwScauParserTests.swift — ← Android v1.0.62 JwScauParserTest.kt (逐用例移植)
+// JwScauParserTests.swift — ← 原版本 v1.0.62 JwScauParserTest.kt (逐用例移植)
 //
 // 华南农业大学 (SCAU, jwxt.scau.edu.cn) 解析器契约锁。
-// 覆盖 Android 侧的 13 个 regex_invariants (INV-12 跳过: 该选择器为
+// 覆盖 原版本 侧的 13 个 regex_invariants (INV-12 跳过: 该选择器为
 // AIScheduleSCAU 独有, WakeUp 主备路径均不命中) + 端到端用例。
 //
 // fixture: SleepyTests/resources/scau_sample.html
-//   (与 Android app/src/test/resources/jw/scau_sample.html 逐字节一致:
+//   (与 原版本 app/src/test/resources/jw/scau_sample.html 逐字节一致:
 //    3 行 × 7 单元格主路径 + 7 列降级路径)
 
 import XCTest
@@ -15,7 +15,7 @@ final class JwScauParserTests: XCTestCase {
 
     // MARK: - 载入工具
 
-    /// ← Android `javaClass.classLoader.getResourceAsStream("jw/scau_sample.html")`
+    /// ← 原 `javaClass.classLoader.getResourceAsStream("jw/scau_sample.html")`
     private func sample() throws -> String {
         let bundle = Bundle(for: JwScauParserTests.self)
         guard let url = bundle.url(forResource: "scau_sample", withExtension: "html")
@@ -26,7 +26,7 @@ final class JwScauParserTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    /// ← Android `JwImportViewModel.parseHtmlStatic(html, type)`
+    /// ← 原 `JwImportViewModel.parseHtmlStatic(html, type)`
     private func parseStatic(_ html: String, _ type: String) throws -> [JwCourse] {
         try JwImportViewModel.parseHtmlStatic(html, type).courses
     }
@@ -39,7 +39,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - 目录条目形态
 
     func testPinnedGreyovoElementUiShapeParsesSparseSchedule() throws {
-        // ← Android `pinned greyovo Element UI shape parses sparse schedule`
+        // ← 原 `pinned greyovo Element UI shape parses sparse schedule`
         let course = "<div style='position: relative'><div></div><div></div><div style='display:none'>课程</div>"
             + "<div>* 编译原理(理论)</div><div>方凤美</div><div>班级</div>"
             + "<div>(2-3,5-14周)</div><div>3212</div></div>"
@@ -47,7 +47,7 @@ final class JwScauParserTests: XCTestCase {
             + "<tbody><tr><td>1-2节</td><td>\(course)</td>" + String(repeating: "<td></td>", count: 6)
             + "</tr></tbody></table></div>"
 
-        // 目录里 "华南农业大学" 登记的 type 是 qz(不是 scau) —— 与 Android 同源资产。
+        // 目录里 "华南农业大学" 登记的 type 是 qz(不是 scau) —— 与 原版本 同源资产。
         let catalogueType = "qz"
         let courses = try parseStatic(html, catalogueType)
 
@@ -67,7 +67,7 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testSparseWeeksPreserveGapsAndInvalidWeeksCreateNoCourse() throws {
-        // ← Android `sparse weeks preserve gaps and invalid weeks create no course`
+        // ← 原 `sparse weeks preserve gaps and invalid weeks create no course`
         let parser = JwScauParser(try sample())
         XCTAssertEqual([[1, 4, 0], [6, 8, 0]], runs(parser.parseWeekRuns("1-4,6-8周")))
         XCTAssertEqual([], runs(parser.parseWeekRuns("待定")))
@@ -78,7 +78,7 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testExplicitMalformedElementUiSectionsDoNotInventRowDefaults() throws {
-        // ← Android `explicit malformed Element UI sections do not invent row defaults`
+        // ← 原 `explicit malformed Element UI sections do not invent row defaults`
         let base = "<div style='position:relative'><div></div><div></div><div></div>"
             + "<div>课</div><div></div><div>班</div><div>99-100节(1-8周)</div><div>室</div></div>"
         let html = "<div class='el-table__body-wrapper'><table class='el-table__body'><tbody>"
@@ -88,7 +88,7 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testSeventhElementUiRowAcceptsExplicitSection() throws {
-        // ← Android `seventh Element UI row accepts explicit section`
+        // ← 原 `seventh Element UI row accepts explicit section`
         let course = "<div style='position: relative'><div></div><div></div><div></div>"
             + "<div>夜课</div><div></div><div>班</div><div>16-17节(1-8周)</div><div>室</div></div>"
         let blank = "<tr><td>1-2节</td>" + String(repeating: "<td></td>", count: 7) + "</tr>"
@@ -102,7 +102,7 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testHeadersAndEmptyCellsPreserveWeekdayAndNode() throws {
-        // ← Android `headers and empty cells preserve weekday and node`
+        // ← 原 `headers and empty cells preserve weekday and node`
         let html = "<table border=1><tr><th>节次</th><th>周一</th></tr>"
             + "<tr><td></td><td valign=top>单片机<br>老师<br>1-4,6-8周<br>实验室<br>1节)</td>"
             + "<td></td><td valign=top>物理<br>老师<br>2-4周<br>实验室<br>1节)</td></tr></table>"
@@ -115,7 +115,7 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testOldBordercolorTableUsesFallbackFieldOrder() throws {
-        // ← Android `old bordercolor table uses fallback field order`
+        // ← 原 `old bordercolor table uses fallback field order`
         let html = "<table border=1 bordercolor=\"#000000\"><tr><td valign=top>1节)</td></tr>"
             + "<tr><td valign=top>数学：李老师<br>1-3,5周<br>A101</td></tr></table>"
         let courses = try JwScauParser(html).generateCourseList()
@@ -128,7 +128,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-1: 节次 regex (\d+节)
 
     func testInv1SectionRegexMatchesSectionMarkersInPrimaryPath() throws {
-        // ← Android `INV-1 节次regex matches 节次 markers in primary path`
+        // ← 原 `INV-1 节次regex matches 节次 markers in primary path`
         let src = try sample()
         XCTAssertNotNil(JwScauParser.reSectionProbe.firstMatch(
             in: src, range: NSRange(src.startIndex..., in: src)))
@@ -139,7 +139,7 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testInv1SectionRegexMatchesMultipleSections() throws {
-        // ← Android `INV-1 节次regex matches multiple sections`
+        // ← 原 `INV-1 节次regex matches multiple sections`
         let parser = JwScauParser(try sample())
         let courses = try parser.generateCourseList()
         XCTAssertEqual(12, courses.count)
@@ -152,7 +152,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-2: 周次片段过滤 [\d,\-]+
 
     func testInv2WeekSegmentFilterHandlesCommaAndDashSegments() throws {
-        // ← Android `INV-2 周次片段过滤 handles comma and dash segments`
+        // ← 原 `INV-2 周次片段过滤 handles comma and dash segments`
         let parser = JwScauParser(try sample())
         let (s1, e1) = parser.parseWeekRange(["", "", "1-8周"], weeksLineIndex: 2)
         XCTAssertEqual(1, s1)
@@ -164,7 +164,7 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testInv2WeekSegmentFilterMultiSegmentBoundaries() throws {
-        // ← Android `INV-2 周次片段过滤 multi-segment boundaries`
+        // ← 原 `INV-2 周次片段过滤 multi-segment boundaries`
         let parser = JwScauParser(try sample())
         let (s, e) = parser.parseWeekRange(["", "", "1-4,6-8周"], weeksLineIndex: 2)
         XCTAssertEqual(1, s)
@@ -174,7 +174,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-3: table[border=1] 主路径选择器
 
     func testInv3PrimarySelectorMatchesFixture() throws {
-        // ← Android `INV-3 主路径选择器 table border 1 matches fixture`
+        // ← 原 `INV-3 主路径选择器 table border 1 matches fixture`
         let parser = JwScauParser(try sample())
         let features = parser.matchedFeatureList
         XCTAssertTrue(features.contains("scau:border-primary"),
@@ -182,7 +182,7 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testInv3PrimarySelectsCoursesFromBorder1Table() throws {
-        // ← Android `INV-3 主路径 selects courses from border 1 table`
+        // ← 原 `INV-3 主路径 selects courses from border 1 table`
         let parser = JwScauParser(try sample())
         XCTAssertEqual(12, try parser.generateCourseList().count)
     }
@@ -190,7 +190,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-4: table[border=1][bordercolor=#000000] 降级选择器
 
     func testInv4FallbackSelectorBordercolor000000MatchesFallback() throws {
-        // ← Android `INV-4 降级选择器 bordercolor 000000 matches fallback`
+        // ← 原 `INV-4 降级选择器 bordercolor 000000 matches fallback`
         let parser = JwScauParser(try sample())
         let features = parser.matchedFeatureList
         XCTAssertTrue(features.contains("scau:bordercolor-fallback"),
@@ -200,7 +200,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-5: td[valign=top]
 
     func testInv5TdValignTopSelectorHitInFixture() throws {
-        // ← Android `INV-5 td valign top selector hit in fixture`
+        // ← 原 `INV-5 td valign top selector hit in fixture`
         let parser = JwScauParser(try sample())
         let features = parser.matchedFeatureList
         XCTAssertTrue(features.contains("scau:valign-top-td"),
@@ -210,7 +210,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-6: <head>/</head> 切片
 
     func testInv6HeadSliceDetectedInSource() throws {
-        // ← Android `INV-6 head-slice detected in source`
+        // ← 原 `INV-6 head-slice detected in source`
         let parser = JwScauParser(try sample())
         let features = parser.matchedFeatureList
         XCTAssertTrue(features.contains("scau:head-slice"),
@@ -218,7 +218,7 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testInv6HeadSliceRawMarkersPresent() throws {
-        // ← Android `INV-6 head-slice raw markers present`
+        // ← 原 `INV-6 head-slice raw markers present`
         let src = try sample()
         XCTAssertTrue(src.contains("<head>"), "source must contain <head>")
         XCTAssertTrue(src.contains("</head>"), "source must contain </head>")
@@ -227,7 +227,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-7: <br> split 字段分隔
 
     func testInv7BrSplitParsesFourLinePrimaryCell() throws {
-        // ← Android `INV-7 br split parses 4-line primary cell`
+        // ← 原 `INV-7 br split parses 4-line primary cell`
         let parser = JwScauParser(try sample())
         let courses = try parser.generateCourseList()
         let math = try XCTUnwrap(courses.first { $0.name == "高等数学" })
@@ -239,7 +239,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-8: 全角冒号 split
 
     func testInv8FullwidthColonSplitSeparatesNameAndTeacherInFallback() throws {
-        // ← Android `INV-8 全角冒号 split separates name and teacher in fallback`
+        // ← 原 `INV-8 全角冒号 split separates name and teacher in fallback`
         let src = try sample()
         XCTAssertTrue(src.contains("："), "source must contain ：")
         let parser = JwScauParser(src)
@@ -252,7 +252,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-9: 半角 (单)/(双) parity
 
     func testInv9HalfwidthParenthesisDetectedAsType1Or2() throws {
-        // ← Android `INV-9 半角 parenthesis parity detected as type 1 or 2`
+        // ← 原 `INV-9 半角 parenthesis parity detected as type 1 or 2`
         let src = try sample()
         XCTAssertTrue(src.contains("(单)") || src.contains("(双)"))
         let parser = JwScauParser(src)
@@ -266,7 +266,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-10: 全角 (单)/(双) parity
 
     func testInv10FullwidthParenthesisDetectedAsType1Or2() throws {
-        // ← Android `INV-10 全角 parenthesis parity detected as type 1 or 2`
+        // ← 原 `INV-10 全角 parenthesis parity detected as type 1 or 2`
         let src = try sample()
         XCTAssertTrue(src.contains("（单）") || src.contains("（双）"))
         let parser = JwScauParser(src)
@@ -278,7 +278,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-11: substring 单/双 → type 1/2
 
     func testInv11SubstringParityParsingViaJwParityAdjustedRange() throws {
-        // ← Android `INV-11 substring parity parsing via JwParity adjustedRange`
+        // ← 原 `INV-11 substring parity parsing via JwParity adjustedRange`
         let (s2, e2) = JwParity.adjustedRange(5, 16, parity: 2)
         XCTAssertEqual(6, s2)
         XCTAssertEqual(16, e2)
@@ -295,7 +295,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - INV-13: 全角冒号 UTF-16
 
     func testInv13FullwidthColonIsUPlusFF1AInUtf16() throws {
-        // ← Android `INV-13 全角冒号 is U+FF1A in UTF-16`
+        // ← 原 `INV-13 全角冒号 is U+FF1A in UTF-16`
         let fullwidthColon: Character = "："
         XCTAssertEqual(0xFF1A, fullwidthColon.unicodeScalars.first!.value)
         XCTAssertEqual(1, String(fullwidthColon).count)
@@ -309,7 +309,7 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - 端到端综合
 
     func testEndToEndPrimaryPathYieldsTwelveCoursesWithCorrectDayAndNodeMapping() throws {
-        // ← Android `end-to-end primary path yields 12 courses with correct day and node mapping`
+        // ← 原 `end-to-end primary path yields 12 courses with correct day and node mapping`
         let parser = JwScauParser(try sample())
         let courses = try parser.generateCourseList()
         XCTAssertEqual(12, courses.count)
@@ -329,13 +329,13 @@ final class JwScauParserTests: XCTestCase {
     }
 
     func testConfidenceScoresHighWhenAllAnchorsPresent() throws {
-        // ← Android `confidence scores high when all anchors present`
+        // ← 原 `confidence scores high when all anchors present`
         let parser = JwScauParser(try sample())
         XCTAssertGreaterThanOrEqual(parser.confidenceValue, 80)
     }
 
     func testUnrelatedHtmlYieldsLowConfidence() throws {
-        // ← Android `unrelated HTML yields low confidence`
+        // ← 原 `unrelated HTML yields low confidence`
         let unrelated = "<html><body><table border=\"0\"><tr><td>no courses</td></tr></table></body></html>"
         let parser = JwScauParser(unrelated)
         XCTAssertLessThan(parser.confidenceValue, 50)
@@ -345,20 +345,20 @@ final class JwScauParserTests: XCTestCase {
     // MARK: - 关键分隔符常量
 
     func testSelectorsMatchFindingsProtocolMatrixExactly() {
-        // ← Android `selectors match findings protocol matrix exactly`
+        // ← 原 `selectors match findings protocol matrix exactly`
         XCTAssertEqual("table[border=1]", JwScauParser.selectPrimaryTable)
         XCTAssertEqual("table[border=1][bordercolor=#000000]", JwScauParser.selectFallbackTable)
         XCTAssertEqual("td[valign=top]", JwScauParser.selectTdValignTop)
     }
 
     func testRegistrationWithJwParserRegistryFactory() {
-        // ← Android `REGISTRATION with JwParserRegistry FACTORY (uncommented)`
+        // ← 原 `REGISTRATION with JwParserRegistry FACTORY (uncommented)`
         XCTAssertTrue(JwParserRegistry.isRoutable(JwProtocol.TYPE_SCAU),
                       "TYPE_SCAU must be registered in the factory table")
     }
 
     func testNoCollisionWithJwQzParserSelectorStrategy() throws {
-        // ← Android `no collision with JwQzParser selector strategy`
+        // ← 原 `no collision with JwQzParser selector strategy`
         let qzHtml = "<html><body><div id='kbtable'><table><tr><td><font title='老师'>test</font></td></tr></table></div></body></html>"
         let scauParser = JwScauParser(qzHtml)
         XCTAssertLessThan(scauParser.confidenceValue, 80)

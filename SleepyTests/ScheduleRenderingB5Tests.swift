@@ -2,7 +2,7 @@
 // 覆盖: displayMaxWeek(调休目标周并入) / longBreakCardHeightDp(带厚不进卡高) /
 //       反向取课(补班日=sourceDate、放假日=无课, 经 HolidayTransferOps/HolidayReminderPolicy 域) /
 //       shortDateChinese(M月d日 无前导零)
-// ← Android DateUtilsTest.kt / TimetableViewportPolicyTest.kt / ConflictCardGeometryTest.kt 同域
+// ← 原 DateUtilsTest.kt / TimetableViewportPolicyTest.kt / ConflictCardGeometryTest.kt 同域
 
 import XCTest
 @testable import Sleepy
@@ -50,7 +50,7 @@ final class ScheduleRenderingB5Tests: XCTestCase {
         XCTAssertEqual(st.displayMaxWeek, 20)
     }
 
-    /// source 学期外(semesterStatus != IN_RANGE)的映射不参与上限并入 ← Android filter 口径
+    /// source 学期外(semesterStatus != IN_RANGE)的映射不参与上限并入 ← 原 filter 口径
     func testDisplayMaxWeek_ignoresOutOfRangeSource() {
         let source = DateUtils.dateOfWeek(startDate: start, week: 25, dayOfWeek: 3)!
         let target = DateUtils.dateOfWeek(startDate: start, week: 26, dayOfWeek: 5)!
@@ -60,7 +60,7 @@ final class ScheduleRenderingB5Tests: XCTestCase {
         XCTAssertEqual(st.displayMaxWeek, 20)
     }
 
-    /// 无表 → 兜底 20(与 Android `?: 20` 同口径)
+    /// 无表 → 兜底 20(与 原 `?: 20` 同口径)
     func testDisplayMaxWeek_noTableFallsBackTo20() {
         let st = ScheduleState()
         XCTAssertEqual(st.displayMaxWeek, 20)

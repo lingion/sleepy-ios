@@ -1,4 +1,4 @@
-// WidgetSizeCoreTests.swift — ← Android app/src/test/java/com/lingion/sleepy/widget/WidgetSizeSelectionTest.kt
+// WidgetSizeCoreTests.swift — ← 原版本 app/src/test/java/com/lingion/sleepy/widget/WidgetSizeSelectionTest.kt
 // 纯逻辑测试: WidgetSizeCore — OPTION_APPWIDGET_SIZES 的定向选择与回退语义。
 //
 // 背景 (resize 稳定性根因之一): API31+ SIZES 列表在横竖双向 widget 上含两份

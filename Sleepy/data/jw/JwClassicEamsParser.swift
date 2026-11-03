@@ -130,7 +130,7 @@ final class JwClassicEamsParser: JwParser, JwParserConfidenceReporting {
         return out
     }
 
-    /// 分钟时刻 → 节次起点/终点 (addActivityByTime 形态, 阈值逐条对齐 Android)
+    /// 分钟时刻 → 节次起点/终点 (addActivityByTime 形态, 阈值逐条对齐 原版本)
     private func timeToNode(_ minutes: Int) -> Int {
         switch minutes {
         case ...900: return 1

@@ -67,7 +67,7 @@ final class WidgetLogicTests: XCTestCase {
     }
 
     // unitHeight: CJK 每字 1.0 (直立逐字); LATIN/PUNCT 走真实 measureText
-    // (← Android measureUnitHeight 探针, 拉丁组高 = 实测组宽 / 1pt 探针字号)。
+    // (measureUnitHeight 探针, 拉丁组高 = 实测组宽 / 1pt 探针字号)。
     // WeekGrid v1.0.61 对齐后弃用旧的固定系数 (latin 0.55 / punct 0.5) — 那些是
     // SwiftUI 无 measureText 时的近似, 现已有 UIKit NSString 实测口径。
     func testUnitHeight() {
@@ -122,8 +122,8 @@ final class WidgetLogicTests: XCTestCase {
         XCTAssertEqual(slots.map(\.end), ["08:45", "09:40"])
     }
 
-    /// WeekGrid 对齐 v1.0.61 后 slots 口径 = Android timeSlotsFor:
-    /// 非法/空 → 空数组 (旧入口的「回退默认 12 节」是 iOS 私有语义, Android 无此分支,
+    /// WeekGrid 对齐 v1.0.61 后 slots 口径 = 原版本 timeSlotsFor:
+    /// 非法/空 → 空数组 (旧入口的「回退默认 12 节」是 iOS 私有语义, 原版本 无此分支,
     /// 已随 parseTimeSlots 移除; 默认 12 节兜底语义由 parseTimeSlotRows (编辑面) 承担)
     func testParseTimeSlotsInvalidFallsBackToEmpty() {
         XCTAssertEqual(TimeTableUtils.timeSlotsFor(timeJson: "not json"), [])
@@ -155,7 +155,7 @@ final class WidgetLogicTests: XCTestCase {
     }
 
     // ==================== WidgetEditCompactWindowSection.appliesTo(三天窗口族门控) ====================
-    // ← Android WidgetCompactWindowCoreTest `appliesTo only matches the two small
+    // ← 原 WidgetCompactWindowCoreTest `appliesTo only matches the two small
     //   week receivers` (L50-58): 仅 WeekList/WeekView 两族的「· 小」档显示本节,
     //   其余族与小/中/大其它档与未知族(nil)全部 false。锁死防止族门控漂移。
 
@@ -178,13 +178,13 @@ final class WidgetLogicTests: XCTestCase {
             }
             XCTAssertFalse(
                 WidgetEditCompactWindowSection.appliesTo(kind: kind, family: nil),
-                "\(kind) with unknown family must hide the section (Android null→false)"
+                "\(kind) with unknown family must hide the section (原 null→false)"
             )
         }
     }
 
     // ==================== WidgetEditCore.displayBinding(哨兵 0 → 默认选中) ====================
-    // ← Android WidgetEditCoreTest L140-161: 首装哨兵 0/非正值/缺失 → nil
+    // ← 原 WidgetEditCoreTest L140-161: 首装哨兵 0/非正值/缺失 → nil
     //   (=「默认」行选中); 正值原样。makeWidgetEditScope 已接此函数, 此处锁语义。
 
     func testDisplayBindingSentinelAndPositive() {

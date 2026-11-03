@@ -3,11 +3,11 @@
 ## Comparison
 
 Compared `Sleepy/ui/screen/mine/AppearanceScreen.swift` and
-`Sleepy/ui/screen/mine/GeneralSettingsScreen.swift` against Android 1.0.51.
+`Sleepy/ui/screen/mine/GeneralSettingsScreen.swift` against original 1.0.51.
 
 ### Appearance
 
-The iOS Appearance surface already mirrors Android 1.0.51:
+The iOS Appearance surface already mirrors original 1.0.51:
 
 - Theme preset cards in a two-column grid.
 - Three-state theme mode selector (system / light / dark).
@@ -18,18 +18,18 @@ No source change was required.
 
 ### General Settings
 
-Three Android `SettingsFlatCard` title-row segmented selectors map to a new
+Three 原 `SettingsFlatCard` title-row segmented selectors map to a new
 iOS `SettingsFlatCard` component (`Sleepy/ui/component/SettingsCards.swift`):
 
 - Display mode (`node` / `time`).
 - Grid sub-information (`room` / `teacher` / `none`).
 - Start view (`full` / `cards`).
 
-The Android flat title-plus-switch row for “course colorless” now maps to a
+The 原 flat title-plus-switch row for “course colorless” now maps to a
 single `HStack` with the title on the left and a native `Toggle` on the
 right, on the same `surfaceContainer` block and 16/14 padding.
 
-The Android `settings_pill` controls (grid scale, week scale, grid corner
+The 原 `settings_pill` controls (grid scale, week scale, grid corner
 ratio, week two-column, week two-column mode, week hide-empty-days) have no
 iOS preference or rendering contract; they remain out of scope for this
 presentation-only alignment and are recorded as a known iOS gap.

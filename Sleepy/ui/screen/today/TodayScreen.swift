@@ -9,7 +9,7 @@ struct TodayScreen: View {
     @Environment(\.localNavExtraBottomPadding) private var navExtra
     @Environment(\.localCoursePalette) private var palette
     @ObservedObject var viewModel: ScheduleViewModel
-    /// ★ 平板双栏右半紧凑变体(← Android TodayScreen.kt CompactTodayPane, PR#114):
+    /// ★ 平板双栏右半紧凑变体(TodayScreen.kt CompactTodayPane, PR#114):
     ///   无页面背景(surfaceContainerLow 卡片透出)、水平 16/垂直 12 内衬、
     ///   卡间距 12、无底部药丸余量(rail 模式 env 缺省 0, 此处直接不挂)。
     ///   手机版(默认 false)保持原样式逐字不变。
@@ -22,10 +22,10 @@ struct TodayScreen: View {
         let state = viewModel.state
         let today = Date()
         // issue#44 对齐: 调休日按映射目标星期取课, 未映射走自然星期
-        // (← Android `state.transferDayFor(today)`; HolidayTransferHelper 直读所选表在
-        // AppPrefs 的调休映射 = Android VM transfers 的同一数据源, 语义等价)。
+        // (`state.transferDayFor(today)`; HolidayTransferHelper 直读所选表在
+        // AppPrefs 的调休映射 = 原版本 VM transfers 的同一数据源, 语义等价)。
         let dayOfWeek = HolidayTransferHelper.effectiveDayOfWeek(state.selectedTableId, today)
-        // issue#40 对齐: 节次时间域一律走水合后的当前表(← Android
+        // issue#40 对齐: 节次时间域一律走水合后的当前表(← 原实现
         // `state.effectiveCurrentTable?.timeJson`)。绑定独立节次表 → 以所绑表 timeJson
         // 为准; 悬空/未绑定 → 回退旧兼容列。ScheduleState 尚无 effectiveCurrentTable
         // 计算属性(在他人任务文件 ScheduleViewModel.swift, 本 agent 禁改), 此处按
@@ -90,12 +90,12 @@ struct TodayScreen: View {
             }
             .padding(compact ? EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
                              : EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
-            // 悬浮底栏额外余量(→ Android LocalNavExtraBottomPadding): 镜像 Android
+            // 悬浮底栏额外余量(→ 原版本 LocalNavExtraBottomPadding): 镜像原实现
             //   padding(bottom = 16.dp + navExtra) 让最后一张课卡不被悬浮药丸遮住。
             //   compact(平板双栏右半)不挂 —— ← CompactTodayPane 无 navExtra padding。
             .padding(.bottom, compact ? 0 : navExtra)
         }
-        // compact: 无背景(← Android CompactTodayPane Column 无 background,
+        // compact: 无背景(CompactTodayPane Column 无 background,
         // surfaceContainerLow 卡片透出); 手机版原样 colors.background。
         .background(compact ? Color.clear : colors.background)
         // 详情 Bottom Sheet — 与课表页同一组件同一交互(← TodayScreen.kt CourseDetailSheet)
@@ -103,7 +103,7 @@ struct TodayScreen: View {
             CourseDetailSheet(
                 course: course,
                 timeString: course.nodeString(),
-                // 对齐 Android (TodayScreen.kt:169/274 `allCourses = todayCourses`):
+                // 对齐 原版本 (TodayScreen.kt:169/274 `allCourses = todayCourses`):
                 // sheet 聚簇必须与今日列表同一份数据 — 已按 day+周过滤且 normalizeNode
                 // 后的今日子集。此前传整周未归一化行, ownTime 课带表单占位节点进 sheet
                 // 聚簇 = 2026-09-10 同类报障在 iOS sheet 路径的残留。
@@ -259,7 +259,7 @@ private struct TodayCourseCard: View {
     @Environment(\.localCoursePalette) private var palette
     let course: CourseEntity
     var timeJson: String? = nil
-    /// issue#22: 同 groupId 全行(含自身) — AUTO/CUSTOM 取色按行判; 空则回退 [course](= Android `listOf(course)` 默认值)
+    /// issue#22: 同 groupId 全行(含自身) — AUTO/CUSTOM 取色按行判; 空则回退 [course](= 原 `listOf(course)` 默认值)
     var groupRows: [CourseEntity] = []
     var onClick: (() -> Void)? = nil
 

@@ -1,12 +1,12 @@
 // GlobalWidgetCompatibility.swift — ← widget/GlobalWidgetCompatibility.kt
 //
-// APK-side compatibility boundary for Android launchers worldwide.
+// APK-side compatibility boundary for 原 launchers worldwide.
 //
-// Every Android-compatible vendor in this registry consumes the public
+// Every 原版本-compatible vendor in this registry consumes the public
 // AppWidget provider contract. Private negative-one-screen cards are recorded
 // as platform-bound capabilities, not guessed manifest extensions.
 //
-// ★ 平台差异: 本枚举是 Android 启动器全量表, iOS WidgetKit 仅走系统标准通道,无
+// ★ 平台差异: 本枚举是 原版本 启动器全量表, iOS WidgetKit 仅走系统标准通道,无
 //   厂商私有协议分流。逐项保留供管理页/诊断页未来扩展;UI 端不消费此表。
 //   WidgetManagementScreen 仅 1:1 显示 kind + family 列表, 启动器等级概念由
 //   WidgetVendorActions (← .miui.appwidget.action.APPWIDGET_UPDATE) 兜底。

@@ -1,6 +1,6 @@
 # Slice — issue#22 编辑器 + 数据层 (1.0.52 对齐)
 
-对齐 Android commit fe389b4 (1.0.52) 的 issue#22「同名课程多地点」编辑器改造。
+对齐 原 commit fe389b4 (1.0.52) 的 issue#22「同名课程多地点」编辑器改造。
 Android 源: `git -C ~/sleepy show fe389b4:app/src/main/java/com/lingion/sleepy/ui/screen/edit/AddCourseScreen.kt`
 
 ## 已入库 commit 0c0ebf8 (数据层, 3 files +149)
@@ -12,7 +12,7 @@ Android 源: `git -C ~/sleepy show fe389b4:app/src/main/java/com/lingion/sleepy/
   GRDB 适配点: `Dictionary.Keys` 不支持 `+` → 两次 for-in 保留序去重;
   `WHERE id IN (?)` 不接受数组绑定 → 占位符手工展开 + `StatementArguments(ids)`。
   CourseDao.deleteByIds 空数组防御: SQL 展开空 `IN ()` 会产生非法 SQL —
-  但 applyDiff 与 RowKeyDiffer 已保证 toDelete 非空才调, 与 Android 语义一致。
+  但 applyDiff 与 RowKeyDiffer 已保证 toDelete 非空才调, 与 原语义一致。
   [注] deleteByIds 自身没有空数组短路 — applyDiff 的 `if !diff.toDelete.isEmpty` 承担了这层防御,
   Android 侧由 Room 的 `IN (:ids)` 绑定处理空列表, 语义等价。
 - `CourseDao` +`updateAll`(@Update 批量, 保留行 id) / +`deleteByIds`(IN 展开)。
@@ -30,7 +30,7 @@ MeetingBlockEditor 的插入点在用户重构后的编辑器里)。两套工作
 提交任何一半都会得到编译不过的 commit。按规约「用户 dirty 文件 hunks 不代提交」,
 AddCourseScreen 保持工作区状态, 等用户先提交自己的工作后可直接 `git add` 一并入库。
 
-工作区含的 issue#22 hunks (对齐 Android 1.0.52):
+工作区含的 issue#22 hunks (对齐原实现 1.0.52):
 - MeetingBlockDraft + room/teacher/note/color/colorMode (默认 ""/GROUP)
 - 顶层 @State teacher/room/note/courseColor/showColorPicker 删除
 - basicInfoCard 只剩 courseName

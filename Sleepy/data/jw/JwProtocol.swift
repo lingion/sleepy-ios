@@ -1,5 +1,5 @@
 // JwProtocol.swift — ← JwProtocol.kt
-// 教务系统协议类型常量表(42 个, 与 Android 1:1)。
+// 教务系统协议类型常量表(42 个, 与 原版本 1:1)。
 //
 // 基于 dIT8Zv/WakeupSchedule_BUPT (Apache-2.0) 的 Common.kt 协议类型常量
 // 简化而来,保留 sleepy v1.0.8 实际用到的子集:
@@ -137,7 +137,7 @@ enum JwProtocol {
     ///   GET /course_selection/courseselect/stuschedule/        本学期课表
     ///   GET /course_selection/courseselecttask/schedule/       选课任务课表 (全学期)
     /// 协议证据: docs/bjtu-cross-verify-2026-09-09/ (24 仓 POSITIVE 12, issue #19)。
-    /// 上游协议形态: HFDLYS/BJTUselfService (MIT) + wan300/bjtu_mis_Android (MIT) — 算法自写。
+    /// 上游协议形态: HFDLYS/BJTUselfService (MIT) + wan300/bjtu_mis_原版本 (MIT) — 算法自写。
     static let TYPE_BJTU = "bjtu"
 
     /// 西南交通大学本部 yhxt.swjtu.edu.cn(YETHAN/以专 逐专平台,自建 JSON API,非 HTML 解析)。

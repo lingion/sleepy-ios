@@ -126,7 +126,7 @@ final class ManageImportUITests: XCTestCase {
         XCTAssertTrue(previewBtn.waitForExistence(timeout: 3))
 
         // TextField 在 Preview 上方, 使用相对坐标
-        // 按钮高 48(2026-08-29 从 44 调齐 Android regularHeight) + VStack spacing 8:
+        // 按钮高 48(2026-08-29 从 44 调齐 原版本 regularHeight) + VStack spacing 8:
         // dy=-1.7 ≈ 82pt 上方 = TextField 下半区中心, 保证命中输入框
         let textFieldCenter = previewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -1.7))
         textFieldCenter.tap()
@@ -198,7 +198,7 @@ final class ManageImportUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS '编译原理'")).firstMatch.waitForExistence(timeout: 2)
 
         // 选 "Import as new schedule" 模式: 只有该模式(及 Append as new table / Overwrite
-        // current)会弹 "Confirm Before Import" 对话框; "Append non-conflicting" 在 Android
+        // current)会弹 "Confirm Before Import" 对话框; "Append non-conflicting" 在原平台
         // 源上本来就不弹 confirm(直接应用) → 旧断言不可能通过。
         // ★ v1.0.62 对齐: 改按 accessibilityIdentifier 定位(import_mode_as_new 等),
         //   不再按本地化文案匹配 —— 预览底部按钮浮在 List 之上, 按 label 匹配时偶发
@@ -266,7 +266,7 @@ final class ManageImportUITests: XCTestCase {
             confirmBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
         sleep(2)
-        // 导入完成 → Android 行为(ImportSheet.kt v1.0.56 删跳编辑页 + NavHost onImported
+        // 导入完成 → 原版本 行为(ImportSheet.kt v1.0.56 删跳编辑页 + NavHost onImported
         // =「留在管理页, 摘要卡就地刷新」): 确认 sheet 关闭后 ImportSheet 仍开着(其
         // importJustApplied 只弹 snackbar, 不关自己)→ 断言成功条 import_success_snackbar,
         // 下滑关 sheet 回 Manage; 新表落库经 observeAllTables 反应流成当前表

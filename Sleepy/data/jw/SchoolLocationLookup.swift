@@ -3,10 +3,10 @@
 //
 // iOS 适配: Kotlin coroutineScope/Channel → Swift withTaskGroup。
 // 语义 1:1:
-//   - 索引加载与每个 provider 的请求同时启动 (Android async + launch);
-//   - 实时 fix 按【完成顺序】收取 (Android Channel(capacity=providers.size) 缓冲 +
+//   - 索引加载与每个 provider 的请求同时启动 (原 async + launch);
+//   - 实时 fix 按【完成顺序】收取 (原版本 Channel(capacity=providers.size) 缓冲 +
 //     repeat(size) { receive() }), 快网络 fix 不被慢 GPS 挡住;
-//   - 任何返回路径都取消全部子请求 (Android finally { indexRequest.cancel();
+//   - 任何返回路径都取消全部子请求 (原 finally { indexRequest.cancel();
 //     requests.forEach { it.cancel() } }); withTaskGroup 作用域结束时对残留
 //     子任务 cancel + await, 外层任务被取消("离开页面")时子任务自动继承取消。
 //   - 缓存 gate 在索引就绪之后、实时收取之前, 每个结果过 usable 质量闸 +
@@ -45,7 +45,7 @@ enum SchoolLocationLookup {
 
         return await withTaskGroup(of: RaceEvent.self, returning: SchoolLocationState.self) { group in
             // 索引与各 provider 请求并发启动; requestFix 闭包内错误自吞
-            // (Android catch (_: Exception) { null } — Swift 非 throwing 签名由闭包侧负责)
+            // (原 catch (_: Exception) { null } — Swift 非 throwing 签名由闭包侧负责)
             group.addTask(priority: .userInitiated) {
                 RaceEvent.index(await loadIndex())
             }
@@ -55,7 +55,7 @@ enum SchoolLocationLookup {
                 }
             }
 
-            // 1. 先等索引 (Android indexRequest.await())。
+            // 1. 先等索引 (原版本 indexRequest.await())。
             //    期间完成的实时 fix 按完成顺序 FIFO 缓冲
             //    (= Channel(providers.size) 容量恰好装下全部结果, 发送不挂起)。
             var loadedIndex: OfflineSchoolCityIndex?
@@ -73,7 +73,7 @@ enum SchoolLocationLookup {
                 if Task.isCancelled { break }
             }
             guard indexSeen, let index = loadedIndex else {
-                // Android: index null → Unavailable; finally 取消全部请求
+                // 原版本: index null → Unavailable; finally 取消全部请求
                 group.cancelAll()
                 return .unavailable
             }
@@ -117,7 +117,7 @@ enum SchoolLocationLookup {
                 }
             }
 
-            // 3. 实时 fix 按完成顺序收取 (Android repeat(size){ receive() });
+            // 3. 实时 fix 按完成顺序收取 (原版本 repeat(size){ receive() });
             //    缓冲阶段已收的先按序处理, 其余随到随处理
             for fix in bufferedFixes {
                 if let result = resolve(fix) {
@@ -139,7 +139,7 @@ enum SchoolLocationLookup {
                     }
                 }
                 if Task.isCancelled {
-                    // 外层任务被取消("离开页面") — Android receive() 抛
+                    // 外层任务被取消("离开页面") — 原版本 receive() 抛
                     // CancellationException → finally 取消全部请求。
                     // 非 throwing 签名下的等价: 立即收敛, 作用域结束取消残留子任务。
                     break

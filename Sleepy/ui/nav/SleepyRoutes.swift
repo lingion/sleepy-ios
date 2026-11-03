@@ -1,8 +1,8 @@
 import Foundation
 
-// SleepyRoutes — Android SleepyRoutes.kt (NavHost 路由表) → iOS 等价路由表.
+// SleepyRoutes — 原版本 SleepyRoutes.kt (NavHost 路由表) → iOS 等价路由表.
 //
-// Android 侧: 23 个 case 的 sealed `SleepyRoute : NavKey` 驱动 Compose Navigation.
+// 原版本 侧: 23 个 case 的 sealed `SleepyRoute : NavKey` 驱动 Compose Navigation.
 // iOS 侧导航由 AppRootViewModel.currentTab + .overlayScreen (SleepyApp.PresentOverlay
 // 跟手侧滑容器) 驱动, 本文件保留同一套 17 个 case 名称 + 参数语义作为"路由表真源",
 // 并附 路由 → iOS 导航态 映射表 (recon.md 平台映射: NavigationStack 自有路由枚举,
@@ -32,7 +32,7 @@ enum SleepyRoute: Equatable {
 }
 
 extension SleepyRoute {
-    /// Android SleepyRoute.NO_ID 常量 1:1 (-1L → Int64).
+    /// 原版本 SleepyRoute.NO_ID 常量 1:1 (-1L → Int64).
     static let NO_ID: Int64 = -1
 
     /// 路由 → iOS 导航态映射 (AppRootViewModel: Tab + OverlayScreen).

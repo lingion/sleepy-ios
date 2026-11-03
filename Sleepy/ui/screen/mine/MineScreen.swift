@@ -38,7 +38,7 @@ struct MineScreen: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                // 数据统计卡 — ← Android StatsCard(onOpenTables/onOpenCourses 可点)
+                // 数据统计卡 — ← 原版本 StatsCard(onOpenTables/onOpenCourses 可点)
                 StatsCard(tableCount: state.tables.count,
                           // 与 CourseListScreen 同口径: 同名课程一组, 空名按 groupId 区分
                           courseCount: Set(state.courses.map { $0.courseName.isBlank ? "#\($0.groupId)" : $0.courseName }).count,
@@ -64,7 +64,7 @@ struct MineScreen: View {
                 }
             }
             .padding(16)
-            // 悬浮底栏额外余量(→ Android LocalNavExtraBottomPadding): 镜像 Android
+            // 悬浮底栏额外余量(→ 原版本 LocalNavExtraBottomPadding): 镜像原实现
             //   padding(bottom = 16.dp + navExtra) 让列表最后一行不被悬浮药丸遮住。
             .padding(.bottom, navExtra)
         }
@@ -131,10 +131,10 @@ private struct StatItem: View {
     let identifier: String
 
     var body: some View {
-        // ← Android Column 默认无间距(0)
+        // ← 原版本 Column 默认无间距(0)
         VStack(spacing: 0) {
             Text(value)
-                .font(.system(size: 28, weight: .bold))   // ← Android headlineMedium
+                .font(.system(size: 28, weight: .bold))   // ← 原 headlineMedium
                 .foregroundColor(colors.primary)
                 .accessibilityIdentifier("\(identifier)_value")
             Text(label)
@@ -142,7 +142,7 @@ private struct StatItem: View {
                 .foregroundColor(colors.onSurfaceVariant)
                 .accessibilityIdentifier("\(identifier)_label")
         }
-        // ← Android StatItem 两分支同 padding(horizontal = 12.dp, vertical = 4.dp)
+        // ← 原版本 StatItem 两分支同 padding(horizontal = 12.dp, vertical = 4.dp)
         //   (MineScreen.kt:201-202): 可点/静态均扩大点击区并抬高 StatsCard 约 8pt。
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
@@ -158,7 +158,7 @@ private struct SettingsItem: View {
     let label: String
     let identifier: String       // ← G5: UI 测试稳定锚点
     let onClick: () -> Void
-    /// ← Android highlighted: 更新提醒可见时关于行底色 primary 10% (v1.0.60 差量)
+    /// ← 原版本 highlighted: 更新提醒可见时关于行底色 primary 10% (v1.0.60 差量)
     var highlighted: Bool = false
 
     var body: some View {
@@ -178,7 +178,7 @@ private struct SettingsItem: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .frame(maxWidth: .infinity)
-            // ← Android: if (highlighted) primary.copy(alpha=0.10f) else surfaceContainer
+            // ← 原版本: if (highlighted) primary.copy(alpha=0.10f) else surfaceContainer
             .background(highlighted ? colors.primary.opacity(0.10) : Color.clear)
         }
         .buttonStyle(SleepyButtonStyle())
@@ -216,7 +216,7 @@ private struct SettingsNavList: View {
     let onOpenAppearance: () -> Void
     let onOpenGeneral: () -> Void
     let onOpenAbout: () -> Void
-    // v1.0.62 B4: 「小组件」入口行(Android MineScreen +36: Widgets 图标项,
+    // v1.0.62 B4: 「小组件」入口行(原版本 MineScreen +36: Widgets 图标项,
     //   插在「通用」与「关于」之间)
     let onOpenWidgetSettings: () -> Void
 
@@ -261,7 +261,7 @@ private struct SettingsNavListB: View {
                          identifier: "mine_general", onClick: onOpenGeneral)
             HDivider()
             // v1.0.62 B4: 小组件入口(← Icons.Outlined.Widgets; iOS 无同名 SF Symbol,
-            //   取同义 2×2 方格网格 — Android Widgets 图标即 2×2 方块)
+            //   取同义 2×2 方格网格 — 原版本 Widgets 图标即 2×2 方块)
             SettingsItem(icon: "square.grid.2x2", label: L10n.format("mine_widget"),
                          identifier: "mine_widget", onClick: onOpenWidgetSettings)
             HDivider()

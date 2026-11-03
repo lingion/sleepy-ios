@@ -30,7 +30,7 @@ struct JwSchoolInfo: Equatable {
     var catalogId: String = ""
 
     /// 稳定身份 — 列表 ForEach 的 key、目录去重键都用它。
-    /// ← Android `stableKey`: catalogId 非空则用它, 否则 "\(sortKey)_\(name)"。
+    /// ← 原 `stableKey`: catalogId 非空则用它, 否则 "\(sortKey)_\(name)"。
     var stableKey: String {
         let id = catalogId.trimmingCharacters(in: .whitespacesAndNewlines)
         return id.isEmpty ? "\(sortKey)_\(name)" : id
@@ -46,13 +46,13 @@ struct JwSchoolInfo: Equatable {
     var isPending: Bool { status == Self.STATUS_PENDING || status == Self.STATUS_GRAD_PENDING }
 
     /// 是否可以进入教务导入流程。
-    /// ← Android canImport: (已支持 或 (未验证 且 该协议有 parser)) 且 有可用 URL。
+    /// ← 原版本 canImport: (已支持 或 (未验证 且 该协议有 parser)) 且 有可用 URL。
     var canImport: Bool {
         (isSupported || (isUnverified && JwParserRegistry.supports(type))) && hasUrl
     }
 
     /// T13: 是否配置了可打开的教务 URL。
-    /// ← Android hasUrl: URI 校验 — http/https 协议 + host 非空 + 不带 userInfo。
+    /// ← 原版本 hasUrl: URI 校验 — http/https 协议 + host 非空 + 不带 userInfo。
     var hasUrl: Bool {
         let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
@@ -67,7 +67,7 @@ struct JwSchoolInfo: Equatable {
     }
 
     /// 状态归一 — 缺省/未知值永不放行导入(fail-closed 到 pending)。
-    /// ← Android normalizeStatus(raw): null/"" → supported; 未知 → pending。
+    /// ← 原版本 normalizeStatus(raw): null/"" → supported; 未知 → pending。
     static func normalizeStatus(_ raw: String?) -> String {
         switch raw {
         case nil, "", STATUS_SUPPORTED: return STATUS_SUPPORTED

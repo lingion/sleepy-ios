@@ -5,7 +5,7 @@
 //   1. 数据可能嵌入在 `<script>` 标签 JSON 中(kbList API 响应直出 / Vue data)
 //   2. 或渲染为 HTML 表格(三种实证变体, 见 parseHtmlTable 容器优先级)
 //
-// T4 修复要点(逐条对齐 Android 真值):
+// T4 修复要点(逐条对齐 原版本 真值):
 //   - JSON marker 收紧为 "kbList" > "xskbcx_json" > "kbxx"(删臆造的 "tmp_list" 与
 //     会命中 URL 子串的 "xskbcx"), 严格 JSON 键匹配(findJsonKeyIndex)
 //   - 字段优先级重排: room=cdmc 首位(jasmc 是教学班场地不当教室)、teacher=xm/jsxm、
@@ -253,7 +253,7 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
     ///   {"Msg":"success","code":"1","data":[{"date":[...],"kbList":[...]}]}
     /// kbList 在 data[0] 对象里, 必须递归下钻。
     ///
-    /// ← Android findKbListArray(obj, depth)。Swift 侧 optJSONArray 的
+    /// ← 原版本 findKbListArray(obj, depth)。Swift 侧 optJSONArray 的
     /// "键存在但不是数组 → null" 语义 = `as? [Any]`(非数组自然失败)。
     private static func findKbListArray(_ obj: [String: Any], depth: Int = 0) -> [Any]? {
         if depth > 4 { return nil }  // 防御: 最多下钻 4 层
@@ -745,7 +745,7 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
 
     // ← Kotlin Regex("""周数\s*[：:]\s*(.+?)(?=上课地点|教师|$)""") 等三条。
     // NSRegularExpression 不支持后向断言里的中文 alternation? 支持; 但 $ 在 NS 中
-    // 默认匹配行尾(无 MULTILINE 时即串尾), 语义与 Kotlin Regex 一致。
+    // 默认匹配行尾(无 MULTILINE 时即串尾), 语义与原实现 Regex 一致。
     // `\s` 不覆盖 U+3000 全角空格 → Kotlin 用 [\s　] 显式补, 这里保持同款。
     private static let weekLabelRegex = try! NSRegularExpression(pattern: "周数\\s*[：:]\\s*(.+?)(?=上课地点|教师|\\z)", options: [])
     private static let roomLabelRegex = try! NSRegularExpression(pattern: "上课地点\\s*[：:]\\s*(.+?)(?=教师|\\z)", options: [])

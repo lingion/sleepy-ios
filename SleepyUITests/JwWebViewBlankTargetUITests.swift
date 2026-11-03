@@ -2,7 +2,7 @@
 //
 // 用户报告: 教务系统(哈工程金智)重定向多次后停在中间页, 点功能卡片不跳下一页。
 // 根因: 教务卡片用 target="_blank"/window.open; WKWebView 无 UIDelegate 时静默丢弃
-// 新窗请求(Android WebView 默认在当前页打开, 移植时丢失该语义)。
+// 新窗请求(原版本 WebView 默认在当前页打开, 移植时丢失该语义)。
 // 修复: JwWebViewLoginScreen 挂 NavUIDelegate → createWebViewWith 在当前 webview 内加载。
 //
 // 端到端验证走"自定义 URL 登录"入口(UrlDirectRow), 加载 runner 侧本地 HTTP server 页面,

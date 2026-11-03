@@ -5,12 +5,12 @@
 // 权限申请政策(2026-10): 全 app 唯一弹窗点 = master 开关 onMasterToggle(.notDetermined);
 // NotificationScheduler.createChannels 的隐式申请已摘除。denied 后系统不再弹框
 // (一次性弹窗语义), UI 显示手动设置引导行(NotifDeniedRow → 系统设置)。
-// 流体云(Fluid Cloud)行为 Android 独有(平台差异表#3), iOS 保留开关落 prefs
+// 流体云(Fluid Cloud)行为 原版本 独有(平台差异表#3), iOS 保留开关落 prefs
 // (banner 通道承担实际通知), 字段选择影响 banner 内容行文。
 // 可靠性诊断 5 行 → iOS 快照仅 3 个可观测事实(通知权限/时效性/低电量),
 // widget/vendor/promoted 为 no-analog(见 BackgroundReliabilitySnapshot.swift 头部映射表),
 // 对应行不渲染(不是 silent skip: 映射决策已记录)。
-// 所有状态变更统一走 ReminderRescheduler.shared.request()(← Android 同名枢纽;
+// 所有状态变更统一走 ReminderRescheduler.shared.request()(同名枢纽;
 // init_ 接线在 SleepyApp.swift, 见集成清单)。
 
 import SwiftUI
@@ -29,12 +29,12 @@ private enum DailyReminderTimeTarget: Identifiable {
 struct ReminderScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     let onDismiss: () -> Void
-    /// ← Android onOpenHoliday: 打开节假日高级设置。宿主接了导航就交出去;
+    /// ← 原版本 onOpenHoliday: 打开节假日高级设置。宿主接了导航就交出去;
     /// nil(当前 iOS 调用方 SleepyApp.swift 只传 onDismiss)→ 本页自带 HolidaySettings
     /// sheet(GeneralSettings 同款组件同语义), 无需共享导航接线。
     var onOpenHoliday: (() -> Void)? = nil
     /// issue#44 接线(F095-C): 课表页 VM 提供真实 selectedTableId 与 refreshTransfer
-    /// 通道(← Android SleepyNavHost.kt:299-303 的 tableId + viewModel)。
+    /// 通道(SleepyNavHost.kt:299-303 的 tableId + viewModel)。
     /// VM 在 SleepyApp.scheduleViewModel 已在作用域内, 但调用点传参归共享文件集成清单;
     /// nil 时 tableId 回退 WidgetTableResolver.resolveCurrentTable —— 与本页动态示例
     /// (loadReminderSchedulePreview)同源口径, 调休映射仍可落盘, 仅缺课表页即时刷新。
@@ -55,7 +55,7 @@ struct ReminderScreen: View {
     @State private var tomorrowTime = AppPrefs.shared.getTomorrowReminderTime()
     @State private var beforeClassEnabled = AppPrefs.shared.isBeforeClassEnabled()
     @State private var minutesInput = "\(AppPrefs.shared.getBeforeClassMinutes())"
-    // v1.0.62 课前提醒形态互斥 (← Android ReminderScreen beforeClassMode +
+    // v1.0.62 课前提醒形态互斥 (ReminderScreen beforeClassMode +
     // AppPrefs.getBeforeClassMode): 旧 banner/fluid 双开关下 banner 被 fluid 静默
     // 吞掉 (用户 2026-10-17 指令), 收敛为 mode 单源 + 分段二选一。
     // fluidEnabled 降级为派生只读 — 细节块显隐/诊断快照刷新与 mode 恒同源。
@@ -66,7 +66,7 @@ struct ReminderScreen: View {
     @State private var pickerTarget: DailyReminderTimeTarget? = nil
     @State private var pickerTime = Date()
     @State private var showHolidaySettings = false
-    // v1.0.62 B3: 课表提醒独立页入口 (Android SleepyRoute.TableReminder push 路由;
+    // v1.0.62 B3: 课表提醒独立页入口 (原版本 SleepyRoute.TableReminder push 路由;
     // iOS 内嵌 sheet = holiday/widgetManagement 同款 by design 链)。
     @State private var showTableReminder = false
     /// 通知权限 denied 态 → master 卡内手动设置引导行。
@@ -100,7 +100,7 @@ struct ReminderScreen: View {
                         }
                     }
 
-                    // v1.0.62 B3 课表提醒入口 — ← Android ReminderScreen item:
+                    // v1.0.62 B3 课表提醒入口 — ← 原版本 ReminderScreen item:
                     // title+subtitle 两行 + 尾随 ChevronRight, surfaceContainer 卡底。
                     Button { showTableReminder = true } label: {
                         HStack(spacing: 12) {
@@ -159,20 +159,20 @@ struct ReminderScreen: View {
             timePickerSheet(target)
         }
         // 节假日高级设置(本页内嵌 sheet — GeneralSettings 同款组件)
-        // ← F095-B: 传当前课表 id + 刷新回调(对应 Android SleepyNavHost 的 tableId+viewModel),
+        // ← F095-B: 传当前课表 id + 刷新回调(对应 原版本 SleepyNavHost 的 tableId+viewModel),
         // 否则 tableId=nil → 调休卡渲染 holiday_makeup_no_table 且 saveTransfer 短路, issue#44 非持久。
         .sheet(isPresented: $showHolidaySettings) {
             HolidaySettingsScreen(onDismiss: { showHolidaySettings = false },
                                   tableId: currentSelectedTableId,
                                   refreshTransfer: { viewModel?.refreshTransfer() })
         }
-        // v1.0.62 B3: 课表提醒页 (Android SleepyRoute.TableReminder push 等价 = 内嵌 sheet)
+        // v1.0.62 B3: 课表提醒页 (原版本 SleepyRoute.TableReminder push 等价 = 内嵌 sheet)
         .sheet(isPresented: $showTableReminder) {
             TableReminderScreen(onDismiss: { showTableReminder = false })
         }
     }
 
-    /// 当前选中课表 id ← Android currentTableId(VM state)。VM 未接线时回退
+    /// 当前选中课表 id ← 原版本 currentTableId(VM state)。VM 未接线时回退
     /// WidgetTableResolver.resolveCurrentTable(默认表→课程最多表), 与本页动态示例同源。
     private var currentSelectedTableId: Int64? {
         if let id = viewModel?.state.selectedTableId { return id }
@@ -188,7 +188,7 @@ struct ReminderScreen: View {
         if snapshot.notificationPermissionGranted { notifDenied = false }
     }
 
-    // MARK: - 日期规则卡 ← Android 第 2 张卡
+    // MARK: - 日期规则卡 ← 原版本 第 2 张卡
 
     private var dateRulesCard: some View {
         ReminderCard {
@@ -341,7 +341,7 @@ struct ReminderScreen: View {
         }
     }
 
-    // ← Android todayPreviewText: 有课表示例用动态文案, 否则回退通用示例
+    // ← 原版本 todayPreviewText: 有课表示例用动态文案, 否则回退通用示例
     private var todayPreviewText: String {
         if let p = schedulePreview {
             return buildDailyPreviewText(day: p.today, dateLabelKey: "reminder_preview_today_date")
@@ -382,7 +382,7 @@ struct ReminderScreen: View {
                         .font(.system(size: 14))
                         .foregroundColor(colors.onSurface)
                     Spacer()
-                    // ← Android TextField 120dp 宽 + suffix: 单位在框内, 不再外挂
+                    // ← 原版本 TextField 120dp 宽 + suffix: 单位在框内, 不再外挂
                     HStack(spacing: 0) {
                         TextField("10", text: Binding(
                             get: { minutesInput },
@@ -401,7 +401,7 @@ struct ReminderScreen: View {
                         Text(L10n.format("reminder_before_minutes_unit"))
                             .font(.system(size: 14))
                             .foregroundColor(colors.onSurfaceVariant)
-                            .padding(.trailing, 16) // ← Android TextField end padding 16dp(suffix 位置)
+                            .padding(.trailing, 16) // ← 原 TextField end padding 16dp(suffix 位置)
                     }
                     .frame(width: 120)
                     .padding(.vertical, 8)
@@ -414,18 +414,18 @@ struct ReminderScreen: View {
                 Text(beforeClassPreviewText)
                     .font(.system(size: 12))
                     .foregroundColor(colors.onSurfaceVariant)
-                    .padding(.leading, 52)   // ← Android 课前示例唯一用 52dp 起缩进
+                    .padding(.leading, 52)   // ← 原 课前示例唯一用 52dp 起缩进
                     .padding(.top, 8)
                     .padding(.bottom, 8)
                     .padding(.trailing, 4)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SubDivider()
-                // ← Android v1.0.62 形态互斥分段 (SegmentedSwitcher banner|fluid):
+                // ← 原版本 v1.0.62 形态互斥分段 (SegmentedSwitcher banner|fluid):
                 // 旧双开关下 banner 被 fluid 静默吞掉 → 二选一, 切 banner 即 fluid 全停。
                 // iOS 语义映射: banner=UNUserNotification 横幅; fluid 档在 iOS 无实况卡
                 // 实现 (ActivityKit 属 reminder-live 切片, 见 BackgroundReliabilitySnapshot
                 // 头注), 选中 fluid = 存 mode + 展示字段/说明细节块, 横幅投递停发 —
-                // 与 Android「系统不支持则无卡片、不做静默回落」同口径, 如实呈现。
+                // 与 原版本「系统不支持则无卡片、不做静默回落」同口径, 如实呈现。
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L10n.format("reminder_mode_label"))
                         .font(.system(size: 14))
@@ -440,7 +440,7 @@ struct ReminderScreen: View {
                             guard mode != beforeClassMode else { return }
                             beforeClassMode = mode
                             prefs.setBeforeClassMode(mode)
-                            // ← Android 切回横幅须真正停流体投放 (FluidCloudService
+                            // ← 原版本 切回横幅须真正停流体投放 (FluidCloudService
                             // .requestStop); iOS 侧横幅/实况互斥全走 mode 单源,
                             // 重排即等效 — 残留 fluid 通知由 deliveryAllowed 复查闸拦。
                             ReminderRescheduler.shared.request()
@@ -449,7 +449,7 @@ struct ReminderScreen: View {
                     )
                     .frame(height: 42)
                     if fluidEnabled {
-                        // fluid 段头: 标题 + 「实验」tag (← Android 分段下方行)
+                        // fluid 段头: 标题 + 「实验」tag (分段下方行)
                         HStack(spacing: 6) {
                             Text(L10n.format("reminder_fluid_title"))
                                 .font(.system(size: 12, weight: .semibold))
@@ -494,7 +494,7 @@ struct ReminderScreen: View {
                                 }
                             }
                         } label: {
-                            // ← Android readOnly TextField 形态: hint 作 label 在值上方, 尾随 ExpandMore
+                            // ← 原 readOnly TextField 形态: hint 作 label 在值上方, 尾随 ExpandMore
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(L10n.format("reminder_fluid_fields_hint"))
                                     .font(.system(size: 12))
@@ -505,7 +505,7 @@ struct ReminderScreen: View {
                                         .foregroundColor(colors.onSurface)
                                     Spacer()
                                     Image(systemName: "chevron.down")
-                                        .font(.system(size: 24)) // ← Android trailingIcon ExpandMore 默认 24dp
+                                        .font(.system(size: 24)) // ← 原 trailingIcon ExpandMore 默认 24dp
                                         .foregroundColor(colors.onSurfaceVariant)
                                 }
                             }
@@ -518,7 +518,7 @@ struct ReminderScreen: View {
                             .font(.system(size: 12))
                             .foregroundColor(colors.onSurfaceVariant)
                             .padding(.top, 6)
-                        // ★ 流体云测试入口 / 厂商设置入口 / vendor+promoted 诊断行 = Android
+                        // ★ 流体云测试入口 / 厂商设置入口 / vendor+promoted 诊断行 = 原实现
                         // 平台专有(FluidCloudService 前台服务 + 厂商实况窗), iOS 无对应物 —
                         // 见文件头平台映射注释。
                         reliabilityBlock
@@ -530,7 +530,7 @@ struct ReminderScreen: View {
         }
     }
 
-    // MARK: - 可靠性诊断块 ← Android reliabilitySnapshot 块(iOS 可观测子集 3 行)
+    // MARK: - 可靠性诊断块 ← 原 reliabilitySnapshot 块(iOS 可观测子集 3 行)
 
     @ViewBuilder
     private var reliabilityBlock: some View {
@@ -556,7 +556,7 @@ struct ReminderScreen: View {
                     }
                     .accessibilityIdentifier("reminder_reliability_notification")
                 // 精确提醒 ← snapshot.reminderTransportState()/timeSensitiveAllowed
-                //   (Android exactAlarmAllowed ≙ iOS 时效性通知, 见 Snapshot 头部映射表)
+                //   (原 exactAlarmAllowed ≙ iOS 时效性通知, 见 Snapshot 头部映射表)
                 Text(L10n.format("reminder_reliability_exact_alarm",
                                  exactAlarmStatusText(snapshot)))
                     .font(.system(size: 12))
@@ -564,14 +564,14 @@ struct ReminderScreen: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        // ← Android openExactAlarmSettings: 未授权时跳系统通知设置
+                        // ← 原版本 openExactAlarmSettings: 未授权时跳系统通知设置
                         if !snapshot.timeSensitiveAllowed,
                            let url = URL(string: UIApplication.openSettingsURLString) {
                             UIApplication.shared.open(url)
                         }
                     }
                     .accessibilityIdentifier("reminder_reliability_exact_alarm")
-                // 电池优化 ← snapshot.lowPowerModeActive(取反语义: Android 白名单 ≙ iOS 低电量未开)
+                // 电池优化 ← snapshot.lowPowerModeActive(取反语义: 原版本 白名单 ≙ iOS 低电量未开)
                 Text(L10n.format("reminder_reliability_battery",
                                  snapshot.lowPowerModeActive
                                      ? L10n.format("reminder_reliability_missing")
@@ -592,7 +592,7 @@ struct ReminderScreen: View {
         }
     }
 
-    /// ← Android exact-alarm 行状态映射: DEGRADED_INEXACT_ALARM → degraded,
+    /// ← 原版本 exact-alarm 行状态映射: DEGRADED_INEXACT_ALARM → degraded,
     /// 否则 allowed ? ready : missing。iOS: transport=degradedInexactAlarm(时效性不可用)
     /// 与 exactAlarmAllowed=false(timeSensitive!=.enabled)同源同值 → 统一 missing/degraded
     /// 分支保留结构一致。
@@ -607,7 +607,7 @@ struct ReminderScreen: View {
         }
     }
 
-    // MARK: - 上课自动勿扰卡 ← Android 第 4 张卡(仅 master 开时可见)
+    // MARK: - 上课自动勿扰卡 ← 原版本 第 4 张卡(仅 master 开时可见)
 
     private var classDndCard: some View {
         ReminderCard {
@@ -619,7 +619,7 @@ struct ReminderScreen: View {
         }
     }
 
-    /// ← Android: 开 → 检查权限(未授权跳系统设置回读; 无系统级 DND 写 API, iOS 以
+    /// ← 原版本: 开 → 检查权限(未授权跳系统设置回读; 无系统级 DND 写 API, iOS 以
     /// 通知抑制闸实现 — 开关只需落 prefs + syncFromPrefs); 关 → prefs + syncFromPrefs。
     private func onClassDndToggle(_ on: Bool) {
         classDndEnabled = on
@@ -638,7 +638,7 @@ struct ReminderScreen: View {
     }
 
     // ★ debounce 500ms: 分钟输入停止后持久化 + 重排(避免每键 cancelAll+scheduleAll)
-    // ← Android LaunchedEffect(minutesInput): 经 ReminderRescheduler 枢纽合并重排
+    // ← 原版本 LaunchedEffect(minutesInput): 经 ReminderRescheduler 枢纽合并重排
     @State private var minutesDebounce: Task<Void, Never>? = nil
     private func scheduleMinutesPersist() {
         minutesDebounce?.cancel()
@@ -652,15 +652,15 @@ struct ReminderScreen: View {
         }
     }
 
-    // MARK: - 时间选择弹窗 ← Android AlertDialog + DialogActionButtons
+    // MARK: - 时间选择弹窗 ← 原版本 AlertDialog + DialogActionButtons
 
     private func timePickerSheet(_ target: DailyReminderTimeTarget) -> some View {
         let selectedTime = target == .today ? dailyTime : tomorrowTime
         let parts = selectedTime.split(separator: ":").compactMap { Int($0) }
-        let defaultHour = target == .today ? 7 : 22   // ← Android initialHour fallback (默认 07:00/22:00)
+        let defaultHour = target == .today ? 7 : 22   // ← 原 initialHour fallback (默认 07:00/22:00)
         return VStack(spacing: 0) {
             Text(L10n.format("reminder_pick_time"))
-                .font(.system(size: 24)) // ← Android AlertDialog title headlineSmall 24sp Normal
+                .font(.system(size: 24)) // ← 原 AlertDialog title headlineSmall 24sp Normal
                 .foregroundColor(colors.onSurface)
                 .padding()
             DatePicker("", selection: $pickerTime, displayedComponents: .hourAndMinute)
@@ -746,14 +746,14 @@ struct ReminderScreen: View {
             notifDenied = false
             masterEnabled = false
             prefs.setReminderEnabled(false)
-            // cancelAll 为 suspend, 后台执行避免主线程阻塞(← Android IO 协程)
+            // cancelAll 为 suspend, 后台执行避免主线程阻塞(IO 协程)
             Task.detached(priority: .background) {
                 await NotificationScheduler.shared.cancelAll()
             }
         }
     }
 
-    /// ← Android requestNotificationPermission(): 可靠性诊断行「通知权限未满足」的直达入口。
+    /// ← 原版本 requestNotificationPermission(): 可靠性诊断行「通知权限未满足」的直达入口。
     /// iOS 权限政策(2026-10): 系统申请只允许发生在 master 开关 —— 本入口不另调
     /// requestAuthorization, 直接复用 onMasterToggle(true) 状态机:
     /// notDetermined → 弹窗申请; denied → 点亮系统设置引导行并回退开关; granted → 开。
@@ -782,7 +782,7 @@ struct ReminderScreen: View {
     }
 }
 
-// MARK: - 动态示例数据模型 ← Android private data classes
+// MARK: - 动态示例数据模型 ← 原 private data classes
 
 /// ← private data class ReminderCoursePreview
 struct ReminderCoursePreview {
@@ -828,7 +828,7 @@ enum ReminderPreviewLoader {
     }
 
     /// "H:mm" → 当日秒数; 非法 → nil。(TimeTableUtils.hmToSeconds 要求两位小时,
-    /// 不匹配 Android "H:mm" 模式 —— 与 ClassDndScheduler.courseInterval 的 Int 拆分同语义)
+    /// 不匹配 原版本 "H:mm" 模式 —— 与 ClassDndScheduler.courseInterval 的 Int 拆分同语义)
     static func hmmSeconds(_ s: String) -> Int? {
         let parts = s.split(separator: ":", omittingEmptySubsequences: false)
         guard parts.count == 2 else { return nil }
@@ -921,12 +921,12 @@ enum ReminderPreviewLoader {
         guard let first = day.firstCourse else {
             return L10n.format("reminder_daily_preview_dynamic_no_course", dateLabel)
         }
-        // ← Android ifBlank: 纯空白也算空 → 落默认文案(与 isEmpty 不同)
+        // ← 原版本 ifBlank: 纯空白也算空 → 落默认文案(与 isEmpty 不同)
         let courseName = first.course.courseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? L10n.format("default_course_name") : first.course.courseName
         let room = first.course.room.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? L10n.format("notif_room_unknown") : first.course.room
-        // ← Android trim().takeIf{…}.let{ getString(…, it) }: 传入的是 trim 后的名字
+        // ← 原版本 trim().takeIf{…}.let{ getString(…, it) }: 传入的是 trim 后的名字
         let teacherTrimmed = first.course.teacher.trimmingCharacters(in: .whitespacesAndNewlines)
         let teacherText = teacherTrimmed.isEmpty
             ? "" : L10n.format("reminder_preview_teacher", teacherTrimmed)
@@ -944,7 +944,7 @@ enum ReminderPreviewLoader {
         let dateLabel = L10n.format("reminder_preview_date",
                                     DateUtils.shortDateSlash(next.date),
                                     DateUtils.localizedDay(DateUtils.todayDayOfWeek(today: next.date)))
-        // ← Android ifBlank(空白视为空) + teacher 传 trim 后的名字(与 daily 构建函数同语义)
+        // ← 原版本 ifBlank(空白视为空) + teacher 传 trim 后的名字(与 daily 构建函数同语义)
         let courseName = next.course.courseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? L10n.format("default_course_name") : next.course.courseName
         let room = next.course.room.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -956,7 +956,7 @@ enum ReminderPreviewLoader {
         return Self.resolveFormat(tmpl, [dateLabel, courseName, next.startTime, room, teacherText])
     }
 
-    /// Android 位置参数语义(%1$s..%N$s / %N$lld / 顺序 %@ %lld)在 Darwin 上的等价实现:
+    /// 原版本 位置参数语义(%1$s..%N$s / %N$lld / 顺序 %@ %lld)在 Darwin 上的等价实现:
     /// 顺序 %@/%lld 依序消耗实参, %N$xx 显式取第 N 个(1-based)。
     /// 仅 reminder_daily_preview_dynamic / reminder_before_class_preview_dynamic 两模板需要
     /// (它们混用顺序与显式位置符); 其余键走 L10n.format。纯函数, 单测锁定。
@@ -1110,8 +1110,8 @@ private struct ReminderTimeRow: View {
 }
 
 // ← ReminderToggleRow(无图标, 课前子项/日期规则子开关)
-// tag = Android 同名参数: 尾随「实验」pill(labelSmall 11 primary, 胶囊底 primary α0.12,
-// padding 6×2)。enabled 参数 Android 仅在 dateRulesEnabled==true 分支传 false 不可达, iOS 省略。
+// tag = 原版本 同名参数: 尾随「实验」pill(labelSmall 11 primary, 胶囊底 primary α0.12,
+// padding 6×2)。enabled 参数 原版本 仅在 dateRulesEnabled==true 分支传 false 不可达, iOS 省略。
 private struct ReminderToggleRow: View {
     @Environment(\.localWakeUpColors) private var colors
     let title: String
@@ -1123,7 +1123,7 @@ private struct ReminderToggleRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {   // ← Android Spacer(6.dp) 标题与 tag 间距
+                HStack(spacing: 6) {   // ← 原 Spacer(6.dp) 标题与 tag 间距
                     Text(title)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(colors.onSurface)

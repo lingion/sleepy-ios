@@ -1,12 +1,12 @@
 // JwUmoocYlParserTests.swift — iOS 侧自建的 UMOOC / 奕联(YL) 课表契约锁。
 //
-// ★ 上游没有 oracle: Android v1.0.62 的 `WakeUpCompat.parseUmooc` / `parseYl`
+// ★ 上游没有 oracle: 原版本 v1.0.62 的 `WakeUpCompat.parseUmooc` / `parseYl`
 //   在真实 Jsoup 1.23.2 下是**死代码** —— 它们写 `cell.text().trim().split("\n")`
 //   并要求 `lines.size >= 2`, 而 Jsoup 的 `Element.text()` 把 `<br>` 折成空格,
 //   `split("\n")` 永远只得到 1 行 ⇒ 永远返回空列表。
-//   Android 仓库里既没有 UMOOC/YL 的单测, 也没有对应 fixture。
+//   原版本 仓库里既没有 UMOOC/YL 的单测, 也没有对应 fixture。
 //   所以本文件的期望值由 iOS 侧依据「该解析器本意」自行定义, 并在
-//   `Sleepy/data/jw/JwWakeUpCompatParsers.swift` 里显式记录两处与 Android 的差异。
+//   `Sleepy/data/jw/JwWakeUpCompatParsers.swift` 里显式记录两处与 原版本 的差异。
 //
 // fixture: SleepyTests/resources/umooc_sample.html, SleepyTests/resources/yl_sample.html
 
@@ -69,8 +69,8 @@ final class JwUmoocYlParserTests: XCTestCase {
     }
 
     func testUmoocParityMarkersMapToSingleAndDoubleWeek() throws {
-        // 与 Android 的差异点 b: iOS 取自然映射 单→1 / 双→2 / 其余→0。
-        // Android 写的是 单→1 / 双→0 / 其余→2, 与 JwCourse.type 语义冲突。
+        // 与 原版本 的差异点 b: iOS 取自然映射 单→1 / 双→2 / 其余→0。
+        // 原版本 写的是 单→1 / 双→0 / 其余→2, 与 JwCourse.type 语义冲突。
         let html = try load("umooc_sample")
         let courses = try JwUmoocParser(html).generateCourseList()
 
@@ -84,7 +84,7 @@ final class JwUmoocYlParserTests: XCTestCase {
     }
 
     func testUmoocFallsBackToMarkerParserWhenTimetableMissing() throws {
-        // 容器缺失时, 走 WakeUpMarkerParser 的通用形态(与 Android 的
+        // 容器缺失时, 走 WakeUpMarkerParser 的通用形态(与 原版本 的
         // `parsed.ifEmpty { super.generateCourseList() }` 同型)。
         let noTimetable = "<html><body><table><tr><td>高等数学<br>张三<br>1-16周<br>六教6A201</td></tr></table></body></html>"
         let parser = JwUmoocParser(noTimetable)

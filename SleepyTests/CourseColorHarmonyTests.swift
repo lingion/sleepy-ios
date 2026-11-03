@@ -10,7 +10,7 @@
 //   4. 钉死性 — 已有课 hue 不因新课加入而改变(taken 只增不改的语义前提)。
 //   5. 饱和退化 — 超过弧容量(>24门)不抛异常、仍在允许弧。
 //
-// 平台差异: Android 用 java.util.UUID.nameUUIDFromBytes 生成确定性 groupId;
+// 平台差异: 原版本 用 java.util.UUID.nameUUIDFromBytes 生成确定性 groupId;
 // iOS 用同语义的确定性 UUIDv3(MD5, RFC 4122 §4.3)自实现 — 见 deterministicUUIDv3。
 
 import XCTest
@@ -20,7 +20,7 @@ import SwiftUI
 
 final class CourseColorHarmonyTests: XCTestCase {
 
-    // MARK: - 几何助手(与 Android CourseColorHarmonyTest 同一定义)
+    // MARK: - 几何助手(与 原 CourseColorHarmonyTest 同一定义)
 
     private func ringDelta(_ a: Float, _ b: Float) -> Float {
         let d = ((a - b).truncatingRemainder(dividingBy: 360) + 360)
@@ -44,7 +44,7 @@ final class CourseColorHarmonyTests: XCTestCase {
                       file: file, line: line)
     }
 
-    /// 确定性 UUIDv3(MD5, RFC 4122 §4.3) — 等价 Android UUID.nameUUIDFromBytes
+    /// 确定性 UUIDv3(MD5, RFC 4122 §4.3) — 等价 原版本 UUID.nameUUIDFromBytes
     /// (nameUUIDFromBytes = MD5(namespaceBytes + name) 取 16 字节、置 version/variant 位)。
     /// 确定性是本测试唯一要求; 逐字节对齐非必需。
     private func deterministicUUIDv3(_ name: String) -> String {

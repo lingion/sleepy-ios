@@ -72,7 +72,7 @@ private struct NativeColorPickerRepresentable: UIViewControllerRepresentable {
         }
 
         func colorPickerViewControllerDidFinish(_ vc: UIColorPickerViewController) {
-            // 取消/未选色直接关闭 = Android onDismissRequest(kotlin:71/129): 永不发 onConfirm ← F056 对齐
+            // 取消/未选色直接关闭 = 原版本 onDismissRequest(kotlin:71/129): 永不发 onConfirm ← F056 对齐
         }
     }
 }

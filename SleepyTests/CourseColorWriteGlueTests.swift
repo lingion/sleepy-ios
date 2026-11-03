@@ -1,7 +1,7 @@
 // CourseColorWriteGlueTests.swift — ← util/CourseColorRecalcTest.kt + CourseColorPersistedHueTest.kt
 // 逐用例移植 (v1.0.62, GPL-3.0)
 //
-// 覆盖两个 Android 契约套件:
+// 覆盖两个 原版本 契约套件:
 //   A. CourseColorRecalcTest — 重算层契约(spec §2.3 时机1/2/3/6)
 //      · CLASSIC(anchor=null)零写红线;脏 gid(空白/重复)过滤去重;
 //      · 重算结果仍满足安全弧禁区不变量 + 同批 ≥10° 间距;
@@ -13,8 +13,8 @@
 //      · resolveAnchor 三档决策 + Int/Color 两路径 hue 解析一致;
 //      · AppPrefs 两新键字面量稳定。
 //
-// 平台差异: Android FakeDao 记录写入;iOS 用 AppDatabase.inMemory() 真 DAO(更贴近实际)。
-// Android Compose Color ↔ SwiftUI Color: 用 UIColor.getRed 分量比对(仓库既有约定)。
+// 平台差异: 原版本 FakeDao 记录写入;iOS 用 AppDatabase.inMemory() 真 DAO(更贴近实际)。
+// 原版本 Compose Color ↔ SwiftUI Color: 用 UIColor.getRed 分量比对(仓库既有约定)。
 
 import XCTest
 import SwiftUI
@@ -322,7 +322,7 @@ final class CourseColorWriteGlueTests: XCTestCase {
 
     // ───────── 5. 写侧胶水与真 DAO 的落库闭环 ─────────
 
-    // 「既有组」口径 = **已在 course_colors 表内** 的组(Android persistNewGroupHues
+    // 「既有组」口径 = **已在 course_colors 表内** 的组(原版本 persistNewGroupHues
     // 的 `filter { it !in persisted }`), 不是「本次实体列表里出现过」的组。
     // 导入时同批既含旧组又含新组 → 旧组若已在表内则零写, 新组补色。
     func testPersistNewGroupHuesWritesOnlyGroupsAbsentFromTableAndIsIdempotent() throws {
@@ -352,7 +352,7 @@ final class CourseColorWriteGlueTests: XCTestCase {
         XCTAssertTrue(second.isEmpty, "已在表内的组不重复补色")
     }
 
-    /// 首次导入(表空):本批全部 gid 都是新组 → 全部补色(Android 同语义)。
+    /// 首次导入(表空):本批全部 gid 都是新组 → 全部补色(原版本 同语义)。
     func testPersistNewGroupHuesFirstImportFillsEveryGroupInBatch() throws {
         let db = try makeDb()
         let suite = UserDefaults(suiteName: "test-course-color-glue-first-\(UUID().uuidString)")!

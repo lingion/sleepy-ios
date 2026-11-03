@@ -1,4 +1,4 @@
-# Spec: Sleepy iOS — sleepy 课程表 100% 移植 (Android → iOS)
+# Spec: Sleepy iOS — sleepy 课程表 100% 移植 (original → iOS)
 
 **源项目**: `~/Desktop/sleepy` (Kotlin + Compose, 87 文件 / 18,242 行, v1.0.34, GPL-3.0)
 **目标**: SwiftUI 等价移植,AltStore Classic 免费账号侧载,自用分发。
@@ -7,7 +7,7 @@
 
 ## Objective
 
-把 sleepy 课程表**逐文件、逐函数忠实翻译**成 iOS 原生 app。移植=翻译,不是重写:每个 Kotlin 文件有对应 Swift 文件,每个函数有对应函数,strings.xml 每条字符串逐条搬运,数据流/交互逻辑不变。仅当功能依赖 Android 平台私有机制且 iOS 无对应物时做等价适配(见「平台差异映射表」),适配不等于省略——UI 与行为仍完整。
+把 sleepy 课程表**逐文件、逐函数忠实翻译**成 iOS 原生 app。移植=翻译,不是重写:每个 Kotlin 文件有对应 Swift 文件,每个函数有对应函数,strings.xml 每条字符串逐条搬运,数据流/交互逻辑不变。仅当功能依赖 original 平台私有机制且 iOS 无对应物时做等价适配(见「平台差异映射表」),适配不等于省略——UI 与行为仍完整。
 
 验收者 = 用户本人,iOS 26 真机 + AltStore 侧载。
 
@@ -36,14 +36,14 @@ xcodegen generate
 # 构建+打出无签名 IPA(主命令)
 ./scripts/build-ipa.sh            # → build/Sleepy-unsigned.ipa
 
-# 单元测试(移植自 Android test 源集)
+# 单元测试(移植自 original test 源集)
 xcodebuild test -project Sleepy.xcodeproj -scheme Sleepy -destination 'platform=iOS Simulator,name=iPhone 14'
 
 # 模拟器跑主 app
 open Sleepy.xcodeproj             # Xcode 14.3.1, iOS 16.4 simulator
 ```
 
-## Project Structure(镜像 Android 包结构 1:1)
+## Project Structure(镜像 original 包结构 1:1)
 
 ```
 sleepy-ios/
@@ -93,7 +93,7 @@ Kotlin → Swift 逐行对译,保结构:
 ## Testing Strategy
 
 - 框架:XCTest,Xcode 内置,零新依赖
-- 位置:`SleepyTests/`,文件名与 Android test 一一对应
+- 位置:`SleepyTests/`,文件名与 original test 一一对应
 - 覆盖:解析器(WakeUp/ICS/CSV/HTML/纯文本/教务 JSON)、日期周次计算、黄金角色彩、智能节次推算、版本比较、导入导出往返、字符串键五语言 parity(直接移植 StringsKeyParityTest 思路)
 - 每完成一个 data/ 文件移植 → 立即跑对应测试 → 绿了才进下一个(UI 层 XCTest 为主,真机验收靠用户)
 
@@ -101,11 +101,11 @@ Kotlin → Swift 逐行对译,保结构:
 
 - **Always**: 移植前先 Read 对应 Kotlin 原文件全文 · 每文件移植完跑测试 · GPL-3.0 保留原版权头
 - **Ask first**: 删/跳过任何源文件或函数(哪怕看似无用)· 增第三方依赖 · 改 Room→GRDB schema 语义
-- **Never**: 概括式重写("反正功能就是…")· 静默改交互行为 · 提交任何 Apple ID/证书信息 · 破坏 sleepy Android 仓库
+- **Never**: 概括式重写("反正功能就是…")· 静默改交互行为 · 提交任何 Apple ID/证书信息 · 破坏 原版本 仓库
 
 ## 平台差异映射表(唯一允许的"非逐行"处)
 
-| # | Android 机制 | iOS 等价适配 | 性质 |
+| # | original 机制 | iOS 等价适配 | 性质 |
 |---|---|---|---|
 | 1 | AlarmManager 精确闹钟+BootReceiver | UNUserNotificationCenter 本地通知(UNCalendarNotificationTrigger),iOS 重启后通知仍持久,BootReceiver 不需要;64 pending 上限→按天批量排程 | 等价 |
 | 2 | REQUEST_INSTALL_PACKAGES 自装 APK 更新 | UpdateManager 保留版本检查+UpdateChangelogDialog 完整移植,安装动作改为「提示重新侧载 IPA」 | 等价(动作降级) |
@@ -123,7 +123,7 @@ Kotlin → Swift 逐行对译,保结构:
 
 1. **文件覆盖**:87 个 Kotlin 源文件每个在 SPEC 附录映射表有一行归宿(移植/等价/平台跳过三类,跳过仅限表#3 相关)
 2. **测试绿**:Android 全部测试用例的 iOS 版全绿,含 389×5 字符串 parity 测试
-3. **真机验收**:`./scripts/build-ipa.sh` 产出 IPA → 用户 AltStore 装上 iOS 26 真机 → 课表三视图/编辑/导入(WakeUp文本+JSON+教务直连)/导出三格式/5 类 widget/每日+课前通知/5 主题/多课表,逐项与 Android 版对照可用
+3. **真机验收**:`./scripts/build-ipa.sh` 产出 IPA → 用户 AltStore 装上 iOS 26 真机 → 课表三视图/编辑/导入(WakeUp文本+JSON+教务直连)/导出三格式/5 类 widget/每日+课前通知/5 主题/多课表,逐项与 original 版对照可用
 4. 真机 widget 数据与 app 同步(App Group 生效),课程编辑后 widget 刷新
 
 ## Open Questions

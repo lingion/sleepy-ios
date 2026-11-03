@@ -1,11 +1,11 @@
 // JwEams5ParserTests.swift — ← JwEams5ParserTest.kt + HfutIssue46LayoutNodeMappingTest.kt (v1.0.61)
 //
 // 合工大 EAMS5 (金智 eams5-student) + 安徽大学 print-data 双形态解析器测试。
-// 用例逐一对应 Android 侧两份测试文件:
+// 用例逐一对应 原版本 侧两份测试文件:
 //   - JwEams5ParserTest.kt (681 行, HFUT 行映射 / AHU 优先级 / parseWeekRanges RLE / teacher 6 级 fallback)
 //   - HfutIssue46LayoutNodeMappingTest.kt (issue #46: courseUnitList 布局查表, 宣城 12 节次)
 //
-// fixture (SleepyTests/resources/, 与 Android test resources 逐字节一致):
+// fixture (SleepyTests/resources/, 与 original test resources 逐字节一致):
 //   - eams5-schedule-table-datum.sample.json   ← jw/fixtures/eams5/schedule-table-datum.sample.json
 //   - eams5-get-data-ahu.sample.json           ← jw/fixtures/eams5/get-data-ahu.sample.json
 //   - eams5-hfut-xc-datum-with-layout.json     ← jw/fixtures/eams5/hfut-xc-datum-with-layout.json
@@ -394,7 +394,7 @@ final class JwEams5ParserTests: XCTestCase {
     }
 
     // 直接对 static parseWeekRanges 的边界回归 (锁定 issue #3 split-limit-2 对齐):
-    // Android bare.split("-", limit = 2) 且 b 解析失败回退 a → "5-12-16" → (5,5,parity)
+    // 原版本 bare.split("-", limit = 2) 且 b 解析失败回退 a → "5-12-16" → (5,5,parity)
     func test_week_ranges_malformed_multi_dash_behaves_like_split_limit_2() {
         let r = JwEams5Parser.parseWeekRanges("5-12-16")
         XCTAssertEqual(1, r.count)
@@ -542,7 +542,7 @@ final class JwEams5ParserTests: XCTestCase {
 
     func test_issue46_layout_covers_all_referenced_start_times() throws {
         // 服务端布局 startTime 集合必须覆盖 datum 出现的每个 startTime
-        // (JS 侧 periods 预填与 parser 查表共同依赖此不变量; Android 用正则抽取,
+        // (JS 侧 periods 预填与 parser 查表共同依赖此不变量; 原版本 用正则抽取,
         //  iOS 直接 JSON 解析 — 断言语义等价)
         guard let data = try loadJson(name: "eams5-hfut-xc-datum-with-layout").data(using: .utf8),
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],

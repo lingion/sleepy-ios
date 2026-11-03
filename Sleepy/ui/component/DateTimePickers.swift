@@ -12,19 +12,19 @@ struct DatePickerField: View {
     let onValueChange: (String) -> Void
     let label: String
     var isError: Bool = false
-    // ← Android fillMaxWidth() 调用方传 true, 字段吃满可用宽
+    // ← 原版本 fillMaxWidth() 调用方传 true, 字段吃满可用宽
     var fillsWidth: Bool = false
 
     @State private var showPicker = false
     @State private var pickerDate = Date()
-    // ← Android rememberDatePickerState().selectedDateMillis 在用户点选日期前恒为 null;
+    // ← 原版本 rememberDatePickerState().selectedDateMillis 在用户点选日期前恒为 null;
     //   未选日期点确定不回调 onValueChange。iOS graphical DatePicker 总有选中值,
     //   用 hasSelection 记录用户是否在本弹窗内实际改选过。
     @State private var hasSelection = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 4) {
-            // ← Android M3 TextField 浮动 label: 空值 = label 占位; 有值 = label 浮到值上方
+            // ← 原版本 M3 TextField 浮动 label: 空值 = label 占位; 有值 = label 浮到值上方
             //   与 TimePickerField 同一处理 (修 P3: 同文件两套 label 表现)
             VStack(alignment: .leading, spacing: 2) {
                 if !value.isEmpty {
@@ -37,9 +37,9 @@ struct DatePickerField: View {
                     set: { onValueChange($0) }
                 ))
                 .textFieldStyle(.plain)
-                // ← Android M3 TextField 默认 bodyLarge 16sp
+                // ← 原版本 M3 TextField 默认 bodyLarge 16sp
                 .font(.system(size: 16))
-                // ← Android TextField(isError = isError) — M3 错误态 label/文字/error 色
+                // ← 原版本 TextField(isError = isError) — M3 错误态 label/文字/error 色
                 .foregroundColor(isError ? colors.error : colors.onSurface)
                 // ← G5: 字段锚点(label 原文) — 镜像 HEAD EditTableScreen.FieldTextField
                 //   的 "field_\(label)"; 本组件替换 FieldTextField 后锚点随组件内移,
@@ -51,7 +51,7 @@ struct DatePickerField: View {
             .padding(.vertical, 10)
             .background(colors.surfaceContainer)
             .cornerRadius(SleepyTheme.fieldShape)
-            // ← Android filled TextField 默认无描边; isError 时底边 error 指示线 (M3 active indicator)
+            // ← 原 filled TextField 默认无描边; isError 时底边 error 指示线 (M3 active indicator)
             .overlay(alignment: .bottom) {
                 if isError {
                     Rectangle()
@@ -72,11 +72,11 @@ struct DatePickerField: View {
                     .foregroundColor(colors.primary)
             }
             .buttonStyle(SleepyButtonStyle())
-            // ← Android Icon contentDescription = select_date
+            // ← 原版本 Icon contentDescription = select_date
             .accessibilityLabel(L10n.format("select_date"))
         }
         .sheet(isPresented: $showPicker) {
-            // ← Android DatePickerDialog: 内容列 = DatePicker 本体(无 arrangedBy/Spacer),
+            // ← 原版本 DatePickerDialog: 内容列 = DatePicker 本体(无 arrangedBy/Spacer),
             //   确认/取消在框架 confirm/dismiss 槽 → 内容区 spacing:0, 按钮行独立。
             VStack(spacing: 0) {
                 DatePicker("",
@@ -88,13 +88,13 @@ struct DatePickerField: View {
                     .datePickerStyle(.graphical)
                     .labelsHidden()
                     .padding()
-                // ← Android 色块按钮行 (DatePickerDialog confirm/dismiss = M3 填充按钮:
+                // ← 原版本 色块按钮行 (DatePickerDialog confirm/dismiss = M3 填充按钮:
                 //   确定 primary, 取消 secondaryContainer) — 2026-09-16 用户「裸 TextButton
                 //   无边界无色块 — 色块按钮」修复镜像; DialogActionButtons 同语言同配色。
                 DialogActionButtons(
                     confirmText: L10n.format("ok"),
                     onConfirm: {
-                        // ← Android selectedDateMillis?.let: 未点选日期 → 确定不回调
+                        // ← 原版本 selectedDateMillis?.let: 未点选日期 → 确定不回调
                         if hasSelection {
                             onValueChange(formatISO(pickerDate))
                         }
@@ -110,14 +110,14 @@ struct DatePickerField: View {
         }
     }
 
-    // Android: Instant.atZone(ZoneId.of("Asia/Shanghai")) — iOS 用同目标时区格式化
+    // 原版本: Instant.atZone(ZoneId.of("Asia/Shanghai")) — iOS 用同目标时区格式化
     private var shanghaiTZ: TimeZone { TimeZone(identifier: "Asia/Shanghai") ?? .current }
 
     private func formatISO(_ date: Date) -> String {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.timeZone = shanghaiTZ
-        // ← Android DateTimeFormatter.ISO_LOCAL_DATE 恒公历拉丁数字; 不设 POSIX 时
+        // ← 原版本 DateTimeFormatter.ISO_LOCAL_DATE 恒公历拉丁数字; 不设 POSIX 时
         //   泰区等系统 locale 会把 yyyy 输出佛历纪年(2569)/非拉丁数字 → 存储值漂移
         f.locale = Locale(identifier: "en_US_POSIX")
         return f.string(from: date)
@@ -138,10 +138,10 @@ struct TimePickerField: View {
     let value: String                  // HH:mm
     let onValueChange: (String) -> Void
     let label: String
-    // ← Android weight(1f)/fillMaxWidth 调用方传 true, 字段吃满可用宽
+    // ← 原版本 weight(1f)/fillMaxWidth 调用方传 true, 字段吃满可用宽
     var fillsWidth: Bool = false
     // 「待设置」副行仅限手动作息编辑(需求侧空态提示); 其余调用方(加课/自动节次/
-    // 提醒时间)保持 Android 原形态: 空值 = label 单独占位。
+    // 提醒时间)保持 原版本 原形态: 空值 = label 单独占位。
     var showsPendingHint: Bool = false
 
     // One presentation owns one draft. Do not share the wheel's state with the
@@ -155,7 +155,7 @@ struct TimePickerField: View {
                                             to: nil, from: nil, for: nil)
             selection = TimePickerSession(value: value)
         } label: {
-            // ← Android readOnly TextField 形态: 空值 = label 占位; 有值 = label 浮到值上方
+            // ← 原 readOnly TextField 形态: 空值 = label 占位; 有值 = label 浮到值上方
             VStack(alignment: .leading, spacing: 2) {
                 if value.isEmpty {
                     Text(label)
@@ -179,7 +179,7 @@ struct TimePickerField: View {
             .padding(.vertical, 10)
             .background(colors.surfaceContainer)
             .cornerRadius(SleepyTheme.fieldShape)
-            // ← Android filled TextField, 无描边
+            // ← 原 filled TextField, 无描边
         }
         .buttonStyle(SleepyButtonStyle())
         .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)

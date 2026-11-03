@@ -1,10 +1,10 @@
 import XCTest
 @testable import Sleepy
 
-/// T9 诊断接线测试 —— 移植 Android JwImportActivityDiagnosticsTest。
+/// T9 诊断接线测试 —— 移植自原版本 JwImportActivityDiagnosticsTest。
 ///
 /// iOS 侧 JwParseDiagnostics.classify 长期零调用方 (0 课一律吐 jw_parse_empty),
-/// 本组测试锁住两件事: ①DiagMapper 分类→文案映射与 Android 同义;
+/// 本组测试锁住两件事: ①DiagMapper 分类→文案映射与 原版本 同义;
 /// ②0 课路径真的走 classify (会话过期页不再被误报成"本学期无课")。
 final class JwImportDiagnosticsTests: XCTestCase {
 
@@ -110,11 +110,11 @@ final class JwImportDiagnosticsTests: XCTestCase {
     }
 
     /// 声明协议解析失败 (parser 抛 JwParseError): error 文案 + attempts 快照都要交回调用方。
-    /// ← Android 真值两面对照: JwQzParserNoTableTest 锁 qz 缺 #kbtable 抛
+    /// ← 原版本 真值两面对照: JwQzParserNoTableTest 锁 qz 缺 #kbtable 抛
     ///   JwParseException 且 attempts[0].exception=NO_TABLE_CONTAINER_MARKER;
     ///   zf_new 缺表**不抛** (JwNewZfParser.parseHtmlTableFromQt 吸收为 0 课,
     ///   JwNewZfParser.kt:737-742) — zf_new 没有"错误带 attempts"路径可测,
-    ///   原稿用 zf_new 断言 error 非空是对 Android 契约的误译, 改用 qz 协议触发真错误。
+    ///   原稿用 zf_new 断言 error 非空是对 原版本 契约的误译, 改用 qz 协议触发真错误。
     func testDeclaredProtocolReportsAttemptsOnError() {
         let out = JwParseDispatch.parse("<html><body>无课表</body></html>", JwProtocol.TYPE_QZ)
         XCTAssertTrue(out.courses.isEmpty)

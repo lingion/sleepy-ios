@@ -190,7 +190,7 @@ enum ScheduleParser {
     /// - 只有 BEGIN: 取 BEGIN 之后全部(END 缺失容错)
     /// - 只有 END: 取 END 之前全部
     /// - 都没有: 原样返回(手工输入不带标识, 走原有路径)
-    /// 邻接标识(END 紧跟 BEGIN)按 Android 规: end.first > begin.last 成立 → 空内容,
+    /// 邻接标识(END 紧跟 BEGIN)按 原版本 规: end.first > begin.last 成立 → 空内容,
     /// 而非落进 BEGIN-only 分支把 END 字面量留在正文里。
     static func extractMarkedBody(_ text: String) -> String {
         // 匹配 <<< / {{ / (( 等 2-4 个任意括号 + SLEEPY[- ]?(BEGIN|END) + 对应右括号, 大小写不敏感
@@ -201,7 +201,7 @@ enum ScheduleParser {
         let ns = text as NSString
         let beginM = match(markerRegex("begin"), text)
         let endM = match(markerRegex("end"), text)
-        // ← Android: endM.range.first > beginM.range.last ⇔ e.location >= b.location + b.length
+        // ← 原版本: endM.range.first > beginM.range.last ⇔ e.location >= b.location + b.length
         // (begin.last = begin.location + begin.length - 1)。邻接标识(END 紧跟 BEGIN)在
         // 两端同时满足该条件 → 空正文 → trim 后 "" → parse 报「空内容」,
         // 不会落进 BEGIN-only 分支把 '<<<SLEEPY-END>>>' 字面量留在正文里。
@@ -436,7 +436,7 @@ enum ScheduleParser {
         if let courseDetailJsonStr = root["courseDetailJson"] as? String {
             // courseDetailJson 是 URL-encoded JSON 字符串
             // ← java.net.URLDecoder.decode(s, "UTF-8"): 表单编码语义, 先 '+'→空格 再百分号解码。
-            //   WakeUp 分享文本(Android URLEncoder / 官方 app 导出)空格一律编码成 '+',
+            //   WakeUp 分享文本(原版本 URLEncoder / 官方 app 导出)空格一律编码成 '+',
             //   直接 removingPercentEncoding 会留下 '+' → JSON 非法 → 整份分享解析失败。
             let plusNormalized = courseDetailJsonStr.replacingOccurrences(of: "+", with: "%20")
             let decoded = plusNormalized.removingPercentEncoding ?? plusNormalized
@@ -470,7 +470,7 @@ enum ScheduleParser {
     }
 
     /// 键缺失给默认、键存在但非数字/JsonNull 给 0 — ← obj["k"]?.jsonPrimitive?.intOrZero() ?: def
-    /// (def 只在 key 缺失时生效; day="一"/null → 0, 对齐 Android JsonPrimitive.intOrZero())
+    /// (def 只在 key 缺失时生效; day="一"/null → 0, 对齐 原版本 JsonPrimitive.intOrZero())
     private static func intField(_ obj: [String: Any], _ key: String, def: Int) -> Int {
         guard let v = obj[key] else { return def }
         return intOrZero(v)
@@ -564,7 +564,7 @@ enum ScheduleParser {
 
     // MARK: - ICS (RFC 5545)
 
-    /// 解析 ICS 日历文件 (RFC 5545)。 ← Android 完整语义
+    /// 解析 ICS 日历文件 (RFC 5545)。 ← 原版本 完整语义
     ///
     /// 支持两类来源:
     /// 1. WakeUp 课程表导出 — SUMMARY=课名, DESCRIPTION="第X - Y节\n教室\n教师"(字面 \n 转义),
@@ -800,7 +800,7 @@ enum ScheduleParser {
     }
 
     /// DTSTART/DTEND 值 "T" 后取 6 位 "HHmmss" → 当日分钟数
-    /// ← Kotlin substringAfter("T"): 无 "T" 时返回整串(与 Android 同规), 再 take(6)
+    /// ← Kotlin substringAfter("T"): 无 "T" 时返回整串(与 原版本 同规), 再 take(6)
     private static func icsTimeAfterT(_ value: String) -> Int? {
         let tail: Substring
         if let tIdx = value.firstIndex(of: "T") {
@@ -1149,7 +1149,7 @@ enum ScheduleParser {
     private static func parseRange(_ s: String) -> (Int, Int)? {
         // ← split('-', '~', '至'): Kotlin split 保留空子串 — "1--2" 是 3 段 → null(拒),
         // "2-5-9" 同样 null。Swift 默认 omittingEmptySubsequences:true 会把 "1--2" 当 (1,2) 收编,
-        // 与 Android 分叉 → 必须显式保留空段。双段分支 Android 不 trim(" 2"→null),单段分支 trim。
+        // 与原实现分叉 → 必须显式保留空段。双段分支 原版本 不 trim(" 2"→null),单段分支 trim。
         let parts = s.split(omittingEmptySubsequences: false,
                             whereSeparator: { $0 == "-" || $0 == "~" || $0 == "至" }).map(String.init)
         if parts.count == 1 {
@@ -1506,7 +1506,7 @@ enum ScheduleParser {
             return t.contains("课程") || t.contains("course") || t.contains("name")
         } ?? -1
         if headerIdx < 0 {
-            // 退化:按文本行处理 — Android 直调 parseSimpleText(不走完整分派,
+            // 退化:按文本行处理 — 原版本 直调 parseSimpleText(不走完整分派,
             // 防展平后的 cell 以 '{' 或 'BEGIN:VCALENDAR' 开头被误路由进 JSON/ICS 解析器)
             let text = rows.flatMap { $0 }.joined(separator: "\n")
             if let r = try? parseSimpleText(text, defaultTableId, defaultColor) {

@@ -1,4 +1,4 @@
-// AddCourseEditTests.swift — ← Android ui/screen/edit 同包 5 个测试类移植:
+// AddCourseEditTests.swift — ← 原版本 ui/screen/edit 同包 5 个测试类移植:
 //   BuildCourseEntityAliasTest.kt / GroupSlotsForEditTest.kt /
 //   IrregularOptionsCollapseTest.kt / IrregularValidationTest.kt /
 //   EditCourseSlotSummaryContractTest.kt
@@ -22,7 +22,7 @@ final class AddCourseEditTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - 工厂 (← 各 Android 测试类私有 factory)
+    // MARK: - 工厂 (← 各 原版本 测试类私有 factory)
 
     private func block(startNode: Int = 1, step: Int = 2,
                        days: Set<Int> = [1],
@@ -160,7 +160,7 @@ final class AddCourseEditTests: XCTestCase {
         XCTAssertEqual(2, groups.first { $0[0].startNode == 1 }?.count)
     }
 
-    /// 顺序契约 (审计 issue 10): Android groupBy 走 LinkedHashMap 保持首次出现序 —
+    /// 顺序契约 (审计 issue 10): 原 groupBy 走 LinkedHashMap 保持首次出现序 —
     /// 锁"分组顺序本身"而非仅"分组存在性" (设计规范铁律③)。
     func testGroupOrder_follows_firstAppearance() {
         let courses = [course(startNode: 9, step: 1, startWeek: 1, endWeek: 2, type: 0),
@@ -247,7 +247,7 @@ final class AddCourseEditTests: XCTestCase {
         XCTAssertEqual(13, TimeTableUtils.parseTimeSlotRows(afterEdge).count)
     }
 
-    // MARK: - validateCourseDraft 卡级校验 (Android 同名私有函数经 save 前拦截, iOS 已抽 static 直测)
+    // MARK: - validateCourseDraft 卡级校验 (原版本 同名私有函数经 save 前拦截, iOS 已抽 static 直测)
 
     func testValidate_rejects_inverted_week_range_as_typed() {
         // issue 8 语义: 20→5 倒挂原样进草稿, 由 slot_week_order 拦截 (不静默交换)
@@ -354,7 +354,7 @@ final class AddCourseEditTests: XCTestCase {
     }
 
     /// 结构体函数体: 声明起点到下一个顶层 `private struct` 声明为止。
-    /// NSString 坐标系 (与 Android substringAfter/Before 语义一致)。
+    /// NSString 坐标系 (与 原版本 substringAfter/Before 语义一致)。
     private func structBody(_ source: String, _ name: String) -> String {
         let ns = source as NSString
         let start = ns.range(of: "struct \(name)").location
@@ -404,7 +404,7 @@ final class AddCourseEditTests: XCTestCase {
         XCTAssertFalse(source.contains("OutlinedButton"), "Sleepy 全 app 禁 OutlinedButton")
     }
 
-    // ---- D. 五 locale 文案齐全 (Android 六 values 目录 → iOS 五 lproj) ----
+    // ---- D. 五 locale 文案齐全 (原版本 六 values 目录 → iOS 五 lproj) ----
 
     func testSection_strings_present_in_all_locales() throws {
         _ = try editorSource()  // 同守卫: 真机宿主无源文件时 skip
@@ -431,7 +431,7 @@ final class AddCourseEditTests: XCTestCase {
         XCTAssertTrue(source.contains("summary.calendar") && source.contains("summary.detail"),
                       "卡头必须渲染 calendar + detail 两行")
         XCTAssertFalse(source.contains("selected_days"),
-                       "旧卡头不能只显示已选星期 (Android 无此 key)")
+                       "旧卡头不能只显示已选星期 (原实现无此 key)")
         let summary = AddCourseScreen.meetingBlockSummary(
             block: block(startWeek: 1, endWeek: 8),
             timeJson: TimeTableUtils.DEFAULT_TIME_JSON)

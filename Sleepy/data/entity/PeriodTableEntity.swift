@@ -54,7 +54,7 @@ struct PeriodTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Id
             "n": table.nodesPerDay,
             "s": table.smartConfigJson,
         ]
-        // JSONSerialization 输出顺序不保证;Android org.json.JSONObject 同样无序,
+        // JSONSerialization 输出顺序不保证;原版本 org.json.JSONObject 同样无序,
         // 消费端只按键读取, 顺序无关 → 语义等价
         if let data = try? JSONSerialization.data(withJSONObject: obj),
            let s = String(data: data, encoding: .utf8) {

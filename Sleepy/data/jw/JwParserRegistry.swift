@@ -191,7 +191,7 @@ enum JwParserRegistry {
         factoryFor(type) != nil
     }
 
-    /// ← Android JwParserRegistry.supports(type): 该 type 是否有已注册的 parser。
+    /// ← 原版本 JwParserRegistry.supports(type): 该 type 是否有已注册的 parser。
     /// 与 isRoutable 同义但接受可空 type(nil = 未声明协议 → 不支持),
     /// 供 JwSchoolInfo.canImport 的「未验证条目」判定使用。
     static func supports(_ type: String?) -> Bool {

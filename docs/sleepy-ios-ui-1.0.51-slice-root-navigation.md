@@ -1,7 +1,7 @@
-# Root navigation / dock — Android 1.0.51 parity
+# Root navigation / dock — original 1.0.51 parity
 
 ## Comparison
-- Compared `Sleepy/SleepyApp.swift` with Android `MainActivity.kt` and its `AppRoot`/`MainTabs` flow.
+- Compared `Sleepy/SleepyApp.swift` with 原 `MainActivity.kt` and its `AppRoot`/`MainTabs` flow.
 - Four root tabs, selected-tab state, docked/floating navigation modes, status-bar handling, and floating scroll clearance are already aligned.
 - Overlay navigation covers add/edit course, tables, appearance, general settings, holiday, export, reminder, about, and license flows.
 - Back handling preserves the Android layering: dismiss the active overlay/edit session first, return from secondary tabs to Schedule, then require a second back action to exit.

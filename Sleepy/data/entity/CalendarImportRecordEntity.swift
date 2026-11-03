@@ -1,7 +1,7 @@
 // CalendarImportRecordEntity.swift — ← data/entity/CalendarImportRecordEntity.kt (逐行翻译, GPL-3.0)
-// Android calendarId/eventId 是 Long (CalendarContract.Events._id);
+// 原版本 calendarId/eventId 是 Long (CalendarContract.Events._id);
 // iOS EventKit 对应 EKEvent CalendarItemExternalIdentifier (String), 语义等价适配,
-// 列类型对齐 Room schema 保持 TEXT — Android 侧 Long 的十进制字符串在 iOS 侧不出现。
+// 列类型对齐 Room schema 保持 TEXT — 原版本 侧 Long 的十进制字符串在 iOS 侧不出现。
 
 import Foundation
 import GRDB

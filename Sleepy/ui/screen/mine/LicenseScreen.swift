@@ -352,7 +352,7 @@ struct LicenseScreen: View {
                     // ---- 致谢导语区块 (可折叠: 展开看 about_license_body 全文) ----
                     LicenseCard {
                         VStack(alignment: .leading, spacing: 0) {
-                            // ← Android: 整个头部 Row .clickable 切换 + 尾部 IconButton (两处都可点)
+                            // ← 原版本: 整个头部 Row .clickable 切换 + 尾部 IconButton (两处都可点)
                             HStack {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(L10n.format("license_attribution_section"))
@@ -367,7 +367,7 @@ struct LicenseScreen: View {
                                     withAnimation { bodyExpanded.toggle() }
                                 } label: {
                                     Image(systemName: bodyExpanded ? "chevron.up" : "chevron.down")
-                                        .font(.system(size: 24)) // ← Android IconButton 内 Icon 默认 24dp
+                                        .font(.system(size: 24)) // ← 原 IconButton 内 Icon 默认 24dp
                                         .foregroundColor(colors.onSurfaceVariant)
                                         .frame(width: 36, height: 36)
                                 }
@@ -416,7 +416,7 @@ struct LicenseScreen: View {
                     }
 
                 }
-                .padding(16) // ← Android LazyColumn contentPadding 16dp(末尾无额外 Spacer)
+                .padding(16) // ← 原 LazyColumn contentPadding 16dp(末尾无额外 Spacer)
             }
         }
         .background(colors.background)
@@ -486,16 +486,16 @@ struct LicenseScreen: View {
                 Spacer()
                 if onToggle != nil {
                     Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 24)) // ← Android IconButton 内 Icon 默认 24dp
+                        .font(.system(size: 24)) // ← 原 IconButton 内 Icon 默认 24dp
                         .foregroundColor(colors.onSurfaceVariant)
-                    // ← Android contentDescription = collapse/expand
+                    // ← 原 contentDescription = collapse/expand
                         .accessibilityLabel(expanded ? "collapse" : "expand")
                 }
             }
         }
     }
 
-    // ← LicenseCard: 本页专用卡 (Android 显式 RoundedCornerShape(20dp) + padding 16dp)
+    // ← LicenseCard: 本页专用卡 (原版本 显式 RoundedCornerShape(20dp) + padding 16dp)
     private struct LicenseCard<Content: View>: View {
         @Environment(\.localWakeUpColors) private var colors
         @ViewBuilder let content: () -> Content

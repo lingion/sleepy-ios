@@ -1,6 +1,6 @@
 // TimeSlotEditorTests.swift — ← ui/component/ResolveAutoPeriodConfigContractTest.kt
 // issue#23 Task 4 进自动模式配置同步契约 + v1.0.56 decodeSmartPeriodConfig。
-// Android assertSame(引用恒等) 在 Swift 值语义下以 XCTAssertEqual(值恒等, 含 label) 表达
+// 原版本 assertSame(引用恒等) 在 Swift 值语义下以 XCTAssertEqual(值恒等, 含 label) 表达
 // "stored 句柄原样保留" — 分组标签仍在即证未重推断。
 
 import XCTest

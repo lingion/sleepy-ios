@@ -3,13 +3,13 @@
 //
 // 每日课程小组件日期导航的纯状态核心 + 持久化 facade。
 //
-// 状态语义: 每个 appWidgetId(Android)/kind(iOS) 存 (selectedEpochDay, anchorEpochDay)。
+// 状态语义: 每个 appWidgetId(原版本)/kind(iOS) 存 (selectedEpochDay, anchorEpochDay)。
 // - anchor == 今天的 epochDay → 用户处于导航态, 显示 selected
 // - anchor 已跨天(stale) → 显示今天 (R5: 到新的一天回到今天)
 // 偏移钳制在 ±[MAX_ABS_OFFSET_DAYS] 天(约 ±13 周) — 防止用户连点箭头把 epochDay
 // 推到荒谬位置; 也保证 currentWeek(startDate, target) 落到合理 week 范围。
 //
-// ★ 平台差异: Android 翻页靠 nav PendingIntent 广播 + onReceive 钩子; iOS 15.6 的
+// ★ 平台差异: 原版本 翻页靠 nav PendingIntent 广播 + onReceive 钩子; iOS 15.6 的
 //   WidgetKit 无 per-widget 交互式按钮 (InteractiveWidget 需 iOS 17) → Store 与
 //   Core 全量移植(数据流/钳制/跨天回今天语义), 翻页 UI 入口(◀▶↻ 按钮)无对应物,
 //   target/shift 由编辑页或未来交互式扩展接管。持久层: SharedPreferences →
@@ -115,7 +115,7 @@ enum TodayDateNavStore {
     }
 
     // 读改写互斥锁 — shift/remove 是「读全量 → 改一条 → 重写全量」的非原子三步
-    // (← Android 双 tap 并发丢翻页的防线, 语义原样保留)。
+    // (双 tap 并发丢翻页的防线, 语义原样保留)。
     private static let lock = NSLock()
 
     private static func read(_ widgetId: String) -> TodayDateNavCore.Entry? {

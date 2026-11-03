@@ -1,6 +1,6 @@
-# Sleepy iOS ↔ Android 1.0.52 对齐矩阵 (2026-09-09)
+# Sleepy iOS ↔ original 1.0.52 对齐矩阵 (2026-09-09)
 
-基准: Android commit **fe389b4** (1.0.52, 无 tag)。Android HEAD bc974b3b 超 fe389b4
+基准: 原 commit **fe389b4** (1.0.52, 无 tag)。Android HEAD bc974b3b 超 fe389b4
 3 commits (issue#23 §4/§7 UI 消费层) — 超出 1.0.52, 不在本次对齐范围。
 iOS 仓库 `~/Desktop/sleepy-ios`, 基线 5f751f7b → fe389b4 共 53 文件 delta, 全部落账如下。
 
@@ -80,7 +80,7 @@ RowKeyDiffer.diff→applyDiff 编辑分支/ColorSection 三态取色) 语义纠�
 
 - xcodebuild -scheme Sleepy -destination 'generic/platform=iOS' build → **BUILD SUCCEEDED**
 - `git diff --check` 干净
-- L10n: Android 1.0.52 strings 33 个新增/变更键 × iOS 5 locale (zh-Hans/zh-Hant/en/ja/es)
+- L10n: original 1.0.52 strings 33 个新增/变更键 × iOS 5 locale (zh-Hans/zh-Hant/en/ja/es)
   全部在场 (0 missing), 抽查 course_color/color_use_different/color_follow_group/
   widget_edit_title/widget_manage_empty 五键值均为真实译文非键名泄漏
 - rg marker/TODO/FIXME/placeholder 生成残渣扫描 (4 个 jw 文件) = 0 命中

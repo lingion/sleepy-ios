@@ -6,7 +6,7 @@
 // 序列化形状是跨版本存储契约,key 名一字不可改:
 //   [{"id","name","primary","secondary","tertiary","surfaceHue","surfaceChroma","createdAt"}]
 //
-// ★ 平台差异(iOS 存储落点):Android 用独立 SharedPreferences 文件
+// ★ 平台差异(iOS 存储落点):原版本 用独立 SharedPreferences 文件
 //   (PREFS_NAME="custom_themes")。iOS 侧 widget extension 读主题走的是
 //   AppPrefs.shared(其 UserDefaults 域 = themeKey 所在域;2026-10-26 付费账号恢复
 //   App Group entitlement 后走共享容器,AppGroupResolver 优先解析 group,沙箱仅回退)。
@@ -73,7 +73,7 @@ enum CustomThemeCore {
     /// UserDefaults key — 存 JSON 数组字符串(← KEY_THEMES)
     static let KEY_THEMES = "custom_themes"
 
-    /// Android 侧 SharedPreferences 文件名(iOS 与 AppPrefs 同域,见文件头平台差异说明)
+    /// 原版本 侧 SharedPreferences 文件名(iOS 与 AppPrefs 同域,见文件头平台差异说明)
     static let PREFS_NAME = "custom_themes"
 
     /// 缺省表面色相 — 与默认淡紫模板的紫相一致
@@ -86,7 +86,7 @@ enum CustomThemeCore {
     static func newId() -> String { UUID().uuidString }
 
     /// 序列化为 JSON 数组字符串。key 集合 = 8 字段契约;对象内 key 顺序不参与契约
-    /// (JSON 对象无序,Android JSONObject 同样不保证顺序),用 sortedKeys 取确定性输出。
+    /// (JSON 对象无序,原版本 JSONObject 同样不保证顺序),用 sortedKeys 取确定性输出。
     static func toJson(_ themes: [CustomTheme]) -> String {
         let rows: [[String: Any]] = themes.map { t in
             [
@@ -111,7 +111,7 @@ enum CustomThemeCore {
     /// 反序列化。整文档损坏/非数组 → 空列表;坏行跳过、好行保留;可选字段缺省兜底。
     static func parse(_ json: String) -> [CustomTheme] {
         guard let data = json.data(using: .utf8) else { return [] }
-        // 不用 .fragmentsAllowed:"" / "null" / 标量都会 throw → 与 Android JSONArray() 抛错同语义
+        // 不用 .fragmentsAllowed:"" / "null" / 标量都会 throw → 与 原版本 JSONArray() 抛错同语义
         guard let raw = try? JSONSerialization.jsonObject(with: data),
               let rows = raw as? [Any] else {
             return []
@@ -189,7 +189,7 @@ enum CustomThemeCore {
     }
 }
 
-// MARK: - ← CustomThemeStore(Android SharedPreferences 门面的 iOS 等价)
+// MARK: - ← CustomThemeStore(原版本 SharedPreferences 门面的 iOS 等价)
 
 /// 全部逻辑在 CustomThemeCore,此处只做 UserDefaults 桥接。
 enum CustomThemeStore {
@@ -208,13 +208,13 @@ enum CustomThemeStore {
 
     /// ← CustomThemeStore.kt:150 `fun changes(ctx): Flow<String>` 的 Combine 等价。
     ///
-    /// 语义逐项对应 Android callbackFlow:
+    /// 语义逐项对应 原版本 callbackFlow:
     /// - 订阅即发当前序列化文档(cold-flow 逐订阅现取,对应 callbackFlow 每次 collect 现读
     ///   `getString(key, null).orEmpty()` → 用 `Deferred` 把首值延迟到订阅时刻计算);
     /// - registerOnSharedPreferenceChangeListener(key == KEY_THEMES) →
     ///   `NotificationCenter` 监听 `UserDefaults.didChangeNotification`,按 object === 注入域过滤;
     ///   同域其他 key 的写入也会被放行,但下方 removeDuplicates 会把"文档未变"的推送吞掉,
-    ///   可观测输出与 Android 的 key 过滤完全一致;
+    ///   可观测输出与 原版本 的 key 过滤完全一致;
     /// - distinctUntilChanged → `removeDuplicates()`。
     ///
     /// 发出值本身即 invalidation token:同 id 就地编辑也会改变文档内容,下游

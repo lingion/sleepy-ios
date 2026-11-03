@@ -25,7 +25,7 @@ struct PeriodTablesScreen: View {
             list
             newButton
         }
-        // ← Android Scaffold(containerColor = colors.background) + TopAppBar
+        // ← 原版本 Scaffold(containerColor = colors.background) + TopAppBar
         //   containerColor(background)(PeriodTablesScreen.kt:81-97)。浮层容器
         //   PresentOverlay 不给页面铺底, 每页必须自带不透明根背景 — 与
         //   CourseListScreen/PeriodHeaderSettingsScreen 等兄弟页同式, 否则

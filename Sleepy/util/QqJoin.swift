@@ -1,7 +1,7 @@
 // QqJoin.swift — ← util/QqJoin.kt 逐行翻译 (GPL-3.0)
 // QQ 加群拉起链路(纯 URI 字符串构造, 便于单测; 拉起时序见 AboutScreen.joinQqGroup)。
 // iOS 侧拉起通道: UIApplication.open(URL) — mqqapi:// scheme 需装 QQ 才有 handler,
-// canOpen 判定 + web 兜底由调用方(AboutScreen)执行, 与 Android try-catch ActivityNotFound 同语义。
+// canOpen 判定 + web 兜底由调用方(AboutScreen)执行, 与 原版本 try-catch ActivityNotFound 同语义。
 
 import Foundation
 

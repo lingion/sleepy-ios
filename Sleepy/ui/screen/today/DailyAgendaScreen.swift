@@ -103,7 +103,7 @@ struct DailyAgendaScreen: View {
                 .padding(.bottom, 24)
             }
         }
-        .background(colors.background) // ← Android Scaffold containerColor
+        .background(colors.background) // ← 原 Scaffold containerColor
         .navigationBarHidden(true)
         .task(id: reloadToken) { await refresh() }
     }

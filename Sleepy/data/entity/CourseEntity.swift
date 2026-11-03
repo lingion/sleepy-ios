@@ -1,5 +1,5 @@
 // CourseEntity.swift — ← data/entity/CourseEntity.kt (逐行翻译, GPL-3.0)
-// Sleepy iOS — 100% port of sleepy Android
+// Sleepy iOS — 100% port of 原版本
 
 import Foundation
 import GRDB
@@ -126,7 +126,7 @@ extension CourseEntity {
     }
 
     /// "18:30-20:55"(ownTime) 或 "第 3-4 节" 本地化(nodeString(context))
-    /// Android 两变体 nodeString/shortNodeString 合并:isShort 切换 course_node_format / course_period_range
+    /// 原版本 两变体 nodeString/shortNodeString 合并:isShort 切换 course_node_format / course_period_range
     func nodeString(isShort: Bool = false) -> String {
         if ownTime && Self.isNotBlank(startTime) && Self.isNotBlank(endTime) {
             return "\(startTime)-\(endTime)"

@@ -16,8 +16,8 @@ enum SleepyNativeFormat {
     /// \t\n\v\f\r、U+001C-001F、空格、U+1680、U+2000-200A、U+2028/2029、U+205F、U+3000,
     /// **外加 U+00A0(NBSP)/U+2007/U+202F**(Zs 但 Java isWhitespace=false → Kotlin 仍剥)。
     /// 不含 U+200B、不含 NEL U+0085、不含 U+000E-001B(那是 JDK String.trim 的 code<=0x20 口径,
-    /// Kotlin 不在此口径 — Android 侧 `line.trim()` 走的是 Kotlin stdlib, 非 JDK 成员)。issue#F051-3
-    /// (审计原述「Android 不剥 NBSP」系按 JDK 口径误判, 实测反证后本集合按 Kotlin 真口径修正。)
+    /// Kotlin 不在此口径 — 原版本 侧 `line.trim()` 走的是 Kotlin stdlib, 非 JDK 成员)。issue#F051-3
+    /// (审计原述「原版本 不剥 NBSP」系按 JDK 口径误判, 实测反证后本集合按 Kotlin 真口径修正。)
     static let JAVA_WHITESPACE: CharacterSet = {
         var cs = CharacterSet()
         for (lo, hi) in [(0x0009, 0x000D), (0x001C, 0x001F), (0x2000, 0x2006),
@@ -89,7 +89,7 @@ enum SleepyNativeFormat {
     /// 空串/仅符号/非数字/超 Int32 → nil。
     /// 关键: JDK parseInt 对 [0-9] 快路径之外的字符走 Character.digit(c,10) — **接受全 BMP 的
     /// Unicode Nd 数字**(实测 parseInt("１")=1、parseInt("١٢")=12), Kotlin toIntOrNull 同 JVM。
-    /// 例: Android `parseNodeSpan("１") = (1,1)`、`colorFromToken("１") = 调色板1`;
+    /// 例: 原 `parseNodeSpan("１") = (1,1)`、`colorFromToken("１") = 调色板1`;
     /// iOS 旧实现 ASCII-only → nil, 微信转发课表(全角数字常见)两端导入结果不同(issue#F051 补充)。
     /// (Swift Int() 另有 64 位与下划线分叉: "1_0"→10、"3000000000"→成功, Kotlin/JVM 均为 null)
     private static func kotlinInt(_ s: String) -> Int? {
@@ -122,9 +122,9 @@ enum SleepyNativeFormat {
 
     /// Kotlin `t.length == 1 && t[0].isDigit()` → `t[0] - '0'` 的等价:
     /// 仅当串恰为 1 个 UTF-16 code unit 且该 unit 属 Nd 时, 返回 (unit - 0x30)。
-    /// 关键: 用码点减法而非 wholeNumberValue, 逐值复刻 Android 的越界上报行为 —
+    /// 关键: 用码点减法而非 wholeNumberValue, 逐值复刻 原版本 的越界上报行为 —
     /// 裸全角`３`(U+FF13) → 0xFF13-0x30 = 65251(交调用方钳制/上报), 而非静默 3;
-    /// `²`(No 类) → nil(Android isDigit=false; iOS isNumber=true 旧行为分叉)。issue#F051-1
+    /// `²`(No 类) → nil(原版本 isDigit=false; iOS isNumber=true 旧行为分叉)。issue#F051-1
     private static func singleJavaDigitValue(_ s: String) -> Int? {
         let units = Array(s.utf16)
         guard units.count == 1, javaIsDigit(units[0]) else { return nil }
@@ -136,10 +136,10 @@ enum SleepyNativeFormat {
     /// 行首锚定: ≤4 字符引用/空白前缀 + 1-2 个井号(半/全角) + sleepy + 可选拼缝 + v + 数字。
     /// 整模式大小写不敏感(#SLEEPY-V1 命中且版本=1)。行尾多余内容由 $ 前的宽容处理忽略——
     /// 我们用 find + 范围前缀判定而非严格 fullMatch, 允许尾随标点(§6.3-M「#sleepy-v1。」)。
-    /// `\s`/`\d` 按 Android 侧 Kotlin Regex(仅 IGNORE_CASE、无 UNICODE_CHARACTER_CLASS)展开为
+    /// `\s`/`\d` 按 原版本 侧 Kotlin Regex(仅 IGNORE_CASE、无 UNICODE_CHARACTER_CLASS)展开为
     /// Java 默认 ASCII 口径 `[ \t\n\x0B\f\r]`/`[0-9]`: ICU `\s` 含 NBSP/U+3000、`\d` 含全角位,
-    /// 不展开会出现「Android 不命中 / iOS 命中」(magic 行以 NBSP 分隔)或「iOS 捕获组吞全角位 →
-    /// Int() 失败 -1 / Android 压根不匹配」的两端分叉。
+    /// 不展开会出现「原版本 不命中 / iOS 命中」(magic 行以 NBSP 分隔)或「iOS 捕获组吞全角位 →
+    /// Int() 失败 -1 / 原版本 压根不匹配」的两端分叉。
     private static let MAGIC_PATTERN =
         "^[>[ \\t\\n\\u000B\\u000C\\r]]{0,4}[#＃]{1,2}[ \\t\\n\\u000B\\u000C\\r]*"
         + "sleepy[ \\t\\n\\u000B\\u000C\\r\\-_－]*v([0-9]+)"
@@ -169,7 +169,7 @@ enum SleepyNativeFormat {
     }
 
     /// 单行 magic 判定(parser 内层用): 该行本身是否为 magic 行。
-    /// = Android parser 的 `private fun isMagicLine(line) = SleepyNativeFormat.detectVersion(line) >= 1`
+    /// = 原 parser 的 `private fun isMagicLine(line) = SleepyNativeFormat.detectVersion(line) >= 1`
     /// (v0 不算 magic — 按 Kotlin 口径对齐; 行首尾空白按 Java trim 剥掉后判 ^ 锚定)。
     static func isMagicLine(_ line: String) -> Bool {
         return detectVersion(line) >= 1
@@ -274,7 +274,7 @@ enum SleepyNativeFormat {
         if t.hasPrefix("#") {
             let hex = String(t.dropFirst()).uppercased()
             switch hex.utf16.count {  // Kotlin hex.length = UTF-16 码元数
-            case 6: return "#FF\(hex)"  // Android 6 位分支不校验字符, 原样补 FF
+            case 6: return "#FF\(hex)"  // 原 6 位分支不校验字符, 原样补 FF
             case 8 where kotlinHexCharPredicate(hex): return "#\(hex)"
             default: return AUTO_COLOR
             }
@@ -298,7 +298,7 @@ enum SleepyNativeFormat {
     // MARK: - lenient 基元解析 (§2 文法, §7 容错)
 
     /// `H:mm` / `HH:mm` / 全角冒号 → (h, min); 越界/非法 → nil
-    /// `\d` 按 Java 默认 ASCII 口径写死 [0-9](Android Regex 未开 UNICODE_CHARACTER_CLASS)。
+    /// `\d` 按 Java 默认 ASCII 口径写死 [0-9](原版本 Regex 未开 UNICODE_CHARACTER_CLASS)。
     /// `$` 保留(非 `\z`): JDK17 实测 Java 非 MULTILINE 的 `$` 也命中「末尾行终止符之前」
     /// (NEL U+0085/U+2028 尾缀 find=true)。注意该同构只对 NSRegularExpression 路径
     /// 成立; String.range(of:.regularExpression) 在 iOS 26 实测对尾随终止符判 false
@@ -422,7 +422,7 @@ enum SleepyNativeFormat {
     /// `1..7` / `周X` / `星期X` / `礼拜X` / 裸`三`; 非法形状 → nil。
     /// 越界单数字(0/8/9 及非 ASCII Nd 全角数字)交调用方钳制 — 数字判定 =
     /// Kotlin `length==1 && t[0].isDigit()` → `t[0]-'0'`(Nd 类逐码元 + 码点减法):
-    /// `周３` → 65251(与 Android 相同的越界上报, 不再 wholeNumberValue 静默 3), `²` → nil。
+    /// `周３` → 65251(与 原版本 相同的越界上报, 不再 wholeNumberValue 静默 3), `²` → nil。
     static func parseDay(_ s: String) -> Int? {
         let t = trimJava(s)
         if t.isEmpty { return nil }

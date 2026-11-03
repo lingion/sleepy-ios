@@ -9,10 +9,10 @@
 //
 // 优先级链(高→低):
 //   0. 宽屏横屏双闸(可用宽 ≥600pt 且 横屏几何 → rail 左侧栏 + Master-Detail 双栏;
-//      ← Android 版本 SleepyNavHost issue#45 ③ `!isCompact && !portrait` — PR#114
+//      ← 原版本 SleepyNavHost issue#45 ③ `!isCompact && !portrait` — PR#114
 //      master-detail 重写 + PR#235 横屏几何闸。竖屏判据 = 逐帧真实几何(宽<高),
 //      不用 orientation 枚举(分屏/自由窗口下枚举不可靠, ← PR#235 根因)。
-//      UITest forcePill 除外。宽屏竖屏回落手机形态分支链 = Android 同语义:
+//      UITest forcePill 除外。宽屏竖屏回落手机形态分支链 = 原版本 同语义:
 //      navDock 仅在 Compact/竖屏分支参与分流, 用户两项选择在双栏下不生效)
 //   1. UITest 钉死自绘(-SLEEPY_FORCE_PILL_NAV, 全量 UITests 依赖 pill_* 标识)
 //   2. 用户选择(贴底 → docked 恒定; 悬浮 → native 可用则原生)
@@ -28,7 +28,7 @@ enum NavBarRenderMode: Equatable {
     case docked                       // 自绘贴底
     case rail                         // 宽屏横屏左侧栏 + Master-Detail 双栏
                                        //   (iPad 横屏/Split View 宽侧/Stage Manager
-                                       //   可用宽 ≥600pt 且 宽≥高 ← Android 版本
+                                       //   可用宽 ≥600pt 且 宽≥高 ← 原版本
                                        //   WindowWidthSizeClass !Compact 加 PR#235
                                        //   横屏几何闸; 宽屏竖屏回落手机形态)
 }
@@ -38,16 +38,16 @@ enum NavStyleResolver {
     /// UITests 钉死自绘的启动参数(全量套件按 pill_<id> 导航, 原生 TabBar 无此标识)。
     static let forcePillArg = "-SLEEPY_FORCE_PILL_NAV"
 
-    /// 宽度档闸阈值 ← Android 版本 Material3 WindowWidthSizeClass.Compact 上界
+    /// 宽度档闸阈值 ← 原版本 Material3 WindowWidthSizeClass.Compact 上界
     /// (<600dp): 可用宽度 ≥600pt 过第一闸。双栏 = 此闸 && 横屏几何闸(见
     /// isLandscapeGeometry, ← PR#235): iPad 横屏(1024+)/Split View 宽侧/Stage
     /// Manager 命中; iPad 竖屏(768/820)过宽度闸但竖屏 → 回落手机形态;
     /// iPhone 恒竖屏(≤430pt)两闸皆不触发。
     static let railWidthThreshold: CGFloat = 600
 
-    /// 横屏几何闸(← Android 版本 PR#235 `portrait = screenWidthDp < screenHeightDp`
+    /// 横屏几何闸(← 原版本 PR#235 `portrait = screenWidthDp < screenHeightDp`
     /// 取反): 逐帧真实几何判横屏, 不用 orientation 枚举(分屏/自由窗口下枚举不可靠)。
-    /// 宽 ≥ 高(正方形窗口/分屏)放行双栏 = Android `!portrait` 同语义;
+    /// 宽 ≥ 高(正方形窗口/分屏)放行双栏 = 原 `!portrait` 同语义;
     /// 尺寸缺失(nil/零)= 保守 false 按手机形态。
     static func isLandscapeGeometry(width: CGFloat?, height: CGFloat?) -> Bool {
         guard let width = width, let height = height, width > 0, height > 0 else {
@@ -61,7 +61,7 @@ enum NavStyleResolver {
     /// floating=true(悬浮) / false(贴底) → 渲染形态。
     /// forcedPill: UITest 钉死 → 悬浮语义降级为自绘 floating(永不 native)。
     /// isWide: 宽度档闸(可用宽 ≥ railWidthThreshold)。
-    /// isPortrait: 竖屏几何(高>宽, ← Android 版本 PR#235 portrait 判据取反口径:
+    /// isPortrait: 竖屏几何(高>宽, ← 原版本 PR#235 portrait 判据取反口径:
     ///   双栏要求 !portrait 即宽≥高)。isWide && !isPortrait && !forcedPill → rail
     ///   双栏(先于用户两项选择; 底部药丸/贴底是手机形态语义, 平板横屏下不适用;
     ///   平板竖屏同语义回落手机分支链)。forcePill 不降级 rail,
@@ -98,7 +98,7 @@ enum NavStyleResolver {
         return (size?.width ?? 0) >= railWidthThreshold
     }
 
-    /// 竖屏几何实测(高>宽)=true。← Android 版本 PR#235
+    /// 竖屏几何实测(高>宽)=true。← 原版本 PR#235
     /// `portrait = screenWidthDp < screenHeightDp` 同款逐帧几何口径。
     /// 尺寸未就绪 = false(保守)但配合宽度 0 过不了宽度闸, 整体仍按手机形态。
     static func isPortraitLayout(windowSize: CGSize? = nil) -> Bool {

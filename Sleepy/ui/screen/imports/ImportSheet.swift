@@ -46,7 +46,7 @@ enum PendingImportText {
     static var value: String? = nil
 }
 
-/// 格式详情弹窗键(← Android ImportFormat, sheet(item:) 驱动)
+/// 格式详情弹窗键(ImportFormat, sheet(item:) 驱动)
 enum ImportFormatKey: String, Identifiable, CaseIterable {
     case wakeupShare, wakeupJson, ics, csv, html, plain
     var id: String { rawValue }
@@ -83,7 +83,7 @@ struct ImportSheet: View {
     let onJwImportRequested: () -> Void
     let onDismiss: () -> Void
     var onImported: () -> Void = {}
-    // ← Android ImportSheet(drafts/onRestoreDraft/onDeleteDraft, 默认空 = 零行为变化)
+    // ← 原版本 ImportSheet(drafts/onRestoreDraft/onDeleteDraft, 默认空 = 零行为变化)
     var drafts: [ImportDraftRowModel] = []
     var onRestoreDraft: (String) -> Void = { _ in }
     var onDeleteDraft: (String) -> Void = { _ in }
@@ -104,7 +104,7 @@ struct ImportSheet: View {
     @State private var confirmedBindPeriodTableId: Int64? = nil
     // v1.0.56 T9: 纯作息导入 — 解析结果只有作息表没课程时, 走独立确认框(只建作息表)
     @State private var purePeriodName = ""
-    // ← Android snackbar.showSnackbar(import_success): 导入成功提示(不再跳编辑页)
+    // ← 原版本 snackbar.showSnackbar(import_success): 导入成功提示(不再跳编辑页)
     @State private var successMsg: String? = nil
     @State private var showFilePicker = false
     @State private var detailFormat: ImportFormatKey? = nil
@@ -113,7 +113,7 @@ struct ImportSheet: View {
         let state = viewModel.state
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // 标题与草稿入口 (← Android 标题 Row + Inventory2 IconButton)
+                // 标题与草稿入口 (标题 Row + Inventory2 IconButton)
                 HStack {
                     Text(L10n.format("import_title"))
                         .font(.system(size: 24, weight: .semibold))
@@ -122,7 +122,7 @@ struct ImportSheet: View {
                     Button {
                         showDrafts = true
                     } label: {
-                        // 2026-09-16 用户: 书签不像草稿箱 — Android 换带盖收纳箱
+                        // 2026-09-16 用户: 书签不像草稿箱 — 原版本 换带盖收纳箱
                         // Inventory2; iOS 等价 SF Symbol "shippingbox"(带盖收纳箱)
                         Image(systemName: "shippingbox")
                             .font(.system(size: 22))
@@ -159,14 +159,14 @@ struct ImportSheet: View {
                             .frame(height: 160, alignment: .topLeading)
                             .background(colors.surfaceContainerHighest)   // ← fieldColors 容器色 surfaceContainerHighest
                             .cornerRadius(SleepyTheme.fieldShape)
-                            // ← Android filled TextField, 无描边
+                            // ← 原 filled TextField, 无描边
                             .accessibilityIdentifier("import_paste_input")
                         Button {
                             isLoading = true
                             let p = ImportSheet.buildImportPreview(inputText, state) { msg in errorMsg = msg }
                             isLoading = false
                             guard let p else { return }
-                            // ★ v1.0.62 对齐(根因修复): Android 的导入预览是 AlertDialog,
+                            // ★ v1.0.62 对齐(根因修复): 原版本 的导入预览是 AlertDialog,
                             //   以 dialog 形式弹出时系统会先收走键盘;iOS 用 .sheet 弹预览时,
                             //   粘贴框仍是 first responder → 键盘不收 → UIKit 把预览 sheet
                             //   的容器整体下移(内容容器 y=874),预览底部按钮落到屏幕外,
@@ -239,12 +239,12 @@ struct ImportSheet: View {
             .padding(.vertical, 8)
         }
         .background(colors.surface)
-        // ← Android SnackbarHost + LaunchedEffect(importJustApplied):
+        // ← 原版本 SnackbarHost + LaunchedEffect(importJustApplied):
         //   导入成功提示(不再跳编辑课表页), 底部胶囊浮层, 复用 JwImportFlow statusMsg 同款
         .overlay(alignment: .bottom) {
             if let msg = successMsg {
                 Text(msg)
-                    .font(.system(size: 14))   // ← Android Snackbar bodyMedium 14
+                    .font(.system(size: 14))   // ← 原 Snackbar bodyMedium 14
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -266,7 +266,7 @@ struct ImportSheet: View {
             }
         }
         // 外部打开 json: pendingImportText 自动触发 paste 路径。
-        // ← Android LaunchedEffect(pendingImportText): 以 pendingImportText 为 key,
+        // ← 原版本 LaunchedEffect(pendingImportText): 以 pendingImportText 为 key,
         //   sheet 存活期间外部再塞 text 会重新触发预览(旧 onAppear+一次性消费会把
         //   sheet 开着时的推送丢掉)。onAppear 兜冷启动首值, onChange 管后续推送。
         .onAppear { consumePendingImportText() }
@@ -292,7 +292,7 @@ struct ImportSheet: View {
                 errorMsg = L10n.format("read_failed", e.localizedDescription)
             }
         }
-        // 错误反馈通道(← Android AlertDialog 统一弹窗, 2026-09-18 用户: 报错必须
+        // 错误反馈通道(AlertDialog 统一弹窗, 2026-09-18 用户: 报错必须
         // 统一弹窗不再是 Snackbar 一闪即逝): 标题 jw_error_dialog_title「导入遇到问题」+
         // 单按钮 jw_err_dismiss「知道了」+ 错误文本可滚动(heightIn max 320dp)
         .alert(L10n.format("jw_error_dialog_title"), isPresented: Binding(
@@ -323,7 +323,7 @@ struct ImportSheet: View {
                                                           onImported: onImported) { msg in errorMsg = msg }
                         preview = nil
                         isLoading = false
-                        // ← Android importJustApplied=true → snackbar 明示已落库
+                        // ← 原版本 importJustApplied=true → snackbar 明示已落库
                         showSuccess(L10n.format("import_success"))
                     })
             } else {
@@ -346,18 +346,18 @@ struct ImportSheet: View {
                     currentJson: existingTable?.timeJson ?? "",
                     incomingJson: preview!.parseResult.timeJson,
                     requiredNodeCount: preview!.parseResult.nodesPerDay)
-                // ★ 架构对齐 Android v1.0.62 (ImportSheet.kt: `if (preview != null &&
+                // ★ 架构对齐 原版本 v1.0.62 (ImportSheet.kt: `if (preview != null &&
                 //   pendingMode != null)` 同时组合 ImportPreviewDialog 与 ImportConfirmDialog):
-                //   Android 的预览**不关**, 确认框作为第二个 Dialog 叠在上面, 两者共存。
+                //   原版本 的预览**不关**, 确认框作为第二个 Dialog 叠在上面, 两者共存。
                 //   iOS 早期把确认框做成宿主上的第二个 .sheet, 并靠"先 preview = nil 再延时
                 //   0.45s 置 pendingMode"绕开同宿主双 sheet 冲突 —— 结果第二个 sheet 在预览
                 //   dismiss 途中被丢弃, 用户看到"点了没反应"(ManageImportUITests
                 //   testFullTextImportFlow 失败: 确认对话框未弹出)。
                 //   现改为: 预览 sheet 保持打开, 确认框作为**预览 sheet 内部的一层 overlay**
-                //   呈现(见 ImportPreviewDialog 的 showConfirm/confirmContent), 与 Android
+                //   呈现(见 ImportPreviewDialog 的 showConfirm/confirmContent), 与原实现
                 //   双对话框同构; 无延时, 无"先关预览"。
                 // v7.10.13 追加模式: 追加到已存在的课表, 命名由目标课表自带, 不需要再问用户 —
-                // 直接走 applyImportPreview, 跳过 ImportConfirmDialog(← Android LaunchedEffect)。
+                // 直接走 applyImportPreview, 跳过 ImportConfirmDialog(LaunchedEffect)。
                 // ★ 无需延时: 追加分支不弹确认框, 预览 sheet 保持打开直到导入完成,
                 //   不存在"第二个 presentation 被丢弃"的竞态。
                 if mode == .appendNonConflict || mode == .appendAll {
@@ -377,11 +377,11 @@ struct ImportSheet: View {
                     preview = nil
                     pendingMode = nil
                     isLoading = false
-                    // ← Android: 导入成功不再跳编辑课表页(假保存闸), snackbar 明示已落库
+                    // ← 原版本: 导入成功不再跳编辑课表页(假保存闸), snackbar 明示已落库
                     showSuccess(L10n.format("import_success"))
                     return
                 }
-                // ← Android: preview 保持非 nil, pendingMode 同步置位;
+                // ← 原版本: preview 保持非 nil, pendingMode 同步置位;
                 //   确认框作为第二个 Dialog 叠在预览之上(见预览 sheet 内的 overlay)。
                 confirmedPreview = preview
                 pendingMode = mode
@@ -389,7 +389,7 @@ struct ImportSheet: View {
             .sheetDetents([.large])
             }
         }
-        // 草稿箱弹窗 (← Android if (showDrafts) ImportDraftSheet(...))
+        // 草稿箱弹窗 (if (showDrafts) ImportDraftSheet(...))
         .sheet(isPresented: $showDrafts) {
             ImportDraftSheet(
                 drafts: drafts,
@@ -406,12 +406,12 @@ struct ImportSheet: View {
         }
     }
 
-    /// ← Android: `if (preview != null && pendingMode != null)` 时把 ImportConfirmDialog
+    /// ← 原版本: `if (preview != null && pendingMode != null)` 时把 ImportConfirmDialog
     ///   作为**第二个 Dialog** 叠在预览 Dialog 之上(两者共存, 预览不关)。
     ///   iOS 无"对话框叠对话框"这一层结构, 嵌套 .sheet(挂在预览 sheet 里的
     ///   NavigationView 根上)在 iOS 上会被静默丢弃 —— 表现为"点了导入模式没反应"。
     ///   对策: 确认框作为**预览 sheet 内部的一层 overlay**(同一 presented surface),
-    ///   语义与 Android 的双对话框叠放一致: 预览仍在下面, 确认框盖在上面。
+    ///   语义与 原版本 的双对话框叠放一致: 预览仍在下面, 确认框盖在上面。
     ///   ⚠️ overlay 必须落在**非** .accessibilityElement(children: .contain) 的
     ///   容器里, 否则确认框的标题会被预览层吞掉(XCUITest 找不到 import_confirm_title)。
     @ViewBuilder
@@ -439,7 +439,7 @@ struct ImportSheet: View {
                 isLoading = true
                 // 「确认导入」= 唯一写库点, 点下即落库。之后不再跳编辑课表页 —
                 // 那个页面有「保存」按钮, 会造成"没点保存数据也在"的假保存闸误导
-                // (Android v1.0.56 已删跳转, 改 snackbar 明示 import_success)。
+                // (原版本 v1.0.56 已删跳转, 改 snackbar 明示 import_success)。
                 _ = ImportSheet.applyImportPreview(
                     preview: currentPreview, mode: mode,
                     confirmedStartDateRaw: confirmedStartDate,
@@ -450,7 +450,7 @@ struct ImportSheet: View {
                     bindPeriodTableId: confirmedBindPeriodTableId)
                 confirmedPreview = nil
                 pendingMode = nil
-                // ← Android: 导入成功预览一并关闭 (preview = null)
+                // ← 原版本: 导入成功预览一并关闭 (preview = null)
                 preview = nil
                 isLoading = false
                 showSuccess(L10n.format("import_success"))
@@ -464,7 +464,7 @@ struct ImportSheet: View {
     }
 
     /// 外部 app 塞来的 json → 自动触发 paste 路径 buildImportPreview。
-    /// 一次性消费: 读完即清空全局字段(← Android LaunchedEffect 引用为 key 的语义)。
+    /// 一次性消费: 读完即清空全局字段(LaunchedEffect 引用为 key 的语义)。
     private func consumePendingImportText() {
         let state = viewModel.state
         if let text = PendingImportText.value,
@@ -478,12 +478,12 @@ struct ImportSheet: View {
     }
 
     /// 成功提示(← snackbar.showSnackbar(importSuccessMessage)), 2.5s 自动消失由 overlay onAppear 管。
-    /// onImported 由 applyImportPreview / applyPurePeriodImport 内部调用(← Android 同位)。
+    /// onImported 由 applyImportPreview / applyPurePeriodImport 内部调用(同位)。
     private func showSuccess(_ msg: String) {
         withAnimation { successMsg = msg }
     }
 
-    /// ← Android LaunchedEffect 预填: 源名参与全局唯一名顺延(课程表∪作息表)
+    /// ← 原版本 LaunchedEffect 预填: 源名参与全局唯一名顺延(课程表∪作息表)
     static func suggestPurePeriodName(
         for pt: ScheduleParser.ParsedPeriodTable,
         state: ScheduleState,
@@ -537,7 +537,7 @@ private struct ImportMethodRow: View {
                 Spacer()
                 if let trailing = trailing {
                     Image(systemName: trailing)
-                        .font(.system(size: 24))   // ← Android 无显式 size = 默认 24dp
+                        .font(.system(size: 24))   // ← 原 无显式 size = 默认 24dp
                         .foregroundColor(colors.onSurfaceVariant)
                 }
             }
@@ -571,16 +571,16 @@ private struct FormatRow: View {
             Text(desc)
                 .font(.system(size: 12))
                 .foregroundColor(colors.onSurfaceVariant)
-                .frame(maxWidth: .infinity, alignment: .leading)   // ← Android weight(1f)
+                .frame(maxWidth: .infinity, alignment: .leading)   // ← 原 weight(1f)
             if let onDetail {
                 Button(action: onDetail) {
                     Image(systemName: "info.circle")
-                        .font(.system(size: 16))   // ← Android Info 16dp
-                        .foregroundColor(colors.onSurfaceVariant)   // ← Android tint onSurfaceVariant
-                        .padding(.top, 2)   // ← Android icon padding(top = 2.dp)
+                        .font(.system(size: 16))   // ← 原 Info 16dp
+                        .foregroundColor(colors.onSurfaceVariant)   // ← 原 tint onSurfaceVariant
+                        .padding(.top, 2)   // ← 原 icon padding(top = 2.dp)
                 }
                 .buttonStyle(SleepyButtonStyle())
-                .padding(.leading, 6)   // ← Android icon padding(start = 6.dp)
+                .padding(.leading, 6)   // ← 原 icon padding(start = 6.dp)
                 .accessibilityLabel(L10n.format("format_detail_content_desc"))
             }
         }
@@ -613,7 +613,7 @@ private struct FormatDetailDialog: View {
                                 .foregroundColor(colors.primary)
                                 .padding(.top, 2)
                             Text(item)
-                                .font(.system(size: 12)) // ← Android bodySmall 12
+                                .font(.system(size: 12)) // ← 原 bodySmall 12
                                 .foregroundColor(colors.onSurface)
                         }
                         .listRowBackground(colors.surfaceContainer)
@@ -654,7 +654,7 @@ private struct FormatDetailDialog: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 16))   // ← Android ContentCopy 16dp
+                                        .font(.system(size: 16))   // ← 原 ContentCopy 16dp
                                     Text(copiedPrompt ? L10n.format("copied") : L10n.format("copy_prompt"))
                                         .font(.system(size: 14, weight: .medium))   // ← labelLarge 14sp Medium
                                 }
@@ -672,13 +672,13 @@ private struct FormatDetailDialog: View {
             }
             .listStyle(.insetGrouped)
             .background(colors.surface)
-            // ← Android 行763 title = titleRes(格式名, 如 format_plain);
+            // ← 原版本 行763 title = titleRes(格式名, 如 format_plain);
             //   旧版误用 format_detail_content_desc「查看格式说明」当标题
             .navigationTitle(L10n.format("format_\(format.l10nKey)"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    // ← Android 行884-886 关闭按钮 = format_help_close「知道了」(旧版误用 cancel「取消」)
+                    // ← 原版本 行884-886 关闭按钮 = format_help_close「知道了」(旧版误用 cancel「取消」)
                     Button(L10n.format("format_help_close")) { dismiss() }
                         .foregroundColor(colors.primary)
                 }
@@ -693,7 +693,7 @@ private struct FormatDetailDialog: View {
 private struct ImportPreviewDialog: View {
     @Environment(\.localWakeUpColors) private var colors
     let preview: ImportPreview
-    /// ← Android: 预览 Dialog 不关, 确认 Dialog 作为第二个 Dialog 叠在上面。
+    /// ← 原版本: 预览 Dialog 不关, 确认 Dialog 作为第二个 Dialog 叠在上面。
     ///   iOS 用同一 presented surface 内的 overlay 层实现(嵌套 .sheet 会被丢弃)。
     var showConfirm: Bool = false
     var onConfirmDismiss: () -> Void = {}
@@ -704,22 +704,22 @@ private struct ImportPreviewDialog: View {
     var body: some View {
         NavigationView {
             ZStack {
-            // ★ v1.0.62 对齐(结构修复): Android 的 ImportPreviewDialog 是 Material3
+            // ★ v1.0.62 对齐(结构修复): 原版本 的 ImportPreviewDialog 是 Material3
             //   AlertDialog,模式按钮在 dialog 自带的底部动作容器里(真实布局容器,
             //   永远在屏内)。iOS 之前用 ZStack(alignment:.bottom) 把按钮组浮在 List 之上,
             //   键盘未收时 sheet 内容容器被下移 → 按钮 frame 落到屏幕外。
-            //   改为 VStack { List; 按钮组 } 的真实流内容器,与 Android 容器语义一致。
+            //   改为 VStack { List; 按钮组 } 的真实流内容器,与 原版本 容器语义一致。
             VStack(spacing: 0) {
                 List {
                     Section {
                         VStack(alignment: .leading, spacing: 6) {
                             if preview.targetTableId == 0 {
                                 Text(L10n.format("import_new_table_hint"))
-                                    .font(.system(size: 12)) // ← Android bodySmall 12
+                                    .font(.system(size: 12)) // ← 原 bodySmall 12
                                     .foregroundColor(colors.primary)
                             } else {
                                 Text(L10n.format("import_target_table", preview.targetTableName))
-                                    .font(.system(size: 12)) // ← Android bodySmall 12
+                                    .font(.system(size: 12)) // ← 原 bodySmall 12
                                     .foregroundColor(colors.onSurfaceVariant)
                             }
                         }
@@ -812,7 +812,7 @@ private struct ImportPreviewDialog: View {
                                         .font(.system(size: 12, design: .monospaced))
                                         .foregroundColor(colors.onErrorContainer)
                                 }
-                                // ← Android 行1096-1102: 被跳过行 >3 时补「还有 N 行」溢出提示
+                                // ← 原版本 行1096-1102: 被跳过行 >3 时补「还有 N 行」溢出提示
                                 if preview.parseResult.droppedLines.count > 3 {
                                     Text(L10n.format("import_conflict_more", preview.parseResult.droppedLines.count - 3))
                                         .font(.system(size: 11))
@@ -850,7 +850,7 @@ private struct ImportPreviewDialog: View {
                 .listStyle(.insetGrouped)
                 .background(colors.surface)
 
-                // 底部按钮组 - List 之下的真实容器(← Android AlertDialog 的 confirmButton 容器)
+                // 底部按钮组 - List 之下的真实容器(AlertDialog 的 confirmButton 容器)
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         if preview.targetTableId == 0 {
@@ -873,7 +873,7 @@ private struct ImportPreviewDialog: View {
                             } label: {
                                 Text(L10n.format("import_append_conflict"))
                                     .font(.system(size: 14, weight: .medium))
-                                    .lineLimit(1)   // ← Android maxLines = 1
+                                    .lineLimit(1)   // ← 原 maxLines = 1
                                     .foregroundColor(colors.onErrorContainer)
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 40)
@@ -900,7 +900,7 @@ private struct ImportPreviewDialog: View {
                         .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("import_mode_overwrite")
                     }
-                    // ← Android TextButton: 纯文字 40dp, onSurfaceVariant
+                    // ← 原版本 TextButton: 纯文字 40dp, onSurfaceVariant
                     Button(action: onDismiss) {
                         Text(L10n.format("cancel"))
                             .font(.system(size: 14, weight: .medium))
@@ -935,7 +935,7 @@ private struct ImportPreviewDialog: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("import_preview_title")
 
-            // ← Android: 第二个 Dialog(ImportConfirmDialog)叠在预览 Dialog 之上。
+            // ← 原版本: 第二个 Dialog(ImportConfirmDialog)叠在预览 Dialog 之上。
             //   iOS: 同一 presented surface 内的 overlay 层。遮罩 + 全屏内容,
             //   与 M3 AlertDialog 的 scrim + 卡片观感一致。
             //   ⚠️ 必须是**独立**的兄弟节点, 不能被预览层的
@@ -943,7 +943,7 @@ private struct ImportPreviewDialog: View {
             //   import_confirm_title 标题在 AX 树里消失, XCUITest 找不到。
             if showConfirm {
                 ZStack {
-                    // scrim(点外部 = 取消确认, ← Android onDismissRequest)
+                    // scrim(点外部 = 取消确认, ← 原版本 onDismissRequest)
                     Color.black.opacity(0.4)
                         .ignoresSafeArea()
                         .onTapGesture { onConfirmDismiss() }
@@ -1091,7 +1091,7 @@ private struct ImportConfirmDialog: View {
 
                 if showTableName {
                     TextField(L10n.format("import_table_name"), text: $tableName)
-                        .frame(maxWidth: .infinity)   // ← Android fillMaxWidth()
+                        .frame(maxWidth: .infinity)   // ← 原 fillMaxWidth()
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
                         .background(colors.surfaceContainerHighest)   // ← fieldColors 容器色 surfaceContainerHighest
@@ -1137,7 +1137,7 @@ private struct ImportConfirmDialog: View {
             usedDefaultTimes = initialized.usedDefaults || timeJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             timeJson = TimeTableUtils.buildTimeJsonFromRows(rows)
             onTimeJsonChange(timeJson)
-            // issue#28 P2 + issue#23 T5 播种: 与 Android remember { resolveAutoPeriodConfig
+            // issue#28 P2 + issue#23 T5 播种: 与 原 remember { resolveAutoPeriodConfig
             // (rows, null) ?: SmartPeriodConfig(totalPeriods=max(1,rows), startTime=首行或"08:00") } 同规
             smartConfig = resolveAutoPeriodConfig(rows: rows, stored: nil)
                 ?? SmartPeriodConfig(
@@ -1207,13 +1207,13 @@ private struct ImportConfirmDialog: View {
     }
 }
 
-// ← v1.0.56 T9 纯作息导入命名确认框(← Android 行436-508)
+// ← v1.0.56 T9 纯作息导入命名确认框(行436-508)
 // courses.isEmpty && periodTable != nil 时替代 ImportPreviewDialog: 预填全局唯一名
 // (课程表∪作息表, 后缀 2/3 预览即可见), 查重红标, 确认只建作息表不建空课表。
 private struct PurePeriodImportDialog: View {
     @Environment(\.localWakeUpColors) private var colors
     let parsed: ScheduleParser.ParsedPeriodTable
-    /// 预填唯一名 = 源名参与全局唯一名顺延; ← Android LaunchedEffect(currentPreview) 一次性播种
+    /// 预填唯一名 = 源名参与全局唯一名顺延; ← 原版本 LaunchedEffect(currentPreview) 一次性播种
     let suggestUniqueName: () -> String
     let courseTableNames: [String]
     let periodTableNames: [String]
@@ -1265,7 +1265,7 @@ private struct PurePeriodImportDialog: View {
         }
         .background(colors.surface)
         .onAppear {
-            // ← Android LaunchedEffect(currentPreview): 每个预览对象播一次预填名
+            // ← 原版本 LaunchedEffect(currentPreview): 每个预览对象播一次预填名
             guard !seeded else { return }
             seeded = true
             name = suggestUniqueName()
@@ -1346,7 +1346,7 @@ extension ImportSheet {
     ) -> Int64? {
         let repo = ScheduleRepository(AppDatabase.getShared())
         // v7.10.16 撤回: 整个导入是一个动作 — 批内只保首快照, 撤回一次回退到导入前。
-        // defer 收口(↔ Android try/finally): 分支里的 early return 也要退出批边界。
+        // defer 收口(↔ 原版本 try/finally): 分支里的 early return 也要退出批边界。
         UndoManager.shared.beginBatch()
         defer { UndoManager.shared.endBatch() }
         // 应用约定 startDate=周一；用户在确认框可能手填非周一日期，落库前归一（issue #5）
@@ -1399,7 +1399,7 @@ extension ImportSheet {
             // v1.0.56 T10: 自动建表走全局唯一名顺延(撞名加后缀, 禁与既有课表/作息表同名)
             let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
             let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
-            // ← Android importedPeriodTableDraft: 选中既有作息表则共享, 否则确认行 owns 新表
+            // ← 原版本 importedPeriodTableDraft: 选中既有作息表则共享, 否则确认行 owns 新表
             let importedPeriod = importedPeriodTableDraft(
                 bindingId: bindPeriodTableId,
                 name: TimeTableUtils.suggestUniqueName(
@@ -1594,7 +1594,7 @@ extension ImportSheet {
         onImported()
     }
 
-    /// v7.10.16k 节次无损延伸(← Android 行1644-1664/1741-1760): 插课后把老表作息∪导入作息
+    /// v7.10.16k 节次无损延伸(行1644-1664/1741-1760): 插课后把老表作息∪导入作息
     /// 写回真实 owner(绑表写 period_tables, 未绑写兼容列 + nodesPerDay=延伸后最大节)。
     static func extendTimeDomain(
         repo: ScheduleRepository,
@@ -1634,13 +1634,13 @@ extension ImportSheet {
         return DateUtils.fullDate(Calendar.isoMondayOfWeek(parsed))
     }
 
-    /// 被剔除课所在 day 的本地化名(← Android dayNames: " / " join)
+    /// 被剔除课所在 day 的本地化名(dayNames: " / " join)
     static func dayNames(_ days: Set<Int>) -> String {
         days.sorted().map { DateUtils.localizedDay($0) }.joined(separator: " / ")
     }
 
     // ← coursesConflict: 同日 + 周次区间重叠 + 节次区间重叠
-    // nonisolated: 纯函数(只读 CourseEntity 值字段), Android 无线程约束 —
+    // nonisolated: 纯函数(只读 CourseEntity 值字段), 原版本 无线程约束 —
     // 预览冲突计算在 Task.detached 后台段调用(JwImportFlow rebuildPreview)。
     nonisolated static func coursesConflict(_ a: CourseEntity, _ b: CourseEntity) -> Bool {
         if a.day != b.day { return false }

@@ -1,10 +1,10 @@
-// ConflictDetailReporterTests.swift — ← Android ConflictDetailReporterTest.kt (10 用例全量移植)
+// ConflictDetailReporterTests.swift — ← 原 ConflictDetailReporterTest.kt (10 用例全量移植)
 // v7.10.16t 保存时冲突明细报告(issue#10 后续, 用户 2026-09-04):
 // 加课保存不再拦截冲突(撤闸), 但要在表单顶部把「和谁、哪天、哪几节、哪几周」
 // 撞车全部讲清楚, 用户自己决定。报告器 = 纯 Swift 可测, 只挑「新草稿参与的冲突」
 // (存量互撞不报), 文案格式: 周五 第3-4节 第1-16周 与「高等数学」冲突。
 // 另钉死两条 iOS 侧对齐闸(本次 drift 修复): 边缘槽位卡禁止按时间重映射、
-// 同 startNode 平手时保持入库次序(Android sortBy 稳定语义)。
+// 同 startNode 平手时保持入库次序(原 sortBy 稳定语义)。
 
 import XCTest
 @testable import Sleepy
@@ -25,7 +25,7 @@ final class ConflictDetailReporterTests: XCTestCase {
                          isIrregularNode: isIrregularNode)
     }
 
-    // MARK: - Android 10 用例逐条移植
+    // MARK: - 原版本 10 用例逐条移植
 
     func testReportsExistingCourseHitByNewDraftWithFullDetail() {
         let stored = [lite("高等数学", day: 5, startNode: 3, step: 2)]
@@ -150,7 +150,7 @@ final class ConflictDetailReporterTests: XCTestCase {
 
     func testEdgeSlotCard_isNotRemappedByTime() {
         // 边缘槽位卡: startNode=13(槽位号本身), 同时 ownTime=true 带 10:00~10:45。
-        // Android 铁律: isIrregularNode → normalizeNode 直接 return this, 禁止
+        // 原版本 铁律: isIrregularNode → normalizeNode 直接 return this, 禁止
         // timeToNode 重映射(否则 13 被吸进节 3, 与草稿的真实碰撞漏报)。
         let edge = lite("边缘实验", day: 1, startNode: 13, step: 1,
                         ownTime: true, startTime: "10:00", endTime: "10:45",
@@ -178,12 +178,12 @@ final class ConflictDetailReporterTests: XCTestCase {
         XCTAssertTrue(details.isEmpty)
     }
 
-    // MARK: - drift 修复钉死用例 2: 平手保持入库次序 (← Android sortBy 稳定语义)
+    // MARK: - drift 修复钉死用例 2: 平手保持入库次序 (sortBy 稳定语义)
 
     func testEqualStartNodeTiesKeepStoredOrder() {
         // 两门存量课同天同 startNode(1) 同 step(2), 与草稿(2-2)都撞。
-        // Android hits.sortBy(startNode) 稳定 → 保持入库次序; iOS 若用不稳定排序
-        // 同节次平手可能对调。按 Android 语义钉死: 先入库先报, 反序入库则反序报告。
+        // 原版本 hits.sortBy(startNode) 稳定 → 保持入库次序; iOS 若用不稳定排序
+        // 同节次平手可能对调。按 原版本 语义钉死: 先入库先报, 反序入库则反序报告。
         let a = lite("甲", day: 2, startNode: 1, step: 2)
         let b = lite("乙", day: 2, startNode: 1, step: 2)
         let draft = lite("丙", day: 2, startNode: 2, step: 1)

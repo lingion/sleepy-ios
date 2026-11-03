@@ -235,10 +235,10 @@ final class SleepyNativeFormatTests: XCTestCase {
         XCTAssertEqual("cbf43926", SleepyNativeFormat.crc32("123456789".data(using: .utf8)!))
     }
 
-    // ---- issue#F051 跨端语义锁定: Java/Kotlin 标准库口径(与 Android main v1.0.61 逐值一致) ----
+    // ---- issue#F051 跨端语义锁定: Java/Kotlin 标准库口径(与 原 main v1.0.61 逐值一致) ----
 
     func testF051ParseDayUnicodeDigitsMatchJavaIsDigit() {
-        // Android: 全角３(U+FF13) 属 Nd → t[0]-'0' = 65251, 越界交调用方钳制/上报;
+        // 原版本: 全角３(U+FF13) 属 Nd → t[0]-'0' = 65251, 越界交调用方钳制/上报;
         // iOS 旧 wholeNumberValue 静默 3 → 分叉。现口径: 码点减法逐值复刻。
         XCTAssertEqual(65251, SleepyNativeFormat.parseDay("３"))
         XCTAssertEqual(65251, SleepyNativeFormat.parseDay("周３"))
@@ -255,7 +255,7 @@ final class SleepyNativeFormatTests: XCTestCase {
         // Kotlin String.trim() = Char.isWhitespace = Character.isWhitespace || isSpaceChar
         // (逐码点实测 kotlin-stdlib 2.1.10 + app 编译类反射 oracle):
         // \n/\r 剥、NBSP(U+00A0)/U+2007/U+202F **也剥**(Zs 类)、NEL(U+0085) 不剥。
-        // 审计原述「Android 不剥 NBSP」系按 JDK Character.isWhitespace 口径误判, 实测反证。
+        // 审计原述「原版本 不剥 NBSP」系按 JDK Character.isWhitespace 口径误判, 实测反证。
         XCTAssertEqual(1, SleepyNativeFormat.parseDay("1\n"))
         XCTAssertEqual(1, SleepyNativeFormat.parseDay("1\r\n"))
         XCTAssertEqual(1, SleepyNativeFormat.parseDay("\u{00A0}1\u{00A0}"))       // oracle: pd NBSP1NBSP=1
@@ -302,7 +302,7 @@ final class SleepyNativeFormatTests: XCTestCase {
     }
 
     func testF051KotlinIntSemanticsViaPublicSurface() {
-        // toIntOrNull 口径经 parseWeekSpec 间接锁定: 下划线/超 Int32/全角位均 null(Android 同)
+        // toIntOrNull 口径经 parseWeekSpec 间接锁定: 下划线/超 Int32/全角位均 null(原版本 同)
         XCTAssertNil(SleepyNativeFormat.parseWeekSpec("1_0"))
         XCTAssertNil(SleepyNativeFormat.parseWeekSpec("3000000000"))
         XCTAssertNil(SleepyNativeFormat.parseWeekSpec("２-１６"))  // \d 为 ASCII 口径

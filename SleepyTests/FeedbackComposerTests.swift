@@ -1,5 +1,5 @@
 // FeedbackComposerTests.swift — ← util/FeedbackComposerTest.kt 逐用例移植
-// Android 7 个用例全量镜像: GitHub Issue URL 前缀与参数、template 先于 title、
+// 原版本 7 个用例全量镜像: GitHub Issue URL 前缀与参数、template 先于 title、
 // mailto 地址与字段编码、诊断块字段与构建类型、Release 标记、Markdown 注入转义、
 // URL 末尾无裸 '&'。编码断言按 URLEncoder 语义(空格 '+', ':' %3A)对齐。
 
@@ -19,7 +19,7 @@ final class FeedbackComposerTests: XCTestCase {
         isDebug: true
     )
 
-    // ==== Android 原用例 1: githubUrl_encodesTitleBodyAndAppendsDiagnostics ====
+    // ==== 原版本 原用例 1: githubUrl_encodesTitleBodyAndAppendsDiagnostics ====
     func testGithubUrlEncodesTitleBodyAndAppendsDiagnostics() {
         let result = FeedbackComposer.githubIssueUrl(
             title: "Bug: 中文 & 符号",
@@ -33,7 +33,7 @@ final class FeedbackComposerTests: XCTestCase {
         XCTAssertTrue(result.contains("iOS%3A"))
     }
 
-    // ==== Android 原用例 2: githubUrl_includesTemplateBeforeTitle ====
+    // ==== 原版本 原用例 2: githubUrl_includesTemplateBeforeTitle ====
     func testGithubUrlIncludesTemplateBeforeTitle() {
         let result = FeedbackComposer.githubIssueUrl(
             title: "Test",
@@ -45,7 +45,7 @@ final class FeedbackComposerTests: XCTestCase {
         XCTAssertLessThan(templateIndex, titleIndex)
     }
 
-    // ==== Android 原用例 3: mailtoUri_usesConfirmedAddressAndEncodesFields ====
+    // ==== 原版本 原用例 3: mailtoUri_usesConfirmedAddressAndEncodesFields ====
     func testMailtoUriUsesConfirmedAddressAndEncodesFields() {
         let result = FeedbackComposer.mailtoUri(
             subject: "中文标题",
@@ -57,7 +57,7 @@ final class FeedbackComposerTests: XCTestCase {
         XCTAssertTrue(result.contains("VersionCode%3A"))
     }
 
-    // ==== Android 原用例 4: diagnosticBlock_containsAllFieldsAndBuildType ====
+    // ==== 原版本 原用例 4: diagnosticBlock_containsAllFieldsAndBuildType ====
     func testDiagnosticBlockContainsAllFieldsAndBuildType() {
         let block = FeedbackComposer.formatDiagnostic(diagnostic)
         XCTAssertTrue(block.contains("**Version:** 1.0.42"))
@@ -69,7 +69,7 @@ final class FeedbackComposerTests: XCTestCase {
         XCTAssertTrue(block.contains("**Build:** Debug"))
     }
 
-    // ==== Android 原用例 5: diagnosticBlock_releaseBuild_isMarkedRelease ====
+    // ==== 原版本 原用例 5: diagnosticBlock_releaseBuild_isMarkedRelease ====
     func testDiagnosticBlockReleaseBuildIsMarkedRelease() {
         let release = FeedbackComposer.Diagnostic(
             versionName: diagnostic.versionName,
@@ -85,7 +85,7 @@ final class FeedbackComposerTests: XCTestCase {
         XCTAssertFalse(block.contains("**Build:** Debug"))
     }
 
-    // ==== Android 原用例 6: diagnosticBlock_escapesMarkdownCharacters ====
+    // ==== 原版本 原用例 6: diagnosticBlock_escapesMarkdownCharacters ====
     func testDiagnosticBlockEscapesMarkdownCharacters() {
         let injected = FeedbackComposer.Diagnostic(
             versionName: "**injected**",
@@ -100,7 +100,7 @@ final class FeedbackComposerTests: XCTestCase {
         XCTAssertTrue(block.contains("\\*\\*injected\\*\\*"))
     }
 
-    // ==== Android 原用例 7: urls_haveNoTrailingAmpersand ====
+    // ==== 原版本 原用例 7: urls_haveNoTrailingAmpersand ====
     func testUrlsHaveNoTrailingAmpersand() {
         XCTAssertFalse(FeedbackComposer.githubIssueUrl(
             title: "Test", body: "Desc", diag: diagnostic).hasSuffix("&"))
@@ -108,7 +108,7 @@ final class FeedbackComposerTests: XCTestCase {
             subject: "Test", body: "Desc", diag: diagnostic).hasSuffix("&"))
     }
 
-    // ==== 补充: enc() 与 Android URLEncoder 字节级对齐回归 ====
+    // ==== 补充: enc() 与 原版本 URLEncoder 字节级对齐回归 ====
     func testEncMatchesURLEncoderByteSemantics() {
         // 空格 → '+'; 非 ASCII → UTF-8 大写十六进制百分号编码; '*' '.' '-' '_' 字面保留; '~' 编码。
         let result = FeedbackComposer.githubIssueUrl(

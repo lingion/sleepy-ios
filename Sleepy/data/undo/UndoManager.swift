@@ -1,5 +1,5 @@
 // UndoManager.swift — ← data/undo/UndoManager.kt (逐行翻译, GPL-3.0)
-// Sleepy iOS — 100% port of sleepy Android
+// Sleepy iOS — 100% port of 原版本
 
 import Foundation
 import SwiftUI

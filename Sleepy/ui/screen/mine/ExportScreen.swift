@@ -22,7 +22,7 @@ struct ExportScreen: View {
     //   二元选择: courseTableId(课表) / periodTableId(作息表); null,null = 未选(跟随当前课表)。
     @State private var exportTableId: Int64? = nil
     @State private var exportPeriodTableId: Int64? = nil
-    // 全部作息表(展开框下半 + P 区块绑定 + 顶卡作息态)— ← Android viewModel.allPeriodTables
+    // 全部作息表(展开框下半 + P 区块绑定 + 顶卡作息态)— ← 原版本 viewModel.allPeriodTables
     @State private var allPeriodTables: [PeriodTableEntity] = []
     // 选中表的课程: 当前表直接用 state.courses(已观察), 其他表选中时本地加载一次
     @State private var loadedCourses: [CourseEntity]? = nil
@@ -31,7 +31,7 @@ struct ExportScreen: View {
 
     var body: some View {
         let state = viewModel.state
-        // ← Android: effectiveId = if (exportPeriodTableId != null) null else (exportTableId ?: selectedTableId)
+        // ← 原版本: effectiveId = if (exportPeriodTableId != null) null else (exportTableId ?: selectedTableId)
         let effectiveId = exportPeriodTableId != nil ? nil : (exportTableId ?? state.selectedTableId)
         let table = state.tables.first { $0.id == effectiveId } ?? state.currentTable
         let selectedPeriodTable = allPeriodTables.first { $0.id == exportPeriodTableId }
@@ -40,10 +40,10 @@ struct ExportScreen: View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("export_title"), onBack: onDismiss)
             // 空态只在课表与作息表都不存在时成立; 无课表但有作息表时正常渲染,
-            // 用户经顶部展开框选作息表导出(原生 + JSON) — 用户反馈 bug, 见契约测试(← Android L184)。
+            // 用户经顶部展开框选作息表导出(原生 + JSON) — 用户反馈 bug, 见契约测试(L184)。
             if table == nil && selectedPeriodTable == nil && allPeriodTables.isEmpty {
                 Text(L10n.format("export_no_table"))
-                    .font(.system(size: 16)) // ← Android 默认 bodyLarge 16(未显式指定 style)
+                    .font(.system(size: 16)) // ← 原默认 bodyLarge 16(未显式指定 style)
                     .foregroundColor(colors.onSurfaceVariant)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -61,9 +61,9 @@ struct ExportScreen: View {
                                         .foregroundColor(colors.onPrimaryContainer)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                     Image(systemName: "chevron.down")
-                                        .font(.system(size: 24)) // ← Android 默认 Icon 24dp(ExpandMore 无 size 修饰)
+                                        .font(.system(size: 24)) // ← 原默认 Icon 24dp(ExpandMore 无 size 修饰)
                                         .foregroundColor(colors.onPrimaryContainer)
-                                        // ← Android contentDescription = export_pick_table
+                                        // ← 原 contentDescription = export_pick_table
                                         .accessibilityLabel(L10n.format("export_pick_table"))
                                 }
                                 Text(periodSubtitle(pt: selectedPeriodTable, table: table, courses: courses))
@@ -117,7 +117,7 @@ struct ExportScreen: View {
                                            title: L10n.format("export_share_title"),
                                            subtitle: L10n.format("export_share_subtitle"),
                                            id: "export_share_row") {
-                                    // ← shareText: sleepy-v1 文本(【来自Sleepy】包裹), 与 Android
+                                    // ← shareText: sleepy-v1 文本(【来自Sleepy】包裹), 与原实现
                                     //   SleepyNativeExporter.exportShareText 同构(不再用 WakeUp URL JSON)
                                     shareSheet = ShareItem(text: SleepyNativeExporter.exportShareText(
                                                 tableName: table.name, startDate: table.startDate,
@@ -127,7 +127,7 @@ struct ExportScreen: View {
                                     snackMessage = L10n.format("export_copied_hint")
                                 }
                                 RowDivider()
-                                // v1.0.62 B6 ← Android ExportScreen: 小爱导出项(SmartToy → SF sparkles,
+                                // v1.0.62 B6 ← 原版本 ExportScreen: 小爱导出项(SmartToy → SF sparkles,
                                 //   16.4 SDK 无 robot 符号) — voiceassist:// deep link 唤起小爱预览导入
                                 ExportItem(icon: "sparkles",
                                            title: L10n.format("export_xiaoai_title"),
@@ -142,7 +142,7 @@ struct ExportScreen: View {
                                            title: L10n.format("export_ics_title"),
                                            subtitle: L10n.format("export_ics_subtitle"),
                                            id: "export_ics_row") {
-                                    // ← Android `LocalDate.parse` 对非法 startDate 抛异常、不产出文件;
+                                    // ← 原 `LocalDate.parse` 对非法 startDate 抛异常、不产出文件;
                                     //   iOS 等价: 走 exportIcsOrThrow, catch 报 export_failed —
                                     //   不再用 exportIcs 包装器静默分享空 ICS(用户会看到「已保存」假成功)。
                                     do {
@@ -153,7 +153,7 @@ struct ExportScreen: View {
                                         snackMessage = L10n.format("export_failed")
                                     }
                                 }
-                                // ← Android 第 4 项: 添加到系统日历 — EventKit 权限状态机:
+                                // ← 原版本 第 4 项: 添加到系统日历 — EventKit 权限状态机:
                                 //   已授权 → 载入目标表课程后直接打开配置弹窗;
                                 //   未授权 → 系统授权弹窗, 回调再实际校验, 拒绝则停留本页(下次点击重试)。
                                 RowDivider()
@@ -175,7 +175,7 @@ struct ExportScreen: View {
                                         }
                                     }
                                 }
-                                // ← Android 第 5 行: Sleepy 原生格式 — 文件形态(末尾 z|chk=crc32 尾注),
+                                // ← 原版本 第 5 行: Sleepy 原生格式 — 文件形态(末尾 z|chk=crc32 尾注),
                                 //   .sleepy 文件经系统分享; 图标 Star → SF "star"(与 ShareScheduleSheet 同映射)
                                 RowDivider()
                                 ExportItem(icon: "star",
@@ -210,7 +210,7 @@ struct ExportScreen: View {
         .overlay(alignment: .bottom) {
             if let msg = snackMessage {
                 Text(msg)
-                    .font(.system(size: 14)) // ← Android Snackbar bodyMedium 14
+                    .font(.system(size: 14)) // ← 原 Snackbar bodyMedium 14
                     .accessibilityIdentifier("export_snackbar")
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
@@ -219,7 +219,7 @@ struct ExportScreen: View {
                     .cornerRadius(8)
                     .padding(.bottom, 12)
                     .task(id: msg) {
-                        // snackbar 2s(← Android LENGTH_SHORT)。UI 测试态延到 6s:
+                        // snackbar 2s(LENGTH_SHORT)。UI 测试态延到 6s:
                         // 批量跑套件时模拟器负载高, 单次 XCUITest 快照可能 >2s,
                         // 负载尖峰会错过 snackbar 存活窗口造成批量 flake(单跑全绿)。
                         let life: Double = ProcessInfo.processInfo.arguments
@@ -259,7 +259,7 @@ struct ExportScreen: View {
                 },
                 onDismiss: { showTablePicker = false })
         }
-        // ← 系统日历导入配置弹窗(← Android CalendarImportDialog):
+        // ← 系统日历导入配置弹窗(CalendarImportDialog):
         // 仅已授权 + hydratedTable 非空时呈现; 传入绑定作息水合后的表 + 目标表课程。
         .fullScreenCover(isPresented: $showCalendarImport) {
             let state = viewModel.state
@@ -274,7 +274,7 @@ struct ExportScreen: View {
         }
     }
 
-    // 顶卡副标题 — ← Android: 作息态「作息表 · N 节/天」; 课表态「N 门课程 · 起始日期」
+    // 顶卡副标题 — ← 原版本: 作息态「作息表 · N 节/天」; 课表态「N 门课程 · 起始日期」
     private func periodSubtitle(pt: PeriodTableEntity?, table: TimeTableEntity?, courses: [CourseEntity]) -> String {
         if let pt = pt {
             return L10n.format("period_tables_title") + " · " + L10n.format("period_table_nodes_count", pt.nodesPerDay)
@@ -282,13 +282,13 @@ struct ExportScreen: View {
         return "\(L10n.format("export_course_count", courses.count)) · \(L10n.format("export_start_date", table?.startDate ?? ""))"
     }
 
-    // 课表绑定的作息表(issue#40) — ← Android allPeriodTables.find { it.id == table.periodTableId }
+    // 课表绑定的作息表(issue#40) — ← 原版本 allPeriodTables.find { it.id == table.periodTableId }
     private func boundPeriodTable(_ table: TimeTableEntity) -> PeriodTableEntity? {
         guard let pid = table.periodTableId else { return nil }
         return allPeriodTables.first { $0.id == pid }
     }
 
-    // 日历导入入口(← Android openCalendarImportForCurrentTarget):
+    // 日历导入入口(openCalendarImportForCurrentTarget):
     // 载入目标表课程后打开配置弹窗
     private func openCalendarImportForCurrentTarget() {
         reloadPinnedCourses(viewModel.state)
@@ -305,12 +305,12 @@ struct ExportScreen: View {
         }
     }
 
-    // v1.0.62 B6 ← Android launchXiaoaiImport: 小爱课程表一键导入。
+    // v1.0.62 B6 ← 原版本 launchXiaoaiImport: 小爱课程表一键导入。
     // 深链 voiceassist://aiweb/?url=&presetData= 唤起小爱(或小爱课程表独立 App),
     // H5 /import 路由读 presetData.importData 进预览, 用户确认后才写入小米云。
     // Sleepy 本地准备数据后打开链接; 小爱接收后的联网和数据处理由其负责。
     // 未安装小爱 → open 失败回调提示安装(iOS open 无需 LSApplicationQueriesSchemes,
-    // canOpenURL 才需要 — Android SecurityException 在 iOS 无等价物, 不设分支)。
+    // canOpenURL 才需要 — 原版本 SecurityException 在 iOS 无等价物, 不设分支)。
     private func launchXiaoaiImport(table: TimeTableEntity, courses: [CourseEntity], boundPeriodTable: PeriodTableEntity?) {
         if courses.isEmpty {
             snackMessage = L10n.format("export_xiaoai_empty")
@@ -320,7 +320,7 @@ struct ExportScreen: View {
         do {
             presetData = try XiaoaiPresetData.build(table: table, courses: courses, periodTable: boundPeriodTable)
         } catch {
-            // ← Android IllegalArgumentException → export_xiaoai_invalid
+            // ← 原版本 IllegalArgumentException → export_xiaoai_invalid
             snackMessage = L10n.format("export_xiaoai_invalid")
             return
         }
@@ -329,7 +329,7 @@ struct ExportScreen: View {
             return
         }
         UIApplication.shared.open(url) { ok in
-            // ← Android ActivityNotFoundException → Toast(not_installed); 成功 → onResult(launched)
+            // ← 原版本 ActivityNotFoundException → Toast(not_installed); 成功 → onResult(launched)
             snackMessage = ok ? L10n.format("export_xiaoai_launched")
                               : L10n.format("export_xiaoai_not_installed")
         }
@@ -360,7 +360,7 @@ struct ExportScreen: View {
 // 上半 = 全部课表展开, 横向分隔线(仅存在作息表时), 下半 = 全部作息表(课表优先展开完, 用户指定顺序)。
 // 行样式对齐 ScheduleScreen TableSwitcherSheet(用户定版视觉):
 // 选中行 primaryContainer + 对勾; 主页当前课表挂 export_current_table_badge; 作息行副标题「作息表」;
-// 上限 480 高滚动(← Android heightIn(max = 480.dp))。
+// 上限 480 高滚动(heightIn(max = 480.dp))。
 private struct ExportTablePickerSheet: View {
     @Environment(\.localWakeUpColors) private var colors
     let tables: [TimeTableEntity]
@@ -375,14 +375,14 @@ private struct ExportTablePickerSheet: View {
     var body: some View {
         VStack(spacing: 12) {
             Text(L10n.format("export_pick_table"))
-                .font(.system(size: 24)) // ← Android AlertDialog 默认标题 headlineSmall 24 Regular
+                .font(.system(size: 24)) // ← 原 AlertDialog 默认标题 headlineSmall 24 Regular
                 .foregroundColor(colors.onSurface)
                 .padding(.top, 16)
             ScrollView {
                 VStack(spacing: 4) {
                     // ---- 上半: 全部课表 ----
                     ForEach(tables) { table in
-                        // ← Android: exportPeriodTableId == null && t.id == effectiveId
+                        // ← 原版本: exportPeriodTableId == null && t.id == effectiveId
                         let isSelected = selectedPeriodTableId == nil && table.id == selectedTableId
                         PickerRow(
                             title: table.name,
@@ -397,7 +397,7 @@ private struct ExportTablePickerSheet: View {
                     if !periodTables.isEmpty {
                         Rectangle()
                             .fill(colors.outlineVariant)
-                            .frame(height: 0.5) // ← Android HorizontalDivider thickness 0.5dp
+                            .frame(height: 0.5) // ← 原 HorizontalDivider thickness 0.5dp
                             .padding(.vertical, 8)
                     }
                     // ---- 下半: 全部作息表 ----
@@ -420,7 +420,7 @@ private struct ExportTablePickerSheet: View {
     }
 }
 
-// ← Android PickerRow: 课表/作息表共用行视觉(选中态 primaryContainer 色块+对勾, 禁描边规则)
+// ← 原版本 PickerRow: 课表/作息表共用行视觉(选中态 primaryContainer 色块+对勾, 禁描边规则)
 private struct PickerRow: View {
     @Environment(\.localWakeUpColors) private var colors
     let title: String
@@ -434,7 +434,7 @@ private struct PickerRow: View {
             onClick()
         } label: {
             HStack {
-                VStack(alignment: .leading, spacing: 0) { // ← Android Column 默认 spacing 0
+                VStack(alignment: .leading, spacing: 0) { // ← 原 Column 默认 spacing 0
                     Text(title)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(isSelected ? colors.onPrimaryContainer : colors.onSurface)
@@ -442,14 +442,14 @@ private struct PickerRow: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if let subtitle = subtitle {
                         Text(subtitle)
-                            .font(.system(size: 11)) // ← Android labelSmall
+                            .font(.system(size: 11)) // ← 原 labelSmall
                             .foregroundColor(isSelected ? colors.onPrimaryContainer : colors.onSurfaceVariant)
                     }
                 }
                 Spacer()
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 18)) // ← Android Modifier.size(18.dp)
+                        .font(.system(size: 18)) // ← 原 Modifier.size(18.dp)
                         .foregroundColor(colors.primary)
                 }
             }
@@ -502,7 +502,7 @@ private struct ExportItem: View {
         Button(action: onClick) {
             HStack(spacing: 16) {
                 Image(systemName: icon)
-                    .font(.system(size: 24)) // ← Android 默认 Icon 24dp
+                    .font(.system(size: 24)) // ← 原默认 Icon 24dp
                     .foregroundColor(colors.onPrimaryContainer)
                     .frame(width: 44, height: 44)
                     .background(colors.primaryContainer)

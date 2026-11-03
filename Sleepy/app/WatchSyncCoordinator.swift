@@ -1,5 +1,5 @@
 // WatchSyncCoordinator.swift — iPhone 侧 WCSession 发送端 (2026-10 watch 伴侣 App)
-// ← Android WearableListenerService 的 iOS 对位 (sendDataMessage → applicationContext 全量快照)。
+// ← 原版本 WearableListenerService 的 iOS 对位 (sendDataMessage → applicationContext 全量快照)。
 //
 // 触发面 (对齐既有 refresh 总线, 不新增数据变更钩子):
 //   1. repository.onDataChangedHook — 课表任何写入 (导入/编辑/删表) 后 debounce 推送;

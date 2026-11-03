@@ -3,10 +3,10 @@
 //
 // 两组纯逻辑测试(不碰 UI):存储 Core 的 JSON 契约/upsert/delete 语义 + 派生引擎 5 条契约。
 // iOS 侧新增第三组:custom:<id> 解析接线(ThemePresets.CUSTOM_KEY_PREFIX / provider 回落种子 /
-// resolveWidgetScheme 三分支),Android 由 Theme.kt 的 Compose 测试覆盖,iOS 立守卫。
+// resolveWidgetScheme 三分支),原版本 由 Theme.kt 的 Compose 测试覆盖,iOS 立守卫。
 //
 // 数值断言一律带容差:iOS 侧 Color → UIColor → 分量存在色域转换与 8-bit 量化,
-// 逐位相等不成立(Android Compose Color 是纯 Float 载体,可以精确相等)。
+// 逐位相等不成立(原版本 Compose Color 是纯 Float 载体,可以精确相等)。
 
 import Combine
 import XCTest
@@ -166,7 +166,7 @@ final class CustomThemeCoreTests: XCTestCase {
         XCTAssertTrue(CustomThemeStore.getAll(suite).isEmpty)
     }
 
-    // ── ← CustomThemeStore.changes() 反应式失效信号(对应 Android callbackFlow+distinctUntilChanged;
+    // ── ← CustomThemeStore.changes() 反应式失效信号(对应 原版本 callbackFlow+distinctUntilChanged;
     //    CustomThemeSaveAppliesImmediatelyTest 契约 2 的 iOS 立测:同 id 就地编辑必须发出新 token)──
 
     /// didChangeNotification 经 CFPreferences 广播投递,可能落到下一轮 runloop —
@@ -184,7 +184,7 @@ final class CustomThemeCoreTests: XCTestCase {
         let cancellable = CustomThemeStore.changes(suite).sink { received.append($0) }
         defer { cancellable.cancel() }
 
-        // 订阅即收当前文档:未写入过 → 空串(← Android trySend(getString ?: "") 初值)
+        // 订阅即收当前文档:未写入过 → 空串(trySend(getString ?: "") 初值)
         XCTAssertEqual([""], received)
 
         CustomThemeStore.save(sample, suite)
@@ -220,7 +220,7 @@ final class CustomThemeCoreTests: XCTestCase {
         XCTAssertEqual(countAfterInitial, received.count, "other UserDefaults domain must not drive this subscription")
 
         // 本域删除 → 发出空文档 token(删除后文档为 "[]":saveAll 写序列化空数组,
-        //   ← Android 同语义,getString 返回 "[]" 而非 null)
+        //   ← 原版本 同语义,getString 返回 "[]" 而非 null)
         CustomThemeStore.save(sample, suiteA)
         pumpUntil(2, in: { received })
         CustomThemeStore.delete(sample.id, suiteA)
@@ -382,7 +382,7 @@ final class CustomSchemeDeriverTests: XCTestCase {
         XCTAssertGreaterThan(CustomSchemeDeriver.luminance(light.background), 0.5)
     }
 
-    // ── 纯数学工具守卫(Android 由上述契约间接覆盖,iOS 直接锁死)──
+    // ── 纯数学工具守卫(原版本 由上述契约间接覆盖,iOS 直接锁死)──
 
     func testNormalizeHueConvergesEveryInput() {
         XCTAssertEqual(0, CustomSchemeDeriver.normalizeHue(.nan))
@@ -462,7 +462,7 @@ final class CustomThemeResolutionTests: XCTestCase {
     }
 
     func testProviderFallbackSeedIsDefaultLavender() {
-        // ← Android Theme.kt 就地构造的回落种子(#6750A4/#625B71/#7D5260, 265/8)
+        // ← 原版本 Theme.kt 就地构造的回落种子(#6750A4/#625B71/#7D5260, 265/8)
         let seed = SleepyThemeProvider.defaultSeedTheme
         XCTAssertEqual("#6750A4", seed.primary)
         XCTAssertEqual("#625B71", seed.secondary)

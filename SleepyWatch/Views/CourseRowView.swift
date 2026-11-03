@@ -2,7 +2,7 @@
 // ← WidgetCourseCard 显示语义的 watch 重排: 左色条 + 时段/课名/教师·地点。
 // 色: CourseColorUtil issue#22 三态取色同源 (组行传入同 groupId 行集;
 //     无色模式镜像 course_colorless → 隐色条)。时段: slotLabel 镜像 display_mode。
-// 名: 恒原名 — iOS 今日页 (TodayScreen:303 ← Android TodayScreen.kt:480) 不套
+// 名: 恒原名 — iOS 今日页 (TodayScreen:303 ← 原版本 TodayScreen.kt:480) 不套
 //     别名, 手表今日页同口径; 别名只活在周视图/网格 (见 WeekView)。
 // meta「教师 · 地点」← TodayCourseCard 同拼接 (空段自动跳过)。
 

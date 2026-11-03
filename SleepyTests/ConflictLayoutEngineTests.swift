@@ -1,5 +1,5 @@
 // ConflictLayoutEngineTests.swift — ← ConflictLayoutEngineTest.kt + ConflictCardGeometryTest.kt
-// (忠实对齐安卓 107 用例的引擎子集, GPL-3.0) Sleepy iOS — 100% port of sleepy Android
+// (忠实对齐安卓 107 用例的引擎子集, GPL-3.0) Sleepy iOS — 100% port of 原版本
 
 import XCTest
 @testable import Sleepy

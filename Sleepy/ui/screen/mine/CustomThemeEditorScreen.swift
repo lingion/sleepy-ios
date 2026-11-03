@@ -1,5 +1,5 @@
 // CustomThemeEditorScreen.swift — ← ui/screen/mine/CustomThemeEditorScreen.kt
-// 自定义主题创建/微调编辑器 — 外观页弹出(等价 Android 全屏 overlay)。
+// 自定义主题创建/微调编辑器 — 外观页弹出(等价 原版本 全屏 overlay)。
 //
 // 三动作区:随机生成 / 选主色生成整套 / 逐角色手选。
 // 草稿语义:全部改动只改内存草稿 draft,底部「保存」才落 CustomThemeStore。
@@ -7,16 +7,16 @@
 // (M3 邻近色思想:同主题氛围内拉开间隔,避免互补色刺眼),表面用该色相低 chroma。
 // 删除区(errorContainer 整宽色块,全 app 纯色块禁描边)→ 确认对话框。
 //
-// ★ iOS 适配(与 Android 的有意差异,语义等价):
-//   1. 取色器:Android ColorPickerDialog → 本仓 NativeColorPicker(UIColorPickerViewController)。
-//      它回 "#AARRGGBB"(9 位),落库前统一裁成 "#RRGGBB",保持与 Android 同一存储形状。
-//   2. 返回拦截:Android BackHandler 分层(删除确认 > 取色器 > 编辑器)→ iOS
+// ★ iOS 适配(与 原版本 的有意差异,语义等价):
+//   1. 取色器:原版本 ColorPickerDialog → 本仓 NativeColorPicker(UIColorPickerViewController)。
+//      它回 "#AARRGGBB"(9 位),落库前统一裁成 "#RRGGBB",保持与 原版本 同一存储形状。
+//   2. 返回拦截:原版本 BackHandler 分层(删除确认 > 取色器 > 编辑器)→ iOS
 //      .interactiveDismissDisabled(dirty) 挡住下滑手势 + 顶栏返回键在 dirty 时弹确认,
 //      绝静默丢弃(95c1dab3 语义)。
-//   3. 表面倾向:Android 只能靠取色器改色相(chroma 钳 4-12),iOS 另给色相/饱和度
+//   3. 表面倾向:原版本 只能靠取色器改色相(chroma 钳 4-12),iOS 另给色相/饱和度
 //      两个滑杆 —— 滑杆只是同一 surfaceHue/surfaceChroma 的另一种输入法,取值区间
 //      与派生引擎的 SURFACE_CHROMA_MAX=48 对齐,不引入新语义。
-//   4. 「从主色生成整套 / 逐角色手选」在 Android 是两个入口(ROLE_SEED_PRIMARY 与
+//   4. 「从主色生成整套 / 逐角色手选」在 原版本 是两个入口(ROLE_SEED_PRIMARY 与
 //      ROLE_PRIMARY 两条分支),iOS 用 fromSeedMode 开关表达同一对分支,两条都可达。
 
 import SwiftUI
@@ -55,13 +55,13 @@ struct CustomThemeEditorScreen: View {
         self.onBack = onBack
         self.onSaved = onSaved
         self.onDeleted = onDeleted
-        // ← Android remember(editing) { editing ?: CustomTheme(默认草稿) }
+        // ← 原版本 remember(editing) { editing ?: CustomTheme(默认草稿) }
         let base = editing ?? CustomThemeEditorScreen.newDraft(number: nextThemeNumber)
         _draft = State(initialValue: base)
         initial = base
     }
 
-    /// 新建态默认草稿 ← Android 同名字段:#7C4DFF / #546E7A / #EF6C00,表面 265/8
+    /// 新建态默认草稿 ← 原版本 同名字段:#7C4DFF / #546E7A / #EF6C00,表面 265/8
     static func newDraft(number: Int) -> CustomTheme {
         CustomTheme(
             id: "",   // 保存时生成
@@ -103,7 +103,7 @@ struct CustomThemeEditorScreen: View {
                         DraftPreview(draft: draft)
                     }
 
-                    // ── 三动作区(Android Column spacedBy(8.dp),整体是外层 12 间距网格的一个 item)──
+                    // ── 三动作区(原版本 Column spacedBy(8.dp),整体是外层 12 间距网格的一个 item)──
                     VStack(alignment: .leading, spacing: 8) {
                         EditorActionEntry(
                             icon: "wand.and.stars",
@@ -259,7 +259,7 @@ struct CustomThemeEditorScreen: View {
         let id = draft.id.trimmingCharacters(in: .whitespaces).isEmpty ? CustomThemeCore.newId() : draft.id
         onSaved(CustomTheme(
             id: id,
-            name: draft.name,   // ← Android kt:214-217 原样保存 draft.name(仅 id 补 UUID),不 trim
+            name: draft.name,   // ← 原 kt:214-217 原样保存 draft.name(仅 id 补 UUID),不 trim
             primary: normalizedHex(draft.primary),
             secondary: normalizedHex(draft.secondary),
             tertiary: normalizedHex(draft.tertiary),
@@ -279,7 +279,7 @@ struct CustomThemeEditorScreen: View {
         }
     }
 
-    /// 取色器确认 → 按角色写草稿(逐分支对齐 Android onConfirm when(role))
+    /// 取色器确认 → 按角色写草稿(逐分支对齐 原 onConfirm when(role))
     private func applyPicked(hex rawHex: String, role: Role) {
         let hex = normalizedHex(rawHex)
         guard let color = CustomSchemeDeriver.parseHex(hex) else { return }
@@ -309,7 +309,7 @@ struct CustomThemeEditorScreen: View {
         }
     }
 
-    /// 取色器回 "#AARRGGBB" → 统一 "#RRGGBB"(存储形状与 Android 一致)
+    /// 取色器回 "#AARRGGBB" → 统一 "#RRGGBB"(存储形状与原实现一致)
     private func normalizedHex(_ hex: String) -> String {
         let s = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         guard s.hasPrefix("#") else { return s }
@@ -318,7 +318,7 @@ struct CustomThemeEditorScreen: View {
         return ("#" + body.suffix(6)).uppercased()
     }
 
-    // ── 草稿生成工具(← Android 文件尾同名私有函数)──
+    // ── 草稿生成工具(文件尾同名私有函数)──
 
     /// 随机生成:4 源角色各随机 — 色相均匀随机、primary 高饱和、表面低 chroma(4-12)
     static func randomDraft(_ current: CustomTheme) -> CustomTheme {
@@ -474,7 +474,7 @@ private struct DraftPreview: View {
     @Environment(\.localWakeUpColors) private var colors
     let draft: CustomTheme
 
-    // isDark 跟随当前页面背景红色通道,所见即所得 ← Android kt:379 `pageColors.background.red < 0.5f`(只比红色通道,非亮度)
+    // isDark 跟随当前页面背景红色通道,所见即所得 ← 原版本 kt:379 `pageColors.background.red < 0.5f`(只比红色通道,非亮度)
     private var previewScheme: WakeUpColorScheme {
         let ui = UIColor(colors.background)
         var red: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0

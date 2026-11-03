@@ -54,7 +54,7 @@ final class NavStyleResolverTests: XCTestCase {
             "forcePill + 悬浮 → 自绘药丸(永不原生)")
     }
 
-    // MARK: - 宽屏横屏 rail(← Android 版本 issue#45 ③ !isCompact→NavigationRail,
+    // MARK: - 宽屏横屏 rail(← 原版本 issue#45 ③ !isCompact→NavigationRail,
     //        PR#114 master-detail 终态 + PR#235 横屏几何闸 !portrait)
 
     func testWideLandscapeAlwaysRailRegardlessOfUserChoice() {
@@ -135,14 +135,14 @@ final class NavStyleResolverTests: XCTestCase {
     func testLandscapeGeometryGate() {
         // ← PR#235 portrait = screenWidthDp < screenHeightDp 取反口径: 宽≥高 放行;
         // 正方形窗口(Stage Manager 默认卡 1087×945 缩放/分屏方窗)= !portrait 放行,
-        // 与 Android 同语义。缺尺寸 = 保守 false(按手机形态)。
+        // 与 原版本 同语义。缺尺寸 = 保守 false(按手机形态)。
         XCTAssertTrue(NavStyleResolver.isLandscapeGeometry(width: 1024, height: 768))
         XCTAssertTrue(NavStyleResolver.isLandscapeGeometry(width: 600, height: 600))
         XCTAssertFalse(NavStyleResolver.isLandscapeGeometry(width: 820, height: 1180))
         XCTAssertFalse(NavStyleResolver.isLandscapeGeometry(width: 393, height: 852))
         XCTAssertFalse(NavStyleResolver.isLandscapeGeometry(width: nil, height: nil))
         XCTAssertFalse(NavStyleResolver.isLandscapeGeometry(width: 0, height: 800))
-        // isPortraitLayout = Android portrait 同款逐帧口径
+        // isPortraitLayout = 原 portrait 同款逐帧口径
         XCTAssertTrue(NavStyleResolver.isPortraitLayout(windowSize: CGSize(width: 820, height: 1180)))
         XCTAssertFalse(NavStyleResolver.isPortraitLayout(windowSize: CGSize(width: 1024, height: 768)))
         XCTAssertFalse(NavStyleResolver.isPortraitLayout(windowSize: CGSize(width: 600, height: 600)))

@@ -8,7 +8,7 @@
 // entry here; the refresh call is derived automatically.
 //
 // ★ 平台差异:
-//   - Android: ALL_WIDGET_VARIANTS 包含 13 个 receiver (4 个主类 × base/small/wide)。
+//   - 原版本: ALL_WIDGET_VARIANTS 包含 13 个 receiver (4 个主类 × base/small/wide)。
 //   - iOS: StaticConfiguration 不支持 widget 间的 base/small 实例化(同一 kind 三档
 //     family 在配置里指定), 现有 5 个 widget 每个支持 [.systemSmall/Medium/Large],
 //     即 5 档。WidgetManagementScreen.swift 的 PlacedWidgetItem.displayName 逐字

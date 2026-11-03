@@ -1,10 +1,10 @@
 // LocalCalendarFallback.swift — ← data/calendar/LocalCalendarFallback.kt (v1.0.62 B6)
-//                              + data/calendar/AndroidLocalCalendarStore.kt (平台等价)
+//                              + data/calendar/原日历存储实现 (平台等价)
 //
-// 无可写日历时自建本地日历的兜底策略。Android 侧 LocalCalendarStore 走 CalendarContract
+// 无可写日历时自建本地日历的兜底策略。原版本 侧 LocalCalendarStore 走 CalendarContract
 // provider; iOS 侧 EventKit 无「自建日历 provider」等价物, 由 EventKitLocalCalendarStore
 // 承担同一平台边界 — 契约(权限闸 / 查询失败不授权创建 / 自建去重 / 修复不重复)逐条对齐,
-// 由 LocalCalendarFallbackTests 以 fake store 锁死(← Android LocalCalendarFallbackContractTest)。
+// 由 LocalCalendarFallbackTests 以 fake store 锁死(← 原 LocalCalendarFallbackContractTest)。
 //
 // 平台映射:
 // - ACCOUNT_NAME=packageName.account + ACCOUNT_TYPE_LOCAL 的 owned 判定 →
@@ -18,7 +18,7 @@ import EventKit
 import Foundation
 import UIKit
 
-/// ← Android LocalCalendarRow (internal data class)
+/// ← 原版本 LocalCalendarRow (internal data class)
 struct LocalCalendarRow {
     var info: SystemCalendarInfo
     var writable: Bool
@@ -28,8 +28,8 @@ struct LocalCalendarRow {
     var owned: Bool = false
 }
 
-/// ← Android LocalCalendarStore (internal interface) — 平台边界。
-/// 查询失败必须 throw(不可吞成空数组) ← Android "Null provider cursors and other
+/// ← 原版本 LocalCalendarStore (internal interface) — 平台边界。
+/// 查询失败必须 throw(不可吞成空数组) ← 原版本 "Null provider cursors and other
 /// query failures must throw; empty means success"。
 protocol LocalCalendarStore {
     func hasPermissions() -> Bool
@@ -39,20 +39,20 @@ protocol LocalCalendarStore {
     func insert() -> SystemCalendarInfo?
 }
 
-/// ← Android LocalCalendarFallback — 串行化整个 check/create 流程。
+/// ← 原版本 LocalCalendarFallback — 串行化整个 check/create 流程。
 /// Kotlin kotlinx Mutex.withLock → Swift actor 隔离(同一进程内所有调用方串行)。
 /// safely(fallback) 语义 → try? 捕获一切查询/写入失败回落默认值。
 actor LocalCalendarFallback {
 
-    /// ← Android ensure: 无权限直接 nil; 查询失败不授权创建。
+    /// ← 原版本 ensure: 无权限直接 nil; 查询失败不授权创建。
     func ensure(store: LocalCalendarStore) async -> SystemCalendarInfo? {
         guard store.hasPermissions() else { return nil }
-        // ← Android safely(null): CancellationException 重抛 — Swift 侧 store 调用
+        // ← 原版本 safely(null): CancellationException 重抛 — Swift 侧 store 调用
         //   均为同步快调用, 无挂起点, 无需显式取消传播。
         return (try? ensureLocked(store)) ?? nil
     }
 
-    /// ← Android writable: 先列可写日历(owned 行 syncEvents 关闭时先修复),
+    /// ← 原版本 writable: 先列可写日历(owned 行 syncEvents 关闭时先修复),
     /// 全空才 ensureLocked 兜底自建; 任何查询失败整体回落空列表。
     func writable(store: LocalCalendarStore) async -> [SystemCalendarInfo] {
         guard store.hasPermissions() else { return [] }
@@ -62,17 +62,17 @@ actor LocalCalendarFallback {
     private func writableLocked(_ store: LocalCalendarStore) throws -> [SystemCalendarInfo] {
         let calendars: [SystemCalendarInfo] = try store.queryWritable().compactMap { row in
             if row.owned && !row.syncEvents {
-                // ← Android safely(false) { store.enable(row) }: 单行修复失败只丢该行
+                // ← 原版本 safely(false) { store.enable(row) }: 单行修复失败只丢该行
                 return store.enable(row) ? row.info : nil
             }
             return row.info
         }
         if !calendars.isEmpty { return calendars }
-        // ← Android listOfNotNull(ensureLocked(store)): ensureLocked 失败 → 整体空
+        // ← 原版本 listOfNotNull(ensureLocked(store)): ensureLocked 失败 → 整体空
         return try ensureLocked(store).map { [$0] } ?? []
     }
 
-    /// ← Android ensureLocked: 已有可用自建日历 → 复用(必要时修复);
+    /// ← 原版本 ensureLocked: 已有可用自建日历 → 复用(必要时修复);
     /// 存在但已删/只读 → 不重复创建; 完全没有 → insert 自建。
     private func ensureLocked(_ store: LocalCalendarStore) throws -> SystemCalendarInfo? {
         let owned = try store.queryOwned()
@@ -85,14 +85,14 @@ actor LocalCalendarFallback {
     }
 }
 
-/// ← Android AndroidLocalCalendarStore — EventKit 平台实现。
+/// ← 原版本 原日历存储 — EventKit 平台实现。
 /// queryWritable 保留 v1.0.61 平台裁决(排除 .local/.calDAV 外部源)并恒纳入
 /// Sleepy 自建日历 — 兜底产物必须出现在可写列表, 否则用户永远选不中它。
 final class EventKitLocalCalendarStore: LocalCalendarStore {
 
-    /// 自建日历保留显示名(← Android CALENDAR_DISPLAY_NAME = "Sleepy")
+    /// 自建日历保留显示名(CALENDAR_DISPLAY_NAME = "Sleepy")
     static let ownedDisplayName = "Sleepy"
-    /// ← Android CALENDAR_COLOR = 0xFF4285F4
+    /// ← 原版本 CALENDAR_COLOR = 0xFF4285F4
     private static let ownedColorRed: CGFloat = 0x42 / 255.0
     private static let ownedColorGreen: CGFloat = 0x85 / 255.0
     private static let ownedColorBlue: CGFloat = 0xF4 / 255.0
@@ -108,7 +108,7 @@ final class EventKitLocalCalendarStore: LocalCalendarStore {
     }
 
     func queryWritable() throws -> [LocalCalendarRow] {
-        // 排序 ← Android query ORDER BY IS_PRIMARY DESC, CALENDAR_DISPLAY_NAME COLLATE NOCASE:
+        // 排序 ← 原 query ORDER BY IS_PRIMARY DESC, CALENDAR_DISPLAY_NAME COLLATE NOCASE:
         // defaultCalendarForNewEvents 作为 primary 代理恒排首位, 其余按 title 不区分大小写升序。
         let defaultId = store.defaultCalendarForNewEvents?.calendarIdentifier
         return store.calendars(for: .event)
@@ -139,10 +139,10 @@ final class EventKitLocalCalendarStore: LocalCalendarStore {
     }
 
     /// 平台裁决: EventKit 无 VISIBLE/SYNC_EVENTS 可写位 → no-op true。
-    /// (Android enable 翻 VISIBLE=1 + SYNC_EVENTS=1; iOS 本地日历恒可见恒同步)
+    /// (原 enable 翻 VISIBLE=1 + SYNC_EVENTS=1; iOS 本地日历恒可见恒同步)
     func enable(_ row: LocalCalendarRow) -> Bool { true }
 
-    /// ← Android insert(): 自建「Sleepy」日历。本地源优先(不入云 ← ACCOUNT_TYPE_LOCAL);
+    /// ← 原版本 insert(): 自建「Sleepy」日历。本地源优先(不入云 ← ACCOUNT_TYPE_LOCAL);
     /// 无本地源时退 defaultCalendarForNewEvents 的源(公开 API 无法凭空创建 .local source)。
     func insert() -> SystemCalendarInfo? {
         let calendar = EKCalendar(for: .event, eventStore: store)
@@ -164,7 +164,7 @@ final class EventKitLocalCalendarStore: LocalCalendarStore {
         cal.title == Self.ownedDisplayName
     }
 
-    /// ← Android query 投影: writable=ACCESS_LEVEL>=CONTRIBUTOR, deleted/visible/syncEvents
+    /// ← 原 query 投影: writable=ACCESS_LEVEL>=CONTRIBUTOR, deleted/visible/syncEvents
     /// EventKit 无位 → 恒 false/true/true; owned 按保留显示名判定。
     private func row(for cal: EKCalendar) -> LocalCalendarRow {
         LocalCalendarRow(

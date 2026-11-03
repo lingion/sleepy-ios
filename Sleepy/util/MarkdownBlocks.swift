@@ -3,7 +3,7 @@ import Foundation
 /**
  * 更新日志 Markdown 解析 — 纯 Swift, 无 UIKit/SwiftUI 依赖, 可 XCTest 单测。
  *
- * Android MarkdownBlocks.kt 1:1 移植: 取代第三方 MarkdownText 黑盒,
+ * 原版本 1:1 移植: 取代第三方 MarkdownText 黑盒,
  * 上一版用 compose-markdown(Markwon)渲染真机标题/列表/粗体与普通正文无视觉差异
  * 且行为不可控。解析出确定性的块结构 Block + 行内结构 Inline, 由 UpdateChangelogDialog
  * 显式排版 — 每种块的实际视觉结果由本仓库代码决定, 不依赖第三方隐式行为。
@@ -49,7 +49,7 @@ enum MarkdownBlocks {
         }
         func flushParagraph() {
             if !paragraphLines.isEmpty {
-                // ← Android L47: paragraphLines.joinToString(" ").trim()
+                // ← 原版本 L47: paragraphLines.joinToString(" ").trim()
                 blocks.append(.paragraph(text: paragraphLines.joined(separator: " ")
                     .trimmingCharacters(in: .whitespaces)))
                 paragraphLines = []
@@ -58,7 +58,7 @@ enum MarkdownBlocks {
         func flushAll() { flushList(); flushParagraph() }
 
         for rawLine in markdown.components(separatedBy: .newlines) {
-            // Android rawLine.trimEnd() 后再 line.trim(): 对按换行拆出的单行等价于一次全 trim
+            // 原版本 rawLine.trimEnd() 后再 line.trim(): 对按换行拆出的单行等价于一次全 trim
             let t = rawLine.trimmingCharacters(in: .whitespaces)
             if t.isEmpty {
                 // 空行 = 块边界
@@ -82,7 +82,7 @@ enum MarkdownBlocks {
     }
 
     /// 行内解析: **粗体**、`代码`、[文字](链接) → 有序 span 列表
-    /// ← Android MarkdownBlocks.kt:81-114 — 一趟扫描, 三种模式按出现位置取最早,
+    /// ← 原版本 MarkdownBlocks.kt:81-114 — 一趟扫描, 三种模式按出现位置取最早,
     ///   同为最早起点时按 bold/code/link 声明顺序优先。
     static func parseInline(_ text: String) -> [Inline] {
         let ns = text as NSString

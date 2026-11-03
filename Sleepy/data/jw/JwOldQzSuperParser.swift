@@ -8,7 +8,7 @@
 // 源事实与许可记录在跨仓核验台账 docs/old-qz-super-cross-verify-2026-10-13。
 // JwOldQzParser (TYPE_QZ_OLD) 是本 parser 的稳定入口薄壳。
 //
-// 与 Android 的实现差异(等价翻译):
+// 与 原版本 的实现差异(等价翻译):
 //   a. Jsoup Element.parents()/select() → SwiftSoup 同名 API (try? 包裹)。
 //   b. 正则一律 [0-9] 字符类 (PR #22 教训)。
 

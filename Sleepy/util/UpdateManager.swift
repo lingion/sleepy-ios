@@ -1,7 +1,7 @@
 // UpdateManager.swift — ← UpdateManager.kt
 // 拉 GitHub/镜像 release 信息、下载 IPA、清理旧 IPA。不含 UI 状态。
 //
-// 平台差异表#2: Android REQUEST_INSTALL_PACKAGES 自装 APK →
+// 平台差异表#2: 原版本 REQUEST_INSTALL_PACKAGES 自装 APK →
 // iOS 无自装;iOS 端 = 检查更新 + 展示 changelog + 下载 IPA 到本地(供 AltStore 侧载/隔空投送),
 // 安装动作降级为「提示重新侧载」(由 UpdateChangelogDialog 移植体承担,见 SPEC 平台差异表)。
 
@@ -13,14 +13,14 @@ enum UpdateManager {
     private static let MIRROR_RELEASE = "https://gh.qdp.qzz.io/lingion/sleepy-ios/releases/latest"
     private static let MIRROR_PREFIX = "https://gh.qdp.qzz.io/lingion/sleepy-ios/releases/download/"
 
-    /// 当前 App 版本(= Android BuildConfig.VERSION_NAME;iOS = CFBundleShortVersionString)
+    /// 当前 App 版本(= 原版本 BuildConfig.VERSION_NAME;iOS = CFBundleShortVersionString)
     static var currentVersionName: String {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0"
     }
 
     /// 只拉 release 信息,不下载。GitHub 不通回退镜像。 ← fetchUpdateInfo
     static func fetchUpdateInfo() async throws -> UpdateInfo {
-        // 主站: Android runCatching{ } 同时包住读取与 JSON 解析 — 读到坏 JSON 也落到镜像回退,
+        // 主站: 原版本 runCatching{ } 同时包住读取与 JSON 解析 — 读到坏 JSON 也落到镜像回退,
         // 所以这里先验 JSON 是对象,不合格不 return(← org.json.JSONObject(json) 抛异常语义)
         if let json = try? await readText(GITHUB_API),
            let obj = try? JSONSerialization.jsonObject(with: Data(json.utf8)),
@@ -33,9 +33,9 @@ enum UpdateManager {
             throw UpdateError.noVersionFound
         }
         let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
-        // 镜像 HTML 不暴露 asset 列表 → 拼 asset 名 HEAD 探测,取 200..299 的那条(Android 侧是
+        // 镜像 HTML 不暴露 asset 列表 → 拼 asset 名 HEAD 探测,取 200..299 的那条(原版本 侧是
         // candidatesFor(abi) 三候选; iOS 分发为 AltStore 单 IPA, 名固定 "Sleepy.ipa" — 平台差异表#2)。
-        // 探测失败 → 空串下载 URL: Android 让空串触发 no-protocol 错误, iOS 侧由 downloadIpa
+        // 探测失败 → 空串下载 URL: 原版本 让空串触发 no-protocol 错误, iOS 侧由 downloadIpa
         // 走 UpdateError.emptyDownload — 都是显式报错而非 silently 404 下载(2026-09-05 语义)。
         let asset = "\(MIRROR_PREFIX)\(tag)/Sleepy.ipa"
         let url = await headOk(asset) ? asset : ""
@@ -65,7 +65,7 @@ enum UpdateManager {
         return target
     }
 
-    /// 单次下载 ← downloadOnce。空 URL 触发显式错误(← Android URL("") MalformedURLException "no protocol")。
+    /// 单次下载 ← downloadOnce。空 URL 触发显式错误(URL("") MalformedURLException "no protocol")。
     private static func downloadOnce(
         _ urlString: String, to target: URL, onProgress: @escaping (Int) -> Void
     ) async throws {
@@ -176,7 +176,7 @@ enum UpdateManager {
 
 
 // ===== 1.0.51 移植: 自动检查更新开关持久化 ← AppPrefs.setUpdateCheckEnabled =====
-// key 与 Android 完全一致; 未设置时默认开(← getBoolean(KEY_UPDATE_CHECK_ENABLED, true))
+// key 与 原版本 完全一致; 未设置时默认开(← getBoolean(KEY_UPDATE_CHECK_ENABLED, true))
 
 enum UpdateCheckPrefs {
     private static let key = "update_check_enabled"
@@ -192,9 +192,9 @@ enum UpdateCheckPrefs {
 }
 
 // ===== 1.0.51 移植: 冷启动检查更新 ← util/UpdateNotifier.kt =====
-// 语义同 Android: 关开关→直接返回(不占一次性名额); 在途或已缓存→跳过(进程内只查一次);
+// 语义同 原版本: 关开关→直接返回(不占一次性名额); 在途或已缓存→跳过(进程内只查一次);
 // 失败静默(cache 保持 nil, 下次可再查); 关开关清缓存→横幅/高亮立即消失并取消在途请求。
-// Android 在 MainActivity.onCreate 触发, iOS 无法改 App 入口, 由 AboutScreen.task 触发。
+// 原版本 在 MainActivity.onCreate 触发, iOS 无法改 App 入口, 由 AboutScreen.task 触发。
 
 /// 纯版本级关闭规则, 各更新提醒界面共用 ← util/UpdateNoticeCore.kt (v1.0.60 对齐)
 enum UpdateNoticeCore {

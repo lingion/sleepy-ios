@@ -56,7 +56,7 @@ final class JwQzAppParser: JwParser, JwParserConfidenceReporting {
         var seen = Set<String>()
         var result: [JwCourse] = []
         for grid in grids {
-            // ← Android `if (el !is JsonObject) continue`: 逐元素过滤, 数组里混入
+            // ← 原 `if (el !is JsonObject) continue`: 逐元素过滤, 数组里混入
             // null/字符串等坏行只跳过该行, 不能像整体 `as? [[String: Any]]` 强转
             // 失败那样丢掉整个 grid 的全部课程。
             guard let rows = grid["courses"] as? [Any] else { continue }
@@ -172,7 +172,7 @@ final class JwQzAppParser: JwParser, JwParserConfidenceReporting {
             let t = token.trimmingCharacters(in: .whitespacesAndNewlines)
             if t.isEmpty { continue }
             if t.range(of: #"^\d+-\d+$"#, options: .regularExpression) != nil {
-                // 锚定 ^…$ 整 token 匹配 (← Android Regex("^(\d+)-(\d+)$").find):
+                // 锚定 ^…$ 整 token 匹配 (Regex("^(\d+)-(\d+)$").find):
                 // "1-2-3" 这类多段 token 整串不匹配 → 忽略, 不取前两段
                 let parts = t.components(separatedBy: "-")
                 guard let lo = Int(parts[0]), let hi = Int(parts[1]) else { continue }

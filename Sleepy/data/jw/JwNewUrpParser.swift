@@ -63,21 +63,21 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
         }
         if dateList.isEmpty { return result }
 
-        // ← Android dateList.getJSONObject(0): 元素非对象时抛异常(不静默吞)
-        // 注: Android 的 optJSONArray 无字符串强制转换(instanceof 检查而已), 故此处 as? 即对齐
+        // ← 原版本 dateList.getJSONObject(0): 元素非对象时抛异常(不静默吞)
+        // 注: 原版本 的 optJSONArray 无字符串强制转换(instanceof 检查而已), 故此处 as? 即对齐
         let firstDate = try Self.jsonObject(in: dateList, at: 0, path: "dateList")
         guard let courseList = firstDate["selectCourseList"] as? [Any] else { return result }
 
         for i in 0..<courseList.count {
-            // ← Android courseList.getJSONObject(i)
+            // ← 原版本 courseList.getJSONObject(i)
             let course = try Self.jsonObject(in: courseList, at: i, path: "selectCourseList")
             let name = (course["courseName"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let teacher = (course["attendClassTeacher"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            // ← Android course.optJSONArray("timeAndPlaceList"): instanceof 检查, 无字符串强制转换
+            // ← 原版本 course.optJSONArray("timeAndPlaceList"): instanceof 检查, 无字符串强制转换
             guard let timeAndPlaceList = course["timeAndPlaceList"] as? [Any] else { continue }
 
             for j in 0..<timeAndPlaceList.count {
-                // ← Android timeAndPlaceList.getJSONObject(j)
+                // ← 原版本 timeAndPlaceList.getJSONObject(j)
                 let tp = try Self.jsonObject(in: timeAndPlaceList, at: j, path: "timeAndPlaceList")
                 func optInt(_ k: String, _ d: Int) -> Int {
                     if let v = tp[k] as? Int { return v }
@@ -166,7 +166,7 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
     }
 
     /// ← org.json JSONArray.getJSONObject(index): 元素不是 JSON 对象时抛异常
-    /// (Android 侧 JSONException 直接冒泡;iOS 不得静默丢弃整个数组)
+    /// (原版本 侧 JSONException 直接冒泡;iOS 不得静默丢弃整个数组)
     private static func jsonObject(in array: [Any], at index: Int, path: String) throws -> [String: Any] {
         guard let obj = array[index] as? [String: Any] else {
             throw JwParseError(message: "JwNewUrpParser: \(path)[\(index)] is not a JSON object")

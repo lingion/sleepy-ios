@@ -1,7 +1,7 @@
 import XCTest
 @testable import Sleepy
 
-/// DiagDumpProgress 进度模型镜像测试 — 1:1 移植 Android
+/// DiagDumpProgress 进度模型镜像测试 — 1:1 移植自原版本
 /// app/src/test/java/com/lingion/sleepy/ui/screen/imports/DiagDumpProgressTest.kt
 /// (2026-09-21: 导出排查全量包必须有原子步骤进度+百分比, 禁止无止境"正在生成"黑箱)。
 ///
@@ -69,7 +69,7 @@ final class DiagDumpProgressTests: XCTestCase {
     }
 
     // MARK: - iOS 侧 stepIndex 钳位 (跨端展示一致契约)
-    // iOS 流程在 SaveShare 完成时发 stepsDone = 9 (Android 侧 last entering() 后
+    // iOS 流程在 SaveShare 完成时发 stepsDone = 9 (原版本 侧 last entering() 后
     // UI 裸值最高 "9/9"), stepIndex 钳到 totalCount 后两端同为 "步骤 9/9"。
 
     func testStepIndexClampsToTotalAtCompletion() {

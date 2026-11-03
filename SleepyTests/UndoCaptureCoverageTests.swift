@@ -34,7 +34,7 @@ final class UndoCaptureCoverageTests: XCTestCase {
         "replaceCoursesKeepingGroups", "updateCourse", "updateCourseGroup",
         "setGroupSourceColor", "applyDiff", "deleteCourse", "deleteCourseGroup",
         "replaceCourses",
-        // v1.0.62 B3: 每课表提醒开关 — 同值 no-op 不抓, 真变化 capture (← Android 同名方法)
+        // v1.0.62 B3: 每课表提醒开关 — 同值 no-op 不抓, 真变化 capture (同名方法)
         "setTableReminderEnabled"
     ]
 

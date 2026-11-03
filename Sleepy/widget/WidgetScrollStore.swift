@@ -1,7 +1,7 @@
 // WidgetScrollStore.swift — ← widget/WidgetScrollCore.kt + WidgetScrollStore.kt
-// 强制滚动(实验) per-widget 布尔开关 (JSON 文件壳, 与 Android SharedPreferences 1:1)。
+// 强制滚动(实验) per-widget 布尔开关 (JSON 文件壳, 与 原版本 SharedPreferences 1:1)。
 //
-// ★ 平台差异(差异表#8 附注, 与 WidgetBindingStore 同因): Android 键 = appWidgetId
+// ★ 平台差异(差异表#8 附注, 与 WidgetBindingStore 同因): 原版本 键 = appWidgetId
 //   (每实例一档); iOS 无稳定实例 ID → 键收窄为 widget kind (同 kind 实例共享,
 //   与绑定存储粒度一致)。
 //

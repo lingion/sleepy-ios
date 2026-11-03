@@ -22,12 +22,12 @@ struct PeriodTableEditScreen: View {
     var isNewUnsaved: Bool = false
     let onBack: () -> Void
 
-    // ← Android remember 键控三段式:
+    // ← 原 remember 键控三段式:
     //   name/unsavedNew   ← remember(periodTable.id)                (ktl L107/L114)
     //   slotRows          ← remember(id, updatedAt, timeJson)       (ktl L126)
     //   smartConfig       ← remember(id, smartConfigJson)           (ktl L133)
     // 同 id 表的行/配置被外部更新(timeJson/smartConfigJson/updatedAt 任一变化)时随重载种子,
-    // 对齐 Android collectAsState 流刷新; 未保存的本地编辑因键未变而保留。
+    // 对齐 原 collectAsState 流刷新; 未保存的本地编辑因键未变而保留。
     @State private var seededTableId: Int64? = nil
     @State private var seededRowsKey: String? = nil
     @State private var seededSmartKey: String? = nil
@@ -55,7 +55,7 @@ struct PeriodTableEditScreen: View {
     /// 全部作息表(名字查重 / 源表查找)
     @State private var allPeriodTables: [PeriodTableEntity] = []
 
-    /// ← Android viewModel.allPeriodTables.collectAsState() — GRDB 观察流(订阅即发当前值,
+    /// ← 原版本 viewModel.allPeriodTables.collectAsState() — GRDB 观察流(订阅即发当前值,
     /// 之后 period_tables 每次写库自动 emit; onReceive 随视图下屏自动取消订阅)。
     /// 同 id 外部更新(他页保存/复制/删除)时本屏行数据与表列表随之刷新。
     private static let periodTableUpdates = ScheduleRepository(AppDatabase.getShared())
@@ -69,7 +69,7 @@ struct PeriodTableEditScreen: View {
         // 数据装载修饰符挂在总根(而非 content): 表列表首次为空时本屏走 not-found 分支,
         // 但 .onAppear/.onReceive 仍须随视图一存在即订阅 + 同步查库 — 若挂在 content 上,
         // content 不渲染 → 装载永不触发 → allPeriodTables 无种子 → 永久 not-found(引导死锁)。
-        // ← Android viewModel.allPeriodTables.collectAsState() 首帧即订阅, 数据到位自动重组。
+        // ← 原版本 viewModel.allPeriodTables.collectAsState() 首帧即订阅, 数据到位自动重组。
         Group {
             if let periodTable = periodTable {
                 content(periodTable: periodTable)
@@ -154,7 +154,7 @@ struct PeriodTableEditScreen: View {
                                                // stored 仍能 derive 当前行则定点保留(分组/标签不丢), 否则按行
                                                // 重推断; 不可推断保持旧值。与 EditTableScreen 同口径, 否则
                                                // 陈旧 config 被 Auto 模式 derive 覆盖手动行 = "多出 44 分钟课"根因。
-                                               // ← Android PeriodTableEditScreen.kt onRowsChange
+                                               // ← 原版本 PeriodTableEditScreen.kt onRowsChange
                                                smartConfig = resolveAutoPeriodConfig(rows: newRows, stored: smartConfig)
                                                    ?? smartConfig
                                            },
@@ -298,7 +298,7 @@ struct PeriodTableEditScreen: View {
         allPeriodTables = viewModel.loadAllPeriodTables()
     }
 
-    // ← Android remember 键控初始化(表切换/同 id 外部更新时重载; 未保存本地编辑因键不变而保留)
+    // ← 原 remember 键控初始化(表切换/同 id 外部更新时重载; 未保存本地编辑因键不变而保留)
     private func loadIfNeeded(periodTable: PeriodTableEntity) {
         let rowsKey = "\(periodTable.id)|\(periodTable.updatedAt)|\(periodTable.timeJson)"
         let smartKey = "\(periodTable.id)|\(periodTable.smartConfigJson)"
@@ -490,7 +490,7 @@ struct PeriodTableEditScreen: View {
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(colors.onSurface)
             FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
-                // ← Android TextField(isError = nameTaken) (ktl L494): 输入框本体错误态。
+                // ← 原版本 TextField(isError = nameTaken) (ktl L494): 输入框本体错误态。
                 //   FieldTextField 在 EditTableScreen.swift(本任务禁改), 按 DatePickerField
                 //   同款先例在调用处补 M3 active indicator 底线; supportingText 红色说明行紧随其下。
                 .overlay(alignment: .bottom) {

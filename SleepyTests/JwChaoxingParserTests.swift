@@ -222,7 +222,7 @@ final class JwChaoxingParserTests: XCTestCase {
         XCTAssertTrue(try single("").isEmpty)
     }
 
-    // MARK: - 对齐 Android 行元素容错 (el.jsonObject runCatching ?: continue)
+    // MARK: - 对齐 原版本 行元素容错 (el.jsonObject runCatching ?: continue)
 
     func testMalformedRowElementSkipsOnlyThatRow() throws {
         // rows 混入非对象元素 → 只跳过该行, 其余行照常解析 (禁整数组丢弃)

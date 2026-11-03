@@ -48,7 +48,7 @@ final class JwPekingParser: JwParser, JwParserConfidenceReporting {
             // ← tds[7].html().split("<br>")
             //   SwiftSoup 2.7.3 的 html() 把空标签序列化为 "<br />"(Jsoup 输出 "<br>"),
             //   不归一化则永远切不开 → 单/双 标记进不了 timeInfo[1], type 恒为 0。
-            //   归一化后语义与 Android split 完全一致。
+            //   归一化后语义与 原 split 完全一致。
             let timeHtml = ((try? tds.get(7).html()) ?? "")
                 .replacingOccurrences(of: "<br />", with: "<br>")
             let timeBlocks = timeHtml.components(separatedBy: "<br>")
@@ -135,7 +135,7 @@ final class JwPekingParser: JwParser, JwParserConfidenceReporting {
 
     /// 上游 Common.nodePattern1 的 ASCII 口径等价形 (iOS 26 ICU 实测 `\d` 命中
     /// CJK 数字 一 U+4E00/NBSP 域数字, Kotlin Regex 默认仅 [0-9] — 同
-    /// SleepyNativeFormat §2 文法注记): 语义逐字符对齐 Android, 仅数字类换 [0-9]。
+    /// SleepyNativeFormat §2 文法注记): 语义逐字符对齐 原版本, 仅数字类换 [0-9]。
     private static let NODE_PATTERN1 = #"[0-9]{1,2}[~]*[0-9]*节"#
     private static let CHINESE_WEEK_LIST = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 

@@ -21,7 +21,7 @@ import Foundation
 ///  第 i 节开始时间 = startTime + Σ(period时长)_before_i + Σbreaks_before_i
 ///  transition i 表示第 i 节与第 i+1 节之间的课间
 ///
-/// 解码：各字段缺省走默认值（对齐 Android @Serializable 默认值，旧 JSON 无
+/// 解码：各字段缺省走默认值（对齐 原版本 @Serializable 默认值，旧 JSON 无
 /// durations/periodAssignments 也能解码）。
 struct SmartPeriodConfig: Codable, Equatable {
     var startTime: String = "08:00"

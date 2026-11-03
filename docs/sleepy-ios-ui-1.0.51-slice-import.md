@@ -1,4 +1,4 @@
-# Slice: Import flow — Android 1.0.51 UI alignment
+# Slice: Import flow — original 1.0.51 UI alignment
 
 Commit `1670e68` · files: SchoolSelectScreen.swift, ImportSheet.swift,
 JwImportFlow.swift, JwWebViewLoginScreen.swift, DateTimePickers.swift,
@@ -15,7 +15,7 @@ Localizable.strings ×5
   (SleepyTypography labelSmall weight=Medium); dropped-lines title
   titleSmall 14 Medium; conflict list capped at 3 with >3 more-count
   (Android prefix(3)); preview cancel to TextButton form (40dp,
-  explicit onSurfaceVariant per Android source); confirm dialog title
+  explicit onSurfaceVariant per original source); confirm dialog title
   headlineSmall 24 regular (M3 AlertDialog title slot), table-name field
   fillMaxWidth and only when import-as-new/append-as-new
   (`showTableName`), back/confirm default TextButton primary labelLarge
@@ -30,9 +30,9 @@ Localizable.strings ×5
   (M3 disabled: container onSurface 12%, content onSurface 38%) when no
   WebView coordinator.
 - DateTimePickers: DatePickerField gains `fillsWidth` param mirroring
-  Android `fillMaxWidth()` call sites (TimePickerField already had it).
+  原 `fillMaxWidth()` call sites (TimePickerField already had it).
 - Localization: new key `jw_table_name_label` in zh-Hans/zh-Hant/en/es/ja
-  (values copied from Android locales).
+  (values copied from original locales).
 
 ## Scope notes (UI-only per user direction)
 

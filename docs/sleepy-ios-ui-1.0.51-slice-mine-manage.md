@@ -2,7 +2,7 @@
 
 ## Comparison
 
-Compared the iOS Mine and Manage surfaces with Android 1.0.51:
+Compared the iOS Mine and Manage surfaces with original 1.0.51:
 
 - Mine uses the same 16-point scrolling layout, headline/subtitle hierarchy, three-column statistics card, six settings destinations, and full-width widget-refresh action.
 - Statistics use table count, distinct course-name count, and current week, with the same 18/8 card padding, vertical separators, colors, and typography.
@@ -13,7 +13,7 @@ Compared the iOS Mine and Manage surfaces with Android 1.0.51:
 
 ## Scope
 
-No source change was required for these two surfaces; their existing SwiftUI implementation already reflects the Android 1.0.51 behavior. Only this report and the Mine/Manage matrix rows are included. Existing General Settings, localization, import-flow, screenshots, tests, and preference changes remain outside this slice.
+No source change was required for these two surfaces; their existing SwiftUI implementation already reflects the original 1.0.51 behavior. Only this report and the Mine/Manage matrix rows are included. Existing General Settings, localization, import-flow, screenshots, tests, and preference changes remain outside this slice.
 
 ## Verification
 

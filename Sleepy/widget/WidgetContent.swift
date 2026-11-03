@@ -1,9 +1,9 @@
 // WidgetContent.swift — ← WidgetContent.kt
 // 小组件数据模型 + 配色派生 — 5 个 WidgetKit 视图共用。
 //
-// 平台差异表#5: Android RemoteViews+Canvas bitmap → WidgetKit SwiftUI;
+// 平台差异表#5: 原版本 RemoteViews+Canvas bitmap → WidgetKit SwiftUI;
 // 布局/配色计算逻辑保留,bitmap 管道不移植。
-// Glance 层在 Android 侧已删(v1.0.29 决策 D5-11),5 个生产入口全走 RemoteViews;
+// Glance 层在 原版本 侧已删(v1.0.29 决策 D5-11),5 个生产入口全走 RemoteViews;
 // iOS 侧全部 5 个 widget 走 SwiftUI TimelineProvider,共享本文件的数据模型。
 
 import Foundation
@@ -54,7 +54,7 @@ struct WidgetScheme {
     let surface: Color
     let primary: Color
     let primaryContainer: Color
-    /// colorless 灰底基准色 (← WidgetContent.kt:76; Android 渲染层
+    /// colorless 灰底基准色 (← WidgetContent.kt:76; 原版本 渲染层
     /// CourseColorUtil.pickCourseColorIntWithGroupRows(..., scheme.secondaryContainer,
     /// colorless) 用它当「刷新所有小组件」同色灰底,WidgetBitmapRenderers.kt:87)
     let secondaryContainer: Color
@@ -73,12 +73,12 @@ struct WidgetScheme {
 
 /// 按 themeKey + isDark 派生小组件配色。 ← resolveWidgetScheme
 ///
-/// ★ themeKey == "system" 走 iOS 语义色(等价适配:Android Material You 动态取色
+/// ★ themeKey == "system" 走 iOS 语义色(等价适配:原版本 Material You 动态取色
 ///   在 iOS 无对应 API,降级为系统语义色),与 SleepyThemeProvider 的处理对齐。
 /// ★ "custom:<id>" 走 CustomThemeStore + CustomSchemeDeriver —— 与 App 内
 ///   SleepyThemeProvider 同一个派生函数,保证小组件与界面配色同源;id 读不到
-///   (已删)回落 ThemePresets.byKey(null) 默认套(Android 同语义)。
-/// system 模式 → 渲染期取系统深浅(WidgetKit \.colorScheme, 对齐 Android
+///   (已删)回落 ThemePresets.byKey(null) 默认套(原版本 同语义)。
+/// system 模式 → 渲染期取系统深浅(WidgetKit \.colorScheme, 对齐原实现
 /// isSystemInDarkTheme 渲染期取值); 锁定 light/dark 用快照 isDark。
 /// 旧快照无 themeMode 字段(nil)沿用原行为。
 func effectiveWidgetIsDark(themeMode: String?, snapshotIsDark: Bool, envScheme: ColorScheme) -> Bool {
@@ -129,7 +129,7 @@ func resolveWidgetScheme(themeKey: String, isDark: Bool, isGlass: Bool = false) 
 /// trait 解析。widget 扩展进程 + StandBy/锁屏场景下:
 ///   1) trait 深浅可能与 entry 快照 isDark (锁定 light/dark 时) 劈叉 → 白字配浅底;
 ///   2) tertiarySystemFill 等本身带 alpha → 背景被剥离后胶囊溶解。
-/// Android Material You 动态色恒为不透明且恒匹配深色标志, 无此二坑。
+/// 原版本 Material You 动态色恒为不透明且恒匹配深色标志, 无此二坑。
 /// 修法: 按 entry 的 isDark 显式给 trait 解析成**不透明静态色** (无硬编码色值,
 /// 系统升级自动跟随), 半透明填充先合成到 systemBackground 再取色。
 func opaqueWidgetSystemScheme(dark: Bool) -> WakeUpColorScheme {
@@ -216,7 +216,7 @@ struct WeekData {
     var themeKey: String = ThemePresets.KEY_DEFAULT
     /// 主题跟随模式(light/dark/system); system 时渲染端用环境色域覆盖 isDark
     var themeMode: String? = nil
-    // displayMode 死字段已删(Android 侧 renderer 各自直读 AppPrefs)
+    // displayMode 死字段已删(原版本 侧 renderer 各自直读 AppPrefs)
     var showDate: Bool = false
     var visibleDays: Set<Int> = Set(1...7)
     /// ★ 学期状态(学期外时列头加状态行)
@@ -226,7 +226,7 @@ struct WeekData {
     var compactWindow: [DayData] = []
     /// 当前展示周状态 (← v1.0.60 WeekData.weekDisplayStatus)
     var weekDisplayStatus: WeekDisplayStatus = .normal
-    /// NEAREST_BUSY_DAY 档时被自动跳到的那一天 (← Android WeekData.nearestBusyTargetDate,
+    /// NEAREST_BUSY_DAY 档时被自动跳到的那一天 (WeekData.nearestBusyTargetDate,
     /// 周网格 SMALL 最小档 weekGridMinimumTodayData 定位单日; nil 回退旧口径)
     var nearestBusyTargetDate: Date? = nil
 }
@@ -242,7 +242,7 @@ struct TwoDayData {
     /// ★ 学期状态(学期外时渲染状态文案不渲染课程)
     var semesterStatus: DateUtils.SemesterStatus = .inRange
     /// 当前展示周状态 (← WidgetContent.kt:199 TwoDayData.weekDisplayStatus;
-    /// Android TwoDayWidget.kt:229 以 source.display.status 填充,.nearestBusyDay
+    /// 原版本 TwoDayWidget.kt:229 以 source.display.status 填充,.nearestBusyDay
     /// 时渲染/装载端走 findNearestBusyDays(count=2) 的「最近两个未来有课日」窗口,
     /// 用户 2026-09-23 定稿, 不再是 targetDate+1 日历相邻日)
     var weekDisplayStatus: WeekDisplayStatus = .normal

@@ -178,7 +178,7 @@ final class SmartPeriodConfigTests: XCTestCase {
     }
 
     func testBreakOptionBlankLabelFallsBackToDefault() {
-        // Android isNullOrBlank: 纯空白 label 视为未填 (kt:120)
+        // 原版本 isNullOrBlank: 纯空白 label 视为未填 (kt:120)
         XCTAssertEqual("小课间 10 分钟", BreakOption(minutes: 10, label: "   ").displayLabel(index: 0))
         XCTAssertEqual("大课间 30 分钟", BreakOption(minutes: 30, isLong: true, label: " \n ").displayLabel(index: 1))
     }

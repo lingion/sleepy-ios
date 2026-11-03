@@ -244,7 +244,7 @@ final class JwWakeUpCompatParserTests: XCTestCase {
         XCTAssertTrue(courses.contains { $0.name == "马克思主义基本原理" })
     }
 
-    /// 回归锁#2: suda DataGrid1 缺失时回退 MainWork_DataGrid1 (Android 测试 171/195 同款输入)
+    /// 回归锁#2: suda DataGrid1 缺失时回退 MainWork_DataGrid1 (原版本 测试 171/195 同款输入)
     func testSudaMainWorkFallbackSelector() throws {
         let source = """
             <html><body><table id="MainWork_DataGrid1">
@@ -306,7 +306,7 @@ final class JwWakeUpCompatParserTests: XCTestCase {
         """
         let courses = try JwKingoParser(source).generateCourseList()
         XCTAssertFalse(courses.isEmpty)
-        XCTAssertNotEqual(courses[0].teacher, "张三,高数", "'teacher'/'course' 键不是锚定的 'name' 键, Android 语义不采")
+        XCTAssertNotEqual(courses[0].teacher, "张三,高数", "'teacher'/'course' 键不是锚定的 'name' 键, 原语义不采")
     }
 
     /// 回归锁#7: XJU 周次 token 分隔符含全角逗号 U+FF0C

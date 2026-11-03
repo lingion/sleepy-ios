@@ -491,7 +491,7 @@ enum BjtuFetchJs {
         ])
         .then(function(rs){
           var a = rs[0], b = rs[1];
-          // 双双失效才判登录过期 (conjunctive, 与 Android 一致; 单页失效另一页仍可用)
+          // 双双失效才判登录过期 (conjunctive, 与原实现一致; 单页失效另一页仍可用)
           if (isLoginExpired(a) && isLoginExpired(b)) {
             err('登录已失效，请重新登录后再点导入');
             return;

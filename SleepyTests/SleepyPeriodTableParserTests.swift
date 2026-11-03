@@ -7,7 +7,7 @@
 // - ParseResult.periodTable 产物(sourceId/name/nodesPerDay/timeJson 无损)
 // - Pd 展开 ND_PRESET 12 节 / 纯作息零课程路径 / 二次 P 头 dropped+warning
 // - isMagicLine v0 语义(本地判定 = detectVersion >= 1)
-// - javaInt/javaLong 数字宽度对齐(32 位溢出 → 视为未声明, 与 Android toIntOrNull 一致)
+// - javaInt/javaLong 数字宽度对齐(32 位溢出 → 视为未声明, 与 原 toIntOrNull 一致)
 //
 // ⚠ 编译依赖 ScheduleParser.ParsedPeriodTable / ParseResult.periodTable 落地
 // (见 needs_shared_wiring — F049 同步在改 ScheduleParser.swift)。
@@ -196,7 +196,7 @@ final class SleepyPeriodTableParserTests: XCTestCase {
     // ---- isMagicLine v0 语义 (issue#6: kt:266-267 detectVersion >= 1) ----
 
     func testV0MagicLineIsNotMagicForParser() {
-        // "#sleepy-v0" 在 Android parser 内层不算 magic: parse 直调必须抛"无 magic 文本"
+        // "#sleepy-v0" 在 原 parser 内层不算 magic: parse 直调必须抛"无 magic 文本"
         XCTAssertThrowsError(
             try SleepyNativeParser.parse("#sleepy-v0\nC高数|2|1-2", defaultTableId: 1, defaultColor: "#FF6750A4"))
         // v1 正常
@@ -213,7 +213,7 @@ final class SleepyPeriodTableParserTests: XCTestCase {
     }
 
     func testInt32OverflowTreatedAsAbsentLikeJava() throws {
-        // "99999999999" 超 32 位 → Android toIntOrNull()=null(视为未声明, 走默认 20 且不报钳制);
+        // "99999999999" 超 32 位 → 原版本 toIntOrNull()=null(视为未声明, 走默认 20 且不报钳制);
         // 旧 iOS Int()(64 位)直接吃下 → 钳 60 + 假 warning。对齐后不得出现钳制 warning。
         let r = try parse("#sleepy-v1\nT表|2026-03-02|99999999999|12\nC高数|2|1-2\n", tableId: 1)
         XCTAssertEqual(20, r.maxWeek)

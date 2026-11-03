@@ -1,5 +1,5 @@
-// TimeTableUtilsTests.swift — TimeTableUtils 无 Android 专测,按 Kotlin 函数行为写对齐测试
-// (G4 链①地基;SmartPeriodConfig 的 Android 用例见 SmartPeriodConfigTests)
+// TimeTableUtilsTests.swift — TimeTableUtils 无 原版本 专测,按 Kotlin 函数行为写对齐测试
+// (G4 链①地基;SmartPeriodConfig 的 原用例见 SmartPeriodConfigTests)
 
 import XCTest
 @testable import Sleepy

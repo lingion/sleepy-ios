@@ -1,6 +1,6 @@
 // JwImportViewModelTests.swift — F018 对齐回归测试
 // ← JwProtocolDetectionUnitTest.kt / JwImportViewModel 相关的纯逻辑断言(检测链新锚点 +
-//   parseZfNewBridgeResult 默认值 + normalizeStartDate 归一周四), iOS 侧无对应 Android
+//   parseZfNewBridgeResult 默认值 + normalizeStartDate 归一周四), iOS 特有实现
 //   单测文件直接镜像, 按本项目 drift-fix 规则补齐行为断言。
 
 import XCTest
@@ -95,7 +95,7 @@ final class JwImportViewModelTests: XCTestCase {
     // MARK: - parseZfNewBridgeResult 默认值(← kt:245 optString("format",""))
 
     func testParseZfNewBridgeResultMissingFormatKeyIsOther() {
-        // {ok:true, data:...} 无 format 键 → Android 判 OTHER; iOS 曾默认 "zf_new" 误判成功
+        // {ok:true, data:...} 无 format 键 → 原版本 判 OTHER; iOS 曾默认 "zf_new" 误判成功
         let r = JwImportViewModel.parseZfNewBridgeResult(#"{"ok":true,"data":"[1,2]"}"#)
         XCTAssertFalse(r.ok)
         XCTAssertEqual(r.kind, "OTHER")

@@ -1,5 +1,5 @@
 // LocaleHelper.swift — ← LocaleHelper.kt
-// Android: ContextWrapper 注入 locale → iOS: 每语言独立 .lproj + Bundle 定向 + AppleLanguages
+// 原版本: ContextWrapper 注入 locale → iOS: 每语言独立 .lproj + Bundle 定向 + AppleLanguages
 //
 // iOS 无"给 Context 换 Configuration"机制;等价物:
 //  1) App 内所有字符串走 L10n(已支持 bundle 定向) → 运行时切语言不重启
@@ -64,7 +64,7 @@ enum LocaleHelper {
     }
 
     /// 切语言: 写 AppPrefs + AppleLanguages(下次启动全系统生效)+ 广播重建。
-    /// ← Android: wrap + Activity.recreate() — recreate 等价 = L10n.didChangeNotification,
+    /// ← 原版本: wrap + Activity.recreate() — recreate 等价 = L10n.didChangeNotification,
     /// AppRoot 监听后整树重建,运行中的 SwiftUI hierarchy 立即用新语言。
     @discardableResult
     static func applyLanguage(_ langCode: String) -> Bundle {

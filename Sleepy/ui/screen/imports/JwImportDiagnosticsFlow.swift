@@ -1,7 +1,7 @@
 // JwImportDiagnosticsFlow.swift — ← ui/screen/imports/JwImportActivity.kt v1.0.60
 //                                    exportDiagnosticDump 管线 (行 235-376) 纯逻辑拆出
 //
-// 排查全量包导出管线编排器。Android 把这段 inline 在 Activity 的 Compose
+// 排查全量包导出管线编排器。原版本 把这段 inline 在 Activity 的 Compose
 // 闭包里(state 捕获耦合 UI); iOS 按「纯逻辑独立 enum/struct + UI 装载注明平台
 // 差异」拆出 — 阶段推进/顺序/超时/降级全在本文件, 可单测。
 //
@@ -15,17 +15,17 @@
 //   entering(stage) → 执行 → leaveStage()(stepsDone+1)
 //
 // ## 平台差异(UI 装载部分, 由调用方负责)
-//   - Android evaluateJavascript + suspendCancellableCoroutine → iOS
+//   - 原 evaluateJavascript + suspendCancellableCoroutine → iOS
 //     WKWebView.evaluateJavaScript(异步 completion 回调, 主线程)。
 //     本类型通过 injected evalJs 闭包抽象, 单测传 stub。
-//   - Android __sleepyDiagBridge addJavascriptInterface / removeJavascriptInterface
+//   - 原版本 __sleepyDiagBridge addJavascriptInterface / removeJavascriptInterface
 //     → iOS WKScriptMessageHandler 注册/注销(桥名 __sleepyDiagBridge, 主线程)。
 //     注入 JS 侧回调仍是 window.webkit.messageHandlers.__sleepyDiagBridge
 //     .postMessage({json:...})(桥接约定)。重放 JS 的回调桥名一致。
-//   - Android CookieManager.getInstance().getCookie(webView.url)(主线程约束)
+//   - 原版本 CookieManager.getInstance().getCookie(webView.url)(主线程约束)
 //     → iOS WKHTTPCookieStore.getAllCookies(异步); 同样在 Cookies 段完成。
-//   - Android withContext(Dispatchers.IO) zip → iOS Task.detached(qos: .userInitiated)。
-//   - Android JwCaptureDump.share(ctx, ...) → iOS UIActivityViewController。
+//   - 原版本 withContext(Dispatchers.IO) zip → iOS Task.detached(qos: .userInitiated)。
+//   - 原版本 JwCaptureDump.share(ctx, ...) → iOS UIActivityViewController。
 //
 // 失败语义: 任一段 JS 求值失败/超时 → 该段结果为 nil, 管线继续(排查包宁缺
 // 一段不整体失败); school == nil 时 ZipAssembly 段直接 Fail("未选择学校")。
@@ -33,7 +33,7 @@
 import Foundation
 
 /// 诊断导出管线编排器 — 每次导出建一个实例(承载 stepsDone 状态)。
-/// (Android 版是闭包局部 var stepsDone + 嵌套 fun; Swift 拆成可测 struct)
+/// (原版本 版是闭包局部 var stepsDone + 嵌套 fun; Swift 拆成可测 struct)
 struct JwImportDiagnosticsFlow {
 
     /// 进度推进回调: 每进入一段发一次(= dumpProgress = DiagDumpProgress(...))
@@ -64,7 +64,7 @@ struct JwImportDiagnosticsFlow {
     typealias EvalJs = (String) async -> String?
 
     /// 网络重放段: 注入 DIAGNOSTIC_NETWORK_EXPORT_JS 并等 __sleepyDiagBridge
-    /// 回调, 30s 超时 → nil。(Android: withTimeoutOrNull(30_000L))
+    /// 回调, 30s 超时 → nil。(原版本: withTimeoutOrNull(30_000L))
     typealias ReplayBridgeEval = (String, TimeInterval) async -> String?
 
     /// Cookie 全量值: WKHTTPCookieStore.getAllCookies 拼 "k=v; ..."。
@@ -156,7 +156,7 @@ struct JwImportDiagnosticsFlow {
 
     /// 求值解包(静态纯函数, 单测可直跑): WKWebView evaluateJavaScript 回调的
     /// raw 是 JSON 字符串字面量(带引号+转义), 先解一层; "null"/空 → nil。
-    /// (← Android evalJs 内 JSONTokener(raw).nextValue().toString())
+    /// (evalJs 内 JSONTokener(raw).nextValue().toString())
     static func unwrapEvalResult(_ raw: String?) -> String? {
         guard let raw = raw, !raw.isEmpty, raw != "null" else { return nil }
         // 带 JSON 引号 → 解一层转义; 解不动原样返回(evaluateJavaScript 对字符串

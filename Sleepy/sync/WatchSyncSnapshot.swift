@@ -92,7 +92,7 @@ enum WatchSyncSnapshot {
         var courses: [CourseEntity] = []
         var prefs: PrefsSnapshot? = nil
         // course_colors 镜像: groupId → hue (派生档持久色相)
-        // Android WatchSync 契约无对应字段(手表不镜像配色) — iOS 手表端按
+        // 原版本 WatchSync 契约无对应字段(手表不镜像配色) — iOS 手表端按
         // 「无独有功能, 手机口径镜像」原则补齐, 手表课程色与手机一致。
         var courseColors: [String: Float] = [:]
     }

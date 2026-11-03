@@ -1,5 +1,5 @@
 // ConflictLayoutEngine.swift — ← util/ConflictLayoutEngine.kt (终态 v1.0.61 / v7.10.16u+, 逐行翻译, GPL-3.0)
-// Sleepy iOS — 100% port of sleepy Android
+// Sleepy iOS — 100% port of 原版本
 // 网格/周视图冲突布局引擎 — 纯函数,零 SwiftUI 依赖。
 
 import Foundation
@@ -361,7 +361,7 @@ enum ConflictLayoutEngine {
     }
 
     /**
-     * 周视图渲染行分组(v7.10.6 / ← Android 25c943f0 issue #37) — 修复丢课/重复渲染:
+     * 周视图渲染行分组(v7.10.6 / ← 原版本 commit issue #37) — 修复丢课/重复渲染:
      * 区域划分是划分(每课恰属一个区域),行成员 = 区域全体,每课恰渲染一次。
      * timeJson 非空时: ownTime 课先按真实时间归一化节点, 区域划分改走分钟域
      * (mergeOverlappingByTime, 混合域不成簇); 时间零交集的 ownTime 课对不再因
@@ -848,7 +848,7 @@ enum ConflictLayoutEngine {
         spanDpOf: ((Double, Double) -> Double)? = nil,
         contentSpanDpOf: ((Double, Double) -> Double)? = nil
     ) -> ConflictRect {
-        // v1.0.62 B5b: 长课间两表 ← Android conflictCardRectFrac(contentSpanDpOf):
+        // v1.0.62 B5b: 长课间两表 ← 原版本 conflictCardRectFrac(contentSpanDpOf):
         // 高度走 natural 跨度(卡片不跨进折入的空隙), 位置仍走 spanDpOf(边界) —
         // 空白落在卡片之后。缺省回落 spanDpOf = 无餐段等价。
         let heightSpan = contentSpanDpOf ?? spanDpOf
@@ -881,7 +881,7 @@ enum ConflictLayoutEngine {
         spanDpOf: ((Double, Double) -> Double)? = nil,
         contentSpanDpOf: ((Double, Double) -> Double)? = nil
     ) -> ConflictRect {
-        // v1.0.62 B5b: 高度(natural)/位置(boundary)分离 ← Android conflictMarkRectFrac(contentSpanDpOf)
+        // v1.0.62 B5b: 高度(natural)/位置(boundary)分离 ← 原版本 conflictMarkRectFrac(contentSpanDpOf)
         let heightSpan = contentSpanDpOf ?? spanDpOf
         let ownH = max(heightSpan?(startRowFrac, startRowFrac + ownRowsFrac)
                        ?? rowH * ownRowsFrac, rowH * 0.3) - gapH

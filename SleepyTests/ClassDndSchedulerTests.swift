@@ -3,11 +3,11 @@
 // 不变量: 区间 [start, end) 半开; 只排未来边界; 破损 ownTime 回落/跳过;
 //         节点缺失跳过; end<=start 跳过; savedFilter 默认 ALL 契约。
 // 平台适配说明:
-//   - Android `savedFilter 默认 ALL` + `resetSavedFilterForTest 复位` 两条用例
+//   - 原 `savedFilter 默认 ALL` + `resetSavedFilterForTest 复位` 两条用例
 //     锁的是 companion @Volatile 可变字段; iOS 无系统级 DND 快照, 该状态不存在,
 //     契约收敛为静态常量 ClassDndScheduler.savedFilterDefault(=INTERRUPTION_FILTER_ALL),
 //     下面两条用例改锁此常量与"无可变残留"语义。
-//   - Android 破损 ownTime(空白串)回落节点表 → 本文件新增 1 条回落契约用例
+//   - 原破损 ownTime(空白串)回落节点表 → 本文件新增 1 条回落契约用例
 //     (对应 courseInterval 的 isNotBlank 语义修复)。
 
 import XCTest
@@ -15,7 +15,7 @@ import XCTest
 
 final class ClassDndSchedulerTests: XCTestCase {
 
-    // 固定基准日 2026-10-07 (← Android today = LocalDate.of(2026,10,7)), 全用例同一历法语义。
+    // 固定基准日 2026-10-07 (today = LocalDate.of(2026,10,7)), 全用例同一历法语义。
     private let y = 2026, mo = 10, d0 = 7
 
     private func ts(_ day: Int, _ h: Int, _ m: Int) -> Date {
@@ -137,7 +137,7 @@ final class ClassDndSchedulerTests: XCTestCase {
             date: ts(d0, 0, 0), course: ownCourse("09:00", "99:99"), nodes: []))
     }
 
-    /// ownTime 但时间串纯空白 → 回落节点表 (← Android isNotBlank 语义; 修复前 iOS 用
+    /// ownTime 但时间串纯空白 → 回落节点表 (isNotBlank 语义; 修复前 iOS 用
     /// isEmpty 判定会把 " " 当有效时间直接解析失败丢课, 而非回落)。
     func testCourseInterval_BlankOwnTime_FallsBackToNodes() {
         let nodes = nodesOf([(node: 1, start: "08:00", end: "08:45"),
@@ -169,7 +169,7 @@ final class ClassDndSchedulerTests: XCTestCase {
 
     /// ← `savedFilter 默认 ALL — 未进入过 DND 时离开恢复到系统初始值`
     func testSavedFilter_DefaultIsAll() {
-        // Android NotificationManager.INTERRUPTION_FILTER_ALL == 1
+        // 原 NotificationManager.INTERRUPTION_FILTER_ALL == 1
         XCTAssertEqual(ClassDndScheduler.savedFilterDefault, 1)
     }
 

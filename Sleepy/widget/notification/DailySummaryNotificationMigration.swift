@@ -12,13 +12,13 @@ import Foundation
 import UserNotifications
 
 /// ← DailySummaryNotificationIdentity: iOS 侧只有 identifier 一维
-/// (Android 的 channelId/id/tag 三元组在 iOS 由前缀命名空间承担归属判定)。
+/// (原版本 的 channelId/id/tag 三元组在 iOS 由前缀命名空间承担归属判定)。
 struct DailySummaryNotificationIdentity: Equatable {
     let identifier: String
 }
 
 /// ← legacyDailySummaryNotifications: 频道所有权是必需的 — 旧 id 可能与无关课程
-/// 通知撞号 (Android channel == CHANNEL_DAILY 判定的 iOS 前缀等价物)。
+/// 通知撞号 (原 channel == CHANNEL_DAILY 判定的 iOS 前缀等价物)。
 /// 不做任何数字段位假设(负数/超大号一律按前缀归属处理)。
 func legacyDailySummaryNotifications(
     _ notifications: [DailySummaryNotificationIdentity]
@@ -29,7 +29,7 @@ func legacyDailySummaryNotifications(
 }
 
 /// ← cleanupLegacyDailySummaryNotifications: pending 与 delivered 两清单分别清理;
-/// 失败静默(Android runCatching + Log.w 同义 — 清理失败不影响本次摘要张贴)。
+/// 失败静默(原 runCatching + Log.w 同义 — 清理失败不影响本次摘要张贴)。
 func cleanupLegacyDailySummaryNotifications(_ center: UNUserNotificationCenter = .current()) {
     Task {
         do {

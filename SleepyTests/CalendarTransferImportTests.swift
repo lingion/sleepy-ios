@@ -1,5 +1,5 @@
 // CalendarTransferImportTests.swift — v1.0.62 B6 日历导入调休口径最小单测
-// (← Android SystemCalendarManager.kt v1.0.62; Android 侧无对应单测, 按 Kotlin 实现语义锁定)
+// (SystemCalendarManager.kt v1.0.62; 原版本 侧无对应单测, 按 Kotlin 实现语义锁定)
 //
 // 锁两条口径:
 //   1. selectedDateRange: 导入日期范围纳入调休目标日 — 源日在学期内的 targetDate

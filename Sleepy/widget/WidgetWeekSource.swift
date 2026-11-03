@@ -5,7 +5,7 @@
 //   - display.targetDate 是 widget 应该呈现的"今天"(可能是被自动跳到的那一天)。
 //   - dateFor(dayOfWeek) 给的是展示周里 dayOfWeek 的真实日期(基于 targetWeek 计算)。
 //
-// ★ 平台差异 (WidgetBindingStore.swift 头注同源): Android per-appWidgetId → iOS per-kind。
+// ★ 平台差异 (WidgetBindingStore.swift 头注同源): 原版本 per-appWidgetId → iOS per-kind。
 //   此处 appWidgetId 参数 = kind 字符串 (iOS 等价粒度, 详见 WidgetBindingStore)。
 
 import Foundation
@@ -15,7 +15,7 @@ struct WidgetWeekSource {
     let courses: [CourseEntity]
     let display: WeekDisplayContext
     /// ← Kotlin WidgetWeekSource.transfers (v1.0.61): 调休映射随 source 携带,
-    /// coursesOn / 装载器按日期反向查共用 (Android source.transfers 同源)。
+    /// coursesOn / 装载器按日期反向查共用 (原版本 source.transfers 同源)。
     let transfers: [HolidayTransferEntry]
 
     func coursesFor(dayOfWeek: Int, week: Int? = nil) -> [CourseEntity] {
@@ -67,11 +67,11 @@ struct WidgetWeekSource {
 
 enum WidgetWeekDataLoader {
 
-    /// 解析 → (table, courses, display) 三元组;无表 → nil (对齐 Android runBlocking + nullable)
+    /// 解析 → (table, courses, display) 三元组;无表 → nil (对齐 原 runBlocking + nullable)
     /// - Parameter appWidgetId: iOS = widget kind 字符串(per-kind 粒度)
     static func resolve(_ appWidgetId: String) async -> WidgetWeekSource? {
         guard let repo = WidgetLoader.makeRepo() else { return nil }
-        // ← Android WidgetWeekDataLoader.kt:66: runCatching { CourseHueStore.refresh(app) }
+        // ← 原版本 WidgetWeekDataLoader.kt:66: runCatching { CourseHueStore.refresh(app) }
         //   widget 进程与 App 进程分离 → 装载点自刷持久色相快照, 保证 widget 与 App 同色。
         CourseHueStore.shared.refresh()
         // ← WidgetTableResolver.resolveBoundTable(id) ?: resolveCurrentTable() ?: return null

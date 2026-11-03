@@ -20,11 +20,11 @@ struct AllTablesScreen: View {
                     Spacer().frame(height: 4)
                     ForEach(state.tables) { table in
                         let isCurrent = table.id == state.selectedTableId
-                        // ← Android Row 无 spacedBy, 图标钮自身 40×40 盒提供 10/20 视觉间隙
+                        // ← 原版本 Row 无 spacedBy, 图标钮自身 40×40 盒提供 10/20 视觉间隙
                         HStack(spacing: 0) {
                             Button {
                                 if !isCurrent {
-                                    // ← Android ce7f7924: 选表后留在本页(选中态就地高亮), 不再强制弹出
+                                    // ← 原版本 ce7f7924: 选表后留在本页(选中态就地高亮), 不再强制弹出
                                     viewModel.selectTable(table.id)
                                 }
                             } label: {
@@ -77,7 +77,7 @@ struct AllTablesScreen: View {
                             }
                             .buttonStyle(SleepyButtonStyle())
                             .accessibilityIdentifier("table_duplicate_\(table.id)")
-                            // ← Android contentDescription = all_tables_duplicate
+                            // ← 原 contentDescription = all_tables_duplicate
                             .accessibilityLabel(L10n.format("all_tables_duplicate"))
                             Button {
                                 onOpenEditTable(table.id)
@@ -89,7 +89,7 @@ struct AllTablesScreen: View {
                             }
                             .buttonStyle(SleepyButtonStyle())
                             .accessibilityIdentifier("table_edit_\(table.id)")
-                            // ← Android contentDescription = action_settings
+                            // ← 原 contentDescription = action_settings
                             .accessibilityLabel(L10n.format("action_settings"))
                         }
                         .padding(14)
@@ -101,7 +101,7 @@ struct AllTablesScreen: View {
                     Button(action: onCreateNewTable) {
                         HStack(spacing: 8) {
                             Image(systemName: "plus")
-                                .font(.system(size: 24))   // ← Android Icon 默认 24dp
+                                .font(.system(size: 24))   // ← 原 Icon 默认 24dp
                             Text(L10n.format("all_tables_new"))
                                 .font(.system(size: 14, weight: .medium))   // ← labelLarge 14 Medium
                         }
@@ -122,7 +122,7 @@ struct AllTablesScreen: View {
 }
 
 extension AllTablesScreen {
-    // yyyy-MM-dd HH:mm:ss 系统时区(← Android Instant+DateTimeFormatter)
+    // yyyy-MM-dd HH:mm:ss 系统时区(Instant+DateTimeFormatter)
     static func createdAtText(_ millis: Int64) -> String {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd HH:mm:ss"
@@ -145,12 +145,12 @@ struct SettingsTopBar: View {
 
     var body: some View {
         // ← M3 TopAppBar: 容器高 64, 标题 titleLarge 22 Normal,
-        //   导航钮 40×40 + 前 4dp, 标题起点 = 4+40+4 = 48(= Android navIcon 44 + 标题盒 4)
+        //   导航钮 40×40 + 前 4dp, 标题起点 = 4+40+4 = 48(= 原 navIcon 44 + 标题盒 4)
         HStack(spacing: 0) {
             Button(action: onBack) {
                 switch leadingStyle {
                 case .back:
-                    Image(systemName: "chevron.left")   // ← 有意差异: iOS 惯用 chevron, Android 用 ArrowBack 图形
+                    Image(systemName: "chevron.left")   // ← 有意差异: iOS 惯用 chevron, 原平台用 ArrowBack 图形
                         .font(.system(size: 24))   // ← LeadingIconSize 24dp(原 20 Medium)
                         .frame(width: 40, height: 40)   // ← M3 IconButton 40×40
                         .foregroundColor(colors.onBackground)
@@ -167,7 +167,7 @@ struct SettingsTopBar: View {
             .accessibilityLabel(L10n.format(leadingStyle == .close ? "action_close" : "back"))
             .padding(.leading, 4)   // ← TopAppBarHorizontalPadding 4dp
             Text(title)
-                .font(.system(size: 22))   // ← Android TopAppBar titleLarge 22 Normal(去 Medium)
+                .font(.system(size: 22))   // ← 原 TopAppBar titleLarge 22 Normal(去 Medium)
                 .foregroundColor(colors.onBackground)
                 .padding(.leading, 4)   // ← 标题盒水平内边距 4dp
             Spacer()

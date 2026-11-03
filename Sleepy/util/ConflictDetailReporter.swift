@@ -9,7 +9,7 @@ import Foundation
  * 纯 JVM/Swift 可测: 输入草稿 + 存量 + 星期名, 输出结构化明细;文案模板由调用方
  * (AddCourseScreen 里 L10n.format)传入, 本文件不碰 iOS 资源。
  *
- * Android ConflictDetailReporter.kt 1:1 移植。
+ * 原版本 1:1 移植。
  */
 
 /// 一条冲突明细。nodeRangeText/weekText 已是可直接嵌句子的短文本
@@ -66,8 +66,8 @@ public enum ConflictDetailReporter {
                     hits.append((s, commonWeeks))
                 }
             }
-            // Android sortBy 稳定(同 startNode 保持入库次序); iOS sort 不保证稳定 —
-            // 用原始下标钉死平手次序, 与 Android 逐字节同序。
+            // 原 sortBy 稳定(同 startNode 保持入库次序); iOS sort 不保证稳定 —
+            // 用原始下标钉死平手次序, 与 原版本 逐字节同序。
             let orderedHits = hits.enumerated()
                 .sorted { ($0.element.0.startNode, $0.offset) < ($1.element.0.startNode, $1.offset) }
                 .map(\.element)
@@ -201,7 +201,7 @@ public struct CourseEntityLite {
     public let endTime: String
     public let isIrregularTime: Bool
     /// issue#23 §5: 边缘槽位卡 — 网格位置 = 槽位编号本身, 禁止按时间重映射
-    /// (← Android CourseEntity.kt normalizeNode 首闸 `if (isIrregularNode) return this`)
+    /// (CourseEntity.kt normalizeNode 首闸 `if (isIrregularNode) return this`)
     public let isIrregularNode: Bool
 
     public init(courseName: String, day: Int, startNode: Int, step: Int,
@@ -226,12 +226,12 @@ public struct CourseEntityLite {
     /// 由 startTime/endTime 反算(normalizeNode)。比较前必须先 normalize, 否则
     /// ownTime 草稿按占位 startNode 比对会漏报/误报冲突。
     ///
-    /// 逐字镜像 Android CourseEntity.normalizeNode(CourseEntity.kt:163-172):
+    /// 逐字镜像 原版本 CourseEntity.normalizeNode(CourseEntity.kt:163-172):
     /// 边缘槽位卡首闸禁止重映射, 起止时间用 isBlank 语义(纯空白当空), 与同仓
     /// CourseEntity.swift:141-146 的 normalizeNode 保持同一契约。
     func normalizedForCompare(_ timeJson: String) -> CourseEntityLite {
         // issue#23: 边缘槽位卡的网格位置 = 槽位编号本身, 禁止按时间重映射
-        // (← Android CourseEntity.kt:165 首闸; 草稿 ownTime=true 带起止时同样适用)
+        // (CourseEntity.kt:165 首闸; 草稿 ownTime=true 带起止时同样适用)
         guard !isIrregularNode else { return self }
         guard ownTime, Self.isNotBlank(startTime), Self.isNotBlank(endTime) else { return self }
         guard let mapped = TimeTableUtils.timeToNode(startTime, endTime, timeJson) else { return self }

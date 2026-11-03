@@ -34,7 +34,7 @@ final class ColorStyleSheetConsistencyTests: XCTestCase {
         return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
     }
 
-    // MARK: - 1. 字体令牌(← M3 type scale, Android 1.0.51 官方字号)
+    // MARK: - 1. 字体令牌(← M3 type scale, 原版本 1.0.51 官方字号)
 
     func testM3TypeScaleFontTokens() {
         XCTAssertEqual(SleepyTypography.displaySmall, Font.system(size: 36))

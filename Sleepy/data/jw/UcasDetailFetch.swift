@@ -21,7 +21,7 @@ enum UcasDetailFetch {
     /// 详情页抓取上限 (实测一门课 11 页; 上限防异常网格撑爆导入流程)
     static let MAX_DETAILS = 50
 
-    /// 详情站对默认 UA 会 403, 必须带桌面 Chrome UA (← Android 同一字符串)
+    /// 详情站对默认 UA 会 403, 必须带桌面 Chrome UA (同一字符串)
     private static let userAgent =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
@@ -99,7 +99,7 @@ enum UcasDetailFetch {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Content-Type 里的 charset=, 缺失/未知回落 UTF-8 (← Android charset(name) 默认值)
+    /// Content-Type 里的 charset=, 缺失/未知回落 UTF-8 (charset(name) 默认值)
     static func encoding(forContentType contentType: String?) -> String.Encoding {
         let name = charsetName(contentType) ?? ""
         if !name.isEmpty {
@@ -120,7 +120,7 @@ enum UcasDetailFetch {
         return String(contentType[r])
     }
 
-    /// ← Android 的 try { extractDetailUrls } catch { emptyList() }
+    /// ← 原版本 的 try { extractDetailUrls } catch { emptyList() }
     private static func extractDetailUrlsSafe(_ gridHtml: String) -> [String] {
         gridHtml.isEmpty ? [] : JwUcasParser.extractDetailUrls(gridHtml)
     }

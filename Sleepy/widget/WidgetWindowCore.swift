@@ -1,13 +1,13 @@
 // WidgetWindowCore.swift — ← widget/core/FixedWindowCore.kt + TodayRowGeometry.kt
 //   + 各 Receiver.compute*Window 的「固定窗口」纯计算 (无 UI, 可单测)。
 //
-// 平台差异 (对齐任务项 1): Android 用 RemoteViews + 固定高度窗口 + 底部真实导航条,
+// 平台差异 (对齐任务项 1): 原版本 用 RemoteViews + 固定高度窗口 + 底部真实导航条,
 // iOS 用 WidgetKit SwiftUI 自适应布局 —— 但「同一屏只放得下 N 行, 溢出折成 +N」是
 // **行为语义**, 与平台无关, 故窗口数学原样移植, 渲染换成 SwiftUI。
 //
-// 档位 (对齐任务项 9 / Android 74140535 十三变体三档): Android 的 S/M/L 由
+// 档位 (对齐任务项 9 / 原版本 commit5 十三变体三档): 原版本 的 S/M/L 由
 // res/xml 的 minWidth/minHeight 决定 (S=2×2 minHeight 110dp · Wide/M=4×2 160dp ·
-// L=4×4 250dp); iOS 对应 systemSmall / systemMedium / systemLarge。基准高沿用 Android
+// L=4×4 250dp); iOS 对应 systemSmall / systemMedium / systemLarge。基准高沿用原实现
 // 真机档位, 保证两端「同一档能显示几节课」一致。
 
 import Foundation
@@ -15,14 +15,14 @@ import WidgetKit
 
 // MARK: - 档位
 
-/// 小组件排版档位 S/M/L ← Android 13-variant 三档收敛 (74140535)
+/// 小组件排版档位 S/M/L ← 原版本 13-variant 三档收敛 (74140535)
 enum WidgetLayoutTier: Int, CaseIterable {
     case small
     case medium
     case large
 
-    /// Android 各档基准容器高 (dp) ← res/xml 放置尺寸 (74140535): S=2×2 110 · M=4×2 160 · L=4×4 250。
-    /// 仅作兜底: 真机上容器高由 GeometryReader 实测 (等价 Android 从 launcher 拿到的 hDp)。
+    /// 原版本 各档基准容器高 (dp) ← res/xml 放置尺寸 (74140535): S=2×2 110 · M=4×2 160 · L=4×4 250。
+    /// 仅作兜底: 真机上容器高由 GeometryReader 实测 (等价 原版本 从 launcher 拿到的 hDp)。
     var baseHeightDp: CGFloat {
         switch self {
         case .small: return 110
@@ -31,8 +31,8 @@ enum WidgetLayoutTier: Int, CaseIterable {
         }
     }
 
-    /// iOS family → 档位。Android 的 "Wide"(4×2) 在 iOS 即 systemMedium;
-    /// systemExtraLarge 归入 L (与 Android 4×4 同档语义)。
+    /// iOS family → 档位。原版本 的 "Wide"(4×2) 在 iOS 即 systemMedium;
+    /// systemExtraLarge 归入 L (与 原版本 4×4 同档语义)。
     init(family: WidgetFamily) {
         if family == .systemSmall {
             self = .small
@@ -96,7 +96,7 @@ enum WidgetRowGeometry {
         return CGFloat(maxStack) * rowH + CGFloat(max(maxStack - 1, 0)) * stackGap
     }
 
-    /// 行序列 + 纵向占位 ← rowSpans (重叠链分簇用 timeJson, 对齐 Android 25c943f0)
+    /// 行序列 + 纵向占位 ← rowSpans (重叠链分簇用 timeJson, 对齐 原版本 25c943f0)
     static func rowSpans(courses: [CourseEntity], headerSpace: Bool, timeJson: String?) -> [WidgetRowSpan] {
         let rows = ConflictLayoutEngine.weekLaneRows(courses, timeJson: timeJson)
         guard !rows.isEmpty else { return [] }
@@ -271,8 +271,8 @@ enum WidgetWindowCore {
 
 // MARK: - 各 widget 的窗口计算 (← Today/TwoDay/WeekList Receiver.compute*Window)
 //
-// 容器高口径: Android 从 launcher 拿 hDp,iOS 用 GeometryReader 实测同一件事;
-// 拿不到实测高 (预览/快照) 时回落 Android res/xml 档高,保证容量口径仍按同档换算。
+// 容器高口径: 原版本 从 launcher 拿 hDp,iOS 用 GeometryReader 实测同一件事;
+// 拿不到实测高 (预览/快照) 时回落 原版本 res/xml 档高,保证容量口径仍按同档换算。
 
 enum WidgetWindows {
     /// 当日分钟数
@@ -385,7 +385,7 @@ enum WidgetWindows {
     static func weekView(days: [DayData], heightDp: CGFloat, tier: WidgetLayoutTier,
                          statusH: CGFloat, colW: CGFloat) -> [WidgetWindowCore.WindowResult] {
         let lineH = WidgetTextWrap.lineH
-        let maxTextWidth = colW - 8  // textPad 4dp ×2 (Android (colW−8)*density px 同式)
+        let maxTextWidth = colW - 8  // textPad 4dp ×2 (原 (colW−8)*density px 同式)
         let useAlias = AppPrefs.shared.isWidgetUseAlias()
         return days.map { day in
             let entries = day.courses.map { course -> WidgetWindowCore.WindowEntry in

@@ -3,8 +3,8 @@
 ## Comparison
 
 Compared `Sleepy/ui/screen/mine/AboutScreen.swift` and
-`Sleepy/ui/screen/mine/LicenseScreen.swift` against Android 1.0.51
-(`AboutScreen.kt`, `LicenseScreen.kt`) and the Android locale resources.
+`Sleepy/ui/screen/mine/LicenseScreen.swift` against original 1.0.51
+(`AboutScreen.kt`, `LicenseScreen.kt`) and the 原 locale resources.
 
 ## Implemented
 
@@ -16,17 +16,17 @@ Compared `Sleepy/ui/screen/mine/AboutScreen.swift` and
   localized mailto URI; a `canOpenURL` check shows the
   `about_feedback_no_mail_app` snackbar when no mail client is installed).
   Diagnostic = version/build, iOS version, Apple/model, pixel resolution,
-  locale, debug flag — the iOS counterpart of Android's
+  locale, debug flag — the iOS counterpart of the original's
   `FeedbackComposer.Diagnostic` fill.
-- **App title**: text-only, 28pt bold (Android headlineMedium); the 96pt
+- **App title**: text-only, 28pt bold (original headlineMedium); the 96pt
   logo block was an iOS-only addition — removed for parity.
-- **License entry row**: Android has no leading icon; the `doc.text` icon
-  was removed and the trailing chevron resized 14→20pt to match Android's
+- **License entry row**: 原 has no leading icon; the `doc.text` icon
+  was removed and the trailing chevron resized 14→20pt to match original implementation's
   20dp ChevronRight.
 
 ### LicenseScreen
 
-Android 1.0.50/1.0.51 reorganized acknowledgements into two tiers;
+original 1.0.50/1.0.51 reorganized acknowledgements into two tiers;
 iOS carried the old flat 14-entry list. Now ported 1:1:
 
 - 9 foundational (cross-school) cards: title + license meta + usage note,
@@ -39,14 +39,14 @@ iOS carried the old flat 14-entry list. Now ported 1:1:
   appends the full `about_license_body` text.
 - Local section headers for `license_foundational_section` /
   `license_perschool_section`.
-- Card geometry follows Android's explicit `LicenseCard` (padding 16,
+- Card geometry follows the original's explicit `LicenseCard` (padding 16,
   radius 20) rather than the About page's shared 20/24 card.
 
 ### Strings
 
 - `about_feedback_*` (7 keys) + `license_foundational_section` /
   `license_perschool_section` added to all five locales, values pulled
-  mechanically from the Android baseline XML.
+  mechanically from the 原 baseline XML.
 - `about_license_body` updated in all five locales to the 1.0.51 two-tier
   attribution text (was the stale GPL paragraph).
 - en `about_license_detail` / `license_page_title` spelling aligned to
@@ -54,7 +54,7 @@ iOS carried the old flat 14-entry list. Now ported 1:1:
 
 ## Known gap (documented, not shipped)
 
-Android 1.0.51 About also carries an **update-check toggle** card and the
+original 1.0.51 About also carries an **update-check toggle** card and the
 **"new version available" top banner**. Both are driven by an
 `UpdateNotifier` (launch-time GitHub check, cached state flow, preference
 `updateCheckEnabled`, cache clear on disable). That is behavior/preference

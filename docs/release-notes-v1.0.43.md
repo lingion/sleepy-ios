@@ -1,4 +1,4 @@
-# Sleepy iOS a.v.1.0.43 — Conflict styles, undo, 184 schools, synced with Android v1.0.51/52
+# Sleepy iOS a.v.1.0.43 — Conflict styles, undo, 184 schools, synced with the original v1.0.51/52
 
 ## What's New
 
@@ -23,7 +23,7 @@ The top bar has an undo button. Moving, editing, deleting, importing — ten wri
 
 ### Schools: 146 → 184
 
-The school list grew by 38, including 12 from the 985 batch and Linyi University; the rest came from syncing the list with the Android repo. The protocol layer underneath grew too: a parser registry aligned with Android, new protocol support for UCAS and qz_ieas, twelve previously missing parsers, six more from the 985 batch, and direct WebView import for CQU's portal.
+The school list grew by 38, including 12 from the 985 batch and Linyi University; the rest came from syncing the list with the Android repo. The protocol layer underneath grew too: a parser registry aligned with the original, new protocol support for UCAS and qz_ieas, twelve previously missing parsers, six more from the 985 batch, and direct WebView import for CQU's portal.
 
 ### Bind a widget to a timetable
 
@@ -45,7 +45,7 @@ Update banner with auto-check, and the changelog renders in-app. A new license p
 
 ### UI checked screen by screen against Android
 
-Grid column widths, row heights, and font scaling now use the same formulas as Android, and the theme tokens were re-based on Android's. Today, Schedule, Mine, table management, appearance, general, holiday, reminder, export, about, license, import, and school selection were each checked against Android v1.0.51/52. The string tables gained 68 missing keys across all five languages.
+Grid column widths, row heights, and font scaling now use the same formulas as Android, and the theme tokens were re-based on the original platform's. Today, Schedule, Mine, table management, appearance, general, holiday, reminder, export, about, license, import, and school selection were each checked against Android v1.0.51/52. The string tables gained 68 missing keys across all five languages.
 
 ## Fixes
 

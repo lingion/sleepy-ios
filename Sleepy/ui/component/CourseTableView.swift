@@ -10,12 +10,12 @@
 // 中点 columnPlacements + legacy 列级 dash 轴), 与设置页预览同一事实来源。
 //
 // 平台偏差(有意保留):
-//   - Android changeBus 订阅 → iOS 渲染层 body 直读 AppPrefs(兄弟文件同模式)。
-//   - Android verticalResizeGesture(pointerInput 双指) → iOS 自定义
+//   - 原 changeBus 订阅 → iOS 渲染层 body 直读 AppPrefs(兄弟文件同模式)。
+//   - 原版本 verticalResizeGesture(pointerInput 双指) → iOS 自定义
 //     UIPinchGestureRecognizer 挂到 grid 祖先视图; 手势期间 cancelsTouchesInView=false
-//     保点击穿透, 横向主导时与 Pager 并存(Android 直接 consume 屏蔽 pager — 无法 1:1 复刻)。
+//     保点击穿透, 横向主导时与 Pager 并存(原版本 直接 consume 屏蔽 pager — 无法 1:1 复刻)。
 //   - LocalConfiguration.fontScale → UIFont.body 实测比例近似。
-//   - Android selectVisibleSlots 在 List<TimeSlot> 上原位过滤; iOS 策略层用同构
+//   - 原 selectVisibleSlots 在 List<TimeSlot> 上原位过滤; iOS 策略层用同构
 //     SlotRef(无 widget 依赖), 回映按 nodeStart 唯一性取原 TimeSlot。
 
 import SwiftUI
@@ -45,7 +45,7 @@ struct TimeSlot {
 // MARK: - TimeTableUtils 渲染槽位扩展(App target 专属 — 依赖 TimeSlot, Widget target 无)
 // issue#23 §5: 非常规时间胶囊按真实分钟在网格内按比例定位 + 跨空隙占位节次合成。
 extension TimeTableUtils {
-    /// timeJson → 渲染槽位表(每节一个 TimeSlot, 按 node 升序) — ← Android timeSlotsFor(timeJson)
+    /// timeJson → 渲染槽位表(每节一个 TimeSlot, 按 node 升序) — ← 原版本 timeSlotsFor(timeJson)
     static func renderSlots(timeJson: String) -> [TimeSlot] {
         parseNodes(timeJson).map { n in
             let sc = Calendar.current.dateComponents([.hour, .minute], from: n.start)
@@ -154,7 +154,7 @@ extension TimeTableUtils {
      * Same render-plan construction, but with a caller-selected base slot list.
      * The cards view uses this to apply viewport policies (such as hiding empty
      * evening slots) before synthesising irregular-time placeholder rows.
-     * ← Android buildRenderSlotPlan(courses, timeJson, baseSlots)
+     * ← 原 buildRenderSlotPlan(courses, timeJson, baseSlots)
      */
     static func buildRenderSlotPlan(courses: [CourseEntity], timeJson: String,
                                     baseSlots base: [TimeSlot]) -> RenderSlotPlan {
@@ -208,7 +208,7 @@ extension TimeTableUtils {
 }
 
 extension TimetableViewportPolicy.SlotRef {
-    /// TimeSlot → SlotRef 同构投影 ← Android 策略层直接吃 List<TimeSlot>
+    /// TimeSlot → SlotRef 同构投影 ← 原版本 策略层直接吃 List<TimeSlot>
     init(_ slot: TimeSlot) {
         self.init(nodeStart: slot.nodeStart, startMinutes: slot.startMinutes, endMinutes: slot.endMinutes)
     }
@@ -224,7 +224,7 @@ extension TimetableViewportPolicy.SlotRef {
 /// ← PLACEHOLDER_TEXT_REQUIRED_DP
 let placeholderTextRequiredDp: CGFloat = 19
 
-/// Android LocalConfiguration.fontScale 近似 — UIFontMetrics 动态字号比例。
+/// 原版本 LocalConfiguration.fontScale 近似 — UIFontMetrics 动态字号比例。
 private var systemFontScaleProxy: CGFloat {
     let base = UIFont.preferredFont(forTextStyle: .body).pointSize
     let standard = UIFont.systemFont(ofSize: 17).pointSize
@@ -242,11 +242,11 @@ private func isDateTodayOfWeek(startDate: String, week: Int, day: Int, todayDate
 
 // MARK: - 双指纵向缩放行高 ← Modifier.verticalResizeGesture
 // v1.0.56 T3: pinchZoomEnabled=false 时手势不挂(存量缩放值不清)。
-// 阈值/主导比/上下限求解全走 TimetableViewportPolicy(与 Android 同一纯函数)。
+// 阈值/主导比/上下限求解全走 TimetableViewportPolicy(与 原版本 同一纯函数)。
 private final class GridPinchResizeUIView: UIView {
     /// 实验室总开关。开关在页面存活期间被翻成 true(设置页返回/同帧重算)时,
     /// didMoveToWindow 不会再次触发 → 必须即时挂手势, 否则开关"看起来开了但捏不动"。
-    /// (← Android `if (pinchZoomEnabled) Modifier.verticalResizeGesture(...) else Modifier`
+    /// (`if (pinchZoomEnabled) Modifier.verticalResizeGesture(...) else Modifier`
     ///  每次 recompose 重建 pointerInput, 开关即时生效。)
     var enabled = false { didSet { if oldValue != enabled { syncGesture() } } }
     var baseRowHeightDp: CGFloat = 52
@@ -322,7 +322,7 @@ private final class GridPinchResizeUIView: UIView {
                 maxRowHeightDp: TimetableViewportPolicy.MAX_ROW_DP * clampedScale)
             onScaleChange(next / max(baseRowHeightDp, 1))
         }
-        // 未锁定且横向明确展开/合拢 → 不改变高度也不接管(Android consume 屏蔽 pager;
+        // 未锁定且横向明确展开/合拢 → 不改变高度也不接管(原 consume 屏蔽 pager;
         // iOS 靠 Pager 自身手势竞争, 纵向意图未锁定前本识别器不输出)。
     }
 }
@@ -363,7 +363,7 @@ private struct HeaderColumnGeometry {
     let columnPlacements: [PeriodHeaderPlacement]?
     let legacyAxis: CGFloat?
 
-    /// ← Android CardsGridView BoxWithConstraints 段: columnFont(整列统一字号)/
+    /// ← 原版本 CardsGridView BoxWithConstraints 段: columnFont(整列统一字号)/
     /// columnPlacements(整列统一中点)/ legacyAxis(列级 dash 轴)。
     /// headerContentHeightSp = 最矮非占位行内容高(真实行高输入 — 用户令 2026-10-03,
     /// 双指缩行/自适应行高联动;假 52f*scale 输入曾使矮卡字号过大 → 三行行盒互叠)。
@@ -463,7 +463,7 @@ struct CardsGridView: View {
     var pinchZoomEnabled: Bool = false
 
     // 用户反馈 2026-09-16: 占位行展开态(会话级, 键=时间串, 周内多天共享同一空隙 → 同键联动)。
-    // ← Android remember(mutableStateOf) — 翻周/离开页面复位由持有方视图生命周期承担。
+    // ← 原版本 remember(mutableStateOf) — 翻周/离开页面复位由持有方视图生命周期承担。
     @State private var expandedPlaceholders: Set<String> = []
 
     var body: some View {
@@ -505,7 +505,7 @@ struct CardsGridView: View {
         let dayCount = max(sortedDays.count, 1)
 
         // 布局常量 — timeW 实测(三行式墨迹包络 / 老式 dash 轴, 下限 d(46) 防极窄机型挤压;
-        // 上限不死钉 68dp — "第 X 节"长标签交给实测回传) ← Android timeW
+        // 上限不死钉 68dp — "第 X 节"长标签交给实测回传) ← 原版本 timeW
         let headerStyle = AppPrefs.shared.getPeriodHeaderStyle()
         let headerLayout = AppPrefs.shared.getPeriodHeaderLayout()
         let headerHanging = CGFloat(AppPrefs.shared.getPeriodHeaderHanging())
@@ -874,7 +874,7 @@ struct GridConflictLayer: View {
         }
         // v7.10.16r(评审#4): 详情 radio 落盘 → 会话态跟随(持有方负责):
         // 显式选默认置顶 = 会话 override 同步(radio 通道) + 同簇临时轮换让位。
-        // ← Android ScheduleScreen.onDefaultTopChanged: rotationSteps -= key; setTopOverride(key, repId)
+        // ← 原版本 ScheduleScreen.onDefaultTopChanged: rotationSteps -= key; setTopOverride(key, repId)
         .onChange(of: defaultTopStore.map) { newMap in
             for (k, v) in newMap where lastDefaultTopMap[k] != v {
                 onSetTopOverride(k, v)
@@ -984,7 +984,7 @@ private struct CourseOverlayCard: View {
 
     var body: some View {
         let effRows = groupRows.isEmpty ? [course] : groupRows
-        // 统一取色入口(决策 D3)— 中性色 secondaryContainer ← Android neutralColor
+        // 统一取色入口(决策 D3)— 中性色 secondaryContainer ← 原版本 neutralColor
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
             neutralColor: colors.secondaryContainer,
@@ -1059,7 +1059,7 @@ private struct DayHeadCell: View {
     var isGrey: Bool = false
     let courseCount: Int
     var dateStr: String? = nil
-    /// issue#8: 缩放(字号/内边距联动) + 圆角比例(← Android 10*scale*cornerRatio.coerceAtMost(1))
+    /// issue#8: 缩放(字号/内边距联动) + 圆角比例(10*scale*cornerRatio.coerceAtMost(1))
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
 
@@ -1072,7 +1072,7 @@ private struct DayHeadCell: View {
                                       : colors.onSurfaceVariant)
 
         VStack(spacing: 1 * scale) {
-            // ← Android fontSize = (14*scale).sp lineHeight 20
+            // ← 原 fontSize = (14*scale).sp lineHeight 20
             Text(DateUtils.localizedDay(day))
                 .font(.system(size: 14 * scale, weight: .semibold))
                 .foregroundColor(fg)
@@ -1099,10 +1099,10 @@ private struct DayHeadCell: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // ← Android padding(vertical = if (dateStr != null) 4f else 3f) ×scale
+        // ← 原版本 padding(vertical = if (dateStr != null) 4f else 3f) ×scale
         .padding(.vertical, (dateStr != nil ? 4 : 3) * scale)
         .background(bg)
-        // ← Android RoundedCornerShape((10 * scale * cornerRatio.coerceAtMost(1f)).dp)
+        // ← 原版本 RoundedCornerShape((10 * scale * cornerRatio.coerceAtMost(1f)).dp)
         .cornerRadius(10 * scale * min(cornerRatio, 1))
     }
 }
@@ -1122,7 +1122,7 @@ struct FullWeekView: View {
     var today: Int = DateUtils.todayDayOfWeek()
     var todayDate: Date = Date()
     /// 周页上下文: isToday 按该页(week, day)真实日期判定, 非"星期号 = 今天星期号" —
-    /// 浏览非当前周高亮错天(v7.10.x Android 同构: cards header/WeekStrip/DetailPanel/DayColumn 全链路线程化)
+    /// 浏览非当前周高亮错天(v7.10.x 原版本 同构: cards header/WeekStrip/DetailPanel/DayColumn 全链路线程化)
     var startDate: String = ""
     var currentWeek: Int = 1
     let onCourseClick: (CourseEntity) -> Void
@@ -1130,7 +1130,7 @@ struct FullWeekView: View {
 
     var body: some View {
         let byDay = Dictionary(grouping: courses, by: { $0.day })
-        // ← Android FullWeekView: 设置页改 weekScale/cornerRatio/twoColumn/hideEmptyDays/别名后即时生效
+        // ← 原版本 FullWeekView: 设置页改 weekScale/cornerRatio/twoColumn/hideEmptyDays/别名后即时生效
         let weekScale = CGFloat(AppPrefs.shared.getWeekScale())
         let cornerRatio = CGFloat(AppPrefs.shared.getGridCornerRatio())
         let useAlias = AppPrefs.shared.isWeekUseAlias()
@@ -1154,8 +1154,8 @@ struct FullWeekView: View {
                             twoColumnMode: AppPrefs.shared.getWeekTwoColumnMode(),
                             hideEmptyDays: AppPrefs.shared.isWeekHideEmptyDays(),
                             onCourseClick: onCourseClick)
-                // 悬浮底栏额外余量(→ Android LocalNavExtraBottomPadding Spacer):
-                //   镜像 Android FullWeekView 末行追加 Spacer(height = navExtra),
+                // 悬浮底栏额外余量(→ 原版本 LocalNavExtraBottomPadding Spacer):
+                //   镜像 原版本 FullWeekView 末行追加 Spacer(height = navExtra),
                 //   最后一张课不被悬浮药丸遮住。
                 Color.clear.frame(height: navExtra)
             }
@@ -1206,7 +1206,7 @@ private struct DaySummaryCell: View {
                         : (isToday ? colors.onPrimaryContainer : colors.onSurface)
 
         VStack(spacing: 0) {
-            // 日期 (← Android 13*scale / lineHeight 18*scale)
+            // 日期 (13*scale / lineHeight 18*scale)
             Text(DateUtils.localizedDay(day))
                 .font(.system(size: 13 * scale, weight: .semibold))
                 .foregroundColor(fg)
@@ -1214,9 +1214,9 @@ private struct DaySummaryCell: View {
             Spacer().frame(height: 6 * scale)
 
             // Chip: 课程数 — "N 门" 完整文字, 列宽放不下退化为纯数字。
-            // ← Android textMeasurer: fullText 在列宽内换行(lineCount>1) → 只显数字。
+            // ← 原版本 textMeasurer: fullText 在列宽内换行(lineCount>1) → 只显数字。
             //   ViewThatFits 等价: fullText(单行)放得下用 fullText, 否则回退数字。
-            // chipFg ← Android: onSurfaceVariant@alpha(grey ? inactive : 1)
+            // chipFg ← 原版本: onSurfaceVariant@alpha(grey ? inactive : 1)
             let chipFg = isGrey ? colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive)
                                 : colors.onSurfaceVariant
             if courses.isEmpty {
@@ -1239,7 +1239,7 @@ private struct DaySummaryCell: View {
             Spacer().frame(height: 4 * scale)
 
             // Mini-list: 前 5 门课名(别名开启时显示别名 ← issue#26) —
-            // 左对齐(← Android fillMaxWidth Column + Text 默认 Start)
+            // 左对齐(fillMaxWidth Column + Text 默认 Start)
             VStack(alignment: .leading, spacing: 2 * scale) {
                 ForEach(courses.prefix(5)) { c in
                     Text(CourseDisplayUtil.displayName(c, useAlias))
@@ -1255,7 +1255,7 @@ private struct DaySummaryCell: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
-        .frame(minHeight: 132 * scale)   // ← Android heightIn(min = 132*scale)
+        .frame(minHeight: 132 * scale)   // ← 原 heightIn(min = 132*scale)
         .padding(.horizontal, 6 * scale)
         .padding(.vertical, 8 * scale)
         .background(bg)
@@ -1406,7 +1406,7 @@ private struct DetailDayCard: View {
             // 头部: 星期 + 今天标记
             HStack {
                 Text(DateUtils.localizedDay(day) + (isToday ? L10n.format("today_suffix") : ""))
-                    // ← Android titleSmall.copy(SemiBold): 14sp 不随 weekScale 缩放
+                    // ← 原版本 titleSmall.copy(SemiBold): 14sp 不随 weekScale 缩放
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(isGrey ? greyFg : colors.onSurface)
                 Spacer()
@@ -1491,7 +1491,7 @@ private struct DetailDayCardWidthKey: PreferenceKey {
 
 // =====================================================================================
 // v7.10.4 冲突栏字号/间距压缩 — 用户 2026-09-02: 两栏模式下分栏字全挤到一起,
-// 需按 lane 实宽调画面比例。(← Android weekLaneFontScale/weekLaneHideSideLabel)
+// 需按 lane 实宽调画面比例。(weekLaneFontScale/weekLaneHideSideLabel)
 // =====================================================================================
 
 /// lane 宽压缩基准: 单栏半宽量级(用户实测"比较好"的现状), 低于它开始线性缩。
@@ -1529,7 +1529,7 @@ private struct LessonRow: View {
     var body: some View {
         let isDark = CourseColorUtil.isPaletteDark(palette)
         let effRows = groupRows.isEmpty ? [course] : groupRows
-        // 统一取色入口(决策 D3) — 中性色 secondaryContainer ← Android neutralColor
+        // 统一取色入口(决策 D3) — 中性色 secondaryContainer ← 原版本 neutralColor
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: effRows, isDark: isDark,
             neutralColor: colors.secondaryContainer,
@@ -1581,7 +1581,7 @@ private struct LessonRow: View {
                             .lineLimit(1)
                     }
                 }
-                // ← Android Column(weight(1f)) 无 spacing(0)
+                // ← 原版本 Column(weight(1f)) 无 spacing(0)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(name)
                         .font(.system(size: 12 * effScale, weight: .semibold))
@@ -1589,7 +1589,7 @@ private struct LessonRow: View {
                         .strikethrough(strikethrough)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                    // 极窄 lane 下副信息(教师/教室)也让位给课名(← Android !hideSideLabel)
+                    // 极窄 lane 下副信息(教师/教室)也让位给课名(!hideSideLabel)
                     if !meta.isEmpty && !hideSideLabel {
                         Text(meta)
                             .font(.system(size: 11 * effScale))

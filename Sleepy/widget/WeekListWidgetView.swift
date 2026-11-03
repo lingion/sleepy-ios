@@ -3,14 +3,14 @@
 // 列卡片: primaryContainer(今天) / surfaceContainer(其他), 14dp 圆角。
 // 课程: 彩色胶囊背景 + 常规字重课名 (安卓 L899 Typeface.DEFAULT; bold 的是 chip 文字)。
 //
-// 对齐 Android 定稿语义 (2c937b11 / 895fe72f / ede839af):
+// 对齐 原版本 定稿语义 (2c937b11 / 895fe72f / ede839af):
 //  1. SMALL 档 = 最近 3 天「列脸」(renderWeekListCompact → 换列后走同一常规排版),
 //     不再是两行纯文本; 无课日不再残留日期胶囊;
 //  2. 每列 FIXED 窗口: availH = hDp − 58 − statusH, 行高 19 / 行距 0 / 页脚预留 19,
 //     截断时列底画「+N」(未截断不画,与 TwoDay 的「恒画」口径不同 —— 安卓即如此);
 //  3. 学期外顶部全宽状态行占位 16dp,同时从列可用高里扣掉。
 //     ★ 定稿 (PR#14 评审 2026-10-28): 仅学期外画状态行, 跳周态不画占位文案 ——
-//     Android 渲染器 (WidgetBitmapRenderers renderWeekListRegular/renderWeekViewRegular)
+//     原版本 渲染器 (WidgetBitmapRenderers renderWeekListRegular/renderWeekViewRegular)
 //     只消费 statusH 预留高度、从不画跳周字; iOS 若把 statusH 扩到跳周态又不画字,
 //     开启「没课时显示最近有课的一天」(默认 ON) 时桌面 widget 顶部会凭空多一行空白
 //     (用户 2026-10-27 实拍反馈)。statusH 因此只随 semesterStatus != IN_RANGE 取值。
@@ -19,18 +19,18 @@
 //  4. 装载器走 WidgetWeekDataLoader.resolve(kind) — 日期 = source.dateFor (钳制周=1
 //     预习 / NEAREST_BUSY_DAY 跳周都随 display 走);
 //  5. 取课走 source.coursesOn(调休按日期反向查, 审计 [A]-1 修复): AFTER_END 清空仅当
-//     非补班日, 任一列有课 → 状态改写 IN_RANGE (Android L205);
+//     非补班日, 任一列有课 → 状态改写 IN_RANGE (原版本 L205);
 //     旧 effectiveDayOfWeek 正向映射为错位口径, 已弃用;
 //  6. isGrey = HolidayManager.shouldGrey(date, tableId) 灰显 0.6 alpha +
-//     「strikethrough」样式 (Android renderWeekListRegular L871-920);
+//     「strikethrough」样式 (原 renderWeekListRegular L871-920);
 //  7. compactWindow = WidgetCompactWindow.build(...) 三天真实日期窗口 (2026-09-15 用户令,
-//     Android L199-205), SMALL 档日列 = compactShownDays 单一口径 (§9.1);
-//  8. statusH 闸门 = semesterStatus != IN_RANGE (定稿见头注 3★, Android L60-61 的
-//     跳周分支不采); 今天列高亮 = isDateToday(day.date) (Android L828, 展示周≠自然周
+//     原版本 L199-205), SMALL 档日列 = compactShownDays 单一口径 (§9.1);
+//  8. statusH 闸门 = semesterStatus != IN_RANGE (定稿见头注 3★, 原版本 L60-61 的
+//     跳周分支不采); 今天列高亮 = isDateToday(day.date) (原版本 L828, 展示周≠自然周
 //     时按星期判会错列)。
-// forceScroll 条带 (WidgetScrollStore/ScrollStripService) = Android 专有宿主,
+// forceScroll 条带 (WidgetScrollStore/ScrollStripService) = 原版本 专有宿主,
 // iOS 由列底「+N」窗口截断等价承担 (平台差异, 非缺陷; compactFace 不叠窗口的
-// Android 分支在 iOS 统一走窗口, 否则小档溢出无处报告)。
+// 原版本 分支在 iOS 统一走窗口, 否则小档溢出无处报告)。
 
 import SwiftUI
 import WidgetKit
@@ -42,12 +42,12 @@ struct WeekListWidgetEntry: TimelineEntry {
 
 // MARK: - loadData ← WeekListWidgetReceiver.Companion.loadDataSync (v1.0.61 对齐, F125)
 
-/// WeekList 专用装载器 — 逐行对齐 Android companion:
+/// WeekList 专用装载器 — 逐行对齐 原版本 companion:
 /// WidgetWeekDataLoader.resolve(kind) → 展示周=display.targetWeek、日期=source.dateFor
 /// (学期前钳制周=1 预习 / NEAREST_BUSY_DAY 跳周都随 display 走) → AFTER_END 课程清空
 /// (L188) → 调休映射 effectiveDayOfWeek 取课 (L187) → isGrey (L195) →
 /// compactWindow 三天真实日期窗口 (L199-205) → weekDisplayStatus (L206)。
-/// Android runBlocking → iOS async (TimelineProvider completion 允许异步回调),
+/// 原 runBlocking → iOS async (TimelineProvider completion 允许异步回调),
 /// 与 TwoDayWidgetDataLoader 同模式; WeekView 共用本装载器
 /// (← WeekViewWidget.kt L186 注释「与 WeekListWidget.loadDataSync 完全一致」)。
 enum WeekListWidgetDataLoader {
@@ -64,7 +64,7 @@ enum WeekListWidgetDataLoader {
               let repo = WidgetLoader.makeRepo() else { return fallback }
         let table = source.table
         let status = source.display.semesterStatus
-        // ← Android L183-197: 日期=source.dateFor(周1预习/跳周随 display), 取课=source.coursesOn
+        // ← 原版本 L183-197: 日期=source.dateFor(周1预习/跳周随 display), 取课=source.coursesOn
         // (调休按日期反向查 — 补班日=source 星期的课并按 source 日反解周次, 放假日=无课;
         // AFTER_END 清空且保留补班日列, 任一列有课 → 状态改写 IN_RANGE 不画状态行)。
         // 旧版 effectiveDayOfWeek 正向映射为错位口径 (审计发现 [A]-1): 放假日列被填上
@@ -78,7 +78,7 @@ enum WeekListWidgetDataLoader {
                                 isGrey: await HolidayManager.shouldGrey(date, tableId: table.id)))
         }
         let effStatus = days.contains(where: { !$0.courses.isEmpty }) && status == .afterEnd ? .inRange : status
-        // 最小档三天窗口 (2026-09-15 用户令): 真实日期, 上下周打通 (Android L199-205)
+        // 最小档三天窗口 (2026-09-15 用户令): 真实日期, 上下周打通 (原版本 L199-205)
         let compactWindow = await WidgetCompactWindow.build(
             repo: repo, tableId: table.id, timeJson: table.timeJson,
             startDate: table.startDate, maxWeek: table.maxWeek,
@@ -117,7 +117,7 @@ struct WeekListWidgetProvider: TimelineProvider {
     }
 }
 
-// 星期标题(英缩写 — Android dayLabels arrayOf("", "Mon"...))
+// 星期标题(英缩写 — 原 dayLabels arrayOf("", "Mon"...))
 let weekDayLabels = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 /// 列数过滤(决策 D5-12, 对齐 renderWeekList L238-240): visibleDays 空集回退全周防御
@@ -153,8 +153,8 @@ struct WeekListWidgetEntryView: View {
         let todayDow = DateUtils.todayDayOfWeek(today: Date())
         let tier = WidgetLayoutTier(family: widgetFamily)
         // 状态行占位 16dp — 仅学期外画状态行才占位。
-        // ★ 定稿 (PR#14 评审 2026-10-28): Android statusH 闸门 (WeekListWidget.kt L60-61)
-        //   = semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL, 但 Android 渲染器
+        // ★ 定稿 (PR#14 评审 2026-10-28): 原 statusH 闸门 (WeekListWidget.kt L60-61)
+        //   = semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL, 但 原版本 渲染器
         //   从不画跳周字 (只消费 statusH 抬列顶); iOS 扩到跳周态会凭空多一行空白
         //   (开启「没课时显示最近有课的一天」默认 ON 时, 用户 2026-10-27 实拍)。
         //   statusH 只随 semesterStatus != IN_RANGE 取值。
