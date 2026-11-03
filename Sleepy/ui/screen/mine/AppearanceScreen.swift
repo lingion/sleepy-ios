@@ -123,7 +123,7 @@ struct AppearanceScreen: View {
                     .cornerRadius(SleepyShapes.large)
 
                     // ── 分组②·5 课程配色 (v1.0.62 B1) ──
-                    CourseColorSection(
+                    AppearanceCourseColorSection(
                         refreshWidgets: { refreshWidgets() },
                         onRequestRecalc: { recalcAllCourses() }
                     )
@@ -498,7 +498,7 @@ private struct DashedCircleWithPlus: View {
 // ← Android CourseColorSection.kt: SegmentedSwitcher 4 段(uniform/CLASSIC/FOLLOW_THEME/CUSTOM)
 //   + CUSTOM 时 HueSlider + 实时群色预览 + 底部「重新编排」按钮。
 
-private struct CourseColorSection: View {
+private struct AppearanceCourseColorSection: View {
     @Environment(\.localWakeUpColors) private var colors
     @ObservedObject private var hueStore = CourseHueStore.shared
     private let prefs = AppPrefs.shared
