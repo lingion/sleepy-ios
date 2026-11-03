@@ -12,7 +12,7 @@ struct CalendarImportDialog: View {
     @State private var calendars: [SystemCalendarInfo] = []
     @State private var selectedCalendarId: String = ""
     @State private var range: CalendarImportRange = .NEXT_WEEK
-    @State private var transfersEnabled: Bool = false
+    @State private var transfersEnabled: Bool = AppPrefs.shared.isCalendarApplyTransfers()
     @State private var reminderEnabled: Bool = false
     @State private var reminderMinutes: String = "15"
     @State private var alarmEnabled: Bool = false
