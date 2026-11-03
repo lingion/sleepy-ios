@@ -786,6 +786,8 @@ protocol NotificationSchedulerBeforeClassDataSource {
     func resolveReminderTables() -> [TimeTableEntity]
     func coursesForDay(tableId: Int64, dayOfWeek: Int) -> [CourseEntity]
     func allCourseIds() -> [Int64]
+    /// 旧数据源兼容端口；新数据源应实现 courseDateForDate 以保留跨周来源日期。
+    func effectiveDayOfWeek(tableId: Int64?, date: Date) -> Int
     /// v1.0.62 取课语义反向查 (← BeforeClassDataSource.courseDateForDate):
     /// 补班日=sourceDate(上被挪走那天的课), 放假日=nil(无课), 未映射=原日期。
     /// (替换 v1.0.60 的 effectiveDayOfWeek 正向查遗留语义 — 实际取课一律走反向查,
@@ -795,6 +797,17 @@ protocol NotificationSchedulerBeforeClassDataSource {
 }
 
 extension NotificationSchedulerBeforeClassDataSource {
+    func effectiveDayOfWeek(tableId: Int64?, date: Date) -> Int {
+        DateUtils.todayDayOfWeek(today: date)
+    }
+
+    /// 旧端口只有星期信息，按原契约映射到当周；生产数据源覆盖此方法反向查完整日期。
+    func courseDateForDate(tableId: Int64?, date: Date) -> Date? {
+        let day = effectiveDayOfWeek(tableId: tableId, date: date)
+        guard (1...7).contains(day) else { return nil }
+        return DateUtils.dateOfWeekDay(ref: date, dayOfWeek: day)
+    }
+
     func resolveReminderTables() -> [TimeTableEntity] {
         guard let t = resolveCurrentTable() else { return [] }
         return t.reminderEnabled ? [t] : []
