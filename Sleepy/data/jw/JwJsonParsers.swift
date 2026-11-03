@@ -87,7 +87,7 @@ final class JwSeuParser: JwParser, JwParserConfidenceReporting {
 
             // v2: 只有由 0/1 构成的非空 SKZC 才是位图; 全 0 明确表示无课,
             // 不能回退 ZCMC。缺失或非法位图才回退到 ZCMC 展示文本。
-            let weekRanges = (!skzc.isEmpty && skzc.all { $0 == "0" || $0 == "1" })
+            let weekRanges = (!skzc.isEmpty && skzc.allSatisfy { $0 == "0" || $0 == "1" })
                 ? parseWeekBitmap(skzc)
                 : parseWeekRanges(zcmc)
             for (sw, ew, type) in weekRanges {

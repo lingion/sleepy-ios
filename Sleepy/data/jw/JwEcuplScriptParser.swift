@@ -208,7 +208,7 @@ final class JwEcuplScriptParser: JwParser, JwParserConfidenceReporting {
     /// (Kotlin `m.range.first`/`m.range.last` 语义由 range.location/upperBound 承担)
     struct MatchHit {
         let range: NSRange
-        private let captured: [Int: String]
+        let captured: [Int: String]
 
         func group(_ i: Int) -> String? { captured[i] }
     }
