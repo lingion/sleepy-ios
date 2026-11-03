@@ -345,7 +345,9 @@ extension WakeUpCompat {
                         }
                         guard let html = try? block.html() else { continue }
                         let htmlNorm = compact ? html.replacingOccurrences(of: "(?i)(?:&nbsp;)+", with: " ", options: .regularExpression) : html
-                        let rawLines = htmlNorm.components(separatedBy: NSRegularExpression.escapedPattern("<br")).compactMap { seg -> String? in
+                        // Split on <br> tags (case-insensitive) — replace with delimiter then split
+                        let brNorm = htmlNorm.replacingOccurrences(of: "(?i)<br[^>]*>", with: "\n__BR__\n", options: .regularExpression)
+                        let rawLines = brNorm.components(separatedBy: "\n__BR__\n").compactMap { seg -> String? in
                             guard let t = try? SwiftSoup.parse(seg).text().trimmingCharacters(in: .whitespaces) else { return nil }
                             return t.isEmpty ? nil : t
                         }
