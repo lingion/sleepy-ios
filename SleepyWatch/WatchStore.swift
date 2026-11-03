@@ -214,7 +214,8 @@ final class WatchStore: ObservableObject {
         }
         WatchSyncSnapshot.applyPrefs(body.prefs)
         // 镜像快照已落 course_colors → 重读本地快照, 手表课程色与手机一致。
-        CourseHueStore.shared.refresh()
+        CourseHueStore.shared.invalidate(mode: AppPrefs.shared.getCourseColorMode(),
+                                         dao: db.courseColorDao)
         lastSyncDate = body.sentAt > 0 ? Date(timeIntervalSince1970: Double(body.sentAt) / 1000) : Date()
         // 「已同步」回执时刻 = 镜像 ackSentAt (>0 才显)。外层括号强制 Optional flatMap
         // (无括号时 flatMap 绑到解包后的 Int64 → 编译错, swiftc 实测)。

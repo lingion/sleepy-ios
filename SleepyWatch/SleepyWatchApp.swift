@@ -27,7 +27,8 @@ struct SleepyWatchApp: App {
         // 不等首次 applySnapshot)
         store.prepareScheduler()
         // 持久色相快照首载(手表本地镜像库) — 与手机同口径的派生档课程色。
-        CourseHueStore.shared.start()
+        CourseHueStore.shared.invalidate(mode: AppPrefs.shared.getCourseColorMode(),
+                                         dao: store.repo.database.courseColorDao)
     }
 
     var body: some Scene {
