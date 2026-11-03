@@ -1,4 +1,4 @@
-// JwNewUrpParserTests.swift — ← JwNewUrpParser.kt (v1.0.61)
+// JwNewUrpParserTests.swift — ← JwNewUrpParser.kt (v1.0.62)
 // 覆盖三处对齐点: weekBitsToRanges stride-2 段行为、optString+trim 语义、
 // org.json getJSONObject 异常冒泡 + optJSONArray 字符串强制转换。
 
@@ -23,42 +23,64 @@ final class JwNewUrpParserTests: XCTestCase {
 
     // MARK: - weekBits 归并 (private static,经端到端课程输出验证)
 
-    func test_twoElementOddStrideRun_yieldsStartEqualsEnd() throws {
+    private func assertWeeksMatchBitmap(_ courses: [JwCourse], bitmap: String,
+                                       file: StaticString = #filePath, line: UInt = #line) {
+        let expected = bitmap.enumerated().compactMap { $0.element == "1" ? $0.offset + 1 : nil }
+        let actual = courses.flatMap { course -> [Int] in
+            guard course.startWeek <= course.endWeek else {
+                XCTFail("周次范围不得倒置", file: file, line: line)
+                return []
+            }
+            return (course.startWeek...course.endWeek).filter { week in
+                course.type == 0 || (course.type == 1 && week % 2 == 1)
+                    || (course.type == 2 && week % 2 == 0)
+            }
+        }.sorted()
+        XCTAssertEqual(actual, expected, "展开课程必须完整保留输入周次且不能重复或新增", file: file, line: line)
+    }
+
+    func test_twoElementOddStrideRun_preservesBothWeeks() throws {
         // classWeek "10100000000000000000" → bits [1,3]
-        // Android 真值: Triple(1,1,type=1) —— 2 元素 stride-2 段 end 保持 = start
+        // 867b814 与当前 Android: 两元素 stride-2 段必须保留末周。
+        let bitmap = "10100000000000000000"
         let src = html(withDateList: "[{\"selectCourseList\":[" +
             course(name: "体育", teacher: "张老师",
-                   timePlaces: [timePlace(classDay: 1, classWeek: "10100000000000000000")]) + "]}]")
+                   timePlaces: [timePlace(classDay: 1, classWeek: bitmap)]) + "]}]")
         let courses = try JwNewUrpParser(src).generateCourseList()
         XCTAssertEqual(1, courses.count)
         XCTAssertEqual(1, courses[0].startWeek)
-        XCTAssertEqual(1, courses[0].endWeek)
+        XCTAssertEqual(3, courses[0].endWeek)
         XCTAssertEqual(1, courses[0].type) // 奇数开头 → 单周
+        assertWeeksMatchBitmap(courses, bitmap: bitmap)
     }
 
-    func test_twoElementEvenStrideRun_yieldsStartEqualsEndTypeDouble() throws {
-        // "01010000000000000000" → bits [2,4] → Android Triple(2,2,type=2)
+    func test_twoElementEvenStrideRun_preservesBothWeeksTypeDouble() throws {
+        // "01010000000000000000" → bits [2,4] → Android Triple(2,4,type=2)
+        let bitmap = "01010000000000000000"
         let src = html(withDateList: "[{\"selectCourseList\":[" +
             course(name: "实验", teacher: "李老师",
-                   timePlaces: [timePlace(classDay: 2, classWeek: "01010000000000000000")]) + "]}]")
+                   timePlaces: [timePlace(classDay: 2, classWeek: bitmap)]) + "]}]")
         let courses = try JwNewUrpParser(src).generateCourseList()
         XCTAssertEqual(1, courses.count)
         XCTAssertEqual(2, courses[0].startWeek)
-        XCTAssertEqual(2, courses[0].endWeek)
+        XCTAssertEqual(4, courses[0].endWeek)
         XCTAssertEqual(2, courses[0].type) // 偶数开头 → 双周
+        assertWeeksMatchBitmap(courses, bitmap: bitmap)
     }
 
-    func test_fourElementStrideRun_midList_keepsKotlinEndBehaviour() throws {
-        // bits [1,3,6,8]: 段 [1,3] → (1,1,1); 段 [6,8] while 不推进 → (6,6,2)。
-        // 与 Android while 循环前不预设 end 完全一致。
+    func test_fourElementStrideRun_midList_preservesEveryWeek() throws {
+        // bits [1,3,6,8]: 段 [1,3] → (1,3,1); 段 [6,8] → (6,8,2)。
+        // 与 867b814 和当前 Android 在 while 前保留第二周的契约一致。
+        let bitmap = "10100101000000000000"
         let src = html(withDateList: "[{\"selectCourseList\":[" +
             course(name: "选修", teacher: "王老师",
-                   timePlaces: [timePlace(classDay: 3, classWeek: "10100101000000000000")]) + "]}]")
+                   timePlaces: [timePlace(classDay: 3, classWeek: bitmap)]) + "]}]")
         let courses = try JwNewUrpParser(src).generateCourseList()
         XCTAssertEqual(2, courses.count)
-        XCTAssert([(1, 1, 1), (6, 6, 2)].elementsEqual(
+        XCTAssert([(1, 3, 1), (6, 8, 2)].elementsEqual(
                        courses.map { ($0.startWeek, $0.endWeek, $0.type) },
-                       by: { $0 == $1 }))  // 元组非 Equatable, 用 by: 谓词版 elementsEqual
+                        by: { $0 == $1 }))  // 元组非 Equatable, 用 by: 谓词版 elementsEqual
+        assertWeeksMatchBitmap(courses, bitmap: bitmap)
     }
 
     func test_continuousStrideRun_beyondTwoElements_extendsEnd() throws {
