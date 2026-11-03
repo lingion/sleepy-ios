@@ -16,6 +16,9 @@ struct CourseColorEntity: Codable, FetchableRecord, MutablePersistableRecord {
     var tableKey: String
     var groupId: String
     var hue: Float
+    
+    // GRDB auto-generated rowid (invisible in schema, but needed for after-insert)
+    var rowid: Int64?
 
     enum CodingKeys: String, CodingKey {
         case tableKey, groupId, hue
@@ -37,11 +40,17 @@ struct CourseColorEntity: Codable, FetchableRecord, MutablePersistableRecord {
         container["tableKey"] = tableKey
         container["groupId"] = groupId
         container["hue"] = hue
+        // rowid is auto-generated, don't encode
     }
 
-    init(tableKey: String = GLOBAL_TABLE_KEY, groupId: String, hue: Float) {
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        rowid = inserted.rowID
+    }
+
+    init(tableKey: String = GLOBAL_TABLE_KEY, groupId: String, hue: Float, rowid: Int64? = nil) {
         self.tableKey = tableKey
         self.groupId = groupId
         self.hue = hue
+        self.rowid = rowid
     }
 }

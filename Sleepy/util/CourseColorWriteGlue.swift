@@ -37,8 +37,9 @@ enum CourseColorWriteGlue {
         }
         let newGids = entities
             .map { $0.groupId }
-            .filter { !$0.isEmpty && !(persisted.keys.contains($0)) }
-            .distinct(by: { $0 })
+            .filter { !$0.isEmpty }
+            .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+            .filter { !(persisted.keys.contains($0)) }
         if newGids.isEmpty { return [:] }
         let plan = CourseColorUtil.planHuesForGroups(
             anchor: a, existingHues: Array(persisted.values), gids: newGids
@@ -49,7 +50,7 @@ enum CourseColorWriteGlue {
             }
             do {
                 try dao.upsertAll(rows)
-                CourseHueStore.shared.invalidate(mode: mode, dao: dao)
+                await MainActor.run { CourseHueStore.shared.invalidate(mode: mode, dao: dao) }
             } catch {
                 // 写失败 → 降级为不写, 配色增值数据红线
             }
@@ -65,7 +66,7 @@ enum CourseColorWriteGlue {
         dao: CourseColorDao,
         gids: [String]
     ) async -> [String: Float] {
-        let distinct = gids.filter { !$0.isEmpty }.distinct(by: { $0 })
+        let distinct = gids.filter { !$0.isEmpty }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         if anchor == nil { return [:] } // CLASSIC → 零写
         let plan = CourseColorUtil.planHuesForGroups(
             anchor: anchor, existingHues: [], gids: distinct
@@ -76,7 +77,7 @@ enum CourseColorWriteGlue {
             }
             do {
                 try dao.upsertAll(rows)
-                CourseHueStore.shared.invalidate(mode: AppPrefs.shared.getCourseColorMode(), dao: dao)
+                await MainActor.run { CourseHueStore.shared.invalidate(mode: AppPrefs.shared.getCourseColorMode(), dao: dao) }
             } catch {
                 // 写失败 → 返回已写部分(空), 配色增值数据红线
             }
