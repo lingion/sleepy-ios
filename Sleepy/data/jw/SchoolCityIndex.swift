@@ -59,10 +59,7 @@ enum SchoolCityIndex {
             return false
         }
         return matched.sorted { a, b in
-            // 推荐按目录支持状态排序；协议字段完整性属于导入准入，不影响城市元数据排序。
-            let aSupported = a.status == JwSchoolInfo.STATUS_SUPPORTED || a.status == JwSchoolInfo.STATUS_GRAD_SUPPORTED
-            let bSupported = b.status == JwSchoolInfo.STATUS_SUPPORTED || b.status == JwSchoolInfo.STATUS_GRAD_SUPPORTED
-            if aSupported != bSupported { return aSupported }
+            if a.isSupported != b.isSupported { return a.isSupported }
             let ka = a.sortKeyFull.isEmpty ? a.name : a.sortKeyFull
             let kb = b.sortKeyFull.isEmpty ? b.name : b.sortKeyFull
             return ka < kb
