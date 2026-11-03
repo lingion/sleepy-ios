@@ -70,7 +70,7 @@ struct PeriodHeaderCellContent: View {
                 : PeriodHeaderFormatter.range(nodeStart, nodeEnd, style)
 
             if layout == "three_line" {
-                threeLineBody(cardW: cardW, cardH: cardH, label: label, showX: showX)
+                threeLineBody(cardW: cardW, cardH: cardH, label: label, showX: showX, centerTime: centerTime)
             } else {
                 legacyBody(cardW: cardW, cardH: cardH, label: label)
             }
@@ -163,7 +163,7 @@ struct PeriodHeaderCellContent: View {
     }
 
     @ViewBuilder
-    private func threeLineBody(cardW: CGFloat, cardH: CGFloat, label: String, showX: Bool) -> some View {
+    private func threeLineBody(cardW: CGFloat, cardH: CGFloat, label: String, showX: Bool, centerTime: Bool) -> some View {
         let m = measureThreeLine(cardW: cardW, cardH: cardH, label: label, showX: showX)
         let adLabelFont = m.adLabelFont
         let adTimeFont = m.adTimeFont
@@ -180,37 +180,59 @@ struct PeriodHeaderCellContent: View {
         // 左不钳 0: 墨迹盒 > 卡宽时 Android Center 让两侧均分溢出 (overflow Visible 同口径)
         let leftPad = (cardW - m.inkUnionWidthPx) / 2
 
-        ZStack(alignment: .topLeading) {
-            // 行盒 = 强制 lineHeight 框 (← Compose 单行测量高 = lineHeight 整值):
-            // Text 自然行高 ≈1.19–1.21×, 直接摆放会比守卫/垂直解使用的行盒矮 ~5%;
-            // 用 .frame(height:) 钉回 1.25×size×scale, 字形盒在行盒内居中 (半 leading 近似)。
-            // 第一行: 开始时间, 行盒顶 = contentHeight 顶, x = timeBaseLeft
-            Text(displayStart)
-                .font(Font(adTimeFont))
-                .foregroundColor(colors.onSurfaceVariant)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .frame(height: m.startH, alignment: .center)
-                .offset(x: timeBaseLeft + leftPad, y: topPad)
-            // 第二行: 标签, 垂直中点对齐, x = labelLeft (端点异锚悬挂偏移)
-            // (中点近似 = topPad + startH + (labelH)/2 - labelH/2 = topPad + startH, 用行盒近似)
-            Text(label)
-                .font(Font(adLabelFont))
-                .foregroundColor(colors.onSurface)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .frame(height: m.labelH, alignment: .center)
-                .offset(x: labelLeft + leftPad, y: topPad + m.startH)
-            // 第三行: 结束时间, 行盒底 = contentHeight 底, x = timeBaseLeft (与第一行同左缘基线)
-            Text(displayEnd)
-                .font(Font(adTimeFont))
-                .foregroundColor(colors.onSurfaceVariant)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .frame(height: m.startH, alignment: .center)
-                .offset(x: timeBaseLeft + leftPad, y: topPad + m.startH + m.labelH)
+        if centerTime {
+            // centerTime = true: 时间文本整体居中对齐 (不使用 dash 对齐算法)
+            ZStack(alignment: .topLeading) {
+                Text(displayStart)
+                    .font(Font(adTimeFont))
+                    .foregroundColor(colors.onSurfaceVariant)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(width: cardW, height: m.startH, alignment: .center)
+                    .offset(x: 0, y: topPad)
+                Text(label)
+                    .font(Font(adLabelFont))
+                    .foregroundColor(colors.onSurface)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(height: m.labelH, alignment: .center)
+                    .offset(x: labelLeft + leftPad, y: topPad + m.startH)
+                Text(displayEnd)
+                    .font(Font(adTimeFont))
+                    .foregroundColor(colors.onSurfaceVariant)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(width: cardW, height: m.startH, alignment: .center)
+                    .offset(x: 0, y: topPad + m.startH + m.labelH)
+            }
+            .frame(width: cardW, height: cardH, alignment: .topLeading)
+        } else {
+            // centerTime = false: 默认 dash 对齐 (端点异锚悬挂)
+            ZStack(alignment: .topLeading) {
+                Text(displayStart)
+                    .font(Font(adTimeFont))
+                    .foregroundColor(colors.onSurfaceVariant)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(height: m.startH, alignment: .center)
+                    .offset(x: timeBaseLeft + leftPad, y: topPad)
+                Text(label)
+                    .font(Font(adLabelFont))
+                    .foregroundColor(colors.onSurface)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(height: m.labelH, alignment: .center)
+                    .offset(x: labelLeft + leftPad, y: topPad + m.startH)
+                Text(displayEnd)
+                    .font(Font(adTimeFont))
+                    .foregroundColor(colors.onSurfaceVariant)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(height: m.startH, alignment: .center)
+                    .offset(x: timeBaseLeft + leftPad, y: topPad + m.startH + m.labelH)
+            }
+            .frame(width: cardW, height: cardH, alignment: .topLeading)
         }
-        .frame(width: cardW, height: cardH, alignment: .topLeading)
     }
 
     // MARK: - Legacy 两行
