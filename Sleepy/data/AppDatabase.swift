@@ -2,17 +2,17 @@
 // Room @Database(version=10) → GRDB。建表 SQL 与 Room schema 逐列对齐
 // (列名/类型亲和/索引/FK CASCADE — Room 注解生成语义手工落 SQL)。
 // Room 仅在 @ColumnInfo(defaultValue=) 声明处输出 DEFAULT,故 v1 建表 DDL 各列裸 NOT NULL。
-// Android 严禁 fallbackToDestructiveMigration (AppDatabase.kt:45-46) — 迁移失败即抛;
+// 原版本 严禁 fallbackToDestructiveMigration (AppDatabase.kt:45-46) — 迁移失败即抛;
 // iOS 等价物: migrate 失败 fatalError,绝不静默在未迁移库上运行。
-// 目录不可写 → 内存库保命,是 iOS 侧独有防御,与 Android 机制无关。
+// 目录不可写 → 内存库保命,是 iOS 侧独有防御,与 原版本 机制无关。
 // v4 = 1.0.52 issue#22 colorMode; v5 = issue#23 isIrregularNode/isIrregularTime;
 // v6 = issue#26 alias; v7 = issue#39 import_drafts; v8 = issue#40 period_tables
 //      + time_tables.periodTableId; v9 = issue#40 C2 preBindSnapshotJson;
-// v10 = Sleepy 托管系统日历导入记录 (与 Android Migrations.kt 一一对应, Android 1.0.61 终点)。
-// v11 = 每表独立提醒开关 reminderEnabled — 对齐 Android 目标 schema v11
+// v10 = Sleepy 托管系统日历导入记录 (与原迁移脚本一一对应, 原版本 1.0.61 终点)。
+// v11 = 每表独立提醒开关 reminderEnabled — 对齐 原版本 目标 schema v11
 //      (~/sleepy app/schemas/com.lingion.sleepy.data.AppDatabase/11.json:
 //      `reminderEnabled INTEGER NOT NULL DEFAULT 1`; RoomSchemaContractTest.kt:47、
-//      TableReminderMigrationTest.kt 同向锁定)。Android 仓 Kotlin 侧落地中
+//      TableReminderMigrationTest.kt 同向锁定)。原版本 仓 Kotlin 侧落地中
 //      (AppDatabase version=10、Migrations.kt 止于 9_10、TimeTableEntity.kt 无该字段),
 //      11.json 与其测试先入库; iOS 按 11.json 契约建列, SQL 形状逐字一致。
 
@@ -57,13 +57,13 @@ final class AppDatabase {
             queue = try DatabaseQueue(path: path)
         } catch {
             // 文件库打不开(目录不可写等极端情形)→ 内存库保命。
-            // 注: 这是 iOS 侧独有防御;Android 无对应机制,勿引用其名义。
+            // 注: 这是 iOS 侧独有防御;原版本 无对应机制,勿引用其名义。
             queue = try! DatabaseQueue()
         }
         do {
             try self.init(queue: queue)
         } catch {
-            // 对齐 Android 严禁 fallbackToDestructiveMigration (AppDatabase.kt:45-46):
+            // 对齐 原版本 严禁 fallbackToDestructiveMigration (AppDatabase.kt:45-46):
             // Room 迁移失败在首次访问即抛出、应用崩溃,绝不在未迁移的库上继续运行。
             fatalError("AppDatabase schema migration failed — 禁止静默运行在未迁移库上: \(error)")
         }
@@ -233,7 +233,7 @@ final class AppDatabase {
         }
 
         // v11 (iOS-ahead, 2026-10-08): 每表独立提醒开关。
-        // Android 1.0.61 无此迁移(version=10)——其提醒开关是 AppPrefs 全局值
+        // 原版本 1.0.61 无此迁移(version=10)——其提醒开关是 AppPrefs 全局值
         // (CalendarImportDialog.kt:78 getCalendarReminderMinutes);本列为 iOS 侧
         // 每课表粒度功能,记录为 iOS-ahead 而非对齐项。
         // SQLite ALTER ADD COLUMN ... DEFAULT 1 使老行回填 1(继续参与提醒,行为不变)。

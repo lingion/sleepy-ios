@@ -4,7 +4,7 @@
 
 Compared `CourseDetailSheet.swift`, `DateTimePickers.swift`,
 `SmartPeriodEditor.swift`, `TimeSlotEditor.swift`, `SettingsCards.swift`
-against Android 1.0.51 sources (`ui/component/*.kt`).
+against original 1.0.51 sources (`ui/component/*.kt`).
 
 ## Implemented
 
@@ -14,7 +14,7 @@ against Android 1.0.51 sources (`ui/component/*.kt`).
   `ConflictLayoutEngine.conflictClusterKey` — same source as
   ConflictClusterCard / topOverrides (was a locally re-derived
   `day:startNode:step` string).
-- `DefaultTopPickerSection` geometry to Android values: group spacing 2,
+- `DefaultTopPickerSection` geometry to the original platform values: group spacing 2,
   title padding top/bottom 4, row spacing 4, row vertical padding 4,
   radio icon 20pt.
 - Edit button fixed 40pt height (M3 Button 40dp).
@@ -26,7 +26,7 @@ against Android 1.0.51 sources (`ui/component/*.kt`).
 - Label restacked to the readOnly-TextField form: empty value = 16pt
   label placeholder; filled = 12pt label above 16pt value (M3 floating
   label, filled variant).
-- New `fillsWidth` parameter for Android `weight(1f)` /
+- New `fillsWidth` parameter for 原 `weight(1f)` /
   `fillMaxWidth()` call sites; `DatePickerField` unchanged.
 - AddCourse's two clock fields keep the default (that row is verified
   and Android AddCourse was not re-derived here).
@@ -37,7 +37,7 @@ against Android 1.0.51 sources (`ui/component/*.kt`).
   above the value when a label exists) and the unit suffix inside the
   field at 16pt onSurfaceVariant (was an external 12pt caption).
 - `AddBreakChip` label 12→14pt (FilterChip labelLarge).
-- Empty preview placeholder 12→16pt (Android passes no style →
+- Empty preview placeholder 12→16pt (原 passes no style →
   bodyLarge).
 - Break-group delete icon button 28×28 (IconButton 28dp).
 
@@ -51,7 +51,7 @@ against Android 1.0.51 sources (`ui/component/*.kt`).
 - Verified no drift: `SectionHeader`, `SettingsCard`, `DisplayModeOption`,
   `SettingToggleRow`, `SettingsFlatCard` all match; Android's
   `subtitle`/`content` parameters on `SettingsFlatCard` are used by no
-  Android call site, so the iOS shape is complete.
+  原 call site, so the iOS shape is complete.
 - Whole-card tap area on `SettingsCard` stays header-only (documented
   iOS adaptation consistent with the verified Appearance/General rows).
 

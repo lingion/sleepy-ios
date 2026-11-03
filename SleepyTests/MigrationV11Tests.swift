@@ -1,4 +1,4 @@
-// MigrationV11Tests.swift — Android MIGRATION_10_11 等价迁移测试 (GPL-3.0)
+// MigrationV11Tests.swift — 原版本 MIGRATION_10_11 等价迁移测试 (GPL-3.0)
 // 验证 v10 旧库升 v11: time_tables 加 reminderEnabled 列 (INTEGER NOT NULL DEFAULT 1),
 // 老行读时值=1, 新行可显式写 0/1 且往返不丢。
 
@@ -43,7 +43,7 @@ final class MigrationV11Tests: XCTestCase {
 
         try queue.read { db in
             let flags = try Int.fetchAll(db, sql: "SELECT reminderEnabled FROM time_tables")
-            XCTAssertEqual([1], flags, "老行 reminderEnabled 默认 1 (Android DEFAULT 1 语义)")
+            XCTAssertEqual([1], flags, "老行 reminderEnabled 默认 1 (原 DEFAULT 1 语义)")
         }
     }
 
@@ -63,7 +63,7 @@ final class MigrationV11Tests: XCTestCase {
         let readOff = try appdb.timeTableDao.getAll().first { $0.id == offId }
         XCTAssertEqual(false, readOff?.reminderEnabled)
 
-        // 默认新行 = 开提醒 (Android Room defaultValue=1 同语义)
+        // 默认新行 = 开提醒 (原版本 Room defaultValue=1 同语义)
         var on = TimeTableEntity(name: "默认表", startDate: "2026-09-07")
         let onId = try appdb.timeTableDao.insert(on)
         on.id = onId

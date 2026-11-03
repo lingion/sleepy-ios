@@ -5,7 +5,7 @@
 import SwiftUI
 
 /// Kotlin `String.isBlank()` 语义: 纯空白(含换行/制表符)也算空 — iOS 侧 .isEmpty 会把
-/// "  " 当非空, 与 Android ifBlank/isNotBlank 分叉 (← CourseDetailSheet.kt:98/112/113/192)。
+/// "  " 当非空, 与 原版本 ifBlank/isNotBlank 分叉 (← CourseDetailSheet.kt:98/112/113/192)。
 private func isNotBlank(_ text: String) -> Bool {
     !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 }
@@ -33,20 +33,20 @@ struct CourseDetailSheet: View {
             // 冲突簇上下文(仅当 day 下 ≥2 课区间相交时才存在) — ← ConflictLayoutEngine.findClusters
             let clusterInfo = clusterOf(course)
 
-            // ← Android rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            // ← 原版本 rememberModalBottomSheetState(skipPartiallyExpanded = true)
             //   (CourseDetailSheet.kt:75): 弹层直接全高展开, 内容超长时自带滚动。
             // iOS 此前 .sheetDetents([.medium]) 且无 ScrollView, 小屏设备"编辑课程"
             // 按钮被裁掉不可达 — 改 .large + ScrollView 镜像该行为。
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Header ← SheetHeader (surface-container) — Android Row verticalAlignment = Top
+                    // Header ← SheetHeader (surface-container) — 原版本 Row verticalAlignment = Top
                     HStack(alignment: .top) {
                         Text(orBlank(course.courseName, L10n.format("course_detail_title")))
                             .font(SleepyTypography.titleLarge)
                             .foregroundColor(colors.onSurface)
                             .lineLimit(3)
                         Spacer()
-                        // 有意差异: Android 无关闭按钮(下滑手势/点遮罩关闭), iOS 补充 ✕
+                        // 有意差异: 原版本 无关闭按钮(下滑手势/点遮罩关闭), iOS 补充 ✕
                         Button {
                             onDismiss()
                         } label: {
@@ -106,11 +106,11 @@ struct CourseDetailSheet: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
-                    .padding(.bottom, 24)   // ← Android 外层 Column padding(bottom = 24.dp),此前 12 少了 12pt
+                    .padding(.bottom, 24)   // ← 原 外层 Column padding(bottom = 24.dp),此前 12 少了 12pt
                 }
             }
             .sheetDetents([.large])
-            // 有意差异: Android shape = RoundedCornerShape(topStart/topEnd 28dp),iOS 系统弹层自带圆角与把手交互
+            // 有意差异: 原 shape = RoundedCornerShape(topStart/topEnd 28dp),iOS 系统弹层自带圆角与把手交互
             // iOS 15 无 drag indicator API,iOS 16+ 隐藏把手(iOS15 默认无把手,行为一致)
             .modifier(HideDragIndicatorIfAvailable())
         }
@@ -146,7 +146,7 @@ private struct DefaultTopPickerSection: View {
         let savedRepId: Int64? = defaultTopStore.map[clusterKey]
 
         // v7.10.16p: 单图层(全部课并排无真重叠, 链组把它们串成一条链而已)没有"谁压谁",
-        // 选择置顶无意义 — ← Android `if (layers.size < 2) return`(用户报障「没有冲突的课也弹默认置顶」)
+        // 选择置顶无意义 — ← 原 `if (layers.size < 2) return`(用户报障「没有冲突的课也弹默认置顶」)
         Group {
             if layers.count >= 2 {
                 VStack(alignment: .leading, spacing: 2) {
@@ -158,7 +158,7 @@ private struct DefaultTopPickerSection: View {
 
                     ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
                         let layerRepId = layer.first!.id
-                        // ← Android kt:192 `it.courseName.ifBlank { "—" }` — 纯空白名同样兜底 "—"
+                        // ← 原版本 kt:192 `it.courseName.ifBlank { "—" }` — 纯空白名同样兜底 "—"
                         let label = layer.map { orBlank($0.courseName, "—") }.joined(separator: "、")
                         let selected = savedRepId == layerRepId
                         Button {

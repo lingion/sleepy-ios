@@ -25,7 +25,7 @@ enum JwStage: Int, Comparable {
     }
 }
 
-// 与 Android Regex("""^...$""").matches 同语义的整串匹配。
+// 与 原版本 Regex("""^...$""").matches 同语义的整串匹配。
 private func jwMatchesFull(_ regex: NSRegularExpression, _ s: String) -> Bool {
     let range = NSRange(s.startIndex..., in: s)
     guard let m = regex.firstMatch(in: s, range: range) else { return false }
@@ -87,16 +87,16 @@ struct JwImportFlow: View {
     @State private var configBindPeriodTableId: Int64? = nil
     // v1.0.56 第三 Tab 数据源(← scheduleViewModel.allPeriodTables)
     @State private var periodTables: [PeriodTableEntity] = []
-    // 课表名 — 默认 jw_import_title(校名)模板, 用户可编辑; 与 Android ConfigureConfirm
+    // 课表名 — 默认 jw_import_title(校名)模板, 用户可编辑; 与 原版本 ConfigureConfirm
     // AlertDialog 里 OutlinedTextField 一致。
     @State private var configTableName = ""
     // confirmError: 留在确认框内联展示(2026-09-20: 只标红出错字段, 不上全局横幅)
     @State private var confirmError: String? = nil
     // ← catalogNotice: 选校准入确认(未验证/待适配条目点进前的告知弹窗)
-    //   ← Android `var catalogNotice by remember { mutableStateOf<JwSchoolInfo?>(null) }`
+    //   ← 原 `var catalogNotice by remember { mutableStateOf<JwSchoolInfo?>(null) }`
     @State private var catalogNotice: JwSchoolInfo? = nil
     // ← reportDialogSchool: 未验证学校导入成功后的报告弹窗(2026-10-18 离线回路)
-    //   ← Android `var reportDialogSchool by remember { mutableStateOf<JwSchoolInfo?>(null) }`
+    //   ← 原 `var reportDialogSchool by remember { mutableStateOf<JwSchoolInfo?>(null) }`
     @State private var reportDialogSchool: JwSchoolInfo? = nil
 
     var body: some View {
@@ -114,7 +114,7 @@ struct JwImportFlow: View {
             }
 
             // ← 选校准入确认(未验证/待适配条目点进前)
-            //   ← Android `catalogNotice?.let { school -> AlertDialog(...) }`
+            //   ← 原 `catalogNotice?.let { school -> AlertDialog(...) }`
             if let school = catalogNotice {
                 JwCatalogNoticeDialog(
                     school: school,
@@ -133,7 +133,7 @@ struct JwImportFlow: View {
             }
 
             // ← 导入成功报告弹窗(未验证学校 → 生成可粘贴报告文本)
-            //   ← Android `reportDialogSchool?.let { school -> AlertDialog(...) }`
+            //   ← 原 `reportDialogSchool?.let { school -> AlertDialog(...) }`
             if let school = reportDialogSchool {
                 JwImportReportDialog(
                     school: school,
@@ -147,7 +147,7 @@ struct JwImportFlow: View {
 
             // ← 错误提示统一 AlertDialog 双按钮 (2026-09-18 用户: 全 app 报错必须是弹窗,
             //   确定 + 导出排查全量包 — 学生把包发给开发者, 免来回截图问诊)。
-            //   旧「可点关闭横幅」不是 Android 等价面, 已替换。
+            //   旧「可点关闭横幅」不是 原版本 等价面, 已替换。
             if let msg = errorMsg {
                 JwErrorDialog(
                     message: msg,
@@ -161,7 +161,7 @@ struct JwImportFlow: View {
                 VStack {
                     Spacer()
                     Text(msg)
-                        .font(.system(size: 14)) // ← Android Snackbar bodyMedium 14
+                        .font(.system(size: 14)) // ← 原 Snackbar bodyMedium 14
                         .foregroundColor(colors.onSurface)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
@@ -366,11 +366,11 @@ struct JwImportFlow: View {
         exitDraftState.activeImport = false
     }
 
-    // MARK: - 离线报告回路 (2026-10-18, ← Android finishOrReport / copyTextToClipboard / launchQqGroupJoin)
+    // MARK: - 离线报告回路 (2026-10-18, ← 原 finishOrReport / copyTextToClipboard / launchQqGroupJoin)
 
     /// 未验证学校导入成功 → 先弹报告弹窗(复制文本 + 拉起 QQ 群粘贴);
     /// 已支持学校维持原静默 finish, 零额外打扰。
-    /// ← Android `suspend fun finishOrReport(school: JwSchoolInfo?)`
+    /// ← 原 `suspend fun finishOrReport(school: JwSchoolInfo?)`
     private func finishOrReport(_ school: JwSchoolInfo?) {
         if let school, school.isUnverified {
             reportDialogSchool = school
@@ -380,13 +380,13 @@ struct JwImportFlow: View {
     }
 
     /// 只写剪贴板, 不拉起任何应用 — 与 launchQqGroupJoin 的剪贴板边界互斥。
-    /// ← Android `copyTextToClipboard(text, label)`
+    /// ← 原 `copyTextToClipboard(text, label)`
     private func copyTextToClipboard(_ text: String) {
         UIPasteboard.general.string = text
     }
 
     /// 报告正文 — 学校侧公开信息 + 计数 + 版本号 + 日期, 不含任何凭据。
-    /// ← Android `JwImportReport.build(school, courseCount, VERSION_NAME, VERSION_CODE)`
+    /// ← 原 `JwImportReport.build(school, courseCount, VERSION_NAME, VERSION_CODE)`
     private func currentReportText() -> String {
         guard let school = reportDialogSchool else { return "" }
         return JwImportReport.build(
@@ -398,7 +398,7 @@ struct JwImportFlow: View {
     }
 
     /// 完成/点外 = 同一收口: 清弹窗 → completeImport → importFinished → finish()
-    /// ← Android `closeReportDialog`
+    /// ← 原 `closeReportDialog`
     private func closeReportDialog() {
         reportDialogSchool = nil
         completeImport()
@@ -406,7 +406,7 @@ struct JwImportFlow: View {
 
     /// QQ 拉起降级链复用 AboutScreen.joinQqGroup 时序(群资料卡 → 备选形态 → TIM → QQ → 浏览器),
     /// 但**不**像 AboutScreen 那样先复制群号 — 此刻剪贴板装着待粘贴的报告, 覆盖 = 回路断裂。
-    /// ← Android `launchQqGroupJoin(group)`
+    /// ← 原 `launchQqGroupJoin(group)`
     private func launchQqGroupJoin() {
         let group = L10n.t("about_qq_group_number")
         func canOpen(_ s: String) -> Bool {
@@ -436,7 +436,7 @@ struct JwImportFlow: View {
         }
     }
 
-    /// App 构建号(= Android BuildConfig.VERSION_CODE; iOS = CFBundleVersion)
+    /// App 构建号(= 原版本 BuildConfig.VERSION_CODE; iOS = CFBundleVersion)
     private var appBuildCode: Int {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String).flatMap(Int.init) ?? 0
     }
@@ -451,7 +451,7 @@ struct JwImportFlow: View {
                 try? repo.get(id)
             }.value
             guard let snapshot = snapshot else {
-                // snapshot 缺失 → import_drafts_empty(← Android)
+                // snapshot 缺失 → import_drafts_empty(← 原版本)
                 errorMsg = L10n.format("import_drafts_empty")
                 return
             }
@@ -534,9 +534,9 @@ struct JwImportFlow: View {
         } else {
             htmlForParse = html
         }
-        // ← Android parseHtml 在 scope.launch try/catch 内: parser 抛异常 →
+        // ← 原 parseHtml 在 scope.launch try/catch 内: parser 抛异常 →
         //   errorMsg = jw_parse_failed(message) + jw_parse_failed_hint。
-        //   iOS parse 返回 Outcome(error), 语义映射: error 非空 = Android 异常路径。
+        //   iOS parse 返回 Outcome(error), 语义映射: error 非空 = 原版本 异常路径。
         let parsed = JwParseDispatch.parse(htmlForParse, effectiveType ?? "")
         if let parseError = parsed.error {
             errorMsg = L10n.format("jw_parse_failed", parseError)
@@ -607,7 +607,7 @@ struct JwImportFlow: View {
         let bindId = configBindPeriodTableId
         let tableName = configTableName
         let startDate = configStartDate
-        // L10n 取词留主线程; DB IO 走工作线程(← Android repo.getAllTables suspend)
+        // L10n 取词留主线程; DB IO 走工作线程(repo.getAllTables suspend)
         let currentTableLabel = L10n.format("manage_current_table")
         Task { @MainActor in
             do {
@@ -678,7 +678,7 @@ struct JwImportFlow: View {
     // MARK: - 预览五模式路由 (← ImportPreviewDialog onApply)
 
     private func onPreviewApply(_ mode: ImportApplyMode) {
-        if isApplying { return }   // ← Android onApply 首行 isApplying 防重复提交
+        if isApplying { return }   // ← 原 onApply 首行 isApplying 防重复提交
         pendingMode = mode
         if mode == .appendNonConflict || mode == .appendAll {
             guard let preview = importPreview else { return }
@@ -700,7 +700,7 @@ struct JwImportFlow: View {
     /// 预览与可恢复草稿(仅 imported 才 completeImport 删草稿)。
     private func applySharedImport(preview: ImportPreview, mode: ImportApplyMode) async throws {
         var varResult = preview.parseResult
-        // ← Android TimeTableUtils.parseTimeSlotRows(configTimeJson).maxOfOrNull { it.node } ?: 0
+        // ← 原版本 TimeTableUtils.parseTimeSlotRows(configTimeJson).maxOfOrNull { it.node } ?: 0
         //   (坏/空 JSON 走 12 默认行兜底, iOS 同名函数语义一致, 禁另开 Safe 分支)
         varResult.timeJson = configTimeJson
         varResult.nodesPerDay = max(varResult.nodesPerDay,
@@ -724,7 +724,7 @@ struct JwImportFlow: View {
             onError: { msg in errorMsg = msg },
             bindPeriodTableId: (configBindPeriodTableId ?? 0) > 0 ? configBindPeriodTableId : nil)
         // A rejected append must keep the preview and its recoverable draft.
-        // ← Android: `if (imported) finishOrReport(selectedSchool ?: parsedSchool)`
+        // ← 原版本: `if (imported) finishOrReport(selectedSchool ?: parsedSchool)`
         if imported { finishOrReport(selectedSchool ?? parsedSchool) }
     }
 
@@ -741,7 +741,7 @@ struct JwImportFlow: View {
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
                 }
-                // ← Android 1.0.51 ConfigureConfirm 字段序: DatePickerField → 课表名 TextField;
+                // ← 原版本 1.0.51 ConfigureConfirm 字段序: DatePickerField → 课表名 TextField;
                 // 名默认 jw_import_title(校名), 用户可改; 提交时空字符串 fallback 回模板。
                 DatePickerField(value: configStartDate, onValueChange: { newValue in
                     configStartDate = newValue
@@ -756,7 +756,7 @@ struct JwImportFlow: View {
                                 fillsWidth: true)
                 TextField(L10n.format("jw_table_name_label"), text: $configTableName)
                     .onChange(of: configTableName) { _ in checkpointDraft() }
-                    .frame(maxWidth: .infinity)   // ← Android fillMaxWidth()
+                    .frame(maxWidth: .infinity)   // ← 原 fillMaxWidth()
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .background(colors.surfaceContainer)
@@ -788,7 +788,7 @@ struct JwImportFlow: View {
                                onSelectPeriodTable: { configBindPeriodTableId = $0 })
 
                 HStack {
-                    // ← Android TextButton 默认色 = primary, labelLarge 14sp Medium, 高 40dp;
+                    // ← 原版本 TextButton 默认色 = primary, labelLarge 14sp Medium, 高 40dp;
                     //   dismissButton = importPreview=null; stage=Preview — 保留已解析课程回预览
                     Button(L10n.format("back")) {
                         importPreview = nil
@@ -819,7 +819,7 @@ struct JwImportFlow: View {
     private func periodTableOptions() -> [PeriodTableOption] {
         var options: [PeriodTableOption] = []
         if !configRows.isEmpty {
-            // ← Android configTableName.ifBlank { jw_import_title(school.name) }
+            // ← 原版本 configTableName.ifBlank { jw_import_title(school.name) }
             let autoName = jwIsBlank(configTableName)
                 ? L10n.format("jw_import_title", parsedSchool?.name ?? "")
                 : configTableName
@@ -843,7 +843,7 @@ struct JwImportFlow: View {
 
     // ← confirmButton 校验链 + 落库
     private func confirmAndImport() {
-        // 校验(与 Android 同链: confirmError 内联, 只置字段级错误)
+        // 校验(与 原版本 同链: confirmError 内联, 只置字段级错误)
         if jwIsBlank(configStartDate) || !jwMatchesFull(jwDateRegex, configStartDate) {
             confirmError = L10n.format("start_date_format")
             return
@@ -883,7 +883,7 @@ struct JwImportFlow: View {
             do {
                 if mode == .importAsNew {
                     let maxNode = effectiveRows.map { $0.node }.max() ?? 0
-                    // ← Android 一致: 用户编辑的课表名为空白时回退 jw_import_title(校名)
+                    // ← 原版本 一致: 用户编辑的课表名为空白时回退 jw_import_title(校名)
                     //   (ifBlank = Kotlin 原串非空即用, 不 trim)
                     let finalTableName = jwIsBlank(rawTableName)
                         ? L10n.format("jw_import_title", school.name)
@@ -915,7 +915,7 @@ struct JwImportFlow: View {
                             try? repo.bindPeriodTable(timeTableId: tableId, periodTableId: chosenId)
                         }.value
                     }
-                    // ← Android `finishOrReport(school)` (未验证学校 → 报告弹窗, 非静默结束)
+                    // ← 原 `finishOrReport(school)` (未验证学校 → 报告弹窗, 非静默结束)
                     finishOrReport(school)
                 } else {
                     guard let preview = previewSnapshot else {
@@ -940,14 +940,14 @@ struct JwImportFlow: View {
 
     private func exportDiagnosticDump(_ school: JwSchoolInfo?) {
         guard let result = lastCaptureResult else {
-            // ← Android: statusMsg = jw_diag_export_failed("无抓取记录")
+            // ← 原版本: statusMsg = jw_diag_export_failed("无抓取记录")
             statusMsg = L10n.format("jw_diag_export_failed", "无抓取记录")
             return
         }
         dumpProgress = nil
         let coordinator = webViewForDump
         Task { @MainActor in
-            // 管线编排器每次导出新建实例(stepsDone 承载于实例, ← Android 闭包局部 var)
+            // 管线编排器每次导出新建实例(stepsDone 承载于实例, ← 原版本 闭包局部 var)
             var flow = JwImportDiagnosticsFlow(
                 onProgress: { progress in
                     Task { @MainActor in dumpProgress = progress }
@@ -955,7 +955,7 @@ struct JwImportFlow: View {
                 onStatus: { msg in
                     Task { @MainActor in
                         statusMsg = msg
-                        dumpProgress = nil   // ← Android 终态(成功/失败)均清进度卡
+                        dumpProgress = nil   // ← 原 终态(成功/失败)均清进度卡
                     }
                 })
             await flow.run(
@@ -963,7 +963,7 @@ struct JwImportFlow: View {
                 lastCaptureResult: result,
                 evalJs: { js in
                     await withCheckedContinuation { cont in
-                        // webView 已释放 → 直接 nil(← Android wv?.let 同兜底), 禁悬挂
+                        // webView 已释放 → 直接 nil(wv?.let 同兜底), 禁悬挂
                         guard let coordinator = coordinator, coordinator.webView != nil else {
                             cont.resume(returning: nil)
                             return
@@ -981,8 +981,8 @@ struct JwImportFlow: View {
                     await withCheckedContinuation { cont in
                         let store = WKWebsiteDataStore.default().httpCookieStore
                         store.getAllCookies { cookies in
-                            // ← Android CookieManager.getCookie(webView.url): 仅本页可见 cookie;
-                            //   页面 URL 缺失 → 全量也不该给(≈ Android null 兜底)
+                            // ← 原版本 CookieManager.getCookie(webView.url): 仅本页可见 cookie;
+                            //   页面 URL 缺失 → 全量也不该给(≈ 原 null 兜底)
                             let host = coordinator?.webView?.url?.host ?? ""
                             let page = coordinator?.webView?.url
                             let visible = cookies.filter { c in
@@ -1028,7 +1028,7 @@ private func encodeSmartConfigJson(_ config: SmartPeriodConfig) -> String {
 
 extension HTTPCookie {
     /// WKWebView 页面 URL 对该 cookie 是否可见(路径 + 安全位, 域匹配在调用方;
-    /// 近似 Android CookieManager.getCookie(url) 的匹配语义)。
+    /// 近似 原版本 CookieManager.getCookie(url) 的匹配语义)。
     func isValidFor(_ url: URL) -> Bool {
         if isSecure, let scheme = url.scheme, scheme.lowercased() != "https" { return false }
         let urlPath = url.path.isEmpty ? "/" : url.path
@@ -1036,7 +1036,7 @@ extension HTTPCookie {
     }
 }
 
-// MARK: - 错误弹窗 (← Android errorMsg AlertDialog + dumpProgress Card)
+// MARK: - 错误弹窗 (errorMsg AlertDialog + dumpProgress Card)
 
 /// 报错统一弹窗: 标题 jw_error_dialog_title, 文本可滚(≤320pt),
 /// DialogActionButtons: 确定位 = jw_err_dismiss(只关窗不退页 #27)、
@@ -1098,7 +1098,7 @@ struct JwErrorDialog: View {
 
 /// JW 导入专用预览面 — 与共享 ImportSheet 的 ImportPreviewDialog 同一内容契约
 /// (指标卡/信息区/冲突/提示/五模式按钮), 差异: 共享组件为 private 且 JW 流需要
-/// isApplying 防重复提交闸(← Android ImportPreviewDialog(isApplying) 1.0.61)。
+/// isApplying 防重复提交闸(ImportPreviewDialog(isApplying) 1.0.61)。
 struct JwImportPreviewDialog: View {
     @Environment(\.localWakeUpColors) private var colors
     let preview: ImportPreview
@@ -1238,7 +1238,7 @@ struct JwImportPreviewDialog: View {
                         JwApplyButton(title: L10n.format("import_overwrite"), danger: true,
                                       enabled: !isApplying) { onApply(.replaceCurrent) }
                     }
-                    // ← Android TextButton: 纯文字 40dp, onSurfaceVariant
+                    // ← 原版本 TextButton: 纯文字 40dp, onSurfaceVariant
                     Button(action: onDismiss) {
                         Text(L10n.format("cancel"))
                             .font(.system(size: 14, weight: .medium))
@@ -1271,7 +1271,7 @@ private struct JwApplyButton: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 14, weight: .medium))
-                .lineLimit(1)   // ← Android maxLines = 1
+                .lineLimit(1)   // ← 原 maxLines = 1
                 .foregroundColor(danger ? colors.onErrorContainer : colors.onPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 40)
@@ -1324,10 +1324,10 @@ private struct JwPreviewInfoRow: View {
     }
 }
 
-// MARK: - 排查包重放桥 (← Android DiagnosticReplayBridge / __sleepyDiagBridge)
+// MARK: - 排查包重放桥 (DiagnosticReplayBridge / __sleepyDiagBridge)
 
 /// WKScriptMessageHandler 一次性桥: 注入重放 JS → 等 window.webkit.messageHandlers
-/// .__sleepyDiagBridge.postMessage(json) → 超时/回调即注销(← Android
+/// .__sleepyDiagBridge.postMessage(json) → 超时/回调即注销(← 原实现
 /// addJavascriptInterface/removeJavascriptInterface + withTimeoutOrNull)。
 ///
 /// 全部在主线程访问(WKScriptMessageHandler 回调 + Task { @MainActor } 驱动)。
@@ -1420,7 +1420,7 @@ enum JwReplayBridge {
 }
 
 // MARK: - 重放 JS (← DIAGNOSTIC_NETWORK_EXPORT_JS / RESOURCE_REPLAY_JS, JwWebViewLoginScreen.kt)
-// 桥接适配: Android __sleepyDiagBridge.onReplayResult(json) → iOS
+// 桥接适配: 原版本 __sleepyDiagBridge.onReplayResult(json) → iOS
 // window.webkit.messageHandlers.__sleepyDiagBridge.postMessage(json)。其余逐行 1:1。
 
 let jwNetworkReplayJs = #"""
@@ -1558,10 +1558,10 @@ enum DiagMapper {
         case .imageOrEmptyCells:  base = L10n.format("jw_diag_image_cells", school.name)
         case .emptySemester:      base = L10n.format("jw_diag_empty_semester", school.name)
         case .wrongProtocol:      base = L10n.format("jw_diag_wrong_protocol", school.name)
-        // Android 双参传 school.name+features(%2$s 内嵌); iOS 同文案双参等价形态
+        // 原版本 双参传 school.name+features(%2$s 内嵌); iOS 同文案双参等价形态
         case .unknownEmpty:       base = L10n.format("jw_diag_unknown_empty", school.name, features)
         }
-        // v1.0.61 对齐(F080): Android mapImpl 对 UNKNOWN_EMPTY 同样追加 hintPart
+        // v1.0.61 对齐(F080): 原 mapImpl 对 UNKNOWN_EMPTY 同样追加 hintPart
         // ("$base（features）$hintPart") — 24 个仅校内可达主机/5 个强智协议在
         // unknownEmpty 分类下也必须保留校园网/VPN 提示尾, 不再提前返回。
         let hint = schoolHint(school)
@@ -1643,7 +1643,7 @@ struct JwCatalogNoticeDialog: View {
                         DialogActionButtons(
                             confirmText: L10n.t(mayTry ? "jw_catalog_try" : "jw_pending_close"),
                             onConfirm: onConfirm,
-                            // ← Android dismissButton 仅在 mayTry 时存在
+                            // ← 原 dismissButton 仅在 mayTry 时存在
                             dismissText: mayTry ? L10n.t("jw_pending_close") : nil,
                             onDismiss: onDismiss)
                     }
@@ -1660,11 +1660,11 @@ struct JwCatalogNoticeDialog: View {
     }
 }
 
-// MARK: - 导入成功报告弹窗 (← Android reportDialogSchool?.let { AlertDialog(...) })
+// MARK: - 导入成功报告弹窗 (reportDialogSchool?.let { AlertDialog(...) })
 
 /// 未验证学校导入成功 = 对该校协议适配的一次真人验证。app 不上传任何数据,
 /// 把成功事实压成可粘贴文本, 用户复制后进 QQ 群粘贴; 维护者据此把条目翻 verified。
-/// ← Android `reportDialogSchool?.let { school -> ... }`
+/// ← 原 `reportDialogSchool?.let { school -> ... }`
 struct JwImportReportDialog: View {
     @Environment(\.localWakeUpColors) private var colors
     let school: JwSchoolInfo

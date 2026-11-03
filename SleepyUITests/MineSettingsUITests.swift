@@ -64,7 +64,7 @@ final class MineSettingsUITests: XCTestCase {
         return condition()
     }
 
-    /// 语言选项收在折叠卡 card_language 内(v1.0.56 T4, 与 Android 一致), expanded
+    /// 语言选项收在折叠卡 card_language 内(v1.0.56 T4, 与原实现一致), expanded
     /// 是页面 @State(不落盘)→ 每次切语言整树重建后回到收起态 → 选项前先展开卡。
     /// 卡头 label=当前语言: 若与目标同名(如 en→English)则 buttons[label] 双匹配,
     /// 用 y>卡头中线 锁定头部下方的选项行。锚点全用 identifier/label(与 locale 无关)。
@@ -366,7 +366,7 @@ final class MineSettingsUITests: XCTestCase {
     }
 
     // MARK: General — 语言 5 项切换(切 en → ja → 切回 en)
-    //   选项在折叠卡 card_language 内(v1.0.56 T4, Android 对齐)→ tapLanguageOption
+    //   选项在折叠卡 card_language 内(v1.0.56 T4, 原版本 对齐)→ tapLanguageOption
     //   先展卡再点选项; 切语言=整树重建 → expanded 复位, 每项前都要重展。
 
     func testGeneralLanguageSwitch() {
@@ -401,7 +401,7 @@ final class MineSettingsUITests: XCTestCase {
                       "切回 English 后应立即变回 General")
     }
 
-    // ★ 节假日入口(← Android General 页 holiday 入口卡): 点击进二级页, 返回回 General
+    // ★ 节假日入口(General 页 holiday 入口卡): 点击进二级页, 返回回 General
     func testHolidayEntryOpensHolidayScreen() {
         app.descendants(matching: .any)["mine_general"].tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
@@ -419,7 +419,7 @@ final class MineSettingsUITests: XCTestCase {
         // 二级页标题 "Holidays & Make-up Days"
         let title = app.staticTexts["Holidays & Make-up Days"].firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 5), "点入口应打开节假日设置页")
-        // 返回(← Android onBack = overlayScreen = null) → 回主界面, Mine tab 仍在。
+        // 返回(onBack = overlayScreen = null) → 回主界面, Mine tab 仍在。
         // Holiday 经 .sheet 呈现(GeneralSettingsScreen.swift:521), 背景 General 页仍在
         // 树上且自带同名 topbar_back → 全局 firstMatch 按树序命中被盖住的背景按钮,
         // tap 落空。改点 Holiday 顶栏自身坐标: SettingsTopBar 几何 = leading 4 +

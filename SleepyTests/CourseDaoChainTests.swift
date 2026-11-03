@@ -149,13 +149,13 @@ final class CourseDaoChainTests: XCTestCase {
     func testSchemaParity() throws {
         // PRAGMA 走 Row 读取 name 列,别手解析分隔字符串
         let courseCols = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "PRAGMA table_info(courses)").map { (r: Row) -> String in r["name"] } })
-        // Android schema v6 全列集: v1 基础 19 列 + colorMode(v4) + isIrregularNode/isIrregularTime(v5) + alias(v6)
+        // 原 schema v6 全列集: v1 基础 19 列 + colorMode(v4) + isIrregularNode/isIrregularTime(v5) + alias(v6)
         XCTAssertEqual(["id","groupId","tableId","courseName","teacher","room","note","day",
                         "startNode","step","startWeek","endWeek","type","color","colorMode",
                         "isIrregularNode","isIrregularTime","ownTime",
                         "startTime","endTime","alias","credit","level"], courseCols)
         let tableCols = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "PRAGMA table_info(time_tables)").map { (r: Row) -> String in r["name"] } })
-        // Android schema v11 全列集: v1 基础 10 列 + periodTableId(v8) + preBindSnapshotJson(v9)
+        // 原 schema v11 全列集: v1 基础 10 列 + periodTableId(v8) + preBindSnapshotJson(v9)
         // + reminderEnabled(v10→v11)。真源: app/schemas/com.lingion.sleepy.data.AppDatabase/11.json
         //   `reminderEnabled INTEGER NOT NULL DEFAULT 1`;RoomSchemaContractTest.kt:47 与
         //   TableReminderMigrationTest.kt 同向锁定。iOS 侧对应 AppDatabase.swift v11.addReminderEnabled。

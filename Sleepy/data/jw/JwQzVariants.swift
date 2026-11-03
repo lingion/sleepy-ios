@@ -25,11 +25,11 @@ private func qzRemoveSurrounding(_ s: String, _ prefix: String, _ suffix: String
 }
 
 /// SwiftSoup(= Jsoup 的 iOS 移植)在 html() 序列化时把空元素写成 `<br />`/`<br/>`
-/// (Element.outerHtmlHead 的 `accum.append(" />")` 分支), 而 Android 端 Jsoup 输出
+/// (Element.outerHtmlHead 的 `accum.append(" />")` 分支), 而 原版本 端 Jsoup 输出
 /// `<br>`。qz 家族所有字面量 `"<br>"` 探针(substringBefore("<br>") 课名截断、
 /// 基类循环 '-----' 分隔后的 <br> 步进、qz_old 的行切分)作用在**序列化输出**上,
 /// SwiftSoup 下全部落空: 课名带原始标签整段污染、同格多课第二条起整条丢失。
-/// 消费序列化 HTML 前把两种形态归一成 `<br>`, 恢复与 Android 的字节级语义一致。
+/// 消费序列化 HTML 前把两种形态归一成 `<br>`, 恢复与 原版本 的字节级语义一致。
 private func qzNormalizeBrTags(_ html: String) -> String {
     html.replacingOccurrences(of: "<br />", with: "<br>")
         .replacingOccurrences(of: "<br/>", with: "<br>")
@@ -38,7 +38,7 @@ private func qzNormalizeBrTags(_ html: String) -> String {
 /// 复刻 JwQzParser.generateCourseList 的单元格遍历, 唯一差异是 courseHtml 先经
 /// `qzNormalizeBrTags` 归一。基类循环在本文件之外(不在本次可改范围), qz_br /
 /// qz_with_node 覆写 generateCourseList 走此通路; 缺 #kbtable 的 JwParseError
-/// 快照字段与基类逐字一致(parserName 固定 "JwQzParser" —— Android 继承基类抛出
+/// 快照字段与基类逐字一致(parserName 固定 "JwQzParser" —— 原版本 继承基类抛出
 /// 的同源行为; confidence/matchedFeatures 动态取子类覆写值)。
 private func qzCourseList(from parser: JwQzParser) throws -> [JwCourse] {
     var courseList: [JwCourse] = []
@@ -80,7 +80,7 @@ private func qzCourseList(from parser: JwQzParser) throws -> [JwCourse] {
                     parser.convert(day: day, nodeCount: nodeCount, infoStr: sub, courseList: &courseList)
                     // ← startIndex = courseHtml.indexOf("<br>", splitIndex) + 4
                     // (upperBound 即 '>' 后一位 = Kotlin +4; 基类 index(after:) 多跳一字符,
-                    // 此处按 Android 语义取 upperBound, 差异仅一个前导空白, 消费点均 trim)
+                    // 此处按 原版本 语义取 upperBound, 差异仅一个前导空白, 消费点均 trim)
                     if let brRange = courseHtml.range(of: "<br>", range: si..<courseHtml.endIndex) {
                         startIndex = brRange.upperBound  // "<br>" 长 4
                     } else {
@@ -153,14 +153,14 @@ final class JwQzBrParser: JwQzParser {
 /// 上游源码：dIT8Zv/WakeupSchedule_BUPT QzWithNodeParser.kt (Apache-2.0)
 final class JwQzWithNodeParser: JwQzParser {
 
-    /// ← Kotlin `String.toInt()` 的 NumberFormatException: Android 侧坏数字段
+    /// ← Kotlin `String.toInt()` 的 NumberFormatException: 原版本 侧坏数字段
     /// (weeks[0].toInt() / nodeList.first().substringBefore('节').toInt()) 直接
     /// 中断整次解析 → 0 课 + 异常上抛, Registry 记 attempt 后回退其它 parser。
     /// convert 签名继承自基类(非 throws), 无法就地抛错, 因此首个坏值记入本字段,
     /// 循环继续(默认值兜底), 由下方 generateCourseList 覆写统一抛出 —— 课程整份
-    /// 丢弃, 最终状态与 Android 一致(异常 + 0 课计入 Registry)。
+    /// 丢弃, 最终状态与原实现一致(异常 + 0 课计入 Registry)。
     /// 有意保留的宽容差: 先 trim 再 Int —— Kotlin " 17".toInt() 也抛, 这里与
-    /// 兄弟 iOS 基类 JwQzParser 的 trim 惯例保持一致; 非数字仍按 Android 失败。
+    /// 兄弟 iOS 基类 JwQzParser 的 trim 惯例保持一致; 非数字仍按 原版本 失败。
     private var pendingNumericFailure: String?
 
     /// Int(s) 失败时登记首次异常描述并返回 nil(调用点用原默认值继续)。
@@ -172,9 +172,9 @@ final class JwQzWithNodeParser: JwQzParser {
         return nil
     }
 
-    /// 覆写基类入口: 缺 #kbtable 的 JwParseError 由 `qzCourseList` 先行抛出(与 Android
+    /// 覆写基类入口: 缺 #kbtable 的 JwParseError 由 `qzCourseList` 先行抛出(与原实现
     /// getElementById 检查在 convert 之前的顺序一致); 数值失败在解析完成后抛出,
-    /// 丢弃全部课程 —— 等价 Android 中途抛 NumberFormatException 的效果。
+    /// 丢弃全部课程 —— 等价 原版本 中途抛 NumberFormatException 的效果。
     /// 单元格遍历走 `qzCourseList`(html() 归一 `<br />`→`<br>`), 否则 SwiftSoup 下
     /// convert 的 "<font"/"<span>" 与分隔符 "<br>" 探针全落空。
     override func generateCourseList() throws -> [JwCourse] {

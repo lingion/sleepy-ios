@@ -1,11 +1,11 @@
 // JwQzIeasParserTests.swift — ← JwQzIeasParserTest.kt (v1.0.61)
 //
-// 3 个用例逐一对应 Android 侧 JwQzIeasParserTest：
+// 3 个用例逐一对应 原版本 侧 JwQzIeasParserTest：
 //   1. parses iEAS structured rows and expands weeks   5 课 / 高等数学 day=1 1-2 节 1-16 周 张老师 主楼101
 //   2. preserves parity and discrete week semantics    大学英语 type=1 3-15; 程序设计 startWeeks [2,4,6]
 //   3. confidence and feature identify iEAS table      confidence ≥ 80 且特征含 "table#queryGrkb"
 //
-// fixture: resources/qz_ieas/query-grkb.sample.html — 与 Android
+// fixture: resources/qz_ieas/query-grkb.sample.html — 与原实现
 // app/src/test/resources/jw/fixtures/qz_ieas/query-grkb.sample.html 同内容
 // (合成 iEAS 行契约, BUAA 上游端点形态)。
 
@@ -27,7 +27,7 @@ final class JwQzIeasParserTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    // MARK: - Android case 1: parses iEAS structured rows and expands weeks
+    // MARK: - 原 case 1: parses iEAS structured rows and expands weeks
 
     func testParsesStructuredRowsAndExpandsWeeks() throws {
         let courses = try JwQzIeasParser(try fixture()).generateCourseList()
@@ -42,7 +42,7 @@ final class JwQzIeasParserTests: XCTestCase {
         XCTAssertEqual(math.room, "主楼101")
     }
 
-    // MARK: - Android case 2: preserves parity and discrete week semantics
+    // MARK: - 原 case 2: preserves parity and discrete week semantics
 
     func testPreservesParityAndDiscreteWeekSemantics() throws {
         let courses = try JwQzIeasParser(try fixture()).generateCourseList()
@@ -54,7 +54,7 @@ final class JwQzIeasParserTests: XCTestCase {
         XCTAssertEqual(programming.map { $0.startWeek }, [2, 4, 6], "2,4,6周 → 离散三段升序")
     }
 
-    // MARK: - Android case 3: confidence and feature identify iEAS table
+    // MARK: - 原 case 3: confidence and feature identify iEAS table
 
     func testConfidenceAndFeatureIdentifyIeasTable() throws {
         let parser = JwQzIeasParser(try fixture())

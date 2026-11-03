@@ -1,6 +1,6 @@
 // CourseDisplayUtilTests.swift — ← CourseDisplayUtilTest.kt 逐用例移植 (GPL-3.0)
 // 覆盖: issue#26 展示名解析 — 关 = 原名(默认, 升级行为不变); 开 = 别名(空回退原名)。
-// 纯逻辑单测, 无 iOS/Android 平台差异。
+// 纯逻辑单测, 无 iOS/原版本 平台差异。
 
 import XCTest
 @testable import Sleepy

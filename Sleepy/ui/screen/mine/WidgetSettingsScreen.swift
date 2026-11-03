@@ -8,7 +8,7 @@
 //
 // 偏好存储键零迁移 — 与 GeneralSettingsScreen 时代完全一致。
 //
-// ★ 平台差异(差异表#8 附注): Android ON_RESUME 重扫桌面实例; iOS 无 lifecycle
+// ★ 平台差异(差异表#8 附注): 原版本 ON_RESUME 重扫桌面实例; iOS 无 lifecycle
 //   等价 → 管理页 fullScreenCover 关闭回调处 reload(去画廊/桌面增删小组件后
 //   回本页, 刷新按钮出现/消失态不滞留), 首次进入走 .task。
 
@@ -78,8 +78,8 @@ struct WidgetSettingsScreen: View {
                                          subtitle: L10n.format("settings_nearest_busy_day_sub"),
                                          checked: nearestBusyDay) {
                             nearestBusyDay = $0
-                            // Android setNearestBusyDay + refreshWidgets; iOS setter 内部已
-                            // reloadAllTimelines(AppPrefs.swift), 再显式刷一次与 Android 同构无害
+                            // 原 setNearestBusyDay + refreshWidgets; iOS setter 内部已
+                            // reloadAllTimelines(AppPrefs.swift), 再显式刷一次与 原版本 同构无害
                             prefs.setNearestBusyDay($0)
                             refreshWidgets()
                         }
@@ -94,7 +94,7 @@ struct WidgetSettingsScreen: View {
                     }
                 }
                 .padding(16)
-                // 页尾余量(→ Android LocalNavExtraBottomPadding): 悬浮底栏不压按钮
+                // 页尾余量(→ 原版本 LocalNavExtraBottomPadding): 悬浮底栏不压按钮
                 .padding(.bottom, navExtra)
             }
         }
@@ -104,7 +104,7 @@ struct WidgetSettingsScreen: View {
         .overlay(alignment: .bottom) {
             if let msg = snackMessage {
                 Text(msg)
-                    .font(.system(size: 14)) // ← Android Snackbar bodyMedium 14
+                    .font(.system(size: 14)) // ← 原 Snackbar bodyMedium 14
                     .accessibilityIdentifier("widget_settings_snackbar")
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
@@ -123,12 +123,12 @@ struct WidgetSettingsScreen: View {
                     }
             }
         }
-        // ← 首次进入取已放置实例(等价 Android 首帧 collect)
+        // ← 首次进入取已放置实例(等价 原版本 首帧 collect)
         .task { reloadPlaced() }
         .fullScreenCover(isPresented: $showManage) {
             WidgetManagementScreen(onDismiss: {
                 showManage = false
-                // ← Android ON_RESUME 重扫: 画廊 pin/编辑绑定后回本页重扫,
+                // ← 原版本 ON_RESUME 重扫: 画廊 pin/编辑绑定后回本页重扫,
                 //    刷新按钮出现/消失态不滞留
                 reloadPlaced()
             })
@@ -140,7 +140,7 @@ struct WidgetSettingsScreen: View {
         Button { showManage = true } label: {
             HStack {
                 Text(L10n.format("widget_manage_entry"))
-                    .font(.system(size: 14, weight: .medium)) // ← Android titleSmall 14sp Medium
+                    .font(.system(size: 14, weight: .medium)) // ← 原 titleSmall 14sp Medium
                     .foregroundColor(colors.onSurface)
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -165,7 +165,7 @@ struct WidgetSettingsScreen: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 24))   // ← Android Icon 默认 24dp
+                    .font(.system(size: 24))   // ← 原 Icon 默认 24dp
                 Text(L10n.format("mine_refresh_widgets"))
                     .font(.system(size: 14, weight: .medium))   // ← labelLarge 14 Medium
             }

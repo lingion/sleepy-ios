@@ -124,7 +124,7 @@ final class ScheduleRepository {
         return id
     }
 
-    /// v1.0.62 B7b ← Android ScheduleRepository.importNewTable: 新课表 + 可选私有作息表 +
+    /// v1.0.62 B7b ← 原版本 ScheduleRepository.importNewTable: 新课表 + 可选私有作息表 +
     /// 课程 + 默认表切换, 单事务原子提交(一个撤回单元)。
     /// 认亲（spec §2.4）: 事务内读导入前全库名册; 新课 hue 同事务落库(见 GRDBNewTableImportStore)。
     @discardableResult
@@ -150,11 +150,11 @@ final class ScheduleRepository {
         onDataChanged()
     }
 
-    /// v1.0.62 每课表提醒开关 — ← Android ScheduleRepository.setTableReminderEnabled:
+    /// v1.0.62 每课表提醒开关 — ← 原版本 ScheduleRepository.setTableReminderEnabled:
     /// 提醒设置独占 reminderEnabled 字段, 永不覆盖课表元数据;「读现值→相同即 no-op
     /// (不抓 undo)→不同才 capture+UPDATE」, 有变化才 onDataChanged。
     /// iOS 侧 captureForUndo 自带独立写事务, 不能嵌进 GRDB write 块(死锁), 故读写
-    /// 两步走: 单 UI 写入口(TableReminderScreen 每表 in-flight 去重同 Android pending),
+    /// 两步走: 单 UI 写入口(TableReminderScreen 每表 in-flight 去重同 原版本 pending),
     /// 竞态窗口可忽略。
     func setTableReminderEnabled(id: Int64, enabled: Bool) throws {
         guard let current = try tableDao.getById(id), current.reminderEnabled != enabled else { return }
@@ -312,13 +312,13 @@ final class ScheduleRepository {
         onDataChanged()
     }
 
-    /// issue#28 P3: 作息表变更后的课程节次自适应(← Android TimeTableUtils.remapCourseNodes)。
+    /// issue#28 P3: 作息表变更后的课程节次自适应(TimeTableUtils.remapCourseNodes)。
     ///
     /// 节次编号只是旧表绝对时间窗的载体: 取课程首节在旧表的 start 与末节在旧表的
     /// end, 在新表上找与之重叠的节点区间 — 首节 = 第一个 end 晚于课程起点的节,
     /// 末节 = 最后一个 start 早于课程终点的节。旧表缺行(课程锚的节次不存在)或
     /// 新表无任何重叠 → 返回原值(孤儿课保持原节次, 不猜不丢)。
-    /// NOTE: Android 侧此函数归属 TimeTableUtils; iOS 先落本文件私有静态成员,
+    /// NOTE: 原版本 侧此函数归属 TimeTableUtils; iOS 先落本文件私有静态成员,
     /// 集成者可原样平移至 Sleepy/util/TimeTableUtils.swift。
     static func remapCourseNodes(startNode: Int, step: Int, oldTimeJson: String, newTimeJson: String) -> (Int, Int) {
         if startNode < 1 || step < 1 { return (startNode, step) }
@@ -359,7 +359,7 @@ final class ScheduleRepository {
 
     // ========== PeriodTable (issue#40 独立时间节次表) ==========
 
-    /// ← Android: 三 DAO 同源 db — init 注入 dbQueue, 禁自取单例
+    /// ← 原版本: 三 DAO 同源 db — init 注入 dbQueue, 禁自取单例
     /// (测试/多库实例注入时观察流与写路径必须指向同一队列)。
     private let periodTableDao: PeriodTableDao
 
@@ -378,7 +378,7 @@ final class ScheduleRepository {
     }
 
     /// 甲案 (设计 §4.1): 绑定到指定作息表的全部课表 —
-    /// 弹窗"另有 N 张课表绑定"提示 + 三选项作用域语义共用 (← Android tableDao.getAllBoundTo)。
+    /// 弹窗"另有 N 张课表绑定"提示 + 三选项作用域语义共用 (tableDao.getAllBoundTo)。
     func getTablesBoundTo(_ periodTableId: Int64) throws -> [TimeTableEntity] {
         try tableDao.getAllBoundTo(periodTableId)
     }
@@ -438,7 +438,7 @@ final class ScheduleRepository {
         } else {
             next = { var t = table; t.periodTableId = periodTableId; return t }()
         }
-        // ← Android db.withTransaction { tableDao.update(next) } — 单语句包事务,
+        // ← 原版本 db.withTransaction { tableDao.update(next) } — 单语句包事务,
         //   与 Room 事务语义一致(GRDB 禁重入: 事务内直接 entity.update(db))
         try db.dbQueue.write { db in try next.update(db) }
         onDataChanged()
@@ -562,7 +562,7 @@ final class ScheduleRepository {
     }
 
     /// issue#22 行级 diff/patch 落库 ← applyDiff(tableId, diff)
-    /// Android 注释要求"调用前必须已 captureForUndo";iOS 侧 captureForUndo 是 private,
+    /// 原版本 注释要求"调用前必须已 captureForUndo";iOS 侧 captureForUndo 是 private,
     /// 这里改为内部捕获(功能等价:撤销快照仍在写库前生成)。顺序 delete → update → insert。
     func applyDiff(_ tableId: Int64, _ diff: DiffResult) throws {
         try captureForUndo()
@@ -615,7 +615,7 @@ final class ScheduleRepository {
     /// 直接走 tableDao.update 绕过 updateTable 的 captureForUndo — 撤回时上层
     /// (deleteCourse 等)已捕获了"删前完整快照(含完整 timeJson)", 撤回 = 回到删前,
     /// 课程和节点都复原, 此处不应再叠加中间快照。
-    /// NOTE: Android 调 TimeTableUtils.reclaimUnusedEdgeNodes; iOS 该工具文件归他人,
+    /// NOTE: 原版本 调 TimeTableUtils.reclaimUnusedEdgeNodes; iOS 该工具文件归他人,
     /// 同款算法先落本文件私有静态成员(← TimeTableUtils.kt:624), 集成者可平移。
     private func reclaimUnusedEdgeNodes(_ tableId: Int64) throws {
         guard let table = try tableDao.getById(tableId) else { return }
@@ -690,9 +690,9 @@ final class ScheduleRepository {
     }
 
     /// 数据变更后:刷新所有 widget,并在提醒开启时重排通知。
-    /// ★ 修复(继承自 Android):之前只刷 widget 不重排通知,导致编辑课表后课前提醒仍按旧时间。
-    /// ← Android: pruneDefaultTopPrefs 不在本回调内, 只在删课/覆盖导入/撤回等
-    ///   课程集真正变化的写路径显式调用(6 处), 与 Android 调用点一一对应。
+    /// ★ 修复(继承自 原版本):之前只刷 widget 不重排通知,导致编辑课表后课前提醒仍按旧时间。
+    /// ← 原版本: pruneDefaultTopPrefs 不在本回调内, 只在删课/覆盖导入/撤回等
+    ///   课程集真正变化的写路径显式调用(6 处), 与 原版本 调用点一一对应。
     private func onDataChanged() {
         onDataChangedHook?()
     }
@@ -750,7 +750,7 @@ final class ScheduleRepository {
 
     /// 绑定时间节次表的观察流 — 绑定切换/时间表内容修改都会 emit 新值,
     /// 上游(如 ScheduleViewModel)合并此流实现"立即全部同步"(设计 §5.2)。
-    /// ← Android flatMapLatest: tableDao.observeById → periodTableDao.observeById(boundId),
+    /// ← 原版本 flatMapLatest: tableDao.observeById → periodTableDao.observeById(boundId),
     /// 未绑定 emit nil。★ map + switchToLatest(而非 flatMap): Combine 的 flatMap 是
     /// MERGE 语义 — 解绑后旧 boundId 的内层观察不取消, 其后续变更会"复活"旧作息;
     /// switchToLatest 在绑定时机切换即取消内层, 与 flatMapLatest 一致。
@@ -768,10 +768,10 @@ final class ScheduleRepository {
             .eraseToAnyPublisher()
     }
 
-    /// 认亲 + 重写 groupId — ← Android ScheduleRepository.assignGroupIds。
+    /// 认亲 + 重写 groupId — ← 原版本 ScheduleRepository.assignGroupIds。
     /// 身份键 = trim + 空白折叠 + 小写(ImportRoster.importNameKey)。
     /// 优先级: 全局名册(同名历史课程) > 该行自带非空 groupId > 新 UUID。
-    /// 名册按 id 升序读取全库课程(Android knownNameToGroupId(courseDao.getAll()) 的确定性来源)。
+    /// 名册按 id 升序读取全库课程(原版本 knownNameToGroupId(courseDao.getAll()) 的确定性来源)。
     private func assignGroupIds(_ courses: [CourseEntity]) -> [CourseEntity] {
         let roster = knownNameRoster()
         return ImportRoster.normalizedImportGroups(courses, knownNameToGroup: roster)
@@ -784,8 +784,8 @@ final class ScheduleRepository {
         return ImportRoster.knownNameToGroupId(sorted)
     }
 
-    /// 新组补持久色相 — ← Android ScheduleRepository.persistNewGroupColors。
-    /// 只在「课程组诞生」时刻写表(导入路); 单课新增/编辑组不写(Android 同)。
+    /// 新组补持久色相 — ← 原版本 ScheduleRepository.persistNewGroupColors。
+    /// 只在「课程组诞生」时刻写表(导入路); 单课新增/编辑组不写(原版本 同)。
     /// 配色是增值数据: 失败一律吞掉降级为不写, 不影响课程落库主流程。
     private func persistNewGroupColors(_ entities: [CourseEntity]) {
         _ = CourseColorWriteGlue.persistNewGroupHues(dao: db.courseColorDao, entities: entities)

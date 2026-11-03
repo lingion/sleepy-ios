@@ -12,7 +12,7 @@
 // # 数据路径 (WebView 会话内同源 fetch, 无学期/周次参数 — 服务端按会话决定)
 //   GET /course_selection/courseselect/stuschedule/    本学期课表
 //   GET /course_selection/courseselecttask/schedule/   选课任务课表 (全学期)
-// 证据仓: HFDLYS/BJTUselfService (MIT) + wan300/bjtu_mis_Android (MIT) 双仓独立证实。
+// 证据仓: HFDLYS/BJTUselfService (MIT) + wan300/bjtu_mis_原版本 (MIT) 双仓独立证实。
 // 两段 HTML 以 [DOC_MARKER_PREFIX] 标记拼成一个 source 喂给本 parser, 段间独立解析、
 // 取课程数最多者 (并列时 schedule 全学期优先) — 单端点失败不拖垮另一端点。
 //

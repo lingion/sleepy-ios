@@ -4,7 +4,7 @@
 // today 列 onPrimaryContainer@0.82alpha, 课程间分隔线(可选开关)。
 //
 // v1.0.61 对齐 (← WeekViewWidget.kt companion L193-237 + push 闸门 L44-93):
-//  1. 装载器复用 WeekListWidgetDataLoader (Android 注释「与 WeekListWidget.loadDataSync
+//  1. 装载器复用 WeekListWidgetDataLoader (原版本 注释「与 WeekListWidget.loadDataSync
 //     完全一致」): resolve(kind) 展示周 / AFTER_END 清空 / 调休映射 / isGrey /
 //     compactWindow / weekDisplayStatus 全量接线;
 //  2. 每列 FIXED 窗口: availH = hDp − 56 − statusH, heightOf = wrapMax2Lines 行数 ×
@@ -12,7 +12,7 @@
 //  3. SMALL 档日列 = compactShownDays 单一口径 (compactWindow 优先, §9.1);
 //  4. 灰显 = 标题+chip alpha 153/255 (renderWeekViewRegular L1169-1186; 课名不灰);
 //  5. 分隔线开关不改变总前进量: ON/OFF 均恒 3dp (L1219-1235)。
-// forceScroll 条带 = Android 专有宿主, iOS 由列底「+N」窗口截断等价承担 (平台差异);
+// forceScroll 条带 = 原版本 专有宿主, iOS 由列底「+N」窗口截断等价承担 (平台差异);
 // compactFace 与 WeekList 同先例统一叠窗口 (iOS 无条带可滚, 否则溢出无处报告)。
 
 import SwiftUI
@@ -75,8 +75,8 @@ struct WeekViewWidgetEntryView: View {
         let useAlias = AppPrefs.shared.isWidgetUseAlias()
         let tier = WidgetLayoutTier(family: widgetFamily)
         // 状态行占位 16dp — 仅学期外画状态行才占位。
-        // ★ 定稿 (PR#14 评审 2026-10-28): Android statusH 闸门 (WeekViewWidget.kt L66-67)
-        //   = semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL, 但 Android 渲染器
+        // ★ 定稿 (PR#14 评审 2026-10-28): 原 statusH 闸门 (WeekViewWidget.kt L66-67)
+        //   = semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL, 但 原版本 渲染器
         //   从不画跳周字 (只消费 statusH 抬列顶); iOS 扩到跳周态又无占位文案时, 桌面
         //   widget 顶部凭空多一行空白 (开启「没课时显示最近有课的一天」默认 ON 时,
         //   用户 2026-10-27 实拍)。跳周态的可见标识 = 今天列被最近有课日数据替换本身。
@@ -91,7 +91,7 @@ struct WeekViewWidgetEntryView: View {
                 ? WidgetCompactHelpers.compactShownDays(data, AppPrefs.shared.getVisibleDays(), todayDow)
                 : shownDays(data)
             // ← push() L68-70 闸门: hasTable && 列非空 && 任一天有课 (数据层 days 全量口径);
-            // compactFace 不叠窗口是 Android 条带先例, iOS 与 WeekList 同规统一叠窗口
+            // compactFace 不叠窗口是 原版本 条带先例, iOS 与 WeekList 同规统一叠窗口
             // (无条带可滚, 否则溢出无处报告)。
             let colW = days.isEmpty ? 0
                 : (proxy.size.width - 12 - 4 * CGFloat(days.count - 1)) / CGFloat(days.count)

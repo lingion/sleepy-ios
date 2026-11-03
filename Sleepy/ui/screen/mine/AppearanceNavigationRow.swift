@@ -2,7 +2,7 @@
 // 外观页二级入口行(节次表头/课表显示等), 单行纯标题 + 右侧 chevron。
 // 视觉对齐 M3 ListItem: surfaceContainer 底, 12dp 圆角, 16dp 内外边距。
 //
-// 调用方现状: 组件本体与 Android 1:1; iOS AppearanceScreen Section④「节次表头」入口
+// 调用方现状: 组件本体与 原版本 1:1; iOS AppearanceScreen Section④「节次表头」入口
 // 已落地(AppearanceScreen.swift 分组④ ← AppearanceScreen.kt:213-222), AppearanceScreen
 // 已带 onOpenPeriodHeaderSettings 参数(默认 no-op)。剩余接线均在共享文件(SleepyApp /
 // SleepyRoutes / SleepyNavHost / SleepyNavigator): 在 SleepyApp 的 PresentOverlay .theme
@@ -21,7 +21,7 @@ struct AppearanceNavigationRow: View {
         Button(action: onClick) {
             HStack(spacing: 0) {
                 Text(title)
-                    .font(.system(size: 16))    // ← Android bodyLarge 16sp
+                    .font(.system(size: 16))    // ← 原 bodyLarge 16sp
                     .foregroundColor(colors.onSurface)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "chevron.right")

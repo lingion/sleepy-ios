@@ -91,7 +91,7 @@ final class ExportImportRoundTripTests: XCTestCase {
     }
 }
 
-// MARK: - iOS 补充:其余 4 种解析格式覆盖(Android 无独立测试,靠 round-trip 之外的真实格式守卫)
+// MARK: - iOS 补充:其余 4 种解析格式覆盖(原版本 无独立测试,靠 round-trip 之外的真实格式守卫)
 
 final class ScheduleParserFormatTests: XCTestCase {
 

@@ -2,7 +2,7 @@
 
 ## What
 
-Aligned the top-level Mine and Manage page typography with Android 1.0.51 Material 3 roles:
+Aligned the top-level Mine and Manage page typography with original 1.0.51 Material 3 roles:
 
 - Mine title uses `headlineMedium` at 28pt.
 - Manage title uses `headlineMedium` at 28pt with medium weight.
@@ -10,12 +10,12 @@ Aligned the top-level Mine and Manage page typography with Android 1.0.51 Materi
 
 ## Why
 
-The existing iOS titles were smaller than the Android baseline, and the Manage current-table name did not match the Android `titleLarge` scale. This slice applies only the confirmed typography deltas; the matrix keeps both screens `in-progress` until their remaining screen-level differences are addressed.
+The existing iOS titles were smaller than the Android baseline, and the Manage current-table name did not match the 原 `titleLarge` scale. This slice applies only the confirmed typography deltas; the matrix keeps both screens `in-progress` until their remaining screen-level differences are addressed.
 
 ## Evidence
 
-- Android source: `app/src/main/java/com/lingion/sleepy/ui/screen/mine/MineScreen.kt`
-- Android source: `app/src/main/java/com/lingion/sleepy/ui/screen/manage/ManagementPage.kt`
+- Original source: `app/src/main/java/com/lingion/sleepy/ui/screen/mine/MineScreen.kt`
+- Original source: `app/src/main/java/com/lingion/sleepy/ui/screen/manage/ManagementPage.kt`
 - iOS sources: `Sleepy/ui/screen/mine/MineScreen.swift`, `Sleepy/ui/screen/manage/ManagementPage.swift`
 - `git diff --check`: passed
 - Generic iOS build: `BUILD SUCCEEDED`

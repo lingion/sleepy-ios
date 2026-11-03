@@ -55,7 +55,7 @@ struct ScheduleConflictBottomSheet: View {
             .padding(.bottom, 32)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        // ← Android ModalBottomSheet 未覆写 containerColor → M3 默认 surfaceContainerLow
+        // ← 原版本 ModalBottomSheet 未覆写 containerColor → M3 默认 surfaceContainerLow
         //   (同仓 TimeSlotEditor.swift:300 / SmartPeriodEditor.swift:284 同惯例)
         .background(colors.surfaceContainerLow)
     }
@@ -74,7 +74,7 @@ struct ScheduleConflictBottomSheet: View {
         }
     }
 
-    // ← 三选项 (不变量: 始终全显示, 顺序 detach/create/sync 与 Android 一致)
+    // ← 三选项 (不变量: 始终全显示, 顺序 detach/create/sync 与原实现一致)
     private var optionList: some View {
         VStack(alignment: .leading, spacing: 0) {
             ConflictOption(

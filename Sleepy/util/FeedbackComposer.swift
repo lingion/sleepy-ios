@@ -4,7 +4,7 @@ import Foundation
  * 反馈工具类:拼装 GitHub 新 Issue URL 和 mailto: 链接,
  * 在关于页面供用户跳出去提反馈。
  *
- * Android FeedbackComposer.kt 1:1 移植。
+ * 原版本 1:1 移植。
  *
  * 设计原则:
  * - 应用不调用 GitHub API,只构造 URL 让系统浏览器或邮件客户端打开。
@@ -92,7 +92,7 @@ public enum FeedbackComposer {
     // MARK: - 内部
 
     private static func enc(_ s: String) -> String {
-        // 与 Android java.net.URLEncoder.encode(s, "UTF-8") 逐字节对齐:
+        // 与 原版本 java.net.URLEncoder.encode(s, "UTF-8") 逐字节对齐:
         // 字面保留 [A-Za-z0-9] . - * _ ; 空格转 '+' ; 其余(含非 ASCII、'~'、'/'、'+' 等)
         // 按 UTF-8 字节做大写十六进制百分号编码。全量编码包括 `/` `+` 等避免语义出错。
         let allowed = CharacterSet(charactersIn:

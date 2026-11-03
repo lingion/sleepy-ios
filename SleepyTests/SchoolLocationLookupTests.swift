@@ -1,6 +1,6 @@
 // SchoolLocationLookupTests.swift — ← SchoolLocationLookupTest.kt (v1.0.61)
 //
-// 六个用例逐一对应 Android 侧 SchoolLocationLookupTest:
+// 六个用例逐一对应 原版本 侧 SchoolLocationLookupTest:
 //   1. 快的 network 城市结果无需等 GPS, 且 GPS 请求被取消
 //   2. 全部实时 provider 还在等时, 近期合格缓存直接命中
 //   3. 快的粗精度结果不能击败慢的高精度结果

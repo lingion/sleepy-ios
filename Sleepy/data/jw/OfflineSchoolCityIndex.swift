@@ -1,7 +1,7 @@
 // OfflineSchoolCityIndex.swift — ← data/jw/OfflineSchoolCityIndex.kt
 // Local point-in-polygon lookup. Never guesses a city from its nearest centre.
 //
-// SCB1 二进制格式 (与 Android 1:1):
+// SCB1 二进制格式 (与 原版本 1:1):
 //   magic  int32  0x53434231 ("SCB1")
 //   每个 area: nameLen int32(1..256) + name bytes(UTF-8) + polygonCount int32(1..10000)
 //     每个 polygon: ringCount int32(1..10000)
@@ -112,7 +112,7 @@ final class OfflineSchoolCityIndex {
             switch self {
             case .unsupportedFormat: return "Unsupported city boundary format"
             case .invalidCount: return "Invalid city boundary count"
-            // 对齐 Android DataInputStream EOFException: 截断流报"流提前结束", 不冒充计数错误
+            // 对齐 原版本 DataInputStream EOFException: 截断流报"流提前结束", 不冒充计数错误
             case .unexpectedEndOfStream: return "Unexpected end of city boundary stream"
             case .missingName: return "Missing city name"
             case .tooLarge: return "City boundary data too large"
@@ -125,7 +125,7 @@ final class OfflineSchoolCityIndex {
 
     /// SCB1 流式解析 — 不建 JSON 树、不建点对象, 直接读进缩放整数 ring。
     /// 调用方持有流。每 ring 与每 256 点检查一次取消。
-    /// `checkCancelled` 可抛错中断扫描(Android `{ coroutineContext.ensureActive() }` 语义):
+    /// `checkCancelled` 可抛错中断扫描(原 `{ coroutineContext.ensureActive() }` 语义):
     /// 抛 `CancellationError` 归一为 `ParseError.cancelled`, 其余错误原样传播。
     static func parse(_ stream: InputStream, checkCancelled: () throws -> Void = {}) throws -> OfflineSchoolCityIndex {
         let input = stream
@@ -143,7 +143,7 @@ final class OfflineSchoolCityIndex {
             var read = 0
             while read < 4 {
                 let n = input.read(&buffer, maxLength: 4 - read)
-                // 对齐 Android DataInputStream.readInt 的 EOFException: 提前结束 = 流截断
+                // 对齐 原版本 DataInputStream.readInt 的 EOFException: 提前结束 = 流截断
                 if n <= 0 { throw ParseError.unexpectedEndOfStream }
                 read += n
             }
@@ -206,7 +206,7 @@ final class OfflineSchoolCityIndex {
             }
             areas.append(Area(name: name, polygons: polygons))
         }
-        // EOF 后不得有尾随字节 — 对齐 Android `require(input.read() == -1)`:
+        // EOF 后不得有尾随字节 — 对齐 原 `require(input.read() == -1)`:
         // Foundation InputStream(data:) 在流末尾返回 0(实测非 -1), 必须按 hasBytesAvailable
         // 判"有无尾随字节", 直接把 0 当尾随数据会让每个合法流都误报 .trailingData。
         var probe: UInt8 = 0

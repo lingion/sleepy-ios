@@ -1,6 +1,6 @@
 // JwParseDiagnosticsTests.swift — ← JwParseDiagnosticsTest.kt (v1.0.61)
 //
-// T9 诊断分类单测 — 九个用例逐一对应 Android 侧 JwParseDiagnosticsTest:
+// T9 诊断分类单测 — 九个用例逐一对应 原版本 侧 JwParseDiagnosticsTest:
 //   1. zf_new 会话过期页            → SESSION_EXPIRED (+登录提示文案/隐私断言)
 //   2. 强智 Logon.do 登录页          → SESSION_EXPIRED + "logon" 特征
 //   3. 空白页无课表容器              → NO_TABLE_CONTAINER + "no_container"

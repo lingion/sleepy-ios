@@ -18,27 +18,27 @@ private let FORCE_FLAG = "SLEEPY_FORCE_UPDATE=true"
 /// 镜像下载前缀 — 目录结构与 github.com 1:1, 直接字符串替换即可改写。 ← MIRROR_HOST/GITHUB_DOWNLOAD_HOST
 private let MIRROR_HOST = "https://gh.qdp.qzz.io"
 private let GITHUB_DOWNLOAD_HOST = "https://github.com"
-/// Android 侧发布仓库是 lingion/sleepy;iOS 分发走 lingion/sleepy-ios
+/// 原版本 侧发布仓库是 lingion/sleepy;iOS 分发走 lingion/sleepy-ios
 /// (与 UpdateManager.GITHUB_API/MIRROR_PREFIX 同源), 改写路径按 iOS 仓库作用域。
 private let GITHUB_DOWNLOAD_PREFIX = "https://github.com/lingion/sleepy-ios/releases/download/"
 private let MIRROR_DOWNLOAD_PREFIX = "https://gh.qdp.qzz.io/lingion/sleepy-ios/releases/download/"
 
 /// 解析 GitHub releases/latest 的 JSON 为 [UpdateInfo](纯函数,无 IO)。 ← parseReleaseJson
 ///
-/// [abi] Android 侧形如 "arm64-v8a"(挑对应 APK asset);iOS 分发为 AltStore 单 IPA,
+/// [abi] 原版本 侧形如 "arm64-v8a"(挑对应 APK asset);iOS 分发为 AltStore 单 IPA,
 /// asset 名固定 "Sleepy.ipa"(见平台差异表#2: 安装动作改为提示重新侧载)。
 /// 找不到对应 asset 时 downloadUrl 返回空串(调用方走镜像回退)。
 func parseReleaseJson(_ json: String, currentVersion: String, abi: String) -> UpdateInfo {
     // ← org.json.JSONObject;iOS 16 用 JSONSerialization(保持无第三方依赖)
     guard let data = json.data(using: .utf8),
           let release = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-        // JSON 坏 → Android optString 语义 = 空串 → version "0" → 恒非更新
+        // JSON 坏 → 原 optString 语义 = 空串 → version "0" → 恒非更新
         return UpdateInfo(version: "", changelog: "", downloadUrl: "", isUpdateAvailable: false)
     }
     let tag = release["tag_name"] as? String ?? ""
     let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
     let body = release["body"] as? String ?? ""
-    // Android: app-$abi-release.apk;iOS: Sleepy.ipa(abi 参数保留以对齐签名,忽略值)
+    // 原版本: app-$abi-release.apk;iOS: Sleepy.ipa(abi 参数保留以对齐签名,忽略值)
     let assetName = abi.isEmpty ? "Sleepy.ipa" : "Sleepy.ipa"
     var downloadUrl = ""
     if let assets = release["assets"] as? [[String: Any]] {

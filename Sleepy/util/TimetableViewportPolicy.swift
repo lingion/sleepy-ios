@@ -1,7 +1,7 @@
 // TimetableViewportPolicy.swift — ← util/TimetableViewportPolicy.kt 逐行翻译 (GPL-3.0)
 // 卡片课程表的纯布局策略。刻意不依赖 SwiftUI/Kotlin-Compose,
 // 让自适应行高最关键的部分可用单测验证。
-// 平台适配: Android 直接引用 ui.component.TimeSlot; iOS 端 CourseTableView.TimeSlot
+// 平台适配: 原版本 直接引用 ui.component.TimeSlot; iOS 端 CourseTableView.TimeSlot
 // 定义在 app-only 文件(widget extension 不编译 ui/), 本策略自带同构 SlotRef
 // (node + 起止分钟), 调用方用 TimeTableUtils.renderSlots(timeJson).map(Self.ref) 映射。
 

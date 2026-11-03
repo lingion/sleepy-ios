@@ -1,4 +1,4 @@
-// IrregularOverflowTests.swift — ← Android IrregularOverflowTest.kt (14 用例全量移植)
+// IrregularOverflowTests.swift — ← 原 IrregularOverflowTest.kt (14 用例全量移植)
 // 用户反馈 2026-09-09(需求真源): 非常规时间课跨午间空隙吸附 bug。
 // 场景: 10:30~12:30 与 14:00~16:00 两门非常规课; 作息 11:40~14:00 无节次。
 // 旧 timeToNode 把 12:30 向上吸附进节 5 → 假冲突。本文件锁死修复语义。

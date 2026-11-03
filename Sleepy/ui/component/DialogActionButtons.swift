@@ -17,13 +17,13 @@
 // Text 自动换行。权重必须按各键必需宽比例分配, 短键(「知道了」)少占,
 // 长键(「导出排查全量包」)多占, 每键 ≥ 必需宽。
 //
-// 可用宽度 = 容器实际宽度 (↔ Android BoxWithConstraints maxWidth.value; iOS 以
+// 可用宽度 = 容器实际宽度 (↔ 原版本 BoxWithConstraints maxWidth.value; iOS 以
 // PreferenceKey 测量, 首帧未测得前按屏幕宽 - 弹窗左右 padding(24×2) 估计兜底),
 // 因此也可独立用于 BottomSheet 等非 AlertDialog 容器。
 
 import SwiftUI
 
-/// ↔ Android BoxWithConstraints: 按钮行所在容器的实际宽度。
+/// ↔ 原版本 BoxWithConstraints: 按钮行所在容器的实际宽度。
 private struct DialogContainerWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
@@ -50,7 +50,7 @@ struct DialogActionButtons: View {
     var body: some View {
         // 可用宽度 = 容器实际宽度; 仅首帧测得前用屏幕宽 - 弹窗左右 padding(24×2) 估计兜底
         let availableWidth = measuredWidth > 0 ? measuredWidth : UIScreen.main.bounds.width - 48
-        // 顺序 = 取消 → 第三 → 确认(动作在末位), 与 Android labels 一致
+        // 顺序 = 取消 → 第三 → 确认(动作在末位), 与 原 labels 一致
         let labels = [dismissText, thirdText, confirmText].compactMap { $0 }
         let horizontal = DialogActionsLayoutPolicyBridge.fit(labels: labels, availableWidthDp: availableWidth)
         // 横排按各键必需宽比例分配权重(每键 ≥ 必需宽), 不等分
@@ -119,7 +119,7 @@ struct DialogActionButtons: View {
                 }
             }
         }
-        // ↔ Android BoxWithConstraints(modifier.fillMaxWidth()): 先填满容器给出的宽度,
+        // ↔ 原版本 BoxWithConstraints(modifier.fillMaxWidth()): 先填满容器给出的宽度,
         // 再经 background 测得自身 = 容器实际宽度(非贪心时测到的是键总宽, 不收敛)
         .frame(maxWidth: .infinity)
         .background(

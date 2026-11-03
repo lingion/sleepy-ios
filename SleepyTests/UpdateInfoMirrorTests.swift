@@ -1,6 +1,6 @@
 // UpdateInfoMirrorTests.swift — ← UpdateInfoParseTest.kt 中 iOS 侧此前未覆盖的用例组
 // (镜像改写 / 直连回退 / 镜像页 changelog 提取), 逐用例对齐。
-// ABI 挑 asset 的双命名用例(picks_correct_abi_asset 等)为 Android APK 专有,
+// ABI 挑 asset 的双命名用例(picks_correct_abi_asset 等)为 原版本 APK 专有,
 // iOS 单 IPA 语义已在 VersionAndUpdateTests.swift 等价覆盖,此处不重复。
 
 import XCTest

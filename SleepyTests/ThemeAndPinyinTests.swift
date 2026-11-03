@@ -1,4 +1,4 @@
-// ThemeAndPinyinTests.swift — D4 主题 + PinyinMatcher 测试(Android 无对应测试文件,iOS 立守卫)
+// ThemeAndPinyinTests.swift — D4 主题 + PinyinMatcher 测试(原版本 无对应测试文件,iOS 立守卫)
 
 import XCTest
 import SwiftUI

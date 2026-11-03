@@ -1,9 +1,9 @@
 // WidgetBindingStore.swift — ← WidgetBindingCore.kt + WidgetBindingStore.kt
-// 小组件逐实例课表绑定存储。Android 侧 SharedPreferences("widget_bindings") + "app_widget_<id>"
+// 小组件逐实例课表绑定存储。原版本 侧 SharedPreferences("widget_bindings") + "app_widget_<id>"
 // 键的忠实对应:iOS 侧为 App Group 共享容器中的 JSON 文件,键 = widget kind。
 //
 // ★ 平台差异(差异表#8 附注): WidgetKit StaticConfiguration 不暴露 appWidgetId 等价物,
-//   WidgetCenter.getCurrentConfigurations 的 WidgetInfo 无稳定实例 ID。Android 的"每个已放置
+//   WidgetCenter.getCurrentConfigurations 的 WidgetInfo 无稳定实例 ID。原版本 的"每个已放置
 //   实例独立绑定"在 iOS 的粒度上限是 per-kind(同 kind 所有实例共享 TimelineEntry 内容,
 //   本就无法逐实例渲染)。因此键从 appWidgetId 收窄为 kind,语义逐条对应:
 //   - null 绑定 = 跟随全局默认表 (WidgetTableResolver.resolveCurrentTable)

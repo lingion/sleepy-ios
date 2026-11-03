@@ -1,6 +1,6 @@
 // JwPekingParserTests.swift — ← JwPekingParserTest.kt (v1.0.61)
 //
-// fixture 对应 Android 侧 src/test/resources/jw/pku-bnuz/pku_*.html
+// fixture 对应 原版本 侧 src/test/resources/jw/pku-bnuz/pku_*.html
 // 与 jw/adversarial/pku_iaaa_login_redirect.html（此处按项目内联 fixture 惯例复刻，
 // 参照 JwQzIeasParserTests / JwHnustParserTests）。
 
@@ -9,7 +9,7 @@ import XCTest
 
 final class JwPekingParserTests: XCTestCase {
 
-    // MARK: - Fixtures（脱敏复刻自 Android pku_*.html）
+    // MARK: - Fixtures（脱敏复刻自 原版本 pku_*.html）
 
     /// pku_normal.html — 3 行: 高等数学(单时段) + 大学英语(2 个 <br> 时段) + 线性代数(未选跳过)
     private static let pkuNormal = #"""
@@ -266,9 +266,9 @@ final class JwPekingParserTests: XCTestCase {
         XCTAssertEqual(0, try JwPekingParser(Self.pkuLogin).generateCourseList().count)
     }
 
-    // MARK: - E. 多 ~ 边界（← Android substringAfter 语义，审计 issue 1/2 的回归锁）
+    // MARK: - E. 多 ~ 边界（← 原 substringAfter 语义，审计 issue 1/2 的回归锁）
 
-    /// "3~~4节"：Android substringAfter('~') 取第一个 ~ 之后 = "~4节"，filter isDigit → "4"，
+    /// "3~~4节"：原版本 substringAfter('~') 取第一个 ~ 之后 = "~4节"，filter isDigit → "4"，
     /// endNode=4（旧 iOS components(separatedBy:"~")[1]="" → nil→兜底 endNode 会得 (3,3)，错）。
     func test_multi_tilde_node_range_matches_android_semantics() throws {
         let courses = try JwPekingParser(row(timeCell: "1~16周 周一3~~4节 教1")).generateCourseList()
@@ -277,7 +277,7 @@ final class JwPekingParserTests: XCTestCase {
         XCTAssertEqual(4, courses[0].endNode)
     }
 
-    /// "1~2~16周"：Android substringAfter('~').substringBefore('周') → "2~16"，
+    /// "1~2~16周"：原版本 substringAfter('~').substringBefore('周') → "2~16"，
     /// filter isDigit 跨第二个 ~ 拼接 → "216"，endWeek=216。
     func test_multi_tilde_week_range_matches_android_semantics() throws {
         let courses = try JwPekingParser(row(timeCell: "1~2~16周 周一3~4节 教1")).generateCourseList()

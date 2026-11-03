@@ -8,7 +8,7 @@ import ZIPFoundation
 
 final class MigrationPackageCodecTests: XCTestCase {
 
-    // Android: `write and read preserves manifest and module JSON`
+    // 原版本: `write and read preserves manifest and module JSON`
     func testWriteAndReadPreservesManifestAndModuleJSON() throws {
         let bytes = try MigrationPackageCodec.write(
             modules: [
@@ -28,7 +28,7 @@ final class MigrationPackageCodecTests: XCTestCase {
         XCTAssertEqual(result.manifest.modules, ["database", "persisted_state", "preferences"])
     }
 
-    // Android: `unknown module is reported and ignored`
+    // 原版本: `unknown module is reported and ignored`
     func testUnknownModuleIsReportedAndIgnored() throws {
         let known = try MigrationPackageCodec.write(
             modules: [.PREFERENCES: "{}"],
@@ -41,7 +41,7 @@ final class MigrationPackageCodecTests: XCTestCase {
         XCTAssertTrue(result.modules.isEmpty)
     }
 
-    // Android: `invalid bytes are rejected before import`
+    // 原版本: `invalid bytes are rejected before import`
     func testInvalidBytesAreRejectedBeforeImport() {
         XCTAssertThrowsError(
             try MigrationPackageCodec.read(Data("not a zip".utf8))
@@ -51,7 +51,7 @@ final class MigrationPackageCodecTests: XCTestCase {
         }
     }
 
-    // Android: `database selection receives persisted state dependency`
+    // 原版本: `database selection receives persisted state dependency`
     func testDatabaseSelectionReceivesPersistedStateDependency() {
         XCTAssertEqual(
             MigrationModuleDeps.resolve([.DATABASE]),
@@ -61,7 +61,7 @@ final class MigrationPackageCodecTests: XCTestCase {
 
     // MARK: - helpers
 
-    /// 与 Android unknownModulePackage() 等价: manifest(modules=["future_settings"])
+    /// 与 原版本 unknownModulePackage() 等价: manifest(modules=["future_settings"])
     /// + modules/future_settings.json 的有效 ZIP, 走临时文件构造。
     private func unknownModulePackage() -> Data {
         let tmpDir = FileManager.default.temporaryDirectory

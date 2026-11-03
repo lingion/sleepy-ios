@@ -85,19 +85,19 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             }
         }
         WatchSyncCoordinator.shared.start()
-        // ← Android SleepyApp.onCreate:44 CourseHueStore.start(this)
+        // ← 原版本 SleepyApp.onCreate:44 CourseHueStore.start(this)
         //   持久色相只读快照首载 + 订阅 mode/seed/theme/themeMode 四键变更。
         CourseHueStore.shared.start()
-        // ← Android SleepyApp.onCreate: classDndScheduler 注入 (F128 issue#2)
+        // ← 原版本 SleepyApp.onCreate: classDndScheduler 注入 (F128 issue#2)
         ClassDndScheduler.shared.configure(repositoryProvider: { [weak self] in self?.repository })
-        // ← Android ReminderRescheduler.init 块 (SleepyApp.kt:44-52) — 同时修复 init_ 从未被调用、
+        // ← 原版本 ReminderRescheduler.init 块 (SleepyApp.kt:44-52) — 同时修复 init_ 从未被调用、
         //   全树 20+ 处 ReminderRescheduler.shared.request() 被静默丢弃的缺口。fluid-cloud 分支为
         //   platform-only 不移植:
         ReminderRescheduler.shared.init_(debounceMs: 300) {
             NotificationScheduler.shared.scheduleAll()
             ClassDndScheduler.shared.reconcileReminderRules()
         }
-        // ← Android BootReceiver kt:808 冷启动无条件校准 (pref 关时 rebuildState 守卫 = 安全 no-op):
+        // ← 原版本 BootReceiver kt:808 冷启动无条件校准 (pref 关时 rebuildState 守卫 = 安全 no-op):
         ClassDndScheduler.shared.syncFromPrefs()
         // v1.0.62 B1: 冷启动刷 course_colors 快照
         Task {
@@ -105,13 +105,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 mode: AppPrefs.shared.getCourseColorMode(), dao: database.courseColorDao
             )
         }
-        // ← Android ProcessLifecycleOwner onStart observer (SleepyApp.kt:63-72; iOS app-wide
+        // ← 原版本 ProcessLifecycleOwner onStart observer (SleepyApp.kt:63-72; iOS app-wide
         //   此前没有 didBecomeActive 调度观察者 — 只有 ReminderScreen 的局部快照刷新):
         NotificationCenter.default.addObserver(
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             guard self != nil else { return }
-            // Android 侧此处还有 reconcileActiveFluidCloud — vendor platform-only, iOS 无等价
+            // 原版本 侧此处还有 reconcileActiveFluidCloud — vendor platform-only, iOS 无等价
             ClassDndScheduler.shared.syncFromPrefs()
             // watch 伴侣 App: 回前台兜底重推 (离线期间 onDataChanged 攒的改动追平)
             WatchSyncCoordinator.shared.syncNow()
@@ -148,7 +148,7 @@ final class AppRootViewModel: ObservableObject {
     //   其原生 pop 识别器按 UIKit 独占规则优先于容器侧滑。
     enum OverlayScreen: String, Identifiable {
         case addCourse, allTables, editTable, theme, general, export, reminder, about, license
-        // ← v1.0.60 新屏(Android SleepyNavHost push 路由的 overlay 等价物)
+        // ← v1.0.60 新屏(原版本 SleepyNavHost push 路由的 overlay 等价物)
         case courseList              // CourseListScreen(我的页课程数卡入口)
         case periodTables            // PeriodTablesScreen(作息表管理, issue#40 §4.1)
         case periodEdit              // PeriodTableEditScreen(pendingNew 丢弃链见 handleBack)
@@ -164,7 +164,7 @@ final class AppRootViewModel: ObservableObject {
     @Published var currentTab: Tab = .schedule
     @Published var overlayScreen: OverlayScreen? = nil
     @Published var editingCourse: CourseEntity? = nil
-    // ← Android b96c865b: 课表视图模式(周/网格)会话级真值, 与 currentTab 同级 —
+    // ← 原版本 b96c865b: 课表视图模式(周/网格)会话级真值, 与 currentTab 同级 —
     // tab 切换/overlay 都会整页移除 ScheduleScreen, 状态必须提层才存活; 初始化读启动默认
     @Published var scheduleViewMode: ViewMode = AppPrefs.shared.getStartView() == "cards" ? .cards : .full
     // ← rememberSaveable 导航参数(旋转恢复语义 — iOS 状态默认保留)
@@ -181,16 +181,16 @@ final class AppRootViewModel: ObservableObject {
     // 语言切换重建 token(← Activity.recreate): L10n.didChange → 递增 → AppRoot 全树重建
     @Published var languageReload = 0
     // ★ v1.0.45 底栏 dock 样式: false=贴底, true=悬浮药丸
-    //   ← Android v1.0.45 b0f8280;状态由 AppPrefs 持有, 监听 .didChange 自动反向同步
+    //   ← 原版本 v1.0.45 b0f8280;状态由 AppPrefs 持有, 监听 .didChange 自动反向同步
     // ★ 2026-10-26 两项制(Kerry 定): 初值走 NavStyleResolver(未写入=缺省悬浮)
     @Published var navFloating: Bool = NavStyleResolver.effectiveFloating()
     // ★ 渲染模式快照(native/floating/docked 三态) — tabs 分流真源;
     //   navFloating 仅表达"悬浮语义"(原生=内容直通屏底+底部余量), 形态分流看这里。
     @Published var navMode: NavBarRenderMode = NavStyleResolver.effectiveMode()
-    // ← Android MainActivity.kt:342-351 RightHalfContent: importDraftRepository.observeAll()
+    // ← 原版本 MainActivity.kt:342-351 RightHalfContent: importDraftRepository.observeAll()
     //   经 JwImportDraftCodec 映射成 UI 行模型; iOS getAll() 是同步等价(无 Flow)
     @Published var importDrafts: [ImportDraftRowModel] = []
-    // ← Android JwImportActivity.EXTRA_DRAFT_ID: 管理页「恢复草稿」置位,
+    // ← 原版本 JwImportActivity.EXTRA_DRAFT_ID: 管理页「恢复草稿」置位,
     //   AppRoot 消费后带进 JwImportFlow(incomingDraftId:) 并清零
     @Published var pendingDraftId: String? = nil
 
@@ -199,7 +199,7 @@ final class AppRootViewModel: ObservableObject {
 
     let scheduleViewModel: ScheduleViewModel
     private let draftRepository = ImportDraftRepository(AppDatabase.getShared())
-    // ← Android MainActivity.kt:261 `rememberSleepyNavigator()`: 门面唯一实例。
+    // ← 原版本 MainActivity.kt:261 `rememberSleepyNavigator()`: 门面唯一实例。
     //   iOS 无 composition 生命周期, 挂在 VM 上 = 与 AppRoot 同寿(VM 由 AppDelegate
     //   永久持有, 与本懒加载实例互为 app-scoped 常驻对象, 不构成新增泄漏)。
     //   AppRoot 全部导航意图经它下发(push → vm.navigate 单一真源), 否则门面零消费方
@@ -235,7 +235,7 @@ final class AppRootViewModel: ObservableObject {
     /// 实时窗口尺寸上报(AppRoot background GeometryReader → preference)。
     /// rail 双栏判定首选此值(宽≥600pt 且 宽≥高): 旋转/Split View/Stage Manager
     /// 缩放皆即时覆盖; keyWindow 兜底只在冷启早期(回调未达)时保守按手机形态。
-    /// ← Android 版本 PR#235 口径: 横屏判定用逐帧真实几何, 不用 orientation 枚举。
+    /// ← 原版本 PR#235 口径: 横屏判定用逐帧真实几何, 不用 orientation 枚举。
     private(set) var windowSize: CGSize? = nil
 
     func updateWindowSize(_ size: CGSize) {
@@ -266,7 +266,7 @@ final class AppRootViewModel: ObservableObject {
             overlayScreen = nil
             editTableId = nil
         } else if let discardPeriodId = pendingNewPeriodTableId {
-            // ← v1.0.60: 作息表编辑未保存返回 → 丢弃残留行(Android NavHost BackHandler 同语义)
+            // ← v1.0.60: 作息表编辑未保存返回 → 丢弃残留行(原版本 NavHost BackHandler 同语义)
             pendingNewPeriodTableId = nil
             scheduleViewModel.discardNewPeriodTable(id: discardPeriodId)
             overlayScreen = nil
@@ -279,7 +279,7 @@ final class AppRootViewModel: ObservableObject {
     }
 
     // ← v1.0.60: 新建作息表 → 立即进编辑(编辑页按"未保存新表"处理,
-    //   返回时 handleBack 丢弃残留行) ← Android createPeriodTableAndEdit
+    //   返回时 handleBack 丢弃残留行) ← 原版本 createPeriodTableAndEdit
     func createPeriodTableThenEdit() {
         let newId = scheduleViewModel.insertPeriodTable(name: L10n.t("period_table_new"))
         if newId > 0 {
@@ -330,8 +330,8 @@ final class AppRootViewModel: ObservableObject {
         overlayScreen = .dailyAgenda
     }
 
-    // ← Android MainActivity.kt:342-351 (observeAll + JwImportDraftCodec 映射)。
-    //   getAll() = observeAll() 的同步等价; 解码失败的行直接跳过(Android mapNotNull 同义)。
+    // ← 原版本 MainActivity.kt:342-351 (observeAll + JwImportDraftCodec 映射)。
+    //   getAll() = observeAll() 的同步等价; 解码失败的行直接跳过(原 mapNotNull 同义)。
     func refreshDrafts() {
         let entities = (try? draftRepository.getAll()) ?? []
         let importCoursesLabel = L10n.t("import_courses")
@@ -344,12 +344,12 @@ final class AppRootViewModel: ObservableObject {
         }
     }
 
-    // ← Android onRestoreDraft = startActivity(JwImportActivity + EXTRA_DRAFT_ID) (MainActivity.kt:359)
+    // ← 原 onRestoreDraft = startActivity(JwImportActivity + EXTRA_DRAFT_ID) (MainActivity.kt:359)
     func restoreImportDraft(_ id: String) {
         pendingDraftId = id
     }
 
-    // ← Android onDeleteDraft = importDraftRepository.delete(id) (MainActivity.kt:362)
+    // ← 原 onDeleteDraft = importDraftRepository.delete(id) (MainActivity.kt:362)
     func deleteDraft(_ id: String) {
         try? draftRepository.delete(id)
         refreshDrafts()
@@ -375,7 +375,7 @@ struct AppRoot: View {
     // ★ iOS 16 sheet 冲突修复: ImportSheet 关闭动画中直接 present JwImportFlow
     //   会被 SwiftUI 丢弃(同一 runloop 两个 sheet 状态翻转)→ 延到 dismiss 完成。
     @State private var jwImportRequested = false
-    // ← Android EXTRA_DRAFT_ID 入参: 恢复草稿时带进 JwImportFlow(普通导入为 nil)
+    // ← 原版本 EXTRA_DRAFT_ID 入参: 恢复草稿时带进 JwImportFlow(普通导入为 nil)
     @State private var jwIncomingDraftId: String? = nil
     // ← issue#39: 流程内 activeImport 为真时封掉 sheet 下滑关闭, 否则绕过退出确认静默丢进度
     @State private var jwActiveImport = false
@@ -391,7 +391,7 @@ struct AppRoot: View {
         // ★ 键盘避让只在 tab 层忽略(旧 fullScreenCover 时代对整个 mainContent 忽略);
         //   浮层走自绘 ZStack 容器, 保留键盘避让 → AddCourse 输入框自动避开键盘。
         mainContent
-        // ★ 实时尺寸通道(← Android 版本 Configuration.screenWidthDp/HeightDp 逐帧
+        // ★ 实时尺寸通道(← 原版本 Configuration.screenWidthDp/HeightDp 逐帧
         //   重算语义 + PR#235 几何闸口径): background GeometryReader 零布局侵入,
         //   变更回灌 VM → rail 双栏↔手机形态随旋转/分屏/Stage Manager 缩放即切。
         //   iPhone 恒竖屏, 回调值不变=空操作。
@@ -425,7 +425,7 @@ struct AppRoot: View {
             }
             // ← SleepyApp.onCreate: 预加载当年+明年节假日数据(磁盘/网络)
             Task { await HolidayManager.preload() }
-            // ← Android observeAll() 常驻订阅的等价: 进入即读一次草稿列表
+            // ← 原版本 observeAll() 常驻订阅的等价: 进入即读一次草稿列表
             root.refreshDrafts()
             // 冷启兜底: onAppear 时窗口已就位, 重判一次(inset 判定不再可能 nil)
             root.refreshNavMode()
@@ -501,7 +501,7 @@ struct AppRoot: View {
         AppPrefs.shared.isDarkMode(isSystemDark: systemScheme == .dark)
     }
 
-    // ← Android isSystemInDarkTheme() 真跟随: system 模式传 nil(不强制覆盖)。
+    // ← 原版本 isSystemInDarkTheme() 真跟随: system 模式传 nil(不强制覆盖)。
     //   preferredColorScheme 非 nil 会把 @Environment(\.colorScheme) 锁成被覆盖的值,
     //   导致控制中心切换深浅色时 app 永远不跟 → "跟随系统"是假的。nil = 原生跟随。
     private var schemeOverride: ColorScheme? {
@@ -563,7 +563,7 @@ struct AppRoot: View {
                     themeMode = mode
                     themeKey = AppPrefs.shared.getThemeKey()
                 },
-                // ← Android themeKeyFlow.collectAsState: 选主题色即时下发全树,
+                // ← 原版本 themeKeyFlow.collectAsState: 选主题色即时下发全树,
                 //   不再等重进页面/重启(AppRoot.themeKey 是一次性 @State,必须回写)
                 onThemeKeyChange: {
                     themeKey = AppPrefs.shared.getThemeKey()
@@ -576,11 +576,11 @@ struct AppRoot: View {
     //   - native:   悬浮档 + iOS 26+ 原生可用 → 系统 TabView(Liquid Glass 原生悬浮玻璃)
     //   - floating: ZStack(alignment: .bottom) + content fillMaxSize 直通屏底 +
     //              bar 作为 overlay 浮在底部 12pt 上(背景延续,无空缺)。
-    //              ← Android ff66ddd "dock 模式弃 Scaffold bottomBar 占位, Box overlay
+    //              ← 原版本 ff66ddd "dock 模式弃 Scaffold bottomBar 占位, Box overlay
     //                Align.BottomCenter 叠加; 内容 fillMaxSize 直通屏幕底" 1:1。
     //   - docked:  VStack(content + bar) → bar 贴底 76pt 占用下方(非全面屏/Home 键设备)
     //   floating/docked = 自绘二态(用户显式选择或 iOS<26); scroll padding 补偿
-    //   floatingScrollBottomPadding(FAB 式滚动余量, Android LocalNavExtraBottomPadding 同位)。
+    //   floatingScrollBottomPadding(FAB 式滚动余量, 原版本 LocalNavExtraBottomPadding 同位)。
     private var tabs: some View {
         Group {
             switch root.navMode {
@@ -600,13 +600,13 @@ struct AppRoot: View {
     }
 
     // ★ rail 模式(iPad 横屏/分屏宽侧 ≥600pt 且横屏几何): Row{侧栏, 双栏内容} —
-    //   ← Android 版本 SleepyNavHost issue#45 ③ PR#114 master-detail 终态:
+    //   ← 原版本 SleepyNavHost issue#45 ③ PR#114 master-detail 终态:
     //   Row{ NavigationRail(3 槽跑道胶囊), Row(padding h16/v12, spacedBy 16){
     //     左 50% ScheduleScreen 永久固定(surfaceContainerLow 16 圆角卡),
     //     12dp 暗色沟槽(background 色),
     //     右 50% AnimatedContent(200ms 淡切) Today/Manage/Mine(同款卡) } }
-    //   导航仍是 root.currentTab 单点真值(切 tab 不换容器, 与 Android 同);
-    //   宽屏下 currentTab=.schedule(Compact 缺省)派生右半=.today(← Android
+    //   导航仍是 root.currentTab 单点真值(切 tab 不换容器, 与 原版本 同);
+    //   宽屏下 currentTab=.schedule(Compact 缺省)派生右半=.today(← 原实现
     //   effectiveRightTab 同款), rail 点击只设 today/manage/mine。
     //   宽度通道: background GeometryReader 零布局侵入, .global 系分屏/Stage
     //   Manager 缩放后的实际窗口尺寸; 变更即回灌 refreshNavMode 重判。
@@ -616,7 +616,7 @@ struct AppRoot: View {
                               selectedTab: tabletRightTab,
                               scheduleIcon: "calendar")
                 .ignoresSafeArea(edges: .bottom)
-            // ← Android 内容 Row: padding(horizontal=16, vertical=12) +
+            // ← 原版本 内容 Row: padding(horizontal=16, vertical=12) +
             //   spacedBy(16){ 左卡; Box(width=12, background 沟槽); 右卡 }
             //   → 两卡之间总间隔 = 16 + 12(沟槽盒) + 16 = 44dp, 沟槽盒 background
             //   色整高(卡片同高, 含卡上下缘)。iOS HStack(spacing:16) + 12pt 盒逐字复刻。
@@ -634,12 +634,12 @@ struct AppRoot: View {
         }
     }
 
-    /// 双栏派生右半 tab(← Android effectiveRightTab: currentTab==Schedule → Today)。
+    /// 双栏派生右半 tab(effectiveRightTab: currentTab==Schedule → Today)。
     private var tabletRightTab: AppRootViewModel.Tab {
         root.currentTab == .schedule ? .today : root.currentTab
     }
 
-    /// rail 三项数据(today/manage/mine 固定槽位, ← Android rail 无 Schedule 独立项)。
+    /// rail 三项数据(today/manage/mine 固定槽位, ← 原 rail 无 Schedule 独立项)。
     private var tabletRailItems: [PillNavItemData] {
         [
             PillNavItemData(id: "today", icon: "doc.on.doc",
@@ -651,13 +651,13 @@ struct AppRoot: View {
             PillNavItemData(id: "mine", icon: "person",
                             label: L10n.format("tab_mine"),
                             selected: tabletRightTab == .mine,
-                            // ← Android: 普通项形态才吃 updateNoticeVisible(胶囊
+                            // ← 原版本: 普通项形态才吃 updateNoticeVisible(胶囊
                             //   形态由 NavigationRailBar 内 tabShowUpdateDot 分支处理)
                             badge: updateNotifier.noticeVisible) { root.currentTab = .mine },
         ]
     }
 
-    /// 左半课表 pane — ← Android tablet 分支 ScheduleScreen 直构(非 MainTabs 的
+    /// 左半课表 pane — ← 原 tablet 分支 ScheduleScreen 直构(非 MainTabs 的
     /// Tab.Schedule 包装): onGoImport = 切 Manage + 新建课表流(iOS 无 AddTable 路由,
     /// createNewTableThenEdit = MainActivity 等价封装, SleepyApp:690 同款映射)。
     private var tabletSchedulePane: some View {
@@ -676,9 +676,9 @@ struct AppRoot: View {
             })
     }
 
-    /// 右半 pane — ← Android RightHalfContent(AnimatedContent 200ms 淡切):
+    /// 右半 pane — ← 原版本 RightHalfContent(AnimatedContent 200ms 淡切):
     /// Today 用 compact 变体(← CompactTodayPane: 无背景/竖排紧凑/无底部药丸余量),
-    /// Manage/Mine 复用手机版原样(与 Android 右半直构 ManagementPage/MineScreen 同)。
+    /// Manage/Mine 复用手机版原样(与 原版本 右半直构 ManagementPage/MineScreen 同)。
     @ViewBuilder
     private var tabletRightPane: some View {
         let tab = tabletRightTab
@@ -703,7 +703,7 @@ struct AppRoot: View {
         .animation(.easeInOut(duration: 0.2), value: tab)
     }
 
-    /// 双栏面板卡(← Android Box.clip(RoundedCornerShape(16.dp))
+    /// 双栏面板卡(Box.clip(RoundedCornerShape(16.dp))
     ///   .background(colors.surfaceContainerLow))
     private func tabletPaneCard<Content: View>(content: Content) -> some View {
         content
@@ -756,7 +756,7 @@ struct AppRoot: View {
         .tint(colors.primary)
         // ★ 视口直通屏底(2026-10-26 实机): 每屏子级 ignoresSafeArea 在 iOS26
         // TabView 内被系统重新钳回安全区 → 提到 TabView 层打穿, 内容容器
-        // 铺到玻璃 dock 正下方(与 Android edge-to-edge 一致)。
+        // 铺到玻璃 dock 正下方(与 原版本 edge-to-edge 一致)。
         .ignoresSafeArea(.container, edges: .bottom)
     }
 
@@ -778,7 +778,7 @@ struct AppRoot: View {
     }
 
     /// 4 屏内容工厂(← v1.0.60 差量: Mine badge 走 UpdateNotifier.noticeVisible,
-    /// 与 Android SleepyNavHost 同一状态源) — docked/floating 单屏渲染与
+    /// 与 原版本 SleepyNavHost 同一状态源) — docked/floating 单屏渲染与
     /// native TabView 多屏实例化共用, 页面接线零重复。
     @ViewBuilder
     private func screen(for tab: AppRootViewModel.Tab) -> some View {
@@ -788,10 +788,10 @@ struct AppRoot: View {
                 viewModel: root.scheduleViewModel,
                 viewMode: $root.scheduleViewMode,
                 onGoImport: { root.currentTab = .manage },
-                // ← Android MainTabs:328 onManualAdd = navigator.openAddCourse()
+                // ← 原版本 MainTabs:328 onManualAdd = navigator.openAddCourse()
                 onManualAdd: { root.navigator.openAddCourse() },
                 onCreateTable: { root.createNewTableThenEdit() },
-                // ← Android MainTabs:330 onEditCourse = session.beginEditCourse(course)
+                // ← 原版本 MainTabs:330 onEditCourse = session.beginEditCourse(course)
                 //   + navigator.openAddCourse(course.id, editing: true)
                 onEditCourse: { course in
                     root.navigator.session.beginEditCourse(course)
@@ -799,7 +799,7 @@ struct AppRoot: View {
                 })
         case .today:
             TodayScreen(viewModel: root.scheduleViewModel,
-                        // ← Android MainTabs:333 TodayScreen.onEditCourse 同式
+                        // ← 原版本 MainTabs:333 TodayScreen.onEditCourse 同式
                         onEditCourse: { course in
                             root.navigator.session.beginEditCourse(course)
                             root.navigator.openAddCourse(courseId: course.id, editing: true)
@@ -807,7 +807,7 @@ struct AppRoot: View {
         case .manage:
             managementPage
         case .mine:
-            // ← Android MainTabs:370-377 MineScreen 八入口全部 navigator.openXxx()
+            // ← 原版本 MainTabs:370-377 MineScreen 八入口全部 navigator.openXxx()
             MineScreen(
                 viewModel: root.scheduleViewModel,
                 onOpenAllTables: { root.navigator.openAllTables() },
@@ -823,7 +823,7 @@ struct AppRoot: View {
 
     // 4 个 tab 的数据:共用于 docked / floating 两个自绘分支,避免重复
     // ← v1.0.60 差量: Mine tab badge = UpdateNotifier.noticeVisible (更新红点,
-    //   与 Android SleepyNavHost badge = updateNoticeVisible && tab == Mine 同一状态源)
+    //   与 原版本 SleepyNavHost badge = updateNoticeVisible && tab == Mine 同一状态源)
     @ObservedObject private var updateNotifier = UpdateNotifier.shared
     private var navItems: [PillNavItemData] {
         [
@@ -855,29 +855,29 @@ struct AppRoot: View {
             viewModel: root.scheduleViewModel,
             autoShowImportSheet: PendingImportText.value != nil,
             onJwImportRequested: { jwImportRequested = true },
-            // ← Android MainTabs:352 onCreateNewTableRequested = onCreateNewTable
+            // ← 原版本 MainTabs:352 onCreateNewTableRequested = onCreateNewTable
             //   (MainActivity 闭包 = createEmptyTable + openEditTable; iOS 状态机
             //   封装在 createNewTableThenEdit, 含 allTables-cover 换页时序, 保持直调)
             onCreateNewTableRequested: { root.createNewTableThenEdit() },
-            // ← Android MainTabs:355 onManualAdd = navigator.openAddCourse()
+            // ← 原版本 MainTabs:355 onManualAdd = navigator.openAddCourse()
             onManualAdd: { root.navigator.openAddCourse() },
-            // ← Android MainTabs:355 onEditCurrentTable = navigator.openEditTable()
+            // ← 原版本 MainTabs:355 onEditCurrentTable = navigator.openEditTable()
             onEditCurrentTable: { root.navigator.openEditTable() },
-            // ← Android MainTabs:355 onExportRequested = navigator.openExport()
+            // ← 原版本 MainTabs:355 onExportRequested = navigator.openExport()
             onExportRequested: { root.navigator.openExport() },
-            // ★ 导入完成链(← Android onImported: 留在管理页, 摘要卡就地刷新)
+            // ★ 导入完成链(onImported: 留在管理页, 摘要卡就地刷新)
             onImported: {
-                // ← Android ce7f7924: 导入完成留在管理页(摘要卡就地刷新), 不再硬跳课表 Tab
+                // ← 原版本 ce7f7924: 导入完成留在管理页(摘要卡就地刷新), 不再硬跳课表 Tab
                 PendingImportText.value = nil
             },
-            // ← Android SleepyNavHost: onOpenAllTables = navigator.openAllTables()
+            // ← 原版本 SleepyNavHost: onOpenAllTables = navigator.openAllTables()
             onOpenAllTables: { root.navigator.openAllTables() },
-            // ← Android MainTabs:354 createPeriodTableAndEdit(newId) =
+            // ← 原版本 MainTabs:354 createPeriodTableAndEdit(newId) =
             //   navigator.createPeriodTableAndEdit(newId) (内部 openPeriodEdit(newId, isNew=true))
             onCreateNewPeriodTableRequested: { newId in
                 root.navigator.createPeriodTableAndEdit(newId: newId)
             },
-            // ← Android MainActivity.kt:353-364 drafts/onRestoreDraft/onDeleteDraft
+            // ← 原版本 MainActivity.kt:353-364 drafts/onRestoreDraft/onDeleteDraft
             //   (onRestoreDraft = startActivity(JwImportActivity + EXTRA_DRAFT_ID) —
             //   iOS 无 Activity 通道, restoreImportDraft → pendingDraftId 等价 plumbing)
             drafts: root.importDrafts,
@@ -886,8 +886,8 @@ struct AppRoot: View {
     }
 
     // ★ docked 模式:bar 占用 76pt(老行为)
-    //   (注: ← Android 版 Compact 贴底已改官方 NavigationBar; iOS 维持自绘 docked =
-    //   2026-10-26 Kerry 两项制定稿的有意差异, 不随 Android 动)
+    //   (注: ← 原版本 版 Compact 贴底已改官方 NavigationBar; iOS 维持自绘 docked =
+    //   2026-10-26 Kerry 两项制定稿的有意差异, 不随 原版本 动)
     private var dockedTabs: some View {
         VStack(spacing: 0) {
             tabContent
@@ -900,12 +900,12 @@ struct AppRoot: View {
     //   - ZStack overlay 让 bar 浮在内容之上,不占布局空间
     //   - ignoresSafeArea bottom 让内容背景直通屏幕底(无空缺)
     //   - 内容底部 padding = floatingScrollBottomPadding → FAB 式滚动余量,
-    //     最后一节课不被悬浮 bar 遮挡(Android LocalNavExtraBottomPadding 同位)
+    //     最后一节课不被悬浮 bar 遮挡(原版本 LocalNavExtraBottomPadding 同位)
     //   - bar alignment .bottom 自带 PillNavigationBar 内部 bottomFloat=12pt,
     //     浮在屏幕底 12pt 上(可视即"悬浮胶囊")
     //   - 同步把 floatingScrollBottomPadding 注入 .localNavExtraBottomPadding
     //     让 MineScreen/ManagementPage/TodayScreen/CourseTableView 自己读 →
-    //     内部 padding(bottom, 16 + navExtra) 一字对齐 Android。
+    //     内部 padding(bottom, 16 + navExtra) 一字对齐 原版本。
     private var floatingTabs: some View {
         ZStack(alignment: .bottom) {
             tabContent
@@ -917,7 +917,7 @@ struct AppRoot: View {
     }
 
     // FAB 式滚动余量 = capsuleHeight(64) + bottomFloat(12) + extra(12 视觉缓冲)
-    // ← Android ff66ddd navHeight + fabPadding + WindowInsets.navigationBars
+    // ← 原版本 ff66ddd navHeight + fabPadding + WindowInsets.navigationBars
     private var floatingScrollBottomPadding: CGFloat {
         DockSpec.capsuleHeight + DockSpec.bottomFloat + 12
     }
@@ -996,7 +996,7 @@ private struct NativeScreenModifier: ViewModifier {
 /// ignoresSafeArea 均被重钳(两层实验皆无效)。修复 = 探针沿 superview 链:
 /// ① 沿途 wrapper 背景设 clear(画布从玻璃下透出);
 /// ② 链上首个 VC 设 additionalSafeAreaInsets.bottom = -(系统基础 inset),
-///    把视口推回真屏底(edge-to-edge, 与 Android 一致; 玻璃 bar 悬浮其上,
+///    把视口推回真屏底(edge-to-edge, 与原实现一致; 玻璃 bar 悬浮其上,
 ///    滚动余量经 .localNavExtraBottomPadding=92pt 让最后一行可滚离遮挡)。
 private struct TabBarTransparentProbe: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
@@ -1030,7 +1030,7 @@ private struct TabBarTransparentProbe: UIViewRepresentable {
                 // 死锁 bar 上沿, 内容滚不到屏底。TBC.additionalSafeAreaInsets
                 // 无效(实测 -34 只削掉 home indicator, 49 在子 VC 层另加)。
                 // → 逐子 VC 抵消其 bar 贡献量, 只保留 home indicator(34),
-                //   与 Android edge-to-edge + gesture inset 语义一致。
+                //   与 原版本 edge-to-edge + gesture inset 语义一致。
                 for child in tbc.children {
                     let cs = child.view.safeAreaInsets.bottom - child.additionalSafeAreaInsets.bottom
                     let target = -(max(cs - 34, 0))
@@ -1074,7 +1074,7 @@ private struct TabsCanvasBackground: View {
     }
 }
 
-/// overlay 容器底色 ← Android SleepyNavHost 每个 composable 自带 Scaffold(containerColor)。
+/// overlay 容器底色 ← 原版本 SleepyNavHost 每个 composable 自带 Scaffold(containerColor)。
 /// 同 TabsCanvasBackground: 独立子 View 在 themedOverlay 的 provider 子树内解析 env,
 /// 深色模式不会误取 provider 之上的 lightScheme 默认值。
 private struct OverlayCanvasBackground: View {
@@ -1138,7 +1138,7 @@ private struct PresentOverlay: ViewModifier {
             if let screen = shownScreen {
                 overlayContent(screen)
                     .offset(x: dragX)
-                    // 容器级不透明底 ← Android SleepyNavHost 每个 composable 自带
+                    // 容器级不透明底 ← 原版本 SleepyNavHost 每个 composable 自带
                     // Scaffold(containerColor)。旧行为: 浮层零背景 → 直接透出下层
                     // tab 页, 深色模式下 = 白屏 (真机报告 "我的→设置页 全白")。
                     // 必须 ignoresSafeArea — 与 TabsCanvasBackground 挂载点(479)同款,
@@ -1147,7 +1147,7 @@ private struct PresentOverlay: ViewModifier {
                     // 整体挂在根 SleepyThemeProvider 之外, 直接读环境拿到的是
                     // WakeUpColorsKey.defaultValue = lightScheme (白) 而非当前主题。
                     .background(OverlayCanvasBackground().ignoresSafeArea())
-                    // ← Android SleepyNavHost.kt:171 sleepyForwardTransform: 入页 fadeIn110
+                    // ← 原版本 SleepyNavHost.kt:171 sleepyForwardTransform: 入页 fadeIn110
                     //   + 中心浮起220, 出页 fadeOut+scaleOut(→0.92)。此前硬编码
                     //   .move(edge:.trailing) = 只有侧滑, 零消费 Material 转场表 (F069)。
                     .transition(SleepyMaterialTransition.forwardTransform)
@@ -1157,7 +1157,7 @@ private struct PresentOverlay: ViewModifier {
         .onAppear {
             // 语言切换 → .id(languageReload) 整树重建 → 本修饰器 @State 复位 nil,
             // 但 VM.overlayScreen 仍持页 → 不恢复会把用户弹回根页
-            // (Android Activity.recreate 保留当前页, 此处对齐)
+            // (原版本 Activity.recreate 保留当前页, 此处对齐)
             if shownScreen == nil, let active = activeScreen { shownScreen = active }
         }
     }
@@ -1166,7 +1166,7 @@ private struct PresentOverlay: ViewModifier {
         if let screen = active {
             guard shownScreen != screen else { return }
             if shownScreen == nil {
-                // 打开: 中心浮起 + 淡入(← Android sleepyForwardEnter, 非右缘滑入)。
+                // 打开: 中心浮起 + 淡入(sleepyForwardEnter, 非右缘滑入)。
                 // forwardEnter 的 opacity/scale 段已自带 110ms/220ms 曲线,
                 // 此处 withAnimation 只提供转场触发上下文。
                 dragX = 0
@@ -1194,7 +1194,7 @@ private struct PresentOverlay: ViewModifier {
     }
 
     // 关闭通路 ← F069 Option A: 出页交给 forwardTransform 的 removal(forwardExit =
-    //   淡出 + 缩向 0.92, 220ms, Android sleepyPopExit 同形态), 不再把 dragX 推到屏外
+    //   淡出 + 缩向 0.92, 220ms, 原 sleepyPopExit 同形态), 不再把 dragX 推到屏外
     //   滑出 —— 滑出与 forwardExit 叠加 = 页面既滑走又缩放(双演)。dragX 只保留
     //   手势跟手 + 释放后 commit/cancel 的职责, 复位挪到移除完成后(此时已不可见, 无回弹)。
     private func animateOutThen(then: @escaping () -> Void) {
@@ -1254,7 +1254,7 @@ private struct PresentOverlay: ViewModifier {
                 themeMode: themeMode,
                 onThemeModeChange: onThemeModeChange,
                 onThemeKeyChange: onThemeKeyChange,
-                // ← Android Appearance Section④ 节次表头入口 (默认 no-op 已解除)
+                // ← 原版本 Appearance Section④ 节次表头入口 (默认 no-op 已解除)
                 onOpenPeriodHeaderSettings: { overlayScreen = .periodHeaderSettings })
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
@@ -1300,7 +1300,7 @@ private struct PresentOverlay: ViewModifier {
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .periodHeaderSettings:
-            // ← Android PeriodHeaderSettingsScreen(外观页 Section④ 节次表头入口)
+            // ← 原版本 PeriodHeaderSettingsScreen(外观页 Section④ 节次表头入口)
             //   屏自身直读 AppPrefs, 无需 VM 参数 (F087/F088 路由接线)
             PeriodHeaderSettingsScreen(onBack: onDismiss)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,

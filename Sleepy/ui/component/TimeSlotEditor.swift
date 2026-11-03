@@ -184,7 +184,7 @@ private struct PeriodTableBindTab: View {
     let onSelect: (Int64?) -> Void
 
     var body: some View {
-        // ← Android Column .heightIn(max = 240.dp) + verticalScroll + spacedBy(6.dp)
+        // ← 原版本 Column .heightIn(max = 240.dp) + verticalScroll + spacedBy(6.dp)
         ScrollView {
             VStack(spacing: 6) {
                 // 未绑定 = 不绑, 用解析出的/本表内置节次
@@ -265,7 +265,7 @@ private struct ManualTimeSlotEditor: View {
                     .foregroundColor(colors.onSurfaceVariant)
                 Spacer()
                 // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 小号色块按钮
-                // (Android Button containerColor=secondaryContainer / contentColor=onSecondaryContainer /
+                // (原版本 Button containerColor=secondaryContainer / contentColor=onSecondaryContainer /
                 //  shape=medium / labelMedium 12sp, 图标 18dp + 4dp 间距)
                 Button {
                     onRowsChange(TimeTableUtils.appendEmptyRow(rows))
@@ -350,9 +350,9 @@ private struct TimeSlotRowItem: View {
                 }
                 .buttonStyle(SleepyButtonStyle())
                 .accessibilityIdentifier("slot_row_delete_\(row.node)")
-                // ← Android contentDescription = delete_period
+                // ← 原 contentDescription = delete_period
                 .accessibilityLabel(L10n.format("delete_period"))
-                .frame(width: 32, height: 32)   // ← Android IconButton 32dp 方形
+                .frame(width: 32, height: 32)   // ← 原 IconButton 32dp 方形
             } else {
                 Spacer().frame(width: 32)
             }

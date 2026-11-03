@@ -11,7 +11,7 @@ final class ReminderCapabilityFlowTests: XCTestCase {
 
     func testNotificationPermissionIsCheckedBeforeVendorSettings() {
         XCTAssertEqual(capabilityInspectionOrder(notificationPermissionGranted: false), ["notification"])
-        // Android 单测只断言 false 分支; true 分支同样来自源码, 一并锁定。
+        // 原版本 单测只断言 false 分支; true 分支同样来自源码, 一并锁定。
         XCTAssertEqual(capabilityInspectionOrder(notificationPermissionGranted: true), ["notification", "vendor"])
     }
 
@@ -51,11 +51,11 @@ final class ReminderCapabilityFlowTests: XCTestCase {
         XCTAssertTrue(standardNotificationAllowed(.disabled))
         XCTAssertTrue(standardNotificationAllowed(.settingsRequired))
         XCTAssertTrue(standardNotificationAllowed(.notSupported))
-        // ← Android NOTIFICATION_PERMISSION_REQUIRED → iOS .notApplicable
+        // ← 原版本 NOTIFICATION_PERMISSION_REQUIRED → iOS .notApplicable
         XCTAssertFalse(standardNotificationAllowed(.notApplicable))
     }
 
-    // MARK: - ← capabilityStatusText 六分支映射 (Android 侧同名函数, 单测镜像补齐文案锁定)
+    // MARK: - ← capabilityStatusText 六分支映射 (原版本 侧同名函数, 单测镜像补齐文案锁定)
 
     func testCapabilityStatusTextCoversAllSixStates() {
         XCTAssertEqual(capabilityStatusText(state: .enabled), "enabled")

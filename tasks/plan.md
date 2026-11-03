@@ -7,7 +7,7 @@
 - SwiftUI/iOS16.0(Xcode 14.3.1)· GRDB↔Room · WidgetKit 5 类 · 免费账号无签名 IPA→AltStore 重签
 - **五道闸**(每批 exit 条件,缺一不算完)。G1~G3 静态逮"漏译",G4~G5 动态逮"接错":
   - **G1 符号覆盖**(静态): `scripts/coverage_audit.py` — Kotlin 符号 vs Swift 对应,diff 未映射项 → 零未解释项
-  - **G2 用例对齐**(静态): Android @Test ↔ XCTest func test*,数量+名映射零缺漏
+  - **G2 用例对齐**(静态): 原 @Test ↔ XCTest func test*,数量+名映射零缺漏
   - **G3 字符串 parity**(静态): 389 键×5 语言键集相等+非空
   - **G4 链条测试**(动态,新增): 函数间功能链完整性——解析器输出→DAO 落库→Repository→ViewModel→屏幕渲染,全链 XCTest 起真 app 内存栈走通,非喂桩。三张主链: ①导入链(六格式文本→parser→preview→confirm→DB→UI 显示) ②课程链(建表→加课→周次计算→三视图/今日列表数据一致) ③导出链(app 数据→exporter→文件→re-import→roundtrip 相等)
   - **G5 UI 冒烟**(动态,新增): XCUITest 起模拟器点真 UI——冒烟清单(建表→加课→三视图切换→WakeUp 文本导入→导出→切主题→切语言)自动化,替代 D6 手动冒烟;widget 走 gallery 快照验证(见 T7)
@@ -34,7 +34,7 @@
 | 测试环境分层 | test-environments(✅已调): 本机模拟器=CI 位,真机=release 位;fixture HTTP 服务对应真教务;无云端农场(自用项目,环境=两台真机+模拟器全在本机) | D0 定盘 |
 | 风险矩阵 | risk-based-testing(✅已调): 教务导入/周次计算/数据库迁移=CRITICAL 区,widget/通知=HIGH,外观=LOW;测试密度按矩阵分,不撒胡椒面 | D0 定盘进 tasks/risk-matrix.md |
 | 验收矩阵 | ln-42-acceptance-test-builder(✅已调): D8 验收=受保护结果×测试×oracle×证据 表格,非手点清单 | D6 起建,D8 完 |
-| 测试数据 | test-data-management: Android 51 个 @Test 的 fixture 逐个迁 Swift 测试资源;教务 HTML 快照 fixture 新建 | D1~D3 随测 |
+| 测试数据 | test-data-management: 原 51 个 @Test 的 fixture 逐个迁 Swift 测试资源;教务 HTML 快照 fixture 新建 | D1~D3 随测 |
 | 缺陷线路 | bug-reproduction(红→最小复现→failing test)→ ai-bug-triage 分类 | 随时 |
 | 可靠性 | test-reliability(XCUITest/链条测试 flake 治理,重跑≠pass 掩盖) | 每次红 |
 | 验收 gate | release-readiness(证据 go/no-go,喂 D8 矩阵) | D8 |
@@ -50,7 +50,7 @@
 
 ## Phase D0 · 脚手架
 
-- [ ] **T0.1 工程骨架** — project.yml(app+widget ext+**SleepyUITests target 三件套**)+目录树镜像 Android 包结构+五语言 Localizable.strings 空骨架+GPL 头。
+- [ ] **T0.1 工程骨架** — project.yml(app+widget ext+**SleepyUITests target 三件套**)+目录树镜像原包结构+五语言 Localizable.strings 空骨架+GPL 头。
   - 验收: `xcodegen generate` 成功;三 target `xcodebuild build` 过 · S
 - [ ] **T0.2 构建链+G1闸** — build-ipa.sh(xcodebuild archive→无签名IPA);SPM 经 gh.qdp.qzz.io 拉 GRDB;coverage_audit.py 可跑。
   - 验收: 产出 .ipa;audit 脚本空工程输出 0 基准 · M
@@ -137,9 +137,9 @@
 
 ## 兜底流程(测试红了/验收挂了怎么办)
 
-1. **红闸即停**: 任何闸红 → 当前批冻结,禁进下一批。systematic-debugging 定位(根因四类: ①漏译 ②译错 ③平台差异未适配 ④原 Android bug 被忠实带过来)
+1. **红闸即停**: 任何闸红 → 当前批冻结,禁进下一批。systematic-debugging 定位(根因四类: ①漏译 ②译错 ③平台差异未适配 ④原 原 bug 被忠实带过来)
 2. **④类特殊处理**: 原 app 就有的 bug → 🚫顺手修(违反忠实翻译),记 `known-parities.md` 清单,D8 验收时你决定要不要单独修
-3. **修复回路**: 定位→最小修复→对应闸复跑绿→review 该 diff→git commit(附 Android 原文行号引用)
+3. **修复回路**: 定位→最小修复→对应闸复跑绿→review 该 diff→git commit(附原文行号引用)
 4. **D8 真机验收挂**: 逐项记缺陷清单 → 回到对应批次修 → 重新出 IPA → 复验,直到清单空
 5. **模拟器过真机挂**(App Group/重签/触摸差异): risk 表已列,T7.0 对抗审查+文件直读预案,D8 前不盲进
 6. **quality-postmortem**: 若验收阶段同一类问题逃逸 ≥2 次,跑 postmortem 把闸补上新类别(闸体系可增量,不是写死的)

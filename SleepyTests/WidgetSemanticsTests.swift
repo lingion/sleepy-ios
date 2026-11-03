@@ -1,12 +1,12 @@
 // WidgetSemanticsTests.swift — 小组件「行为语义」契约测试
 //
-// 移植自 Android 纯逻辑测试 (只搬 iOS 真实实现的那部分约束, 源码扫描/RemoteViews 几何断言全部不搬):
+// 移植自 原版本 纯逻辑测试 (只搬 iOS 真实实现的那部分约束, 源码扫描/RemoteViews 几何断言全部不搬):
 //   · FixedWindowCoreTest.kt      → 窗口不变量 (空天 / ALL_DONE 公共闸 / 锚点 / 行原子 / 页脚 best-effort)
 //   · FixedWindowWiringTest.kt    → S/M/L 容量口径表 (Today hDp−58 行30距4 · TwoDay hDp−44 行36距6)
 //   · BottomBarFitTest.kt         → 填满档 (footerH=0 不二次预留) + 缺省 footerH 旧语义
 //   · TodayOverflowGeometryTest.kt→ 行几何不丢课 + 冲突行高
 //   · WidgetBoundarySchedulerTest → 边界分钟纯函数 + 行 end 口径
-// Sleepy iOS — 100% port of sleepy Android
+// Sleepy iOS — 100% port of 原版本
 
 import XCTest
 import WidgetKit
@@ -22,7 +22,7 @@ private extension Array {
 
 final class WidgetSemanticsTests: XCTestCase {
 
-    // MARK: - fixtures (← Android 测试同名构造器)
+    // MARK: - fixtures (测试同名构造器)
 
     /// ownTime 课: effectiveCourseTime 直读 startTime/endTime, 分钟完全受控
     private func course(

@@ -3,7 +3,7 @@
 // 逐 widget 编辑页: 选这个小组件呈现哪张课表。改绑定写 WidgetBindingStore 并触发
 // WidgetCenter.reloadAllTimelines (← WidgetUpdater.notifyDataChanged), 桌面即时重绘。
 //
-// 平台差异(差异表#8): Android widgetId:Int → iOS kind:String (粒度 per-kind,
+// 平台差异(差异表#8): 原版本 widgetId:Int → iOS kind:String (粒度 per-kind,
 // 见 WidgetBindingStore.swift 头注); section 扩展点等价物见下方注释块。
 
 import SwiftUI
@@ -14,7 +14,7 @@ import WidgetKit
 //   默认参数兜底, 旧构造点(未传)不破编译。
 //   设计 §6 (v1.0.60 对齐): receiverSimpleName → iOS 无 receiver, 等价族信息 =
 //   WidgetKit family (小/中/大); scrollEnabled / compactTodayFirst — per-kind 一档
-//   (差异表#8: Android per-widgetId → iOS per-kind)。
+//   (差异表#8: 原版本 per-widgetId → iOS per-kind)。
 struct WidgetEditScope {
     let kind: String
     let currentBinding: Int64?
@@ -22,7 +22,7 @@ struct WidgetEditScope {
     let onSelectTable: (Int64?) -> Void
     var useAlias: Bool = false
     var onUseAliasChange: (Bool) -> Void = { _ in }
-    // ← 设计 §6: family = 族判断依据(系统小=Android「· 小」变体); nil = 未知
+    // ← 设计 §6: family = 族判断依据(系统小=原版本「· 小」变体); nil = 未知
     var family: WidgetFamily? = nil
     // ← 强制滚动(实验) — 本 kind 一档, 默认 false = FIXED 固定窗口
     var scrollEnabled: Bool = false
@@ -34,7 +34,7 @@ struct WidgetEditScope {
 
 // ← WidgetEditSection.kt 的协议扩展点在 SwiftUI 下不成立(existential View 不能做
 //   ForEach 内容, Xcode14/Swift5.8)。等价扩展点 = 本文件直接加同级 section struct +
-//   WidgetEditScreen.sections 里加一项 — 与 Android "新文件+列表加一项" 同构。
+//   WidgetEditScreen.sections 里加一项 — 与 原版本 "新文件+列表加一项" 同构。
 //   当前两节 (WidgetEditScheduleSection + WidgetEditAliasSection), 保持直连组合。
 
 // ← WidgetEditViewModel.reload / setBinding / setUseAlias 的取数与落库序列:
@@ -67,7 +67,7 @@ func makeWidgetEditScope(kind: String,
         onUseAliasChange: onUseAliasChange,
         family: family,
         // ← 迁移语义: 显式值 ?: 旧全局 — 显式值由 per-kind store 持有, 旧全局
-        //   走 AppPrefs (compact 默认 true, scroll 默认 false, 与 Android 一致)。
+        //   走 AppPrefs (compact 默认 true, scroll 默认 false, 与原实现一致)。
         //   三天窗口 (WidgetCompactWindow.swift) + 滚动 (WidgetScrollStore.swift)
         //   已在 v1.0.60 落位, 本节仅接 store 接口。
         scrollEnabled: WidgetScrollStore.isScrollEnabled(kind: kind),
@@ -89,7 +89,7 @@ func applyWidgetBinding(kind: String, tableId: Int64?) {
 struct WidgetEditScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     let kind: String
-    // ← 设计 §6: family(系统小/中/大) = Android receiverSimpleName 的 iOS 等价族信息,
+    // ← 设计 §6: family(系统小/中/大) = 原 receiverSimpleName 的 iOS 等价族信息,
     //   由管理页 WidgetInfo.family 传入 (nil = 未知, 族门控节按各自规则处理)
     var family: WidgetFamily? = nil
     let onDismiss: () -> Void
@@ -104,7 +104,7 @@ struct WidgetEditScreen: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     if let s = scope {
-                        // ← Android WidgetEditScreen.kt L52 sections 列表 1:1:
+                        // ← 原版本 WidgetEditScreen.kt L52 sections 列表 1:1:
                         //   Schedule / Alias / Scroll / CompactWindow
                         WidgetEditScheduleSection(scope: s)
                         WidgetEditAliasSection(scope: s)
@@ -113,7 +113,7 @@ struct WidgetEditScreen: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                // ← Android WidgetEditScreen.kt L92 仅 horizontal 16, 无纵向 padding
+                // ← 原版本 WidgetEditScreen.kt L92 仅 horizontal 16, 无纵向 padding
             }
         }
         .background(colors.background)
@@ -171,7 +171,7 @@ private struct WidgetEditScheduleSection: View {
                 sectionRow(
                     label: L10n.format("widget_edit_default_label"),
                     selected: scope.currentBinding == nil,
-                    checkSpacer: false // ← Android DefaultRow 无 Spacer(8), 仅 TableRow 有
+                    checkSpacer: false // ← 原 DefaultRow 无 Spacer(8), 仅 TableRow 有
                 ) {
                     scope.onSelectTable(nil)
                 }
@@ -205,7 +205,7 @@ private struct WidgetEditScheduleSection: View {
                         Spacer().frame(width: 8)
                     }
                     Image(systemName: "checkmark")
-                        // ← Android Check 无 size 修饰符 = 默认 24dp (ScheduleSection L91/L121, AliasSection L91)
+                        // ← 原版本 Check 无 size 修饰符 = 默认 24dp (ScheduleSection L91/L121, AliasSection L91)
                         .font(.system(size: 24))
                         .foregroundColor(colors.primary)
                         .accessibilityLabel(L10n.format("selected"))
@@ -254,7 +254,7 @@ private struct WidgetEditAliasSection: View {
         }
     }
 
-    // ← OptionRow: bodyLarge 16 + Check 24 primary (Android AliasSection L89-95
+    // ← OptionRow: bodyLarge 16 + Check 24 primary (原版本 AliasSection L89-95
     //   选中态直接放 Icon, 无 Spacer(8) — 同 DefaultRow), 选中 primaryContainer 底, padding 16×14
     private func optionRow(label: String, selected: Bool, onTap: @escaping () -> Void) -> some View {
         Button(action: onTap) {
@@ -281,9 +281,9 @@ private struct WidgetEditAliasSection: View {
 // ← WidgetEditScrollSection (设计 §6): "滚动方式" 分区 — 强制滚动(实验) 本 kind 一档。
 //   出厂默认关 = FIXED 固定窗口; 开启前确认弹窗如实告知厂商 ROM 风险, 取消即回弹
 //   (不写入); 关闭无需确认。
-//   ★ iOS 平台差异: Android 该节依赖厂商 ROM 的 RemoteViews 滚动服务; WidgetKit
+//   ★ iOS 平台差异: 原版本 该节依赖厂商 ROM 的 RemoteViews 滚动服务; WidgetKit
 //     无逐帧滚动条带, 但保留本节与存储 (WidgetKit 列表型 timeline 语义上的"滚动"),
-//     族门控同 Android: WeekGrid 族隐藏(网格无滚动形态), 未知(nil)按显示处理。
+//     族门控同 原版本: WeekGrid 族隐藏(网格无滚动形态), 未知(nil)按显示处理。
 private struct WidgetEditScrollSection: View {
     @Environment(\.localWakeUpColors) private var colors
     let scope: WidgetEditScope
@@ -355,18 +355,18 @@ private struct WidgetEditScrollSection: View {
 
 // ← WidgetEditCompactWindowSection (2026-09-15 用户定稿): "三天窗口" 分区 —
 //   三天窗口档位, 本 kind 一档。仅 WeekList/WeekView 两族的系统小 family
-//   (Android「· 小」变体 WeekListSmall/WeekViewSmall) 显示; 其它族与未知族
+//   (原版本「· 小」变体 WeekListSmall/WeekViewSmall) 显示; 其它族与未知族
 //   隐藏 (档位对其它变体无效果, 显示出来只会误导)。
-//   non-private: 门控纯函数供 SleepyTests 锁死 (← Android object 可被单测引用)。
+//   non-private: 门控纯函数供 SleepyTests 锁死 (object 可被单测引用)。
 struct WidgetEditCompactWindowSection: View {
     @Environment(\.localWakeUpColors) private var colors
     let scope: WidgetEditScope
 
     /// 纯函数门控 — 单测锁死, 防止族名漂移。
-    /// Android appliesTo(receiverSimpleName) == WeekListSmall/WeekViewSmall →
+    /// 原版本 appliesTo(receiverSimpleName) == WeekListSmall/WeekViewSmall →
     /// iOS 等价 = 族(kind) ∈ {WeekList, WeekView} 且 family == .systemSmall
     /// (「· 小」变体在 WidgetKit 的表达)。仅判 family 会把本节显示到
-    /// Today/TwoDay/WeekGrid 的小档实例上, 设置无效果 = 误导, 违反 Android 语义。
+    /// Today/TwoDay/WeekGrid 的小档实例上, 设置无效果 = 误导, 违反 原版本 语义。
     static func appliesTo(kind: String, family: WidgetFamily?) -> Bool {
         family == .systemSmall && (kind.contains("WeekList") || kind.contains("WeekView"))
     }
@@ -399,7 +399,7 @@ struct WidgetEditCompactWindowSection: View {
     }
 
     // ← OptionRow: RadioButton + bodyLarge 16, padding horizontal 16 vertical 4
-    //   (RadioButton 原生保留 — Android 此节原样用 M3 RadioButton, 非色块选中态规则场景)
+    //   (RadioButton 原生保留 — 原版本 此节原样用 M3 RadioButton, 非色块选中态规则场景)
     private func optionRow(label: String, selected: Bool, onSelect: @escaping () -> Void) -> some View {
         Button(action: onSelect) {
             HStack(spacing: 0) {

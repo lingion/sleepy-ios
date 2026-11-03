@@ -30,17 +30,17 @@ final class JwKustParser: JwParser, JwParserConfidenceReporting {
               let grid = objData["resultsJsonArr"] as? [Any] else {
             return []
         }
-        // Android: data.string("zs").toIntOrNull() — contentOrNull 同时接受 JSON 数字与字符串, 并 trim
+        // 原版本: data.string("zs").toIntOrNull() — contentOrNull 同时接受 JSON 数字与字符串, 并 trim
         let weekStr = (((objData["zs"] as? String) ?? (objData["zs"] as? NSNumber)?.stringValue) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let week = Int(weekStr) else { return [] }
 
-        // Android linkedMapOf: 保持插入序输出
+        // 原版本 linkedMapOf: 保持插入序输出
         var order: [String] = []
         var seen: [String: JwCourse] = [:]
 
         for (rowIndex, rowElement) in grid.enumerated() {
-            // Android: rowElement as? JsonArray ?: continue — 单行坏数据跳过, 不影响其余行
+            // 原版本: rowElement as? JsonArray ?: continue — 单行坏数据跳过, 不影响其余行
             guard let row = rowElement as? [Any], rowIndex >= 2 else { continue }
             let section = rowIndex - 1
             for (colIndex, cellElement) in row.enumerated() {
@@ -49,7 +49,7 @@ final class JwKustParser: JwParser, JwParserConfidenceReporting {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if cellText.isEmpty { continue }
                 let day = min(max(colIndex, 1), 7)
-                // Android: fields = cell.substringBefore(";").split(",")
+                // 原版本: fields = cell.substringBefore(";").split(",")
                 //          name = fields[0], room = fields.getOrNull(1), teacher = cell.substringAfter(';')
                 let halves = cellText.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
                 let fields = String(halves[0]).components(separatedBy: ",")

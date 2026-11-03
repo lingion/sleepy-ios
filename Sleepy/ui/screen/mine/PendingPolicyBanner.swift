@@ -21,11 +21,11 @@ struct PendingPolicyBanner: View {
         } else {
             HStack(spacing: 8) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 18))   // ← Android Info 默认 24dp, iOS 18pt 视觉近似
+                    .font(.system(size: 18))   // ← 原 Info 默认 24dp, iOS 18pt 视觉近似
                     .foregroundColor(colors.onSecondaryContainer)
                     .frame(height: 18)
                 Text(L10n.format("schedule_conflict_banner_format", policyText))
-                    .font(.system(size: 14))   // ← Android bodyMedium 14sp
+                    .font(.system(size: 14))   // ← 原 bodyMedium 14sp
                     .foregroundColor(colors.onSecondaryContainer)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Button(action: onModify) {

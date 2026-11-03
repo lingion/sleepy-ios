@@ -1,4 +1,4 @@
-// LocaleAndL10nTests.swift — 语言切换即时生效(← Android Activity.recreate 等价链)
+// LocaleAndL10nTests.swift — 语言切换即时生效(Activity.recreate 等价链)
 // 覆盖: applyLanguage 广播 L10n.didChangeNotification + L10n 读 LocaleHelper.currentBundle
 // (切换后立即取到新语言值, 而非 Bundle.main 固定语言) + applyLanguage 持久化 AppPrefs。
 
@@ -44,7 +44,7 @@ final class LocaleAndL10nTests: XCTestCase {
         XCTAssertEqual(L10n.format("course_count_format", 2), "2 门")
     }
 
-    func testCourseCountFormatMatchesAndroidBaseline() {
+    func testCourseCountFormatMatchesOriginalBaseline() {
         // ← strings.xml: %1$d 门 / %1$d courses(5 语言对照)
         let cases: [(String, Int, String)] = [
             ("zh-CN", 1, "1 门"), ("zh-TW", 1, "1 門"),

@@ -1,5 +1,5 @@
 // BatteryOptimizationIntents.swift — ← BatteryOptimizationIntents.kt
-// 电池/后台管理引导入口。Android: 厂商耗电页(MIUI/HW/HONOR/OPPO/vivo 组件名, 社区逆向证据 B)
+// 电池/后台管理引导入口。原版本: 厂商耗电页(MIUI/HW/HONOR/OPPO/vivo 组件名, 社区逆向证据 B)
 // → "忽略电池优化"弹窗 → 原生列表页, 逐个 try-launch。
 //
 // 平台映射(no-analog 记录, 禁止 silent skip):
@@ -7,8 +7,8 @@
 // - ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS / ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
 //   → iOS 无电池优化白名单机制 → no-analog
 // - iOS 等价引导 = 唯一候选: 本 App 系统设置页(UIApplication.openSettingsURLString),
-//   用户可在其中管理通知/后台刷新; Android launchBatterySettings 的 Boolean 返回语义保留:
-//   canOpenURL 失败 = false(调用方静默放弃, 对齐 Android 全败落空)
+//   用户可在其中管理通知/后台刷新; 原 launchBatterySettings 的 Boolean 返回语义保留:
+//   canOpenURL 失败 = false(调用方静默放弃, 对齐 原版本 全败落空)
 
 // 注: 本文件同时被 Sleepy(app) 与 SleepyWidget(extension) 共源编译,
 //     UIApplication.shared/open 仅限 app 进程, 用 APPLICATION_EXTENSION_API_ONLY 区分。

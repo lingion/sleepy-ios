@@ -1,12 +1,12 @@
-// MigrationPrefsCodecTests.swift — Android MigrationPrefsCodec.kt 契约测试
+// MigrationPrefsCodecTests.swift — 原版本 MigrationPrefsCodec.kt 契约测试
 // (android_test=null — 本文件按 fix_hint 补契约锁, 参照 MigrationDatabaseCodecTests 风格)
 //
 // 锁定 v1.0.61 对齐修复的行为:
 //   1. decode 向前兼容 — 缺省字段回落构造默认值 (Kotlin ignoreUnknownKeys +
 //      encodeDefaults + 默认参数语义)
-//   2. INT/LONG 按存储宽度往返 — Android→iOS→Android 类型不丢
+//   2. INT/LONG 按存储宽度往返 — 原版本→iOS→原版本 类型不丢
 //   3. Bool 不被误分为 INT (__NSCFBoolean objCType 'c' 陷阱)
-//   4. collect 只含本域实际持久化键 — 注册域默认值不导出 (== Android prefs.all)
+//   4. collect 只含本域实际持久化键 — 注册域默认值不导出 (== 原版本 prefs.all)
 //   5. apply(merge:false) 只清本域 — 绝不碰标准域/其他 suite
 //   6. STRING_SET 以 [String] 形态往返, 不写 Set/NSSet (运行时 abort 陷阱)
 //   7. encode→decode 全类型信封往返
@@ -99,7 +99,7 @@ final class MigrationPrefsCodecTests: XCTestCase {
     }
 
     func testCollectIntWidthIsINTLongWidthIsLONG() {
-        // Android: putInt → INT, putLong → LONG, 与数值范围无关。
+        // 原版本: putInt → INT, putLong → LONG, 与数值范围无关。
         // iOS: Int32/更窄落 ≤32 位 → INT; Int/Int64 落 'q' → LONG。
         // 关键回归: 值域内的 Long (小数值 Int64) 旧实现按范围误标 INT。
         defaults.set(NSNumber(value: Int32(7)), forKey: "narrow")
@@ -109,7 +109,7 @@ final class MigrationPrefsCodecTests: XCTestCase {
         let snap = MigrationPrefsCodec.collect(defaults, suiteName: suiteName)
         XCTAssertEqual(snap.entries["narrow"]?.type, .INT)
         XCTAssertEqual(snap.entries["small_long"]?.type, .LONG,
-                       "值域内的 64 位存储必须标 LONG, 否则回灌 Android 后 getLong 抛 ClassCastException")
+                       "值域内的 64 位存储必须标 LONG, 否则回灌原平台后 getLong 抛 ClassCastException")
         XCTAssertEqual(snap.entries["swift_int"]?.type, .LONG)
         XCTAssertEqual(snap.entries["big_long"]?.type, .LONG)
         XCTAssertEqual(snap.entries["big_long"]?.number, 9_000_000_000)
@@ -127,11 +127,11 @@ final class MigrationPrefsCodecTests: XCTestCase {
         MigrationPrefsCodec.apply(defaults, snapshot, merge: true, suiteName: suiteName)
         let again = MigrationPrefsCodec.collect(defaults, suiteName: suiteName)
         XCTAssertEqual(again.entries["i"]?.type, .INT)
-        XCTAssertEqual(again.entries["l"]?.type, .LONG, "LONG 写回后重导出仍 LONG — Android→iOS→Android 类型保持")
+        XCTAssertEqual(again.entries["l"]?.type, .LONG, "LONG 写回后重导出仍 LONG — 原版本→iOS→原版本 类型保持")
         XCTAssertEqual(again.entries["b"]?.type, .BOOL)
         XCTAssertEqual(again.entries["s"]?.string, "hi")
         XCTAssertEqual(again.entries["set"]?.type, .STRING_SET)
-        XCTAssertEqual(again.entries["set"]?.stringSet, ["a", "b"], "stringSet 排序与 Android sorted() 一致")
+        XCTAssertEqual(again.entries["set"]?.stringSet, ["a", "b"], "stringSet 排序与原 sorted() 一致")
         // 常规读取 API 不受精确宽度影响
         XCTAssertEqual(defaults.integer(forKey: "l"), 5)
         XCTAssertEqual(defaults.string(forKey: "s"), "hi")
@@ -141,17 +141,17 @@ final class MigrationPrefsCodecTests: XCTestCase {
 
     func testCollectExcludesRegisteredDefaults() {
         // 回归锁: 旧实现用 dictionaryRepresentation() — 注册域默认值被当成
-        // 持久化键导出, Android prefs.all 不会包含这些键。
+        // 持久化键导出, 原版本 prefs.all 不会包含这些键。
         defaults.register(defaults: ["__reg_only__": 9])
         defaults.set("persisted", forKey: "__real__")
         let snap = MigrationPrefsCodec.collect(defaults, suiteName: suiteName)
         XCTAssertNil(snap.entries["__reg_only__"],
-                     "仅注册未持久化的键不得进快照 (Android prefs.all 语义)")
+                     "仅注册未持久化的键不得进快照 (原 prefs.all 语义)")
         XCTAssertEqual(snap.entries["__real__"]?.string, "persisted")
     }
 
     func testCollectKeepsAppKeysWithAppleishNames() {
-        // Android 契约: 未知键原样保留, 不按键名过滤。
+        // 原版本 契约: 未知键原样保留, 不按键名过滤。
         // 旧实现 hasPrefix("NS")/("Apple") 会丢键; CFPreferencesCopyKeyList 路径
         // 不存在该问题。
         defaults.set("x", forKey: "AppleStyleMirror")
@@ -239,7 +239,7 @@ final class MigrationPrefsCodecTests: XCTestCase {
         XCTAssertEqual(decoded.files["widget_bindings"]?.entries.count, 0)
     }
 
-    func testEncodeFieldNamesMatchAndroidProtocol() throws {
+    func testEncodeFieldNamesMatchOriginalProtocol() throws {
         // kotlinx 字段名: type/bool/number/float/string/stringSet; 枚举值大写。
         // encodeDefaults=true → 全字段都出现。
         let snapshot = MigrationPrefsCodec.PrefsSnapshot(files: [
@@ -259,7 +259,7 @@ final class MigrationPrefsCodecTests: XCTestCase {
         XCTAssertEqual(k["number"] as? Int64, 0)
     }
 
-    // MARK: - unknown 类型不阻断 (Android else -> null)
+    // MARK: - unknown 类型不阻断 (原 else -> null)
 
     func testCollectSkipsUnsupportedValueTypes() {
         defaults.set(Date(), forKey: "a_date")   // 非 plist 原生偏好类型

@@ -3,9 +3,9 @@
 // 并发仅建一次 / 无权限不查询 / 查询失败不授权插入 / 修复不重复 /
 // 插入失败不发明日历 / 自建修复失败保留三方可写日历。
 //
-// 平台注记: Android LocalCalendarStore 走 CalendarContract provider; iOS 侧由
+// 平台注记: 原版本 LocalCalendarStore 走 CalendarContract provider; iOS 侧由
 // EventKitLocalCalendarStore 承担同一平台边界 — 本文件只测 LocalCalendarFallback
-// 的策略层(与 Android 契约逐条对齐), 不触真实 EventKit。
+// 的策略层(与 原版本 契约逐条对齐), 不触真实 EventKit。
 
 import XCTest
 @testable import Sleepy
@@ -14,7 +14,7 @@ final class LocalCalendarFallbackTests: XCTestCase {
 
     private struct StoreError: Error {}
 
-    /// ← Android Store inner class — 失败注入 + 调用计数。
+    /// ← 原版本 Store inner class — 失败注入 + 调用计数。
     /// 所有 store 调用都发生在 LocalCalendarFallback actor 内(串行),
     /// 测试线程仅在 await 完成后读计数, 无数据竞争; @unchecked Sendable 仅为此标注。
     private final class FakeStore: LocalCalendarStore, @unchecked Sendable {
@@ -35,7 +35,7 @@ final class LocalCalendarFallbackTests: XCTestCase {
         func hasPermissions() -> Bool { permission }
         func queryWritable() throws -> [LocalCalendarRow] {
             queries += 1
-            if queryFailure { throw StoreError() }  // ← Android check(!queryFailure)
+            if queryFailure { throw StoreError() }  // ← 原 check(!queryFailure)
             return calendars
         }
         func queryOwned() throws -> [LocalCalendarRow] {
@@ -55,7 +55,7 @@ final class LocalCalendarFallbackTests: XCTestCase {
         }
     }
 
-    // ← Android SystemCalendarInfo(42, "Sleepy", "com.lingion.sleepy.account", "LOCAL")
+    // ← 原版本 SystemCalendarInfo(42, "Sleepy", "com.lingion.sleepy.account", "LOCAL")
     //   iOS 无 type 字段, id 为 String(calendarIdentifier)
     private let info = SystemCalendarInfo(id: "42", displayName: "Sleepy",
                                           accountName: "com.lingion.sleepy.account")
@@ -150,7 +150,7 @@ final class LocalCalendarFallbackTests: XCTestCase {
         XCTAssertNil(ensured)
         XCTAssertEqual(0, repair.inserts)
 
-        // ← Android LocalCalendarRow(info, deleted, deleted, true, true): writable 与 deleted 同值
+        // ← 原版本 LocalCalendarRow(info, deleted, deleted, true, true): writable 与 deleted 同值
         for deleted in [true, false] {
             let store = FakeStore()
             store.rows = [row(info, writable: deleted, deleted: deleted, visible: true, syncEvents: true)]

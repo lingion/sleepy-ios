@@ -10,7 +10,7 @@
 //   iOS 沙箱: NSFileManager + 临时目录, 写完 UIApplication 调 share(_:) 拉分享面板
 //   (iOS 没有 MediaStore.Downloads 等价物, 走 NSTemporaryDirectory + UIActivityVC)
 //
-// 内容 (与 Android 1:1):
+// 内容 (与 原版本 1:1):
 //   summary.txt          — 状态/锚点/帧路径/重试/hint/学校/版本
 //   frames/xxx.html      — 每个可达 frame 的 outerHTML 原文 (FrameCaptureResult 已含)
 //   dom-inventory.txt    — DOM_INVENTORY_JS 现场抓的可点元素清单
@@ -56,7 +56,7 @@ enum SharePresentationGate {
 }
 
 /// 排查全量包导出。
-/// 1:1 对照 Android JwCaptureDump.kt:三组重载 exportDump 兼容旧调用方,
+/// 1:1 对照 原版本 JwCaptureDump.kt:三组重载 exportDump 兼容旧调用方,
 /// 纯函数 buildZip 可在测试中以 nil ctx 调用,IO 走 shareDump 调用方提供的 Activity/UIActivityVC 桥。
 enum JwCaptureDump {
 
@@ -65,7 +65,7 @@ enum JwCaptureDump {
     private static let ZIP_BASE = "sleepy-jw-dump"
     private static let MIME = "application/zip"
 
-    // MARK: - 入口 (三组重载 — 对齐 Android 2026-09-18 用户对标桌面 collector)
+    // MARK: - 入口 (三组重载 — 对齐 原版本 2026-09-18 用户对标桌面 collector)
 
     /// 入口 — 由 JwErrorDialog "导出排查全量包" 按钮回调。
     /// IO 阻塞, 必须在工作线程调用。
@@ -214,7 +214,7 @@ enum JwCaptureDump {
         let session = JwDiagnosticSession.shared.currentSessionId()
         let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let appBuild = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        // 对齐 Android `debug=${BuildConfig.DEBUG}` → 输出 true/false 字面量, 而非条件编译指令文本。
+        // 对齐 原 `debug=${BuildConfig.DEBUG}` → 输出 true/false 字面量, 而非条件编译指令文本。
         #if DEBUG
         let debug = "true"
         #else
@@ -301,13 +301,13 @@ enum JwCaptureDump {
               let data = raw.data(using: .utf8),
               let rows = try? JSONSerialization.jsonObject(with: data) as? [Any]
         else { return }
-        // 对齐 Android rows.toString() — org.json 紧凑格式, 无 prettyPrinted。
+        // 对齐 原版本 rows.toString() — org.json 紧凑格式, 无 prettyPrinted。
         let manifestJson = compactJSONString(rows) ?? "[]"
         try writeText(archive: archive, manifest: &manifest, name: "4-net-replay/manifest.json",
                       content: manifestJson,
                       description: "资源重取结果与失败原因")
         for (i, row) in rows.enumerated() {
-            // 对齐 Android rows.optJSONObject(i) ?: continue — 非对象元素只跳过, 不丢整包。
+            // 对齐 原版本 rows.optJSONObject(i) ?: continue — 非对象元素只跳过, 不丢整包。
             guard let row = row as? [String: Any] else { continue }
             if row["error"] != nil { continue }
             guard let body = row["body"] as? String, !body.isBlank else { continue }
@@ -356,13 +356,13 @@ enum JwCaptureDump {
         json: String?
     ) throws {
         let root = parseNetworkLiveRoot(json: json)
-        // 对齐 Android root.optJSONArray(...) + rows.optJSONObject(i) ?: continue —
+        // 对齐 原版本 root.optJSONArray(...) + rows.optJSONObject(i) ?: continue —
         // 非对象元素逐条跳过, 不整包丢弃。
         let rows = (root["live"] as? [Any]) ?? []
         let replay = (root["replay"] as? [Any]) ?? []
         let weeks = (root["weeks"] as? [Any]) ?? []
 
-        // 4-net-live/manifest.json — 对齐 Android rows.toString() 紧凑格式。
+        // 4-net-live/manifest.json — 对齐 原版本 rows.toString() 紧凑格式。
         let rowsJson = compactJSONString(rows) ?? "[]"
         try writeText(archive: archive, manifest: &manifest, name: "4-net-live/manifest.json",
                       content: rowsJson,
@@ -372,7 +372,7 @@ enum JwCaptureDump {
         var urls: [String] = []   // 保序去重
         var seenUrls = Set<String>()
         for (i, rowAny) in rows.enumerated() {
-            // 对齐 Android rows.optJSONObject(i) ?: continue — 编号仍用原始数组下标 i。
+            // 对齐 原版本 rows.optJSONObject(i) ?: continue — 编号仍用原始数组下标 i。
             guard let row = rowAny as? [String: Any] else { continue }
             let method = (row["method"] as? String) ?? "GET"
             let url = (row["url"] as? String) ?? ""
@@ -380,7 +380,7 @@ enum JwCaptureDump {
                 urls.append(url)
             }
             if let responseHeaders = row["responseHeaders"] {
-                // 对齐 Android responseHeaders.toString() — org.json 紧凑 JSON,
+                // 对齐 原版本 responseHeaders.toString() — org.json 紧凑 JSON,
                 // 不能用 String(describing:) (Swift 字典字面量语法, 非法 JSON)。
                 let rendered = compactJSONString(responseHeaders) ?? ""
                 if !rendered.isBlank {
@@ -417,7 +417,7 @@ enum JwCaptureDump {
         }
 
         // WebView 下载元数据
-        // 对齐 Android downloadText.lines().size — Kotlin lines() 保留空行,
+        // 对齐 原版本 downloadText.lines().size — Kotlin lines() 保留空行,
         // 必须用 components(separatedBy:) (split 默认丢弃空片段, 空行多的文本会误判跳过)。
         let downloadText = JwDiagnosticSession.shared.exportDownloads()
         if downloadText.components(separatedBy: "\n").count > 2 {
@@ -435,8 +435,8 @@ enum JwCaptureDump {
             try writeText(archive: archive, manifest: &manifest, name: "6-logs/capture.har",
                           content: har, description: "HAR 1.2 网络回放文件")
         }
-        // 对齐 Android org.json 插入序 networkRecords → replayRecords → weekPlans → responseBodies。
-        // Swift 字典不保序, .sortedKeys 会按字母排; 手工按 Android 顺序拼串。
+        // 对齐 原版本 org.json 插入序 networkRecords → replayRecords → weekPlans → responseBodies。
+        // Swift 字典不保序, .sortedKeys 会按字母排; 手工按 原版本 顺序拼串。
         let responseBodies = rows.reduce(into: 0) { count, any in
             if let row = any as? [String: Any],
                let body = row["responseBody"] as? String, !body.isBlank { count += 1 }
@@ -457,7 +457,7 @@ enum JwCaptureDump {
      *  each to keep the file usable in browsers; full bodies live under 4-net-live. */
     private static func buildHar(rows: [Any]) -> String? {
         if rows.isEmpty { return nil }
-        // 对齐 Android rows.optJSONObject(i) ?: continue — 非对象行只跳过。
+        // 对齐 原版本 rows.optJSONObject(i) ?: continue — 非对象行只跳过。
         let entries: [[String: Any]] = rows.compactMap { rowAny in
             guard let row = rowAny as? [String: Any] else { return nil }
             let method = (row["method"] as? String) ?? "GET"
@@ -518,12 +518,12 @@ enum JwCaptureDump {
             "entries": entries
         ]
         let builder: [String: Any] = ["log": log]
-        // 对齐 Android builder.toString() — 紧凑格式, 无 prettyPrinted。
+        // 对齐 原版本 builder.toString() — 紧凑格式, 无 prettyPrinted。
         return compactJSONString(builder)
     }
 
     private static func harQueryString(url: String) -> [[String: String]] {
-        // 对齐 Android Uri.parse(url).query — 含空格的 URL 用 URL(string:) 返 nil,
+        // 对齐 原版本 Uri.parse(url).query — 含空格的 URL 用 URL(string:) 返 nil,
         // 先 percent-encode 空格再解; 仍失败则退到手工切 query 段。
         let query: String
         if let encoded = url.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
@@ -537,7 +537,7 @@ enum JwCaptureDump {
             return []
         }
         guard !query.isBlank else { return [] }
-        // 对齐 Android query.split('&') — CharSequence.split 保留空片段。
+        // 对齐 原版本 query.split('&') — CharSequence.split 保留空片段。
         return query.split(separator: "&", omittingEmptySubsequences: false).map { item in
             let parts = item.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
             return [
@@ -565,7 +565,7 @@ enum JwCaptureDump {
         return map.map { k, v in ["name": k, "value": String(describing: v)] }
     }
 
-    /// 对齐 Android org.json `.toString()` — 紧凑(非 pretty)JSON。
+    /// 对齐 原版本 org.json `.toString()` — 紧凑(非 pretty)JSON。
     /// Kotlin `Any.toString()`: String → 原样; JSONObject/JSONArray → 紧凑 JSON;
     /// Number/Boolean → 字面量。JSONSerialization 默认输出即无缩进。
     private static func compactJSONString(_ object: Any) -> String? {
@@ -672,7 +672,7 @@ enum JwCaptureDump {
     // MARK: - 落盘 + 分享
 
     /// iOS: 写临时目录返回 URL。调用方负责 share(_:) 拉 UIActivityViewController。
-    /// iOS 没有 MediaStore.Downloads 等价物 (Android 那边走的),统一走 tmp + 分享面板。
+    /// iOS 没有 MediaStore.Downloads 等价物 (原版本 那边走的),统一走 tmp + 分享面板。
     @discardableResult
     private static func writeZip(zipName: String, zipBytes: Data) -> URL? {
         let baseDir = FileManager.default.temporaryDirectory
@@ -692,7 +692,7 @@ enum JwCaptureDump {
     }
 
     /// 落盘成功后由 UI 调 — 拉系统分享面板 (UIActivityViewController)。
-    /// iOS: 走 UIActivityViewController (Android 那边是 Intent.createChooser)。
+    /// iOS: 走 UIActivityViewController (原版本 那边是 Intent.createChooser)。
     @MainActor
     static func share(url: URL) {
         #if canImport(UIKit)

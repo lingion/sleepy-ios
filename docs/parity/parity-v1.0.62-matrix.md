@@ -1,15 +1,15 @@
 # Sleepy iOS ↔ Android v1.0.62 对齐差距矩阵
 
-> 基线: Android tag `v1.0.62` = commit `10adc247` (2026-10-25)。
+> 基线: 原 tag `v1.0.62` = commit `10adc247` (2026-10-25)。
 > 对比: `v1.0.61..v1.0.62` = **101 个 Kotlin 文件, +6071 / -976**。
 > iOS 侧: `sleepy-ios` worktree `.worktrees/parity-v1062`, 分支 `feature/parity-v1062`。
-> 状态标记: ✅ 已有 / ❌ 缺失(需做) / 🔧 需 iOS 改造 / ⏸ Android 独占(暂缓)。
+> 状态标记: ✅ 已有 / ❌ 缺失(需做) / 🔧 需 iOS 改造 / ⏸ 原平台独占(暂缓)。
 
 ## 0. 范围口径
 
 - **在范围内**: v1.0.62 相对 v1.0.61 的全部新增/变更功能、UI、操作。
-- **不在范围内**: Android tag 之后的 v1.0.63-dev (HEAD `4d4c8d0b`, 13 commits) — 单次课编辑、胶囊加课、统一管理 UI、多步撤销、平板几何、nbcc webvpn、vivo 原子岛。
-- **可暂缓**: Android 独占 / 厂商定制 (Xiaomi·vivo·OPPO·Honor·Huawei 实时课程卡、电池优化白名单跳转、RemoteViews 位图渲染器、PinWidget/Render/Configure Activity、ScrollStripService、13 档 widget 矩阵)。
+- **不在范围内**: 原 tag 之后的 v1.0.63-dev (HEAD `4d4c8d0b`, 13 commits) — 单次课编辑、胶囊加课、统一管理 UI、多步撤销、平板几何、nbcc webvpn、vivo 原子岛。
+- **可暂缓**: 原平台独占 / 厂商定制 (Xiaomi·vivo·OPPO·Honor·Huawei 实时课程卡、电池优化白名单跳转、RemoteViews 位图渲染器、PinWidget/Render/Configure Activity、ScrollStripService、13 档 widget 矩阵)。
 
 ## 1. 12 项头部功能核验 (逐条追工作流后的判定)
 
@@ -19,7 +19,7 @@
 | 2 | 课前提醒形态二选一 (横幅 ⇄ 流体云, 互斥) | `ReminderScreen.kt`(+118), `AppPrefs.getBeforeClassMode` | `ReminderScreen.swift:388/397` 仍是两个独立开关 | ❌ 缺失 | B3 |
 | 3 | 每课表提醒开关独立页 (`TableReminderScreen`) | `ui/screen/mine/TableReminderScreen.kt`(新,132行) + 路由 `SleepyRoute.TableReminder` | iOS DB v11 已有 `reminderEnabled` 列, 但无独立页/无路由 | 🔧 底层已有, 需 UI + 路由 | B3 |
 | 4 | 小组件设置页 (`WidgetSettingsScreen`) | `ui/screen/mine/WidgetSettingsScreen.kt`(新,238行), 从「我的」进入, 通用设置页的 widget 块移出 | iOS `GeneralSettingsScreen.swift:584 WidgetSection` 仍在通用设置内, 无独立页 | 🔧 需拆页 | B4 |
-| 5 | 小组件画廊 (`WidgetGalleryScreen`, 13 卡片) | `ui/screen/widget/WidgetGalleryScreen.kt`(新,161行) + `WidgetGalleryData.kt` + `WidgetPinRequest.kt` + `WidgetManagementScreen` 右上「＋」 | iOS 无画廊页; `allWidgetVariants` 仅 5 kind (iOS 用 family 尺寸而非 base/small/wide 三档) | 🔧 需画廊页 + 5 kind 卡片 (13 档矩阵属 Android 独占) | B4 |
+| 5 | 小组件画廊 (`WidgetGalleryScreen`, 13 卡片) | `ui/screen/widget/WidgetGalleryScreen.kt`(新,161行) + `WidgetGalleryData.kt` + `WidgetPinRequest.kt` + `WidgetManagementScreen` 右上「＋」 | iOS 无画廊页; `allWidgetVariants` 仅 5 kind (iOS 用 family 尺寸而非 base/small/wide 三档) | 🔧 需画廊页 + 5 kind 卡片 (13 档矩阵属 原平台独占) | B4 |
 | 6 | 多课表合并「每日议程」+ 深链 `sleepy://daily-agenda/<date>` | `widget/notification/DailyAgenda.kt`(86)、`DailyAgendaLoader.kt`(42)、`DailyScheduleSummary.kt`(45)、`DailySummaryNotificationMigration.kt`(25)、`ui/screen/today/DailyAgendaActivity.kt`(127) | iOS `widget/notification/` 无 DailyAgenda* 任何文件; 无深链处理 | ❌ 全缺 | B5 |
 | 7 | 隐私政策入口 | `AboutScreen.kt`(+39) `about_privacy` → `https://sleepy.qdp.qzz.io/privacy` | `AboutScreen.swift` 仅源码/GitHub/QQ | ❌ 缺失 | B6 |
 | 8 | 学校目录 4140 条 + 导入状态元数据 (`unverified`/`grad_unverified`/`catalogId`) | `data/jw/JwSchoolInfo.kt`(+35)、`SchoolSearchIndex.kt`(新)、`SchoolDomainMatch.kt`(新,+61)、`SchoolCityIndex`(+9)、`OfflineSchoolCityIndex`(+15)、`JwProtocol.kt`(+56)、`JwParserRegistry.kt`(+23) | iOS `schools.json` 仅 349 条 legacy schema (无 status/catalogId); `JwSchoolInfo.swift` 缺 `unverified`/`grad_unverified`/`catalogId`/`stableKey` | 🔧 数据 + 模型双改 | B2 |
@@ -116,12 +116,12 @@
 | `widget/WidgetWeekDataLoader.kt` | +29 | 🔧 B5 |
 | `widget/WidgetContent.kt` | +7 | 🔧 B5 |
 | `widget/WidgetGalleryData.kt` / `WidgetPinRequest.kt` | 新 | ❌ B4 |
-| `widget/WidgetVariantInfo.kt` | +38: 13 档 base/small/wide 矩阵 | ⏸ 13 档矩阵属 Android 机制; iOS 保留 5 kind × family, 画廊按 5 kind 出卡 |
+| `widget/WidgetVariantInfo.kt` | +38: 13 档 base/small/wide 矩阵 | ⏸ 13 档矩阵属原平台机制; iOS 保留 5 kind × family, 画廊按 5 kind 出卡 |
 | `widget/WeekGridWidgetProvider.kt` | +190 | 🔧 B5 (iOS WidgetKit 视图层重写) |
 | `widget/WidgetBitmapRenderers.kt` | +58 | ⏸ RemoteViews 位图渲染 |
 | `widget/WidgetCompactWindow.kt` | +15 | 🔧 B5 |
 | `widget/TodayWidget.kt` / `TwoDayWidget.kt` / `WeekListWidget.kt` / `WeekViewWidget.kt` | 各 +7~11 (调休取课) | 🔧 B5 |
-| `widget/WeekGridPreviewActivity.kt` / `WidgetRenderActivity.kt` | +6/+2 | ⏸ Android Activity 预览 |
+| `widget/WeekGridPreviewActivity.kt` / `WidgetRenderActivity.kt` | +6/+2 | ⏸ 原平台 Activity 预览 |
 
 ## 3. iOS 侧「已有」免做清单 (复核确认)
 
@@ -134,17 +134,17 @@
 - `mine_refresh_widgets` / `widget_manage_entry` 字符串
 - 调休取课三件套 (`HolidayReminderPolicy.swift:56/66`, `HolidayTransferHelper.swift:15`)
 
-## 4. Android 独占 / 厂商定制 (暂缓清单)
+## 4. 原平台独占 / 厂商定制 (暂缓清单)
 
 | 项 | 原因 |
 |---|---|
 | 实时课程卡 (Fluid Cloud / Live Card) + `VendorLive*` 全套 | 小米/vivo/OPPO/荣耀/华为/魅族厂商 API, iOS 无等价 |
-| 电池优化白名单跳转 (`BatteryOptimizationIntents` / `BatterySettingsLauncher`) | Android 厂商设置页 |
-| `RemoteViews` 位图渲染器 (`WidgetBitmapRenderers`) | Android 渲染机制 |
-| PinWidget / WidgetRender / WidgetConfigure Activity | Android Activity 机制 (iOS 用 WidgetKit 配置意图) |
-| `ScrollStripService` | Android 前台服务 |
+| 电池优化白名单跳转 (`BatteryOptimizationIntents` / `BatterySettingsLauncher`) | 原平台厂商设置页 |
+| `RemoteViews` 位图渲染器 (`WidgetBitmapRenderers`) | 原平台渲染机制 |
+| PinWidget / WidgetRender / WidgetConfigure Activity | 原平台 Activity 机制 (iOS 用 WidgetKit 配置意图) |
+| `ScrollStripService` | 原平台前台服务 |
 | 13 档 widget base/small/wide 矩阵 | iOS WidgetKit 以 family 尺寸表达, 5 kind 已覆盖 |
-| `HighRefreshRate` | Android 厂商高刷 API |
+| `HighRefreshRate` | 原平台厂商高刷 API |
 | `NoRippleClickable` | Compose 涟漪语义 (iOS 用 ButtonStyle) |
 | `ClassicEamsWebVpn` | 属 v1.0.63-dev, 出范围 |
 
@@ -162,9 +162,9 @@
 
 ## 6. 未验证 / 风险
 
-- B7 的 12 个协议解析器需要每校真实 HTML 快照或反编译参考, 否则只能按 Android 源码逐行翻译 + 合成 fixture 测试; 真站冒烟需用户账号。
+- B7 的 12 个协议解析器需要每校真实 HTML 快照或反编译参考, 否则只能按原源码逐行翻译 + 合成 fixture 测试; 真站冒烟需用户账号。
 - B5 的议程通知需真机验证 (通知触发时机、跨天窗口)。
-- B2 的 4140 条目录含 2361 条 `pending` / 301 条 `grad_pending` — 这些只有元数据, 无可用 URL, 需确认 iOS 是否展示不可导入学校 (Android 展示并标状态)。
+- B2 的 4140 条目录含 2361 条 `pending` / 301 条 `grad_pending` — 这些只有元数据, 无可用 URL, 需确认 iOS 是否展示不可导入学校 (原平台展示并标状态)。
 
 ## 7. 失败复盘(已修)
 

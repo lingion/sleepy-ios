@@ -3,14 +3,14 @@
 ## Comparison
 
 Compared `Sleepy/ui/screen/mine/ExportScreen.swift` and
-`Sleepy/ui/component/ShareScheduleSheet.swift` against Android 1.0.51
+`Sleepy/ui/component/ShareScheduleSheet.swift` against original 1.0.51
 (`ExportScreen.kt`, `ShareScheduleSheet.kt`).
 
 ## Implemented
 
 ### ExportScreen — export target picker
 
-Android 1.0.51 exports a locally-pinned table rather than only the
+original 1.0.51 exports a locally-pinned table rather than only the
 current one. iOS now matches:
 
 - The top info card is a button with a trailing chevron and opens an
@@ -32,13 +32,13 @@ current one. iOS now matches:
 
 ### ShareScheduleSheet
 
-The sheet's three existing rows already match Android 1.0.51 (item
+The sheet's three existing rows already match original implementation 1.0.51 (item
 visuals, dividers, title). No change was needed beyond the shared gap
 below.
 
 ## Known gap (documented, not shipped)
 
-Android 1.0.51 has a fourth export row — sleepy-v1 native format
+original 1.0.51 has a fourth export row — sleepy-v1 native format
 (`export_native_title`, Star icon, `.sleepy` file / `【来自Sleepy】`
 share text). It requires `SleepyNativeExporter` + `SleepyNativeFormat`
 (CRC32, escaping, Nd presets, parser counterpart, 89-test suite). That

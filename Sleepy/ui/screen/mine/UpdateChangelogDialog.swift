@@ -1,6 +1,6 @@
 // UpdateChangelogDialog.swift — ← ui/screen/mine/UpdateChangelogDialog.kt
 // 更新日志弹窗: 状态机 = Idle/Checking/NoUpdate/UpdateAvailable/Downloading/Installing/Failed。
-// 平台差异(SPEC #2): Android 下载 APK 自装 → iOS 下载 IPA 后提示重新侧载(Installing 态
+// 平台差异(SPEC #2): 原版本 下载 APK 自装 → iOS 下载 IPA 后提示重新侧载(Installing 态
 // 由 AboutScreen 在下载完成时切到, 在此弹窗内只显示「请重新侧载」提示)。
 //
 // Markdown 渲染走本仓库自研 MarkdownBlocks(Swift 端口, 无第三方依赖) — 块级/行内由
@@ -29,14 +29,14 @@ struct UpdateChangelogDialog: View {
 
         VStack(alignment: .leading, spacing: 16) {
             Text(dialogTitle(version: version))
-                .font(.system(size: 22, weight: .bold))   // ← Android titleLarge.copy(Bold) 22sp
+                .font(.system(size: 22, weight: .bold))   // ← 原 titleLarge.copy(Bold) 22sp
                 .foregroundColor(colors.onSurface)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     if isFailed {
-                        // ← Android L94: 每个 Failed 态都渲染错误行, message 为空也照写
+                        // ← 原版本 L94: 每个 Failed 态都渲染错误行, message 为空也照写
                         Text(L10n.format("update_download_failed", failMsg))
                             .font(.system(size: 14))
                             .foregroundColor(colors.error)
@@ -103,8 +103,8 @@ struct UpdateChangelogDialog: View {
                         .cornerRadius(SleepyShapes.large)
                     }
                 case .installing:
-                    // ← Android L194「无按钮,等系统安装器」; iOS 侧由侧载提示 + 下滑关闭承载,
-                    //   与 Android 返回键/背板关闭等价(SPEC #2 平台翻译只针对文案)。
+                    // ← 原版本 L194「无按钮,等系统安装器」; iOS 侧由侧载提示 + 下滑关闭承载,
+                    //   与 原版本 返回键/背板关闭等价(SPEC #2 平台翻译只针对文案)。
                     EmptyView()
                 case .idle, .checking, .noUpdate:
                     EmptyView()
@@ -115,7 +115,7 @@ struct UpdateChangelogDialog: View {
         }
         .padding(24)   // ← M3 AlertDialog dialogPadding 24dp
         .background(colors.surface)
-        // ← Android L78-80: Downloading 态屏蔽下滑关闭(onDismissRequest 空操作),
+        // ← 原版本 L78-80: Downloading 态屏蔽下滑关闭(onDismissRequest 空操作),
         //   取消只能走「取消」按钮 onCancelDownload。
         .interactiveDismissDisabled(isDownloading)
     }
@@ -200,7 +200,7 @@ private struct MarkdownChangelog: View {
             }
         case .paragraph(let text):
             Text(inlineText(text))
-                .font(.system(size: 12))   // ← Android bodySmall 12sp
+                .font(.system(size: 12))   // ← 原 bodySmall 12sp
                 .foregroundColor(colors.onSurfaceVariant)
                 .padding(.vertical, 2)
         }
@@ -209,8 +209,8 @@ private struct MarkdownChangelog: View {
     @ViewBuilder
     private func headingView(level: Int, text: String) -> some View {
         let size = level == 1 ? 22.0 : (level == 2 ? 16.0 : 14.0)
-        // ← Android L216-217: 标题走原始 block.text(粗体已由字重承担), 不做行内 markdown 解析,
-        //   '**x**' 在标题里按字面显示, 与 Android 一致。
+        // ← 原版本 L216-217: 标题走原始 block.text(粗体已由字重承担), 不做行内 markdown 解析,
+        //   '**x**' 在标题里按字面显示, 与原实现一致。
         Text(text)
             .font(.system(size: size, weight: .bold))
             .foregroundColor(colors.onSurfaceVariant)
@@ -233,10 +233,10 @@ private struct MarkdownChangelog: View {
         .padding(.vertical, 2)
     }
 
-    /// ← Android UpdateChangelogDialog.kt:250-272 inlineAnnotated(): 行内 span 由
+    /// ← 原版本 UpdateChangelogDialog.kt:250-272 inlineAnnotated(): 行内 span 由
     ///   MarkdownBlocks.parseInline 确定性切分, 每种 span 的视觉由本函数显式排版。
     ///   禁 AttributedString(markdown:) 黑盒(嵌套括号 URL 平衡进链接、try? 静默降级),
-    ///   链接截断语义随 Android 正则(首 ')' 截止)。
+    ///   链接截断语义随 原版本 正则(首 ')' 截止)。
     private func inlineText(_ text: String) -> AttributedString {
         var out = AttributedString()
         for span in MarkdownBlocks.parseInline(text) {

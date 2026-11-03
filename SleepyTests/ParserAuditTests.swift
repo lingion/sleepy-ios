@@ -68,7 +68,7 @@ final class ParserAuditTests: XCTestCase {
             return XCTFail("Markdown 表格行应能解析")
         }
         XCTAssertEqual(r.courses.count, 1)
-        // 表头行"星期"列 parseDay 失败 → 与 Android 同语义进 dropped(非静默丢)
+        // 表头行"星期"列 parseDay 失败 → 与 原版本 同语义进 dropped(非静默丢)
         XCTAssertEqual(r.droppedLines.count, 1)
     }
 

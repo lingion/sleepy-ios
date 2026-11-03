@@ -92,7 +92,7 @@ final class ScheduleFlowUITests: XCTestCase {
     }
 
     // MARK: 视图切换 — seg_Week ↔ seg_Grid(SegmentedSwitcher)
-    // 出厂默认启动视图 = cards(网格, ← Android AppPrefs "cards"), 种子复位保证
+    // 出厂默认启动视图 = cards(网格, ← 原版本 AppPrefs "cards"), 种子复位保证
     // 起步即在网格 → 先断网格态, 切 Week 断周视图, 再切回网格。
 
     func testViewModeSwitchCardsToWeekAndBack() {
@@ -121,7 +121,7 @@ final class ScheduleFlowUITests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch
     }
 
-    /// 默认启动视图=网格(← Android "cards"), DetailPanel 只在周视图存在 →
+    /// 默认启动视图=网格("cards"), DetailPanel 只在周视图存在 →
     /// 用到 lesson_ 锚点的用例先切 seg_Week(幂等: 已在周视图则空操作)。
     private func switchToWeekMode() {
         let week = app.descendants(matching: .any)["seg_Week"]
@@ -198,7 +198,7 @@ final class ScheduleFlowUITests: XCTestCase {
         app.descendants(matching: .any)["detail_close"].tap()
     }
 
-    // MARK: ★ 今天页课程卡点击 → 详情 Sheet(对齐 Android TodayScreen 点击交互;
+    // MARK: ★ 今天页课程卡点击 → 详情 Sheet(对齐 原版本 TodayScreen 点击交互;
     //       修复前 iOS 今天页课卡不可点、无详情 Sheet)
 
     func testTodayCourseTapOpensDetailSheet() {
@@ -217,7 +217,7 @@ final class ScheduleFlowUITests: XCTestCase {
         let isMath = course.label.contains("高等数学")
         course.tap()
         XCTAssertTrue(app.staticTexts["Teacher"].waitForExistence(timeout: 5),
-                      "今天页课程卡点击应弹详情 Sheet(对齐 Android)")
+                      "今天页课程卡点击应弹详情 Sheet(对齐原实现)")
         if isMath {
             XCTAssertTrue(app.staticTexts["张老师"].exists, "高数详情应含张老师")
         }

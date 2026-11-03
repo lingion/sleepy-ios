@@ -7,7 +7,7 @@ import XCTest
 
 final class MarkdownBlocksTests: XCTestCase {
 
-    // ==== Android 原用例 ====
+    // ==== 原版本 原用例 ====
 
     func testParsesHeadingLevels() {
         let blocks = MarkdownBlocks.parse("## New\n\nbody")

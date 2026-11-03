@@ -1,4 +1,4 @@
-// TimeTableUtilsAlignmentTests.swift — ← Android util 测试套件移植(F122)
+// TimeTableUtilsAlignmentTests.swift — ← 原 util 测试套件移植(F122)
 // 覆盖此前 iOS 零用例的: TimeTableUtilsMergeTest / TimeTableUtilsInferenceTest /
 // TimeTableUtilsEdgeNodeTest / EdgeCandidatesTest / PeriodTablePreviewTest /
 // PeriodTableBindConfirmRowsTest / Ics28CourseRemapTest。
@@ -6,7 +6,7 @@
 import XCTest
 @testable import Sleepy
 
-/// ← Android 测试里的 Triple 构造便捷函数
+/// ← 原版本 测试里的 Triple 构造便捷函数
 private func jrows(_ triples: [(Int, String, String)]) -> String {
     TimeTableUtils.buildTimeJsonFromRows(
         triples.map { TimeTableUtils.TimeSlotRow(node: $0.0, start: $0.1, end: $0.2) })
@@ -76,7 +76,7 @@ final class TimeTableUtilsMergeTests: XCTestCase {
         XCTAssertEqual("20:50", rows[10].start, "超出双方声明的节次用 smart 默认")
     }
 
-    // F122 issue: ← Android takeIf { isNotBlank } — 纯空白串 = 没声明,
+    // F122 issue: ← 原 takeIf { isNotBlank } — 纯空白串 = 没声明,
     // 绝不能进 parseTimeSlotRows(catch 出 12 行 smart 伪声明把真实表盖掉)
     func testWhitespaceOnlyCurrentDoesNotEnterMerge() {
         let real = jrows([(1, "08:10", "08:50")])
@@ -640,7 +640,7 @@ final class Ics28CourseRemapTests: XCTestCase {
 
 final class TimeTableUtilsStrictParsingTests: XCTestCase {
 
-    // ← Android parseNodes: o.optInt("node", i + 1) — issue#40 旧格式补号
+    // ← 原版本 parseNodes: o.optInt("node", i + 1) — issue#40 旧格式补号
     func testParseNodesLegacyEntriesWithoutNodeKeyGetIndexPlusOne() {
         let nodes = TimeTableUtils.parseNodes("[{\"start\":\"08:00\",\"end\":\"08:45\"},{\"start\":\"08:55\",\"end\":\"09:40\"}]")
         XCTAssertEqual(2, nodes.count)
@@ -648,18 +648,18 @@ final class TimeTableUtilsStrictParsingTests: XCTestCase {
         XCTAssertEqual("08:00", TimeTableUtils.formatTime(nodes[0].start))
     }
 
-    // ← Android 整体 try/catch: 单行坏 → 全表空(不是丢单行)
+    // ← 原版本 整体 try/catch: 单行坏 → 全表空(不是丢单行)
     func testParseNodesAnyBadRowFailsEntireList() {
         XCTAssertTrue(TimeTableUtils.parseNodes("[{\"node\":1,\"start\":\"08:00\",\"end\":\"08:45\"},{\"node\":2}]").isEmpty)
         XCTAssertTrue(TimeTableUtils.parseNodes("[{\"node\":1,\"start\":\"25:00\",\"end\":\"25:45\"}]").isEmpty)
     }
 
-    // ← Android LocalTime.parse 严格语义
+    // ← 原版本 LocalTime.parse 严格语义
     func testHmToSecondsMatchesLocalTimeStrictness() {
-        XCTAssertNil(TimeTableUtils.hmToSeconds("9:30"))    // Android 拒绝单位小时
-        XCTAssertNil(TimeTableUtils.hmToSeconds("24:00"))   // Android 拒绝
+        XCTAssertNil(TimeTableUtils.hmToSeconds("9:30"))    // 原实现拒绝单位小时
+        XCTAssertNil(TimeTableUtils.hmToSeconds("24:00"))   // 原实现拒绝
         XCTAssertNil(TimeTableUtils.hmToSeconds("25:00"))   // 旧 iOS 会跨日滚动
-        XCTAssertEqual(9 * 3600 + 30 * 60 + 15, TimeTableUtils.hmToSeconds("09:30:15")) // Android 接受秒
+        XCTAssertEqual(9 * 3600 + 30 * 60 + 15, TimeTableUtils.hmToSeconds("09:30:15")) // 原实现接受秒
         XCTAssertNil(TimeTableUtils.hmToSeconds("09:60"))
     }
 
@@ -677,18 +677,18 @@ final class TimeTableUtilsStrictParsingTests: XCTestCase {
         XCTAssertEqual("08:45", parts?.1)
     }
 
-    // ← Android JSONObject.put 插入序: node,start,end,edge 逐字节稳定
-    func testBuildTimeJsonKeyOrderIsAndroidByteIdentical() {
+    // ← 原版本 JSONObject.put 插入序: node,start,end,edge 逐字节稳定
+    func testBuildTimeJsonKeyOrderIsOriginalByteIdentical() {
         let js = TimeTableUtils.buildTimeJsonFromRows([row(1, "08:00", "08:45", edge: .before)])
         XCTAssertEqual("[{\"node\":1,\"start\":\"08:00\",\"end\":\"08:45\",\"edge\":\"before\"}]", js)
         let plain = TimeTableUtils.buildTimeJsonFromRows((1...12).map { TimeTableUtils.parseTimeSlotRows(TimeTableUtils.DEFAULT_TIME_JSON)[$0 - 1] })
         XCTAssertEqual(TimeTableUtils.DEFAULT_TIME_JSON
                        .replacingOccurrences(of: "\n", with: "")
                        .replacingOccurrences(of: " ", with: ""), plain,
-                       "默认表往返必须与 Android org.json 紧凑输出逐字节一致")
+                       "默认表往返必须与 原 org.json 紧凑输出逐字节一致")
     }
 
-    // ← Android extendTimeJsonWith: node > currentMax 复制进来并连续重编号
+    // ← 原版本 extendTimeJsonWith: node > currentMax 复制进来并连续重编号
     func testExtendTimeJsonWithAppendsRenumberedTail() {
         let cur = jrows([(1, "08:00", "08:45")])
         let inc = jrows([(2, "10:00", "10:45"), (5, "14:00", "14:45")])

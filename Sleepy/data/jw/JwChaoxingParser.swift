@@ -101,7 +101,7 @@ final class JwChaoxingParser: JwParser {
               let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return []
         }
-        // 逐元素取字典: 单个非对象元素只跳过该行 (对齐 Android el.jsonObject runCatching ?: continue)
+        // 逐元素取字典: 单个非对象元素只跳过该行 (对齐 原版本 el.jsonObject runCatching ?: continue)
         let rows = (root["rows"] as? [Any]) ?? []
 
         struct Row {

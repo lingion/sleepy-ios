@@ -2,12 +2,12 @@
 // 多课表合并「每日议程」的中间层: 每表当日课程 → 统一按真实开始时间排序的条目流。
 // 纯 Foundation 逻辑(app/widget/watch 三 target 共源编译, 无 UIKit 依赖)。
 //
-// 调用契约(← Android 注释): 必须在 提醒开关/学期范围/节假日策略 过滤之后调用;
+// 调用契约(注释): 必须在 提醒开关/学期范围/节假日策略 过滤之后调用;
 // 传入的 table.timeJson 必须已水合(hydratedWith)。
 
 import Foundation
 
-// MARK: - 时间小工具 (Android LocalTime 的 iOS 投影: 当日分钟数 + "HH:mm" 文本)
+// MARK: - 时间小工具 (原版本 LocalTime 的 iOS 投影: 当日分钟数 + "HH:mm" 文本)
 
 enum DailyAgendaTime {
     /// NodeTime/解析结果的 Date → 当日分钟数 (与 TimeTableUtils.formatTime 同一 Calendar 口径)
@@ -32,9 +32,9 @@ struct DailyTableCourses {
 struct DailyScheduleEntry {
     let table: TimeTableEntity
     let course: CourseEntity
-    /// 解析成功的开始时间(当日分钟数) ← Android LocalTime?; nil = 时间不可解析(排序沉底)
+    /// 解析成功的开始时间(当日分钟数) ← 原版本 LocalTime?; nil = 时间不可解析(排序沉底)
     let startTimeMinutes: Int?
-    /// 展示文本 ← Android startTimeText: 自定义时间原文 或 解析后的 "HH:mm"; 不可解析 = ""
+    /// 展示文本 ← 原版本 startTimeText: 自定义时间原文 或 解析后的 "HH:mm"; 不可解析 = ""
     let startTimeText: String
 }
 
@@ -63,7 +63,7 @@ func buildDailyScheduleSummary(_ tables: [DailyTableCourses]) -> DailyScheduleSu
         let nodeTimes = TimeTableUtils.parseNodes(table.timeJson)
         return courses.map { course -> DailyScheduleEntry in
             // ← customTime = startTime.takeIf { course.ownTime && isNotBlank }:
-            // 自定义时间存在但畸形 → start=null(不回落节点时间, Android 同款语义)。
+            // 自定义时间存在但畸形 → start=null(不回落节点时间, 原版本 同款语义)。
             // iOS 双旗适配: isIrregularTime 吞并旧 ownTime 语义(实体注释), 判定取或。
             let customTime: String? =
                 ((course.ownTime || course.isIrregularTime) && !course.startTime.isBlank)

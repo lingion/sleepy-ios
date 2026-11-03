@@ -13,7 +13,7 @@ import Foundation
 
 enum HolidayReminderPolicyAdapter {
     static func decide(date: Date, tableId: Int64) async -> HolidayReminderPolicy.Result {
-        // ← Android L9 HolidayManager.getYearData(ctx, date.year): 返回"已合并用户覆盖并
+        // ← 原版本 L9 HolidayManager.getYearData(ctx, date.year): 返回"已合并用户覆盖并
         // 按天展开"的生效条目 + available。getYearData 内部 available = hasCachedData ||
         // !fetchFailed(← HolidayManager.kt yearData() L169), 且 fetchEntries 解析成功即
         // 清除 yearFetchFailed(← kt L221; iOS 落点 HolidayManager.swift 的
@@ -37,7 +37,7 @@ enum HolidayReminderPolicyAdapter {
             transferHolidayReminder: AppPrefs.shared.isHolidayReminderTransferHolidayEnabled(),
             makeupWorkdayReminder: AppPrefs.shared.isHolidayReminderMakeupWorkdayEnabled(),
             ordinaryWeekendReminder: AppPrefs.shared.isHolidayReminderOrdinaryWeekendEnabled(),
-            // ← Android L29 dataAvailable = yearData.available
+            // ← 原版本 L29 dataAvailable = yearData.available
             dataAvailable: yearData.available
         )
     }

@@ -2,7 +2,7 @@
 // 证据: AltStore 源码 FetchProvisioningProfilesOperation.swift:447 (group ID 加 team 后缀)
 //      ResignAppOperation.swift:126 (真实 ID 写入 Info.plist ALTAppGroups key)
 // 行为: Xcode 直跑(开发签名)→ 用声明的 group ID;AltStore 侧载 → 读 ALTAppGroups[0]
-// ← 对应 Android 无此层(单进程无共享),为 iOS 平台差异新增(SPEC 差异表 #8 附注)
+// ← 对应 原版本 无此层(单进程无共享),为 iOS 平台差异新增(SPEC 差异表 #8 附注)
 
 import Foundation
 

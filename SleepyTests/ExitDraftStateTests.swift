@@ -56,7 +56,7 @@ final class ExitDraftStateTests: XCTestCase {
     }
 
     // 附加: reducer 不产生副作用 — activeImport 在所有终局里原样透传
-    // (Android data class 语义: copy 只动 confirmationVisible).
+    // (原 data class 语义: copy 只动 confirmationVisible).
     func testReducerPreservesActiveImportAcrossAllChoices() {
         for choice in [ExitDraftChoice.continueImport, .keepDraft, .deleteDraft] {
             let result = reduceExitDraftState(

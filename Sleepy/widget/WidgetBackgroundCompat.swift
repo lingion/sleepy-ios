@@ -34,7 +34,7 @@ extension View {
 // 每个 widget 以 WidgetRenderingMode.accented/vibrant 渲染 (Apple: "Optimizing
 // your widget for accented rendering mode and Liquid Glass"):背景移除换玻璃、
 // **所有不透明内容整组染成纯白、只保留 alpha**。本 app 课程卡/胶囊/文字全是
-// 不透明主题色 → 染色后同白、层级消失。Android 无此机制 (对齐审计不覆盖)。
+// 不透明主题色 → 染色后同白、层级消失。原版本 无此机制 (对齐审计不覆盖)。
 // 修法: 渲染期读模式, glass 态把配色整体换成「白 @ alpha 阶梯」
 // (resolveWidgetScheme(isGlass:) → glassWidgetScheme)。
 // widgetRenderingMode 环境键 iOS 16+ (玻璃样式 iOS 26 才有, 16~25 恒 fullColor);

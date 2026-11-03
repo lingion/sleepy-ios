@@ -34,7 +34,7 @@ struct CourseDao {
         return c.id
     }
 
-    /// 事务内强制保留原 ID 插入 — 全量迁移包覆盖导入用(Android insertKeepId)。
+    /// 事务内强制保留原 ID 插入 — 全量迁移包覆盖导入用(原版本 insertKeepId)。
     /// GRDB 的 MutablePersistableRecord.didInsert 会覆盖 id,所以这里改用底层 SQL
     /// INSERT OR REPLACE,SQLite 按提供的 id 落 rowid;这样 course.id 仍为入参值。
     func insertKeepIdInDb(_ dbw: Database, _ course: CourseEntity) throws {

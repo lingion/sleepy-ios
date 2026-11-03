@@ -3,10 +3,10 @@
 // 空态文案引导去系统桌面添加(添加动作完全在 launcher,App 内无法代劳)。
 //
 // v1.0.62 B4 (+34 对齐): ①标题栏右上「＋」进 WidgetGallery 画廊页直接添加;
-//   ②画廊 pin/编辑绑定后回本页重扫已放置实例(Android ON_RESUME 重扫同义);
+//   ②画廊 pin/编辑绑定后回本页重扫已放置实例(原版本 ON_RESUME 重扫同义);
 //   ③空态文案改 widget_manage_empty_v2(引导右上「＋」)。
 //
-// ★ 平台差异(差异表#8 附注): Android 用 AppWidgetManager.getAppWidgetIds 枚举 10 个
+// ★ 平台差异(差异表#8 附注): 原版本 用 AppWidgetManager.getAppWidgetIds 枚举 10 个
 //   receiver 变体的已放置实例;iOS 等价物 = WidgetCenter.getCurrentConfigurations(),
 //   返回的 WidgetInfo 只有 kind + family,无稳定实例 ID → 行键 = kind+family,
 //   同 kind 的多实例显示为相同行(粒度上限即 per-kind,见 WidgetBindingStore.swift 头注)。
@@ -14,7 +14,7 @@
 import SwiftUI
 import WidgetKit
 
-// ← PlacedWidgetItem — Android 1:1, 实例 ID 换成 kind(平台差异表#8)
+// ← PlacedWidgetItem — 原版本 1:1, 实例 ID 换成 kind(平台差异表#8)
 struct PlacedWidgetItem: Identifiable {
     let kind: String
     let family: WidgetFamily
@@ -62,7 +62,7 @@ struct WidgetManagementScreen: View {
 
     // ← vm.state (WidgetManagementViewModel)
     @State private var items: [PlacedWidgetItem] = []
-    // 点击行 → 编辑页(等价 Android onSelect(id) 导航)
+    // 点击行 → 编辑页(等价 原版本 onSelect(id) 导航)
     @State private var editTarget: PlacedWidgetItem? = nil
     // v1.0.62 B4: 标题栏右上「＋」进画廊页直接添加(设计 §3)
     @State private var showGallery = false
@@ -74,7 +74,7 @@ struct WidgetManagementScreen: View {
                 .overlay(alignment: .trailing) {
                     Button(action: { showGallery = true }) {
                         Image(systemName: "plus")
-                            .font(.system(size: 24))   // ← Android Icon 默认 24dp
+                            .font(.system(size: 24))   // ← 原 Icon 默认 24dp
                             .frame(width: 40, height: 40)   // ← M3 IconButton 40×40
                             .foregroundColor(colors.onBackground)
                     }
@@ -100,7 +100,7 @@ struct WidgetManagementScreen: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    // ← Android WidgetManagementScreen.kt L97 仅 horizontal 16, 无纵向 padding
+                    // ← 原版本 WidgetManagementScreen.kt L97 仅 horizontal 16, 无纵向 padding
                 }
             }
         }
@@ -112,7 +112,7 @@ struct WidgetManagementScreen: View {
             WidgetEditScreen(kind: target.kind, family: target.family,
                              onDismiss: {
                                  editTarget = nil
-                                 // ← Android ON_RESUME 重扫: 编辑绑定改课后回列表重扫
+                                 // ← 原版本 ON_RESUME 重扫: 编辑绑定改课后回列表重扫
                                  Task { items = await loadPlacedWidgets() }
                              })
         }
@@ -121,7 +121,7 @@ struct WidgetManagementScreen: View {
             WidgetGalleryScreen(onDismiss: {
                 showGallery = false
                 // ← 画廊 pin → 返回本页: 重扫已放置实例(单一真源 = WidgetCenter),
-                //    新卡片即时可见, 无需手动刷新(Android ON_RESUME 重扫同义)
+                //    新卡片即时可见, 无需手动刷新(原版本 ON_RESUME 重扫同义)
                 Task { items = await loadPlacedWidgets() }
             })
         }
@@ -137,7 +137,7 @@ private struct PlacedWidgetRow: View {
     var body: some View {
         Button(action: onClick) {
             HStack {
-                // ← Android PlacedWidgetRow L123 Column 无 verticalArrangement → 间距 0
+                // ← 原版本 PlacedWidgetRow L123 Column 无 verticalArrangement → 间距 0
                 VStack(alignment: .leading, spacing: 0) {
                     Text(item.displayName)
                         .font(.system(size: 16))

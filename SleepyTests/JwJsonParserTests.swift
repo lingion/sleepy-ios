@@ -111,7 +111,7 @@ final class JwJsonParserTests: XCTestCase {
     }
 
     func testSeuFullWidthParenNormalized() {
-        // "1-16周（单）" 全角形态: 先归一括号再按段检测 (对齐 Android v1.0.61)
+        // "1-16周（单）" 全角形态: 先归一括号再按段检测 (对齐 原版本 v1.0.61)
         let ranges = JwSeuParser("{}").parseWeekRanges("1-16周（单）")
         XCTAssertEqual(ranges.count, 1)
         XCTAssert((1, 16, 1) == ranges[0])
@@ -185,7 +185,7 @@ final class JwJsonParserTests: XCTestCase {
 
     func testZjuDegenerateOddWeekNoInversion() throws {
         // "6-6周" dsz=0(单): 起点抬到 7, 端点相等时 end 抬回 start → (7,7) 不倒挂
-        // (对齐 Android JwParity.adjustedRange; 旧内联实现产 (7,6))
+        // (对齐 原版本 JwParity.adjustedRange; 旧内联实现产 (7,6))
         let json = """
         {"kbList": [{"xkkh": "TEST0000000000000002", "xqj": "1", "dsz": "0", "djj": "1",
                      "skcd": "1", "kcb": "倒挂测试<br>6-6周<br>老师<br>教室", "xxq": "秋冬"}]}
@@ -383,8 +383,8 @@ final class JwJsonParserTests: XCTestCase {
     }
 
     func testScuWeekDescriptionStripsNonDigit() throws {
-        // "1-15周(单)" 对齐 Android v1.0.61 extractParity: "(单)" 剥除后按
-        // [^\d\-,] 展开, 单周信息保留 (type=1); 起点 1 已奇 → 不抬 (同 Android)
+        // "1-15周(单)" 对齐 原版本 v1.0.61 extractParity: "(单)" 剥除后按
+        // [^\d\-,] 展开, 单周信息保留 (type=1); 起点 1 已奇 → 不抬 (同 原版本)
         let json = """
         {"dateList": [{"selectCourseList": [{
             "attendClassTeacher": "X", "courseName": "单周测试", "examTypeName": "",
@@ -486,7 +486,7 @@ final class JwJsonParserTests: XCTestCase {
 
     func testNeuEvenWeekType0() throws {
         // 1-16双周: 线协议单/双信息仍存在, Sleepy 保留 type=2 并做端点修正
-        // (双周起点须偶数 → startWeek 1→2) — 对齐 Android v1.0.60
+        // (双周起点须偶数 → startWeek 1→2) — 对齐 原版本 v1.0.60
         // JwNeuParserTest "双周课 carries parity type 2 with even endpoint correction"
         let courses = try JwNeuParser(try loadFixture("neu_courses")).generateCourseList()
         let eng = try XCTUnwrap(courses.first { $0.name == "英语口语" })

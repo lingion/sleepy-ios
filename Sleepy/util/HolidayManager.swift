@@ -105,14 +105,14 @@ enum HolidayManager {
         guard let json = prefs.string(forKey: cacheKey(year)),
               let data = json.data(using: .utf8),
               let dates = (try? JSONSerialization.jsonObject(with: data)) as? [Any] else { return nil }
-        // ← Android JSONObject().put("dates", dates) 再 parseEntries: 落盘是裸数组串, 解析要求根 {"dates":[...]}
+        // ← 原版本 JSONObject().put("dates", dates) 再 parseEntries: 落盘是裸数组串, 解析要求根 {"dates":[...]}
         guard let wrapped = try? JSONSerialization.data(withJSONObject: ["dates": dates]),
               let wrappedJson = String(data: wrapped, encoding: .utf8) else { return nil }
         return parseEntries(wrappedJson)
     }
 
     private static func writeDiskCache(_ year: Int, _ entries: [HolidayEntry]) {
-        // 存 JSON *字符串*(← Android putString(cacheKey, arr.toString())), 与 diskCache 的 string(forKey:) 读回同型
+        // 存 JSON *字符串*(putString(cacheKey, arr.toString())), 与 diskCache 的 string(forKey:) 读回同型
         let arr: [[String: Any]] = entries.map { e in
             ["date": dateFormat.string(from: e.date), "name": e.name, "type": e.type]
         }
@@ -190,7 +190,7 @@ enum HolidayManager {
         let merged = HolidayRangeOps.mergeSegments(networkEntries, ranges)
         let (holidays, networkWorkdays) = HolidayRangeOps.toSets(merged.active)
         // 补班日集合 = 网络法定补班日 + 用户自定义补班日(映射的 targetDate)
-        // ← Android L111-15: 周末调休补班当天 greyWeekend+ignoreWorkday 开启时不灰
+        // ← 原版本 L111-15: 周末调休补班当天 greyWeekend+ignoreWorkday 开启时不灰
         let customWorkdays: Set<Date> = tableId != nil
             ? Set(AppPrefs.shared.getHolidayTransfers(tableId!).map { $0.targetDate })
             : []
@@ -318,7 +318,7 @@ enum HolidayManager {
                 // 返回体异常(非预期结构)视为失败
                 failedPut(year, true)
             } else {
-                // 解析成功 → 清除失败标记(← Android else { yearFetchFailed.remove(year) }):
+                // 解析成功 → 清除失败标记(else { yearFetchFailed.remove(year) }):
                 // 否则先前失败的年份在后续成功后仍被 isYearFetchFailed 判失败
                 failedPut(year, false)
             }
@@ -530,7 +530,7 @@ enum HolidayRangeOps {
 // MARK: - Calendar/Date 辅助
 
 extension Calendar {
-    /// 固定 CST(与 Android 端 LocalDate 语义对齐 — 无 DST 漂移, 日期比较稳定)
+    /// 固定 CST(与 原版本 端 LocalDate 语义对齐 — 无 DST 漂移, 日期比较稳定)
     static let gregorianCST: Calendar = {
         var c = Calendar(identifier: .gregorian)
         c.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current

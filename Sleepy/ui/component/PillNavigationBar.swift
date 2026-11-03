@@ -1,6 +1,6 @@
 // PillNavigationBar.swift — ← ui/component/PillNavigationBar.kt
 //
-// v2.5 (2026-09-08): 悬浮形态按 Android v1.0.45 NavDockSpec / DockNavigationBar 逐行重写。
+// v2.5 (2026-09-08): 悬浮形态按 原版本 v1.0.45 NavDockSpec / DockNavigationBar 逐行重写。
 //   之前 iOS 悬浮错把「贴底 76pt barBody」整套几何复用了过去(高 76 / 角 28 / thumb 64×32),
 //   表现出来就是又胖又方 + thumb 不盖满座位 → 用户报障「悬浮样式完全不对」。
 //
@@ -18,23 +18,23 @@
 //   shadow radius 12 y 4 black 0.2、thumb 56×52 y=6 完整罩住图标+文字、icon 24pt +
 //   spacer 2pt + labelSmall 整座位单色 lerp(不分字符)、选中色 onSecondaryContainer。
 //
-// v2.8 (2026-10-19) 对齐 Android v1.0.61 PillNavigationBar.kt Docked 分支 (F063):
+// v2.8 (2026-10-19) 对齐 原版本 v1.0.61 PillNavigationBar.kt Docked 分支 (F063):
 //   1) 座位分布改回 Arrangement.SpaceEvenly 等价 — 定宽 64 座位, 外隙=内隙
 //      g=(usable-64n)/(n+1), center_i = inset + g + 32 + i*(64+g)
 //      (v2.6 的等宽槽位估算在 390pt 屏上首座位偏差 ~9pt)。
-//   2) 贴底表面改 Android 同款三段: padding(top=6) + Row(76) + padding(bottom=8)
+//   2) 贴底表面改 原版本 同款三段: padding(top=6) + Row(76) + padding(bottom=8)
 //      → surfaceContainer 通栏带高 90pt。
-//   3) badge 锚点移到 Icon(20pt) 本身 (Android Box{Icon+badge}.align(TopEnd))。
-//   4) thumb 加首帧 alpha 守卫 (Android graphicsLayer alpha = thumbPlaced),
-//      首次实测几何用 disablesAnimations 落位 = Android snapTo。
-//   5) sweepCoverage 空字形/零宽返回 nil (Android NaN 语义) → 调用端退化为
+//   3) badge 锚点移到 Icon(20pt) 本身 (原版本 Box{Icon+badge}.align(TopEnd))。
+//   4) thumb 加首帧 alpha 守卫 (原 graphicsLayer alpha = thumbPlaced),
+//      首次实测几何用 disablesAnimations 落位 = 原版本 snapTo。
+//   5) sweepCoverage 空字形/零宽返回 nil (原版本 NaN 语义) → 调用端退化为
 //      isSel 整词翻转; characterRects 按 isSel 选 medium/semibold 字重,
-//      补 labelSmall letterSpacing 0.5 (Android onTextLayout 实时重排等价)。
+//      补 labelSmall letterSpacing 0.5 (原 onTextLayout 实时重排等价)。
 // v2.6 (2026-09-08) 修高亮慢一拍:
 //   旧版 DockedBar 用 PreferenceKey 异步测 pill center → 首次跳到某 tab 时该 center
 //   可能还没上报,animateThumbToSelected() 拿到旧值/fallback → 下一 tap 才补 →
 //   "高亮永远慢一次"。改为确定性几何:thumb 中心 = inset + slot*i + slot/2,
-//   跟 Android PillNavBar.kt SpaceEvenly + positionInRoot 等价,不依赖异步测量。
+//   跟 原版本 PillNavBar.kt SpaceEvenly + positionInRoot 等价,不依赖异步测量。
 //   PreferenceKey 仍保留,但只用于 label 字符扫过的左缘(不影响 thumb 位置)。
 // v2.2 (2026-09-06): 贴底 thumb 由 .offset(y:0)+padding 改为 .offset(y:12),
 //                    76 - (12+32) = 32pt 上下对称。
@@ -50,7 +50,7 @@ import UIKit
 struct PillNavigationBar: View {
     @Environment(\.localWakeUpColors) private var colors
     let items: [PillNavItemData]
-    /// 底栏样式: .docked(贴底 默认) / .floating(悬浮玻璃胶囊) ← Android v1.0.45 b0f8280/351436d
+    /// 底栏样式: .docked(贴底 默认) / .floating(悬浮玻璃胶囊) ← 原版本 v1.0.45 b0f8280/351436d
     var dockStyle: DockStyle = .docked
 
     enum DockStyle { case docked, floating }
@@ -68,20 +68,20 @@ struct PillNavigationBar: View {
     }
 }
 
-/// Tab 数据(← Android PillNavItemSpec {icon, label, badge} — v1 兼容垫片)
+/// Tab 数据(PillNavItemSpec {icon, label, badge} — v1 兼容垫片)
 struct PillNavItemData: Identifiable {
     let id: String
     let icon: String
     let label: String
     let selected: Bool
-    /// ← Android badge (v1.0.60): 更新提醒可见时 Mine tab 图标右上 7dp primary 圆点
+    /// ← 原 badge (v1.0.60): 更新提醒可见时 Mine tab 图标右上 7dp primary 圆点
     var badge: Bool = false
     let onClick: () -> Void
 }
 
-// MARK: - 几何规格常量(对应 Android NavDockSpec,逐行对齐)
+// MARK: - 几何规格常量(对应 原版本 NavDockSpec,逐行对齐)
 
-// 悬浮胶囊尺寸(← Android NavDockSpec 1:1)
+// 悬浮胶囊尺寸(NavDockSpec 1:1)
 //   暴露 module-internal 是为了让 SleepyApp.floatingScrollBottomPadding 也能读到,
 //   集中单点维护(不要把 64/12 散到 SleepyApp 里再写一遍)。
 enum DockSpec {
@@ -96,15 +96,15 @@ enum DockSpec {
     static let thumbWidth: CGFloat = 56
     static let thumbHeight: CGFloat = 52
     static let thumbYOffset: CGFloat = 6
-    static let iconSize: CGFloat = 24           // ← Android 24dp(贴底用 20dp)
+    static let iconSize: CGFloat = 24           // ← 原 24dp(贴底用 20dp)
     static let iconSpacer: CGFloat = 2          // 图标 → label 间距
     static let labelFontSize: CGFloat = 11      // labelSmall 默认 11pt
 }
 
-// 贴底几何(← Android PillNavigationBar.kt Docked 分支逐行对齐)
+// 贴底几何(PillNavigationBar.kt Docked 分支逐行对齐)
 private enum DockedSpec {
     static let barHeight: CGFloat = 76
-    // ← Android Box .padding(top = 6.dp, bottom = 8.dp) 在 Row(76.dp) 之外
+    // ← 原版本 Box .padding(top = 6.dp, bottom = 8.dp) 在 Row(76.dp) 之外
     //   → surfaceContainer 通栏带实际高 6+76+8 = 90dp(iOS pt 1:1)
     static let surfaceTopPad: CGFloat = 6
     static let surfaceBottomPad: CGFloat = 8     // 通栏带总高 = 6 + 76 + 8 = 90pt
@@ -112,8 +112,8 @@ private enum DockedSpec {
     static let thumbHeight: CGFloat = 32
     static let thumbYOffset: CGFloat = 12       // 顶栏 12pt + thumb 32pt + 底栏 32pt = 76pt 上下对称
     static let iconSize: CGFloat = 20
-    static let labelFontSize: CGFloat = 11      // ← Android labelSmall = 11sp
-    static let labelLetterSpacing: CGFloat = 0.5 // ← Android labelSmall letterSpacing 0.5sp
+    static let labelFontSize: CGFloat = 11      // ← 原 labelSmall = 11sp
+    static let labelLetterSpacing: CGFloat = 0.5 // ← 原 labelSmall letterSpacing 0.5sp
     static let labelFontWeight: Font.Weight = .medium
     static let labelFontWeightSelected: Font.Weight = .semibold
     static let iconHalf: CGFloat = 10           // thumb 覆盖计算用
@@ -129,8 +129,8 @@ private struct DockedBar: View {
     @State private var labelLeftsBar: [Int: CGFloat] = [:]
     @State private var charRectsCache: [Int: [CGRect]] = [:]
     @State private var barWidth: CGFloat = 0
-    /// ← Android PillBarState.thumbPlaced: 首次实测几何落位前 thumb alpha 0
-    ///   (否则 thumb 停在估算位闪现/弹簧滑走, 2026-09-21 Android 已修同类问题)
+    /// ← 原版本 PillBarState.thumbPlaced: 首次实测几何落位前 thumb alpha 0
+    ///   (否则 thumb 停在估算位闪现/弹簧滑走, 2026-09-21 原版本 已修同类问题)
     @State private var thumbPlaced: Bool = false
 
     private var selectedIndex: Int { items.firstIndex(where: { $0.selected }) ?? 0 }
@@ -139,17 +139,17 @@ private struct DockedBar: View {
         let selected = selectedIndex
         ZStack(alignment: .topLeading) {
             // thumb 色块 — 64×32 y=12(相对 Row 76 上下对称; SleepyShapes.large 圆角)
-            // ★ v2.8: thumbPlaced 前 opacity 0 + 无动画(等价 Android graphicsLayer
+            // ★ v2.8: thumbPlaced 前 opacity 0 + 无动画(等价 原版本 graphicsLayer
             //   alpha 守卫 + snapTo); 落位后 selectedIndex 变化才走弹簧。
             RoundedRectangle(cornerRadius: SleepyShapes.large)
                 .fill(colors.secondaryContainer)
                 .frame(width: DockedSpec.thumbWidth, height: DockedSpec.thumbHeight)
                 .opacity(thumbPlaced ? 1 : 0)
                 .offset(x: thumbX, y: DockedSpec.thumbYOffset)
-                // 同款 — Android SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
+                // 同款 — 原版本 SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
                 .animation(thumbPlaced ? sleepyThumbSpring : nil, value: thumbCenterX)
 
-            // ← Android Row(76.dp).padding(horizontal=6.dp) + Arrangement.SpaceEvenly:
+            // ← 原版本 Row(76.dp).padding(horizontal=6.dp) + Arrangement.SpaceEvenly:
             //   定宽 64 座位, 外隙=内隙=g=(usable-64n)/(n+1)。
             //   HStack(spacing:g) 定宽列 + maxWidth:.infinity 居中 → 两侧自动各留
             //   slack/2 = g(usable-64n = g(n+1) → 剩余间隙恰为 2g), 与 SpaceEvenly 等价。
@@ -172,7 +172,7 @@ private struct DockedBar: View {
             )
         }
         .frame(maxWidth: .infinity)
-        // ← Android Box .padding(top = 6.dp, bottom = 8.dp) 在 Row(76) 之外,
+        // ← 原版本 Box .padding(top = 6.dp, bottom = 8.dp) 在 Row(76) 之外,
         //   surfaceContainer 通栏带实际高 6+76+8 = 90pt(再加系统底部安全区)。
         .padding(.top, DockedSpec.surfaceTopPad)
         .padding(.bottom, DockedSpec.surfaceBottomPad)
@@ -201,7 +201,7 @@ private struct DockedBar: View {
 
     // 首帧只报宽度、不落位(thumbPlaced 保持 false → 动画表达式取 nil → snap,
     // 无「从估算位弹簧滑走」); 下一轮主线程再放行 opacity, 位置此时已正确。
-    // ← Android LaunchedEffect: snapTo(target) 先于 alpha=1。
+    // ← 原版本 LaunchedEffect: snapTo(target) 先于 alpha=1。
     private func measureBarWidth(_ w: CGFloat) {
         guard w != barWidth, w > 0 else { return }
         let firstPlacement = !thumbPlaced
@@ -227,7 +227,7 @@ private struct DockedBar: View {
         let iconCov = intervalCoverage(
             thumbStart: thumbStart, thumbEnd: thumbEnd,
             bStart: pillCenter - iconHalf, bEnd: pillCenter + iconHalf)
-        // ← Android: rects?.let { sweepCoverageAt(...) } ?: Float.NaN
+        // ← 原版本: rects?.let { sweepCoverageAt(...) } ?: Float.NaN
         //   字形未就绪/空/零宽 → nil → 退化整词翻转 isSel ? 1 : 0(扫过覆盖率)
         let rects = charRectsCache[idx]
         // @ViewBuilder 体内 if/else 语句会被 buildEither 接管(分支须是 View),
@@ -245,7 +245,7 @@ private struct DockedBar: View {
             fraction: Double(t))
 
         VStack(spacing: 4) {
-            // 图标 — ← Android Box(64×32, contentAlignment=Center){ Box{ Icon(20) + badge TopEnd } }
+            // 图标 — ← 原版本 Box(64×32, contentAlignment=Center){ Box{ Icon(20) + badge TopEnd } }
             //   badge 直接贴 20pt 图标右上角(overlay 锚在 Image 本身), 不落座位框角。
             //   offset(x:2,y:-2) 为 SF Symbol 字形内边距补偿, 备案记录(auditor 判定可接受)。
             Color.clear
@@ -257,7 +257,7 @@ private struct DockedBar: View {
                             from: colors.onSurfaceVariant,
                             to: colors.onSurface,
                             fraction: Double(iconCov)))
-                        // ← Android badge (v1.0.60): 图标右上 7dp primary 圆点
+                        // ← 原 badge (v1.0.60): 图标右上 7dp primary 圆点
                         .overlay(alignment: .topTrailing) {
                             if item.badge {
                                 Circle()
@@ -272,7 +272,7 @@ private struct DockedBar: View {
                 .font(.system(size: DockedSpec.labelFontSize,
                               weight: isSel ? DockedSpec.labelFontWeightSelected
                                             : DockedSpec.labelFontWeight))
-                // ← Android labelSmall letterSpacing 0.5sp
+                // ← 原 labelSmall letterSpacing 0.5sp
                 //   (.kerning 而非 .tracking: 后者 iOS16+, 本工程最低 15.6;
                 //    .kerning 与 characterRects 的 .kern 测量属性同语义)
                 .kerning(DockedSpec.labelLetterSpacing)
@@ -289,7 +289,7 @@ private struct DockedBar: View {
                                 value: PillGeomValue(
                                     labelLefts: [idx: frame.minX]))
                             .onAppear {
-                                // ← Android onTextLayout: 文本/字重变化时重排缓存
+                                // ← 原版本 onTextLayout: 文本/字重变化时重排缓存
                                 charRectsCache[idx] = characterRects(text: item.label,
                                                                      in: g.size,
                                                                      selected: isSel)
@@ -323,7 +323,7 @@ private struct DockedBar: View {
 
 // MARK: - Floating (悬浮胶囊) 64pt 玻璃胶囊
 
-/// iOS 26 floating tab bar 语义(← Android v1.0.45 ff66ddd/351436d/5209767/0d7d4f6):
+/// iOS 26 floating tab bar 语义(v1.0.45 ff66ddd/351436d/5209767/0d7d4f6):
 ///   - 64pt 玻璃胶囊 + 16pt 水平边距 + 12pt 底部悬于手势条
 ///   - 总宽定值 itemSeat*count + itemGap*(count-1) + innerPad*2(居中,非全宽)
 ///   - 选中色块 56×52pt y=6pt → 完整罩住图标+文字
@@ -372,7 +372,7 @@ private struct FloatingBar: View {
                     .fill(colors.secondaryContainer)
                     .frame(width: DockSpec.thumbWidth, height: DockSpec.thumbHeight)
                     .offset(x: thumbX, y: DockSpec.thumbYOffset)
-                    // 同款 — Android SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
+                    // 同款 — 原版本 SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
                     .animation(sleepyThumbSpring, value: thumbCenterX)
 
                 // 4 个 tab HStack:itemGap=4 居中分布,内边距 innerPad=8
@@ -385,8 +385,8 @@ private struct FloatingBar: View {
                 .frame(width: totalWidth, height: DockSpec.capsuleHeight)
             }
             .frame(width: totalWidth, height: DockSpec.capsuleHeight)
-            // 表面色 0.86 — 与 Android DockNavigationBar glassBg = surfaceContainer.copy(alpha=0.86f) 1:1。
-            // 不加 .ultraThinMaterial: Android 是纯平面色(无高斯模糊),双层 tint 会发白发灰。
+            // 表面色 0.86 — 与 原版本 DockNavigationBar glassBg = surfaceContainer.copy(alpha=0.86f) 1:1。
+            // 不加 .ultraThinMaterial: 原版本 是纯平面色(无高斯模糊),双层 tint 会发白发灰。
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(colors.surfaceContainer.opacity(0.86))
@@ -420,7 +420,7 @@ private struct FloatingBar: View {
             Image(systemName: item.icon)
                 .font(.system(size: DockSpec.iconSize))
                 .foregroundColor(color)
-                // ← Android badge (v1.0.60): 图标右上 7dp primary 圆点(浮动分支同款)
+                // ← 原 badge (v1.0.60): 图标右上 7dp primary 圆点(浮动分支同款)
                 .overlay(alignment: .topTrailing) {
                     if item.badge {
                         Circle()
@@ -473,7 +473,7 @@ private func intervalCoverage(thumbStart: CGFloat, thumbEnd: CGFloat,
     return max(0, min(overlap, w)) / w
 }
 
-/// ← Android sweepCoverageAt: 空 rects / 总宽<=0 / total<=0 返回 Float.NaN
+/// ← 原版本 sweepCoverageAt: 空 rects / 总宽<=0 / total<=0 返回 Float.NaN
 ///   (iOS 用 nil 表达同一语义), 调用端退化为整词翻转, 而不是 0。
 private func sweepCoverage(rects: [CGRect], thumbStart: CGFloat, thumbEnd: CGFloat,
                            labelLeftEdge: CGFloat) -> CGFloat? {
@@ -495,7 +495,7 @@ private func sweepCoverage(rects: [CGRect], thumbStart: CGFloat, thumbEnd: CGFlo
     return min(1, max(0, sum / total))
 }
 
-/// 字符矩形近似(CoreText)— ← Android onTextLayout getBoundingBox(i)。
+/// 字符矩形近似(CoreText)— ← 原 onTextLayout getBoundingBox(i)。
 /// v2.8: 字重跟随选中态(未选中 Medium / 选中 SemiBold, 与 labelSmall 实际排版一致),
 /// 并补 0.5pt 字距(← labelSmall letterSpacing 0.5sp), 用 kern 属性让 CTLine
 /// typographic bounds 含字距 → 逐字宽与真实渲染对齐。

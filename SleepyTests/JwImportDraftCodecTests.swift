@@ -1,18 +1,18 @@
-// JwImportDraftCodecTests.swift — Android JwImportDraftCodec 契约测试 (GPL-3.0)
+// JwImportDraftCodecTests.swift — 原版本 JwImportDraftCodec 契约测试 (GPL-3.0)
 // round-trip + 逐条拒绝规则 (schemaVersion/phase/school/courses/periods 校验)。
 
 import XCTest
 @testable import Sleepy
 
 final class JwImportDraftCodecTests: XCTestCase {
-    /// 镜像 Android JwImportDraftTest.kt 的 `school` fixture (enableFetch = true)。
+    /// 镜像 原 JwImportDraftTest.kt 的 `school` fixture (enableFetch = true)。
     private let school = JwSchoolInfo(sortKey: "H", name: "哈尔滨工程大学",
                                       url: "https://jw.example.edu.cn", type: "qz",
                                       status: JwSchoolInfo.STATUS_SUPPORTED,
                                       aliases: ["哈工程"], sortKeyFull: "haerbingongchengdaxue",
                                       enableFetch: true)
 
-    /// 镜像 Android JwImportDraftTest.kt 的 `snapshot` fixture (全部确认字段, 含 smartConfigJson)。
+    /// 镜像 原 JwImportDraftTest.kt 的 `snapshot` fixture (全部确认字段, 含 smartConfigJson)。
     private func validSnapshot() -> JwImportDraftSnapshot {
         JwImportDraftSnapshot(
             school: school,
@@ -31,7 +31,7 @@ final class JwImportDraftCodecTests: XCTestCase {
     }
 
     func testRoundTrip() throws {
-        // 对齐 Android `snapshot round trips all import confirmation fields`:
+        // 对齐 原 `snapshot round trips all import confirmation fields`:
         // 整包相等 + smartConfigJson 显式断言。
         let snapshot = validSnapshot()
         let json = JwImportDraftCodec.toJson(snapshot)
@@ -60,7 +60,7 @@ final class JwImportDraftCodecTests: XCTestCase {
     }
 
     func testOptionalSchoolRoundTrip() throws {
-        // 对齐 Android `optional school values remain distinguishable when absent`:
+        // 对齐 原 `optional school values remain distinguishable when absent`:
         // 最小学校走 toJson→fromJson 往返 (非仅裸 JSON 解析)。
         let minimal = JwImportDraftSnapshot(
             school: JwSchoolInfo(sortKey: "X", name: "测试学校"),
@@ -77,7 +77,7 @@ final class JwImportDraftCodecTests: XCTestCase {
     }
 
     func testWebViewDraftRoundTripWithoutCourses() throws {
-        // 对齐 Android `webview draft round trips without courses`。
+        // 对齐 原 `webview draft round trips without courses`。
         let draft = JwImportDraftSnapshot(school: school, courses: [], periods: [],
                                           phase: .webViewLogin)
         let back = try XCTUnwrap(JwImportDraftCodec.fromJson(JwImportDraftCodec.toJson(draft)))
@@ -86,7 +86,7 @@ final class JwImportDraftCodecTests: XCTestCase {
     }
 
     func testJsonUsesExplicitSchemaAndPreservesCourseOrdering() {
-        // 对齐 Android `json uses explicit schema and preserves course ordering` (行 126-132)。
+        // 对齐 原 `json uses explicit schema and preserves course ordering` (行 126-132)。
         let json = JwImportDraftCodec.toJson(validSnapshot())
         XCTAssertTrue(json.contains("\"schemaVersion\":1"))
         guard let first = json.range(of: "高等数学"), let second = json.range(of: "实验课") else {
@@ -119,7 +119,7 @@ final class JwImportDraftCodecTests: XCTestCase {
     }
 
     func testRejectsNonJsonAndMissingRequiredFields() {
-        // 逐条镜像 Android `codec rejects unsupported version and missing required fields` (行 82-84)。
+        // 逐条镜像 原 `codec rejects unsupported version and missing required fields` (行 82-84)。
         XCTAssertNil(JwImportDraftCodec.fromJson(#"{"schemaVersion":99}"#), "不支持版本 → nil")
         XCTAssertNil(JwImportDraftCodec.fromJson(#"{"schemaVersion":1,"school":{"name":""},"courses":[]}"#),
                      "school 非法 + 缺 periods → nil")
@@ -128,7 +128,7 @@ final class JwImportDraftCodecTests: XCTestCase {
         XCTAssertNil(JwImportDraftCodec.fromJson(
             #"{"schemaVersion":1,"school":{"sortKey":"Q","name":"X"},"courses":[]}"#),
                      "缺 periods → nil")
-        // 镜像 Android `codec rejects malformed course and period entries`。
+        // 镜像 原 `codec rejects malformed course and period entries`。
         XCTAssertNil(JwImportDraftCodec.fromJson("""
         {"schemaVersion":1,"school":{"sortKey":"X","name":"测试学校"},\
         "courses":[{"name":"","day":1,"startNode":1,"endNode":1,"startWeek":1,"endWeek":1}],\

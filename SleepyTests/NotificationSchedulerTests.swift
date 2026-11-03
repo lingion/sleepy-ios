@@ -154,7 +154,7 @@ final class NotificationSchedulerTests: XCTestCase {
         return e
     }
 
-    // ==== Android 原用例 (CourseNotificationSchedulerTest.kt 逐用例移植) ====
+    // ==== 原版本 原用例 (CourseNotificationSchedulerTest.kt 逐用例移植) ====
 
     func testFutureCourseInWindowArmsOneExactAlarm() async {
         // 周三今天, 周五(day=5)第1节 08:00 → 2026-10-09 07:50 (提前 10 分钟)
@@ -365,7 +365,7 @@ final class NotificationSchedulerTests: XCTestCase {
 
     func testProtocolDefaultResolveReminderTablesFallsBackToEnabledCurrentTable() {
         // 旧测试替身兼容: 不实现 resolveReminderTables 的最小 conformer 走协议默认实现
-        // (← Android BeforeClassDataSource 接口默认方法: 当前表且 reminderEnabled 才返回)
+        // (BeforeClassDataSource 接口默认方法: 当前表且 reminderEnabled 才返回)
         let enabled: NotificationSchedulerBeforeClassDataSource =
             LegacyMinimalDataSource(table: makeTable(reminderEnabled: true))
         XCTAssertEqual(1, enabled.resolveReminderTables().count)
@@ -376,7 +376,7 @@ final class NotificationSchedulerTests: XCTestCase {
         XCTAssertTrue(gone.resolveReminderTables().isEmpty)
     }
 
-    func testSummaryIdentifierFanOutNumberingMatchesAndroid() {
+    func testSummaryIdentifierFanOutNumberingMatchesOriginal() {
         // 5000 + tableId*2 (+1 次日), 字符串化 = sleepy_summary_*
         XCTAssertEqual("sleepy_summary_5002", NotificationScheduler.summaryIdentifier(tableId: 1, isTomorrowPreview: false))
         XCTAssertEqual("sleepy_summary_5003", NotificationScheduler.summaryIdentifier(tableId: 1, isTomorrowPreview: true))

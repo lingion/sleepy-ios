@@ -14,7 +14,7 @@
 // 失败兜底: 捕获任何异常 → FORMAT_ERROR 回调, 由 native 侧 tryAllParsers 已抓到的
 // outerHTML 接管。
 //
-// iOS 桥差异(唯一改动): Android window.__sleepyBridge.onWiseduResult(JSON.stringify(...))
+// iOS 桥差异(唯一改动): 原版本 window.__sleepyBridge.onWiseduResult(JSON.stringify(...))
 // → WKScriptMessage 桥 window.webkit.messageHandlers.__sleepyBridge.postMessage({json:...})。
 // 回调 payload 结构逐字段一致, JwImportViewModel.parseZfNewBridgeResult 无需感知平台。
 
@@ -22,7 +22,7 @@ import Foundation
 
 /// ZF_NEW_FETCH_JS — 新版正方 WebView 内 fetch 脚本(原文移植)。
 /// 派发指纹(school.type == TYPE_ZF_NEW 或 URL 含 /jwglxt/、/kbcx/、/http/<hex>/)
-/// 见 Android JwWebViewLoginScreen.kt T5 段; JS 自身也有同判(location.pathname)。
+/// 见 原版本 JwWebViewLoginScreen.kt T5 段; JS 自身也有同判(location.pathname)。
 enum JwZfNewFetchJs {
     static let js = """
     (function(){

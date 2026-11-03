@@ -82,7 +82,7 @@ struct PeriodTableDao {
 
     /// ← observeAll(): Flow<List<PeriodTableEntity>> (Room Flow → GRDB ValueObservation)
     /// SELECT * FROM period_tables ORDER BY createdAt DESC
-    /// 时间节次表管理页列表实时刷新 (← Android ScheduleViewModel.allPeriodTables,
+    /// 时间节次表管理页列表实时刷新 (ScheduleViewModel.allPeriodTables,
     /// stateIn WhileSubscribed(5000), 初始 emptyList)。
     func observeAll() -> DatabasePublishers.Value<[PeriodTableEntity]> {
         ValueObservation

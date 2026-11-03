@@ -10,7 +10,7 @@ enum HolidayTransferHelper {
         AppPrefs.shared.getHolidayTransfers(tableId)
     }
 
-    /// ← Android L14-18: 某表某天实际上谁的课 (取课语义) — 补班日→sourceDate,
+    /// ← 原版本 L14-18: 某表某天实际上谁的课 (取课语义) — 补班日→sourceDate,
     /// 放假日→nil(无课), 未映射/无表→原日期。
     static func courseDateForDate(_ tableId: Int64?, _ date: Date) -> Date? {
         guard let tableId = tableId else { return date }
@@ -18,7 +18,7 @@ enum HolidayTransferHelper {
         return HolidayTransferOps.courseDateForDate(date, transfers)
     }
 
-    /// ← Android L20-24: 某表某天的课来自星期几(1=周一 7=周日) — 放假日→nil(无课),
+    /// ← 原版本 L20-24: 某表某天的课来自星期几(1=周一 7=周日) — 放假日→nil(无课),
     /// 未映射/无表→自然星期。(v1.0.62 议程反向取课补齐 ← HolidayTransferHelper.courseDayForDate)
     static func courseDayForDate(_ tableId: Int64?, _ date: Date) -> Int? {
         guard let tableId = tableId else {

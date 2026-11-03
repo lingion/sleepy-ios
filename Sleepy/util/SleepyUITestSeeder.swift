@@ -9,7 +9,7 @@ enum SleepyUITestSeeder {
     static func seed(database: AppDatabase) {
         // 语言复位: 语言切换测试会持久化 KEY_LANG/AppleLanguages, 残留会污染
         // 后续依赖系统语言(launch args -AppleLanguages)的用例 → 每次种子清零。
-        // (L10n 现在跟随 AppPrefs 保存值 ← Android wrapDefault 语义)
+        // (L10n 现在跟随 AppPrefs 保存值 ← 原 wrapDefault 语义)
         UserDefaults.standard.removeObject(forKey: "language")
         UserDefaults.standard.removeObject(forKey: "AppleLanguages")
 
@@ -21,7 +21,7 @@ enum SleepyUITestSeeder {
         let d = AppPrefs.shared.sharedBackedStore
         d.removeObject(forKey: AppPrefs.KEY_VISIBLE_DAYS)   // 出厂 1..7 全显
         d.removeObject(forKey: AppPrefs.KEY_SHOW_DATE)      // 出厂 true
-        d.removeObject(forKey: AppPrefs.KEY_START_VIEW)     // 出厂 "cards"(← Android "cards")
+        d.removeObject(forKey: AppPrefs.KEY_START_VIEW)     // 出厂 "cards"("cards")
         d.removeObject(forKey: AppPrefs.KEY_NAV_DOCK)       // 出厂 false(贴底)
         d.removeObject(forKey: "settings_expanded_sections") // 折叠卡展开集(GeneralSettings 持久化)
         // 竖排标点替换开关(方案B): testGeneralToggles 真实点按 → 持久化; UI 测试

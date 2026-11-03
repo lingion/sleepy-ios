@@ -106,7 +106,7 @@ enum CourseColorWriteGlue {
     }
 
     /// 解析当前主题(primary)颜色。
-    /// 跟 Android themePrimaryArgb(Context) 对齐: system→系统语义色兜底品牌紫,
+    /// 跟 原版本 themePrimaryArgb(Context) 对齐: system→系统语义色兜底品牌紫,
     /// custom:<id>→CustomSchemeDeriver.derive 同一派生; 其他→ThemePresets 当前深浅 primary。
     private static func currentThemePrimaryColor() -> Color? {
         let prefs = AppPrefs.shared
@@ -126,7 +126,7 @@ enum CourseColorWriteGlue {
         }
     }
 
-    /// custom:<id> id 读不到(已删)时回落种子 = 默认淡紫 (← Android Theme.kt)。
+    /// custom:<id> id 读不到(已删)时回落种子 = 默认淡紫 (Theme.kt)。
     private static func defaultSeedTheme() -> CustomTheme {
         CustomTheme(
             id: "", name: "", primary: "#6750A4", secondary: "#625B71",

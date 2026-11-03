@@ -22,7 +22,6 @@
 </p>
 
 <p align="center">
-  <a href="https://testflight.apple.com/join/SxymmDzf">TestFlight 公测（唯一合法上线途径）</a> · <a href="https://github.com/lingion/sleepy-ios/releases">下载 IPA</a> · <a href="https://sleepy.is-my.app">官网</a> · <a href="https://sleepy.is-my.app/preview">在线体验</a> · <a href="https://github.com/lingion/sleepy">Android 原版</a> · <a href="#社区">💬 社区</a> · <a href="https://github.com/lingion/sleepy/blob/main/sponsor.md">赞助</a>
 </p>
 
 ---
@@ -59,7 +58,6 @@
 
 **课表 App 又要广告又要登录云端？** **想看下一节课却要点开 App？**
 
-Sleepy iOS 版是 [Android 原版](https://github.com/lingion/sleepy)的 SwiftUI 移植，主旨：**轻、快、准**。课表数据保存在设备本地（GRDB/SQLite），日常查看和编辑可离线使用，未集成任何第三方分析 SDK；教务导入会访问学校站点。另支持 WakeUp JSON、WakeUp 分享文本、ICS、CSV 与原生文本导入，导出的 ICS 可导入 Apple Calendar 等日历应用。
 
 ---
 
@@ -155,7 +153,7 @@ Sleepy iOS 版是 [Android 原版](https://github.com/lingion/sleepy)的 SwiftUI
 
 | 格式 | 用途 |
 |---|---|
-| WakeUp JSON | 供 WakeUp / Android 版 Sleepy 导入 |
+| WakeUp JSON | 供 WakeUp / original 版 Sleepy 导入 |
 | 分享文本 | 直接分享课表内容 |
 | ICS | 导入 Apple Calendar 等日历应用 |
 | Sleepy 原生 | 跨设备迁移 / 备份 |
@@ -325,7 +323,7 @@ xcodebuild -project Sleepy.xcodeproj \
 
 ## 社区
 
-Bug 反馈和新学校适配请提交到 [Issues](https://github.com/lingion/sleepy-ios/issues)；想聊天、提建议、第一时间了解新版本，可以加入 QQ 交流群（与 Android 版同群）：
+Bug 反馈和新学校适配请提交到 [Issues](https://github.com/lingion/sleepy-ios/issues)；想聊天、提建议、第一时间了解新版本，可以加入 QQ 交流群（与 original 版同群）：
 
 **QQ 群：`1063407652`**（在 QQ 中搜索群号 → 申请加入）
 
@@ -337,7 +335,6 @@ Bug 反馈和新学校适配请提交到 [Issues](https://github.com/lingion/sle
 
 - **[官网](https://sleepy.is-my.app)** — 项目主页：功能介绍、学校名录、下载中心、常见问答
 - **[在线体验](https://sleepy.is-my.app/preview)** — Web 版课表，浏览器打开即用，无需安装；支持多格式导入（WakeUp 分享文本 / ICS / CSV / Excel），数据仅存本地
-- **[Android 原版](https://github.com/lingion/sleepy)** — Sleepy 起源仓库：Kotlin + Jetpack Compose，附 [Wiki 手册](https://github.com/lingion/sleepy/wiki) 与[使用指南](https://blog.qdp.qzz.io/docs/sleepy/overview)
 - **[CI 自动化](docs/ci-automation.md)** — 云端构建无签名 IPA 与模拟器测试的流程说明
 
 ---

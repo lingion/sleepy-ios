@@ -30,7 +30,7 @@ struct ScheduleState {
     var currentTable: TimeTableEntity? { tables.first { $0.id == selectedTableId } }
 
     /// v1.0.62 B5b: 展示周上限 = max(表 maxWeek, 学期内调休 targetDate 反解的最大周)
-    /// ← Android ScheduleState.displayMaxWeek: 补班日可能落在 maxWeek 之外(周末补下一学期首周的课),
+    /// ← 原版本 ScheduleState.displayMaxWeek: 补班日可能落在 maxWeek 之外(周末补下一学期首周的课),
     /// 翻页/跳周上限必须把这类周并入, 否则补班周翻不到。
     var displayMaxWeek: Int {
         guard let table = currentTable else { return 20 }
@@ -63,12 +63,12 @@ struct ScheduleState {
     }
 
     /// v1.0.62 B5b: 给定日期实际取课日 — 补班日=sourceDate, 放假日=nil(无课), 未命中=原日期
-    /// ← Android ScheduleState.courseDateFor → HolidayTransferOps.courseDateForDate
+    /// ← 原版本 ScheduleState.courseDateFor → HolidayTransferOps.courseDateForDate
     func courseDateFor(_ date: Date) -> Date? {
         HolidayTransferOps.courseDateForDate(date, transfers)
     }
 
-    /// v1.0.62 B5b: 给定日期实际按星期几取课(反向口径) ← Android ScheduleState.courseDayFor
+    /// v1.0.62 B5b: 给定日期实际按星期几取课(反向口径) ← 原版本 ScheduleState.courseDayFor
     func courseDayFor(_ date: Date) -> Int? {
         courseDateFor(date).map { DateUtils.todayDayOfWeek(today: $0) }
     }
@@ -79,7 +79,7 @@ final class ScheduleViewModel: ObservableObject {
     @Published private(set) var state = ScheduleState()
 
     /// issue#40: 全部独立时间节次表(管理页列表) — 实时发布, 库内变化即刷新列表。
-    /// ← Android repo.observeAllPeriodTables().stateIn(WhileSubscribed(5000));
+    /// ← 原版本 repo.observeAllPeriodTables().stateIn(WhileSubscribed(5000));
     /// GRDB ValueObservation 常驻观察, 语义等价(订阅即推最新值)。
     @Published private(set) var allPeriodTables: [PeriodTableEntity] = []
 
@@ -276,8 +276,8 @@ final class ScheduleViewModel: ObservableObject {
             // 水合: 绑定存在时 nodesPerDay/timeJson/smartConfigJson 以时间节次表为准
             let table = rawTable.map { $0.hydratedWith(periodTable) }
             let displayContext = table.map {
-                // v1.0.62 B5b: resolver 传入调休映射 ← Android WeekDisplayResolver.resolve(transfers=...)
-                // (放假日跳最近有课日 / 补班日计入扫描终点; AppPrefs 直读 = Android 同源新读)
+                // v1.0.62 B5b: resolver 传入调休映射 ← 原版本 WeekDisplayResolver.resolve(transfers=...)
+                // (放假日跳最近有课日 / 补班日计入扫描终点; AppPrefs 直读 = 原版本 同源新读)
                 WeekDisplayResolver.resolve(
                     startDate: $0.startDate,
                     maxWeek: $0.maxWeek,
@@ -304,7 +304,7 @@ final class ScheduleViewModel: ObservableObject {
         }
     }
 
-    /// ← Android when { !initialWeekSettled -> targetWeek ?: week
+    /// ← 原 when { !initialWeekSettled -> targetWeek ?: week
     ///                  !weekSelectionManual -> targetWeek ?: week
     ///                  else -> selectedWeek }
     private func weekForNextTick(week: Int, targetWeek: Int?) -> Int {
@@ -473,7 +473,7 @@ final class ScheduleViewModel: ObservableObject {
 
     func changeWeek(_ week: Int) {
         // 防呆: 下限 1, 上限 displayMaxWeek — v1.0.62 B5b: 上限改 displayMaxWeek
-        // (← Android changeWeek: 补班日可能落在 maxWeek 之外, 翻页上限并入调休目标周)
+        // (changeWeek: 补班日可能落在 maxWeek 之外, 翻页上限并入调休目标周)
         let maxWeek = state.displayMaxWeek
         guard week >= 1, week <= maxWeek else { return }
         // 甲案语境: 用户手动翻周 = 停止自动跟随 targetWeek
@@ -483,7 +483,7 @@ final class ScheduleViewModel: ObservableObject {
 
     /// issue#44: 设置页保存调休映射后, 通知 VM 重新拉当前表的映射。
     /// 现有 courses 列表不需重查, 只需刷新 dayFor() 的真源, 一次 reload 即生效。
-    /// v1.0.62 B5b: ← Android refreshTransfer 尾部追加 recalculateWeekDisplay() —
+    /// v1.0.62 B5b: ← 原 refreshTransfer 尾部追加 recalculateWeekDisplay() —
     /// 映射变更会改变 targetWeek(放假日跳最近有课日/补班日计入), 展示周须同帧重算。
     func refreshTransfer() {
         guard let id = state.selectedTableId else { return }
@@ -491,11 +491,11 @@ final class ScheduleViewModel: ObservableObject {
         recalculateWeekDisplay()
     }
 
-    /// ← recalculateWeekDisplay (Android): 外部语境变化(如回到本周)后重算展示周。
+    /// ← recalculateWeekDisplay (原版本): 外部语境变化(如回到本周)后重算展示周。
     /// weekSelectionManual=true 时保留用户所选周, 否则跟随 targetWeek。
     func recalculateWeekDisplay() {
         guard let table = state.effectiveCurrentTable else { return }
-        // v1.0.62 B5b: 传入调休映射 ← Android recalculateWeekDisplay(transfers=AppPrefs 直读)
+        // v1.0.62 B5b: 传入调休映射 ← 原版本 recalculateWeekDisplay(transfers=AppPrefs 直读)
         let context = WeekDisplayResolver.resolve(
             startDate: table.startDate,
             maxWeek: table.maxWeek,
@@ -556,7 +556,7 @@ final class ScheduleViewModel: ObservableObject {
 extension ScheduleViewModel {
 
     /// 全部作息表(管理页列表)。
-    /// ← Android allPeriodTables.value (ScheduleViewModel.kt L77 StateFlow):
+    /// ← 原版本 allPeriodTables.value (ScheduleViewModel.kt L77 StateFlow):
     /// 返回实时发布缓存, 库内变化后调用方读到最新值(§5.2 立即全部同步)。
     /// 冷启动首次 emit 未到达时缓存为空 → 回落一次同步读库, 防止调用方拿到假空列表。
     func loadAllPeriodTables() -> [PeriodTableEntity] {
@@ -617,7 +617,7 @@ extension ScheduleViewModel {
         return insertPeriodTable(name: unique, timeJson: timeJson, nodesPerDay: nodesPerDay, smartConfigJson: smartConfigJson)
     }
 
-    /// issue#40: 修改共享时间节次表内容 — 全部绑定课表立即生效, 课程行零改动(← Android updatePeriodTableContent)
+    /// issue#40: 修改共享时间节次表内容 — 全部绑定课表立即生效, 课程行零改动(updatePeriodTableContent)
     /// repo.savePeriodTable 是同步方法; 行为与 updateTable 保持一致 — 在 fire-and-forget Task 内执行,
     /// 失败吞(→ repo update 抛错时上层按 updateTable 同语义吞掉, 数据层不会半写)。
     func updatePeriodTableContent(_ table: PeriodTableEntity) {

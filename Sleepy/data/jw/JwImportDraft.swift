@@ -1,7 +1,7 @@
 // JwImportDraft.swift — ← JwImportDraft.kt (GPL-3.0, 逐行翻译)
 //
 // 教务导入确认流程的可恢复部分 (resumable part)。
-// 刻意独立于 Room/Compose/Android 生命周期, 供未来屏幕或持久化适配器消费。
+// 刻意独立于 Room/Compose/原版本 生命周期, 供未来屏幕或持久化适配器消费。
 
 import Foundation
 
@@ -38,7 +38,7 @@ struct JwImportDraftSnapshot: Equatable {
     }
 
     /// 恢复登录阶段草稿时, 该草稿的选校准入确认不能被跳过。
-    /// ← Android `JwImportDraftSnapshot.requiresSchoolConfirmation`
+    /// ← 原 `JwImportDraftSnapshot.requiresSchoolConfirmation`
     var requiresSchoolConfirmation: Bool {
         phase == .webViewLogin && (!school.canImport || school.isUnverified)
     }
@@ -147,7 +147,7 @@ enum JwImportDraftCodec {
             "aliases": school.aliases,
             "sortKeyFull": school.sortKeyFull,
             "enableFetch": school.enableFetch,
-            // ← Android: 目录条目的稳定身份随草稿往返(旧草稿无此键 → 空 → stableKey 回落)
+            // ← 原版本: 目录条目的稳定身份随草稿往返(旧草稿无此键 → 空 → stableKey 回落)
             "catalogId": school.catalogId,
         ]
         if let type = school.type { o["type"] = type }

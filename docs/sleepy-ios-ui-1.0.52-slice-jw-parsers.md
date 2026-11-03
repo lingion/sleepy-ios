@@ -1,6 +1,6 @@
 # Slice — UCAS + qz_ieas 教务协议层 (1.0.52 对齐)
 
-对齐 Android commit fe389b4 (1.0.52) 的教务协议扩展: 新增 国科大选课系统(ucas) 与
+对齐 原 commit fe389b4 (1.0.52) 的教务协议扩展: 新增 国科大选课系统(ucas) 与
 强智 iEAS 网络版(qz_ieas) 两个协议 + 两校收录。
 
 Android 源:
@@ -29,7 +29,7 @@ Android 源:
   - confidence() table#queryGrkb 命中=90。
 - `JwProtocol.swift`: +TYPE_QZ_IEAS / TYPE_UCAS 常量 + displayName 两 case
   (强智教务(iEAS 网络版) / 国科大选课系统);
-  category() qz 行加 TYPE_QZ_IEAS, UCAS 落 default "other" (与 Android 一致)。
+  category() qz 行加 TYPE_QZ_IEAS, UCAS 落 default "other" (与原实现一致)。
 - `JwImportViewModel.swift`: parser 工厂 + QZ_IEAS/UCAS 两 case;
   tryAllParsers 候选表 + 两 parser (放 JwQzParser 前面, 与 Android 候选序一致);
   detectProtocolFromUrl: UCAS 锚点 (xkgo.ucas.ac.cn + /course/personschedule),

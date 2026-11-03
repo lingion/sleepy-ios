@@ -45,7 +45,7 @@ enum HolidayTransferOps {
     }
 
     /// 某放假日是否已有映射; 有 → 该 entry, 无 → nil ← transferFor
-    /// (Android lastOrNull = 后选覆盖前选, 编解码侧已按 sourceDate 去重保尾)
+    /// (原 lastOrNull = 后选覆盖前选, 编解码侧已按 sourceDate 去重保尾)
     static func transferFor(_ date: Date, _ transfers: [HolidayTransferEntry]) -> HolidayTransferEntry? {
         transfers.last { dayKey($0.sourceDate) == dayKey(date) }
     }
@@ -137,7 +137,7 @@ enum HolidayTransferOps {
             if bySource[srcStr] == nil { order.append(srcStr) }
             bySource[srcStr] = HolidayTransferEntry(sourceDate: src, targetDate: dst, segmentId: seg)
         }
-        // Android: bySource.values.sortedBy { it.sourceDate } — 恒按 sourceDate 升序, 与 JSON 存储序无关
+        // 原版本: bySource.values.sortedBy { it.sourceDate } — 恒按 sourceDate 升序, 与 JSON 存储序无关
         return order.compactMap { bySource[$0] }.sorted { dayKey($0.sourceDate) < dayKey($1.sourceDate) }
     }
 }

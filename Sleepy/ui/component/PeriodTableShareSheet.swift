@@ -19,7 +19,7 @@ struct PeriodTableShareSheet: View {
             Text(L10n.t("period_table_share_sheet_title"))
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(colors.onSurface)
-                .frame(maxWidth: .infinity, alignment: .leading)   // ← Android Column 默认 start
+                .frame(maxWidth: .infinity, alignment: .leading)   // ← 原 Column 默认 start
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
 
@@ -53,7 +53,7 @@ struct PeriodTableShareSheet: View {
         Button(action: onClick) {
             HStack(spacing: 16) {
                 Image(systemName: icon)
-                    .font(.system(size: 24))   // ← Android 默认 Icon 24dp
+                    .font(.system(size: 24))   // ← 原默认 Icon 24dp
                     .foregroundColor(colors.onPrimaryContainer)
                     .frame(width: 44, height: 44)
                     .background(colors.primaryContainer)

@@ -299,7 +299,7 @@ final class JwUstcParser: JwParser, JwParserConfidenceReporting {
             let teacher = joinTeachers(obj)
             // lessonCode 4 位定宽是自创解读 (上游 json_version.py 只把它拼进
             // description, 节次实际由 startDate/endDate 时间表达); 不合式时用
-            // startDate/endDate 推断兜底, 不整行丢弃。(同 Android v1.0.61)
+            // startDate/endDate 推断兜底, 不整行丢弃。(同 原版本 v1.0.61)
             let fromCode = parseLessonCode(obj)
             let startNode: Int, endNode: Int
             if fromCode.start > 0 {
@@ -480,7 +480,7 @@ final class JwScuParser: JwParser, JwParserConfidenceReporting {
     /// 提取单/双周限定并剥净: 返回 (parity, 已剥限定词与括号的串)。
     /// parity: 0=每周 1=单周 2=双周。真实形态 "3-9周单" / "1-16周（双）" /
     /// "1-15周(单)" — ASCII/全角括号与"(单)/(双)"限定词剥除, 裸"单/双"字交
-    /// parseWeeks 的 [^\d\-,] 过滤兜底 (同 Android extractParity)。
+    /// parseWeeks 的 [^\d\-,] 过滤兜底 (同 原版本 extractParity)。
     func extractParity(_ s: String) -> (Int, String) {
         let parity: Int
         if s.contains("单") { parity = 1 }

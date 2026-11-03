@@ -2,7 +2,7 @@
 
 ## What
 
-Aligned `AddCourseScreen` with Android 1.0.51 per-slot week semantics, dynamic step
+Aligned `AddCourseScreen` with original 1.0.51 per-slot week semantics, dynamic step
 cap, clamped-hint surface, and pre-save conflict confirmation.
 
 - Each meeting block carries its own `startWeek / endWeek / weekType` so a single
@@ -12,7 +12,7 @@ cap, clamped-hint surface, and pre-save conflict confirmation.
   `ownTime-startNode-step-startTime-endTime-startWeek-endWeek-type`.
   Slots that differ only by week range or week type are no longer collapsed.
 - The step field's upper bound is derived from the active timetable:
-  `maxNode - startNode + 1`, mirroring Android's `stepCap`. Raising the start
+  `maxNode - startNode + 1`, mirroring the original `stepCap`. Raising the start
   node coerces the existing `step` immediately and flags `clamped`.
 - `NumberStepperField` exposes an optional `onClamp` callback; when a typed or
   stepped value is clipped, the parent block is marked `clamped`, the block
@@ -36,7 +36,7 @@ cap, clamped-hint surface, and pre-save conflict confirmation.
 
 ## Evidence
 
-- Android source: `app/src/main/java/com/lingion/sleepy/ui/screen/edit/AddCourseScreen.kt`
+- Original source: `app/src/main/java/com/lingion/sleepy/ui/screen/edit/AddCourseScreen.kt`
   (grouping key, clamped state, dynamic stepCap, conflict pre-save dialog).
 - iOS source: `Sleepy/ui/screen/edit/AddCourseScreen.swift`,
   `Sleepy/util/ConflictDetailReporter.swift`,
@@ -55,8 +55,8 @@ unrelated worktree changes were preserved.
 - The custom-week type (`weekType == 3`) still falls back to "active in every
   week of the configured range" inside `CourseEntity.inWeek(_:)` and the
   conflict reporter. A true custom-week list editor is still pending for
-  Android 1.0.51 parity; until that editor exists, the picker round-trips the
+  original 1.0.51 parity; until that editor exists, the picker round-trips the
   value without altering the semantics.
 - The conflict reporter's section-range test still assumes nodes-per-day are
-  dense. This matches Android 1.0.51 today but should be revisited alongside
+  dense. This matches original 1.0.51 today but should be revisited alongside
   `TimeTableUtils.parseNodes` if sparse timetables become supported.

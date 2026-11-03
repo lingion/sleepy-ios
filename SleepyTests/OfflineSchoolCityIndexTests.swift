@@ -3,9 +3,9 @@
 //
 // 真资产 school_city_boundaries.bin.gz 打进 app bundle(Sleepy/resources),
 // 测试经 Bundle(for: JwImportViewModel.self) 取 — 与 JwJsonParserTests 取
-// schools.json 的先例一致; .bin 兜底对齐 Android AAPT 去 .gz 后缀的行为。
+// schools.json 的先例一致; .bin 兜底对齐 原版本 AAPT 去 .gz 后缀的行为。
 //
-// 资源缺失 ≠ 失败: 与 Android offlineIndex() catch→null 的生产语义一致,
+// 资源缺失 ≠ 失败: 与 原版本 offlineIndex() catch→null 的生产语义一致,
 // 真资产用例在资源不可得时 XCTSkip(单元测试不逼 xcodegen 打包布局就位)。
 
 import XCTest
@@ -213,7 +213,7 @@ final class OfflineSchoolCityIndexTests: XCTestCase {
     }
 
     // MARK: - 用例 9 (fixture 版补充, 覆盖真资产用例 8 的资源依赖之外):
-    // 取消钩子 — CancellationError 归一为 .cancelled (Android ensureActive 语义)
+    // 取消钩子 — CancellationError 归一为 .cancelled (原 ensureActive 语义)
 
     func testCancellationHookMapsToCancelledError() throws {
         let bytes = fixtureBytes([areaJSON(name: "A", polygons: [[
@@ -234,7 +234,7 @@ final class OfflineSchoolCityIndexTests: XCTestCase {
         })
     }
 
-    // MARK: - 截断流 / 尾随字节 / 非法 UTF-8 名字 (对齐 Android EOFException / U+FFFD 语义)
+    // MARK: - 截断流 / 尾随字节 / 非法 UTF-8 名字 (对齐 原版本 EOFException / U+FFFD 语义)
 
     func testTruncatedStreamReportsEndOfStream() throws {
         let bytes = fixtureBytes([areaJSON(name: "A", polygons: [[

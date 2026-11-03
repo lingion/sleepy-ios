@@ -23,7 +23,7 @@ final class ImportAuditUITests: XCTestCase {
         // mine_stat_tables 容器锚点 = StatItem(.accessibilityElement(children:.contain)),
         // 但 tables/courses 两项被 Button 包裹(MineScreen.swift StatsCard, v1.0.60 可点
         // 进管理页/课程清单)→ 容器节点在 AX 树不浮出(无同名可查元素, waitForExistence
-        // 必超时; Android 侧也无该 tag)。改断言测试 :28-30 已在用的 _value 子节点
+        // 必超时; 原版本 侧也无该 tag)。改断言测试 :28-30 已在用的 _value 子节点
         // (MineScreen.swift StatItem 内 Text(value).accessibilityIdentifier("\(id)_value"))。
         // 校验种子表/课程数文本(1 表 / 4 课程 / 第 1 周)
         let tablesValue = app.descendants(matching: .any)["mine_stat_tables_value"].firstMatch

@@ -9,14 +9,14 @@
 // 但课程列表容器 class 固定为 "listTable",且额外带 <td> 行的课程名/教师/周次结构,
 // 因此单独做一个薄壳:先用特征正则确认"这是 ECUPL",再委派给 JwClassicEamsParser 解析。
 //
-// 判定锚点(与 Android JwEcuplParser 一致):
+// 判定锚点(与 原版本 JwEcuplParser 一致):
 //   r1  <table ... class="listTable" ...>      列表容器
 //   r3  课程名 <td>(含 法|律|学|课)</td>
 //   r4  教师   <td>(含 教授|老师|讲师|2-4 个汉字)</td>
 //   r9  周次   "1-16(单|双|每周)"
 //   r10 节次   "1-2节"
 //
-// 与 Android 的差异: Android 直接 return JwClassicEamsParser(source).generateCourseList()
+// 与原实现的差异: 原版本 直接 return JwClassicEamsParser(source).generateCourseList()
 // (Kotlin 无 checked exception),iOS 需 try 传播,故用 `try?` 兜底为空列表。
 
 import Foundation

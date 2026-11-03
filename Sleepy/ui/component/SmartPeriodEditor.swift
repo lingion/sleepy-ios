@@ -43,7 +43,7 @@ struct SmartPeriodEditor: View {
                             label: L10n.format("edit_period_first_start"), fillsWidth: true)
                 .padding(.bottom, 12)
 
-            // 添加 duration ← Android L116-133(短课时 tertiary / 长课时 primary)
+            // 添加 duration ← 原版本 L116-133(短课时 tertiary / 长课时 primary)
             HStack(spacing: 8) {
                 AddBreakChip(id: "duration_short", label: L10n.format("short_duration"), color: colors.tertiary) {
                     onConfigChange({ var c = config; c.durations = config.durations + [DurationOption(minutes: 30, isLong: false)]; return c }())
@@ -54,7 +54,7 @@ struct SmartPeriodEditor: View {
             }
             .padding(.bottom, 12)
 
-            // ===== Duration 分组区 ===== ← Android L135-175
+            // ===== Duration 分组区 ===== ← 原版本 L135-175
             if !config.durations.isEmpty {
                 Text(L10n.format("duration_assign_hint"))
                     .font(.system(size: 14, weight: .medium))
@@ -81,7 +81,7 @@ struct SmartPeriodEditor: View {
                             onConfigChange({ var c = config; c.periodAssignments = newAssigns; return c }())
                         },
                         onDelete: {
-                            // ← Android L166-172: 删除组后索引重映射
+                            // ← 原版本 L166-172: 删除组后索引重映射
                             let newAssigns = remapDurationAssignmentsAfterDeletion(assignments: durationAssigns, deletedIndex: groupIdx)
                             var durations = config.durations
                             durations.remove(at: groupIdx)
@@ -226,7 +226,7 @@ private struct AssignmentGroupSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Header ← Android Row(无 spacedBy,间距0): color chip + 名称(weight(1f)) + 显式 8dp Spacer + 分钟数 + 删除
+            // Header ← 原版本 Row(无 spacedBy,间距0): color chip + 名称(weight(1f)) + 显式 8dp Spacer + 分钟数 + 删除
             HStack(spacing: 0) {
                 // 颜色 chip
                 Circle()
@@ -235,9 +235,9 @@ private struct AssignmentGroupSection: View {
                 Text(headerText)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSurface)
-                    .padding(.leading, 8)                          // ← Android chip 后显式 Spacer(8.dp)
-                    .frame(maxWidth: .infinity, alignment: .leading) // ← Android 名称 weight(1f) 吃满剩余宽度
-                // ← Android Text 与 NumberField 之间无 spacer(weight 1f 吸收全部 slack),不另加间距
+                    .padding(.leading, 8)                          // ← 原 chip 后显式 Spacer(8.dp)
+                    .frame(maxWidth: .infinity, alignment: .leading) // ← 原 名称 weight(1f) 吃满剩余宽度
+                // ← 原版本 Text 与 NumberField 之间无 spacer(weight 1f 吸收全部 slack),不另加间距
                 NumberField(label: "", unit: L10n.format("unit_minutes"),
                             value: minuteValue, onValueChange: onMinuteChange)
                     .frame(width: 110)
@@ -247,8 +247,8 @@ private struct AssignmentGroupSection: View {
                         .foregroundColor(colors.onSurfaceVariant)
                 }
                 .buttonStyle(SleepyButtonStyle())
-                .frame(width: 28, height: 28)   // ← Android IconButton 28dp 方形
-                // ← Android contentDescription = delete
+                .frame(width: 28, height: 28)   // ← 原 IconButton 28dp 方形
+                // ← 原 contentDescription = delete
                 .accessibilityLabel(L10n.format("delete"))
             }
 
@@ -325,12 +325,12 @@ private struct PreviewList: View {
 
         if rows.isEmpty {
             Text(L10n.format("empty_placeholder"))
-                .font(.system(size: 16))   // ← Android 无 style 参数 = bodyLarge 16
+                .font(.system(size: 16))   // ← 原 无 style 参数 = bodyLarge 16
                 .foregroundColor(colors.onSurfaceVariant)
         } else {
             VStack(spacing: 2) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { i, slot in
-                    // ← Android L469-476 durationLabel: 已分配 period 追加 " · N 分钟 长/短课时"
+                    // ← 原版本 L469-476 durationLabel: 已分配 period 追加 " · N 分钟 长/短课时"
                     let durationLabel: String = {
                         guard let mins = periodMins.indices.contains(i) ? periodMins[i] : nil else { return "" }
                         if let idx = durationAssigns.indices.contains(i) ? durationAssigns[i] : nil,
@@ -397,7 +397,7 @@ private struct NumberField: View {
                 TextField("", text: Binding(
                     get: { text.isEmpty ? "\(value)" : text },
                     set: { newText in
-                        // 纯数字 + 最多 4 位(对齐 Android)
+                        // 纯数字 + 最多 4 位(对齐 原版本)
                         if newText.allSatisfy({ $0.isNumber }) && newText.count <= 4 {
                             text = newText
                             if let parsed = Int(newText) { onValueChange(parsed) }
@@ -416,10 +416,10 @@ private struct NumberField: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading) // ← Android TextField weight(1f) 填满 + filled 高 56dp
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading) // ← 原 TextField weight(1f) 填满 + filled 高 56dp
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyTheme.fieldShape)
-        // ← Android NumberField = filled TextField, 无描边(Material3 filled 无 border)
+        // ← 原版本 NumberField = filled TextField, 无描边(Material3 filled 无 border)
         .onAppear { text = "\(value)" }
         .onChange(of: value) { newValue in text = "\(newValue)" }
     }

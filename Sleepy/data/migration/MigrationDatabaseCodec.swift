@@ -3,7 +3,7 @@
 // DTO 与实体字段一一对应(列名稳定, 缺省字段向前兼容见下方 init(from:) 手写解码);
 // 导出冻结一次快照, 导入先完整解码再写库。
 //
-// 向前兼容契约(对齐 Android Json{ignoreUnknownKeys=true} + Kotlin 构造默认值):
+// 向前兼容契约(对齐 原版本 Json{ignoreUnknownKeys=true} + Kotlin 构造默认值):
 // 各带默认值字段缺键时回落到默认值, 未知键忽略; 无默认值字段(id/courseName/…)
 // 缺键仍抛 keyNotFound(与 Kotlin 无默认参数解码必失败一致); 存在但类型不符 → 抛错
 // (decodeIfPresent 语义, 不吞类型错误回落默认值)。encodeDefaults=true → encode
@@ -20,7 +20,7 @@
 import Foundation
 import GRDB
 
-/// database 模块 codec — 与 Android MigrationDatabaseCodec.kt 1:1。
+/// database 模块 codec — 与 原版本 MigrationDatabaseCodec.kt 1:1。
 enum MigrationDatabaseCodec {
 
     // MARK: - DTO row 类型(Codable, JSON 协议稳定)
@@ -111,7 +111,7 @@ enum MigrationDatabaseCodec {
         return try decoder.decode(DatabaseSnapshot.self, from: data)
     }
 
-    // MARK: - 实体 ↔ DTO (与 Android extension 1:1)
+    // MARK: - 实体 ↔ DTO (与 原 extension 1:1)
 
     static func toRow(_ e: CourseEntity) -> CourseRow {
         return CourseRow(
@@ -225,7 +225,7 @@ enum MigrationDatabaseCodec {
             try periodTableDao.deleteAllInDb(db)
             try periodTableDao.insertAllInDb(db, snapshot.periodTables.map(toEntity))
             try timeTableDao.insertAllInDb(db, snapshot.timeTables.map(toEntity))
-            // 课程行保留 ID(Android insertKeepId)
+            // 课程行保留 ID(原版本 insertKeepId)
             for row in snapshot.courses {
                 try courseDao.insertKeepIdInDb(db, toEntity(row))
             }

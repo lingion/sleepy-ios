@@ -2,7 +2,7 @@
 
 ## Comparison
 
-Compared `Sleepy/ui/screen/today/TodayScreen.swift` with Android 1.0.51 `ui/screen/today/TodayScreen.kt`.
+Compared `Sleepy/ui/screen/today/TodayScreen.swift` with original 1.0.51 `ui/screen/today/TodayScreen.kt`.
 
 The implementations are aligned for the current 1.0.51 surface:
 
@@ -15,7 +15,7 @@ The implementations are aligned for the current 1.0.51 surface:
 
 ## Scope
 
-No source change was required. The existing SwiftUI implementation already contains the Android 1.0.51 behavior from prior parity work. Only this report and the Today row in the alignment matrix are included.
+No source change was required. The existing SwiftUI implementation already contains the original 1.0.51 behavior from prior parity work. Only this report and the Today row in the alignment matrix are included.
 
 ## Verification
 

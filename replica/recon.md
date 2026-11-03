@@ -25,9 +25,9 @@
 - xcodebuild build: **SUCCEEDED** (sleepy 1.0.60 baseline)
 - SleepyTests: **532/0 (9.201s)** on iPhone 14 Pro simulator (iOS 16.4)
 
-## File-level gap (Android v1.0.60 main sources → iOS current)
+## File-level gap (original v1.0.60 main sources → iOS current)
 
-- **171** Android main-source files in v1.0.60 delta (v1.0.55..v1.0.60)
+- **171** original main-source files in v1.0.60 delta (v1.0.55..v1.0.60)
 - **85** ported (basename match) — 49.7%
 - **86** missing — 50.3%
 

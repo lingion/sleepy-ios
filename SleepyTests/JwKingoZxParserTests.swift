@@ -1,8 +1,8 @@
 // SleepyTests/JwKingoZxParserTests.swift
 //
-// 移植自 Android app/src/test/java/com/lingion/sleepy/data/jw/JwKingoZxParserTest.kt
+// 移植自 原版本 app/src/test/java/com/lingion/sleepy/data/jw/JwKingoZxParserTest.kt
 // (v1.0.62 parity 收口)。9 用例逐一对应，断言语义不放宽。
-// fixture: SleepyTests/resources/kingo_zx_sample.html (与 Android 逐字节一致)。
+// fixture: SleepyTests/resources/kingo_zx_sample.html (与 原版本 逐字节一致)。
 
 import XCTest
 @testable import Sleepy
@@ -23,7 +23,7 @@ final class JwKingoZxParserTests: XCTestCase {
         (p as? JwParserConfidenceReporting)?.confidenceValue ?? 0
     }
 
-    // ← Android reportRowsFollowUpstreamFields
+    // ← 原版本 reportRowsFollowUpstreamFields
     func test_reportRowsFollowUpstreamFields() throws {
         let html = try res("kingo_zx_sample")
         let parser = JwKingoZxParser(html)
@@ -41,7 +41,7 @@ final class JwKingoZxParserTests: XCTestCase {
         XCTAssertEqual(90, confidence(parser))
     }
 
-    // ← Android gridKeepsSparseWeeksAndSectionRange
+    // ← 原版本 gridKeepsSparseWeeksAndSectionRange
     func test_gridKeepsSparseWeeksAndSectionRange() throws {
         let html = """
             <table id='mytable'><tr><td>节次</td>
@@ -58,7 +58,7 @@ final class JwKingoZxParserTests: XCTestCase {
             && $0.startWeek <= 10 && $0.endWeek >= 10 && $0.type == 0 })
     }
 
-    // ← Android reportAcceptsEveryWeekdaySpelling
+    // ← 原版本 reportAcceptsEveryWeekdaySpelling
     func test_reportAcceptsEveryWeekdaySpelling() throws {
         let days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         for (index, label) in days.enumerated() {
@@ -73,7 +73,7 @@ final class JwKingoZxParserTests: XCTestCase {
         }
     }
 
-    // ← Android reportAcceptsDaySectionWeeksOrderFromUpstreamCode
+    // ← 原版本 reportAcceptsDaySectionWeeksOrderFromUpstreamCode
     func test_reportAcceptsDaySectionWeeksOrderFromUpstreamCode() throws {
         var cells = Array(repeating: "<td></td>", count: 11)
         cells[1] = "<td>[A02]物理</td>"
@@ -91,7 +91,7 @@ final class JwKingoZxParserTests: XCTestCase {
         XCTAssertEqual(2, courses[1].type)
     }
 
-    // ← Android emptyWeekdayColumnDoesNotShiftLaterGridCourses
+    // ← 原版本 emptyWeekdayColumnDoesNotShiftLaterGridCourses
     func test_emptyWeekdayColumnDoesNotShiftLaterGridCourses() throws {
         let html = """
             <table id='mytable'><tr><td>节次</td><td>空星期一</td>
@@ -106,7 +106,7 @@ final class JwKingoZxParserTests: XCTestCase {
         XCTAssertEqual("操场", course.room)
     }
 
-    // ← Android noHeaderGridKeepsMondayAndBlankTuesdayPositions
+    // ← 原版本 noHeaderGridKeepsMondayAndBlankTuesdayPositions
     func test_noHeaderGridKeepsMondayAndBlankTuesdayPositions() throws {
         let html = """
             <table id='mytable'><tr>
@@ -119,7 +119,7 @@ final class JwKingoZxParserTests: XCTestCase {
         XCTAssertTrue(courses.contains { $0.name == "周三课" && $0.day == 3 && $0.startNode == 3 })
     }
 
-    // ← Android unsupportedFixtureAndExpiredLoginYieldNoCourses
+    // ← 原版本 unsupportedFixtureAndExpiredLoginYieldNoCourses
     func test_unsupportedFixtureAndExpiredLoginYieldNoCourses() throws {
         let unsupported = "<div id='pageRpt'><table><tr><td>高等数学</td><td>张三</td><td>1-8周</td><td>六教</td></tr></table></div>"
         XCTAssertTrue(try JwKingoZxParser(unsupported).generateCourseList().isEmpty)
@@ -128,13 +128,13 @@ final class JwKingoZxParserTests: XCTestCase {
         XCTAssertEqual(0, confidence(JwKingoZxParser(expired)))
     }
 
-    // ← Android captureRecognizesKingoFrameAnchors
+    // ← 原版本 captureRecognizesKingoFrameAnchors
     func test_captureRecognizesKingoFrameAnchors() {
         XCTAssertTrue(FrameTraversalTree.findAnchors("<table id='pageRpt'></table>").contains("pageRpt"))
         XCTAssertTrue(FrameTraversalTree.findAnchors("<table id='mytable'></table>").contains("mytable"))
     }
 
-    // ← Android genericSelectionRoutesCapturedKingoReport
+    // ← 原版本 genericSelectionRoutesCapturedKingoReport
     func test_genericSelectionRoutesCapturedKingoReport() throws {
         let html = try res("kingo_zx_sample")
         XCTAssertTrue(FrameTraversalTree.findAnchors(html).contains("pageRpt"))

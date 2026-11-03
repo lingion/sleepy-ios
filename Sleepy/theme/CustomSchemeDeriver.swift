@@ -19,7 +19,7 @@
 //
 // ★ iOS 适配:模板色是 SwiftUI Color,读 r/g/b 走 UIColor(color).getRed(与
 //   CourseColorUtil.luminance 同一手法);产出色一律 Color(.sRGB,red:green:blue:)。
-//   HSV 数学全部收在纯 Double/Float 上(不碰 UIKit),与 Android 纯 JVM 版同构可测。
+//   HSV 数学全部收在纯 Double/Float 上(不碰 UIKit),与 原版本 纯 JVM 版同构可测。
 
 import SwiftUI
 import UIKit
@@ -131,7 +131,7 @@ enum CustomSchemeDeriver {
         guard body.allSatisfy({ $0.isHexDigit }) else { return nil }
         var value: UInt64 = 0
         guard Scanner(string: body).scanHexInt64(&value) else { return nil }
-        // 6 位 = RGB;8 位 = AARRGGBB(与 Android Color(argb) 同序,取低 24 位)
+        // 6 位 = RGB;8 位 = AARRGGBB(与 原版本 Color(argb) 同序,取低 24 位)
         let r = Double((value >> 16) & 0xFF) / 255.0
         let g = Double((value >> 8) & 0xFF) / 255.0
         let b = Double(value & 0xFF) / 255.0
@@ -142,7 +142,7 @@ enum CustomSchemeDeriver {
 
     /// RGB(0-1)→HSV;返回 (h 0-360, s 0-1, v 0-1)。无色相(s≈0)时 h=0
     static func rgbToHsv(r: Float, g: Float, b: Float) -> (h: Float, s: Float, v: Float) {
-        // Android: max = maxOf(r,g,b).coerceIn(0,1); min = minOf(r,g,b).coerceIn(0,1)
+        // 原版本: max = maxOf(r,g,b).coerceIn(0,1); min = minOf(r,g,b).coerceIn(0,1)
         let cr = clamped(r), cg = clamped(g), cb = clamped(b)
         let mx = Swift.max(cr, Swift.max(cg, cb))
         let mn = Swift.min(cr, Swift.min(cg, cb))
@@ -183,7 +183,7 @@ enum CustomSchemeDeriver {
         return (quantize(r1 + m), quantize(g1 + m), quantize(b1 + m))
     }
 
-    /// HSV → Color(h 0-360, s/v 0-1);与 Android 同样量化到 8-bit
+    /// HSV → Color(h 0-360, s/v 0-1);与 原版本 同样量化到 8-bit
     static func hsvToColor(h: Float, s: Float, v: Float) -> Color {
         let rgb = hsvToRgb(h: h, s: s, v: v)
         return Color(.sRGB, red: Double(rgb.r), green: Double(rgb.g), blue: Double(rgb.b), opacity: 1)

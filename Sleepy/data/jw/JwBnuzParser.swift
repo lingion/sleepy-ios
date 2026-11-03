@@ -42,7 +42,7 @@ final class JwBnuzParser: JwParser, JwParserConfidenceReporting {
                 if Self.OTHER_HEADER.contains(courseValue) { continue }
                 if courseValue.isEmpty { if countFlag { countDay += 1 }; continue }
                 if courseValue.range(of: #"^\d+$"#, options: .regularExpression) != nil {
-                    // ← Android courseValue.toInt(): 32 位解析,溢出抛 NumberFormatException → 整表解析中止
+                    // ← 原版本 courseValue.toInt(): 32 位解析,溢出抛 NumberFormatException → 整表解析中止
                     guard let parsedNode = Int32(courseValue) else {
                         throw JwParseError(message: "JwBnuzParser: node row '\(courseValue)' exceeds Int32 range")
                     }
@@ -81,7 +81,7 @@ final class JwBnuzParser: JwParser, JwParserConfidenceReporting {
 
                     let teacher = teacherAndWeek.components(separatedBy: "{").first ?? ""
                     let teacherTrimmed = teacher.trimmingCharacters(in: .whitespacesAndNewlines)
-                    // ← Android substringAfter('{'): 取第一个 '{' 之后(非最后一个)
+                    // ← 原版本 substringAfter('{'): 取第一个 '{' 之后(非最后一个)
                     let afterBrace: String
                     if let r = teacherAndWeek.range(of: "{") {
                         afterBrace = String(teacherAndWeek[r.upperBound...])
@@ -98,14 +98,14 @@ final class JwBnuzParser: JwParser, JwParserConfidenceReporting {
                     } else {
                         stepStr = roomStr
                     }
-                    // ← Android substringBeforeLast('节'): 以最后一个 '节' 截断(无 '节' 时保留整串)
+                    // ← 原 substringBeforeLast('节'): 以最后一个 '节' 截断(无 '节' 时保留整串)
                     let stepCore: String
                     if let r = stepStr.range(of: "节", options: .backwards) {
                         stepCore = String(stepStr[stepStr.startIndex..<r.lowerBound])
                     } else {
                         stepCore = stepStr
                     }
-                    // ← Android toIntOrNull(): 32 位范围外返回 null → 丢弃该 section(不抛)
+                    // ← 原版本 toIntOrNull(): 32 位范围外返回 null → 丢弃该 section(不抛)
                     let step = Int32(stepCore.trimmingCharacters(in: .whitespacesAndNewlines)).map { Int($0) }
                     if step == nil { i += 2; continue }   // continue 作用于 while：跳过此 section 继续扫
                     let room: String

@@ -33,7 +33,7 @@
 
 import Foundation
 
-/// 校验失败 ← Android IllegalArgumentException(require 抛出, 调用方报 export_xiaoai_invalid)
+/// 校验失败 ← 原版本 IllegalArgumentException(require 抛出, 调用方报 export_xiaoai_invalid)
 enum XiaoaiPresetDataError: Error {
     case invalid(String)
 }
@@ -129,7 +129,7 @@ enum XiaoaiPresetData {
 
     /// startWeek..endWeek 按 type(0每周/1单周/2双周/3按列) 展开为显式周次数组。
     static func expandWeeks(_ c: CourseEntity) -> [Int] {
-        // Android (startWeek..endWeek) 起点大于终点时抛异常; validate 已挡,
+        // 原版本 (startWeek..endWeek) 起点大于终点时抛异常; validate 已挡,
         // 此处防御性返回空(不崩溃), 语义等价于"无有效周次"。
         guard c.startWeek <= c.endWeek else { return [] }
         return (c.startWeek...c.endWeek).filter { c.inWeek($0) }
@@ -143,7 +143,7 @@ enum XiaoaiPresetData {
     /// 兼容两种键形(真实 DB 并存, 模拟器实测抓到):
     ///   规范形 {node,start,end}(TimeTableUtils.buildTimeJsonFromRows 写入)
     ///   历史形 {nodeStart,startTime,endTime}(创建向导/旧版写入)
-    /// 任一条目缺键/坏值 → 整体返回空(← Android runCatching.getOrDefault(emptyList()))。
+    /// 任一条目缺键/坏值 → 整体返回空(runCatching.getOrDefault(emptyList()))。
     static func parseTimerSections(_ timeJson: String) -> [(node: Int, start: String, end: String)] {
         if timeJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
         guard let data = timeJson.data(using: .utf8),
@@ -154,7 +154,7 @@ enum XiaoaiPresetData {
             let nodeValue = o["node"] ?? o["nodeStart"]
             let node: Int
             if let nv = nodeValue {
-                // ← Android nodeValue.toString().toIntOrNull(): 转不成整数整体失败
+                // ← 原版本 nodeValue.toString().toIntOrNull(): 转不成整数整体失败
                 guard let n = Int(stringifyScalar(nv)) else { return [] }
                 node = n
             } else {
@@ -203,7 +203,7 @@ enum XiaoaiPresetData {
         var night = Set<Int>()
         for s in sections {
             let minutes = clockMinutes(s.start)
-            if minutes < 13 * 60 {  // ← Android minutes < 0 归上午(负值即非法, 同落上午桶)
+            if minutes < 13 * 60 {  // ← 原 minutes < 0 归上午(负值即非法, 同落上午桶)
                 morning.insert(s.node)
             } else if minutes < 18 * 60 {
                 afternoon.insert(s.node)

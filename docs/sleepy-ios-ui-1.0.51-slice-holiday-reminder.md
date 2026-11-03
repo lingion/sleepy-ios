@@ -3,12 +3,12 @@
 ## Comparison
 
 Compared `Sleepy/ui/screen/mine/HolidaySettingsScreen.swift` and
-`Sleepy/ui/screen/mine/ReminderScreen.swift` against Android 1.0.51
+`Sleepy/ui/screen/mine/ReminderScreen.swift` against original 1.0.51
 (`HolidaySettingsScreen.kt`, `ReminderScreen.kt`).
 
 ### Holiday
 
-Three Android 1.0.51 changes applied:
+Three original 1.0.51 changes applied:
 
 - **Data source card** — rebuilt as the single-row form: title and the
   `holiday_source_label` URL sit on one line, refresh is a 36pt icon
@@ -22,10 +22,10 @@ Three Android 1.0.51 changes applied:
   selector on the right, same as the general settings flat cards).
   The now-unreferenced `settings_holiday_style_sub` label line is gone
   from the view; the strings key stays in place. `HolidayStyleChip` is
-  removed (Android 1.0.51 also has no chip component).
+  removed (original 1.0.51 also has no chip component).
 - **Edit dialog** — the native `Picker(.segmented)` type selector is now
   the shared `SegmentedSwitcher` (full width, same as the settings tabs),
-  matching Android 1.0.51's switch from scattered chips. Native
+  matching original 1.0.51's switch from scattered chips. Native
   `DatePicker(.compact)` start/end fields and the sheet presentation stay
   as the documented iOS platform adaptation.
 
@@ -33,7 +33,7 @@ Three Android 1.0.51 changes applied:
 
 - **Minutes field** — restructured from a 110pt field plus an external
   unit label into a 120pt box with the unit suffix inside the field,
-  matching the Android `TextField(suffix = …)` form.
+  matching the 原 `TextField(suffix = …)` form.
 - **Fluid-fields selector** — the menu label restacked from a single row
   (value + hint + chevron) into the Android readOnly-TextField form:
   hint label above the value line with a trailing chevron. The `Menu`

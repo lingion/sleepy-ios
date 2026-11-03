@@ -30,7 +30,7 @@ final class UpdateInfoParseTests: XCTestCase {
     func testParsesVersionChangelogUrlFromGithubJson() {  // ← parses_version_changelog_url_from_github_json
         let info = parseReleaseJson(sampleBody, currentVersion: "1.0.31", abi: "ios")
         XCTAssertEqual("1.0.32", info.version)
-        // Android changelog = "## v1.0.32\n\n修复 bug";iOS asset 名 = Sleepy.ipa
+        // 原 changelog = "## v1.0.32\n\n修复 bug";iOS asset 名 = Sleepy.ipa
         XCTAssertEqual("## v1.0.32\n\n修复 bug", info.changelog)
         XCTAssertTrue(info.isUpdateAvailable)
     }
@@ -47,7 +47,7 @@ final class UpdateInfoParseTests: XCTestCase {
     }
 
     func testMissingAssetForAbiReturnsBlankUrl() {  // ← missing_asset_for_abi_returns_blank_url
-        // Android: x86_64 无 asset → 空 url;iOS: assets 无 Sleepy.ipa → 空 url(等价断言)
+        // 原版本: x86_64 无 asset → 空 url;iOS: assets 无 Sleepy.ipa → 空 url(等价断言)
         let noIpa = """
         {"tag_name":"v2.0.0","body":"x","assets":[
             {"name":"app-arm64-v8a-release.apk","browser_download_url":"https://example.com/a.apk"}]}
@@ -57,7 +57,7 @@ final class UpdateInfoParseTests: XCTestCase {
     }
 
     func testEmptyTagFallsBackToZero() {
-        // Android: version.ifBlank { "0" } — 空 tag 不该 crash 且恒非更新
+        // 原版本: version.ifBlank { "0" } — 空 tag 不该 crash 且恒非更新
         let empty = #"{"tag_name":"","body":"x","assets":[]}"#
         let info = parseReleaseJson(empty, currentVersion: "1.0.0", abi: "ios")
         XCTAssertFalse(info.isUpdateAvailable)
@@ -107,7 +107,7 @@ final class AppPrefsTests: XCTestCase {
         XCTAssertEqual(["name", "time", "room", "teacher"], prefs.getBeforeClassFluidFields())
         XCTAssertEqual("room", prefs.getBeforeClassFluidPrimary())
         XCTAssertEqual("zh-CN", prefs.getLanguage())
-        // ← Android 出厂默认: display_mode="time"(用户 2026-09-14 指令), show_date=true(用户反馈找不到开关)
+        // ← 原版本 出厂默认: display_mode="time"(用户 2026-09-14 指令), show_date=true(用户反馈找不到开关)
         XCTAssertEqual("time", prefs.getDisplayMode())
         XCTAssertEqual("room", prefs.getGridSubInfo())
         XCTAssertTrue(prefs.isShowDate())
@@ -185,12 +185,12 @@ final class AppPrefsTests: XCTestCase {
     }
 
     func testFluidPrimaryAcceptsCountdown() {
-        // ← Android v1.0.61 require(name|time|room|countdown): countdown 合法且往返一致
+        // ← 原版本 v1.0.61 require(name|time|room|countdown): countdown 合法且往返一致
         prefs.setBeforeClassFluidPrimary("countdown")
         XCTAssertEqual("countdown", prefs.getBeforeClassFluidPrimary())
     }
 
-    func testFactoryDefaultsAlignAndroid1061() {
+    func testFactoryDefaultsAlignOriginal1061() {
         // ← AppPrefs.kt 出厂默认逐条: start_view="cards"(用户令网格优先),
         //   compact_window_today_first=true, calendar_apply_transfers=true,
         //   holiday 规则总开关=false(四类子开关=true), 实验室组全默认关
@@ -216,7 +216,7 @@ final class AppPrefsTests: XCTestCase {
         prefs.setGridEveningStart("19:30")
         XCTAssertEqual("19:30", prefs.getGridEveningStart())
         prefs.setGridRowScale(1.42)
-        XCTAssertEqual(1.42, prefs.getGridRowScale()) // ← Android 读侧不钳制, 存什么读什么
+        XCTAssertEqual(1.42, prefs.getGridRowScale()) // ← 原 读侧不钳制, 存什么读什么
         prefs.setShowViewSwitcher(false)
         XCTAssertFalse(prefs.isShowViewSwitcher())
         prefs.setTodayReminderEnabled(false)
@@ -224,7 +224,7 @@ final class AppPrefsTests: XCTestCase {
     }
 
     func testScaleReadClampsAndSetterCoerces() {
-        // ← Android coerceIn: 读侧钳制存量越界值; 写侧静默钳制不抛(precondition 已移除)
+        // ← 原版本 coerceIn: 读侧钳制存量越界值; 写侧静默钳制不抛(precondition 已移除)
         suite.set(2.5, forKey: AppPrefs.KEY_GRID_SCALE)
         XCTAssertEqual(1.3, prefs.getGridScale())
         suite.set(0.1, forKey: AppPrefs.KEY_WEEK_SCALE)
@@ -232,14 +232,14 @@ final class AppPrefsTests: XCTestCase {
         suite.set(9.0, forKey: AppPrefs.KEY_GRID_CORNER_RATIO)
         XCTAssertEqual(2.0, prefs.getGridCornerRatio())
         suite.set(-3.0, forKey: AppPrefs.KEY_GRID_CORNER_RATIO)
-        XCTAssertEqual(0.0, prefs.getGridCornerRatio()) // 0=直角, 是合法值(Android 无 0→1 哨兵)
+        XCTAssertEqual(0.0, prefs.getGridCornerRatio()) // 0=直角, 是合法值(原实现无 0→1 哨兵)
         prefs.setGridScale(5.0)                          // 写侧越界 → 静默落 1.3
         XCTAssertEqual(1.3, prefs.getGridScale())
         XCTAssertEqual(1.0, AppPrefs(defaults: UserDefaults(suiteName: "test-empty-scale-\(UUID().uuidString)")!).getGridScale())
     }
 
     func testWeekTwoColumnModeNormalizesOnWrite() {
-        // ← Android: if (v == "balance") "balance" else "days" — 任意其它值归一 "days"
+        // ← 原版本: if (v == "balance") "balance" else "days" — 任意其它值归一 "days"
         prefs.setWeekTwoColumnMode("balance")
         XCTAssertEqual("balance", prefs.getWeekTwoColumnMode())
         prefs.setWeekTwoColumnMode("garbage")

@@ -5,7 +5,7 @@
 //   3. 显式绑定不复制不覆盖共享作息表
 //   4. 确认行私有作息表 + keepGroups 两档分组口径
 //   5. 悬空绑定在任何写之前失败
-// Android 用 jdbc:sqlite::memory: 假仓库; iOS 用 AppDatabase.inMemory() 真库 +
+// 原版本 用 jdbc:sqlite::memory: 假仓库; iOS 用 AppDatabase.inMemory() 真库 +
 // 失败注入代理(事务语义由 GRDB dbQueue.write 真实承担)。
 
 import XCTest
@@ -18,8 +18,8 @@ final class NewTableImportTests: XCTestCase {
         case period, table, courses, `default`
     }
 
-    /// 失败注入代理 — 每个写方法先透传真库再抛错(= Android SqlStore 的写后注入),
-    /// captureUndo 记旗; insertPeriod/insertTable 前置断言快照已拍(= Android check(captured))。
+    /// 失败注入代理 — 每个写方法先透传真库再抛错(= 原版本 SqlStore 的写后注入),
+    /// captureUndo 记旗; insertPeriod/insertTable 前置断言快照已拍(= 原版本 check(captured))。
     private final class FailingImportStore: NewTableImportStore {
         let base: GRDBNewTableImportStore
         let failAt: FailStage?
@@ -93,7 +93,7 @@ final class NewTableImportTests: XCTestCase {
         super.tearDown()
     }
 
-    // ← Android SqlStore 种子: periods(7,'original') / tables(1,period=7,selected) / courses(1,table=1,'old')
+    // ← 原版本 SqlStore 种子: periods(7,'original') / tables(1,period=7,selected) / courses(1,table=1,'old')
     private func seed() throws {
         var period = PeriodTableEntity(name: "original", timeJson: "original")
         period.id = 7
@@ -111,7 +111,7 @@ final class NewTableImportTests: XCTestCase {
     }
 
     private func course(_ group: String) -> CourseEntity {
-        // ← Android course(group): 同名双行 — 认亲/keepGroups 口径的输入形状
+        // ← 原版本 course(group): 同名双行 — 认亲/keepGroups 口径的输入形状
         CourseEntity(groupId: group, tableId: 1, courseName: " Same  Name ",
                      day: 1, startNode: 1, step: 1, startWeek: 1, endWeek: 20, color: "#123456")
     }
@@ -187,7 +187,7 @@ final class NewTableImportTests: XCTestCase {
 
     func testConfirmedPrivateScheduleAndGroupPolicyArePreserved() throws {
         for keep in [false, true] {
-            // 每档独立库 — Android 同名用例的 for 循环共用一个干净 SqlStore
+            // 每档独立库 — 原版本 同名用例的 for 循环共用一个干净 SqlStore
             let fresh = try AppDatabase.inMemory()
             let id = try importNewTableAtomically(store: GRDBNewTableImportStore(db: fresh),
                                                   table: TimeTableEntity(name: "new", startDate: "2026-09-07"),

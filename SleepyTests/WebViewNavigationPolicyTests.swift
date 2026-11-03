@@ -1,6 +1,6 @@
 // WebViewNavigationPolicyTests.swift — a.v.1.0.41 导航修复回归:
 // 教务系统功能卡片用 target="_blank" / window.open, WKWebView 无 UIDelegate 时
-// 新窗请求被静默丢弃 → 用户卡在中间页点卡片无反应(Android WebView 默认在当前
+// 新窗请求被静默丢弃 → 用户卡在中间页点卡片无反应(原版本 WebView 默认在当前
 // webview 打开, 移植时丢了这一语义)。修复 = WKUIDelegate.createWebViewWith 在
 // 当前 webview 内加载新窗 URL。
 // 复现页由本地 HTTP server 提供(localhost, 无网络依赖)。

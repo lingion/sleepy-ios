@@ -326,9 +326,9 @@ final class SleepyNativeExporterTests: XCTestCase {
     }
 
     func testPeriodBlockBlankTimeJsonWritesOnlyHeader() {
-        // matchesNdPreset(空)=false, isNotBlank(空)=false → 零时间行(与 Android SleepyNativeExporter.kt
+        // matchesNdPreset(空)=false, isNotBlank(空)=false → 零时间行(与 原版本 SleepyNativeExporter.kt
         // buildBody 的 else-if 分支一致: P 头照写, 其后既无 Pd 也无 Pn)。
-        // exportFile 的 file 形态在 body 末尾追加 z|chk 行(§8.1, Android exportFile 同文法),
+        // exportFile 的 file 形态在 body 末尾追加 z|chk 行(§8.1, 原 exportFile 同文法),
         // 所以契约是"P 头是 chk 之前的 body 末行", 不是"整个文件以 P 头结尾"。
         // 实测(2026-10-21, iPhone 14 sim): out=...P春季作息|5|2\nz|chk=crc32:xxxxxxxx
         let out = SleepyNativeExporter.exportFile(tableName: "t", startDate: "2026-02-23",
@@ -357,7 +357,7 @@ final class SleepyNativeExporterTests: XCTestCase {
     }
 
     func testBlankTableNameEmitsDefaultName() {
-        // Android tableName.ifBlank: 纯空格名 → "导入的课表"; isEmpty 判定会原样写出 " "
+        // 原版本 tableName.ifBlank: 纯空格名 → "导入的课表"; isEmpty 判定会原样写出 " "
         let out = SleepyNativeExporter.exportFile(tableName: "   ", startDate: "2026-02-23",
                                                   maxWeek: 16, nodesPerDay: 2, timeJson: "",
                                                   courses: [])

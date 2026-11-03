@@ -1,11 +1,11 @@
 import XCTest
 @testable import Sleepy
 
-/// 强智 qz 变体 (QzBr / QzWithNode) 单元测试 —— 移植 Android
+/// 强智 qz 变体 (QzBr / QzWithNode) 单元测试 —— 移植自原版本
 /// JwQzBrParserTest.kt (4 案) + JwQzWithNodeParserTest.kt (3 案)。
 ///
-/// fixture 与 Android 端 jw/fixtures/{qz_br,qz_with_node}/ 字节级一致
-/// (md5 核对过), 期望值逐条对齐 Android 测试。
+/// fixture 与 原版本 端 jw/fixtures/{qz_br,qz_with_node}/ 字节级一致
+/// (md5 核对过), 期望值逐条对齐 原版本 测试。
 final class JwQzVariantsTests: XCTestCase {
 
     private func fixture(_ dir: String, _ name: String) throws -> String {
@@ -129,7 +129,7 @@ final class JwQzVariantsTests: XCTestCase {
         XCTAssertEqual(physics[1].startWeek, 17)
         XCTAssertEqual(physics[1].endWeek, 17)
 
-        // ← Kotlin substringAfter(')') 缺省语义漂移锁 (Android 同结果, 旧 iOS 缺 ')' 时得 1-1):
+        // ← Kotlin substringAfter(')') 缺省语义漂移锁 (原版本 同结果, 旧 iOS 缺 ')' 时得 1-1):
         // 数据结构 title=节次 为裸形态 "3-4节" (无 ')'), 必须解析成 3-4 节而非默认 1-1。
         let dataStruct = courses.first { $0.name == "数据结构" }
         XCTAssertNotNil(dataStruct)
@@ -143,9 +143,9 @@ final class JwQzVariantsTests: XCTestCase {
         XCTAssertEqual(courses.count, 0)
     }
 
-    /// ← Android `toInt()` 对坏数字段抛 NumberFormatException 中断整次解析
+    /// ← 原 `toInt()` 对坏数字段抛 NumberFormatException 中断整次解析
     /// (旧 iOS 静默吞成默认值)。现在 iOS 解析完统一抛 JwParseError, 整份课表
-    /// 丢弃, Registry 记 0 课 + exception, 最终状态与 Android 一致。
+    /// 丢弃, Registry 记 0 课 + exception, 最终状态与原实现一致。
     func testWithNodeMalformedWeekThrowsInsteadOfSilentDefault() throws {
         let html = """
         <html><body>
@@ -201,17 +201,17 @@ final class JwQzVariantsTests: XCTestCase {
         XCTAssertEqual(c.startNode, 1)
         XCTAssertEqual(c.endNode, 2)
         // weekStr "1-16(周" → split(',') → "1-16(周" 含 '-' → weeks ["1","16(周"]
-        // endWeek = "16(周".substringBefore('(') = "16" (Android 同值; 旧 iOS 补回 ')' 也是 16,
+        // endWeek = "16(周".substringBefore('(') = "16" (原同值; 旧 iOS 补回 ')' 也是 16,
         // 差异在 weekStr 本身 — 这里锁解析链路末端结果不回归)
         XCTAssertEqual(c.startWeek, 1)
         XCTAssertEqual(c.endWeek, 16)
         XCTAssertEqual(c.type, 0)
     }
 
-    // MARK: - parseCourseName 单元级 trim 锁 (← Android JwQzBrParserTest 精确 "测试课程")
+    // MARK: - parseCourseName 单元级 trim 锁 (← 原 JwQzBrParserTest 精确 "测试课程")
 
     func testQzBrParseCourseNameTrimsTrailingSpace() throws {
-        // "高等数学 <br>..." 尾空格 → Android substringBefore("<br>").trim() 得 "高等数学",
+        // "高等数学 <br>..." 尾空格 → 原 substringBefore("<br>").trim() 得 "高等数学",
         // 旧 iOS 未 trim 得 "高等数学 "。JwCourse 双端均原样存 name, 该差异直达展示层。
         XCTAssertEqual(JwQzBrParser("").parseCourseName("高等数学 <br><span>x</span>"), "高等数学")
         XCTAssertEqual(JwQzBrParser("").parseCourseName("  高等数学<br>x"), "高等数学")

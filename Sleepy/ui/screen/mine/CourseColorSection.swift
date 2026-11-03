@@ -1,7 +1,7 @@
 // CourseColorSection.swift — ← ui/screen/mine/AppearanceScreen.kt 的 CourseColorSection
 // 外观页 Section②·5「课程配色」(v1.0.62 三档 + 色相滑条 + 试算预览 + 手动重排)。
 //
-// 逐条对齐 Android CourseColorSection.kt:
+// 逐条对齐 原版本 CourseColorSection.kt:
 //   - 三档单选 = SegmentedSwitcher(容器色 surfaceContainerHighest);
 //   - CUSTOM 档才出种子色相行 + 彩虹滑条(拖动只动本地值, 松手才提交);
 //   - 预览胶囊 = 试算 planned ∪ 持久快照 hueMap(有记录直读 → 所见即主页所得);
@@ -70,7 +70,7 @@ struct CourseColorSection: View {
                 ],
                 selected: mode,
                 onSelect: onModeChange,
-                // ← Android containerColor = colors.surfaceContainerHighest:
+                // ← 原 containerColor = colors.surfaceContainerHighest:
                 //   嵌进 surfaceContainer 卡片时同色隐形, 降一级保持对比
                 containerColor: colors.surfaceContainerHighest
             )

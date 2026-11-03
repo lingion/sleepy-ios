@@ -2,18 +2,18 @@
 // One user-initiated foreground lookup. Coordinates are never stored or logged.
 //
 // iOS 适配 (CoreLocation):
-//   - Android ACCESS_COARSE/FINE → iOS whenInUse 授权 + accuracyAuthorization
+//   - 原版本 ACCESS_COARSE/FINE → iOS whenInUse 授权 + accuracyAuthorization
 //     (.fullAccuracy→precise / .reducedAccuracy→approximate; iOS14+, min target 15.6),
 //     等价 SchoolLocationPolicy.modeForPermissions(coarse, fine)。
-//     providers 列表对 Android 契约保留 "gps"/"network" 名以复用 SchoolLocationPolicy,
-//     approximate 模式经 Policy.providers 排除 "gps"(与 Android 同闸)
+//     providers 列表对 原版本 契约保留 "gps"/"network" 名以复用 SchoolLocationPolicy,
+//     approximate 模式经 Policy.providers 排除 "gps"(与 原版本 同闸)
 //   - getLastKnownLocation → CLLocationManager.location (最后一次 fix)
 //   - getCurrentLocation + CancellationSignal → requestLocation + waiter 注册表:
 //     iOS CLLocationManager 是单一源, 并发请求合并为一次物理请求, 结果点对分发;
 //     每个 continuation 要么经 delegate 送达、要么经 withTaskCancellationHandler
-//     恢复, 绝不悬挂 (对应 Android suspendCancellableCoroutine + invokeOnCancellation)
+//     恢复, 绝不悬挂 (对应 原 suspendCancellableCoroutine + invokeOnCancellation)
 //   - SystemClock.elapsedRealtimeNanos 年龄 → 同钟差值 Date().timeIntervalSince(
-//     CLLocation.timestamp)。iOS fix 只有墙钟时间戳, 用当下墙钟做差即 Android 语义;
+//     CLLocation.timestamp)。iOS fix 只有墙钟时间戳, 用当下墙钟做差即 原版本 语义;
 //     禁与 boot 基线的 systemUptime 混算(两钟相减恒为巨大负数)
 //   - 12s 超时 → withTimeout 自实现 (Task sleep race)
 
@@ -24,7 +24,7 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
 
     private let locationManager = CLLocationManager()
 
-    /// 等待单次物理定位的登记项 — 对应 Android 每个 getCurrentLocation
+    /// 等待单次物理定位的登记项 — 对应 原版本 每个 getCurrentLocation
     /// 自己的 suspendCancellableCoroutine。iOS 的 CLLocationManager 是单一源:
     /// 多 waiter 合并为一次 requestLocation(), 结果点对每个 waiter 恢复。
     private struct LocationWaiter {
@@ -64,10 +64,10 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
     }
 
     /// 单次前台定位 → 城市。坐标永不落盘、永不记日志。
-    /// 与 Android locate() 一致: 只【检查】权限, 不弹窗;
+    /// 与 原版本 locate() 一致: 只【检查】权限, 不弹窗;
     /// notDetermined/denied/restricted → PermissionDenied。
     func locate() async -> SchoolLocationState {
-        // 权限 → mode: Android modeForPermissions(coarse, fine) 的 iOS 等价 —
+        // 权限 → mode: 原版本 modeForPermissions(coarse, fine) 的 iOS 等价 —
         // coarse = whenInUse 授权, fine = fullAccuracy;
         // .reducedAccuracy(用户在系统设置里给了"大致位置") → approximate。
         let granted = currentAuthorizationStatus == .authorizedWhenInUse
@@ -84,7 +84,7 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
             return .locationDisabled
         }
 
-        // 12s 超时 — 与 Android withTimeoutOrNull(12_000) 1:1
+        // 12s 超时 — 与 原版本 withTimeoutOrNull(12_000) 1:1
         return await withTimeout(seconds: 12) {
             await self.findCity(mode: mode)
         } ?? .positionUnavailable
@@ -98,8 +98,8 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
     // MARK: - 定位到城市
 
     private func findCity(mode: SchoolLocationMode) async -> SchoolLocationState {
-        // providers — Android 契约名; gps 排除/passive/去重过滤由 Lookup 内
-        // SchoolLocationPolicy.providers 做, 与 Android findCity 传
+        // providers — 原版本 契约名; gps 排除/passive/去重过滤由 Lookup 内
+        // SchoolLocationPolicy.providers 做, 与 原 findCity 传
         // manager.getProviders(true) 原始列表一致。
         let providers = ["gps", "network"]
         let cached: [SchoolLocationFix] = {
@@ -113,14 +113,14 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
             loadIndex: { await self.offlineIndex() },
             requestFix: { _ in
                 // iOS CLLocationManager 单一源: provider 参数不再区分物理通路,
-                // 精度档由 mode 决定(Android 侧同一 mode 下各 provider 请求同样
+                // 精度档由 mode 决定(原版本 侧同一 mode 下各 provider 请求同样
                 // 走统一质量闸)。
                 await self.requestOneFix(mode: mode)
             }
         )
     }
 
-    /// 一次物理 requestLocation 点对多 waiter。取消语义对齐 Android
+    /// 一次物理 requestLocation 点对多 waiter。取消语义对齐原实现
     /// invokeOnCancellation: waiter 被取消时恢复 nil 并从注册表摘除,
     /// continuation 保证恰好恢复一次(不悬挂、不双恢复)。
     private func requestOneFix(mode: SchoolLocationMode) async -> SchoolLocationFix? {
@@ -176,7 +176,7 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
     }
 
     private func offlineIndex() async -> OfflineSchoolCityIndex? {
-        // 单飞闸 + 取消传播 — Android offlineIndexLock.withLock 双检
+        // 单飞闸 + 取消传播 — 原版本 offlineIndexLock.withLock 双检
         // @Volatile cachedOfflineIndex; 取消 = ensureActive 打断扫描。
         await withTaskCancellationHandler {
             await OfflineIndexGate.shared.index()
@@ -187,7 +187,7 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
     }
 
     /// 单次解析 — 找资源 + gunzip + SCB1 流式解析。checkCancelled 把
-    /// Task.isCancelled 传进 200 万点扫描(Android `{ coroutineContext.ensureActive() }`
+    /// Task.isCancelled 传进 200 万点扫描(原 `{ coroutineContext.ensureActive() }`
     /// 等价): 12s 超时/任务取消可中途 abort。取消/异常/缺资源 → nil。
     fileprivate static func parseOffline() -> OfflineSchoolCityIndex? {
         // AAPT 解包 .gz 资源会去掉后缀 — iOS 侧同样 .bin.gz 优先、.bin 兜底。
@@ -222,7 +222,7 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // 物理请求失败/超时取消 — 所有 waiter 收 nil(对应 Android catch → null)。
+        // 物理请求失败/超时取消 — 所有 waiter 收 nil(对应 原 catch → null)。
         dispatchLocationFixes([])
     }
 
@@ -244,10 +244,10 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
     }
 }
 
-// MARK: - 离线索引单飞闸 (对齐 Android companion: @Volatile cached + Mutex.withLock)
+// MARK: - 离线索引单飞闸 (对齐 原版本 companion: @Volatile cached + Mutex.withLock)
 
 /// 进程级: 并发 locate()(双击推荐卡)只跑一次 750KB gunzip + 全量解析,
-/// 其余调用 await 同一个任务; 成功后缓存。失败不缓存 — 与 Android
+/// 其余调用 await 同一个任务; 成功后缓存。失败不缓存 — 与原实现
 /// catch → null、不写 cachedOfflineIndex 一致。
 private actor OfflineIndexGate {
     static let shared = OfflineIndexGate()
@@ -258,7 +258,7 @@ private actor OfflineIndexGate {
     func index() async -> OfflineSchoolCityIndex? {
         if let cached = cached { return cached }
         if let parseTask = parseTask { return await parseTask.value }
-        // detached + .utility — Android Dispatchers.IO 等价, 不占 actor 执行域。
+        // detached + .utility — 原版本 Dispatchers.IO 等价, 不占 actor 执行域。
         let task = Task.detached(priority: .utility) {
             SchoolCityLocator.parseOffline()
         }
@@ -270,7 +270,7 @@ private actor OfflineIndexGate {
     }
 
     /// 取消在飞的解析 — parseOffline 的 checkCancelled 闭包读 Task.isCancelled,
-    /// 可打断 200 万点扫描(Android ensureActive 等价)。
+    /// 可打断 200 万点扫描(原 ensureActive 等价)。
     func cancelInFlight() {
         parseTask?.cancel()
     }
@@ -279,7 +279,7 @@ private actor OfflineIndexGate {
 // MARK: - helpers
 
 private extension CLLocation {
-    /// 年龄用与采样时刻同源的钟 — Android elapsedRealtime 同钟相减的 iOS 等价物
+    /// 年龄用与采样时刻同源的钟 — 原 elapsedRealtime 同钟相减的 iOS 等价物
     /// 是当下墙钟减 fix 墙钟时间戳(CLLocation 只有 Unix 时基时间戳)。
     var ageNanos: Int64 {
         Int64(max(0, Date().timeIntervalSince(timestamp)) * 1_000_000_000)
@@ -316,7 +316,7 @@ import Compression
 
 private extension Data {
     /// gunzip: 剥 gzip 容器 (RFC 1952) → raw deflate (RFC 1951) → libcompression inflate。
-    /// 校验 magic; 不校验尾 CRC(与 Android GZIPInputStream 行为一致 — 解出即可用)。
+    /// 校验 magic; 不校验尾 CRC(与 原版本 GZIPInputStream 行为一致 — 解出即可用)。
     func gunzipped() -> Data? {
         guard count > 18, self[startIndex] == 0x1f, self[startIndex + 1] == 0x8b else {
             return nil

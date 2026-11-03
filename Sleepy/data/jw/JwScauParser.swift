@@ -2,7 +2,7 @@
 //
 // 华南农业大学 (SCAU, jwxt.scau.edu.cn) 教务解析器。
 //
-// Android 侧证据与限制: docs/scau-cross-verify-2026-10-13/。
+// 原版本 侧证据与限制: docs/scau-cross-verify-2026-10-13/。
 //
 // 三条互相独立设门的页面形态:
 //   1. Element UI (greyovo/Njw2017 固定样本) — `.el-table__body-wrapper table.el-table__body`
@@ -13,23 +13,23 @@
 //   3. 降级路径 (WakeUp SCAUParser 老视图残留) — `table[border=1][bordercolor=#000000]`
 //      节次标题行 + 紧随其后的数据行成对出现; 数据格首行是 `课程名：教师` (全角冒号)。
 //
-// 与 Android 的两处实现差异(均有据可依, 详见各函数注释):
+// 与 原版本 的两处实现差异(均有据可依, 详见各函数注释):
 //   a. 单元格分字段用 `html()` + `<br>` 正则切分, 不用 `text()`。
 //      Jsoup 的 `html()` 把 `<br>` 输出成字面 "<br>", SwiftSoup 输出自闭合 "<br />",
-//      故 Android 的字面量 `split("<br>")` 在 Swift 上永远切不开 → 整格塌成一行。
+//      故 原版本 的字面量 `split("<br>")` 在 Swift 上永远切不开 → 整格塌成一行。
 //      正则切分 `<br\s*/?>` 是与 Jsoup 行为等价的翻译。
-//   b. 单双周 type 取值沿用 Android 原样(单→1 / 双→2 / 其余→0), 与 `JwCourse.type`
-//      的 0=每周 / 1=单周 / 2=双周 语义一致(Android 的 UMOOC/YL 解析器把 双→0 是笔误)。
+//   b. 单双周 type 取值沿用 原版本 原样(单→1 / 双→2 / 其余→0), 与 `JwCourse.type`
+//      的 0=每周 / 1=单周 / 2=双周 语义一致(原版本 的 UMOOC/YL 解析器把 双→0 是笔误)。
 
 import Foundation
 import SwiftSoup
 
 final class JwScauParser: JwParser, JwParserConfidenceReporting {
 
-    // MARK: - 常量(与 Android companion object 一致)
+    // MARK: - 常量(与 原 companion object 一致)
 
     /// 节次正则: 匹配如 "5节)" / "12节)"。
-    /// 暴露为 internal 供契约测试直接断言(与 Android companion object 的 RE_SECTION 同型)。
+    /// 暴露为 internal 供契约测试直接断言(与 原 companion object 的 RE_SECTION 同型)。
     static let reSectionProbe = try! NSRegularExpression(pattern: "(\\d+)节\\)")
     /// 半角/全角 单/双周 标注。
     private static let reParityHalf = try! NSRegularExpression(pattern: "[(（](单|双)[)）]")
@@ -153,7 +153,7 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
         guard let tables = try? doc.select(JwScauParser.selectPrimaryTable) else { return [] }
         for table in tables {
             // SwiftSoup 的 `table[border=1]` 同时命中带 bordercolor 的表(与 Jsoup 同),
-            // Android 侧显式排除 → 这里同样排除。
+            // 原版本 侧显式排除 → 这里同样排除。
             if table.hasAttr("bordercolor") { continue }
             var courseRow = 0
             guard let rows = try? table.select("tr") else { continue }
@@ -269,14 +269,14 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
 
     // MARK: - 周次
 
-    /// 取首段起点 + 末段终点(与 Android parseWeekRange 一致)。
+    /// 取首段起点 + 末段终点(与 原 parseWeekRange 一致)。
     func parseWeekRange(_ parsed: [String], weeksLineIndex: Int) -> (Int, Int) {
         let runs = parseWeekRuns(weeksLineIndex < parsed.count ? parsed[weeksLineIndex] : "")
         guard let first = runs.first, let last = runs.last else { return (0, 0) }
         return (first.0, last.1)
     }
 
-    /// 稀疏周次保持为独立区间(与 Android parseWeekRuns 一致)。
+    /// 稀疏周次保持为独立区间(与 原 parseWeekRuns 一致)。
     ///
     /// 返回三元组 (起始周, 结束周, 单双标记)。
     func parseWeekRuns(_ text: String, parity: Int = 0) -> [(Int, Int, Int)] {
@@ -413,7 +413,7 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
 
     /// 单元格分字段: 取 `html()` 后按 `<br>` 正则切分, 每段再取文本。
     ///
-    /// Android 用 `td.html().split("<br>")`; Jsoup 输出字面 "<br>", SwiftSoup 输出 "<br />",
+    /// 原版本 用 `td.html().split("<br>")`; Jsoup 输出字面 "<br>", SwiftSoup 输出 "<br />",
     /// 故用正则 `<br\s*/?>` 切 — 与 Jsoup 行为等价。
     private static func cellLines(_ td: Element) -> [String] {
         let html = (try? td.html()) ?? ""

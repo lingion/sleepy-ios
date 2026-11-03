@@ -6,7 +6,7 @@
 // 起始日期与十进制周次位图; addActivityByTime(activity, day, startMin, endMin)
 // 由 CourseTable 把分钟映射回节次。本文件是已观察协议事实的独立实现。
 //
-// 与 Android 的实现差异(等价翻译, 详见各函数注释):
+// 与 原版本 的实现差异(等价翻译, 详见各函数注释):
 //   a. java.time.LocalDate.parse(严格 ISO) → 手写 ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
 //      正则 + 月/日合法域校验 (DateFormatter 宽松解析会把 2026-02-30 顺延)。
 //   b. ChronoUnit.WEEKS.between(a, b) = (b.toEpochDay() - a.toEpochDay()) / 7

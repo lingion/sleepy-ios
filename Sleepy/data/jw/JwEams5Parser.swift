@@ -64,7 +64,7 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
         // AHU 形态优先匹配 (5 仓 cross-verified 共识):
         //   1) studentTableVms[0].activities[] (print-data) — 真正课表数据 (weekday/startUnit/...)
         //   2) data.lessons[] (get-data) — metadata-only, 含 courseCode/examMode 但缺节次
-        // 逐元素容错 (对齐 Android runCatching{el.jsonObject}.getOrNull()?:continue):
+        // 逐元素容错 (对齐 原版本 runCatching{el.jsonObject}.getOrNull()?:continue):
         // 数组含脏元素只跳过该行, 不整体作废。
         if let stVms = root["studentTableVms"] as? [Any], !stVms.isEmpty {
             let firstTable = stVms.first as? [String: Any]
@@ -97,7 +97,7 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
                 unitByStart[st] = idx
                 unitEnds.append((et, idx))
             }
-            // Android sortBy 是稳定排序 (并列保持表序, 典型表序即 indexNo 升序),
+            // 原 sortBy 是稳定排序 (并列保持表序, 典型表序即 indexNo 升序),
             // Swift sort 不保证稳定 → 并列显式按 indexNo 升序, 行为对齐。
             unitEnds.sort { $0.end < $1.end || ($0.end == $1.end && $0.indexNo < $1.indexNo) }
         }
@@ -315,7 +315,7 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
             if bare.isEmpty { continue }
             if bare.contains("-") {
                 // 范围: "1-16" 或 "1- 16"
-                // 对齐 Android bare.split("-", limit = 2): 只按首个横杠拆两段, 剩余部分保留 —
+                // 对齐 原版本 bare.split("-", limit = 2): 只按首个横杠拆两段, 剩余部分保留 —
                 // 畸形 "5-12-16" → a=5, b="12-16" 整串转 Int 失败 → b 回退 a → (5,5,parity)。
                 let dash = bare.firstIndex(of: "-")!
                 let aStr = String(bare[..<dash]).trimmingCharacters(in: .whitespaces)

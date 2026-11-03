@@ -1,5 +1,5 @@
 // RowKeyDiffer.swift — ← data/diff/{RowKey.kt, DiffResult.kt, RowKeyDiffer.kt} 1:1 翻译 (GPL-3.0)
-// 三类合一文件(项目按目录 glob 编译, 不强求 Android 的三文件拆分)。
+// 三类合一文件(项目按目录 glob 编译, 不强求 原版本 的三文件拆分)。
 
 import Foundation
 

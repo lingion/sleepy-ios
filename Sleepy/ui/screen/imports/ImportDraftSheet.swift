@@ -4,7 +4,7 @@
 import SwiftUI
 
 /// UI-only representation of an import draft; persistence belongs to the caller.
-/// ← Android data class ImportDraft(savedAt: String? = null) — explicit init keeps the default.
+/// ← 原 data class ImportDraft(savedAt: String? = null) — explicit init keeps the default.
 struct ImportDraftRowModel: Identifiable, Equatable {
     let id: String
     let name: String
@@ -72,8 +72,8 @@ struct ImportDraftSheet: View {
         }
         .background(Color(.systemBackground))
         .cornerRadius(16)
-        // ← Android sheetState 默认 rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        //   (ImportDraftSheet.kt:49) = 打开即全展开。在组件根声明(与 Android 组件级默认同构),
+        // ← 原 sheetState 默认 rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        //   (ImportDraftSheet.kt:49) = 打开即全展开。在组件根声明(与 原版本 组件级默认同构),
         //   等价于在调用点 .sheet 上加 .sheetDetents([.large]) 而无需改 ImportSheet.swift;
         //   否则 iOS 默认 medium detent,列表 maxHeight 520 不可达。
         .sheetDetents([.large])
@@ -97,7 +97,7 @@ private struct ImportDraftRow: View {
                     .font(.system(size: 14))                    // ← bodyMedium 14sp
                     .foregroundColor(colors.onSurfaceVariant)
                     .padding(.top, 2)
-                // ← Android draft.savedAt?.takeIf { it.isNotBlank() }: 纯空白串也隐藏
+                // ← 原版本 draft.savedAt?.takeIf { it.isNotBlank() }: 纯空白串也隐藏
                 if let savedAt = draft.savedAt,
                    !savedAt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(L10n.format("import_draft_saved_at", savedAt))

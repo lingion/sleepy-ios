@@ -1,4 +1,4 @@
-// JwCatalogueTests.swift — ← Android v1.0.62 SchoolsJsonConsistencyTest.kt +
+// JwCatalogueTests.swift — ← 原版本 v1.0.62 SchoolsJsonConsistencyTest.kt +
 // SchoolSearchIndexTest.kt + JwImportReport 相关单测 (逐用例移植)
 //
 // B2 目录扩容后的契约锁:
@@ -24,7 +24,7 @@ final class JwCatalogueTests: XCTestCase {
         return JwImportViewModel.parseSchoolsJson(raw)
     }
 
-    /// 有可打开 URL 的子集 —— ← Android loadSchools 的过滤结果
+    /// 有可打开 URL 的子集 —— ← 原 loadSchools 的过滤结果
     private func loadImportableSchools() throws -> [JwSchoolInfo] {
         try loadSchools().filter { !$0.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
@@ -35,8 +35,8 @@ final class JwCatalogueTests: XCTestCase {
 
     // MARK: - 目录规模闸
 
-    func testCatalogueSizePinnedToAndroidV1062() throws {
-        // ← Android v1.0.62 tag 10adc247 assets/schools.json = 4140 条
+    func testCatalogueSizePinnedToOriginalV1062() throws {
+        // ← 原版本 v1.0.62 tag 10adc247 assets/schools.json = 4140 条
         //   (v1.0.61 = 349; B2 对齐后 iOS resources/schools.json 与安卓逐条一致)
         let list = try loadSchools()
         XCTAssertEqual(4140, list.count)
@@ -44,7 +44,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testOnlyEntriesWithUrlAreImportable() throws {
-        // ← Android loadSchools: 只显示有 URL 的学校(避免用户看到大量不可用选项)
+        // ← 原版本 loadSchools: 只显示有 URL 的学校(避免用户看到大量不可用选项)
         let all = try loadSchools()
         let withUrl = try loadImportableSchools()
         XCTAssertEqual(1478, withUrl.count)
@@ -55,8 +55,8 @@ final class JwCatalogueTests: XCTestCase {
         }
     }
 
-    func testStatusDistributionMatchesAndroid() throws {
-        // ← Android v1.0.62 schools.json 状态分布:
+    func testStatusDistributionMatchesOriginal() throws {
+        // ← 原版本 v1.0.62 schools.json 状态分布:
         //   有 URL 1478 条 = supported 348 + grad_supported 2 + unverified 1128
         //   无 URL 2662 条 = pending 2361 + grad_pending 301
         let all = try loadSchools()
@@ -71,7 +71,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testEveryEntryCarriesCatalogIdAndUniqueStableKey() throws {
-        // ← Android `catalogue keys are unique and expanded entries have explicit identities`
+        // ← 原 `catalogue keys are unique and expanded entries have explicit identities`
         let list = try loadSchools()
         XCTAssertEqual(list.count, Set(list.map { $0.stableKey }).count)
         XCTAssertTrue(list.allSatisfy { !$0.catalogId.isEmpty },
@@ -79,7 +79,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testStatusValuesAreAllKnown() throws {
-        // ← Android `status field if present is one of the known lifecycle values`
+        // ← 原 `status field if present is one of the known lifecycle values`
         let known: Set<String> = [
             JwSchoolInfo.STATUS_SUPPORTED, JwSchoolInfo.STATUS_PENDING,
             JwSchoolInfo.STATUS_GRAD_SUPPORTED, JwSchoolInfo.STATUS_GRAD_PENDING,
@@ -93,7 +93,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testSupportedOrUnverifiedEntriesAreImportable() throws {
-        // ← Android `supported and unverified entries have valid import configuration`
+        // ← 原 `supported and unverified entries have valid import configuration`
         let list = try loadSchools()
         for school in list where school.isSupported || school.isUnverified {
             XCTAssertTrue(school.canImport,
@@ -105,7 +105,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testDriftProneTypesHaveLiveEntries() throws {
-        // ← Android `explicitly listed drift-prone types have live entries`
+        // ← 原 `explicitly listed drift-prone types have live entries`
         let types = try loadSchools().compactMap { $0.type }
         for t in ["hnust", "cf", "pku", "bnuz"] {
             XCTAssertGreaterThanOrEqual(types.filter { $0 == t }.count, 1, "type=\(t) 应至少 1 所学校")
@@ -115,7 +115,7 @@ final class JwCatalogueTests: XCTestCase {
     // MARK: - normalizeStatus
 
     func testNormalizeStatusFailClosed() {
-        // ← Android normalizeStatus: null/"" → supported; grad_* / unverified / legacy 原样;
+        // ← 原版本 normalizeStatus: null/"" → supported; grad_* / unverified / legacy 原样;
         //   未知值 → pending (fail-closed)
         XCTAssertEqual(JwSchoolInfo.STATUS_SUPPORTED, JwSchoolInfo.normalizeStatus(nil))
         XCTAssertEqual(JwSchoolInfo.STATUS_SUPPORTED, JwSchoolInfo.normalizeStatus(""))
@@ -130,7 +130,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testNormalizeStatusInParserPipeline() {
-        // ← Android JwNewSchoolsTest `parseSchoolsJson reads explicit status values`
+        // ← 原 JwNewSchoolsTest `parseSchoolsJson reads explicit status values`
         let mini = """
             [
               {"sortKey": "Z", "name": "测试A", "url": "https://a.edu/", "type": "zf_new", "aliases": [], "sortKeyFull": "a"},
@@ -158,7 +158,7 @@ final class JwCatalogueTests: XCTestCase {
     // MARK: - stableKey / hasUrl / canImport
 
     func testStableKeyPrefersCatalogId() {
-        // ← Android stableKey = catalogId.ifBlank { "${sortKey}_${name}" }
+        // ← 原 stableKey = catalogId.ifBlank { "${sortKey}_${name}" }
         let withId = JwSchoolInfo(sortKey: "A", name: "甲大学", catalogId: "A_甲大学")
         XCTAssertEqual("A_甲大学", withId.stableKey)
         let withoutId = JwSchoolInfo(sortKey: "A", name: "甲大学")
@@ -168,7 +168,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testHasUrlRejectsNonHttpAndUserInfo() {
-        // ← Android hasUrl: http/https + host 非空 + 无 userInfo
+        // ← 原版本 hasUrl: http/https + host 非空 + 无 userInfo
         func has(_ url: String) -> Bool {
             JwSchoolInfo(sortKey: "A", name: "甲", url: url).hasUrl
         }
@@ -183,7 +183,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testCanImportCombinesSupportAndParserAndUrl() {
-        // ← Android canImport = (isSupported || (isUnverified && registry.supports(type))) && hasUrl
+        // ← 原 canImport = (isSupported || (isUnverified && registry.supports(type))) && hasUrl
         let supported = JwSchoolInfo(sortKey: "A", name: "甲", url: "https://a.edu.cn/",
                                      type: "zf_new", status: JwSchoolInfo.STATUS_SUPPORTED)
         XCTAssertTrue(supported.canImport)
@@ -211,7 +211,7 @@ final class JwCatalogueTests: XCTestCase {
         XCTAssertFalse(JwParserRegistry.supports(nil))
     }
 
-    // MARK: - 搜索索引 (← Android SchoolSearchIndexTest.kt)
+    // MARK: - 搜索索引 (← 原 SchoolSearchIndexTest.kt)
 
     private func searchFixture() -> [JwSchoolInfo] {
         [
@@ -223,7 +223,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testBlankQueryReturnsWholeCatalogue() {
-        // ← Android `assertEquals(schools, index.search(" "))`
+        // ← 原 `assertEquals(schools, index.search(" "))`
         let schools = searchFixture()
         let index = SchoolSearchIndex(schools)
         XCTAssertEqual(schools, index.search(" "))
@@ -239,7 +239,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testExactAliasMatchSortsFirst() {
-        // ← Android 排序键 `q in it.aliases` (Set → 精确相等), 过滤却是子串 → 两者语义不同
+        // ← 原版本 排序键 `q in it.aliases` (Set → 精确相等), 过滤却是子串 → 两者语义不同
         let schools = [
             JwSchoolInfo(sortKey: "A", name: "Alpha University", url: "https://a.edu/", aliases: ["alpha"]),
             JwSchoolInfo(sortKey: "Z", name: "Zeta University", url: "https://z.edu/", aliases: ["alpha2"]),
@@ -262,7 +262,7 @@ final class JwCatalogueTests: XCTestCase {
         }
     }
 
-    // MARK: - 域名匹配 (← Android SchoolDomainMatch)
+    // MARK: - 域名匹配 (SchoolDomainMatch)
 
     func testParsedRejectsNonHttpAndUserInfo() {
         XCTAssertNil(SchoolDomainMatch.parsed("ftp://a.edu/"))
@@ -277,7 +277,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testSameEntryTreatsEmptyPathAsSlash() {
-        // ← Android sameEntry: 路径缺省都算 "/"
+        // ← 原版本 sameEntry: 路径缺省都算 "/"
         let a = SchoolDomainMatch.parsed("https://a.edu")
         let b = SchoolDomainMatch.parsed("https://a.edu/")
         XCTAssertNotNil(a)
@@ -303,7 +303,7 @@ final class JwCatalogueTests: XCTestCase {
     }
 
     func testSelectionsForUrlKeepsPendingExactEntry() {
-        // ← Android selectionsForUrl: 精确已知的 URL 保留其状态(包括 pending)
+        // ← 原版本 selectionsForUrl: 精确已知的 URL 保留其状态(包括 pending)
         let catalog = [
             JwSchoolInfo(sortKey: "A", name: "待适配大学", url: "https://jw.b.edu/",
                          type: "zf_new", status: JwSchoolInfo.STATUS_PENDING),
@@ -321,7 +321,7 @@ final class JwCatalogueTests: XCTestCase {
         XCTAssertEqual("https://unknown.example/", sels[0].url)
     }
 
-    // MARK: - 草稿恢复的选校准入确认 (← Android JwImportDraftSnapshot.requiresSchoolConfirmation)
+    // MARK: - 草稿恢复的选校准入确认 (JwImportDraftSnapshot.requiresSchoolConfirmation)
 
     func testRequiresSchoolConfirmationOnlyInLoginPhase() {
         let unverified = JwSchoolInfo(sortKey: "A", name: "甲", url: "https://a.edu/",
@@ -375,7 +375,7 @@ final class JwCatalogueTests: XCTestCase {
         XCTAssertTrue(back.requiresSchoolConfirmation)
     }
 
-    // MARK: - 导入报告 (← Android JwImportReport)
+    // MARK: - 导入报告 (JwImportReport)
 
     func testImportReportTextShape() {
         let school = JwSchoolInfo(sortKey: "G", name: "广东东软学院", url: "https://jw.example/",

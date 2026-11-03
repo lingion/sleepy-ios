@@ -1,6 +1,6 @@
-// TableReminderScreen.swift — ← ui/screen/mine/TableReminderScreen.kt (Android 版本) 逐行移植
+// TableReminderScreen.swift — ← ui/screen/mine/TableReminderScreen.kt (原版本) 逐行移植
 //
-// v1.0.62 B3: 每课表提醒开关独立页。Android 语义 1:1:
+// v1.0.62 B3: 每课表提醒开关独立页。原版本 语义 1:1:
 //   • 列表 = observeAllTables() (库态即真源, DB authoritative);
 //   • 行 = 课表名 + Switch, toggleable 整行可点;
 //   • TableReminderViewModel.pending → iOS pendingIds: 每表同一时刻至多一次在飞写入
@@ -10,7 +10,7 @@
 //   • 副标题随总开关切换 subtitle / master_off 文案 (总开关关着仍可先配各表);
 //   • 空库提示 table_reminder_empty。
 // 入口: ReminderScreen「课表提醒」行 (本页以 sheet 呈现 — HolidaySettings 同款内嵌链,
-// Android 侧是 NavHost push 路由 SleepyRoute.TableReminder; iOS overlay 等价 = 根浮层
+// 原版本 侧是 NavHost push 路由 SleepyRoute.TableReminder; iOS overlay 等价 = 根浮层
 // 需共享文件新增 OverlayScreen case, 与 widgetManagement/holiday 先例一致走内嵌 sheet,
 // 行为等价: 进出带侧滑/下拉手势关闭)。
 
@@ -21,12 +21,12 @@ struct TableReminderScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     let onDismiss: () -> Void
 
-    // ← Android vm = viewModel(): pending 写队列 + tables 流。iOS 页内状态机即可
+    // ← 原 vm = viewModel(): pending 写队列 + tables 流。iOS 页内状态机即可
     // (无跨页复用需求; ScheduleViewModel 同层先例)。
     @State private var tables: [TimeTableEntity] = []
     @State private var pendingIds: Set<Int64> = []
     @State private var snackMessage: String? = nil
-    // ← Android AppPrefs.isReminderEnabled(ctx) remember 一次性读 (进页快照)。
+    // ← 原版本 AppPrefs.isReminderEnabled(ctx) remember 一次性读 (进页快照)。
     @State private var masterEnabled = AppPrefs.shared.isReminderEnabled()
 
     private let repo = ScheduleRepository(AppDatabase.getShared())
@@ -37,7 +37,7 @@ struct TableReminderScreen: View {
             SettingsTopBar(title: L10n.format("table_reminder_title"), onBack: onDismiss)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // ← Android subtitle: 总开关开 → subtitle, 关 → master_off 警示文案
+                    // ← 原版本 subtitle: 总开关开 → subtitle, 关 → master_off 警示文案
                     Text(L10n.format(masterEnabled ? "table_reminder_subtitle" : "table_reminder_master_off"))
                         .font(.system(size: 14))   // ← bodyMedium 14sp
                         .foregroundColor(colors.onSurfaceVariant)
@@ -47,7 +47,7 @@ struct TableReminderScreen: View {
                             .font(.system(size: 14))
                             .foregroundColor(colors.onSurfaceVariant)
                     }
-                    // ← Android items(key = id): 行 = surfaceContainer 卡 + 整行 toggleable
+                    // ← 原版本 items(key = id): 行 = surfaceContainer 卡 + 整行 toggleable
                     ForEach(tables) { table in
                         let enabled = !pendingIds.contains(table.id)
                         HStack(spacing: 12) {
@@ -68,7 +68,7 @@ struct TableReminderScreen: View {
                         .background(colors.surfaceContainer)
                         .cornerRadius(SleepyShapes.large)
                         .contentShape(Rectangle())
-                        // ← Android toggleable(enabled = enabled): 在飞写入时整行不可点
+                        // ← 原版本 toggleable(enabled = enabled): 在飞写入时整行不可点
                         // (SwiftUI 无 onTapGesture(where:), guard 等价)。
                         .onTapGesture {
                             guard enabled else { return }
@@ -83,7 +83,7 @@ struct TableReminderScreen: View {
             }
         }
         .background(colors.background)
-        // ← Android Toast 失败提示 → snackbar 叠层 (AboutScreen:300-318 同款)
+        // ← 原版本 Toast 失败提示 → snackbar 叠层 (AboutScreen:300-318 同款)
         .overlay(alignment: .bottom) {
             if let msg = snackMessage {
                 Text(msg)
@@ -112,7 +112,7 @@ struct TableReminderScreen: View {
         .onDisappear { tablesCancellable = nil }
     }
 
-    /// ← Android vm.setEnabled: 在飞即吞 (return), 否则 pending+id → repo 写 →
+    /// ← 原版本 vm.setEnabled: 在飞即吞 (return), 否则 pending+id → repo 写 →
     /// catch 失败 Toast → finally pending−id。iOS repo 调用同步 throws, 语义同。
     private func setEnabled(_ id: Int64, _ enabled: Bool) {
         guard !pendingIds.contains(id) else { return }

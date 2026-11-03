@@ -1,5 +1,5 @@
 // SchoolCityIndexTests.swift — ← SchoolCityIndexTest.kt (纯逻辑部分)
-// 资产文件依赖的用例(schools.json/school_cities.json 全量对账)依赖 Android 侧
+// 资产文件依赖的用例(schools.json/school_cities.json 全量对账)依赖 原版本 侧
 // sleepy.test.root 机制, iOS 测试 target 未挂载对应目录, 未移植。
 // normalizeCity 后缀语义 + parse 抛错语义为 v1.0.61 对齐修复的回归点。
 
@@ -14,7 +14,7 @@ final class SchoolCityIndexTests: XCTestCase {
                      sortKeyFull: key.isEmpty ? name : key, cities: [city])
     }
 
-    // MARK: - normalizeCity: 只剥单个结尾"市"(Android removeSuffix 语义)
+    // MARK: - normalizeCity: 只剥单个结尾"市"(原 removeSuffix 语义)
 
     func testNormalizeCityStripsOnlyOneTrailingSuffix() {
         XCTAssertEqual(SchoolCityIndex.normalizeCity("北京市"), "北京")
@@ -65,7 +65,7 @@ final class SchoolCityIndexTests: XCTestCase {
         XCTAssertEqual(result, ["学校": ["合肥市"]])
     }
 
-    // MARK: - parse 错误语义: 坏输入必须抛错, 不能静默返回空表 (对齐 Android JSONException)
+    // MARK: - parse 错误语义: 坏输入必须抛错, 不能静默返回空表 (对齐 原版本 JSONException)
 
     func testParseThrowsOnMalformedJson() {
         XCTAssertThrowsError(try SchoolCityIndex.parse("{not json"))

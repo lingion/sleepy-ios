@@ -12,7 +12,7 @@
 //  - 不在 ViewModel 内做登录流程(用户输账号密码 + 验证码)
 //  - 特殊学校(清华/吉大/华科等)v1.0.8 不支持
 //
-// AndroidViewModel+StateFlow → ObservableObject+@Published(async 任务在 Task 里发)。
+// 原 ViewModel+StateFlow → ObservableObject+@Published(async 任务在 Task 里发)。
 
 import Foundation
 import GRDB
@@ -20,7 +20,7 @@ import GRDB
 final class JwImportViewModel: ObservableObject {
 
     @Published private(set) var schools: [JwSchoolInfo] = []
-    /// ← Android `remember(schools) { SchoolSearchIndex(schools) }`:
+    /// ← 原 `remember(schools) { SchoolSearchIndex(schools) }`:
     ///   索引随 schools 重建, 搜索时只做匹配(不在每次按键重算拼音)。
     private var searchIndex = SchoolSearchIndex([])
     @Published private(set) var importState: ImportState = .idle
@@ -75,7 +75,7 @@ final class JwImportViewModel: ObservableObject {
                     v.cities = cityIndex[info.name] ?? []
                     return v
                 }
-                // ← Android loadSchools: 只显示有 URL 的学校, 避免用户看到大量不可用选项。
+                // ← 原版本 loadSchools: 只显示有 URL 的学校, 避免用户看到大量不可用选项。
                 .filter { !$0.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 DispatchQueue.main.async {
                     self?.schools = list
@@ -103,7 +103,7 @@ final class JwImportViewModel: ObservableObject {
             let aliases = (obj["aliases"] as? [String]) ?? []
             let typeStr = (obj["type"] as? String) ?? ""
             // ← kt:187 ifBlank { null } — 纯空白 type 同样视为未声明
-            // ← Android normalizeStatus: 缺失保留历史行为(supported), 未知状态 fail-closed 到 pending
+            // ← 原版本 normalizeStatus: 缺失保留历史行为(supported), 未知状态 fail-closed 到 pending
             let status = JwSchoolInfo.normalizeStatus(obj["status"] as? String)
             list.append(JwSchoolInfo(
                 sortKey: obj["sortKey"] as? String ?? "",
@@ -121,7 +121,7 @@ final class JwImportViewModel: ObservableObject {
         return list
     }
 
-    /// ← Android SchoolSelectScreen: `remember(searchIndex, query) { searchIndex.search(query) }`。
+    /// ← 原版本 SchoolSelectScreen: `remember(searchIndex, query) { searchIndex.search(query) }`。
     /// 空白查询返回全量目录; 别名精确命中者前置。
     func searchSchools(_ query: String) -> [JwSchoolInfo] {
         searchIndex.search(query)
@@ -629,8 +629,8 @@ final class JwImportViewModel: ObservableObject {
             // 名字与既有课表/作息表撞 → 顺延后缀。建课表时直接带绑定。(← kt:694-707)
             // 事务内直读直插: DAO 的 getAll() 走 db.read 会在写事务里重入死锁,
             // 故此处用事务句柄 dbw 内联查询(语义同 Room getAll, 仅取 name 列参与撞名)。
-            // 禁 try? 吞错: Android Room 事务内 insert 失败 → 整笔事务回滚(kt:676 withTransaction),
-            // 静默继续会留下未绑定的空课表 — 与 Android 行为劈叉。
+            // 禁 try? 吞错: 原版本 Room 事务内 insert 失败 → 整笔事务回滚(kt:676 withTransaction),
+            // 静默继续会留下未绑定的空课表 — 与 原版本 行为劈叉。
             let autoPeriodTableId: Int64? = try periodTable.map { pt in
                 var pt = pt
                 let courseNames = try TimeTableEntity.fetchAll(dbw, sql: "SELECT * FROM time_tables").map { $0.name }
@@ -656,7 +656,7 @@ final class JwImportViewModel: ObservableObject {
             )
             entities = ImportRoster.normalizedImportGroups(entities, knownNameToGroup: knownNameToGid)
             try courseDao.insertAllInDb(dbw, entities)
-            // 新组补持久色相(← kt:748 persistNewGroupHues) — 与 Android 同一事务内落表。
+            // 新组补持久色相(← kt:748 persistNewGroupHues) — 与 原版本 同一事务内落表。
             // 配色是增值数据: 失败吞掉降级为不写, 不影响课程落库主流程。
             CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: dbw,
                                                         dao: db.courseColorDao,

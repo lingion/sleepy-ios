@@ -2,7 +2,7 @@
 // 上课自动勿扰调度器 (参照 shiguang DndSchedulerWorker)。
 //
 // iOS 平台差异(适配而非省略):
-//   - Android: 通知策略访问权限 + setInterruptionFilter(系统级 DND 切换)
+//   - 原版本: 通知策略访问权限 + setInterruptionFilter(系统级 DND 切换)
 //   - iOS: 无系统级勿扰写入 API(UNNotificationSettings 只读;
 //     Focus 状态 NSSetUnabridged... 需要 Apple 授权的 Screen Time API)
 //   - 等价适配: 上课区间内抑制本 app 自己的课前通知投放 — 投放闸即
@@ -38,16 +38,16 @@ final class ClassDndScheduler {
 
     static let WINDOW_DAYS = 7
 
-    /// ← Android companion `savedFilter` 默认值 (NotificationManager.INTERRUPTION_FILTER_ALL)。
+    /// ← 原 companion `savedFilter` 默认值 (NotificationManager.INTERRUPTION_FILTER_ALL)。
     /// iOS 无系统级 DND 可快照/恢复, 此常量只保留"离开时恢复到系统初始档"的契约语义,
     /// 供 SleepyTests/ClassDndSchedulerTests.swift 锁定默认值不变 (F128 issue#5)。
     static let savedFilterDefault = 1  // INTERRUPTION_FILTER_ALL
 
-    /// 独立状态文件 — 与 Android DND_STATE_FILE 对齐。
+    /// 独立状态文件 — 与 原版本 DND_STATE_FILE 对齐。
     private static let DND_STATE_FILE = "sleepy_class_dnd_state"
     private static let KEY_DND_OWNED = "entered_by_app"
 
-    /// ⚠ 必须在 AppDelegate.init 调用 (← Android SleepyApp 注入 classDndScheduler):
+    /// ⚠ 必须在 AppDelegate.init 调用 (SleepyApp 注入 classDndScheduler):
     ///   ClassDndScheduler.shared.configure(repositoryProvider: { [weak self] in self?.repository })
     /// 否则 repositoryProvider 恒 nil, rebuildState/shouldSuppressNotification 短路返回。
     /// (共享文件 SleepyApp.swift 接线, 集成者负责 — F128 issue#2)
@@ -79,7 +79,7 @@ final class ClassDndScheduler {
     }
 
     /// Kotlin `isNotBlank()` 等价 (← CourseEntity.isNotBlank 同语义):
-    /// 纯空白串视为空 → ownTime 课程回落节点表, 而非直接判破损跳过 (Android 同行为)。
+    /// 纯空白串视为空 → ownTime 课程回落节点表, 而非直接判破损跳过 (原版本 同行为)。
     private static func isNotBlank(_ s: String) -> Bool {
         return !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }

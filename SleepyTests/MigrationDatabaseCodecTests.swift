@@ -1,7 +1,7 @@
-// MigrationDatabaseCodecTests.swift — Android MigrationDatabaseCodec.kt 契约测试
+// MigrationDatabaseCodecTests.swift — 原版本 MigrationDatabaseCodec.kt 契约测试
 // 锁定向前兼容契约: Kotlin `Json { ignoreUnknownKeys = true }` + 构造默认值使
 // 缺省字段解码回落默认值; Swift 端手写 init(from:) 必须给出同一行为。
-// (Android 侧无对应单测 — android_test=null, 本文件按 fix_hint 补契约锁。)
+// (原版本 侧无对应单测 — android_test=null, 本文件按 fix_hint 补契约锁。)
 
 import XCTest
 @testable import Sleepy
@@ -98,7 +98,7 @@ final class MigrationDatabaseCodecTests: XCTestCase {
 
     func testEmptyObjectDecodesAsEmptySnapshot() throws {
         // 四数组全缺 → emptyList 默认值。更早版本/手工裁剪的包含 `{}` 时
-        // Android 可解, iOS 此前必失败 — 本条即回归锁。
+        // 原版本 可解, iOS 此前必失败 — 本条即回归锁。
         let snap = try MigrationDatabaseCodec.decode("{}")
         XCTAssertTrue(snap.periodTables.isEmpty)
         XCTAssertTrue(snap.timeTables.isEmpty)

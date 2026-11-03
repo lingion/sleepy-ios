@@ -25,7 +25,7 @@ final class JwNewUrpParserTests: XCTestCase {
 
     func test_twoElementOddStrideRun_yieldsStartEqualsEnd() throws {
         // classWeek "10100000000000000000" → bits [1,3]
-        // Android 真值: Triple(1,1,type=1) —— 2 元素 stride-2 段 end 保持 = start
+        // 原版本 真值: Triple(1,1,type=1) —— 2 元素 stride-2 段 end 保持 = start
         let src = html(withDateList: "[{\"selectCourseList\":[" +
             course(name: "体育", teacher: "张老师",
                    timePlaces: [timePlace(classDay: 1, classWeek: "10100000000000000000")]) + "]}]")
@@ -37,7 +37,7 @@ final class JwNewUrpParserTests: XCTestCase {
     }
 
     func test_twoElementEvenStrideRun_yieldsStartEqualsEndTypeDouble() throws {
-        // "01010000000000000000" → bits [2,4] → Android Triple(2,2,type=2)
+        // "01010000000000000000" → bits [2,4] → 原版本 Triple(2,2,type=2)
         let src = html(withDateList: "[{\"selectCourseList\":[" +
             course(name: "实验", teacher: "李老师",
                    timePlaces: [timePlace(classDay: 2, classWeek: "01010000000000000000")]) + "]}]")
@@ -50,7 +50,7 @@ final class JwNewUrpParserTests: XCTestCase {
 
     func test_fourElementStrideRun_midList_keepsKotlinEndBehaviour() throws {
         // bits [1,3,6,8]: 段 [1,3] → (1,1,1); 段 [6,8] while 不推进 → (6,6,2)。
-        // 与 Android while 循环前不预设 end 完全一致。
+        // 与 原 while 循环前不预设 end 完全一致。
         let src = html(withDateList: "[{\"selectCourseList\":[" +
             course(name: "选修", teacher: "王老师",
                    timePlaces: [timePlace(classDay: 3, classWeek: "10100101000000000000")]) + "]}]")
@@ -117,7 +117,7 @@ final class JwNewUrpParserTests: XCTestCase {
 
     // MARK: - optJSONArray 语义 (instanceof 检查, 无字符串强制转换)
 
-    func test_timeAndPlaceListAsJsonString_isNotCoerced_skippedLikeAndroid() throws {
+    func test_timeAndPlaceListAsJsonString_isNotCoerced_skipped_原实现同() throws {
         // org.json optJSONArray 仅做 instanceof JSONArray: 值是数组字符串 → null → continue
         let tp = timePlace(classDay: 5, classWeek: "11000000000000000000")
             .replacingOccurrences(of: "\"", with: "\\\"")
@@ -128,7 +128,7 @@ final class JwNewUrpParserTests: XCTestCase {
     }
 
     func test_timeAndPlaceListAsGarbageString_isSkippedSilently() throws {
-        // Android: 非 JSONArray → null → continue(不抛)
+        // 原版本: 非 JSONArray → null → continue(不抛)
         let src = html(withDateList: "[{\"selectCourseList\":[{\"courseName\":\"坏\",\"attendClassTeacher\":\"T\",\"timeAndPlaceList\":\"{not an array\"}]}]")
         let courses = try JwNewUrpParser(src).generateCourseList()
         XCTAssertTrue(courses.isEmpty)

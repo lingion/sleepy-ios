@@ -1,6 +1,6 @@
 // JwHnustParserTests.swift — ← JwHnustParserTest.kt (v1.0.61)
 //
-// 6 个用例逐一对应 Android 侧 JwHnustParserTest：
+// 6 个用例逐一对应 原版本 侧 JwHnustParserTest：
 //   1. hnust_kbtable_hidden_div_6条        (fixture hnust_kbtable_hidden_div.html)
 //   2. hnust_empty_kbtable_返回空           (fixture hnust_empty_kbtable.html)
 //   3. hnust_login_page_无kbtable返回空不抛 (fixture hnust_login_page.html)

@@ -268,7 +268,7 @@ enum SleepyNativeParser {
             periodTable: periodTable)
     }
 
-    /// 本地 isMagicLine — 恒等移植 Android SleepyNativeParser.kt:266-267
+    /// 本地 isMagicLine — 恒等移植自原版本 SleepyNativeParser.kt:266-267
     /// (`detectVersion(line) >= 1`): "#sleepy-v0" **不是** magic。
     /// 🚫不要用 SleepyNativeFormat.isMagicLine — 其 v0 语义错(只判数字可解析), 由 F051 单独修。
     private static func isMagicLine(_ line: String) -> Bool {
@@ -484,7 +484,7 @@ enum SleepyNativeParser {
 
     /// Java `String.toIntOrNull()`(= Integer.parseInt 语义)等价物:
     /// 可选 +/- 号 + 纯 ASCII 数字 + 32 位范围内, 否则 nil。
-    /// Swift 原生 Int(String) 是 64 位 — "99999999999" Android 判 null(未声明),
+    /// Swift 原生 Int(String) 是 64 位 — "99999999999" 原版本 判 null(未声明),
     /// iOS 旧代码判巨值再钳制(假 warning), 宽度对齐后语义一致
     /// (kt:52-53/60/314/351/367/448 各 getOrNull...toIntOrNull 消费点统一走此函数)。
     private static func javaInt(_ raw: String?) -> Int? {

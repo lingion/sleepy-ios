@@ -5,9 +5,9 @@
 //   - currentBinding: nil = "follow the app-wide default table" (i.e.
 //     WidgetTableResolver.resolveCurrentTable); Int64 = 显式绑定课表 id
 //   - availableTables: schedules with at least one course (空表被过滤,
-//     绑定到空表只会渲染「请先创建课表」, 同 Android filterAvailableTables)
+//     绑定到空表只会渲染「请先创建课表」, 同 原版本 filterAvailableTables)
 //
-// ★ 平台差异: Android 用 ViewModel+StateFlow; iOS SwiftUI 端无 ViewModel 抽象,
+// ★ 平台差异: 原版本 用 ViewModel+StateFlow; iOS SwiftUI 端无 ViewModel 抽象,
 //   状态由 WidgetEditScreen (@State + onAppear 拉数) 直接管理 → 纯逻辑归
 //   WidgetEditCore (本文件 enum), UI state 变更的副作用(setBinding/setUseAlias/
 //   setScrollEnabled/setCompactTodayFirst) 走 WidgetEditScreen.swift 调 facade 函数。
@@ -22,7 +22,7 @@ enum WidgetEditCore {
     /// hide it from the picker. Input order is preserved — the picker shows
     /// tables in the same order the rest of the app does.
     /// - Parameter countCourses: closure wraps the suspend DAO call so the
-    ///   core lambda stays synchronous (← Android WidgetEditViewModel 预计算 counts Map)
+    ///   core lambda stays synchronous (WidgetEditViewModel 预计算 counts Map)
     static func filterAvailableTables(
         _ all: [TimeTableEntity],
         countCourses: (Int64) -> Int
@@ -80,7 +80,7 @@ func setWidgetBinding(_ kind: String, _ tableId: Int64?) {
 ///   平台差异: iOS 无 RemoteViews 滚动条带, FIXED 为唯一渲染路径 → 开关仅作迁移语义载体;
 ///   写入仅保留 trace, 不影响当前渲染行为
 func setWidgetScrollEnabled(_ kind: String, _ enabled: Bool) {
-    // 旧 Android facade: WidgetScrollStore.setScrollEnabled(ctx, kind, enabled)
+    // 旧 原版本 facade: WidgetScrollStore.setScrollEnabled(ctx, kind, enabled)
     // iOS 端不落盘 (iOS 无 RemoteViews 滚动条带, 实际不可观察);
     // 改 pref 也不动 (本字段是迁移兜底, 不再写入)。保留为 no-op 供 UI 同位调用。
     _ = enabled

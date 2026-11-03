@@ -3,10 +3,10 @@
 // Kingosoft 正选报表 (table#pageRpt) 与老式星期网格 (table#mytable td.td /
 // #xkinfo table / #reportArea table) 解析器 — 青果教务 ZX 子变体。
 //
-// Android 侧证据: v1.0.62 新增, 注册于 TYPE_KINGO_ZX (priority 205);
+// 原版本 侧证据: v1.0.62 新增, 注册于 TYPE_KINGO_ZX (priority 205);
 // JwKingoParser 在 td.td 网格形态下会委托本 parser 保持 ZX 语义。
 //
-// 与 Android 的实现差异(等价翻译, 详见各函数注释):
+// 与 原版本 的实现差异(等价翻译, 详见各函数注释):
 //   a. Jsoup `clone() + select("br").replaceWith(TextNode("\n")) + wholeText()`
 //      在 SwiftSoup 下改用 `html()` + `<br>` 正则替换为换行 + 逐行 parse().text()
 //      (SwiftSoup 的 Node 替换 API 与 Jsoup 不同构, 字符串层转换行为等价)。

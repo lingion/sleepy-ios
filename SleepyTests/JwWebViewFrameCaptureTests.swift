@@ -4,9 +4,9 @@
 //
 // 不起 WebView: 抓取 JS 的行为通过"JS 契约(字段名/结构)由 fromJson 消费"间接保证;
 // 本类直接构造 FrameSnapshotList JSON 模拟 JS 输出, 断言 FrameTraversalTree /
-// RenderReadinessChecker 的决策。每个用例注释首行标注对应 Android 侧
+// RenderReadinessChecker 的决策。每个用例注释首行标注对应 原版本 侧
 // JwWebViewFrameCaptureTest 的用例 (jw_fixtures/adversarial/iframe-nested case 编号)。
-// Android 侧用 fixture 文件喂 HTML; iOS 测试资源树未含 iframe-nested/, 故此处以
+// 原版本 侧用 fixture 文件喂 HTML; iOS 测试资源树未含 iframe-nested/, 故此处以
 // 内联 HTML 复现 fixture 的决策关键特征(锚点/指纹/空壳), 决策路径完全一致。
 
 import XCTest
@@ -351,7 +351,7 @@ final class JwWebViewFrameCaptureTests: XCTestCase {
 
     // MARK: - structural anchors (v1.0.62 parity)
 
-    // ← Android JwWebViewFrameCaptureTest.kt: `flat URP array is a validated frame anchor`
+    // ← 原 JwWebViewFrameCaptureTest.kt: `flat URP array is a validated frame anchor`
     func testFlatUrpArrayIsAValidatedFrameAnchor() {
         let html = "<html><script>window.schedule=[{\"kcm\":\"A\",\"cxjc\":2,\"id\":{\"skxq\":1,\"skjc\":1,\"skzc\":\"101\"}}];</script></html>"
         XCTAssertTrue(FrameTraversalTree.findAnchors(html).contains("new-urp-array"))
@@ -365,7 +365,7 @@ final class JwWebViewFrameCaptureTests: XCTestCase {
         let emptyTerm = "<html><script>window.schedule=[{\"kcm\":\"A\",\"cxjc\":2,\"id\":{\"skxq\":1,\"skjc\":1,\"skzc\":\"000\"}}];</script></html>"
         XCTAssertTrue(FrameTraversalTree.findAnchors(emptyTerm).contains("new-urp-array"))
         // skzc/kcm 双 substring 在场即命中, 不要求 schema 有效
-        // (← Android :31 — 该行为由 Android 测试锁死, iOS 逐字跟随)。
+        // (:31 — 该行为由 原版本 测试锁死, iOS 逐字跟随)。
         XCTAssertTrue(FrameTraversalTree.findAnchors(
             "<html><script>var x=[{\"kcm\":\"A\",\"id\":{\"skzc\":\"bad\"}}]</script></html>"
         ).contains("new-urp-array"))
@@ -375,7 +375,7 @@ final class JwWebViewFrameCaptureTests: XCTestCase {
         ).contains("new-urp-array"))
     }
 
-    // ← Android 无独立 thu/old-qz structural 测试 (v1.0.62); iOS 侧自造回归用例锁 port 语义。
+    // ← 原版本 无独立 thu/old-qz structural 测试 (v1.0.62); iOS 侧自造回归用例锁 port 语义。
     func testOldQzStructuralAnchorWhenKbIdAndCoursesParse() {
         // 老青岛网格: id="kb" + 单元 1-2-2; JwOldQzSuperParser 能解出课 → 追加结构锚点。
         let html = "<html><body><table id=\"kb\"><tr><td id=\"1-1-2\">高数 周一 1-2节 张老师</td></tr></table></body></html>"
@@ -383,11 +383,11 @@ final class JwWebViewFrameCaptureTests: XCTestCase {
         // 解析成败取决于 fixture 形态(网格单元格内容格式), 两种走向都必须稳定不崩:
         XCTAssertTrue(anchors.allSatisfy { !$0.isEmpty })
         if anchors.contains("old-qz-structural") {
-            // 结构锚点必须排在静态锚点之后 (← Android :156 anchors + "old-qz-structural");
+            // 结构锚点必须排在静态锚点之后 (:156 anchors + "old-qz-structural");
             // 本 fixture 不触发 thu/new-urp, 故它应是最后一个元素。
             XCTAssertEqual(anchors.last, "old-qz-structural")
         }
-        // id 正则 [1-5]-[1-7]-2 形态 (← Android :154)
+        // id 正则 [1-5]-[1-7]-2 形态 (:154)
         let cellForm = "<html><body><table><td id=\"3-5-2\">编译原理 周三 5-6节</td></table></body></html>"
         let a2 = FrameTraversalTree.findAnchors(cellForm)
         // 无论解析成败, 不得抛异常; 解析成功才追加
@@ -398,7 +398,7 @@ final class JwWebViewFrameCaptureTests: XCTestCase {
         }
     }
 
-    // ← Android JwWebViewFrameCapture.kt:132 isThuCoursePage 四条件 AND。
+    // ← 原版本 JwWebViewFrameCapture.kt:132 isThuCoursePage 四条件 AND。
     func testThuScriptAnchorRequiresFullFingerprint() {
         let full = """
             <html><body><script>
@@ -419,7 +419,7 @@ final class JwWebViewFrameCaptureTests: XCTestCase {
         XCTAssertFalse(FrameTraversalTree.findAnchors(missingGrid).contains(FrameTraversalTree.THU_SCRIPT_ANCHOR))
     }
 
-    // ← Android JwWebViewFrameCapture.kt:126 pageRpt (Kingo 正选 #236 族)。
+    // ← 原版本 JwWebViewFrameCapture.kt:126 pageRpt (Kingo 正选 #236 族)。
     func testPageRptAnchorIsCapturedForKingoReportPage() {
         let html = "<html><body><table id=\"pageRpt\" class=\"table01\"><tr><td>课程</td></tr></table></body></html>"
         XCTAssertTrue(FrameTraversalTree.findAnchors(html).contains("pageRpt"),

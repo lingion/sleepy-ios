@@ -11,7 +11,7 @@
 //    (补班日=sourceDate 星期, 放假日=无课; ← HolidayTransferOps.courseDateForDate)
 //  - 遗留扇出清理: DailySummaryNotificationMigration (sleepy_summary_ 前缀归属)
 //  - 摘要点击 → 议程页 (userInfo.agendaDate 绝对日历日期; delegate didReceive 路由)
-//  - Android setTimeoutAfter(每日文案午夜过期) 无 iOS 等价物 — 平台缺口, 见
+//  - 原版本 setTimeoutAfter(每日文案午夜过期) 无 iOS 等价物 — 平台缺口, 见
 //    postDailySummaries 注释; dailyNotificationLifetime 纯函数保留供单测锁定
 //
 // v1.0.60 升级:
@@ -29,12 +29,12 @@
 //    沿用 1001/1002 号段 (iOS 加 sleepy_summary_ 前缀避免顶掉同 id 重复触发载体)
 //  - 每日内容发送时重算: 旧 UNCalendarNotificationTrigger(repeats:true) 是排期时的一次性
 //    快照, 数日不开 App 会一直推旧「今日 N 号」→ 载体到货 refreshDailySummaries 重算
-//    (Android 接收器每次现算语义); BGAppRefreshTask handleDailyResync 兜底每日窗口
+//    (原版本 接收器每次现算语义); BGAppRefreshTask handleDailyResync 兜底每日窗口
 //  - 当日提醒独立闸: AppPrefs key "today_reminder" 默认 true (scheduleDaily 前置检查)
 //  - banner 门控: ProdAlarmPort.setExact 落地前查 isBeforeClassBannerEnabled()
-//    (Android `if (!banner && !fluid) return`; iOS 无流体云载体 → banner 关 = 完全静默)
+//    (原 `if (!banner && !fluid) return`; iOS 无流体云载体 → banner 关 = 完全静默)
 //  - 发送时重校验入口 beforeClassDeliveryAllowed(): 表被删/提醒被关/节假日豁免
-//    → delegate willPresent 丢弃 (Android BeforeClassNotifyReceiver.onReceive 语义)
+//    → delegate willPresent 丢弃 (原版本 BeforeClassNotifyReceiver.onReceive 语义)
 //
 // OPPO Fluid Cloud(SDK≥26 前台服务 + ProgressStyle)整体跳过(平台差异,iOS 无对应物,
 // 见 VendorCapabilityState.swift); banner 通知完整移植。
@@ -57,7 +57,7 @@ final class NotificationScheduler {
     static let CHANNEL_BEFORE_CLASS = "sleepy_before_class"
     static let CHANNEL_FLUID = "sleepy_fluid_v2"
 
-    // Notification identifiers(= Android request codes 语义:按 id 撤销)
+    // Notification identifiers(= 原 request codes 语义:按 id 撤销)
     static let NOTIFY_DAILY = "sleepy_daily_1001"
     static let NOTIFY_TOMORROW_DAILY = "sleepy_daily_1002"
     static let NOTIFY_BEFORE_CLASS_PREFIX = "sleepy_bc_2000_"  // + courseId
@@ -70,7 +70,7 @@ final class NotificationScheduler {
     /// BGAppRefreshTask 标识 — 每日窗口重同步 + 摘要内容刷新的系统兜底。
     static let BG_RESYNC_TASK_ID = "sleepy.alarm.daily.resync"
 
-    /// 课前通知 userInfo 键 — delegate 发送时重校验用 (← Android Intent extras)。
+    /// 课前通知 userInfo 键 — delegate 发送时重校验用 (Intent extras)。
     static let KEY_USERINFO_RESYNC = "sleepy_resync"
     /// 节假日全豁免静默标记: 主 id 触发器是每日重算锚不能撤, 静默日贴空载荷 + 此标记,
     /// delegate willPresent 见标记即丢弃展示 (到货仍触发重算)。
@@ -123,7 +123,7 @@ final class NotificationScheduler {
             guard let repo = NotificationScheduler.shared.repositoryProvider?() else { return nil }
             return WidgetTableResolver.resolveCurrentTable(repo)
         }
-        /// ← AndroidBeforeClassDataSource.resolveReminderTables(): 每张开启提醒的表
+        /// ← 原BeforeClassDataSource.resolveReminderTables(): 每张开启提醒的表
         /// 独立参与课前重排(含作息 hydrate), 不再只看当前表。
         func resolveReminderTables() -> [TimeTableEntity] {
             guard let repo = NotificationScheduler.shared.repositoryProvider?() else { return [] }
@@ -187,7 +187,7 @@ final class NotificationScheduler {
                 }
                 content.body = body
                 content.sound = .default
-                // 发送时重校验载荷 (← Android Intent extras tableId/reminderDate):
+                // 发送时重校验载荷 (Intent extras tableId/reminderDate):
                 // delegate willPresent 用这两个键复查 表存在+reminderEnabled+节假日策略。
                 var info: [String: Any] = [:]
                 if let tableId = extras["tableId"] as? Int64 { info["tableId"] = tableId }
@@ -225,7 +225,7 @@ final class NotificationScheduler {
     // ==================== scheduleAll ← ====================
 
     func scheduleAll() {
-        // iOS 无 NotificationChannel; Android createChannels 在此处的隐式
+        // iOS 无 NotificationChannel; 原 createChannels 在此处的隐式
         // requestAuthorization 已按权限政策摘除 —— 全 app 唯一申请点 =
         // ReminderScreen master 开关(用户显式操作), denied 后走系统设置引导。
         Self.registerDailyResyncTask()
@@ -364,7 +364,7 @@ final class NotificationScheduler {
     /// 经 buildDailyAgenda 合并为一条, 来源全保留 (agenda.notificationSources);
     /// 正文首行 = 首课, 展开文本 = 来源课表数 + 前 6 条 + 「另有 N 次课」。
     /// 点击打开议程页 (userInfo.agendaDate = 绝对日历日期, 旧通知点击不漂移)。
-    /// Android setTimeoutAfter(dailyNotificationLifetime) 在 iOS 无等价物 (UNNotification
+    /// 原版本 setTimeoutAfter(dailyNotificationLifetime) 在 iOS 无等价物 (UNNotification
     /// 不支持自动过期) — 平台缺口, 相对文案过期由「每日重贴」覆盖, dailyNotificationLifetime
     /// 纯函数保留并由单测锁定 (DailyAgendaTests)。
     func postDailySummaries(timeStr: String, fallbackHour: Int, fallbackMinute: Int,
@@ -391,7 +391,7 @@ final class NotificationScheduler {
             guard let repo = repositoryProvider?() else { throw AgendaLoadError.noRepository }
             loaded = try await loadDailyAgenda(repository: repo, targetDate: targetDate)
         } catch {
-            // ← Android sendScheduleSummary 抛错即接收器协程静默不发; iOS 主 id 触发器
+            // ← 原 sendScheduleSummary 抛错即接收器协程静默不发; iOS 主 id 触发器
             //   是每日重算锚不能撤, 贴静默载荷保锚存活, 到货/BGTask 重算兜底。
             await postSilentAnchor(identifier: identifier, trigger: trigger)
             return
@@ -402,7 +402,7 @@ final class NotificationScheduler {
         env.saveDailySummaryIds([], isTomorrowPreview: isTomorrowPreview)
 
         if loaded.suppressed {
-            // 全部活跃表被节假日豁免 → Android 接收器直接 return 不发。iOS 主 id 触发器是
+            // 全部活跃表被节假日豁免 → 原版本 接收器直接 return 不发。iOS 主 id 触发器是
             // 每日重算锚, 不能撤(撤了锚就死); 改贴空载荷 + silent 标记, delegate 到货丢弃。
             await postSilentAnchor(identifier: identifier, trigger: trigger)
             return
@@ -478,7 +478,7 @@ final class NotificationScheduler {
     /// 到货/后台唤醒重算入口: 按当前 prefs 重贴当日/次日摘要 (schedule 侧同款逻辑)。
     /// ← DailyNotifyReceiver/TomorrowNotifyReceiver.onReceive 的到货重查。
     func refreshDailySummaries(isTomorrowPreview: Bool) async {
-        // 与 Android 接收器同款到货重查: 总闸/日提醒闸/当日子闸
+        // 与 原版本 接收器同款到货重查: 总闸/日提醒闸/当日子闸
         guard Self.dailySummaryGateOpen(isTomorrowPreview: isTomorrowPreview) else { return }
         let identifier = isTomorrowPreview ? Self.NOTIFY_TOMORROW_DAILY : Self.NOTIFY_DAILY
         let timeStr = isTomorrowPreview ? prefs.getTomorrowReminderTime() : prefs.getDailyReminderTime()
@@ -656,12 +656,12 @@ final class NotificationScheduler {
     }
 
     // v1.0.62: semesterInRange(table:date:) 已删 — 学期判定并入 collectTableSlots
-    // 的反向查分支(改用 sourceDate 判定, ← Android collectTableSlots 同款内联)。
+    // 的反向查分支(改用 sourceDate 判定, ← 原 collectTableSlots 同款内联)。
     // v1.0.62: courseStartTime(course:table:) 已删 — 摘要改单条聚合后无消费方
-    // (Android v1.0.62 同步删除 getCourseStartTime)。
+    // (原版本 v1.0.62 同步删除 getCourseStartTime)。
 
     // ==================== Channels / 权限 ====================
-    // iOS 无 NotificationChannel。Android createChannels 携带的隐式
+    // iOS 无 NotificationChannel。原 createChannels 携带的隐式
     // POST_NOTIFICATIONS 申请(requestAuthorization)不再随调度触发 ——
     // 权限申请唯一入口 = ReminderScreen master 开关(用户显式操作),
     // denied 后由 UI 引导手动去系统设置; 本调度器只消费已授权结果。
@@ -687,12 +687,12 @@ final class NotificationScheduler {
         guard let tid = resolvedTableId, let repo = repo else { return false }
         let owner = ((try? repo.getAllTables()) ?? []).first { $0.id == tid }
         guard let owner = owner, owner.reminderEnabled else { return false }
-        // reminderDate: "yyyy-MM-dd" (排期时写入); 解析失败回退今天 (Android runCatching 语义)
+        // reminderDate: "yyyy-MM-dd" (排期时写入); 解析失败回退今天 (原 runCatching 语义)
         let date = (userInfo["reminderDate"] as? String).flatMap { DateUtils.parseDate($0) } ?? Date()
         return await HolidayReminderPolicyAdapter.decide(date: date, tableId: tid).allowReminder
     }
 
-    /// 到货/BGTask 每日窗口入口 — 等价 Android 00:05 BeforeClassScheduleReceiver +
+    /// 到货/BGTask 每日窗口入口 — 等价 原版本 00:05 BeforeClassScheduleReceiver +
     /// 每日接收器每次现算语义: 课前链路开时重同步 7 天窗口, 每日链路开时重算摘要内容。
     /// delegate 收到 sleepy_resync / BGAppRefreshTask handler 都调此函数。
     func handleDailyResync() async {
@@ -772,7 +772,7 @@ protocol NotificationSchedulerBeforeClassEnv {
     func saveDailySummaryIds(_ ids: Set<String>, isTomorrowPreview: Bool)
 }
 
-/// 默认实现回退空账本 — 兼容未升级的旧测试替身 (← Android 接口默认方法同款兼容策略)。
+/// 默认实现回退空账本 — 兼容未升级的旧测试替身 (接口默认方法同款兼容策略)。
 extension NotificationSchedulerBeforeClassEnv {
     func loadDailySummaryIds(isTomorrowPreview: Bool) -> Set<String> { [] }
     func saveDailySummaryIds(_ ids: Set<String>, isTomorrowPreview: Bool) {}
@@ -782,7 +782,7 @@ extension NotificationSchedulerBeforeClassEnv {
 protocol NotificationSchedulerBeforeClassDataSource {
     func resolveCurrentTable() -> TimeTableEntity?
     /// 每表独立提醒: 返回开启提醒的课表(含作息 hydrate)。默认实现回退到当前课表,
-    /// 兼容旧测试替身 (← Android BeforeClassDataSource.resolveReminderTables 默认分支)。
+    /// 兼容旧测试替身 (BeforeClassDataSource.resolveReminderTables 默认分支)。
     func resolveReminderTables() -> [TimeTableEntity]
     func coursesForDay(tableId: Int64, dayOfWeek: Int) -> [CourseEntity]
     func allCourseIds() -> [Int64]
@@ -807,7 +807,7 @@ protocol NotificationSchedulerBeforeClassAlarmPort {
     func cancel(id: String)
 }
 
-// MARK: - 到货 delegate (Android Receiver 的 iOS 对位; 赋值归集成者, 见 SleepyApp 接线)
+// MARK: - 到货 delegate (原版本 Receiver 的 iOS 对位; 赋值归集成者, 见 SleepyApp 接线)
 
 /// UNUserNotificationCenterDelegate 实现 ← 三个 Receiver 的到货语义:
 ///  - sleepy_resync_0002 (00:05 载体) → handleDailyResync 全窗口重同步 + 摘要重算, 不展示;
@@ -863,7 +863,7 @@ final class SleepyNotificationDelegate: NSObject, UNUserNotificationCenterDelega
             let silent = notification.request.content.userInfo[NotificationScheduler.KEY_USERINFO_SUMMARY_SILENT] as? Bool ?? false
             Task {
                 // 内容陈旧防御: 到货即按当前数据重算, 本轮仍展示已排内容;
-                // 节假日全豁免的静默载体只触发重算、不展示 (← Android 豁免日接收器 return 不发)
+                // 节假日全豁免的静默载体只触发重算、不展示 (豁免日接收器 return 不发)
                 let gateOn = NotificationScheduler.dailySummaryGateOpen(isTomorrowPreview: tomorrow)
                 if gateOn { await NotificationScheduler.shared.refreshDailySummaries(isTomorrowPreview: tomorrow) }
                 completionHandler(gateOn && !silent ? [.banner, .sound] : [])

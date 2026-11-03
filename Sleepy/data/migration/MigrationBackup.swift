@@ -5,7 +5,7 @@
 import Foundation
 
 /// 全量迁移备份格式 — `.sleepybackup` 单文件 ZIP 容器。
-/// 与 Android MigrationBackup.kt 1:1 对位; JSON 协议必须保持向后兼容(ignoreUnknownKeys)。
+/// 与 原版本 MigrationBackup.kt 1:1 对位; JSON 协议必须保持向后兼容(ignoreUnknownKeys)。
 enum MigrationBackup {
     static let FILE_EXTENSION = "sleepybackup"
     static let FORMAT = "sleepy-migration"
@@ -63,11 +63,11 @@ enum MigrationModule: String, CaseIterable, Comparable {
     case CREDENTIALS = "credentials"
 
     /// ZIP entry 内的文件名片段(去掉 .json 后缀的 basename)。
-    /// 与 Android entryName 字段语义一致 — 跨端兼容, 不要改。
+    /// 与 原 entryName 字段语义一致 — 跨端兼容, 不要改。
     var entryName: String { rawValue }
 
     private var sortKey: Int {
-        // Android ordinal: DATABASE=0, PREFERENCES=1, WIDGETS=2, PERSISTED_STATE=3, CREDENTIALS=4
+        // 原版本 ordinal: DATABASE=0, PREFERENCES=1, WIDGETS=2, PERSISTED_STATE=3, CREDENTIALS=4
         switch self {
         case .DATABASE: return 0
         case .PREFERENCES: return 1
@@ -87,13 +87,13 @@ enum MigrationModule: String, CaseIterable, Comparable {
 }
 
 /// 模块依赖闭包 — 导出时自动带上。
-/// Android 端: DATABASE → PERSISTED_STATE (后者当前为空, 预留给未来扩展)
+/// 原版本 端: DATABASE → PERSISTED_STATE (后者当前为空, 预留给未来扩展)
 enum MigrationModuleDeps {
     static let required: [MigrationModule: Set<MigrationModule>] = [
         .DATABASE: [.PERSISTED_STATE]
     ]
 
-    /// DFS 解出闭包, 与 Android MigrationModuleDeps.resolve() 1:1。
+    /// DFS 解出闭包, 与 原版本 MigrationModuleDeps.resolve() 1:1。
     static func resolve(_ selected: Set<MigrationModule>) -> Set<MigrationModule> {
         var out = selected
         var pending = Array(selected)

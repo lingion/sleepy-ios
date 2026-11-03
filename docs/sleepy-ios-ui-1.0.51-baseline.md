@@ -11,7 +11,7 @@
 
 ## Reference scope
 
-The Android checkout is used as a source reference only. The comparison includes:
+The 原 checkout is used as a source reference only. The comparison includes:
 
 - `app/src/main/java/com/lingion/sleepy/ui/component/**`
 - `app/src/main/java/com/lingion/sleepy/ui/screen/**`
@@ -19,8 +19,8 @@ The Android checkout is used as a source reference only. The comparison includes
 - `app/src/main/res/values/{colors.xml,themes.xml,strings.xml}`
 - locale string resources and drawable resources referenced by the UI
 
-No Android files are copied into the iOS repository. No Android checkout changes are part of the iOS implementation.
+No 原 files are copied into the iOS repository. No 原 checkout changes are part of the iOS implementation.
 
 ## Evidence limits
 
-The local Android checkout before this baseline was a grafted shallow checkout with only a collector commit. The exact tag was recovered from the canonical `lingion/sleepy` repository through GitHub metadata and cloned into the separate checkout above. The comparison therefore uses the exact `v1.0.51` source, not the nearby `1.0.52` APK or visual guesses.
+The local 原 checkout before this baseline was a grafted shallow checkout with only a collector commit. The exact tag was recovered from the canonical `lingion/sleepy` repository through GitHub metadata and cloned into the separate checkout above. The comparison therefore uses the exact `v1.0.51` source, not the nearby `1.0.52` APK or visual guesses.

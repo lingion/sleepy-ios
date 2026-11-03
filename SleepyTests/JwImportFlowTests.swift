@@ -4,10 +4,10 @@ import XCTest
 /// F080 (JwImportFlow v1.0.61 对齐) 纯逻辑回归锁。
 ///
 /// 锁 DiagMapper 的 UNKNOWN_EMPTY 网络提示尾(F080 issue #15):
-/// Android mapImpl 对 UNKNOWN_EMPTY 返回 "$base（features）$hintPart" —
+/// 原 mapImpl 对 UNKNOWN_EMPTY 返回 "$base（features）$hintPart" —
 /// 校园网限制主机(v1.0.46+ 24 校)与强智系协议在 unknownEmpty 分类下也必须
 /// 保留 jw_diag_campus_vpn_hint / jw_diag_qz_vpn_hint 尾; iOS 旧实现提前
-/// `return base` 把尾丢了。JwImportActivityDiagnosticsTest(Android) 同源语义。
+/// `return base` 把尾丢了。JwImportActivityDiagnosticsTest(原版本) 同源语义。
 final class JwImportFlowTests: XCTestCase {
 
     private let linyi = JwSchoolInfo(sortKey: "L", name: "临沂大学",
@@ -50,10 +50,10 @@ final class JwImportFlowTests: XCTestCase {
         XCTAssertFalse(msg.contains("强智"), "北大不应触发强智提示: \(msg)")
     }
 
-    /// 提示尾格式与 Android 一致: base + "\n\n" + hint(双换行分隔, 非拼接同段)。
+    /// 提示尾格式与原实现一致: base + "\n\n" + hint(双换行分隔, 非拼接同段)。
     func testHintTailSeparatedByDoubleNewline() {
         let msg = DiagMapper.map(diag(.unknownEmpty), linyi)
-        XCTAssertTrue(msg.contains("\n\n"), "提示尾应以空行分隔(← Android hintPart = \"\\n\\n$schoolHint\"): \(msg)")
+        XCTAssertTrue(msg.contains("\n\n"), "提示尾应以空行分隔(hintPart = \"\\n\\n$schoolHint\"): \(msg)")
     }
 
     /// v1.0.61 新收录的受限主机(矿大北京/石河子/广州医科)在 unknownEmpty 与

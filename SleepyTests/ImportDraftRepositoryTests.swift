@@ -1,4 +1,4 @@
-// ImportDraftRepositoryTests.swift — Android ImportDraftRepository 行为测试 (GPL-3.0)
+// ImportDraftRepositoryTests.swift — 原版本 ImportDraftRepository 行为测试 (GPL-3.0)
 // save/get/update/delete 走真实 GRDB 库 + 真实 codec (不 mock)。
 
 import XCTest

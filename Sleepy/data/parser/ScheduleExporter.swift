@@ -8,7 +8,7 @@ import Foundation
 
 enum ScheduleExporter {
 
-    /// startDate 无法按 ISO yyyy-MM-dd 解析 ← Android LocalDate.parse 抛 DateTimeParseException
+    /// startDate 无法按 ISO yyyy-MM-dd 解析 ← 原版本 LocalDate.parse 抛 DateTimeParseException
     enum ExportError: Error {
         case invalidStartDate(String)
     }
@@ -25,7 +25,7 @@ enum ScheduleExporter {
     }
 
     /// kotlinx prettyPrint 固定格式: 4 空格缩进、`"key": value`(冒号后一个空格)、
-    /// 空容器输出 `{}` / `[]`、字符串不转义非 ASCII(Android Issue55OwnTimeRoundTripTest
+    /// 空容器输出 `{}` / `[]`、字符串不转义非 ASCII(原版本 Issue55OwnTimeRoundTripTest
     /// 断言 `"startTime": "20:50"` 即此格式)。
     private static func prettyJson(_ value: JsonValue, _ level: Int = 0) -> String {
         let pad = String(repeating: " ", count: level * 4)
@@ -95,7 +95,7 @@ enum ScheduleExporter {
 
     /// 导出 WakeUp 分享文本格式 (URL 编码的 JSON 字符串) ← exportWakeUpShareText
     static func exportWakeUpShareText(_ table: TimeTableEntity, _ courses: [CourseEntity]) -> String {
-        // ← Android: courseDetailJson 与 root 都经 prettyPrint=true 的 Json 实例序列化;
+        // ← 原版本: courseDetailJson 与 root 都经 prettyPrint=true 的 Json 实例序列化;
         //   URLEncoder.encode(json, "UTF-8") 表单编码(空格→+), 非 componentEncoding(空格→%20)
         let courseDetailJson = prettyJson(courseArray(courses))
         let encoded = formURLEncode(courseDetailJson)
@@ -106,7 +106,7 @@ enum ScheduleExporter {
             ("courseDetailJson", .string(encoded))
         ])
 
-        // ← Android 实字节: 课程分享 后跟全角冒号 U+FF1A(EF BC 9A), 非 ASCII ':'
+        // ← 原版本 实字节: 课程分享 后跟全角冒号 U+FF1A(EF BC 9A), 非 ASCII ':'
         return "【来自Sleepy】\n课程分享：\n\n" + prettyJson(root)
     }
 
@@ -137,7 +137,7 @@ enum ScheduleExporter {
     }
 
     /// 导出 ICS 日历 ← exportIcs (既有调用点签名不变)
-    /// ← Android `LocalDate.parse` 对非法 startDate 抛异常; 旧实现静默返回缺
+    /// ← 原 `LocalDate.parse` 对非法 startDate 抛异常; 旧实现静默返回缺
     /// `END:VCALENDAR` 的 header-only 残缺日历(非法 ICS)。这里改为拒绝输出:
     /// 非法日期返回空串, 需要错误传播的新调用点走 exportIcsOrThrow。
     static func exportIcs(_ table: TimeTableEntity, _ courses: [CourseEntity]) -> String {
@@ -185,7 +185,7 @@ enum ScheduleExporter {
             let endDate = cal.date(byAdding: .day, value: (c.endWeek - 1) * 7 + (c.day - 1), to: start)!
 
             // ownTime 课程用自身自定义时间,否则按节次反查
-            // ← Android isNotBlank(): 纯空白视同缺失, 与 JSON 导出两路同一闸
+            // ← 原 isNotBlank(): 纯空白视同缺失, 与 JSON 导出两路同一闸
             let startTime: String
             let endTime: String
             if c.ownTime && isNotBlank(c.startTime) && isNotBlank(c.endTime) {
@@ -278,7 +278,7 @@ enum ScheduleExporter {
     /// java.net.URLEncoder.encode 表单语义: 保留 a-zA-Z0-9 与 .-*_,
     /// 空格→+, 其余(含非 ASCII)按 UTF-8 字节百分号编码(大写十六进制)。
     /// 注意: allowed 集必须 ASCII 限定 — CharacterSet.alphanumerics 含 Unicode 字母,
-    /// 会把中文原样留下 → 与 Android 的 %XX 字节串分叉。
+    /// 会把中文原样留下 → 与 原版本 的 %XX 字节串分叉。
     private static func formURLEncode(_ s: String) -> String {
         let allowed = CharacterSet(charactersIn:
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.-*_")
@@ -288,7 +288,7 @@ enum ScheduleExporter {
 
     // MARK: - 日期/杂项
 
-    /// Kotlin String.hashCode() 不跨语言稳定 → djb2 替代(UID 只需唯一性,不需与 Android 相同)
+    /// Kotlin String.hashCode() 不跨语言稳定 → djb2 替代(UID 只需唯一性,不需与 原版本 相同)
     private static func stableHash(_ s: String) -> UInt64 {
         var h: UInt64 = 5381
         for b in s.utf8 {

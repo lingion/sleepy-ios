@@ -1,6 +1,6 @@
 // ImportReceiverActivityTests.swift — ← ImportReceiverActivity.kt 外部打开读取逻辑
-// (Android 侧无对应单测; 此处锁定可测纯逻辑: file:// 复制读删 / 空白判定分支)
-// 覆盖: readText 正常文本 / UTF-8 非法字节→nil(≙ Android 抛错→catch) / 空文件→""
+// (原版本 侧无对应单测; 此处锁定可测纯逻辑: file:// 复制读删 / 空白判定分支)
+// 覆盖: readText 正常文本 / UTF-8 非法字节→nil(≙ 原版本 抛错→catch) / 空文件→""
 //       + 消费闸的 isNullOrBlank 等价判定(trim 后空 → finishWithError("empty") 路径)
 
 import XCTest
@@ -15,7 +15,7 @@ final class ImportReceiverActivityTests: XCTestCase {
         return url
     }
 
-    // ≙ Android: file:// URI → 复制 cacheDir → readText → delete
+    // ≙ 原版本: file:// URI → 复制 cacheDir → readText → delete
     func testReadTextFromFileURLReturnsContent() throws {
         let text = "{\"courses\":[]}"
         let url = try makeTempFile(named: "ri_ok.json", bytes: Data(text.utf8))
@@ -31,7 +31,7 @@ final class ImportReceiverActivityTests: XCTestCase {
         XCTAssertTrue(leftovers.isEmpty, "shared_import 复制体应已删除, 残留: \(leftovers)")
     }
 
-    // ≙ Android: 空文件 → text.isBlank → finishWithError("empty") (静默回主界面)
+    // ≙ 原版本: 空文件 → text.isBlank → finishWithError("empty") (静默回主界面)
     func testEmptyFileTriggersBlankBranch() throws {
         let url = try makeTempFile(named: "ri_empty.json", bytes: Data())
         let got = try ImportReceiverActivity.readText(from: url)
@@ -40,7 +40,7 @@ final class ImportReceiverActivityTests: XCTestCase {
         XCTAssertTrue(blank)
     }
 
-    // ≙ Android: 全空白文本同样走 empty 分支
+    // ≙ 原版本: 全空白文本同样走 empty 分支
     func testWhitespaceOnlyTriggersBlankBranch() throws {
         let url = try makeTempFile(named: "ri_ws.json",
                                    bytes: Data("  \n\t ".utf8))
@@ -49,7 +49,7 @@ final class ImportReceiverActivityTests: XCTestCase {
         XCTAssertTrue(blank)
     }
 
-    // ≙ Android: 非法 UTF-8 字节 → readText 抛错 → catch → finishWithError(msg);
+    // ≙ 原版本: 非法 UTF-8 字节 → readText 抛错 → catch → finishWithError(msg);
     //   iOS String(contentsOf:.utf8) 抛/返回 nil → blank 判定成立, 可见结果一致
     func testInvalidUTF8DoesNotProduceNonBlankText() throws {
         let bad = Data([0xFF, 0xFE, 0x00, 0x80])
@@ -58,7 +58,7 @@ final class ImportReceiverActivityTests: XCTestCase {
         do {
             got = try ImportReceiverActivity.readText(from: url)
         } catch {
-            got = nil // Android 同路径: 异常外抛 → catch → finishWithError
+            got = nil // 原同路径: 异常外抛 → catch → finishWithError
         }
         let blank = (got ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         XCTAssertTrue(blank, "非法编码不得产生可导入文本 (got=\(got ?? "nil"))")

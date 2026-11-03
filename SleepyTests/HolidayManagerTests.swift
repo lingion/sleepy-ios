@@ -7,7 +7,7 @@ import XCTest
 
 final class HolidayManagerTests: XCTestCase {
 
-    // CST 日历构造 y/m/d — 与 Android LocalDate.of 语义对齐(午夜基准, 与 dateFormat 解析输出一致)
+    // CST 日历构造 y/m/d — 与 原版本 LocalDate.of 语义对齐(午夜基准, 与 dateFormat 解析输出一致)
     private func d(_ m: Int, _ day: Int) -> Date {
         var c = DateComponents()
         c.year = 2025; c.month = m; c.day = day; c.hour = 0

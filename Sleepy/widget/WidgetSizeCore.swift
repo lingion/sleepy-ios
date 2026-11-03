@@ -1,6 +1,6 @@
 // WidgetSizeCore.swift — ← widget/WidgetSizeCore.kt (纯逻辑, 无 UI, 可单测)
 //
-// ★ 平台差异: Android 侧由 RemoteViewsWidgetHelper / WeekGridWidgetProvider 在
+// ★ 平台差异: 原版本 侧由 RemoteViewsWidgetHelper / WeekGridWidgetProvider 在
 //   onUpdate 时读 OPTION_APPWIDGET_SIZES 多份候选后调用本核心定向选一份画 bitmap;
 //   iOS WidgetKit 不存在「launcher 给多份尺寸候选」的协议 (family 由用户选定,
 //   容器尺寸直接来自渲染环境), 故本表暂不被 iOS UI 消费。逐项原样保留 (含单测),

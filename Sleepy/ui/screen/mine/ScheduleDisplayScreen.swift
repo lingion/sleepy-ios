@@ -37,7 +37,7 @@ struct ScheduleDisplayContent: View {
             )
             // 冲突课程样式 — 课表显示 Section 的下级分组: 子标题降级区分
             Text(L10n.t("settings_conflict_style"))
-                .font(SleepyTypography.labelMedium)   // ← Android labelMedium
+                .font(SleepyTypography.labelMedium)   // ← 原 labelMedium
                 .foregroundColor(colors.onSurfaceVariant)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 8)
@@ -47,22 +47,22 @@ struct ScheduleDisplayContent: View {
     }
 
     private var conflictStylePicker: some View {
-        // ← Android ScheduleDisplayScreen.kt SegmentedSwitcher(options,
+        // ← 原版本 ScheduleDisplayScreen.kt SegmentedSwitcher(options,
         //   selected = conflictStyle, containerColor = surfaceContainerHighest) +
         //   Modifier.fillMaxWidth(): Picker(.segmented) 无法 honor containerColor
         //   降对比与 thumb 弹簧, 换共享组件(PeriodHeaderSettingsScreen 同款)。
-        //   Android 无 height 覆盖 → 组件默认 42pt, 不外加 frame。
+        //   原版本 无 height 覆盖 → 组件默认 42pt, 不外加 frame。
         SegmentedSwitcher(
             options: [("stack", L10n.t("settings_conflict_stack")),
                       ("fold", L10n.t("settings_conflict_fold")),
                       ("rail", L10n.t("settings_conflict_rail"))],
             selected: conflictStyle,
             onSelect: { v in
-                // ← Android onSelect 内直写 AppPrefs.setConflictStyle, 无 onChange 回路
+                // ← 原 onSelect 内直写 AppPrefs.setConflictStyle, 无 onChange 回路
                 conflictStyle = v
                 AppPrefs.shared.setConflictStyle(v)
             },
-            // ← Android containerColor = surfaceContainerHighest: 铺在页面背景上
+            // ← 原 containerColor = surfaceContainerHighest: 铺在页面背景上
             //   同色会隐形, 降一级保持对比
             containerColor: colors.surfaceContainerHighest
         )
@@ -126,7 +126,7 @@ struct ScheduleDisplayScreen: View {
                 .padding(.vertical, 8)
             Spacer()
         }
-        // ← Android Scaffold/TopAppBar containerColor = colorScheme.background
+        // ← 原版本 Scaffold/TopAppBar containerColor = colorScheme.background
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(colors.background)
         .navigationBarHidden(true)
@@ -144,11 +144,11 @@ private struct DisplaySlider: View {
     var body: some View {
         VStack(spacing: 4) {
             Text("\(label)  \(valueText)")
-                .font(SleepyTypography.bodyMedium)    // ← Android bodyMedium
+                .font(SleepyTypography.bodyMedium)    // ← 原 bodyMedium
                 .frame(maxWidth: .infinity, alignment: .leading)
             Slider(
                 value: Binding(
-                    // ← Android: Slider(value = 父级量化状态) — 拖动时滑杆位置跟随
+                    // ← 原版本: Slider(value = 父级量化状态) — 拖动时滑杆位置跟随
                     //   量化后的父值(5% 步进), 与百分比标签保持一致; 不落地原始连续值
                     get: { value },
                     set: { onValueChange($0) }
