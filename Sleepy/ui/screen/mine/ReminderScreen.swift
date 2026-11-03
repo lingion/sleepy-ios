@@ -1,12 +1,12 @@
 // ReminderScreen.swift — ← ui/screen/mine/ReminderScreen.kt
 // 提醒设置: master 开关(通知权限) + 日期规则卡 + 每日提醒(当日/次日分闸+动态示例)
-// + 课前提醒(分钟/横幅/流体云字段+可靠性诊断) + 上课自动勿扰。
+// + 课前提醒(分钟/横幅+可靠性诊断) + 上课自动勿扰。
 // 平台映射: POST_NOTIFICATIONS 权限 → UNUserNotificationCenter.requestAuthorization;
 // 权限申请政策(2026-10): 全 app 唯一弹窗点 = master 开关 onMasterToggle(.notDetermined);
 // NotificationScheduler.createChannels 的隐式申请已摘除。denied 后系统不再弹框
 // (一次性弹窗语义), UI 显示手动设置引导行(NotifDeniedRow → 系统设置)。
-// 流体云(Fluid Cloud)行为 Android 独有(平台差异表#3), iOS 保留开关落 prefs
-// (banner 通道承担实际通知), 字段选择影响 banner 内容行文。
+// ★ v1.x 平台差异: vivo 流体卡片(Fluid Cloud)是 vivo OriginOS 原子组件 API 专有,
+// iOS 无对应实现, 已移除相关 UI(2025-01-29 App Store 审核反馈)。
 // 可靠性诊断 5 行 → iOS 快照仅 3 个可观测事实(通知权限/时效性/低电量),
 // widget/vendor/promoted 为 no-analog(见 BackgroundReliabilitySnapshot.swift 头部映射表),
 // 对应行不渲染(不是 silent skip: 映射决策已记录)。
@@ -56,8 +56,6 @@ struct ReminderScreen: View {
     @State private var beforeClassEnabled = AppPrefs.shared.isBeforeClassEnabled()
     @State private var minutesInput = "\(AppPrefs.shared.getBeforeClassMinutes())"
     @State private var bannerEnabled = AppPrefs.shared.isBeforeClassBannerEnabled()
-    @State private var fluidEnabled = AppPrefs.shared.isBeforeClassFluidEnabled()
-    @State private var fluidPrimary = AppPrefs.shared.getBeforeClassFluidPrimary()
     @State private var classDndEnabled = AppPrefs.shared.isClassDndEnabled()
     @State private var pickerTarget: DailyReminderTimeTarget? = nil
     @State private var pickerTime = Date()
@@ -69,7 +67,7 @@ struct ReminderScreen: View {
     /// 调用点在 onMasterToggle(.notDetermined 分支) —— 权限申请政策(2026-10)。
     @State private var notifDenied = false
 
-    // ← reliabilitySnapshot: 诊断快照, ON_RESUME + fluidEnabled 变化时刷新
+    // ← reliabilitySnapshot: 诊断快照, ON_RESUME 时刷新
     @State private var reliabilitySnapshot: BackgroundReliabilitySnapshot? = nil
     // ← schedulePreview: 示例只读当前课表, 不参与调度; 无课表时保留通用示例文案
     @State private var schedulePreview: ReminderSchedulePreview? = nil
@@ -108,11 +106,8 @@ struct ReminderScreen: View {
         }
         .background(colors.background)
         .task {
-            // ← LaunchedEffect(fluidEnabled): 进入页面即取一次快照
+            // ← LaunchedEffect: 进入页面即取一次快照
             await refreshReliabilitySnapshot()
-        }
-        .onChange(of: fluidEnabled) { _ in
-            Task { await refreshReliabilitySnapshot() }
         }
         // ← DisposableEffect ON_RESUME: 回前台重取诊断快照
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
@@ -390,72 +385,9 @@ struct ReminderScreen: View {
                     prefs.setBeforeClassBannerEnabled($0)
                     ReminderRescheduler.shared.request()
                 }
-                SubDivider()
-                ReminderToggleRow(title: L10n.format("reminder_fluid_title"),
-                                  subtitle: L10n.format("reminder_fluid_sub"),
-                                  tag: L10n.format("reminder_experimental_tag"),
-                                  checked: $fluidEnabled) {
-                    fluidEnabled = $0
-                    prefs.setBeforeClassFluidEnabled($0)
-                    ReminderRescheduler.shared.request()
-                }
-                if fluidEnabled {
-                    SubDivider()
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(L10n.format("reminder_fluid_fields"))
-                            .font(.system(size: 14))
-                            .foregroundColor(colors.onSurface)
-                        // 字段选择(Menu + 单选标记)
-                        Menu {
-                            ForEach([("name", L10n.format("reminder_fluid_field_name")),
-                                     ("time", L10n.format("reminder_fluid_field_time")),
-                                     ("room", L10n.format("reminder_fluid_field_room")),
-                                     ("countdown", L10n.format("reminder_fluid_field_countdown"))], id: \.0) { key, label in
-                                Button {
-                                    fluidPrimary = key
-                                    prefs.setBeforeClassFluidPrimary(key)
-                                    ReminderRescheduler.shared.request()
-                                } label: {
-                                    if key == fluidPrimary {
-                                        Label(label, systemImage: "circlebadge.2.fill")
-                                    } else {
-                                        Text(label)
-                                    }
-                                }
-                            }
-                        } label: {
-                            // ← Android readOnly TextField 形态: hint 作 label 在值上方, 尾随 ExpandMore
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.format("reminder_fluid_fields_hint"))
-                                    .font(.system(size: 12))
-                                    .foregroundColor(colors.onSurfaceVariant)
-                                HStack {
-                                    Text(fluidPrimaryLabel)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(colors.onSurface)
-                                    Spacer()
-                                    Image(systemName: "chevron.down")
-                                        .font(.system(size: 24)) // ← Android trailingIcon ExpandMore 默认 24dp
-                                        .foregroundColor(colors.onSurfaceVariant)
-                                }
-                            }
-                            .padding(.horizontal, 16) // ← M3 TextField content padding 16dp
-                            .padding(.vertical, 8)
-                            .background(colors.surfaceContainerLowest)
-                            .cornerRadius(SleepyTheme.fieldShape)
-                        }
-                        Text(L10n.format("reminder_fluid_note"))
-                            .font(.system(size: 12))
-                            .foregroundColor(colors.onSurfaceVariant)
-                            .padding(.top, 6)
-                        // ★ 流体云测试入口 / 厂商设置入口 / vendor+promoted 诊断行 = Android
-                        // 平台专有(FluidCloudService 前台服务 + 厂商实况窗), iOS 无对应物 —
-                        // 见文件头平台映射注释。
-                        reliabilityBlock
-                    }
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 8)
-                }
+                // ★ 可靠性诊断: Android 5 行(通知/时效/电池/厂商/小组件) → iOS 3 行(通知/时效/电池),
+                // widget/vendor/promoted 为 no-analog(见 BackgroundReliabilitySnapshot 映射表)。
+                reliabilityBlock
             }
         }
     }
@@ -555,16 +487,6 @@ struct ReminderScreen: View {
         classDndEnabled = on
         prefs.setClassDndEnabled(on)
         ClassDndScheduler.shared.syncFromPrefs()
-    }
-
-    // ← fluidPrimaryLabel(含 countdown)
-    private var fluidPrimaryLabel: String {
-        switch fluidPrimary {
-        case "name": return L10n.format("reminder_fluid_field_name")
-        case "time": return L10n.format("reminder_fluid_field_time")
-        case "countdown": return L10n.format("reminder_fluid_field_countdown")
-        default: return L10n.format("reminder_fluid_field_room")
-        }
     }
 
     // ★ debounce 500ms: 分钟输入停止后持久化 + 重排(避免每键 cancelAll+scheduleAll)
