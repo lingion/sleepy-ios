@@ -197,26 +197,28 @@ final class SystemCalendarManager {
         today: Date,
         transfers: [HolidayTransferEntry] = []
     ) -> (start: Date, end: Date) {
-        let cal = DateUtils.isoCalendar
-        let tableStart = DateUtils.parseDate(table.startDate) ?? today
-        let semesterStart = Calendar.isoMondayOfWeek(tableStart)
-        let semesterEnd = Calendar.isoAddDays(semesterStart, 7 * table.maxWeek)
+        let cal = CourseOccurrences.calendar
+        let today = cal.startOfDay(for: today)
+        let tableStart = CourseOccurrences.parseDate(table.startDate) ?? today
+        let semesterStart = cal.date(byAdding: .day, value: 1 - CourseOccurrences.day(tableStart), to: tableStart) ?? tableStart
+        let semesterEnd = cal.date(byAdding: .day, value: 7 * table.maxWeek, to: semesterStart) ?? semesterStart
         // ← 原版本 validTargets: 源日仍在学期内的映射才参与区间扩展
         let validTargets = transfers
             .filter {
-                DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: $0.sourceDate) == .inRange
+                guard let week = CourseOccurrences.week(startDate: table.startDate, date: $0.sourceDate) else { return false }
+                return week <= table.maxWeek
             }
-            .map { DateUtils.dayStart($0.targetDate) }
+            .map { cal.startOfDay(for: $0.targetDate) }
         // ← 原 effectiveEnd = maxOf(semesterEnd, validTargets.max()?.plusDays(1) ?: semesterEnd)
-        let effectiveEnd = validTargets.max().map { Calendar.isoAddDays($0, 1) } ?? semesterEnd
+        let effectiveEnd = max(semesterEnd, validTargets.max().flatMap { cal.date(byAdding: .day, value: 1, to: $0) } ?? semesterEnd)
         // ← 原 start = maxOf(today, minOf(semesterStart, validTargets.min() ?: semesterStart))
         let rangeStart = validTargets.min().map { min(semesterStart, $0) } ?? semesterStart
-        let start = max(DateUtils.dayStart(today), rangeStart)
+        let start = max(today, rangeStart)
         let requestedEnd: Date
         switch range {
         case .NEXT_MONTH: requestedEnd = cal.date(byAdding: .month, value: 1, to: today) ?? today
         case .SEMESTER: requestedEnd = effectiveEnd
-        case .NEXT_WEEK: requestedEnd = Calendar.isoAddDays(today, 7)
+        case .NEXT_WEEK: requestedEnd = cal.date(byAdding: .day, value: 7, to: today) ?? today
         }
         return (start, min(requestedEnd, effectiveEnd))
     }
@@ -265,8 +267,9 @@ final class SystemCalendarManager {
         let transfers = options.applyHolidayTransfers
             ? AppPrefs.shared.getHolidayTransfers(table.id)
             : []
-        var day = DateUtils.dayStart(from)
-        let limit = DateUtils.dayStart(until)
+        let calendar = CourseOccurrences.calendar
+        var day = calendar.startOfDay(for: from)
+        let limit = calendar.startOfDay(for: until)
         while day < limit {
             // v1.0.62 B6 ← 原版本: 事件内容按源日、显示与闹钟按目标日 —
             // sourceDate = 该展示日的课实际来自哪天(放假日 nil / 补班日 = 被调走的源日);
@@ -276,12 +279,13 @@ final class SystemCalendarManager {
                 day, startDate: table.startDate, maxWeek: table.maxWeek,
                 courses: courses, transfers: transfers
             )
-            // 周次标签跟源日走(补班日上的是源日那周的课)
-            let week = DateUtils.currentWeek(startDate: table.startDate, today: sourceDate ?? day)
-            let classDay = DateUtils.todayDayOfWeek(today: sourceDate ?? day)
             for course in selected {
+                // 定日事件的周次/星期属于展示自然日，循环课才继承调休源日。
+                let courseDate = course.fixedDate != nil ? day : (sourceDate ?? day)
+                let week = CourseOccurrences.week(startDate: table.startDate, date: courseDate) ?? 1
+                let classDay = CourseOccurrences.day(courseDate)
                 guard let (startHHmm, endHHmm) = TimeTableUtils.effectiveCourseTime(
-                    isIrregularTime: course.isIrregularTime,
+                    isIrregularTime: course.isIrregularTime || course.ownTime,
                     startTime: course.startTime,
                     endTime: course.endTime,
                     startNode: course.startNode,
@@ -295,7 +299,8 @@ final class SystemCalendarManager {
                 let end = appendTime(day, endHHmm)
                 guard end > start else { invalid += 1; continue }
                 // ← 原 transferred = sourceDate != date: 仅补班日为 true(放假日 sourceDate=nil → false)
-                let transferred = sourceDate.map { HolidayTransferOps.dayKey($0) != HolidayTransferOps.dayKey(day) } ?? false
+                let transferred = course.fixedDate == nil
+                    && (sourceDate.map { HolidayTransferOps.dayKey($0) != HolidayTransferOps.dayKey(day) } ?? false)
                 specs.append(EventSpec(
                     course: course,
                     date: day,
@@ -313,7 +318,7 @@ final class SystemCalendarManager {
                         && (TimeTableUtils.hmMinutes(startHHmm) ?? 0) < 720
                 ))
             }
-            day = Calendar.isoAddDays(day, 1)
+            day = calendar.date(byAdding: .day, value: 1, to: day) ?? until
         }
         return (specs, invalid)
     }

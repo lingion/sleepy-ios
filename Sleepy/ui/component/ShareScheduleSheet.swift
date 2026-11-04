@@ -49,7 +49,8 @@ struct ShareScheduleSheet: View {
                          title: L10n.format("export_ics_title"),
                          subtitle: L10n.format("export_ics_subtitle")) {
                     exportFile(ext: "ics", mime: "text/calendar",
-                               content: ScheduleExporter.exportIcs(table, courses))
+                               content: ScheduleExporter.exportIcs(table, courses,
+                                   transfers: AppPrefs.shared.getHolidayTransfers(table.id)))
                 }
                 ShareRowDivider()
                 // v7.10.7 第 4 项: Sleepy 原生格式 — marker 包裹 + 无 chk(IM 场景最小体积)

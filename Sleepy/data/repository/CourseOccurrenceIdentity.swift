@@ -50,14 +50,13 @@ struct CourseOccurrenceIdentity: Equatable {
         // dateOfWeek 内部计算 (week - 1) * 7 + day - 1，先挡住非法坐标及整数溢出。
         guard maxWeek > 0, displayWeek >= 1, displayWeek <= Int.max / 7,
               (1...7).contains(displayDay),
-              let displayDate = DateUtils.dateOfWeek(
-                startDate: startDate, week: displayWeek, dayOfWeek: displayDay),
+              let displayDate = CourseOccurrences.date(
+                startDate: startDate, week: displayWeek, day: displayDay),
               let courseDate = HolidayTransferOps.courseDateForDate(displayDate, transfers),
-              DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek, today: courseDate) == .inRange
+              let week = CourseOccurrences.week(startDate: startDate, date: courseDate), week <= maxWeek
         else { return nil }
 
         return CourseOccurrenceIdentity(
-            week: DateUtils.currentWeek(startDate: startDate, today: courseDate),
-            day: DateUtils.todayDayOfWeek(today: courseDate))
+            week: week, day: CourseOccurrences.day(courseDate))
     }
 }

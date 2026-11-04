@@ -580,26 +580,29 @@ final class NotificationScheduler {
                                    desiredIds: inout Set<String>,
                                    windowCourseIds: inout Set<String>) async {
         let nodes = TimeTableUtils.parseNodes(table.timeJson)
-        let cal = DateUtils.isoCalendar
+        let cal = CourseOccurrences.calendar
 
         // 1) 枚举窗口内的天, 收集课程行(仅学期内且允许提醒的天)
         // v1.0.62 ← collectTableSlots: 取课改反向查 courseDateForDate —
         //   补班日上 sourceDate 星期几的课(周次/学期判定同用 sourceDate),
-        //   放假日 sourceDate=nil → 当天零课; 学期外/豁免日同旧口径跳过。
+        //   循环课跟源日；定日课留自然日，即使当天 sourceDate=nil。
         var days: [(Date, [CourseEntity])] = []
         for offset in 0..<Self.BEFORE_CLASS_WINDOW_DAYS {
             guard let date = cal.date(byAdding: .day, value: offset, to: today) else { continue }
-            guard let sourceDate = dataSource.courseDateForDate(tableId: table.id, date: date),
-                  DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek,
-                                           today: sourceDate) == .inRange,
-                  await dataSource.allowsReminder(tableId: table.id, date: date)
-            else {
+            guard await dataSource.allowsReminder(tableId: table.id, date: date) else {
                 days.append((date, []))
                 continue
             }
-            let week = DateUtils.currentWeek(startDate: table.startDate, today: sourceDate)
-            let dow = DateUtils.todayDayOfWeek(today: sourceDate)
-            let courses = dataSource.coursesForDay(tableId: table.id, dayOfWeek: dow).filter { $0.inWeek(week) }
+            let fixed = dataSource.coursesForDay(tableId: table.id, dayOfWeek: CourseOccurrences.day(date))
+                .filter { $0.fixedDate == HolidayTransferOps.dayKey(date) }
+            guard let sourceDate = dataSource.courseDateForDate(tableId: table.id, date: date),
+                  let week = CourseOccurrences.week(startDate: table.startDate, date: sourceDate), week <= table.maxWeek else {
+                days.append((date, fixed))
+                continue
+            }
+            let dow = CourseOccurrences.day(sourceDate)
+            let courses = dataSource.coursesForDay(tableId: table.id, dayOfWeek: dow)
+                .filter { $0.fixedDate == nil && $0.inWeek(week) } + fixed
             days.append((date, courses))
         }
 
@@ -607,7 +610,7 @@ final class NotificationScheduler {
         for (date, courses) in days {
             for course in courses {
                 let startTimeStr: String?
-                if course.ownTime && !course.startTime.isEmpty {
+                if (course.ownTime || course.isIrregularTime) && !course.startTime.isEmpty {
                     startTimeStr = course.startTime
                 } else if let node = nodes.first(where: { $0.node == course.startNode }) {
                     startTimeStr = TimeTableUtils.formatTime(node.start)
@@ -632,7 +635,7 @@ final class NotificationScheduler {
                 desiredIds.insert(id)
 
                 let endTimeStr: String = {
-                    if course.ownTime && !course.endTime.isEmpty { return course.endTime }
+                    if (course.ownTime || course.isIrregularTime) && !course.endTime.isEmpty { return course.endTime }
                     guard let node = nodes.first(where: { $0.node == course.startNode + course.step - 1 }) else { return "" }
                     return TimeTableUtils.formatTime(node.end)
                 }()

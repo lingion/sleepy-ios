@@ -4,9 +4,9 @@
 
 - 本代理维护 `CourseEntity.fixedDate: String?`（ISO 日期，默认 nil）、v13 migration、parser/export、`CourseOccurrences`、`saveOccurrence` 与 `CourseOccurrenceEditor`。
 - 已按追加授权接入 `HolidayReminderPolicy.swift` 的 `HolidayTransferOps.coursesForDate`：委托 `CourseOccurrences.coursesForDate`。新函数不回调该方法，无递归；主页/小组件/日历共同获得定日优先语义。
-- 主会话请在 `RowKey` 身份键加入 `fixedDate`，避免组编辑/同步导入将两个不同定日行误认成同一行。
-- ICS 真实分享入口应传 `transfers: AppPrefs.shared.getHolidayTransfers(table.id)` 给 `ScheduleExporter.exportIcsOrThrow` / `exportIcs`；默认空数组保留旧调用兼容。
-- 拖课代理：固定日期来源不能用只接收展示周/天的 `CourseOccurrenceIdentity.resolve`；将增加接收 `course:` 的重载，固定日直接解析真实日，不套调休映射。移动旧签名保持兼容。
+- 已在 `RowKey` 身份键加入 `fixedDate`，避免组编辑/同步导入将两个不同定日行误认成同一行。
+- 顶栏 `ShareScheduleSheet` 已传调休数组，`ScheduleScreen` 传水合课表。另一路 `ExportScreen` 由 WakeUp 代理负责，静态核对已见其传入 `transfers:`。
+- 原生拖课 lift/hover/candidate 已接课程感知身份与目标解析；定日直接使用自然日，普通循环课反查调休源日。移动旧签名保持兼容。
 - 已按主会话追加授权合入 `undo-v1063-integration.md` 两段 restore/redo：先 snapshotCurrent，再出栈，事务失败回填原栈，成功才写对栈。本次 occurrence 写入沿用事务成功后 capture 的现有模式。
 
 ## 验证约束
@@ -23,6 +23,11 @@
 6. `AddCourseScreen` + `FixedDateCourseField`：组编辑回填/分组/保存保留定日字段，日期控件同步单周和星期；定日/调休冲突检查走真实日期。
 7. sleepy-v1 第12列 + 空别名第11列占位；WakeUp JSON/本地分享 JSON 保留 fixedDate；MigrationDatabaseCodec 导入、导出、合并拷贝保留 fixedDate。
 8. ICS：空 transfers 保持旧重复课程 RRULE；定日无 RRULE；非空 transfers 将真实发生日逐次展开，UID 带 yyyy-MM-dd，包含学期外补班目标日。
+9. 首页/今日页详情接入 `CourseOccurrenceActions`。首页捕获点击页周和投影星期生成日期；今日页捕获点击当天；保存后刷新小组件和周视图，组编辑仍按 id 找回存储行。
+10. `CourseTableView` 日期表头/今日高亮、共享周渲染、详情聚簇与拖动身份使用 `CourseOccurrences` 民事日辅助方法，统一 Asia/Shanghai。
+11. `NativeCourseDrag` 源身份与悬停判定、`CourseDragPolicy` 候选投影支持定日移动；定日更新日期且不残留拆分副本。`RowKey.fixedDate` 区分行身份。
+12. `NotificationScheduler` 先按自然日收集定日课，再追加调休源日循环课；定日不重复、不被挪到补班日，仍遵守提醒策略。自定义时间同时识别 `ownTime` / `isIrregularTime`。
+13. 系统日历定日事件使用自然周/星期且不标注调休；迭代、日期范围统一民事日。范围结束取 `max(semesterEnd, latestTarget + 1)`，防止学期中途补班截断剩余课程。
 
 ## 主会话仍须接入的共享路径（不能遗漏）
 
@@ -34,49 +39,20 @@
 - `Sleepy/ui/screen/edit/FixedDateCourseField.swift`：App。
 - `Sleepy/ui/screen/edit/CourseOccurrenceEditor.swift`：App。
 
-新增 XCTest：`FixedDateCourseTests`（8）、`FixedDateImportExportTests`（7）、`CourseOccurrenceEditTests`（7），共22个。没有改既有测试。CI 同时保留 `CourseOccurrenceMoveTests`、`CourseOccurrenceIdentityTests`、`CourseDragViewModelTests`、`SleepyNative*`、`ScheduleExporterTests`、`RowKeyDifferTests`、迁移测试及 undo 代理的4个故障注入用例。
+新增 XCTest：`FixedDateCourseTests`（8）、`FixedDateImportExportTests`（7）、`CourseOccurrenceEditTests`（7）、`FixedDateProductionWiringTests`（9），共31个。没有改既有测试。第四个文件覆盖渲染、原生起拖、候选投影、行身份、日历元数据/范围与提醒；依赖同 target 的 `NotificationSchedulerTests.FakeEnv` / `FakeAlarmPort`。CI 同时保留 `CourseOccurrenceMoveTests`、`CourseOccurrenceIdentityTests`、`CourseDragViewModelTests`、`SleepyNative*`、`ScheduleExporterTests`、`RowKeyDifferTests`、迁移测试及 undo 代理的4个故障注入用例。
 
-### 2. 首页/详情入口（CourseTableView / ScheduleScreen 由 QuickAdd 代理独占）
+### 2. 跨代理接线复核
 
-在持有当前课程与**实际展示日期**的详情 sheet 中加入：
+首页/详情、原生拖课、行级身份、提醒、系统日历已按追加授权完成源码接线，不再是待实现项。`CourseTableView` 的公开点击回调仍为 `(CourseEntity) -> Void`；私有 `WeekPager` 内部回调才附带点击页周。
 
-```swift
-CourseOccurrenceActions(
-    courseId: course.id,
-    displayDate: displayDate,
-    table: effectiveTable,
-    repository: viewModel.occurrenceRepository,
-    onSaved: { viewModel.occurrenceSaved() }
-)
-```
-
-`displayDate` 要按点开的页周和列计算，不能用 today，也不能用库内 source day。入口会再次按 id 取原始行，避免调休投影/normalize 副本被写回。表使用 `state.effectiveCurrentTable`。
-
-### 3. 拖课源与悬停可投放判定
-
-`NativeCourseDrag.swift:39` lift 源身份调用改为 `CourseOccurrenceIdentity.resolve(course: storedOrOriginalCourse, startDate:..., maxWeek:..., displayWeek:..., displayDay:..., transfers:...)`。定日源直接匹配展示日；旧重载仍为普通循环课服务。
-
-`NativeCourseDrag.swift:403` 和 `CourseDragPolicy.swift:228` 目标判定：`source.course.fixedDate != nil` 时按自然 targetWeek/displayDay 校验学期范围，不套调休映射。否则放假日上的定日课仍会被 UI 拦截，尽管 Repository/ViewModel 已支持。这两文件本代理未编辑。
-
-### 4. 行级导入同步身份
-
-`Sleepy/data/diff/RowKeyDiffer.swift` 的 `RowKey` 增加 `var fixedDate: String? = nil`（放现有字段末尾以保留旧成员初始化调用）；`RowKey.of` 传 `fixedDate: c.fixedDate`。否则组编辑切换 fixedDate 或同步包含同时间不同定日的行时，会误判 unchanged/合并丢行。此文件本代理未编辑。
-
-### 5. ExportScreen（WakeUp 代理独占）
-
-其 ICS 调用使用：
+`ExportScreen`（WakeUp 代理所有）静态核对已使用：
 
 ```swift
 ScheduleExporter.exportIcsOrThrow(table, courses,
     transfers: AppPrefs.shared.getHolidayTransfers(table.id))
 ```
 
-若现路径用非 throwing `exportIcs` 同样加 `transfers:` 即可。两 API 旧两参调用保持兼容，但不传调休无法导出实际补班日期。
-
-### 6. 提醒与系统日历元数据
-
-- `NotificationScheduler.swift:592–603` 当前先 `guard sourceDate`，会漏掉放假日上的 fixedDate，并将 fixedDate 当普通周课。需先收集 `coursesForDay(tableId:, dayOfWeek:自然星期).filter { $0.fixedDate == HolidayTransferOps.dayKey(date) }`；通过 allowsReminder 后，sourceDate=nil/源日学期外返回 fixed；有 sourceDate 时追加源星期列表中 `fixedDate == nil && inWeek(week)`。这是独立于共享 `HolidayTransferOps.coursesForDate` 的数据源接口，因此不能只接中央方法就宣称提醒已齐。
-- `SystemCalendarManager.swift:280–307` 真实日取课已通过中央入口支持 fixedDate；但 `week/classDay` 必须挪进 `for course in selected`，用 `course.fixedDate != nil ? day : (sourceDate ?? day)` 计算；`transferred` 还须加 `course.fixedDate == nil`，避免将定日事件错误标为调休源周。
+两 API 旧两参调用保持兼容；主会话合并时请保留此参数及有效作息水合。最终 target 注册与 GitHub CI 仍归主会话。
 
 ## CI/原生验收检查点
 
@@ -88,4 +64,6 @@ ScheduleExporter.exportIcsOrThrow(table, courses,
 - ICS调休每次一个 VEVENT，UID含实际日期，无RRULE；学期外补班日期不漏。
 - 两步编辑/删除后 undo、redo 各两次，定日、组色/别名、课程区间均恢复。
 
-当前仅完成源码静态核对，未声称编译/22测试/原生运行通过；以上共享入口接线是主会话合并前的明确检查项。
+- 日历范围：学期内补班不截断学期尾部，学期外补班目标日延长到目标次日；CI 应同时验证非上海系统时区下日期键与触发时间。
+
+当前仅完成源码静态核对，31个新增测试均未执行，编译及原生运行未验证。本代理未提交或推送；共享 worktree 的主会话可能已收录部分早期改动，最终以主会话冻结快照为准。
