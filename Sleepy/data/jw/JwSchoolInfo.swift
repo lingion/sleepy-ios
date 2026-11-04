@@ -40,7 +40,13 @@ struct JwSchoolInfo: Equatable {
         (status == Self.STATUS_SUPPORTED || status == Self.STATUS_GRAD_SUPPORTED)
             && !(type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
     }
-    var isGrad: Bool { status == Self.STATUS_GRAD_SUPPORTED || status == Self.STATUS_GRAD_PENDING }
+    var isUnverified: Bool {
+        status == Self.STATUS_UNVERIFIED || status == Self.STATUS_GRAD_UNVERIFIED
+    }
+    var isGrad: Bool {
+        status == Self.STATUS_GRAD_SUPPORTED || status == Self.STATUS_GRAD_PENDING
+            || status == Self.STATUS_GRAD_UNVERIFIED
+    }
 
     /// T13: pending/grad_pending 状态 — 待适配(点行弹申请适配弹窗, 不进 WebView)
     var isPending: Bool { status == Self.STATUS_PENDING || status == Self.STATUS_GRAD_PENDING }
@@ -66,7 +72,7 @@ struct JwSchoolInfo: Equatable {
         return true
     }
 
-    /// 状态归一 — 缺省/未知值永不放行导入(fail-closed 到 pending)。
+    /// 状态归一 — 缺省保留历史 supported；未知值 fail-closed 到 pending。
     /// ← 原版本 normalizeStatus(raw): null/"" → supported; 未知 → pending。
     static func normalizeStatus(_ raw: String?) -> String {
         switch raw {

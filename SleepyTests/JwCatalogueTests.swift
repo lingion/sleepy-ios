@@ -2,7 +2,7 @@
 // SchoolSearchIndexTest.kt + JwImportReport 相关单测 (逐用例移植)
 //
 // B2 目录扩容后的契约锁:
-//   - schools.json 从 348 条全量目录扩到 4140 条(其中 1478 条有可打开 URL)
+//   - schools.json 保留4140身份，v1.0.63有2880条入口（包含未验证候选）
 //   - status 生命周期模型 (supported / pending / grad_* / unverified / legacy)
 //   - stableKey / canImport / hasUrl 的判定口径
 //   - 搜索索引的"子串命中 + 别名精确前置"语义
@@ -35,9 +35,8 @@ final class JwCatalogueTests: XCTestCase {
 
     // MARK: - 目录规模闸
 
-    func testCatalogueSizePinnedToOriginalV1062() throws {
-        // ← 原版本 v1.0.62 tag 10adc247 assets/schools.json = 4140 条
-        //   (v1.0.61 = 349; B2 对齐后 iOS resources/schools.json 与安卓逐条一致)
+    func testCatalogueSizePreservesV1062IdentitiesInV1063() throws {
+        // v1.0.63 与 v1.0.62 身份集合相同；三校状态按 iOS 证据独立保留。
         let list = try loadSchools()
         XCTAssertEqual(4140, list.count)
         XCTAssertFalse(list[0].name.isEmpty)
@@ -47,7 +46,7 @@ final class JwCatalogueTests: XCTestCase {
         // ← 原版本 loadSchools: 只显示有 URL 的学校(避免用户看到大量不可用选项)
         let all = try loadSchools()
         let withUrl = try loadImportableSchools()
-        XCTAssertEqual(1478, withUrl.count)
+        XCTAssertEqual(2880, withUrl.count)
         XCTAssertLessThan(withUrl.count, all.count)
         // 无 URL 的条目一律不可导入
         for school in all where school.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -55,19 +54,20 @@ final class JwCatalogueTests: XCTestCase {
         }
     }
 
-    func testStatusDistributionMatchesOriginal() throws {
-        // ← 原版本 v1.0.62 schools.json 状态分布:
-        //   有 URL 1478 条 = supported 348 + grad_supported 2 + unverified 1128
-        //   无 URL 2662 条 = pending 2361 + grad_pending 301
+    func testStatusDistributionPreservesUnverifiedV1063Admission() throws {
+        // 有URL2880 = supported348 + grad_supported2 + unverified2482 + grad_unverified48。
+        // 无URL1260 = pending1007 + grad_pending253；入口数不是成功导入学校数。
         let all = try loadSchools()
         let withUrl = try loadImportableSchools()
         let noUrl = all.filter { $0.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
         XCTAssertEqual(348, withUrl.filter { $0.isSupported && $0.status == JwSchoolInfo.STATUS_SUPPORTED }.count)
         XCTAssertEqual(2, withUrl.filter { $0.status == JwSchoolInfo.STATUS_GRAD_SUPPORTED }.count)
-        XCTAssertEqual(1128, withUrl.filter { $0.isUnverified }.count)
-        XCTAssertEqual(2361, noUrl.filter { $0.status == JwSchoolInfo.STATUS_PENDING }.count)
-        XCTAssertEqual(301, noUrl.filter { $0.status == JwSchoolInfo.STATUS_GRAD_PENDING }.count)
+        XCTAssertEqual(2530, withUrl.filter { $0.isUnverified }.count)
+        XCTAssertEqual(2482, withUrl.filter { $0.status == JwSchoolInfo.STATUS_UNVERIFIED }.count)
+        XCTAssertEqual(48, withUrl.filter { $0.status == JwSchoolInfo.STATUS_GRAD_UNVERIFIED }.count)
+        XCTAssertEqual(1007, noUrl.filter { $0.status == JwSchoolInfo.STATUS_PENDING }.count)
+        XCTAssertEqual(253, noUrl.filter { $0.status == JwSchoolInfo.STATUS_GRAD_PENDING }.count)
     }
 
     func testEveryEntryCarriesCatalogIdAndUniqueStableKey() throws {

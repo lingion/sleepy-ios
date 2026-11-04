@@ -103,6 +103,21 @@ struct JwWebViewLoginScreen: View {
     @State private var editingUrl = false
     @State private var urlDraft: String = ""
 
+    init(school: JwSchoolInfo,
+         onHtmlCaptured: @escaping (String, JwSchoolInfo, [(Int, String, String)], String) -> Void,
+         onBack: (() -> Void)? = nil,
+         onDismiss: @escaping () -> Void,
+         onWebViewReady: ((WebViewCoordinator) -> Void)? = nil,
+         onCaptureError: ((FrameCaptureResult, String) -> Void)? = nil) {
+        self.school = school
+        self.onHtmlCaptured = onHtmlCaptured
+        self.onBack = onBack
+        self.onDismiss = onDismiss
+        self.onWebViewReady = onWebViewReady
+        self.onCaptureError = onCaptureError
+        _desktopUa = State(initialValue: JwClassicEamsFetch.initialDesktopUa(school))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // TopBar(校名 + 实时 URL / 地址栏编辑态)
@@ -370,6 +385,19 @@ struct JwWebViewLoginScreen: View {
         }
         snackMessage = L10n.format("jw_fetching")
         let fetchURL = coordinator.currentURLString ?? ""
+        if school.type == JwProtocol.TYPE_SG_ASSET {
+            do {
+                coordinator.evaluateFetchWithTimeout(try JwSgAssetBridge.bridgeJs(schoolName: school.name))
+            } catch {
+                showCaptureError(FrameCaptureResult(selectedFramePath: nil, html: "",
+                    matchedAnchors: [], status: .unknown), error.localizedDescription)
+            }
+            return
+        }
+        if school.type == JwProtocol.TYPE_CLASSIC_EAMS {
+            coordinator.evaluateFetchWithTimeout(JwClassicEamsFetch.js)
+            return
+        }
         // wisedu (金智 jwapp): 课表数据在 JSON API 不在页面 HTML, fetch 拿 JSON(结果走 JS 桥回调)
         if school.type == JwProtocol.TYPE_WISEDU {
             coordinator.evaluateFetchWithTimeout(WiseduFetchJs.js)

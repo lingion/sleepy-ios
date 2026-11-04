@@ -62,6 +62,10 @@ targets:
       - path: Sleepy/resources
         # iOS 标准:lproj 目录直接作为 resources bundle 根(xcodegen 默认逐文件拷贝)
         buildPhase: resources
+        excludes: ["third_party"]
+      - path: Sleepy/resources/third_party
+        buildPhase: resources
+        type: folder
     dependencies:
       - package: GRDB
       - package: SwiftSoup

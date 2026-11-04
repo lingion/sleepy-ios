@@ -711,7 +711,7 @@ final class JwImportViewModel: ObservableObject {
     }
 }
 
-/// 解析分派单点: 空 protocolType → 全候选按 confidence 裁决; 声明 type → 工厂表精确解析。
+/// 解析分派单点: 空 protocolType / jw_home → 全候选裁决; 其他声明 type → 工厂表精确解析。
 /// 永不抛出 —— 失败时把 error 文案与 attempts 一起交回调用方,
 /// 供 JwParseDiagnostics.classify 生成面向用户的诊断文案(导入 0 课/解析失败)。
 enum JwParseDispatch {
@@ -723,7 +723,8 @@ enum JwParseDispatch {
 
     static func parse(_ html: String, _ protocolType: String) -> Outcome {
         // ← kt:106 protocolType.isBlank() — isBlank 含换行等全部 Unicode 空白
-        if protocolType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if protocolType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || protocolType == JwProtocol.TYPE_JW_HOME {
             // 未知协议(URL 直接登录): 跑全部候选按 confidence/课程数裁决
             let best = JwParserRegistry.selectBest(html, declaredType: nil)
             return Outcome(courses: best.0, attempts: best.1, error: nil)
