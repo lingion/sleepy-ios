@@ -1,12 +1,15 @@
-# 白嫖 GitHub 的 macOS runner: 本机是 Linux, 没有 Xcode, iOS 构建只能靠 CI。
-# 产物为无签名 IPA (scripts/build-ipa.sh 管线), 供 AltStore/Sideloadly 重签安装。
+# GitHub 托管 macOS：自动模拟器验收，手动构建无签名 IPA。
 name: iOS Build
 
 on:
+  push:
+    branches: ['integration/parity-v1063-all-prs']
+  pull_request:
+    branches: [master]
   workflow_dispatch:
     inputs:
       ref:
-        description: "要构建的分支/标签/commit (默认 main)"
+        description: "要构建的分支/标签/commit (默认 master)"
         required: false
         default: "master"
       config:
@@ -35,6 +38,7 @@ permissions:
 
 jobs:
   unsigned-ipa:
+    if: github.event_name == 'workflow_dispatch'
     # xcodegen 新版生成的 pbxproj 是 format 77 (Xcode 16), macos-14 镜像的
     # Xcode 15.4 读不了 — 必须用 macos-15
     runs-on: macos-15
@@ -55,15 +59,84 @@ jobs:
           path: build/Sleepy-*.ipa
           if-no-files-found: error
           retention-days: 7
-      - name: Run simulator tests
-        if: inputs.tests == 'yes'
+  acceptance:
+    if: github.event_name != 'workflow_dispatch' || inputs.tests == 'yes'
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Generate project and select simulator
         shell: bash
         run: |
-          # pipefail: 没有它, xcodebuild 失败会被 `| xcbeautify` 吞成 exit 0 (假绿)。
-          # iPhone 15 在 macos-14 镜像不存在(最低 16), 曾导致本步骤直接跳过测试还报绿。
-          set -o pipefail
-          xcodebuild test \
-            -project Sleepy.xcodeproj \
-            -scheme Sleepy \
-            -destination "platform=iOS Simulator,name=iPhone 16,OS=18.5" \
-            | xcbeautify
+          set -euo pipefail
+          mkdir -p build/ci
+          git config --global url.https://github.com/.insteadOf https://gh.qdp.qzz.io/
+          xcodebuild -version | tee build/ci/xcode.log
+          xcodegen generate --spec project.yml
+          xcrun simctl list devices available -j > build/ci/devices.json
+          python3 - <<'PY'
+          import json, os
+          data = json.load(open('build/ci/devices.json'))['devices']
+          runtimes = sorted((r for r in data if '.iOS-' in r),
+                            key=lambda r: tuple(map(int, r.split('.iOS-')[1].split('-'))), reverse=True)
+          phones = [d for r in runtimes for d in data[r]
+                    if d.get('isAvailable') and d['name'].startswith('iPhone')]
+          if not phones:
+              raise SystemExit('No available iPhone simulator')
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('SIMULATOR_ID=' + phones[0]['udid'] + '\n')
+          print(phones[0])
+          PY
+      - name: Build app, extensions and test bundles
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild build-for-testing -project Sleepy.xcodeproj -scheme Sleepy \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath build/DerivedData -jobs 3 \
+            -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES \
+            2>&1 | tee build/ci/build.log
+      - name: Run unit and integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
+            -only-testing:SleepyTests -resultBundlePath build/ci/unit.xcresult \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/unit.log
+      - name: Run native drag acceptance
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
+            -only-testing:SleepyUITests/CourseDragUITests \
+            -resultBundlePath build/ci/drag.xcresult \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/drag.log
+      - name: Run remaining UI acceptance
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
+            -only-testing:SleepyUITests -skip-testing:SleepyUITests/CourseDragUITests \
+            -resultBundlePath build/ci/ui.xcresult \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/ui.log
+      - name: Upload logs and result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-acceptance-${{ github.sha }}
+          path: build/ci
+          retention-days: 7
+          if-no-files-found: warn
