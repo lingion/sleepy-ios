@@ -1174,3 +1174,5 @@
 "occurrence_continue" = "Continue";
 "occurrence_stale" = "The timetable or holiday transfers have changed. Reopen this occurrence.";
 "occurrence_actions" = "Edit or delete this occurrence";
+"theme_system_source_window_tint" = "Color source: current interface tint";
+"theme_system_source_fallback" = "Color source: default seed (no valid interface tint available)";

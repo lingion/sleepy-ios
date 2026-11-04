@@ -1040,7 +1040,7 @@ private struct CourseOverlayCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyButtonStyle(dragSource: true))
         .accessibilityIdentifier("gridcell_\(course.id)")
         .padding(4 * scale)
         .background(effectiveBg)

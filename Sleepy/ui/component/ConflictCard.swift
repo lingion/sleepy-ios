@@ -291,7 +291,7 @@ struct ConflictClusterCard: View {
                         isDark: isDark, isGrey: isGrey,
                         folded: cardIsFolded && !l.hidden,
                         foldSize: foldSize, corner: cardCorner,
-                        groupRows: groupRowsForCard)
+                        groupRows: groupRowsForCard, dragSource: true)
                         .frame(width: CGFloat(r.width), height: CGFloat(r.height))
                         .modifier(CourseDragSource(course: course))
                         .offset(x: CGFloat(r.x), y: CGFloat(r.y)))
@@ -506,6 +506,7 @@ private struct ConflictCourseCard: View {
     var corner: CGFloat = 12
     /// issue#22: 同 groupId 全行(AUTO 模式按行序算 hue; 不传 = 退化为单行 groupRows)
     var groupRows: [CourseEntity] = []
+    var dragSource = false
 
     var body: some View {
         let effRows = groupRows.isEmpty ? [course] : groupRows
@@ -570,7 +571,7 @@ private struct ConflictCourseCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyButtonStyle(dragSource: dragSource))
         .padding(4)
         .background(effectiveBg)
         .clipShape(ConflictCardShape(folded: folded, fold: foldSize, corner: corner))

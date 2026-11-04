@@ -68,22 +68,24 @@ struct TodayWidgetProvider: TimelineProvider {
 struct TodayWidgetEntryView: View {
     @Environment(\.widgetFamily) var widgetFamily
     @Environment(\.colorScheme) private var widgetColorScheme
+    @Environment(\.colorSchemeContrast) private var widgetContrast
     let entry: TodayWidgetEntry
 
     var body: some View {
         // iOS 26 主屏「透明/着色」样式探测 (← WidgetBackgroundCompat): glass 态配色
         // 整体换白 alpha 层级, 否则系统把不透明主题色整组染白 → 文字/图标不可辨
-        WidgetGlassModeContent { isGlass in
-            content(isGlass: isGlass)
+        WidgetGlassModeContent { mode in
+            content(renderingMode: mode)
         }
         .widgetURL(URL(string: "sleepy://open"))
     }
 
     @ViewBuilder
-    private func content(isGlass: Bool) -> some View {
+    private func content(renderingMode: SleepyWidgetRenderingMode) -> some View {
         let data = entry.data
         let isDark = effectiveWidgetIsDark(themeMode: data.themeMode, snapshotIsDark: data.isDark, envScheme: widgetColorScheme)
-        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, isGlass: isGlass)
+        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, renderingMode: renderingMode,
+                                    increasedContrast: widgetContrast == .increased)
         let prefs = AppPrefs.shared
         let colorless = prefs.isWidgetColorless()
         let displayMode = prefs.getDisplayMode()   // ★ 用户显示设置 (决策 D5-12)

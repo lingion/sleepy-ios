@@ -151,21 +151,23 @@ enum CourseColorWriteGlue {
     }
 
     /// 当前深浅档主题 primary 的 anchor 解析 — 与 SwiftUI 渲染路径同一派生函数。
-    ///   system → iOS 语义色 (Material You 动态取色在 iOS 不可达);
+    ///   system → 共享窗口 tint 快照，经统一 HSV/M3 角色解析器;
     ///   custom:<id> → CustomSchemeDeriver.derive(...) 同一函数;
     ///   其他 → ThemePresets.byKey 取深浅 primary。
-    static func resolveAnchor(mode: Int, prefs: AppPrefs = .shared) -> Float? {
+    static func resolveAnchor(mode: Int, prefs: AppPrefs = .shared,
+                              systemSnapshot: SystemColorSnapshot? = nil) -> Float? {
         guard mode != AppPrefs.COURSE_COLOR_MODE_CLASSIC,
-              let primaryColor = currentThemePrimaryColor(prefs: prefs) else { return nil }
-        let argb = colorToArgb(primaryColor)
+              let primaryColor = currentThemePrimaryColor(prefs: prefs, systemSnapshot: systemSnapshot) else { return nil }
+        let argb = prefs.getThemeKey() == ThemePresets.KEY_SYSTEM
+            ? SystemColorScheme.argb(primaryColor) : colorToArgb(primaryColor)
         let seedHue = prefs.getCourseColorSeedHue()
         return CourseColorUtil.resolveAnchor(mode: mode, themePrimaryArgb: argb, seedHue: seedHue)
     }
 
     /// 解析当前主题(primary)颜色。
-    /// 跟 原版本 themePrimaryArgb(Context) 对齐: system→系统语义色兜底品牌紫,
+    /// system 使用与 App/Widget 同源快照；缺失时显式默认种子回落。
     /// custom:<id>→CustomSchemeDeriver.derive 同一派生; 其他→ThemePresets 当前深浅 primary。
-    private static func currentThemePrimaryColor(prefs: AppPrefs) -> Color? {
+    private static func currentThemePrimaryColor(prefs: AppPrefs, systemSnapshot: SystemColorSnapshot?) -> Color? {
         let themeKey = prefs.getThemeKey()
         let isDark = prefs.isDarkMode()
         if themeKey.hasPrefix(ThemePresets.CUSTOM_KEY_PREFIX) {
@@ -173,9 +175,10 @@ enum CourseColorWriteGlue {
             let seed = CustomThemeStore.getById(id) ?? defaultSeedTheme()
             return CustomSchemeDeriver.derive(theme: seed, isDark: isDark).primary
         } else if themeKey == ThemePresets.KEY_SYSTEM {
-            // iOS 無 Material You 動態取色 → 回退預設套品牌紫 (0xFF6750A4)
-            let preset = ThemePresets.byKey(ThemePresets.KEY_DEFAULT)
-            return isDark ? preset.dark.primary : preset.light.primary
+            // 只在既有显式操作中读取；系统信号发布不触发课程 DB 重算。
+            let snapshot = systemSnapshot ?? SystemColorSeedStore.read()
+            return SystemColorScheme.resolve(snapshot: snapshot,
+                dark: prefs.isDarkMode(isSystemDark: snapshot.systemDark)).primary
         } else {
             let preset = ThemePresets.byKey(themeKey)
             return isDark ? preset.dark.primary : preset.light.primary

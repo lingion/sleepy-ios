@@ -387,13 +387,14 @@ final class AppRootViewModel: ObservableObject {
 struct AppRoot: View {
     @EnvironmentObject var root: AppRootViewModel
     @Environment(\.colorScheme) private var systemScheme
-    @Environment(\.localWakeUpColors) private var colors
     // ← themeMode/手动切主题联动
     @State private var themeMode: String = AppPrefs.shared.getThemeMode()
     @State private var themeKey: String = AppPrefs.shared.getThemeKey()
     // ← MainActivity.kt:171 CustomThemeStore.changes() 订阅: 同 id 就地改自定义主题时
     //   themeKey 不变, 只有这份文档串变化能让 SleepyThemeProvider 重跑并回读 getById。
     @State private var customThemesJson: String = ""
+    // 每个窗口独立采样；冷启不借用其他窗口的缓存冒充当前信号。
+    @State private var systemColorSnapshot: SystemColorSnapshot = .fallback(.noWindow)
     // ★ 底栏形态冷启兜底刷新: 自适应只在"未显式设置"路径生效, 而该判定依赖
     //   keyWindow.safeAreaInsets — 冷启极早窗口未就绪时 resolver 保守按悬浮。
     //   回前台(active)必然有窗口 → 重判一次纠偏(悬浮↔贴底切换仅非全面屏设备可见)。
@@ -432,6 +433,9 @@ struct AppRoot: View {
         .id(root.languageReload)
         .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                       customThemeVersion: customThemesJson))
+        .environment(\.systemColorSnapshot, systemColorSnapshot)
+        // 此 background 在主题 tint 外，probe 只读所属 window。
+        .background(SystemColorProbe(snapshot: $systemColorSnapshot).frame(width: 0, height: 0))
         .preferredColorScheme(schemeOverride)
         // ← MainActivity.kt:171: 自定义主题文档变更 = 独立失效信号(同 id 就地编辑时
         //   themeKey 不变), 订阅后回写 token → provider 重跑 → 重读 CustomThemeStore.getById
@@ -507,6 +511,7 @@ struct AppRoot: View {
             // Sheet 是独立 presentation tree；显式注入主题，避免自定义颜色环境回落到 lightScheme。
             .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                           customThemeVersion: customThemesJson))
+            .environment(\.systemColorSnapshot, systemColorSnapshot)
             .preferredColorScheme(schemeOverride)
             // ← issue#39: 教务流程进行中禁止下滑关闭(绕过退出确认 = 静默丢进度)
             .interactiveDismissDisabled(jwActiveImport)
@@ -642,8 +647,7 @@ struct AppRoot: View {
             HStack(spacing: 16) {
                 tabletPaneCard(content: tabletSchedulePane)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Rectangle()
-                    .fill(railGapColor)
+                ThemeRoleFill(role: \.background)
                     .frame(width: 12)
                 tabletPaneCard(content: tabletRightPane)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -703,8 +707,7 @@ struct AppRoot: View {
     /// Manage/Mine 复用手机版原样(与 原版本 右半直构 ManagementPage/MineScreen 同)。
     @ViewBuilder
     private var tabletRightPane: some View {
-        let tab = tabletRightTab
-        Group {
+        SleepyNavigationContent(selection: tabletRightTab) { tab in
             switch tab {
             case .today:
                 TodayScreen(viewModel: root.scheduleViewModel,
@@ -719,10 +722,6 @@ struct AppRoot: View {
                 screen(for: tab)
             }
         }
-        // .id 强制 tab 切换时重建视图身份 → 入场/离场各走 opacity 过渡(← fade 200ms)
-        .id(tab)
-        .transition(.opacity)
-        .animation(.easeInOut(duration: 0.2), value: tab)
     }
 
     /// 双栏面板卡(Box.clip(RoundedCornerShape(16.dp))
@@ -731,15 +730,10 @@ struct AppRoot: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(railCardColor)
+                ThemeRoleFill(role: \.surfaceContainerLow)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
-
-    // 主题色在计算属性内解析(AppRoot 已注入 @Environment colors)
-    private var railCardColor: Color { colors.surfaceContainerLow }
-    private var railGapColor: Color { colors.background }
 
     // ★ native 分支(ios26 起生效 — 部署目标 15.6 下此分支永不触达, iOS15/16
     //   设备由 resolver 判 floating/docked): 系统 TabView = 原生悬浮玻璃胶囊,
@@ -775,7 +769,7 @@ struct AppRoot: View {
                 .tabItem { Label(L10n.t("tab_mine"), systemImage: "person") }
                 .tag(AppRootViewModel.Tab.mine)
         }
-        .tint(colors.primary)
+        .modifier(ThemePrimaryTint())
         // ★ 视口直通屏底(2026-10-26 实机): 每屏子级 ignoresSafeArea 在 iOS26
         // TabView 内被系统重新钳回安全区 → 提到 TabView 层打穿, 内容容器
         // 铺到玻璃 dock 正下方(与 原版本 edge-to-edge 一致)。
@@ -871,7 +865,9 @@ struct AppRoot: View {
     // 当前 Tab 对应屏 — 工厂 screen(for:) 单源, 本壳仅供自绘 docked/floating 分支取当前页。
     @ViewBuilder
     private var tabContent: some View {
-        screen(for: root.currentTab)
+        SleepyNavigationContent(selection: root.currentTab) { tab in
+            screen(for: tab)
+        }
     }
 
     // 管理页(AppRoot 私有状态绑定最重的一屏) — docked/floating/native 共用。
@@ -1158,7 +1154,7 @@ private struct PresentOverlay: ViewModifier {
         // ★ 系统性手势适配: 所有 overlay 页共用一个自绘容器, 右滑转场 + 跟手侧滑返回。
         //   不再逐页挂 recognizer——以后新增 OverlayScreen case 自动获得同一套手势。
         ZStack {
-            content
+            content.modifier(SleepyNavigationUnderlay(covered: shownScreen != nil))
             if let screen = shownScreen {
                 overlayContent(screen)
                     .offset(x: dragX)

@@ -1175,3 +1175,5 @@
 "occurrence_continue" = "继续";
 "occurrence_stale" = "课表或调休设置已变化，请重新打开本次课程。";
 "occurrence_actions" = "调整或删除本次课程";
+"theme_system_source_window_tint" = "配色来源：当前界面强调色";
+"theme_system_source_fallback" = "配色来源：默认种子（暂未取得有效界面强调色）";

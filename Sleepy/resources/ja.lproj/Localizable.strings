@@ -1174,3 +1174,5 @@
 "occurrence_continue" = "続ける";
 "occurrence_stale" = "時間割または振替設定が変更されました。この授業を開き直してください。";
 "occurrence_actions" = "今回の授業を編集・削除";
+"theme_system_source_window_tint" = "配色元：現在の画面のアクセントカラー";
+"theme_system_source_fallback" = "配色元：既定のシードカラー（有効な画面のアクセントカラーを取得できません）";

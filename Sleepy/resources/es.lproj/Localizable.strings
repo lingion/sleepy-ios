@@ -1174,3 +1174,5 @@
 "occurrence_continue" = "Continuar";
 "occurrence_stale" = "El horario o los traslados han cambiado. Vuelve a abrir esta sesión.";
 "occurrence_actions" = "Editar o eliminar esta sesión";
+"theme_system_source_window_tint" = "Origen del color: acento de la interfaz actual";
+"theme_system_source_fallback" = "Origen del color: semilla predeterminada (sin un acento válido de la interfaz)";

@@ -1174,3 +1174,5 @@
 "occurrence_continue" = "繼續";
 "occurrence_stale" = "課表或調休設定已變更，請重新開啟本次課程。";
 "occurrence_actions" = "調整或刪除本次課程";
+"theme_system_source_window_tint" = "配色來源：目前介面強調色";
+"theme_system_source_fallback" = "配色來源：預設種子色（暫未取得有效介面強調色）";

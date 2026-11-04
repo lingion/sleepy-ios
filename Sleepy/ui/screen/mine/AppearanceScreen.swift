@@ -325,6 +325,7 @@ private struct ThemeGridCellView: View {
 // ← SystemThemeCard
 private struct SystemThemeCard: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.systemColorSnapshot) private var systemSnapshot
     let selected: Bool
     let onClick: () -> Void
 
@@ -341,9 +342,10 @@ private struct SystemThemeCard: View {
                     Text(L10n.format("theme_system"))
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(colors.onSurface)
-                    Text(L10n.format("theme_system_desc"))
+                    Text(systemSourceDescription)
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
+                        .accessibilityIdentifier("system_color_source")
                 }
                 Spacer()
                 if selected {
@@ -358,6 +360,17 @@ private struct SystemThemeCard: View {
         }
         .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("theme_system_card")
+    }
+
+    private var systemSourceDescription: String {
+        let value = systemSnapshot ?? .fallback(.noWindow)
+        let available = value.isValid && value.source == .windowTint
+        let key = available ? "theme_system_source_window_tint" : "theme_system_source_fallback"
+        let translated = L10n.t(key)
+        // 全局 strings 由主会话接入；未到货时也不能显示旧“壁纸取色”说明或原始 key。
+        if translated != key { return translated }
+        return available ? "配色来源：当前窗口强调色（非主屏幕或壁纸颜色）"
+            : "未取得有效窗口颜色，使用默认配色；深浅外观按外观设置跟随"
     }
 }
 
