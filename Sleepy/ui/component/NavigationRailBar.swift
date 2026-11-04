@@ -26,6 +26,7 @@
 import SwiftUI
 
 struct NavigationRailBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.localWakeUpColors) private var colors
     /// 3 个固定槽数据(today/manage/mine, 顺序即槽位顺序)。
     let rightTabs: [PillNavItemData]
@@ -43,12 +44,14 @@ struct NavigationRailBar: View {
                 if item.id == tabId(selectedTab) {
                     // ← 原版本 when(effectiveRightTab) 分支: 当前槽 = 跑道胶囊
                     CombinedRailItemView(item: item,
-                                         scheduleIcon: scheduleIcon,
-                                         colors: colors)
+                                          scheduleIcon: scheduleIcon,
+                                          colors: colors)
+                        .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).content)
                 } else {
                     // 另两槽 = 普通项(恒未选中态, ← 原版本 PlainRailItem
                     // selected=false; Mine 普通项时 badge 由 item.badge 携带)
                     RailItemView(item: item, colors: colors)
+                        .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).content)
                 }
             }
             Spacer(minLength: 0)
@@ -57,6 +60,7 @@ struct NavigationRailBar: View {
         .frame(width: Self.railWidth)
         .frame(maxHeight: .infinity)
         .background(colors.background)
+        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: selectedTab)
     }
 
     /// Tab → rail item id 映射(胶囊/普通项判定共用)。
@@ -77,6 +81,7 @@ struct NavigationRailBar: View {
 /// 选中整组强高亮(primaryContainer 底 + onPrimaryContainer 图标),
 /// 未选中透明底(语义: 胶囊只在当前槽出现, 恒 selected=true)。
 private struct CombinedRailItemView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let item: PillNavItemData
     let scheduleIcon: String
     let colors: WakeUpColorScheme
@@ -99,10 +104,11 @@ private struct CombinedRailItemView: View {
                 // full-rounded 胶囊(RoundedCornerShape(percent = 50))
                 RoundedRectangle(cornerRadius: 28)
                     .fill(item.selected ? colors.primaryContainer : Color.clear)
+                    .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: item.selected)
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyMotionButtonStyle())
         // 胶囊项标识: rail_schedule_<从tab>(与 pill_*/rail_* 同命名空间;
         // ← 原版本 tab_schedule_today 字符串已删, 组合语义由 id 前缀承载)
         .accessibilityIdentifier("rail_schedule_\(item.id)")
@@ -116,8 +122,9 @@ private struct CombinedRailItemView: View {
                 .font(.system(size: 22))
                 .foregroundColor(item.selected ? colors.onPrimaryContainer
                                                : colors.onSurfaceVariant)
+                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: item.selected)
                 .frame(width: 28, height: 28)
-            if dot {
+            SleepyPopup(visible: dot) {
                 // 7pt primary 红点(NavigationTabIcon showUpdateDot)
                 Circle()
                     .fill(colors.primary)
@@ -149,7 +156,7 @@ private struct RailItemView: View {
                             .font(.system(size: 20))
                             .foregroundColor(item.selected ? colors.onPrimaryContainer
                                                            : colors.onSurfaceVariant)
-                        if item.badge {
+                        SleepyPopup(visible: item.badge) {
                             Circle()
                                 .fill(colors.primary)
                                 .frame(width: 7, height: 7)
@@ -167,7 +174,7 @@ private struct RailItemView: View {
             .frame(height: 54)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SleepyMotionButtonStyle())
         // 与 pill_* 同命名空间: rail_<id>; UITests 宽屏分支按此定位
         .accessibilityIdentifier("rail_\(item.id)")
     }

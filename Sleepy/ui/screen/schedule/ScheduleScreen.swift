@@ -292,7 +292,7 @@ private struct TripleOriginXKey: PreferenceKey {
 }
 
 /// 2026-09-21 用户令: 撤回/取消撤回一体胶囊 ← UndoRedoCapsule — 体育场形状(左右半圆+中间矩形),
-/// 撤回左半·取消撤回右半, 中间一条淡淡竖线。两半同现同隐(调用方 hasUndo||hasRedo 才挂载),
+/// 撤回左半·取消撤回右半, 中间一条淡淡竖线。两半由 popup 宿主按 hasUndo||hasRedo 同现同隐,
 /// 各半按有无快照 enabled/禁用(alpha 0.38 占位保形)。scale=动态挤压系数(周三件套逼近时缩)。
 private struct UndoRedoCapsule: View {
     @Environment(\.localWakeUpColors) private var colors
@@ -617,22 +617,25 @@ private struct ScheduleTopBar: View {
             .frame(maxWidth: .infinity)
 
             // 最左操作区: logo + 撤回/取消撤回胶囊 + 行高 tick(各自有则现)
-            HStack(spacing: 6) {
+            HStack(spacing: 0) {
                 WeekNavButton(icon: "calendar", a11yLabel: L10n.format("schedule_switch_table"), onClick: onSwitchTable)
                     .accessibilityIdentifier("switch_table")
                 // 2026-09-21 用户令: 一起出现一起消失 — 无 undo 也无 redo 时整胶囊隐藏
-                if hasUndoSnapshot || hasRedoSnapshot {
+                // 宿主持续存在以保留退场；间距随内容收回，隐藏后不留空槽。
+                SleepyPopup(visible: hasUndoSnapshot || hasRedoSnapshot) {
                     UndoRedoCapsule(showUndo: hasUndoSnapshot,
                                     showRedo: hasRedoSnapshot,
                                     scale: capsuleScale,
                                     onUndo: onUndo,
                                     onRedo: onRedo)
+                        .padding(.leading, 6)
                 }
                 // 2026-09-16 用户令: tick 单列圆形按钮, 与数据撤回胶囊语义不同互不干涉;
                 // tick=落盘长期生效, 胶囊撤回=回到上次确认值
                 if scaleUncommitted {
                     WeekNavButton(icon: "checkmark", a11yLabel: L10n.format("schedule_scale_keep"), onClick: onScaleCommit)
                         .accessibilityIdentifier("scale_keep")
+                        .padding(.leading, 6)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

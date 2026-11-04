@@ -14,6 +14,7 @@ import Combine
 import SwiftUI
 
 struct PeriodTableEditScreen: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.localWakeUpColors) private var colors
     @ObservedObject var viewModel: ScheduleViewModel
     /// 目标时间表 id(管理页保证已存在; 找不到时显示 not-found 后返回)
@@ -121,7 +122,7 @@ struct PeriodTableEditScreen: View {
                     // 节次时间表(可折叠, 与 EditTableScreen 同款交互)
                     VStack(spacing: 0) {
                         Button {
-                            withAnimation { timeSlotsExpanded.toggle() }
+                            timeSlotsExpanded.toggle()
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 0) {
@@ -138,6 +139,7 @@ struct PeriodTableEditScreen: View {
                                     .font(.system(size: 24))
                                     .foregroundColor(colors.onSurfaceVariant)
                                     .rotationEffect(.degrees(timeSlotsExpanded ? 180 : 0))
+                                    .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: timeSlotsExpanded)
                             }
                             .padding(16)
                             .contentShape(Rectangle())
@@ -165,11 +167,13 @@ struct PeriodTableEditScreen: View {
                                 .padding(.leading, 16)
                                 .padding(.trailing, 16)
                                 .padding(.bottom, 16)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
+                                .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).expand)
                         }
                     }
                     .background(colors.surfaceContainer)
                     .cornerRadius(SleepyShapes.extraLarge)
+                    .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastSpatial, value: timeSlotsExpanded)
+                    .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: slotRows.count)
 
                     if let error = error {
                         Text(error)

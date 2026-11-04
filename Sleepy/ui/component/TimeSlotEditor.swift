@@ -246,6 +246,7 @@ private struct BindChoiceRow: View {
 // ← ManualTimeSlotEditor
 private struct ManualTimeSlotEditor: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Read the live rows when a sheet callback fires, not a captured array snapshot.
     @Binding var rows: [TimeTableUtils.TimeSlotRow]
     let onRowsChange: ([TimeTableUtils.TimeSlotRow]) -> Void
@@ -309,12 +310,15 @@ private struct ManualTimeSlotEditor: View {
                         onDelete: {
                             onRowsChange(TimeTableUtils.removeAndRenumber(rows, node: row.node))
                         })
+                        .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).expand)
                 }
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(colors.surfaceContainerLow)
             .cornerRadius(SleepyShapes.large)
+            // 只增删行触发空间变化；时间编辑不重建行身份或驱动整行位移。
+            .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: rows.count)
         }
     }
 }
@@ -322,11 +326,17 @@ private struct ManualTimeSlotEditor: View {
 // ← TimeSlotRowItem
 private struct TimeSlotRowItem: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let row: TimeTableUtils.TimeSlotRow
     let canDelete: Bool
     let onStartChange: (String) -> Void
     let onEndChange: (String) -> Void
     let onDelete: () -> Void
+
+    private var isBlank: Bool {
+        row.start.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || row.end.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -357,5 +367,11 @@ private struct TimeSlotRowItem: View {
                 Spacer().frame(width: 32)
             }
         }
+        .background(
+            RoundedRectangle(cornerRadius: SleepyShapes.medium)
+                .fill(isBlank ? colors.secondaryContainer : colors.surface)
+                // effects 仅作用于底色，避免时间字段/删除按钮继承空间动画。
+                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: isBlank)
+        )
     }
 }

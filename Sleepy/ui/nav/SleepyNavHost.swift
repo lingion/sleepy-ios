@@ -47,6 +47,42 @@
 
 import SwiftUI
 
+/// 自绘 tab / 平板右栏的内容宿主；原生 TabView 保留系统转场。
+/// id 仅随路由变化，重算 body 不重置页面。宿主不裁切弹簧略微超出的内容。
+struct SleepyNavigationContent<Key: Hashable, Page: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let selection: Key
+    @ViewBuilder var page: (Key) -> Page
+
+    var body: some View {
+        let motion = SleepyMotionPolicy(reduceMotion: reduceMotion)
+        ZStack {
+            page(selection)
+                .id(selection)
+                .transition(motion.content)
+        }
+        .animation(motion.defaultEffects, value: selection)
+    }
+}
+
+/// 覆盖层下面的目标页保持树身份；push 退场，pop 重新缩放淡入。
+/// 必须由 PresentOverlay 的 shownScreen 驱动，而不是先变化的外部 route。
+struct SleepyNavigationUnderlay: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let covered: Bool
+
+    func body(content: Content) -> some View {
+        let motion = SleepyMotionPolicy(reduceMotion: reduceMotion)
+        content
+            .scaleEffect(covered ? motion.contentScale : 1)
+            .animation(motion.defaultSpatial, value: covered)
+            .opacity(covered ? 0 : 1)
+            .animation(motion.defaultEffects, value: covered)
+            .allowsHitTesting(!covered)
+            .accessibilityHidden(covered)
+    }
+}
+
 extension AppRootViewModel {
     /// 路由 → iOS 导航态 单点入口 (原版本 SleepyNavigator.openXxx 的 VM 直驱版).
     /// 未落地路由在此集中留痕, 避免散落的 no-op.

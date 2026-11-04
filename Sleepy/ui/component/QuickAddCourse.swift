@@ -90,6 +90,7 @@ struct QuickAddCourseCells: View {
 }
 
 struct QuickAddCourseLayer: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var state: QuickAddCourseState
     let days: [Int]
     let rows: [QuickAddRow]
@@ -100,15 +101,22 @@ struct QuickAddCourseLayer: View {
     let onConfirm: (QuickAddRange) -> Void
 
     var body: some View {
-        if let selection = state.selection,
-           let day = days.firstIndex(of: selection.day),
-           let start = rows.first(where: { $0.node == selection.startNode }),
-           let end = rows.first(where: { $0.node == selection.endNode }) {
-            QuickAddCourseCapsule(state: state, selection: selection, rows: rows,
-                                  maxStandard: maxStandard, onConfirm: onConfirm)
-                .frame(width: columnWidth, height: max(0, end.bottom - start.top))
-                .offset(x: timeWidth + gap + CGFloat(day) * (columnWidth + gap), y: start.top)
+        ZStack(alignment: .topLeading) {
+            if let selection = state.selection,
+               let day = days.firstIndex(of: selection.day),
+               let start = rows.first(where: { $0.node == selection.startNode }),
+               let end = rows.first(where: { $0.node == selection.endNode }) {
+                QuickAddCourseCapsule(state: state, selection: selection, rows: rows,
+                                      maxStandard: maxStandard, onConfirm: onConfirm)
+                    .frame(width: columnWidth, height: max(0, end.bottom - start.top))
+                    .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).popup)
+                    .offset(x: timeWidth + gap + CGFloat(day) * (columnWidth + gap), y: start.top)
+            }
         }
+        // 仅可见性触发，拖动手柄改变范围时不补间网格几何。
+        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: state.selection != nil)
+        .allowsHitTesting(state.selection != nil)
+        .accessibilityHidden(state.selection == nil)
     }
 }
 
