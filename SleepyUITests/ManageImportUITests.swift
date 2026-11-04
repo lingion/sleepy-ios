@@ -310,7 +310,8 @@ final class ManageImportUITests: XCTestCase {
     // MARK: 新建空表流程(管理页 → New Schedule → EditTable → 保存)
 
     func testNewTableCreateFlow() {
-        app.descendants(matching: .any)["manage_new_table"].tap()
+        app.descendants(matching: .any)["manage_import"].tap()
+        forceTap(app.descendants(matching: .any)["manage_new_table"])
         // EditTableScreen(新表默认名)
         XCTAssertTrue(app.staticTexts["Edit Schedule"].waitForExistence(timeout: 5),
                       "新建表应进编辑页")
