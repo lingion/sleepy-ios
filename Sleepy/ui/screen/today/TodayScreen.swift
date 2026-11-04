@@ -21,7 +21,7 @@ struct TodayScreen: View {
 
     var body: some View {
         let state = viewModel.state
-        let today = Date()
+        let today = AppClock.now
         // issue#40 对齐: 节次时间域一律走水合后的当前表(← 原实现
         // `state.effectiveCurrentTable?.timeJson`)。绑定独立节次表 → 以所绑表 timeJson
         // 为准; 悬空/未绑定 → 回退旧兼容列。ScheduleState 尚无 effectiveCurrentTable

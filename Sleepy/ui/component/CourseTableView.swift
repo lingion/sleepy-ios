@@ -452,7 +452,7 @@ struct CardsGridView: View {
     var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7) — 节假日/周末灰显
     /// 全学期课程(跨周) — 晚间自动收起判据("整学期没有晚间课才收") ← allCourses
     var allCourses: [CourseEntity]? = nil
-    var todayDate: Date = Date()
+    var todayDate: Date = AppClock.now
     /// v7.10.5 会话级置顶 override — ScheduleScreen 持有, radio 与网格同真相源 ← topOverrides
     var topOverrides: [String: Int64] = [:]
     var onSetTopOverride: (String, Int64?) -> Void = { _, _ in }
@@ -1121,7 +1121,7 @@ struct FullWeekView: View {
     var displayMode: String = "node"
     var timeJson: String = ""
     var today: Int = DateUtils.todayDayOfWeek()
-    var todayDate: Date = Date()
+    var todayDate: Date = AppClock.now
     /// 周页上下文: isToday 按该页(week, day)真实日期判定, 非"星期号 = 今天星期号" —
     /// 浏览非当前周高亮错天(v7.10.x 原版本 同构: cards header/WeekStrip/DetailPanel/DayColumn 全链路线程化)
     var startDate: String = ""

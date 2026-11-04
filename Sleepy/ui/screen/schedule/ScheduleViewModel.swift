@@ -281,7 +281,7 @@ final class ScheduleViewModel: ObservableObject {
                 WeekDisplayResolver.resolve(
                     startDate: $0.startDate,
                     maxWeek: $0.maxWeek,
-                    now: Date(),
+                    now: AppClock.now,
                     courses: courses,
                     timeJson: $0.timeJson,
                     enabled: AppPrefs.shared.isNearestBusyDay(),
@@ -366,7 +366,7 @@ final class ScheduleViewModel: ObservableObject {
         }
         // 上周一(本周一往前 7 天 — iOS weekday 数学)
         let cal = DateUtils.isoCalendar
-        let now = Date()
+        let now = AppClock.now
         let todayDow = DateUtils.todayDayOfWeek(today: now)
         let lastWeekMonday = cal.date(byAdding: .day, value: -(todayDow - 1 + 7), to: now) ?? now
         let f = DateFormatter()
@@ -530,7 +530,7 @@ final class ScheduleViewModel: ObservableObject {
         let context = WeekDisplayResolver.resolve(
             startDate: table.startDate,
             maxWeek: table.maxWeek,
-            now: Date(),
+            now: AppClock.now,
             courses: state.courses,
             timeJson: table.timeJson,
             enabled: AppPrefs.shared.isNearestBusyDay(),

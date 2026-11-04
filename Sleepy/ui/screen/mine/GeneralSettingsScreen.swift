@@ -18,6 +18,9 @@ import UniformTypeIdentifiers
 @MainActor
 struct GeneralSettingsScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    #if DEBUG
+    @EnvironmentObject private var debugConsole: DebugConsole
+    #endif
     // ★ v7.10.18 原生化: onBack → onDismiss(由 fullScreenCover / sheet 关闭)
     //   holiday 子页由本屏内 NavigationView + NavigationLink 承载, 不再走 AppRoot enum
     let onDismiss: () -> Void
@@ -233,6 +236,10 @@ struct GeneralSettingsScreen: View {
 
                             // ── 分组⑤ 实验室 (2026-09-16 用户令: 实验性功能默认全关) ──
                             LabSection(refreshWidgets: refreshWidgets)
+
+                            #if DEBUG
+                            DebugConsoleSettingsSection(console: debugConsole)
+                            #endif
 
                             MajorDivider()
 

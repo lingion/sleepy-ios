@@ -29,8 +29,14 @@ struct SleepyApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG && !WIDGET_EXT && !WATCH_APP
             AppRoot()
                 .environmentObject(appDelegate.rootViewModel)
+                .environmentObject(appDelegate.debugConsole)
+            #else
+            AppRoot()
+                .environmentObject(appDelegate.rootViewModel)
+            #endif
         }
     }
 }
@@ -41,6 +47,16 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     let repository: ScheduleRepository
     let notificationScheduler: NotificationScheduler
     let rootViewModel: AppRootViewModel
+
+    #if DEBUG && !WIDGET_EXT && !WATCH_APP
+    @MainActor
+    lazy var debugConsole = DebugConsole(
+        repository: repository,
+        root: rootViewModel,
+        catalogConsumerWired: true,
+        nativeMockConsumerWired: true
+    )
+    #endif
 
     override init() {
         database = AppDatabase.getShared()
@@ -129,9 +145,18 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         WidgetCenter.shared.reloadAllTimelines()
         // 到货重查/00:05 载体/摘要刷新的 delegate 此前从未注册 = 死接线 (F128/F129 issue6)。
         UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
+        #if DEBUG && !WIDGET_EXT && !WATCH_APP
+        debugConsole.start()
+        #endif
         // 高刷新率:iOS 无公开刷率 API(原 HighRefreshRate 桩已删),ProMotion 上
         // 系统自动调度 120Hz,无需 app 侧动作(2026-09-10 原生化审计)。
         return true
+    }
+
+    func applicationWillTerminate(_ application: UIApplication) {
+        #if DEBUG && !WIDGET_EXT && !WATCH_APP
+        debugConsole.stop()
+        #endif
     }
 }
 
