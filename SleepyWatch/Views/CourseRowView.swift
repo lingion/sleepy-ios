@@ -23,7 +23,7 @@ struct CourseRowView: View {
         CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: groupRows.isEmpty ? [course] : groupRows,
             isDark: scheme.isDark, neutralColor: scheme.secondaryContainer,
-            persistedHue: hueStore.hueFor(course.groupId))
+            persistedHue: hueStore.hueMap[course.groupId])
     }
 
     /// 「教师 · 地点」← TodayCourseCard 同拼接: 空段跳过, 两段之间中点分隔

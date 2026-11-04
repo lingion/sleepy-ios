@@ -10,6 +10,18 @@
 
 import SwiftUI
 
+/// 外观编辑会话：当前值可提交，进页基线在同一视图身份内固定。
+struct HueEditingSession {
+    let baseline: Float
+    var current: Float
+
+    init(initialHue: Float) {
+        let value = initialHue.isFinite ? min(max(initialHue, 0), 360) : 0
+        baseline = value
+        current = value
+    }
+}
+
 struct HueSlider: View {
     let hue: Float
     let onHueChange: (Float) -> Void

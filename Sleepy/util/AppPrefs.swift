@@ -19,6 +19,9 @@ final class AppPrefs {
     static let KEY_BEFORE_CLASS_MINUTES = "before_class_minutes"       // int default 10
     static let KEY_BEFORE_CLASS_BANNER = "before_class_banner"         // bool default true
     static let KEY_BEFORE_CLASS_FLUID = "before_class_fluid"            // bool default false
+    static let KEY_BEFORE_CLASS_MODE = "before_class_mode"
+    static let BEFORE_CLASS_MODE_BANNER = "banner"
+    static let BEFORE_CLASS_MODE_FLUID = "fluid"
     static let KEY_BEFORE_CLASS_FLUID_FIELDS = "before_class_fluid_fields" // legacy multi-select
     // ← v1.0.60 新增: 次日预告 + 当日提醒 + 上课自动勿扰
     static let KEY_TOMORROW_REMINDER_ENABLED = "tomorrow_reminder"             // bool default false
@@ -94,6 +97,8 @@ final class AppPrefs {
     static let DEFAULT_GRID_SHOW_SEPARATORS = false
     static let KEY_GRID_LONG_BREAK_SPACING = "grid_long_break_spacing" // bool default false — 长课间额外留白
     static let DEFAULT_GRID_LONG_BREAK_SPACING = false
+    static let KEY_UNDO_DEPTH = "undo_depth" // 0 禁用, 负数无限, 正数保留最近 N 步
+    static let DEFAULT_UNDO_DEPTH = 5
     static let KEY_WATCH_ACK_SENT_AT = "watch_ack_sent_at" // Int64 epoch ms default 0 — 手表回执「已同步」时刻 (Coordinator 落, capture 读回镜像下发)
     static let KEY_SHOW_VIEW_SWITCHER = "show_view_switcher"     // bool default true — 首页周/网格视图切换栏显隐(GeneralSettingsScreen.LabPrefs 正式归属地)
     // ★ widget v1.0.60 对齐键 (← AppPrefs.kt)
@@ -233,24 +238,49 @@ final class AppPrefs {
 
     // MARK: - v1.0.61 系统日历导入 (对齐)
 
-    func isBeforeClassBannerEnabled() -> Bool {
-        sp().object(forKey: Self.KEY_BEFORE_CLASS_BANNER) as? Bool ?? true
+    /// 未写过模式时，从旧 fluid 键推导；读取不改写存量偏好。
+    func getBeforeClassMode() -> String {
+        if let mode = sp().string(forKey: Self.KEY_BEFORE_CLASS_MODE) { return mode }
+        return sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID)
+            ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER
     }
-    func setBeforeClassBannerEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_BANNER) }
 
-    func isBeforeClassFluidEnabled() -> Bool { sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID) }
-    func setBeforeClassFluidEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_FLUID) }
+    func setBeforeClassMode(_ mode: String) {
+        sp().set(mode, forKey: Self.KEY_BEFORE_CLASS_MODE)
+    }
+
+    func isBeforeClassBannerEnabled() -> Bool {
+        // iOS 只有横幅实现，保留独立投递闸，兼容旧版显式关闭及手表快照。
+        getBeforeClassMode() == Self.BEFORE_CLASS_MODE_BANNER
+            && (sp().object(forKey: Self.KEY_BEFORE_CLASS_BANNER) as? Bool ?? true)
+    }
+    func setBeforeClassBannerEnabled(_ v: Bool) {
+        sp().set(v, forKey: Self.KEY_BEFORE_CLASS_BANNER)
+        // false 仅关闭投递，不能将既有 fluid 模式覆盖为 banner。
+        if v { setBeforeClassMode(Self.BEFORE_CLASS_MODE_BANNER) }
+    }
+
+    // iOS 未实现流体卡片；保留旧键与读写语义，兼容迁移和手表快照。
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
+    func isBeforeClassFluidEnabled() -> Bool { getBeforeClassMode() == Self.BEFORE_CLASS_MODE_FLUID }
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
+    func setBeforeClassFluidEnabled(_ v: Bool) {
+        setBeforeClassMode(v ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER)
+    }
 
     /// legacy multi-select 读取(死写路径已删 — setBeforeClassFluidFields 全库零调用,读取仅通知组件用旧数据)
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
     func getBeforeClassFluidFields() -> Set<String> {
         let raw = sp().string(forKey: Self.KEY_BEFORE_CLASS_FLUID_FIELDS) ?? "name,time,room,teacher"
         return Set(raw.split(separator: ",").filter { !$0.isEmpty }.map(String.init))
     }
 
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
     func getBeforeClassFluidPrimary() -> String {
         sp().string(forKey: Self.KEY_BEFORE_CLASS_FLUID_PRIMARY) ?? "room"
     }
 
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
     func setBeforeClassFluidPrimary(_ value: String) {
         // ← 原版本 require(name|time|room|countdown) v1.0.61: countdown 是合法主字段
         precondition(value == "name" || value == "time" || value == "room" || value == "countdown")
@@ -737,10 +767,28 @@ final class AppPrefs {
         sp().set(value, forKey: Self.KEY_PERIOD_HEADER_HIDE_TIME)
     }
 
+    // ← Android AppPrefs.getPeriodHeaderTimeAlignment / setPeriodHeaderTimeAlignment (v1.0.63 #259)
+    static let KEY_PERIOD_HEADER_TIME_ALIGNMENT = "period_header_time_alignment" // "dash" / "center", default "dash"
+
+    func getPeriodHeaderTimeAlignment() -> String {
+        let v = sp().string(forKey: Self.KEY_PERIOD_HEADER_TIME_ALIGNMENT) ?? "dash"
+        return v == "center" ? "center" : "dash"
+    }
+    func setPeriodHeaderTimeAlignment(_ value: String) {
+        precondition(value == "dash" || value == "center")
+        sp().set(value, forKey: Self.KEY_PERIOD_HEADER_TIME_ALIGNMENT)
+    }
+
     // MARK: - 实验室开关组 getter(← AppPrefs.kt KEY_GRID_* / KEY_SHOW_VIEW_SWITCHER, v1.0.56)
     // GeneralSettingsScreen.LabPrefs / CourseTableView.GridLabPrefs 此前经 UserDefaults.standard
     // 同源直读(AppPrefs.shared 默认 suite 即 standard), 行为等价; 本组为正式归属地。
     // iOS 无 changeBus: 渲染层 body 内直读, 写入无需广播。
+
+    /// ← Android getUndoDepth/setUndoDepth。缺省 5; 保留 0 与负值, 不做正数钳制。
+    func getUndoDepth() -> Int {
+        sp().object(forKey: Self.KEY_UNDO_DEPTH) as? Int ?? Self.DEFAULT_UNDO_DEPTH
+    }
+    func setUndoDepth(_ value: Int) { sp().set(value, forKey: Self.KEY_UNDO_DEPTH) }
 
     /// 自动收起无课晚间节次 — default false ← isGridAutoHideEmptyEvening
     func isGridAutoHideEmptyEvening() -> Bool {

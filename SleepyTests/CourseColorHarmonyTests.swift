@@ -74,7 +74,7 @@ final class CourseColorHarmonyTests: XCTestCase {
         var anchor: Float = 0
         while anchor < 360 {
             for gid in groupIds {
-                let hue = CourseColorUtil.safeArcHue(anchor, gid)
+                let hue = CourseColorUtil.safeArcHue(anchor: anchor, groupId: gid)
                 assertInAllowedArc(hue, anchor, "safeArcHue gid=\(gid)")
             }
             anchor += 15
@@ -86,7 +86,7 @@ final class CourseColorHarmonyTests: XCTestCase {
         let anchor: Float = 264
         var taken: [Float] = []
         for gid in groupIds.prefix(30) {
-            let hue = CourseColorUtil.resolveHueWithSpacing(anchor, gid, taken)
+            let hue = CourseColorUtil.resolveHueWithSpacing(anchor: anchor, groupId: gid, taken: taken)
             assertInAllowedArc(hue, anchor, "resolve gid=\(gid)")
             taken.append(hue)
         }
@@ -96,16 +96,16 @@ final class CourseColorHarmonyTests: XCTestCase {
 
     func testSafeArcHueIsDeterministic() {
         for gid in groupIds.prefix(50) {
-            XCTAssertEqual(CourseColorUtil.safeArcHue(264, gid),
-                           CourseColorUtil.safeArcHue(264, gid), accuracy: 0)
+            XCTAssertEqual(CourseColorUtil.safeArcHue(anchor: 264, groupId: gid),
+                           CourseColorUtil.safeArcHue(anchor: 264, groupId: gid), accuracy: 0)
         }
     }
 
     func testResolveHueIsDeterministic() {
-        let taken = groupIds.prefix(5).map { CourseColorUtil.safeArcHue(120, $0) }
+        let taken = groupIds.prefix(5).map { CourseColorUtil.safeArcHue(anchor: 120, groupId: $0) }
         for _ in 0..<3 {
-            XCTAssertEqual(CourseColorUtil.resolveHueWithSpacing(120, groupIds[42], taken),
-                           CourseColorUtil.resolveHueWithSpacing(120, groupIds[42], taken),
+            XCTAssertEqual(CourseColorUtil.resolveHueWithSpacing(anchor: 120, groupId: groupIds[42], taken: taken),
+                           CourseColorUtil.resolveHueWithSpacing(anchor: 120, groupId: groupIds[42], taken: taken),
                            accuracy: 0)
         }
     }
@@ -113,7 +113,7 @@ final class CourseColorHarmonyTests: XCTestCase {
     func testSafeArcHueOutputRangeIsAlwaysNormalized() {
         for anchor: Float in [0, 90, 180, 270, 350] {
             for gid in groupIds {
-                let hue = CourseColorUtil.safeArcHue(anchor, gid)
+                let hue = CourseColorUtil.safeArcHue(anchor: anchor, groupId: gid)
                 XCTAssertTrue(hue >= 0 && hue < 360, "hue=\(hue) 越界")
             }
         }
@@ -125,7 +125,7 @@ final class CourseColorHarmonyTests: XCTestCase {
         let anchor: Float = 264
         var assigned: [Float] = []
         for gid in groupIds.prefix(13) {
-            assigned.append(CourseColorUtil.resolveHueWithSpacing(anchor, gid, assigned))
+            assigned.append(CourseColorUtil.resolveHueWithSpacing(anchor: anchor, groupId: gid, taken: assigned))
         }
         for i in assigned.indices {
             for j in (i + 1)..<assigned.count {
@@ -140,7 +140,7 @@ final class CourseColorHarmonyTests: XCTestCase {
         let anchor: Float = 45
         var assigned: [Float] = []
         for gid in groupIds.prefix(13) {
-            assigned.append(CourseColorUtil.resolveHueWithSpacing(anchor, gid, assigned))
+            assigned.append(CourseColorUtil.resolveHueWithSpacing(anchor: anchor, groupId: gid, taken: assigned))
         }
         for i in assigned.indices {
             for j in (i + 1)..<assigned.count {
@@ -155,7 +155,7 @@ final class CourseColorHarmonyTests: XCTestCase {
         let anchor: Float = 264
         var assigned: [Float] = []
         for gid in groupIds.prefix(13) {
-            assigned.append(CourseColorUtil.resolveHueWithSpacing(anchor, gid, assigned, minSep: 90))
+            assigned.append(CourseColorUtil.resolveHueWithSpacing(anchor: anchor, groupId: gid, taken: assigned, minSep: 90))
         }
         let anyViolating = assigned.indices.contains { i in
             ((i + 1)..<assigned.count).contains { j in ringDelta(assigned[i], assigned[j]) < 90 }
@@ -169,10 +169,10 @@ final class CourseColorHarmonyTests: XCTestCase {
         let anchor: Float = 264
         var first10: [Float] = []
         for gid in groupIds.prefix(10) {
-            first10.append(CourseColorUtil.resolveHueWithSpacing(anchor, gid, first10))
+            first10.append(CourseColorUtil.resolveHueWithSpacing(anchor: anchor, groupId: gid, taken: first10))
         }
         var with11 = first10
-        with11.append(CourseColorUtil.resolveHueWithSpacing(anchor, groupIds[10], with11))
+        with11.append(CourseColorUtil.resolveHueWithSpacing(anchor: anchor, groupId: groupIds[10], taken: with11))
         // 前 10 门课 hue 一位不变
         for i in 0..<10 {
             XCTAssertEqual(first10[i], with11[i], accuracy: 0)
@@ -185,7 +185,7 @@ final class CourseColorHarmonyTests: XCTestCase {
         let anchor: Float = 180
         var taken: [Float] = []
         for gid in groupIds.prefix(40) {
-            let hue = CourseColorUtil.resolveHueWithSpacing(anchor, gid, taken)
+            let hue = CourseColorUtil.resolveHueWithSpacing(anchor: anchor, groupId: gid, taken: taken)
             assertInAllowedArc(hue, anchor, "over-sat gid=\(gid)")
             taken.append(hue)
         }

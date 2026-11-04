@@ -19,6 +19,7 @@ struct PeriodHeaderSettingsScreen: View {
     @State private var showX: Bool = AppPrefs.shared.isPeriodHeaderShowX()
     // v1.0.62 B4: 旧式表头「隐藏时间行」(← AppPrefs.isPeriodHeaderHideTime)
     @State private var hideTime: Bool = AppPrefs.shared.isPeriodHeaderHideTime()
+    @State private var timeAlignment: String = AppPrefs.shared.getPeriodHeaderTimeAlignment()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,6 +34,7 @@ struct PeriodHeaderSettingsScreen: View {
                         hangingUnits: hangingUnits,
                         showX: showX,
                         hideTime: hideTime,
+                        centerTime: timeAlignment == "center",
                         onStyleSelected: { value in
                             style = value
                             prefs.setPeriodHeaderStyle(value)
@@ -73,6 +75,22 @@ struct PeriodHeaderSettingsScreen: View {
                             }))
                         // v1.0.62 B4: 隐藏时间行仅适用旧式两行表头; 三行式以时间为主体, 不适用。
                         if layout == "legacy" {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(L10n.t("appearance_header_time_alignment"))
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(colors.onSurfaceVariant)
+                                SegmentedSwitcher(
+                                    options: [
+                                        ("dash", L10n.t("appearance_header_alignment_dash")),
+                                        ("center", L10n.t("appearance_header_alignment_center"))
+                                    ],
+                                    selected: timeAlignment,
+                                    onSelect: { value in
+                                        timeAlignment = value
+                                        prefs.setPeriodHeaderTimeAlignment(value)
+                                    },
+                                    containerColor: colors.surfaceContainerHighest)
+                            }
                             VStack(alignment: .leading, spacing: 2) {
                                 Toggle(L10n.t("appearance_header_hide_time"), isOn: Binding(
                                     get: { hideTime },
@@ -126,6 +144,7 @@ private struct HeaderStylePreviews: View {
     let showX: Bool
     // v1.0.62 B4: 旧式表头「隐藏时间行」实时值(预览卡与列宽同步反映)
     let hideTime: Bool
+    let centerTime: Bool
     let onStyleSelected: (String) -> Void
 
     /// 预览槽位(previewSlot: label "12", 08:00-08:45, nodeStart=nodeEnd=12)
@@ -151,7 +170,7 @@ private struct HeaderStylePreviews: View {
                 ? threeLineWidthDp(slots: slots, headerStyle: value, scale: 1,
                                    hangingUnits: CGFloat(hangingUnits), showX: showX)
                 : legacyTimeWidthDp(slots: slots, headerStyle: value, scale: 1,
-                                    showX: showX, hideTime: hideTime)
+                                    showX: showX, hideTime: hideTime, centerTime: centerTime)
         }
     }
 
@@ -214,6 +233,7 @@ private struct HeaderStylePreviews: View {
                     hangingUnitsOverride: CGFloat(hangingUnits),
                     showXOverride: showX,
                     hideTimeOverride: hideTime,
+                    centerTimeOverride: centerTime,
                     sharedFont: sharedFont)
                 .padding(periodHeaderCardPadDp)
                 .frame(width: contentWidth, height: 52)

@@ -12,14 +12,18 @@ struct CourseColorDao {
     // INSERT OR REPLACE — 同批/重算落库, (tableKey, groupId) 覆盖。
     @discardableResult
     func upsertAll(_ rows: [CourseColorEntity]) throws -> [Int64] {
-        try db.write { db in
-            var ids: [Int64] = []
-            for var row in rows {
-                try row.insert(db, onConflict: .replace)
-                ids.append(row.rowid ?? 0)
-            }
-            return ids
+        try db.write { try upsertAllInDb($0, rows) }
+    }
+
+    /// 复用调用方事务，禁止重入 DatabaseWriter。
+    @discardableResult
+    func upsertAllInDb(_ dbw: Database, _ rows: [CourseColorEntity]) throws -> [Int64] {
+        var ids: [Int64] = []
+        for var row in rows {
+            try row.insert(dbw, onConflict: .replace)
+            ids.append(row.rowid ?? 0)
         }
+        return ids
     }
 
     /// 单课补色（导入新课/单课新增）— 幂等 REPLACE。
@@ -35,19 +39,21 @@ struct CourseColorDao {
     /// 渲染取色: groupId → hue 全量映射（课表页一次加载）。
     /// CLASSIC 档不走本函数 — CourseHueStore.refresh 在 CLASSIC 时直接返回空 map。
     func getHueMap(_ tableKey: String) throws -> [String: Float] {
-        try db.read { db in
-            var result: [String: Float] = [:]
-            let rows = try Row.fetchAll(db,
-                sql: "SELECT groupId, hue FROM course_colors WHERE tableKey = ?",
-                arguments: [tableKey]
-            )
-            for row in rows {
-                let gid: String = row["groupId"]
-                let hue: Float = row["hue"]
-                result[gid] = hue
-            }
-            return result
+        try db.read { try getHueMapInDb($0, tableKey) }
+    }
+
+    func getHueMapInDb(_ dbw: Database, _ tableKey: String) throws -> [String: Float] {
+        var result: [String: Float] = [:]
+        let rows = try Row.fetchAll(dbw,
+            sql: "SELECT groupId, hue FROM course_colors WHERE tableKey = ?",
+            arguments: [tableKey]
+        )
+        for row in rows {
+            let gid: String = row["groupId"]
+            let hue: Float = row["hue"]
+            result[gid] = hue
         }
+        return result
     }
 
     /// 渲染兜底查单值: 查无返回 nil → 调用方按 safeArcHue 实时算。
