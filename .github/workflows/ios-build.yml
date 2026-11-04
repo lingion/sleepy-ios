@@ -30,7 +30,7 @@ on:
           - "yes"
 
 concurrency:
-  group: ios-build-${{ github.ref }}
+  group: ios-build-${{ inputs.ref || github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -77,6 +77,7 @@ jobs:
           git config --global url.https://github.com/.insteadOf https://gh.qdp.qzz.io/
           xcodebuild -version | tee build/ci/xcode.log
           xcodegen generate --spec project.yml
+          cp Sleepy.xcodeproj/project.pbxproj build/ci/project.pbxproj
           xcrun simctl list devices available -j > build/ci/devices.json
           python3 - <<'PY'
           import json, os
