@@ -25,6 +25,10 @@ struct CourseDetailSheet: View {
     /// ownTime 课落库的 startNode/step 是表单占位值, 节点域聚簇会把时间零交集的
     /// 两门 ownTime 课(节点区间恰好相同)误判成冲突簇。nil = 旧行为(节点域)。
     var timeJson: String? = nil
+    var displayDate: Date? = nil
+    var occurrenceTable: TimeTableEntity? = nil
+    var occurrenceRepository: ScheduleRepository? = nil
+    var onOccurrenceSaved: () -> Void = {}
 
     @ObservedObject private var defaultTopStore = ConflictDefaultTopStore.shared
 
@@ -82,6 +86,9 @@ struct CourseDetailSheet: View {
                         if isNotBlank(course.note) {
                             DetailRow(key: L10n.format("course_field_note"), value: course.note)
                         }
+                        if let displayDate {
+                            DetailRow(key: "本次日期", value: HolidayTransferOps.dayKey(displayDate))
+                        }
 
                         if let cluster = clusterInfo {
                             DefaultTopPickerSection(cluster: cluster,
@@ -102,6 +109,10 @@ struct CourseDetailSheet: View {
                             }
                             .buttonStyle(SleepyButtonStyle())
                             .accessibilityIdentifier("detail_edit")
+                        }
+                        if let displayDate, let table = occurrenceTable, let repository = occurrenceRepository {
+                            CourseOccurrenceActions(courseId: course.id, displayDate: displayDate, table: table,
+                                                    repository: repository, onSaved: onOccurrenceSaved)
                         }
                     }
                     .padding(.horizontal, 20)

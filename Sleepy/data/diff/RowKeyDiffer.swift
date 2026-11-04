@@ -17,11 +17,12 @@ struct RowKey: Hashable {
     let type: Int
     let room: String
     let teacher: String
+    var fixedDate: String? = nil
 
     static func of(_ c: CourseEntity) -> RowKey {
         RowKey(day: c.day, startNode: c.startNode, step: c.step,
                startWeek: c.startWeek, endWeek: c.endWeek, type: c.type,
-               room: c.room, teacher: c.teacher)
+                room: c.room, teacher: c.teacher, fixedDate: c.fixedDate)
     }
 }
 

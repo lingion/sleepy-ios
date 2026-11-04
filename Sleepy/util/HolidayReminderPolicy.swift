@@ -74,14 +74,8 @@ enum HolidayTransferOps {
         _ date: Date, startDate: String, maxWeek: Int,
         courses: [CourseEntity], transfers: [HolidayTransferEntry]
     ) -> [CourseEntity] {
-        guard let source = courseDateForDate(date, transfers) else { return [] }
-        if DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek, today: source) != .inRange {
-            return []
-        }
-        let week = DateUtils.currentWeek(startDate: startDate, today: source)
-        return courses
-            .filter { $0.day == dayOfWeek(source) && $0.inWeek(week) }
-            .sorted { $0.startNode < $1.startNode }
+        CourseOccurrences.coursesForDate(date, startDate: startDate, maxWeek: maxWeek,
+                                         courses: courses, transfers: transfers)
     }
 
     /**

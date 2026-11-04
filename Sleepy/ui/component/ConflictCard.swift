@@ -208,7 +208,7 @@ struct ConflictClusterCard: View {
         let rowGeomOf: [Int64: (start: Double, rows: Double)] =
             Dictionary(uniqueKeysWithValues: drawList.map { laidItem in
                 let c = laidItem.course
-                if c.ownTime && !c.startTime.isEmpty && !c.endTime.isEmpty,
+                if (c.isIrregularTime || c.ownTime) && !c.startTime.isEmpty && !c.endTime.isEmpty,
                    let f = TimeTableUtils.timeToFractionalRows(c.startTime, c.endTime, slots: timeSlots) {
                     return (c.id, (f.0, f.1 - f.0))
                 }
@@ -293,6 +293,7 @@ struct ConflictClusterCard: View {
                         foldSize: foldSize, corner: cardCorner,
                         groupRows: groupRowsForCard)
                         .frame(width: CGFloat(r.width), height: CGFloat(r.height))
+                        .modifier(CourseDragSource(course: course))
                         .offset(x: CGFloat(r.x), y: CGFloat(r.y)))
                 }
                 // 沉底卡: 点击 = N≥3 轮换推进;否则该课所在层整层上移
@@ -663,4 +664,3 @@ private struct ConflictCoursePickerSheet: View {
         .modifier(SleepyThemeProvider(darkTheme: false, themeKey: ""))
     }
 }
-

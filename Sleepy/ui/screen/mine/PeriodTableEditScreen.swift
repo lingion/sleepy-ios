@@ -435,7 +435,7 @@ struct PeriodTableEditScreen: View {
             Text(L10n.t("period_table_delete_confirm"))
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(colors.onSurface)
-            Text(L10n.format("period_table_delete_msg_body", periodTable.name))
+            Text(L10n.format("period_table_delete_freeze", periodTable.name))
                 .font(.system(size: 14))
                 .foregroundColor(colors.onSurfaceVariant)
             Spacer().frame(height: 12)
@@ -447,9 +447,7 @@ struct PeriodTableEditScreen: View {
                     if ok {
                         onBack()
                     } else {
-                        let bound = viewModel.state.tables
-                            .filter { $0.periodTableId == periodTable.id }.count
-                        deleteBlockedMsg = L10n.format("period_table_delete_blocked", bound)
+                        deleteBlockedMsg = L10n.format("period_table_delete_failed")
                     }
                 },
                 dismissText: L10n.t("cancel"),

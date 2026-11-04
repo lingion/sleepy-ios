@@ -157,6 +157,7 @@ targets:
       #   extension 里禁用; 仅 SleepyApp/AppPrefs 消费, widget 无引用)
       - path: Sleepy
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
+                   "debug", "data/share",
                    "widget/notification/BatterySettingsLauncher.swift",
                    "util/NavStyleResolver.swift",
                    # 主 app 的隐私清单只归 Sleepy target; widget 用自己的
@@ -166,6 +167,7 @@ targets:
                    "PrivacyInfo.xcprivacy"]
       - path: Sleepy/resources
         buildPhase: resources
+        excludes: ["third_party"]
     dependencies:
       - package: GRDB
       - package: SwiftSoup
@@ -208,6 +210,7 @@ targets:
       #   教务导入)、data/migration (仅 ui/ 引用, 手表镜像库不做迁移包)。
       - path: Sleepy
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
+                   "debug", "data/share",
                    "Assets.xcassets", "LaunchScreen.storyboard",
                    "data/calendar", "data/jw", "data/migration",
                    "data/repository/ImportDraftRepository.swift",
@@ -228,6 +231,7 @@ targets:
                    "util/NavStyleResolver.swift"]
       - path: Sleepy/resources
         buildPhase: resources
+        excludes: ["third_party"]
     dependencies:
       - package: GRDB
       # 嵌入表盘复杂功能 + Control Center extension (PR#16 阶段四)
@@ -278,6 +282,7 @@ targets:
       - path: SleepyWatchWidgets
       - path: Sleepy
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
+                   "debug", "data/share",
                    "Assets.xcassets", "LaunchScreen.storyboard",
                    "data/calendar", "data/jw", "data/migration",
                    "data/repository/ImportDraftRepository.swift",
@@ -295,6 +300,7 @@ targets:
                    "util/NavStyleResolver.swift"]
       - path: Sleepy/resources
         buildPhase: resources
+        excludes: ["third_party"]
     dependencies:
       - package: GRDB
     info:

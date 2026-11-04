@@ -20,6 +20,9 @@ struct ScheduleScreen: View {
     var onManualAdd: () -> Void = {}
     var onCreateTable: () -> Void = {}
     var onEditCourse: (CourseEntity) -> Void = { _ in }
+    /// 与原版本 onAddAt 同序：tableId、展示周、星期、起始节、连续节数。
+    var onAddAt: ((Int64, Int, Int, Int, Int) -> Void)? = nil
+    @StateObject private var quickAdd = QuickAddCourseState()
 
     // 2026-09-21 用户令: 撤回/取消撤回按钮显隐实时订阅 ← 原版本 TopBar 内直读
     // UndoManager.hasSnapshot/hasRedoSnapshot(Compose mutableStateOf → ObservableObject,
@@ -27,6 +30,8 @@ struct ScheduleScreen: View {
     @ObservedObject private var undoManager = UndoManager.shared
 
     @State private var selectedCourse: CourseEntity? = nil
+    @State private var selectedCourseDate: Date? = nil
+    @State private var selectedCourseWeek = 1
     // v7.10.16 / 2026-09-21: 无可撤回/无可重做时 toast(按钮不隐藏保持布局稳定)。
     // 文案 + 单调 token: 连点同款文案也能重启消失计时(Toast 每次重发)
     @State private var toastMessage: String? = nil
@@ -142,13 +147,32 @@ struct ScheduleScreen: View {
                           onRotationStep: setRotationStep(key:step:),
                           rowHeightScale: rowHeightScale,
                           onRowHeightScaleChange: { rowHeightScale = $0 },
-                          pinchZoomEnabled: AppPrefs.shared.isGridPinchZoom()) {
-                    selectedCourse = $0
+                          pinchZoomEnabled: AppPrefs.shared.isGridPinchZoom(),
+                          dragEnabled: !showWeekJumpMenu && !showTableSwitcher && !showShareSheet && selectedCourse == nil,
+                          quickAdd: quickAdd, quickAddEnabled: onAddAt != nil,
+                          onQuickAdd: { week, day, node, step in
+                              guard let table = state.currentTable else { return }
+                              onAddAt?(table.id, week, day, node, step)
+                           }) { course, page in
+                    selectedCourseWeek = page
+                    selectedCourseDate = state.currentTable.flatMap {
+                        CourseOccurrences.date(startDate: $0.startDate, week: page, day: course.day)
+                    }
+                    selectedCourse = course
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .overlay(QuickAddOutsidePressShield(state: quickAdd).accessibilityHidden(true))
+        .onChange(of: state.selectedWeek) { _ in quickAdd.dismiss() }
+        .onChange(of: state.currentTable?.startDate) { _ in quickAdd.dismiss() }
+        .onChange(of: selectedCourse?.id) { if $0 != nil { quickAdd.dismiss() } }
+        .onChange(of: viewMode) { _ in quickAdd.dismiss() }
+        .onChange(of: showWeekJumpMenu) { if $0 { quickAdd.dismiss() } }
+        .onChange(of: showTableSwitcher) { if $0 { quickAdd.dismiss() } }
+        .onChange(of: showShareSheet) { if $0 { quickAdd.dismiss() } }
+        .onDisappear { quickAdd.dismiss() }
         // v7.10.14 课表切换弹窗(← TableSwitcherDialog)
         .sheet(isPresented: $showTableSwitcher) {
             TableSwitcherSheet(
@@ -162,7 +186,7 @@ struct ScheduleScreen: View {
         }
         // v7.10.7 顶栏分享 → 格式选择弹层(JSON / 分享文本 / ICS)
         .sheet(isPresented: $showShareSheet) {
-            if let table = state.currentTable {
+            if let table = state.effectiveCurrentTable {
                 ShareScheduleSheet(table: table, courses: state.courses,
                                    onDismiss: { showShareSheet = false })
             }
@@ -191,6 +215,7 @@ struct ScheduleScreen: View {
         // ← 原版本 remember(state.selectedTableId) { AppPrefs.getGridRowScale }:
         // 切表回到持久确认值(会话未落盘捏合不跨表携带)
         .onChange(of: state.selectedTableId) { _ in
+            quickAdd.dismiss()
             let persisted = CGFloat(AppPrefs.shared.getGridRowScale())
             savedRowScale = persisted
             rowHeightScale = persisted
@@ -216,8 +241,8 @@ struct ScheduleScreen: View {
             // 调休周里补班日列的课(投影 day)与放假日空列都按同一渲染域参与聚簇, 幽灵/漏簇同修。
             let detailAllCourses: [CourseEntity] = state.currentTable.map { table in
                 (1...7).flatMap { day -> [CourseEntity] in
-                    guard let date = DateUtils.dateOfWeek(startDate: table.startDate,
-                                                          week: state.selectedWeek, dayOfWeek: day) else { return [] }
+                    guard let date = CourseOccurrences.date(startDate: table.startDate,
+                                                            week: selectedCourseWeek, day: day) else { return [] }
                     return HolidayTransferOps.coursesForDate(
                         date, startDate: table.startDate, maxWeek: table.maxWeek,
                         courses: state.courses, transfers: state.transfers
@@ -241,7 +266,14 @@ struct ScheduleScreen: View {
                     onEditCourse(state.courses.first { $0.id == c.id } ?? c)
                 },
                 // issue#40: 详情页时间域与网格同源 = 水合表 effectiveCurrentTable
-                timeJson: state.effectiveCurrentTable?.timeJson)
+                timeJson: state.effectiveCurrentTable?.timeJson,
+                displayDate: selectedCourseDate,
+                occurrenceTable: state.effectiveCurrentTable,
+                occurrenceRepository: viewModel.occurrenceRepository,
+                onOccurrenceSaved: {
+                    selectedCourse = nil
+                    viewModel.occurrenceSaved()
+                })
         }
     }
 
@@ -331,7 +363,7 @@ func renderCoursesForWeek(_ table: TimeTableEntity,
                           transfers: [HolidayTransferEntry],
                           timeJson: String?) -> [CourseEntity] {
     return (1...7).flatMap { day -> [CourseEntity] in
-        guard let date = DateUtils.dateOfWeek(startDate: table.startDate, week: week, dayOfWeek: day) else {
+        guard let date = CourseOccurrences.date(startDate: table.startDate, week: week, day: day) else {
             return []
         }
         return HolidayTransferOps.coursesForDate(
@@ -348,7 +380,11 @@ func renderCoursesForWeek(_ table: TimeTableEntity,
     }
 }
 
-private struct WeekPager: View {    @ObservedObject var viewModel: ScheduleViewModel
+private struct WeekPager: View {
+    @ObservedObject var viewModel: ScheduleViewModel
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var drag = CourseDragContext()
+    @State private var dragError = false
     let viewMode: ViewMode
     let pagerMaxWeek: Int
     let displayMode: String
@@ -363,7 +399,11 @@ private struct WeekPager: View {    @ObservedObject var viewModel: ScheduleViewM
     let rowHeightScale: CGFloat
     let onRowHeightScaleChange: (CGFloat) -> Void
     let pinchZoomEnabled: Bool
-    let onCourseClick: (CourseEntity) -> Void
+    let dragEnabled: Bool
+    @ObservedObject var quickAdd: QuickAddCourseState
+    let quickAddEnabled: Bool
+    let onQuickAdd: (Int, Int, Int, Int) -> Void
+    let onCourseClick: (CourseEntity, Int) -> Void
 
     // 每个 pager 页独立缓存灰显星期 ← 原版本 produceState(greyDays, page, startDate)
     @State private var greyDaysByWeek: [Int: Set<Int>] = [:]
@@ -371,9 +411,27 @@ private struct WeekPager: View {    @ObservedObject var viewModel: ScheduleViewM
     @State private var greyCacheSignature = ""
 
     var body: some View {
+        dragPager
+            .onChange(of: viewModel.state.selectedTableId) { _ in drag.end() }
+            .onChange(of: viewMode) { _ in drag.end() }
+            .onChange(of: dragEnabled) { if !$0 { drag.end(); quickAdd.dismiss() } }
+            .onChange(of: quickAddEnabled) { if !$0 { quickAdd.dismiss() } }
+            .onChange(of: scenePhase) { phase in
+                if phase != .active { drag.end(); quickAdd.dismiss() }
+            }
+            .onDisappear { drag.end() }
+            .alert(L10n.t("schedule_drag_failed"), isPresented: $dragError) {
+                Button(L10n.t("ok"), role: .cancel) {}
+            }
+            .task(id: "\(viewModel.state.currentTable?.startDate ?? "")-\(viewModel.state.selectedWeek)-\(pagerMaxWeek)") {
+                await refreshGreyDays()
+            }
+    }
+
+    private var pages: some View {
         let state = viewModel.state
         // VM 变化(TopBar 点击) → 同步 pager(直写 selection); 手势滑动 → changeWeek 回写 VM
-        TabView(selection: Binding(
+        return TabView(selection: Binding(
             get: { min(max(state.selectedWeek, 1), pagerMaxWeek) },
             set: { newWeek in viewModel.changeWeek(newWeek) }   // 手势滑动 → VM
         )) {
@@ -403,7 +461,7 @@ private struct WeekPager: View {    @ObservedObject var viewModel: ScheduleViewM
                                      timeJson: state.effectiveCurrentTable?.timeJson ?? "",
                                      startDate: state.currentTable?.startDate ?? "",
                                      currentWeek: page,
-                                     onCourseClick: onCourseClick,
+                                       onCourseClick: { onCourseClick($0, page) },
                                      greyDays: greyDaysByWeek[page] ?? [],
                                      // v1.0.62 B5b: 周视图日期「·M月d日」← 原版本 FullWeekView(showDate = showDate)
                                      showDate: showDate)
@@ -416,7 +474,7 @@ private struct WeekPager: View {    @ObservedObject var viewModel: ScheduleViewM
                                       showDate: showDate,
                                       startDate: state.currentTable?.startDate ?? "",
                                       currentWeek: page,
-                                      onCourseClick: onCourseClick,
+                                      onCourseClick: { onCourseClick($0, page) },
                                       greyDays: greyDaysByWeek[page] ?? [],
                                       // ← 原 allCourses = state.courses(晚间自动收起按全学期判)
                                       allCourses: state.courses,
@@ -428,42 +486,74 @@ private struct WeekPager: View {    @ObservedObject var viewModel: ScheduleViewM
                                       // 双指行高缩放(2026-09-16)+ 实验室开关(v1.0.56 T3)
                                       rowHeightScale: rowHeightScale,
                                       onRowHeightScaleChange: onRowHeightScaleChange,
-                                      pinchZoomEnabled: pinchZoomEnabled)
+                                      pinchZoomEnabled: pinchZoomEnabled,
+                                      dragMaxWeek: state.currentTable?.maxWeek ?? 0,
+                                      dragTransfers: state.transfers,
+                                      quickAddState: quickAdd,
+                                      quickAddEnabled: quickAddEnabled && dragEnabled && page == state.selectedWeek,
+                                      onQuickAdd: { day, node, step in onQuickAdd(page, day, node, step) })
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .environment(\.courseDragContext, viewMode == .cards ? drag : nil)
+                .environment(\.courseDragWeek, page)
                 .tag(page)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tabViewStyle(.page(indexDisplayMode: .never))
-        // 每页独立计算灰显星期(节假日/周末) ← 原版本 produceState(greyDays, page, startDate, transfers)
-        .task(id: "\(state.currentTable?.startDate ?? "")-\(state.selectedWeek)-\(pagerMaxWeek)") {
-            let start = state.currentTable?.startDate ?? ""
-            // issue#44: 灰显要查当前表调休映射(命中映射的放假日那天要上课, 永不灰) ← ScheduleScreen.kt:326
-            // issue F106-7: 表 ID 取水合表(effectiveCurrentTable?.id) ← 原版本 同口径
-            let tableId = state.effectiveCurrentTable?.id
-            guard !start.isEmpty else {
-                greyDaysByWeek = [:]
-                return
-            }
-            // ← produceState 键含 state.transfers: 映射变(设置页改完 refreshTransfer)缓存整体作废重算
-            let signature = state.transfers.map { DateUtils.fullDate($0.sourceDate) + ">" + DateUtils.fullDate($0.targetDate) }
-                .joined(separator: ",")
-            if signature != greyCacheSignature {
-                greyDaysByWeek = [:]
-                greyCacheSignature = signature
-            }
-            for week in 1...pagerMaxWeek where greyDaysByWeek[week] == nil {
-                var grey: Set<Int> = []
-                for day in 1...7 {
-                    if let date = DateUtils.dateOfWeek(startDate: start, week: week, dayOfWeek: day),
-                       await HolidayManager.shouldGrey(date, tableId: tableId) {
-                        grey.insert(day)
-                    }
+    }
+
+    private var dragPager: some View {
+        let state = viewModel.state
+        return pages
+        .onPreferenceChange(CourseDropGridKey.self) { drag.grids = $0 }
+        .background(NativeCourseDropTarget(drag: drag, week: state.selectedWeek, maxWeek: pagerMaxWeek,
+            table: state.effectiveCurrentTable, allCourses: state.courses, transfers: state.transfers,
+            enabled: dragEnabled && viewMode == .cards && !dragError && quickAdd.selection == nil,
+            onChangeWeek: { week in
+                // 拖动驻边直接换周，避免横移动画把落点网格带出手指位置。
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { viewModel.changeWeek(week) }
+            },
+            onMove: { source, week, day, node, startTime in
+                let success = viewModel.moveDraggedOccurrence(source: source, targetWeek: week,
+                    displayDay: day, targetNode: node, targetStartTime: startTime)
+                if !success { dragError = true }
+                return success
+            }))
+        .overlay(CourseDragProjection(drag: drag))
+        .accessibilityIdentifier("schedule_week_pager")
+    }
+
+    // 每页独立计算灰显星期(节假日/周末)。
+    private func refreshGreyDays() async {
+        let state = viewModel.state
+        let start = state.currentTable?.startDate ?? ""
+        // issue#44: 灰显要查当前表调休映射(命中映射的放假日那天要上课, 永不灰) ← ScheduleScreen.kt:326
+        // issue F106-7: 表 ID 取水合表(effectiveCurrentTable?.id) ← 原版本 同口径
+        let tableId = state.effectiveCurrentTable?.id
+        guard !start.isEmpty else {
+            greyDaysByWeek = [:]
+            return
+        }
+        // ← produceState 键含 state.transfers: 映射变(设置页改完 refreshTransfer)缓存整体作废重算
+        let signature = state.transfers.map { DateUtils.fullDate($0.sourceDate) + ">" + DateUtils.fullDate($0.targetDate) }
+            .joined(separator: ",")
+        if signature != greyCacheSignature {
+            greyDaysByWeek = [:]
+            greyCacheSignature = signature
+        }
+        for week in 1...pagerMaxWeek where greyDaysByWeek[week] == nil {
+            var grey: Set<Int> = []
+            for day in 1...7 {
+                if let date = DateUtils.dateOfWeek(startDate: start, week: week, dayOfWeek: day),
+                   await HolidayManager.shouldGrey(date, tableId: tableId) {
+                    grey.insert(day)
                 }
-                greyDaysByWeek[week] = grey
             }
+            greyDaysByWeek[week] = grey
         }
     }
 }
