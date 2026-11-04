@@ -121,6 +121,17 @@ final class SleepyNavigator {
     func openAddCourse(courseId: Int64 = NavSession.NO_ID, editing: Bool = false) {
         push(route: .addCourse(courseId: courseId, editing: editing))
     }
+    @discardableResult
+    func openAddCourseAt(tableId: Int64, week: Int, day: Int, node: Int, step: Int) -> Bool {
+        let slot = CourseAddSlot(tableId: tableId, week: week, day: day, node: node, step: step)
+        guard vm.scheduleViewModel.state.selectedTableId == tableId,
+              let table = vm.scheduleViewModel.state.effectiveCurrentTable,
+              slot.isValid(for: table) else { return false }
+        // 仍走现有新增入口；先清旧编辑/预填，最后绑定这一次的槽位。
+        openAddCourse()
+        vm.initialCourseSlot = slot
+        return true
+    }
     func openAllTables() { push(route: .allTables) }
     func openCourseList() { push(route: .courseList) }
     func openAppearance() { push(route: .appearance) }

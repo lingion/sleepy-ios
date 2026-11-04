@@ -57,6 +57,7 @@ extension AppRootViewModel {
         case .main:
             break
         case .addCourse:
+            initialCourseSlot = nil
             overlayScreen = .addCourse
         case .allTables:
             overlayScreen = .allTables

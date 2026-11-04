@@ -1,5 +1,27 @@
 import Foundation
 
+/// 快速加课的会话参数；不复用 editingCourse，也不持久化到偏好。
+struct CourseAddSlot: Equatable, Hashable {
+    let tableId: Int64
+    let week: Int
+    let day: Int
+    let node: Int
+    let step: Int
+
+    func isValid(for table: TimeTableEntity) -> Bool {
+        guard table.id == tableId, week > 0, (1...7).contains(day), step > 0 else { return false }
+        let rows = TimeTableUtils.parseTimeSlotRows(table.timeJson)
+        if rows.contains(where: { $0.node == node && $0.edgeClass != nil }) { return step == 1 }
+        let maxNode = TimeTableUtils.maxStandardNode(table.timeJson)
+        return node >= 1 && node <= maxNode && step <= maxNode - node + 1
+    }
+}
+
+struct CourseEditorIdentity: Hashable {
+    let courseId: Int64?
+    let initialSlot: CourseAddSlot?
+}
+
 // SleepyRoutes — 原版本 SleepyRoutes.kt (NavHost 路由表) → iOS 等价路由表.
 //
 // 原版本 侧: 23 个 case 的 sealed `SleepyRoute : NavKey` 驱动 Compose Navigation.
