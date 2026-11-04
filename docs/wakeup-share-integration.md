@@ -13,13 +13,19 @@
 
 HTTP fixtures 使用上述固定 signB 和合成课表，测试通过注入 transport 完整替代网络；传输回归不使用真实课表/真实分享码。网络生产实现用 URLSession，取消任务传递到底层请求。
 
-## 导出协议阻塞
+## 版本范围纠正：只有在线读取增量，无分享码创建增量
 
-指定的三个 Kotlin 文件及 vendor JS 仅定义 `/pluto/app/antispam` 和 `/share_schedule/getv2`。未发现创建分享码的 URL、请求 schema、签名明文或响应 fixture。Android `ScheduleExporter.exportWakeUpShareText` 是本地文本，不是分享码上传。不能从 getv2 猜测 upload/create 接口。
+2026-11-04 串行复核 `/Users/kerrylee/sleepy` 的实际 tag diff：
 
-另只读查询了作者公开仓库 `https://api.github.com/repos/YZune/WakeUpSchedule`：元数据的 `pushed_at` 为 `2018-04-07T01:28:19Z`，不能据此声称已经找到 v6.1.70 的创建分享码协议。旧猜测仓名 `WakeUpSchedule_Kotlin` 返回 404。
+- `v1.0.62 = 67c351e24754edd0d4a97a553005b4e272e7dca6`
+- `v1.0.63 = a821c6ace1e3e5dbfd02c7fbd738bf2ca1c8a223`
+- 新增三文件的实际调用链是 `ImportSheet.kt:1523 buildImportPreview` → `WakeUpShareClient.fetchScheduleJson` → `fetchRawShareData` → antispam → `buildShareRequest` → `/share_schedule/getv2` → 五段转换 → `ScheduleParser.parse`。`buildShareRequest` 的加密明文是 `key=<既有口令>`，不是上传课表。
+- `ExportScreen.kt` 在这两个 tag 间仅将 ICS 调用补上 `transfers`；`ScheduleExporter.kt` 仅增加 fixedDate 字段及 ICS 逐日展开/UID/调休处理，没有新增在线创建分享码。
+- `git grep` 对 v1.0.63 Java/Kotlin 的 `WakeUpShareClient`、`share_schedule`、`fetchScheduleJson` 搜索与上述读取链一致；vendor JS 也只提供这两个读取端点。
 
-生成服务端分享码与导出 sheet 必须等主会话提供可信上传协议源码/HTTP fixture 后实现；本切片不增加假成功或空壳按钮。
+因此撤回此前“导出协议阻塞／缺服务端分享码导出”的判断：**在线创建分享码不是 v1.0.62..v1.0.63 的新增能力，不是本轮 parity 缺口，也不需要等待上传协议继续扩任务。** 主会话总矩阵 WakeUP 行应改为“在线分享口令读取及 v6.1.70 加密协议；Swift 客户端已写入，接线与 CI 验收另计”。本地 WakeUp 分享文本是既有独立导出能力。
+
+这只裁定指定 Sleepy tag 范围，不能推导 WakeUP 官方 App 没有创建分享码功能。此前公开旧仓库元数据查询不作为版本范围证据。完整逐符号动效和只读复核见 `docs/undo-wakeup-motion-v1063-review.md`。
 
 ## 已写入文件 / 工程登记
 
@@ -107,4 +113,4 @@ SleepyTests/FixedDateImportExportTests
 
 ## 验证状态
 
-本机未编译、测试、启动模拟器或运行 swiftc；未发送任何真实分享服务请求；未提交/推送或再派代理。源码已静态对照，`git diff --check`（新增文件用 `--no-index`）未报告空白错误，新增测试尚待线上 CI。服务端分享码**导出仍明确阻塞**，不能把本切片记录为导入导出全量对齐。
+本机未编译、测试、启动模拟器或运行 swiftc；未发送任何真实分享服务请求；未提交/推送或再派代理。源码已静态对照，先前 `git diff --check`（新增文件用 `--no-index`）未报告空白错误，新增测试尚待线上 CI。本轮范围为在线读取；创建分享码不属该 tag 增量，不列为阻塞。2026-11-04 只读复核发现的数值边界缺陷及测试盲区见专属 review 文档，不能用源码对照替代运行通过。

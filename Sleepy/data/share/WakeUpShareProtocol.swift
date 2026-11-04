@@ -237,14 +237,23 @@ enum WakeUpShareProtocol {
         return nil
     }
 
-    static func normalizeNodes(_ ui: [String: Any]) throws -> Set<Int> {
-        if let values = ui["nodes"] as? [Any] { return Set(values.compactMap(int)) }
-        if let count = int(ui["nodes"]), count > 0 {
-            // 拒绝不合理展开, 不能静默变成空作息再宣称导入成功。
-            guard count <= 10000 else { throw WakeUpShareError.incompleteSchedule }
-            return Set(1...count)
+    private static let nodeRange = 1...10_000
+
+    private static func boundedInt(_ value: Any?, in range: ClosedRange<Int>) throws -> Int {
+        guard let result = int(value), range.contains(result) else {
+            throw WakeUpShareError.incompleteSchedule
         }
-        return []
+        return result
+    }
+
+    static func normalizeNodes(_ ui: [String: Any]) throws -> Set<Int> {
+        guard let raw = ui["nodes"] else { return [] }
+        if let values = raw as? [Any] {
+            return Set(try values.map { try boundedInt($0, in: nodeRange) })
+        }
+        // 数组中的节次和标量展开使用同一范围；非法值不能静默丢弃。
+        let count = try boundedInt(raw, in: nodeRange)
+        return Set(1...count)
     }
 
     static func convertToSemesterStartDate(_ raw: String?) -> String? {
@@ -273,23 +282,34 @@ enum WakeUpShareProtocol {
             if let id = primitiveString(course["id"]), names[id] == nil,
                let name = primitiveString(course["courseName"]), !name.isEmpty { names[id] = name }
         }
-        let courses: [[String: Any]] = parts.details.compactMap { detail in
-            guard let id = primitiveString(detail["id"]), let name = names[id],
-                  let day = int(detail["day"]), let start = int(detail["startNode"]), let step = int(detail["step"]),
-                  let first = int(detail["startWeek"]), let last = int(detail["endWeek"]), let type = int(detail["type"]) else { return nil }
+        let courses: [[String: Any]] = try parts.details.compactMap { detail in
+            guard let id = primitiveString(detail["id"]), let name = names[id] else { return nil }
+            let day = try boundedInt(detail["day"], in: 1...7)
+            let start = try boundedInt(detail["startNode"], in: nodeRange)
+            let step = try boundedInt(detail["step"], in: nodeRange)
+            let first = try boundedInt(detail["startWeek"], in: 1...Int(Int32.max))
+            let last = try boundedInt(detail["endWeek"], in: first...Int(Int32.max))
+            let type = try boundedInt(detail["type"], in: 0...3)
+            // parser 的 lossless 会计算 startNode + step - 1；输出前校验完整跨度。
+            let (end, overflow) = start.addingReportingOverflow(step - 1)
+            guard !overflow, nodeRange.contains(end) else { throw WakeUpShareError.incompleteSchedule }
             return ["name": name, "teacher": primitiveString(detail["teacher"]) ?? "",
                     "position": primitiveString(detail["room"]) ?? "", "day": day,
                     "startNode": start, "step": step, "startWeek": first, "endWeek": last, "type": type]
         }
-        let times: [[String: Any]] = parts.timeSlots.compactMap { slot in
-            guard let node = int(slot["node"]), nodes.contains(node),
+        let times: [[String: Any]] = try parts.timeSlots.compactMap { slot in
+            guard let rawNode = slot["node"] else { return nil }
+            let node = try boundedInt(rawNode, in: nodeRange)
+            guard nodes.contains(node),
                   let start = slot["startTime"] as? String, let end = slot["endTime"] as? String,
                   start != "00:00", end != "00:00" else { return nil }
             return ["node": node, "startTime": start, "endTime": end]
         }
         var info: [String: Any] = ["timeList": times]
         if let max = nodes.max() { info["nodesPerDay"] = max }
-        if let weeks = int(parts.uiConfig["maxWeek"]) { info["maxWeek"] = weeks }
+        if let weeks = parts.uiConfig["maxWeek"] {
+            info["maxWeek"] = try boundedInt(weeks, in: 1...Int(Int32.max))
+        }
         var root: [String: Any] = ["name": "WakeUP 分享课表", "courses": courses, "tableInfo": info]
         if let date = convertToSemesterStartDate(parts.uiConfig["startDate"] as? String) { root["startDate"] = date }
         return String(decoding: try JSONSerialization.data(withJSONObject: root, options: [.sortedKeys]), as: UTF8.self)
