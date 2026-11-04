@@ -56,35 +56,35 @@ struct CourseOccurrenceEditor: View {
                         .font(.headline)
                     Text("\(HolidayTransferOps.dayKey(occurrence.displayDate)) · \(occurrence.course.nodeString())")
                         .foregroundStyle(.secondary)
-                    DatePicker("上课日期", selection: $date, displayedComponents: .date)
+                    DatePicker(L10n.format("occurrence_date"), selection: $date, displayedComponents: .date)
                         .environment(\.timeZone, CourseOccurrences.calendar.timeZone)
                         .accessibilityIdentifier("occurrence_date")
-                    Toggle("固定日期（不随调休移动）", isOn: $fixed)
+                    Toggle(L10n.format("occurrence_fixed_date"), isOn: $fixed)
                 }
-                Section("本次上课时间") {
+                Section(L10n.format("occurrence_time")) {
                     NumberStepperField(label: L10n.format("start_node"), value: $node,
                                        minV: minimumNode, maxV: maximumNode)
-                    NumberStepperField(label: "结束节次", value: Binding(
+                    NumberStepperField(label: L10n.format("occurrence_end_node"), value: Binding(
                         get: { node + max(step, 1) - 1 }, set: { step = max(1, $0 - node + 1) }),
                                        minV: node, maxV: max(node, maximumNode))
-                    Text("原节次：\(occurrence.course.startNode)–\(occurrence.course.startNode + occurrence.course.step - 1)")
+                    Text(L10n.format("occurrence_original_nodes", occurrence.course.startNode, occurrence.course.startNode + occurrence.course.step - 1))
                         .font(.caption).foregroundStyle(.secondary)
-                    Toggle("自定义时间", isOn: $custom)
+                    Toggle(L10n.format("occurrence_custom_time"), isOn: $custom)
                     if custom {
-                        TextField("开始 HH:mm", text: $start).keyboardType(.numbersAndPunctuation)
-                        TextField("结束 HH:mm", text: $end).keyboardType(.numbersAndPunctuation)
+                        TextField(L10n.format("occurrence_start_time"), text: $start).keyboardType(.numbersAndPunctuation)
+                        TextField(L10n.format("occurrence_end_time"), text: $end).keyboardType(.numbersAndPunctuation)
                     }
                 }
                 if let error { Section { Text(error).foregroundColor(.red) } }
                 Section {
-                    Button("保存本次调整") { prepare(delete: false) }
+                    Button(L10n.format("occurrence_save")) { prepare(delete: false) }
                         .accessibilityIdentifier("occurrence_save")
-                    Button("仅删除本次", role: .destructive) { prepare(delete: true) }
+                    Button(L10n.format("occurrence_delete"), role: .destructive) { prepare(delete: true) }
                         .accessibilityIdentifier("occurrence_delete")
                 }
             }
             .disabled(busy)
-            .navigationTitle("调整本次课程")
+            .navigationTitle(L10n.format("occurrence_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button(L10n.format("cancel"), action: onDismiss) } }
             .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
@@ -98,21 +98,21 @@ struct CourseOccurrenceEditor: View {
     private var maximumNode: Int { TimeTableUtils.parseTimeSlotRows(table.timeJson).map { $0.node }.max() ?? 1 }
     private var promptTitle: String {
         switch prompt {
-        case .destination: return "该日期有调休课程"
-        case .hidden: return "原日课程将被调休覆盖"
-        case .outgoing: return "该日课程会随调休移动"
-        case .conflicts: return "课程时间冲突"
-        case .delete: return "仅删除本次课程？"
+        case .destination: return L10n.format("occurrence_destination_title")
+        case .hidden: return L10n.format("occurrence_hidden_title")
+        case .outgoing: return L10n.format("occurrence_outgoing_title")
+        case .conflicts: return L10n.format("conflict_detail_title")
+        case .delete: return L10n.format("occurrence_delete_title")
         case nil: return ""
         }
     }
     private var promptMessage: String {
         switch prompt {
-        case .destination: return "跟随调休会把课程保存到此日对应的源教学日；按原日保存可能不会在当天显示。"
-        case .hidden: return "该日的自然课表被补班课表覆盖。仍按原日保存？若需要当天独立显示，请返回并开启固定日期。"
+        case .destination: return L10n.format("occurrence_destination_message")
+        case .hidden: return L10n.format("occurrence_hidden_message")
         case .outgoing:
             let target = pending?.transfers.last { HolidayTransferOps.dayKey($0.sourceDate) == HolidayTransferOps.dayKey(date) }?.targetDate
-            return "保存后将于 \(target.map(HolidayTransferOps.dayKey) ?? "补班日") 上课。"
+            return L10n.format("occurrence_outgoing_message", target.map(HolidayTransferOps.dayKey) ?? L10n.format("occurrence_transfer_day"))
         case .conflicts: return pending?.conflicts.joined(separator: "\n") ?? ""
         case .delete: return "\(occurrence.course.courseName)\n\(HolidayTransferOps.dayKey(occurrence.displayDate)) · \(occurrence.course.nodeString())"
         case nil: return ""
@@ -121,16 +121,16 @@ struct CourseOccurrenceEditor: View {
     @ViewBuilder private var promptButtons: some View {
         switch prompt {
         case .destination:
-            Button("跟随调休") { chooseDestination(follow: true) }
-            Button("按原日保存") { present(.hidden) }
+            Button(L10n.format("occurrence_follow_transfer")) { chooseDestination(follow: true) }
+            Button(L10n.format("occurrence_keep_date")) { present(.hidden) }
         case .hidden:
-            Button("仍按原日保存", role: .destructive) { checkConflicts() }
+            Button(L10n.format("occurrence_keep_date"), role: .destructive) { checkConflicts() }
         case .outgoing:
-            Button("继续") { checkConflicts() }
+            Button(L10n.format("occurrence_continue")) { checkConflicts() }
         case .conflicts:
-            Button("仍然保存", role: .destructive) { commit() }
+            Button(L10n.format("conflict_detail_save_anyway"), role: .destructive) { commit() }
         case .delete:
-            Button("删除本次", role: .destructive) { commit() }
+            Button(L10n.format("occurrence_delete"), role: .destructive) { commit() }
         case nil: EmptyView()
         }
         Button(L10n.format("cancel"), role: .cancel) { pending = nil; prompt = nil }
@@ -212,7 +212,7 @@ struct CourseOccurrenceEditor: View {
                                              expectedTable: draft.table, expectedTransfers: draft.transfers) {
                 onSaved()
                 onDismiss()
-            } else { error = "课表或调休设置已变化，请重新打开本次课程。" }
+            } else { error = L10n.format("occurrence_stale") }
         } catch { self.error = error.localizedDescription }
     }
 
@@ -236,7 +236,7 @@ struct CourseOccurrenceActions: View {
 
     var body: some View {
         VStack {
-            Button("调整或删除本次课程") {
+            Button(L10n.format("occurrence_actions")) {
                 do {
                     guard let course = try repository.getCourse(courseId),
                           let stored = try repository.getTable(table.id) else { throw CourseOccurrences.ValidationError.invalidOccurrence }

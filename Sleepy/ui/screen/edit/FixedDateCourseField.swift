@@ -22,14 +22,14 @@ struct FixedDateCourseField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("固定日期（不随调休移动）", isOn: Binding(
+            Toggle(L10n.format("occurrence_fixed_date"), isOn: Binding(
                 get: { block.fixedDate != nil },
                 set: { enabled in if enabled { setDate(selectedDate) } else { block.fixedDate = nil } }))
                 .accessibilityIdentifier("course_fixed_date_toggle")
             if block.fixedDate != nil,
                let first = CourseOccurrences.date(startDate: table.startDate, week: 1, day: 1),
                let last = CourseOccurrences.date(startDate: table.startDate, week: table.maxWeek, day: 7), first <= last {
-                DatePicker("上课日期", selection: Binding(get: { selectedDate }, set: setDate), in: first...last, displayedComponents: .date)
+                DatePicker(L10n.format("occurrence_date"), selection: Binding(get: { selectedDate }, set: setDate), in: first...last, displayedComponents: .date)
                     .environment(\.timeZone, CourseOccurrences.calendar.timeZone)
                     .accessibilityIdentifier("course_fixed_date_picker")
             }
