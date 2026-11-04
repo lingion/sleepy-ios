@@ -148,7 +148,8 @@ struct ExportScreen: View {
                                     do {
                                         exportFile(displayName: table.name,
                                                    ext: "ics", mime: "text/calendar",
-                                                   content: try ScheduleExporter.exportIcsOrThrow(table, courses))
+                                                   content: try ScheduleExporter.exportIcsOrThrow(table, courses,
+                                                       transfers: AppPrefs.shared.getHolidayTransfers(table.id)))
                                     } catch {
                                         snackMessage = L10n.format("export_failed")
                                     }
