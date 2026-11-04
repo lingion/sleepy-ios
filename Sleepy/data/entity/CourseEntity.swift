@@ -6,7 +6,7 @@ import GRDB
 
 /// 课程实体 — Room @Entity(tableName = "courses") 的 GRDB 对应
 /// 表结构/列名/索引/FK 与 Room schema 逐列一致(建表 SQL 见 AppDatabase.swift)
-struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identifiable {
+struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identifiable, Equatable {
     static let databaseTableName = "courses"
 
     /// 课程组 ID — 同一门课的所有节次共享，编辑/删除时按此操作
@@ -65,6 +65,8 @@ struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identif
     var level: Int = 0
     /// 主键 autoGenerate
     var id: Int64 = 0
+    /// 固定自然日，不参与调休映射；nil 保留按教学周重复的语义。
+    var fixedDate: String? = nil
 
     /// GRDB: 自增主键插入后回填
     mutating func didInsert(_ inserted: InsertionSuccess) {
@@ -97,6 +99,7 @@ struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identif
         container["alias"] = alias
         container["credit"] = credit
         container["level"] = level
+        container["fixedDate"] = fixedDate
     }
 }
 
@@ -137,12 +140,11 @@ extension CourseEntity {
             : L10n.format("course_node_format", range)
     }
 
-    /// 渲染前归一化：ownTime=true 的课根据时间表反算等效 startNode/step，
-    /// 使其在网格中正确定位。ownTime=false 的课原样返回。
+    /// 渲染前归一化：ownTime/isIrregularTime 自定义时间课反算等效 startNode/step。
     func normalizeNode(timeJson: String) -> CourseEntity {
         // issue#23: 边缘槽位卡的网格位置 = 槽位编号本身, 禁止按时间重映射
         if isIrregularNode { return self }
-        if !ownTime || !Self.isNotBlank(startTime) || !Self.isNotBlank(endTime) { return self }
+        if !(isIrregularTime || ownTime) || !Self.isNotBlank(startTime) || !Self.isNotBlank(endTime) { return self }
         guard let mapped = TimeTableUtils.timeToNode(startTime, endTime, timeJson) else { return self }
         var copy = self
         copy.startNode = mapped.0

@@ -77,13 +77,21 @@ final class ScheduleRepository {
     /// 撤回前把"撤回前库态"落入 redo 槽(取消撤回用)。false = 无可撤回
     @discardableResult
     func restoreLastSnapshot() throws -> Bool {
-        guard let undoSnap = UndoManager.shared.poll() else { return false }
-        // 把"撤回前"库态(=当前库态)落入 redo 槽, 用户点 redo 时再恢复回去。
+        let history = UndoManager.shared
+        guard history.hasSnapshot else { return false }
+        // 当前态读取失败不动两栈。
         let redoSnap = try snapshotCurrent()
-        UndoManager.shared.restoring = true
-        defer { UndoManager.shared.restoring = false }
-        try applySnapshot(undoSnap)
-        UndoManager.shared.recordRedo(redoSnap)
+        guard let undoSnap = history.poll() else { return false }
+        history.restoring = true
+        defer { history.restoring = false }
+        do {
+            try applySnapshot(undoSnap)
+        } catch {
+            // GRDB 已回滚；原位放回栈顶，不能用会清 redo 的 capture。
+            history.reinsertForRedoSymmetry(undoSnap)
+            throw error
+        }
+        history.recordRedo(redoSnap)
         onDataChanged()
         pruneDefaultTopPrefs()
         return true
@@ -92,14 +100,19 @@ final class ScheduleRepository {
     /// 取消最近一次撤回: redo 槽快照恢复回库, undo 槽收回当前库态。false = 无可取消。
     @discardableResult
     func redoLastUndo() throws -> Bool {
-        guard let redoSnap = UndoManager.shared.pollRedo() else { return false }
+        let history = UndoManager.shared
+        guard history.hasRedoSnapshot else { return false }
         let undoSnap = try snapshotCurrent()
-        UndoManager.shared.restoring = true
-        defer { UndoManager.shared.restoring = false }
-        try applySnapshot(redoSnap)
-        // 把"刚恢复到的 redo 起点之前那一刻"重新填回 undo 槽,
-        // 用户再次点撤回应能回到"被我们撤回来的那次修改之前的库态"。
-        UndoManager.shared.reinsertForRedoSymmetry(undoSnap)
+        guard let redoSnap = history.pollRedo() else { return false }
+        history.restoring = true
+        defer { history.restoring = false }
+        do {
+            try applySnapshot(redoSnap)
+        } catch {
+            history.recordRedo(redoSnap)
+            throw error
+        }
+        history.reinsertForRedoSymmetry(undoSnap)
         onDataChanged()
         pruneDefaultTopPrefs()
         return true
@@ -359,10 +372,6 @@ final class ScheduleRepository {
 
     // ========== PeriodTable (issue#40 独立时间节次表) ==========
 
-    /// ← 原版本: 三 DAO 同源 db — init 注入 dbQueue, 禁自取单例
-    /// (测试/多库实例注入时观察流与写路径必须指向同一队列)。
-    private let periodTableDao: PeriodTableDao
-
     func getAllPeriodTables() throws -> [PeriodTableEntity] { try periodTableDao.getAll() }
 
     func getPeriodTable(_ id: Int64) throws -> PeriodTableEntity? { try periodTableDao.getById(id) }
@@ -466,14 +475,32 @@ final class ScheduleRepository {
         return bound
     }
 
-    /// 删除守卫(设计 §7): 被引用的时间节次表禁止删除, 无绑定才真删。
+    /// 显式删除可冻结各绑定表当前作息；旧调用及草稿清理默认保留未绑定守卫。
     @discardableResult
-    func deletePeriodTable(_ id: Int64) throws -> Bool {
-        if try periodTableDao.boundTableCount(id) > 0 { return false }
-        try captureForUndo()
-        try periodTableDao.deleteById(id)
-        onDataChanged()
-        return true
+    func deletePeriodTable(_ id: Int64, onlyIfUnbound: Bool = true) throws -> Bool {
+        let deleted = try db.dbQueue.write { db -> Bool in
+            guard let period = try PeriodTableEntity.fetchOne(db, key: id) else { return false }
+            let tables = try TimeTableEntity.fetchAll(db)
+            let owners = tables.filter { $0.periodTableId == id }
+            if onlyIfUnbound && !owners.isEmpty { return false }
+            let snapshot = UndoSnapshot(periodTables: try PeriodTableEntity.fetchAll(db),
+                tables: tables, courses: try CourseEntity.fetchAll(db),
+                defaultTableId: tables.first(where: { $0.isDefault })?.id)
+            for owner in owners {
+                var frozen = owner.hydratedWith(period)
+                frozen.periodTableId = nil
+                frozen.preBindSnapshotJson = ""
+                try frozen.update(db)
+            }
+            try PeriodTableEntity.deleteOne(db, key: id)
+            db.afterNextTransaction { _ in
+                UndoManager.shared.capture(tables: snapshot.tables, courses: snapshot.courses,
+                    defaultTableId: snapshot.defaultTableId, periodTables: snapshot.periodTables)
+            }
+            return true
+        }
+        if deleted { onDataChanged() }
+        return deleted
     }
 
     // ========== Course ==========
@@ -488,7 +515,7 @@ final class ScheduleRepository {
         (try? courseDao.getAllCourses())?
             .map { $0.groupId }
             .filter { !$0.isEmpty }
-            .distinct(by: { $0 }) ?? []
+            .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } } ?? []
     }
 
     func getCoursesByDay(_ tableId: Int64, day: Int) throws -> [CourseEntity] {
@@ -501,17 +528,8 @@ final class ScheduleRepository {
     func insertCourse(_ course: CourseEntity) throws -> Int64 {
         try captureForUndo()
         let id = try courseDao.insert(course)
+        persistNewGroupColors([course])
         onDataChanged()
-        // v1.0.62 B1: 新课补持久色相 (导入/新增)
-        Task {
-            await CourseColorWriteGlue.persistNewGroupHues(
-                mode: AppPrefs.shared.getCourseColorMode(),
-                anchor: CourseColorWriteGlue.resolveAnchor(mode: AppPrefs.shared.getCourseColorMode()),
-                dao: courseColorDao,
-                entities: [course]
-            )
-            CourseHueStore.shared.invalidate(mode: AppPrefs.shared.getCourseColorMode(), dao: courseColorDao)
-        }
         return id
     }
 
@@ -523,16 +541,6 @@ final class ScheduleRepository {
         let ids = try courseDao.insertAll(withGroupIds)
         persistNewGroupColors(withGroupIds)
         onDataChanged()
-        // v1.0.62 B1: 新课补持久色相 (导入/新增)
-        Task {
-            await CourseColorWriteGlue.persistNewGroupHues(
-                mode: AppPrefs.shared.getCourseColorMode(),
-                anchor: CourseColorWriteGlue.resolveAnchor(mode: AppPrefs.shared.getCourseColorMode()),
-                dao: courseColorDao,
-                entities: withGroupIds
-            )
-            CourseHueStore.shared.invalidate(mode: AppPrefs.shared.getCourseColorMode(), dao: courseColorDao)
-        }
         return ids
     }
 
@@ -540,6 +548,210 @@ final class ScheduleRepository {
         try captureForUndo()
         try courseDao.update(course)
         onDataChanged()
+    }
+
+    /// 单次编辑/删除：预览快照在事务内复核，失败不改数据库、不消费撤销历史。
+    /// expectedTable 必须是 hydratedWith 后的有效作息；replacement=nil 只删除这一次。
+    @discardableResult
+    func saveOccurrence(_ occurrence: CourseOccurrence, replacement: CourseEntity?,
+                        expectedCourses: [CourseEntity], expectedTable: TimeTableEntity,
+                        expectedTransfers: [HolidayTransferEntry]) throws -> Bool {
+        let saved = try db.dbQueue.write { db -> Bool in
+            guard let table = try TimeTableEntity.fetchOne(db, key: expectedTable.id),
+                  let source = try CourseEntity.fetchOne(db, key: occurrence.course.id),
+                  source == occurrence.course, source.tableId == table.id else { return false }
+            let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
+            let effective = table.hydratedWith(period)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+            guard try encoder.encode(effective) == encoder.encode(expectedTable),
+                  try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ? ORDER BY id", arguments: [table.id])
+                    == expectedCourses.sorted(by: { $0.id < $1.id }),
+                  AppPrefs.shared.getHolidayTransfers(table.id) == expectedTransfers,
+                  let resolved = CourseOccurrences.resolve(course: source, displayDate: occurrence.displayDate,
+                                                           table: effective, transfers: expectedTransfers),
+                  HolidayTransferOps.dayKey(resolved.sourceDate) == HolidayTransferOps.dayKey(occurrence.sourceDate)
+            else { return false }
+            let remaining = try CourseOccurrences.without(source, sourceDate: occurrence.sourceDate, startDate: table.startDate)
+            var replacement = replacement
+            if var row = replacement {
+                try CourseOccurrences.validateTime(row, table: effective)
+                guard row.startWeek == row.endWeek, row.type == 0,
+                      let date = row.fixedDate.flatMap(CourseOccurrences.parseDate)
+                        ?? CourseOccurrences.date(startDate: table.startDate, week: row.startWeek, day: row.day),
+                      let week = CourseOccurrences.week(startDate: table.startDate, date: date), week <= table.maxWeek,
+                      week == row.startWeek, CourseOccurrences.day(date) == row.day else {
+                    throw CourseOccurrences.ValidationError.invalidDate
+                }
+                if let fixed = row.fixedDate, CourseOccurrences.parseDate(fixed) == nil {
+                    throw CourseOccurrences.ValidationError.invalidDate
+                }
+                row.id = remaining.isEmpty ? source.id : 0
+                row.tableId = table.id
+                row.groupId = source.groupId
+                replacement = row
+            }
+            let tables = try TimeTableEntity.fetchAll(db)
+            let snapshot = UndoSnapshot(periodTables: try PeriodTableEntity.fetchAll(db), tables: tables,
+                                        courses: try CourseEntity.fetchAll(db), defaultTableId: tables.first(where: { $0.isDefault })?.id)
+            try CourseEntity.deleteOne(db, key: source.id)
+            for var row in remaining + (replacement.map { [$0] } ?? []) { try row.insert(db) }
+            if replacement != nil, !source.groupId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let original = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ? AND groupId = ?",
+                                                        arguments: [table.id, source.groupId])
+                let merged = CourseOccurrences.mergeMatchingRows(original)
+                let retained = Set(merged.map { $0.id })
+                for row in original where !retained.contains(row.id) { try CourseEntity.deleteOne(db, key: row.id) }
+                for row in merged where !original.contains(row) { try row.update(db) }
+            }
+            // 与共享作息的其它绑定表一起计算引用，回收也属于同一撤销单元。
+            let owners = period.map { p in tables.filter { $0.periodTableId == p.id } } ?? [table]
+            let ownerIds = Set(owners.map { $0.id })
+            let rows = try CourseEntity.fetchAll(db).filter { ownerIds.contains($0.tableId) }
+            var used: Set<Int> = []
+            for row in rows where row.step > 0 && row.step <= 10_000 && row.startNode <= Int.max - row.step {
+                used.formUnion(row.startNode..<(row.startNode + row.step))
+                let normalized = row.normalizeNode(timeJson: effective.timeJson)
+                if normalized.step > 0, normalized.step <= 10_000, normalized.startNode <= Int.max - normalized.step {
+                    used.formUnion(normalized.startNode..<(normalized.startNode + normalized.step))
+                }
+            }
+            let reclaimed = Self.reclaimUnusedEdgeNodes(timeJson: effective.timeJson, usedNodes: used)
+            if reclaimed != effective.timeJson {
+                if var period { period.timeJson = reclaimed; try period.update(db) }
+                else { var next = table; next.timeJson = reclaimed; try next.update(db) }
+            }
+            db.afterNextTransaction { _ in
+                UndoManager.shared.capture(tables: snapshot.tables, courses: snapshot.courses,
+                                           defaultTableId: snapshot.defaultTableId, periodTables: snapshot.periodTables)
+            }
+            return true
+        }
+        if saved { onDataChanged(); pruneDefaultTopPrefs() }
+        return saved
+    }
+
+    enum CourseOccurrenceMoveError: LocalizedError {
+        case missingCourse
+        case invalidOccurrence
+        case invalidDestination
+        case invalidTime
+
+        var errorDescription: String? {
+            switch self {
+            case .missingCourse: return "课程已不存在，请刷新课表。"
+            case .invalidOccurrence: return "原周次没有该课程，或课程数据已失效。"
+            case .invalidDestination: return "目标周次、星期或节次超出课表范围。"
+            case .invalidTime: return "课程时间或目标作息无效，无法保留课程时长。"
+            }
+        }
+    }
+
+    /// 仅移动指定周的一次课程。原始行从事务内读取，不能传入调休/归一化后的渲染副本。
+    /// 原行最多拆成两个同类型区间，目标另建单周行；同周同位置返回 false，不改撤销历史。
+    /// 横移自定义时间课时传 targetStartTime 保留分数行时刻；显式改时刻属于一次真实移动。
+    @discardableResult
+    func moveCourseOccurrence(courseId: Int64, sourceWeek: Int, targetWeek: Int,
+                              targetDay: Int, targetNode: Int, targetStartTime: String? = nil) throws -> Bool {
+        let changed = try db.dbQueue.write { db -> Bool in
+            guard let source = try CourseEntity.fetchOne(db, key: courseId) else {
+                throw CourseOccurrenceMoveError.missingCourse
+            }
+            guard let table = try TimeTableEntity.fetchOne(db, key: source.tableId),
+                  table.maxWeek > 0, sourceWeek >= 1, sourceWeek <= table.maxWeek,
+                  source.startWeek >= 1, source.endWeek >= source.startWeek,
+                  (0...3).contains(source.type), (1...7).contains(source.day),
+                   source.step > 0,
+                   (source.fixedDate == nil ? source.inWeek(sourceWeek) : source.fixedDate.flatMap(CourseOccurrences.parseDate)
+                        .flatMap { CourseOccurrences.week(startDate: table.startDate, date: $0) } == sourceWeek) else {
+                throw CourseOccurrenceMoveError.invalidOccurrence
+            }
+            let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
+            let effective = table.hydratedWith(period)
+            guard targetWeek >= 1, targetWeek <= table.maxWeek, (1...7).contains(targetDay) else {
+                throw CourseOccurrenceMoveError.invalidDestination
+            }
+            let destination: CourseOccurrenceDestination
+            do {
+                destination = try CourseOccurrenceDestination.resolve(source: source, targetNode: targetNode,
+                                                                      table: effective, targetStartTime: targetStartTime)
+            } catch CourseOccurrenceDestination.ResolutionError.invalidTime {
+                throw CourseOccurrenceMoveError.invalidTime
+            } catch {
+                throw CourseOccurrenceMoveError.invalidDestination
+            }
+            let sourceNode = source.normalizeNode(timeJson: effective.timeJson).startNode
+            let sameTime = targetStartTime == nil
+                || TimeTableUtils.hmToSeconds(source.startTime) == TimeTableUtils.hmToSeconds(destination.startTime)
+            let sourceDay = source.fixedDate.flatMap(CourseOccurrences.parseDate).map(CourseOccurrences.day) ?? source.day
+            if sourceWeek == targetWeek && sourceDay == targetDay && sourceNode == targetNode && sameTime {
+                return false
+            }
+
+            var moved = source
+            moved.id = 0
+            moved.startWeek = targetWeek
+            moved.endWeek = targetWeek
+            moved.type = 0
+            moved.day = targetDay
+            if source.fixedDate != nil {
+                guard let date = CourseOccurrences.date(startDate: table.startDate, week: targetWeek, day: targetDay) else {
+                    throw CourseOccurrenceMoveError.invalidDestination
+                }
+                moved.fixedDate = HolidayTransferOps.dayKey(date)
+            }
+            moved.startNode = destination.startNode
+            moved.isIrregularNode = false // 目标为标准网格节次。
+            if destination.usesOwnTime {
+                moved.startTime = destination.startTime
+                moved.endTime = destination.endTime
+            }
+
+            // 在同一事务拍改动前库态；只在实际 COMMIT 后发布快照，失败不清空 undo/redo。
+            let tables = try TimeTableEntity.fetchAll(db)
+            let snapshot = UndoSnapshot(
+                periodTables: try PeriodTableEntity.fetchAll(db), tables: tables,
+                courses: try CourseEntity.fetchAll(db), defaultTableId: tables.first(where: { $0.isDefault })?.id)
+            var remaining: [CourseEntity] = []
+            if source.fixedDate == nil, source.startWeek < sourceWeek,
+               let left = Self.occurrenceRange(source, first: source.startWeek, last: sourceWeek - 1) {
+                remaining.append(left)
+            }
+            if source.fixedDate == nil, sourceWeek < source.endWeek,
+               let right = Self.occurrenceRange(source, first: sourceWeek + 1, last: source.endWeek) {
+                remaining.append(right)
+            }
+            if let first = remaining.first {
+                try first.update(db) // 保留一个剩余区间的原 ID，不影响其它课程行。
+                for var extra in remaining.dropFirst() {
+                    extra.id = 0
+                    try courseDao.insertInDb(db, extra)
+                }
+            } else {
+                try CourseEntity.deleteOne(db, key: source.id)
+            }
+            try courseDao.insertInDb(db, moved)
+            db.afterNextTransaction { _ in
+                UndoManager.shared.capture(tables: snapshot.tables, courses: snapshot.courses,
+                                           defaultTableId: snapshot.defaultTableId, periodTables: snapshot.periodTables)
+            }
+            return true
+        }
+        if changed { onDataChanged() }
+        return changed
+    }
+
+    /// 保留单双周语义，丢弃只有非上课周的空区间；不把整个学期展开成单周行。
+    private static func occurrenceRange(_ course: CourseEntity, first: Int, last: Int) -> CourseEntity? {
+        guard first <= last else { return nil }
+        if course.type == 1 || course.type == 2 {
+            let parity = course.type == 1 ? 1 : 0
+            if first == last && first % 2 != parity { return nil }
+        }
+        var range = course
+        range.startWeek = first
+        range.endWeek = last
+        return range
     }
 
     /// 查同 groupId 下所有课程(用于编辑回填,按时段分 block)
@@ -785,9 +997,9 @@ final class ScheduleRepository {
     }
 
     /// 新组补持久色相 — ← 原版本 ScheduleRepository.persistNewGroupColors。
-    /// 只在「课程组诞生」时刻写表(导入路); 单课新增/编辑组不写(原版本 同)。
+    /// 导入/单课新增时同步补色；编辑既有课程组不重排颜色。
     /// 配色是增值数据: 失败一律吞掉降级为不写, 不影响课程落库主流程。
     private func persistNewGroupColors(_ entities: [CourseEntity]) {
-        _ = CourseColorWriteGlue.persistNewGroupHues(dao: db.courseColorDao, entities: entities)
+        _ = CourseColorWriteGlue.persistNewGroupHues(dao: courseColorDao, entities: entities)
     }
 }

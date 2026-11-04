@@ -49,6 +49,7 @@ enum MigrationDatabaseCodec {
         var endTime: String = ""
         var credit: Double = 0
         var level: Int = 0
+        var fixedDate: String? = nil
     }
 
     struct TimeTableRow: Codable, Equatable {
@@ -120,7 +121,7 @@ enum MigrationDatabaseCodec {
             startNode: e.startNode, step: e.step, startWeek: e.startWeek, endWeek: e.endWeek,
             type: e.type, color: e.color, colorMode: e.colorMode, ownTime: e.ownTime,
             isIrregularNode: e.isIrregularNode, isIrregularTime: e.isIrregularTime,
-            startTime: e.startTime, endTime: e.endTime, credit: e.credit, level: e.level
+            startTime: e.startTime, endTime: e.endTime, credit: e.credit, level: e.level, fixedDate: e.fixedDate
         )
     }
 
@@ -158,7 +159,7 @@ enum MigrationDatabaseCodec {
             isIrregularNode: r.isIrregularNode, isIrregularTime: r.isIrregularTime,
             ownTime: r.ownTime, startTime: r.startTime, endTime: r.endTime,
             alias: r.alias, credit: r.credit, level: r.level,
-            id: r.id
+            id: r.id, fixedDate: r.fixedDate
         )
     }
 
@@ -281,7 +282,7 @@ private extension CourseEntity {
             isIrregularNode: isIrregularNode, isIrregularTime: isIrregularTime,
             ownTime: ownTime, startTime: startTime, endTime: endTime,
             alias: alias, credit: credit, level: level,
-            id: newId
+            id: newId, fixedDate: fixedDate
         )
     }
     func withTableId(_ newId: Int64) -> CourseEntity {
@@ -296,7 +297,7 @@ private extension CourseEntity {
             isIrregularNode: isIrregularNode, isIrregularTime: isIrregularTime,
             ownTime: ownTime, startTime: startTime, endTime: endTime,
             alias: alias, credit: credit, level: level,
-            id: id
+            id: id, fixedDate: fixedDate
         )
     }
 }
@@ -347,7 +348,7 @@ extension MigrationDatabaseCodec.CourseRow {
         case id, groupId, tableId, courseName, teacher, room, note, alias,
              day, startNode, step, startWeek, endWeek, type, color, colorMode,
              ownTime, isIrregularNode, isIrregularTime, startTime, endTime,
-             credit, level
+             credit, level, fixedDate
     }
     init(from decoder: Decoder) throws {
         let k = try decoder.container(keyedBy: CodingKeys.self)
@@ -374,6 +375,7 @@ extension MigrationDatabaseCodec.CourseRow {
         endTime = try k.decodeIfPresent(String.self, forKey: .endTime) ?? ""
         credit = try k.decodeIfPresent(Double.self, forKey: .credit) ?? 0
         level = try k.decodeIfPresent(Int.self, forKey: .level) ?? 0
+        fixedDate = try k.decodeIfPresent(String.self, forKey: .fixedDate)
     }
 }
 
