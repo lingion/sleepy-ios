@@ -16,9 +16,12 @@ final class JwSgAssetParserTests: XCTestCase {
     func testSparseParityWeeksNeverInventMissingOccurrences() throws {
         let source = #"[{"name":"稀疏课程","day":1,"startSection":1,"endSection":2,"weeks":[1,5,7,10,12]}]"#
         let courses = try JwSgAssetParser(source).generateCourseList()
-        let expanded = courses.flatMap { course in
-            (course.startWeek...course.endWeek).filter {
-                course.type == 0 || (course.type == 1 && $0 % 2 == 1) || (course.type == 2 && $0 % 2 == 0)
+        let expanded: [Int] = courses.flatMap { course -> [Int] in
+            let weeks = course.startWeek...course.endWeek
+            return weeks.filter { week -> Bool in
+                let odd = course.type == 1 && week % 2 == 1
+                let even = course.type == 2 && week % 2 == 0
+                return course.type == 0 || odd || even
             }
         }
         XCTAssertEqual(expanded, [1,5,7,10,12])
