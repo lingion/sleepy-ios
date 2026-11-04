@@ -104,11 +104,9 @@ struct WidgetEditScreen: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     if let s = scope {
-                        // ← 原版本 WidgetEditScreen.kt L52 sections 列表 1:1:
-                        //   Schedule / Alias / Scroll / CompactWindow
+                        // 仅呈现 WidgetKit 渲染实际消费的设置。
                         WidgetEditScheduleSection(scope: s)
                         WidgetEditAliasSection(scope: s)
-                        WidgetEditScrollSection(scope: s)
                         WidgetEditCompactWindowSection(scope: s)
                     }
                 }
@@ -275,81 +273,6 @@ private struct WidgetEditAliasSection: View {
             .background(selected ? colors.primaryContainer : colors.surfaceContainer)
         }
         .buttonStyle(SleepyButtonStyle())
-    }
-}
-
-// ← WidgetEditScrollSection (设计 §6): "滚动方式" 分区 — 强制滚动(实验) 本 kind 一档。
-//   出厂默认关 = FIXED 固定窗口; 开启前确认弹窗如实告知厂商 ROM 风险, 取消即回弹
-//   (不写入); 关闭无需确认。
-//   ★ iOS 平台差异: 原版本 该节依赖厂商 ROM 的 RemoteViews 滚动服务; WidgetKit
-//     无逐帧滚动条带, 但保留本节与存储 (WidgetKit 列表型 timeline 语义上的"滚动"),
-//     族门控同 原版本: WeekGrid 族隐藏(网格无滚动形态), 未知(nil)按显示处理。
-private struct WidgetEditScrollSection: View {
-    @Environment(\.localWakeUpColors) private var colors
-    let scope: WidgetEditScope
-    @State private var showConfirm = false
-
-    // ← 族注入 (评审 #15): WeekGrid 族隐藏; 未知(nil)按显示处理
-    private var isWeekGridFamily: Bool {
-        scope.kind.contains("WeekGrid")
-    }
-
-    var body: some View {
-        if !isWeekGridFamily {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(L10n.format("widget_edit_section_scroll"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(colors.onSurface)
-                Spacer().frame(height: 8)
-                VStack(spacing: 0) {
-                    Button {
-                        // ← 行点击与 Switch 同逻辑: 已开 → 直接关; 未开 → 确认弹窗
-                        if scope.scrollEnabled {
-                            scope.onScrollEnabledChange(false)
-                        } else {
-                            showConfirm = true
-                        }
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text(L10n.format("widget_scroll_dialog_title"))
-                                    .font(.system(size: 16))
-                                    .foregroundColor(colors.onSurface)
-                                Text(L10n.format("widget_edit_scroll_subtitle"))
-                                    .font(.system(size: 12))
-                                    .foregroundColor(colors.onSurfaceVariant)
-                            }
-                            Spacer()
-                            Toggle("", isOn: Binding(
-                                get: { scope.scrollEnabled },
-                                set: { on in
-                                    if on { showConfirm = true }
-                                    else { scope.onScrollEnabledChange(false) }
-                                }))
-                                .labelsHidden()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                    }
-                    .buttonStyle(SleepyButtonStyle())
-                }
-                .background(colors.surfaceContainer)
-                .cornerRadius(16)
-            }
-            .alert(L10n.format("widget_scroll_dialog_title"), isPresented: $showConfirm) {
-                // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 平台差异:
-                // iOS 原生 alert 按钮即系统样式, 无裸文本问题, 等价意图成立
-                Button(L10n.format("widget_scroll_dialog_confirm")) {
-                    showConfirm = false
-                    scope.onScrollEnabledChange(true)
-                }
-                Button(L10n.format("widget_scroll_dialog_cancel"), role: .cancel) {
-                    showConfirm = false
-                }
-            } message: {
-                Text(L10n.format("widget_scroll_dialog_body"))
-            }
-        }
     }
 }
 
