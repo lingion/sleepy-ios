@@ -25,6 +25,10 @@ struct JwImportReturnState {
     let origin: Origin
     private var completed = false
 
+    init(origin: Origin) {
+        self.origin = origin
+    }
+
     mutating func record(_ outcome: JwImportOutcome) {
         if outcome == .completed { completed = true }
     }
