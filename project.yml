@@ -337,6 +337,8 @@ targets:
       - path: SleepyTests/resources
         buildPhase: resources
         type: folder
+      - path: docs/catalog-v1063-candidates.json
+        buildPhase: resources
     dependencies:
       - target: Sleepy
     info:
