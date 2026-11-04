@@ -832,6 +832,8 @@ private struct LabSection: View {
                         prefs.setGridLongBreakSpacing($0)
                         refreshWidgets()
                     }
+                    SubDivider()
+                    UndoDepthSettingsRow()
                 }
             }
             .padding(.horizontal, 16)
@@ -839,6 +841,68 @@ private struct LabSection: View {
             .background(colors.surfaceContainer)
             .cornerRadius(SleepyShapes.large)
         }
+    }
+}
+
+/// 与 Android 的 ^-?\d{0,6}$ 一致: 允许编辑中的空串/负号, 仅完整整数落库。
+enum UndoDepthInput {
+    static func accepts(_ text: String) -> Bool {
+        let digits = text.hasPrefix("-") ? text.dropFirst() : text[...]
+        return digits.count <= 6 && digits.utf8.allSatisfy { (48...57).contains($0) }
+    }
+
+    static func value(_ text: String) -> Int? {
+        guard accepts(text) else { return nil }
+        return Int(text)
+    }
+}
+
+private struct UndoDepthSettingsRow: View {
+    @Environment(\.localWakeUpColors) private var colors
+    @State private var input = String(AppPrefs.shared.getUndoDepth())
+
+    // 临时 fallback 随全局 strings 补齐自动退出, 使用现有的语言 Bundle。
+    private func localized(_ key: String, defaultValue: String) -> String {
+        NSLocalizedString(key, bundle: LocaleHelper.currentBundle(), value: defaultValue, comment: "")
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(localized("settings_undo_depth", defaultValue: "撤回保留步数"))
+                    .font(.system(size: 16))
+                    .foregroundColor(colors.onSurface)
+                Text(localized("settings_undo_depth_sub", defaultValue: "-1 为无限，0 为关闭撤回，其他数字保留相应步数。默认 5。历史仅存于内存，结束进程即清空。"))
+                    .font(.system(size: 11))
+                    .foregroundColor(colors.onSurfaceVariant)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            TextField("", text: Binding(
+                get: { input },
+                set: { text in
+                    guard UndoDepthInput.accepts(text) else { return }
+                    input = text
+                    guard let value = UndoDepthInput.value(text) else { return }
+                    AppPrefs.shared.setUndoDepth(value)
+                    UndoManager.shared.applyMaxDepth(value)
+                }
+            ))
+            // numberPad 没有负号, 无法输入合法的无限深度。
+            .keyboardType(.numbersAndPunctuation)
+            .textInputAutocapitalization(.never)
+            .disableAutocorrection(true)
+            .submitLabel(.done)
+            .onSubmit { input = String(AppPrefs.shared.getUndoDepth()) }
+            .multilineTextAlignment(.trailing)
+            .padding(12)
+            .frame(width: 110)
+            .background(colors.surfaceContainerHigh)
+            .cornerRadius(SleepyShapes.large)
+            .accessibilityLabel(localized("settings_undo_depth_label", defaultValue: "撤回保留步数输入框"))
+            .accessibilityIdentifier("general_undo_depth_field")
+        }
+        .padding(.vertical, 10)
     }
 }
 
