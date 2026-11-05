@@ -18,6 +18,12 @@ extension XCUIApplication {
         if !launchArguments.contains(Self.forcePillArg) {
             launchArguments.append(Self.forcePillArg)
         }
+        // scheme 的 TZ 只注入测试 runner, 被测 App 是独立进程不继承。
+        // GitHub runner 为 UTC: 种子按设备时区取"本周一", App 再按 Asia/Shanghai
+        // 民事日换算周次, 二者错开 → 冷启动不在 Week 1。显式给 App 同一时区。
+        if launchEnvironment["TZ"] == nil {
+            launchEnvironment["TZ"] = "Asia/Shanghai"
+        }
         launch()
     }
 }
