@@ -45,8 +45,9 @@ final class ConsoleListener {
         let parameters = NWParameters.tcp
         // requiredLocalEndpoint 而非单纯 requiredInterfaceType：不能监听 0.0.0.0。
         let endpointPort: NWEndpoint.Port = port == 0 ? .any : NWEndpoint.Port(rawValue: port)!
+        // 绑定 127.0.0.1 已把可达面限定为本机回环。不设 acceptLocalOnly: iOS 26
+        // 模拟器上它会在 newConnectionHandler 之前拒掉回环连接(客户端 -1005)。
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: endpointPort)
-        parameters.acceptLocalOnly = true
         let next = try NWListener(using: parameters)
         listener = next
         let session = generation
