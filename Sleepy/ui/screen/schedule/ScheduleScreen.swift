@@ -361,9 +361,10 @@ func renderCoursesForWeek(_ table: TimeTableEntity,
                           week: Int,
                           courses: [CourseEntity],
                           transfers: [HolidayTransferEntry],
-                          timeJson: String?) -> [CourseEntity] {
+                          timeJson: String?,
+                          calendar: Calendar? = nil) -> [CourseEntity] {
     return (1...7).flatMap { day -> [CourseEntity] in
-        guard let date = CourseOccurrences.date(startDate: table.startDate, week: week, day: day) else {
+        guard let date = CourseOccurrences.date(startDate: table.startDate, week: week, day: day, calendar: calendar) else {
             return []
         }
         return HolidayTransferOps.coursesForDate(
