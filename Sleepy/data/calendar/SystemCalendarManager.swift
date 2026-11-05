@@ -195,17 +195,18 @@ final class SystemCalendarManager {
         table: TimeTableEntity,
         range: CalendarImportRange,
         today: Date,
-        transfers: [HolidayTransferEntry] = []
+        transfers: [HolidayTransferEntry] = [],
+        calendar: Calendar? = nil
     ) -> (start: Date, end: Date) {
-        let cal = CourseOccurrences.calendar
+        let cal = calendar ?? CourseOccurrences.calendar
         let today = cal.startOfDay(for: today)
-        let tableStart = CourseOccurrences.parseDate(table.startDate) ?? today
-        let semesterStart = cal.date(byAdding: .day, value: 1 - CourseOccurrences.day(tableStart), to: tableStart) ?? tableStart
+        let tableStart = CourseOccurrences.parseDate(table.startDate, calendar: cal) ?? today
+        let semesterStart = cal.date(byAdding: .day, value: 1 - CourseOccurrences.day(tableStart, calendar: cal), to: tableStart) ?? tableStart
         let semesterEnd = cal.date(byAdding: .day, value: 7 * table.maxWeek, to: semesterStart) ?? semesterStart
         // ← 原版本 validTargets: 源日仍在学期内的映射才参与区间扩展
         let validTargets = transfers
             .filter {
-                guard let week = CourseOccurrences.week(startDate: table.startDate, date: $0.sourceDate) else { return false }
+                guard let week = CourseOccurrences.week(startDate: table.startDate, date: $0.sourceDate, calendar: cal) else { return false }
                 return week <= table.maxWeek
             }
             .map { cal.startOfDay(for: $0.targetDate) }

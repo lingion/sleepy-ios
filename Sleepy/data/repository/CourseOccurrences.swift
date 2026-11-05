@@ -28,22 +28,27 @@ enum CourseOccurrences {
         return calendar
     }
 
-    static func parseDate(_ value: String) -> Date? {
+    static func parseDate(_ value: String, calendar: Calendar? = nil) -> Date? {
         guard value.range(of: #"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"#, options: .regularExpression) != nil,
               let date = DateUtils.parseDate(value), HolidayTransferOps.dayKey(date) == value else { return nil }
         return date
     }
 
-    static func day(_ date: Date) -> Int { (calendar.component(.weekday, from: date) + 5) % 7 + 1 }
-
-    static func date(startDate: String, week: Int, day: Int) -> Date? {
-        guard week >= 1, week <= Int.max / 7, (1...7).contains(day), let start = parseDate(startDate) else { return nil }
-        return calendar.date(byAdding: .day, value: (week - 1) * 7 + day - Self.day(start), to: start)
+    static func day(_ date: Date, calendar: Calendar? = nil) -> Int {
+        let cal = calendar ?? Self.calendar
+        return (cal.component(.weekday, from: date) + 5) % 7 + 1
     }
 
-    static func week(startDate: String, date: Date) -> Int? {
-        guard let start = Self.date(startDate: startDate, week: 1, day: 1),
-              let days = calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: date)).day,
+    static func date(startDate: String, week: Int, day: Int, calendar: Calendar? = nil) -> Date? {
+        let cal = calendar ?? Self.calendar
+        guard week >= 1, week <= Int.max / 7, (1...7).contains(day), let start = parseDate(startDate, calendar: cal) else { return nil }
+        return cal.date(byAdding: .day, value: (week - 1) * 7 + day - Self.day(start, calendar: cal), to: start)
+    }
+
+    static func week(startDate: String, date: Date, calendar: Calendar? = nil) -> Int? {
+        let cal = calendar ?? Self.calendar
+        guard let start = Self.date(startDate: startDate, week: 1, day: 1, calendar: cal),
+              let days = cal.dateComponents([.day], from: start, to: cal.startOfDay(for: date)).day,
               days >= 0 else { return nil }
         return days / 7 + 1
     }

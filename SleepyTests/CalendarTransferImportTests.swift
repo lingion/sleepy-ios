@@ -33,19 +33,27 @@ final class CalendarTransferImportTests: XCTestCase {
         c.timeZone = TimeZone(secondsFromGMT: 0)  // UTC for consistent CI behavior
         return Calendar(identifier: .gregorian).date(from: c)!
     }
+    
+    private func utcCalendar() -> Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)
+        cal.firstWeekday = 2
+        return cal
+    }
 
     // ---- selectedDateRange: 目标日扩展 ----
 
     func testSemesterRange_extendsPastSemesterEndToLatestValidTarget() {
         let t = table()
         let today = d(2026, 10, 10)
+        let cal = utcCalendar()
         // 基线: 学期末 2027-01-11
-        let base = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today)
+        let base = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today, calendar: cal)
         XCTAssertEqual(DateUtils.dayStart(d(2026, 10, 10)), base.start)
         XCTAssertEqual(DateUtils.dayStart(d(2027, 1, 11)), base.end)
         // 源日 2026-10-08(周四, 第5周) 在学期内 → 目标日 2027-01-15 把 end 撑到 +1 天
         let transfers = [HolidayTransferEntry(sourceDate: d(2026, 10, 8), targetDate: d(2027, 1, 15), segmentId: "s")]
-        let ext = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today, transfers: transfers)
+        let ext = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today, transfers: transfers, calendar: cal)
         XCTAssertEqual(DateUtils.dayStart(d(2026, 10, 10)), ext.start)
         XCTAssertEqual(DateUtils.dayStart(d(2027, 1, 16)), ext.end)
     }
@@ -53,12 +61,13 @@ final class CalendarTransferImportTests: XCTestCase {
     func testSemesterRange_earlyTargetPullsStartBeforeSemesterStart() {
         let t = table()
         let today = d(2026, 8, 25)  // 开学前
+        let cal = utcCalendar()
         // 基线: start 钳到学期初 2026-09-07
-        let base = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today)
+        let base = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today, calendar: cal)
         XCTAssertEqual(DateUtils.dayStart(d(2026, 9, 7)), base.start)
         // 源日 2026-09-10(第1周) 在学期内 → 目标日 2026-08-30 把 start 提前
         let transfers = [HolidayTransferEntry(sourceDate: d(2026, 9, 10), targetDate: d(2026, 8, 30), segmentId: "s")]
-        let ext = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today, transfers: transfers)
+        let ext = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today, transfers: transfers, calendar: cal)
         XCTAssertEqual(DateUtils.dayStart(d(2026, 8, 30)), ext.start)
         XCTAssertEqual(DateUtils.dayStart(d(2027, 1, 11)), ext.end)
     }
@@ -66,9 +75,10 @@ final class CalendarTransferImportTests: XCTestCase {
     func testSemesterRange_outOfSemesterSourceDoesNotExtend() {
         let t = table()
         let today = d(2026, 10, 10)
+        let cal = utcCalendar()
         // 源日 2027-03-01 已出学期(第26周 > maxWeek 18) → 该映射不参与区间扩展
         let transfers = [HolidayTransferEntry(sourceDate: d(2027, 3, 1), targetDate: d(2027, 1, 15), segmentId: "s")]
-        let r = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today, transfers: transfers)
+        let r = SystemCalendarManager.selectedDateRange(table: t, range: .SEMESTER, today: today, transfers: transfers, calendar: cal)
         XCTAssertEqual(DateUtils.dayStart(d(2026, 10, 10)), r.start)
         XCTAssertEqual(DateUtils.dayStart(d(2027, 1, 11)), r.end)
     }
