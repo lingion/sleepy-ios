@@ -4,7 +4,7 @@ import XCTest
 final class CourseDragPolicyTests: XCTestCase {
     private func utcCalendar() -> Calendar {
         var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(secondsFromGMT: 0)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
         cal.firstWeekday = 2
         return cal
     }

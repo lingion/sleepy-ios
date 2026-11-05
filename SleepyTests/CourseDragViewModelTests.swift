@@ -6,7 +6,7 @@ import GRDB
 final class CourseDragViewModelTests: XCTestCase {
     private func utcCalendar() -> Calendar {
         var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(secondsFromGMT: 0)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
         cal.firstWeekday = 2
         return cal
     }
@@ -93,7 +93,7 @@ final class CourseDragViewModelTests: XCTestCase {
             let table = try XCTUnwrap(vm.state.effectiveCurrentTable)
             let cal = Calendar(identifier: .gregorian)
             var utcCal = cal
-            utcCal.timeZone = TimeZone(secondsFromGMT: 0)
+            utcCal.timeZone = TimeZone(secondsFromGMT: 0)!
             utcCal.firstWeekday = 2
             let rendered = renderCoursesForWeek(table, week: week, courses: [course],
                 transfers: vm.state.transfers, timeJson: table.timeJson, calendar: utcCal)
