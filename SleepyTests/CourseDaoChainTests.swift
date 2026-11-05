@@ -150,10 +150,11 @@ final class CourseDaoChainTests: XCTestCase {
         // PRAGMA 走 Row 读取 name 列,别手解析分隔字符串
         let courseCols = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "PRAGMA table_info(courses)").map { (r: Row) -> String in r["name"] } })
         // 原 schema v6 全列集: v1 基础 19 列 + colorMode(v4) + isIrregularNode/isIrregularTime(v5) + alias(v6)
+        // v13 添加 fixedDate 用于定日课程(可空,旧课程继续按教学周解释)
         XCTAssertEqual(["id","groupId","tableId","courseName","teacher","room","note","day",
                         "startNode","step","startWeek","endWeek","type","color","colorMode",
                         "isIrregularNode","isIrregularTime","ownTime",
-                        "startTime","endTime","alias","credit","level"], courseCols)
+                        "startTime","endTime","alias","credit","level","fixedDate"], courseCols)
         let tableCols = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "PRAGMA table_info(time_tables)").map { (r: Row) -> String in r["name"] } })
         // 原 schema v11 全列集: v1 基础 10 列 + periodTableId(v8) + preBindSnapshotJson(v9)
         // + reminderEnabled(v10→v11)。真源: app/schemas/com.lingion.sleepy.data.AppDatabase/11.json

@@ -30,7 +30,7 @@ final class CalendarTransferImportTests: XCTestCase {
     private func d(_ y: Int, _ m: Int, _ day: Int) -> Date {
         var c = DateComponents()
         c.year = y; c.month = m; c.day = day; c.hour = 0
-        c.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        c.timeZone = TimeZone(secondsFromGMT: 0)  // UTC for consistent CI behavior
         return Calendar(identifier: .gregorian).date(from: c)!
     }
 
