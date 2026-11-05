@@ -597,7 +597,7 @@ final class ScheduleRepository {
                       week == row.startWeek, CourseOccurrences.day(date) == row.day else {
                     throw CourseOccurrences.ValidationError.invalidDate
                 }
-                if let fixed = row.fixedDate, CourseOccurrences.parseDate(fixed) == nil {
+                if let fixed = row.fixedDate, CourseOccurrences.parseDate(fixed, calendar: nil) == nil {
                     throw CourseOccurrences.ValidationError.invalidDate
                 }
                 row.id = remaining.isEmpty ? source.id : 0
@@ -676,7 +676,7 @@ final class ScheduleRepository {
                   source.startWeek >= 1, source.endWeek >= source.startWeek,
                   (0...3).contains(source.type), (1...7).contains(source.day),
                    source.step > 0,
-                   (source.fixedDate == nil ? source.inWeek(sourceWeek) : source.fixedDate.flatMap(CourseOccurrences.parseDate)
+                   (source.fixedDate == nil ? source.inWeek(sourceWeek) : source.fixedDate.flatMap { CourseOccurrences.parseDate($0, calendar: nil) }
                         .flatMap { CourseOccurrences.week(startDate: table.startDate, date: $0) } == sourceWeek) else {
                 throw CourseOccurrenceMoveError.invalidOccurrence
             }
@@ -697,7 +697,7 @@ final class ScheduleRepository {
             let sourceNode = source.normalizeNode(timeJson: effective.timeJson).startNode
             let sameTime = targetStartTime == nil
                 || TimeTableUtils.hmToSeconds(source.startTime) == TimeTableUtils.hmToSeconds(destination.startTime)
-            let sourceDay = source.fixedDate.flatMap(CourseOccurrences.parseDate).map(CourseOccurrences.day) ?? source.day
+            let sourceDay = source.fixedDate.flatMap { CourseOccurrences.parseDate($0, calendar: nil) }.map(CourseOccurrences.day) ?? source.day
             if sourceWeek == targetWeek && sourceDay == targetDay && sourceNode == targetNode && sameTime {
                 return false
             }
