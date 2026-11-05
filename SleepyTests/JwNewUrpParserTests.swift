@@ -32,7 +32,7 @@ final class JwNewUrpParserTests: XCTestCase {
         let courses = try JwNewUrpParser(src).generateCourseList()
         XCTAssertEqual(1, courses.count)
         XCTAssertEqual(1, courses[0].startWeek)
-        XCTAssertEqual(1, courses[0].endWeek)
+        XCTAssertEqual(3, courses[0].endWeek)
         XCTAssertEqual(1, courses[0].type) // 奇数开头 → 单周
     }
 
@@ -44,19 +44,19 @@ final class JwNewUrpParserTests: XCTestCase {
         let courses = try JwNewUrpParser(src).generateCourseList()
         XCTAssertEqual(1, courses.count)
         XCTAssertEqual(2, courses[0].startWeek)
-        XCTAssertEqual(2, courses[0].endWeek)
+        XCTAssertEqual(4, courses[0].endWeek)
         XCTAssertEqual(2, courses[0].type) // 偶数开头 → 双周
     }
 
-    func test_fourElementStrideRun_midList_keepsKotlinEndBehaviour() throws {
-        // bits [1,3,6,8]: 段 [1,3] → (1,1,1); 段 [6,8] while 不推进 → (6,6,2)。
-        // 与 原 while 循环前不预设 end 完全一致。
+    func test_fourElementStrideRun_midList_keepsCorrectEndBehaviour() throws {
+        // bits [1,3,6,8]: 段 [1,3] → (1,3,1); 段 [6,8] → (6,8,2)。
+        // 修正后保留每段最后一周，与 WakeUP Android 6.1.70 一致。
         let src = html(withDateList: "[{\"selectCourseList\":[" +
             course(name: "选修", teacher: "王老师",
                    timePlaces: [timePlace(classDay: 3, classWeek: "10100101000000000000")]) + "]}]")
         let courses = try JwNewUrpParser(src).generateCourseList()
         XCTAssertEqual(2, courses.count)
-        XCTAssert([(1, 1, 1), (6, 6, 2)].elementsEqual(
+        XCTAssert([(1, 3, 1), (6, 8, 2)].elementsEqual(
                        courses.map { ($0.startWeek, $0.endWeek, $0.type) },
                        by: { $0 == $1 }))  // 元组非 Equatable, 用 by: 谓词版 elementsEqual
     }
