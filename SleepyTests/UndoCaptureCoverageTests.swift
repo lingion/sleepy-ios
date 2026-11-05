@@ -38,6 +38,12 @@ final class UndoCaptureCoverageTests: XCTestCase {
         "setTableReminderEnabled"
     ]
 
+    /// 撤销快照的落点标记。8e66868 起普通写入改走 writeWithUndo(同事务读旧态、
+    /// commit 后才发布快照, 写失败不消耗 undo/不清 redo); 少数需条件判定的路径
+    /// (deletePeriodTable) 在事务内直接 UndoManager.shared.capture。三者任一出现
+    /// 即视为该写方法已接入撤销。
+    private static let captureMarkers = ["captureForUndo()", "writeWithUndo", "UndoManager.shared.capture("]
+
     /// 正则在 text 中找第一处匹配(NSString 坐标系)。
     private func firstRange(of pattern: String, in text: String, from location: Int = 0) -> NSRange? {
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
@@ -67,7 +73,7 @@ final class UndoCaptureCoverageTests: XCTestCase {
         var absent: [String] = []
         for method in mustCapture {
             guard let seg = segmentOf(method, in: source) else { absent.append(method); continue }
-            if !seg.contains("captureForUndo()") { missing.append(method) }
+            if !Self.captureMarkers.contains(where: seg.contains) { missing.append(method) }
         }
         XCTAssertTrue(absent.isEmpty,
             "ScheduleRepository 缺少方法 \(absent) — 契约清单需同步")
@@ -88,7 +94,7 @@ final class UndoCaptureCoverageTests: XCTestCase {
             let r = segString.range(of: needle)
             return r.location == NSNotFound ? -1 : r.location
         }
-        let captureAt = idx("captureForUndo()")
+        let captureAt = Self.captureMarkers.map(idx).filter { $0 >= 0 }.min() ?? -1
         let firstWrite = ["deleteByIds", "updateAll", "insertAll"]
             .map(idx).filter { $0 >= 0 }.min() ?? Int.max
         XCTAssertTrue(captureAt >= 0 && captureAt < firstWrite,
