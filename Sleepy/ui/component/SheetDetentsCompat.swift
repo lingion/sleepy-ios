@@ -197,9 +197,25 @@ private struct SheetPresentationCompatIntrospector: UIViewControllerRepresentabl
             guard attachedController !== pc || pc.delegate !== self else { return }
             attachedController = pc
             if let existing = pc.delegate, existing !== self {
+                // 同一 sheet 内可有多个内省器(嵌套子视图)轮流 attach。若现任 delegate
+                // 的转发链已经回到 self, 再把它记为 originalDelegate 会形成 A→B→A 环,
+                // responds(to:) 无限递归直至栈溢出(SIGSEGV)。self 已在链上则保持现状。
+                if Self.chain(from: existing, reaches: self) { return }
                 originalDelegate = existing
             }
             pc.delegate = self
+        }
+
+        private static func chain(from start: UIAdaptivePresentationControllerDelegate,
+                                  reaches target: Coordinator) -> Bool {
+            var node: UIAdaptivePresentationControllerDelegate? = start
+            var hops = 0
+            while let current = node as? Coordinator, hops < 32 {
+                if current === target { return true }
+                node = current.originalDelegate
+                hops += 1
+            }
+            return node === target
         }
 
         // MARK: - UIAdaptivePresentationControllerDelegate 拦截与转发
