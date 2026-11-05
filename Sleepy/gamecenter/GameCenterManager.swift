@@ -1,3 +1,4 @@
+#if !WIDGET_EXT && !WATCH_APP
 import Foundation
 import GameKit
 
@@ -63,3 +64,4 @@ final class GameCenterManager {
     }
     #endif
 }
+#endif // !WIDGET_EXT && !WATCH_APP

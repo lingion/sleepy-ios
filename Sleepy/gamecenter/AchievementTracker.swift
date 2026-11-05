@@ -1,3 +1,4 @@
+#if !WIDGET_EXT && !WATCH_APP
 import Foundation
 
 /// 成就追踪器：检查触发条件并协调本地标记 + Game Center 上报
@@ -108,3 +109,4 @@ final class AchievementTracker {
         gameCenter.unlockAchievement(id: achievementID)
     }
 }
+#endif // !WIDGET_EXT && !WATCH_APP
