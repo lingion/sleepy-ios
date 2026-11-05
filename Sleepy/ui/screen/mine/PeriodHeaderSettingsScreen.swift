@@ -20,6 +20,8 @@ struct PeriodHeaderSettingsScreen: View {
     // v1.0.62 B4: 旧式表头「隐藏时间行」(← AppPrefs.isPeriodHeaderHideTime)
     @State private var hideTime: Bool = AppPrefs.shared.isPeriodHeaderHideTime()
     @State private var timeAlignment: String = AppPrefs.shared.getPeriodHeaderTimeAlignment()
+    // 同一页面身份内仅捕获一次，切换布局/重复 onAppear 都保留进页基线。
+    @State private var baselineHanging: Float? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -104,20 +106,25 @@ struct PeriodHeaderSettingsScreen: View {
                             }
                         }
                         if layout == "three_line" {
-                            // ← 原版本 String.format("%+.1f", hangingUnits)
-                            Text(L10n.format("appearance_header_hanging",
-                                             String(format: "%+.1f", hangingUnits)))
-                                .font(.system(size: 14))   // ← bodyMedium
-                                .foregroundColor(colors.onSurfaceVariant)
-                            Slider(
-                                value: Binding(
-                                    get: { Double(hangingUnits) },
-                                    set: { v in
+                            VStack(spacing: 4) {
+                                Text("\(L10n.t("appearance_header_hanging"))  \(String(format: "%+.1f", hangingUnits))")
+                                    .font(.system(size: 14))   // ← bodyMedium
+                                    .foregroundColor(colors.onSurfaceVariant)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                NativeBaselineSlider(
+                                    value: Double(hangingUnits),
+                                    range: -1...1,
+                                    baseline: baselineHanging.map { Double($0) },
+                                    label: L10n.t("appearance_header_hanging"),
+                                    valueText: String(format: "%+.1f", hangingUnits),
+                                    onValueChange: { v in
                                         hangingUnits = Float((v * 10).rounded() / 10)
-                                    }),
-                                in: -1...1) { _ in
-                                    prefs.setPeriodHeaderHanging(hangingUnits)
-                                }
+                                    },
+                                    onFinished: {
+                                        prefs.setPeriodHeaderHanging(hangingUnits)
+                                    })
+                                    .frame(height: 32)
+                            }
                         }
                     }
                 }
@@ -126,6 +133,12 @@ struct PeriodHeaderSettingsScreen: View {
         }
         .background(colors.background)
         .navigationBarHidden(true)
+        .onAppear { captureBaselines() }
+    }
+
+    private func captureBaselines() {
+        guard baselineHanging == nil else { return }
+        baselineHanging = hangingUnits
     }
 }
 
