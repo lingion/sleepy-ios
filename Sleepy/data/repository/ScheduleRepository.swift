@@ -591,7 +591,7 @@ final class ScheduleRepository {
             if var row = replacement {
                 try CourseOccurrences.validateTime(row, table: effective)
                 guard row.startWeek == row.endWeek, row.type == 0,
-                      let date = row.fixedDate.flatMap(CourseOccurrences.parseDate)
+                      let date = row.fixedDate.flatMap { CourseOccurrences.parseDate($0, calendar: nil) }
                         ?? CourseOccurrences.date(startDate: table.startDate, week: row.startWeek, day: row.day),
                       let week = CourseOccurrences.week(startDate: table.startDate, date: date), week <= table.maxWeek,
                       week == row.startWeek, CourseOccurrences.day(date) == row.day else {
