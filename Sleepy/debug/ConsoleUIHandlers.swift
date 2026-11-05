@@ -85,7 +85,10 @@ final class ConsoleUIHandlers {
         func visit(_ object: NSObject, depth: Int) {
             guard depth < 80, seen.count < 4000, seen.insert(ObjectIdentifier(object)).inserted else { return }
             if let view = object as? UIView, view.isHidden || view.alpha < 0.01 || view.accessibilityElementsHidden { return }
-            let tag = (object as? UIAccessibilityIdentification)?.accessibilityIdentifier
+            // `as? UIAccessibilityIdentification` 对 UIView 子类返回 nil(ObjC 协议桥接),
+            // 按具体类型取 accessibilityIdentifier。
+            let tag = (object as? UIView)?.accessibilityIdentifier
+                ?? (object as? UIAccessibilityElement)?.accessibilityIdentifier
             let text = object.accessibilityLabel ?? (object as? UILabel)?.text ?? (object as? UITextField)?.text
             let traits = object.accessibilityTraits
             let control = object as? UIControl
