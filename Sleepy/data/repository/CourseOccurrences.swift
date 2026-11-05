@@ -68,7 +68,7 @@ enum CourseOccurrences {
                         table: TimeTableEntity, transfers: [HolidayTransferEntry]) -> CourseOccurrence? {
         guard coursesForDate(displayDate, startDate: table.startDate, maxWeek: table.maxWeek,
                              courses: [course], transfers: transfers).count == 1 else { return nil }
-        let source = course.fixedDate.flatMap(parseDate)
+        let source = course.fixedDate.flatMap { parseDate($0, calendar: nil) }
             ?? HolidayTransferOps.courseDateForDate(displayDate, transfers)
         return source.map { CourseOccurrence(course: course, sourceDate: $0, displayDate: displayDate) }
     }
