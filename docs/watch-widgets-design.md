@@ -1,7 +1,7 @@
 # 表盘小组件扩展设计 — 6 个 widget kind（尺寸矩阵 / 刷新 / 数据层）
 
-> 状态: 设计已确认（2026-11-05），待实现计划分解后开工
-> 分支: `feat/watch-widget-kinds` · 基线: `master@72c822c`
+> 状态: 已实现（2026-11-05）— 6 kind 全量落地，单测 13/13 绿，watch/iOS 构建绿（移植前基线）；PR #39（lingion/sleepy-ios）
+> 分支: `feat/watch-widget-kinds` · 基线: upstream `master@6c9dec4`（含 #29-#33；#34-#37 修复栈合并后需 rebase 复核）
 > 触发: 表盘用户反馈「想要更多不同尺寸、不同类型的小组件」——现状仅 1 个 kind
 
 ## 1. 背景与现状
