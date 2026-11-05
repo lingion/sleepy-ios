@@ -57,7 +57,16 @@ final class ConsoleJWMockStore {
         guard !name.isEmpty, !name.hasPrefix("/"), !name.hasPrefix("\\"), !name.contains(":"),
               !name.split(whereSeparator: { $0 == "/" || $0 == "\\" }).contains("..") else { return nil }
         let root = directory.resolvingSymlinksInPath().standardizedFileURL
-        let target = root.appendingPathComponent(name).resolvingSymlinksInPath().standardizedFileURL
+        // resolvingSymlinksInPath 遇到不存在的段会放弃解析整条路径(link/escape.html
+        // 原样返回, 前缀判定被绕过) → 解析最深的已存在祖先, 再拼回不存在的尾段。
+        var existing = root.appendingPathComponent(name)
+        var tail: [String] = []
+        while !FileManager.default.fileExists(atPath: existing.path), existing.path != root.path {
+            tail.insert(existing.lastPathComponent, at: 0)
+            existing = existing.deletingLastPathComponent()
+        }
+        let target = tail.reduce(existing.resolvingSymlinksInPath()) { $0.appendingPathComponent($1) }
+            .standardizedFileURL
         return target.path.hasPrefix(root.path + "/") ? target : nil
     }
 
