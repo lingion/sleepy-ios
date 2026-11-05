@@ -397,6 +397,10 @@ schemes:
       targets:
         - SleepyTests
         - SleepyUITests
+      # 民事日锚定 Asia/Shanghai(DateUtils.parseDate / CourseOccurrences.calendar);
+      # GitHub runner 默认 UTC, 与锚时区差 8h 会让日期类断言整体错位一天。
+      environmentVariables:
+        TZ: Asia/Shanghai
   # watchOS 伴侣 App 独立运行入口 (手表模拟器调试; CI 仍只跑 -scheme Sleepy)
   Sleepy Watch:
     build:
