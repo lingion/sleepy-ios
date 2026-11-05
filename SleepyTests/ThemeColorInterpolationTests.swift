@@ -158,8 +158,8 @@ private struct ThemeHost: View {
             .modifier(SleepyThemeProvider(darkTheme: input.dark, themeKey: input.key,
                                           customThemeVersion: input.version))
             .environment(\.systemColorSnapshot, input.snapshot)
-            .environment(\.colorSchemeContrast, .standard)
-            .environment(\.accessibilityReduceMotion, false)
+            // colorSchemeContrast and accessibilityReduceMotion are read-only in iOS 26+ / Xcode 16.4+
+            // Tests assume system defaults (.standard contrast, motion enabled)
     }
 }
 
