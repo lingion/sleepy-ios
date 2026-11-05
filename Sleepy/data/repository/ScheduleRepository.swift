@@ -697,7 +697,7 @@ final class ScheduleRepository {
             let sourceNode = source.normalizeNode(timeJson: effective.timeJson).startNode
             let sameTime = targetStartTime == nil
                 || TimeTableUtils.hmToSeconds(source.startTime) == TimeTableUtils.hmToSeconds(destination.startTime)
-            let sourceDay = source.fixedDate.flatMap { CourseOccurrences.parseDate($0, calendar: nil) }.map(CourseOccurrences.day) ?? source.day
+            let sourceDay = source.fixedDate.flatMap { CourseOccurrences.parseDate($0, calendar: nil) }.map { CourseOccurrences.day($0, calendar: nil) } ?? source.day
             if sourceWeek == targetWeek && sourceDay == targetDay && sourceNode == targetNode && sameTime {
                 return false
             }

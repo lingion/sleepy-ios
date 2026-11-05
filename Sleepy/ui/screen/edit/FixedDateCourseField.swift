@@ -6,7 +6,7 @@ struct FixedDateCourseField: View {
     let table: TimeTableEntity
 
     private var selectedDate: Date {
-        block.fixedDate.flatMap(CourseOccurrences.parseDate)
+        block.fixedDate.flatMap { CourseOccurrences.parseDate($0) }
             ?? CourseOccurrences.date(startDate: table.startDate, week: block.startWeek, day: block.days.sorted().first ?? 1)
             ?? Date()
     }
