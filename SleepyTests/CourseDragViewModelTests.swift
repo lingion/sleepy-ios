@@ -4,13 +4,6 @@ import GRDB
 @testable import Sleepy
 
 final class CourseDragViewModelTests: XCTestCase {
-    private func utcCalendar() -> Calendar {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(secondsFromGMT: 0)!
-        cal.firstWeekday = 2
-        return cal
-    }
-    
     /// 用数据库结果作判据；不在测试里重写逆映射或课程拆分算法。
     private struct DatabaseState: Encodable {
         let tables: [TimeTableEntity]
@@ -91,12 +84,8 @@ final class CourseDragViewModelTests: XCTestCase {
 
         func source(_ course: CourseEntity, week: Int, day: Int? = nil) throws -> CourseDragContext.Source {
             let table = try XCTUnwrap(vm.state.effectiveCurrentTable)
-            let cal = Calendar(identifier: .gregorian)
-            var utcCal = cal
-            utcCal.timeZone = TimeZone(secondsFromGMT: 0)!
-            utcCal.firstWeekday = 2
             let rendered = renderCoursesForWeek(table, week: week, courses: [course],
-                transfers: vm.state.transfers, timeJson: table.timeJson, calendar: utcCal)
+                transfers: vm.state.transfers, timeJson: table.timeJson)
             let projection = try XCTUnwrap(rendered.first { day == nil || $0.day == day })
             let occurrence = try XCTUnwrap(CourseOccurrenceIdentity.resolve(startDate: table.startDate,
                 maxWeek: table.maxWeek, displayWeek: week, displayDay: projection.day, transfers: vm.state.transfers))
@@ -215,8 +204,7 @@ final class CourseDragViewModelTests: XCTestCase {
         XCTAssertEqual(moved.startNode, 3)
         XCTAssertEqual(rows.filter { $0.day == 7 }.count, 0)
         let rendered = renderCoursesForWeek(try XCTUnwrap(f.vm.state.currentTable), week: 8,
-            courses: [moved], transfers: f.vm.state.transfers, timeJson: f.vm.state.effectiveCurrentTable?.timeJson,
-            calendar: utcCalendar())
+            courses: [moved], transfers: f.vm.state.transfers, timeJson: f.vm.state.effectiveCurrentTable?.timeJson)
         XCTAssertEqual(rendered.first?.day, 7, "重新渲染后仍落在用户释放的星期日列")
         XCTAssertTrue(f.vm.undoLastChange())
         XCTAssertEqual(try f.snapshot(), before)

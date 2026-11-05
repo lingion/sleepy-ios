@@ -2,13 +2,6 @@ import XCTest
 @testable import Sleepy
 
 final class CourseDragPolicyTests: XCTestCase {
-    private func utcCalendar() -> Calendar {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(secondsFromGMT: 0)!
-        cal.firstWeekday = 2
-        return cal
-    }
-    
     @MainActor
     func testOwnTimeLiftKeepsFractionalStartOnSameRow() throws {
         let context = CourseDragContext()
@@ -44,7 +37,7 @@ final class CourseDragPolicyTests: XCTestCase {
             targetDate: try XCTUnwrap(DateUtils.dateOfWeek(startDate: table.startDate, week: 6, dayOfWeek: 7)),
             segmentId: "lift")]
         let projection = try XCTUnwrap(renderCoursesForWeek(table, week: 6, courses: [original],
-            transfers: transfers, timeJson: table.timeJson, calendar: utcCalendar()).first)
+            transfers: transfers, timeJson: table.timeJson).first)
         XCTAssertNotNil(context.begin(projection, week: 6, frame: .zero, touch: nil,
             table: table, allCourses: [original], transfers: transfers))
         let captured = try XCTUnwrap(context.source)
