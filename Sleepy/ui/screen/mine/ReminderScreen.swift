@@ -597,6 +597,8 @@ struct ReminderScreen: View {
                         masterEnabled = true
                         prefs.setReminderEnabled(true)
                         ReminderRescheduler.shared.request()
+                        // 成就：开启提醒
+                        AchievementTracker.shared.checkNotificationOn()
                     case .notDetermined:
                         // ← 全 app 唯一系统权限弹窗点(用户显式开 master 才申请)
                         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
@@ -606,6 +608,8 @@ struct ReminderScreen: View {
                                     masterEnabled = true
                                     prefs.setReminderEnabled(true)
                                     ReminderRescheduler.shared.request()
+                                    // 成就：开启提醒
+                                    AchievementTracker.shared.checkNotificationOn()
                                 } else {
                                     // Permission denied → revert to off + 手动设置引导
                                     notifDenied = true

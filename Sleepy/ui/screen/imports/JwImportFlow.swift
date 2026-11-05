@@ -409,6 +409,8 @@ struct JwImportFlow: View {
     private func finishOrReport(_ school: JwSchoolInfo?) {
         // 已落库即成功；报告弹窗期间再退出也不能回退成取消。
         importOutcome = .completed
+        // 成就：导入成功
+        AchievementTracker.shared.checkImportSuccess()
         if let school, school.isUnverified {
             reportDialogSchool = school
         } else {

@@ -344,6 +344,8 @@ struct ExportScreen: View {
             try content.data(using: .utf8)?.write(to: url)
             shareSheet = ShareItem(text: nil, subject: displayName, url: url)
             snackMessage = L10n.format("export_saved_to", fileName)
+            // 成就：导出备份
+            AchievementTracker.shared.checkExportBackup()
         } catch {
             snackMessage = L10n.format("export_failed")
         }

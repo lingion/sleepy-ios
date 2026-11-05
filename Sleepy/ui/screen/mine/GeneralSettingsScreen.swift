@@ -111,6 +111,8 @@ struct GeneralSettingsScreen: View {
                                                  report.counts.timeTables, report.counts.courses)
                     // 偏好与小组件配置可能被替换, 迁移后统一刷新小组件
                     WidgetCenter.shared.reloadAllTimelines()
+                    // 成就：导入备份
+                    AchievementTracker.shared.checkImportBackup()
                 }
             } catch {
                 NSLog("SleepyMigration: import failed: %@", String(describing: error))

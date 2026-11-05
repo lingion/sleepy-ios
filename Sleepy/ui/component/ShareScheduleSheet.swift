@@ -71,6 +71,10 @@ struct ShareScheduleSheet: View {
         // 有意差异: 原 containerColor = colors.surface,iOS 用系统弹层背景;条目图标 Material outlined → SF Symbols
         .sheet(item: $shareSheet) { item in
             SharePayloadSheet(text: item.text, subject: item.subject, url: item.url)
+                .onAppear {
+                    // 成就：分享弹窗显示
+                    AchievementTracker.shared.checkShareSuccess()
+                }
         }
     }
 

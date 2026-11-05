@@ -148,6 +148,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         #if DEBUG && !WIDGET_EXT && !WATCH_APP
         debugConsole.start()
         #endif
+        // Game Center 认证：静默，不影响 App 正常使用
+        GameCenterManager.shared.authenticate()
         // 高刷新率:iOS 无公开刷率 API(原 HighRefreshRate 桩已删),ProMotion 上
         // 系统自动调度 120Hz,无需 app 侧动作(2026-09-10 原生化审计)。
         return true
@@ -466,7 +468,15 @@ struct AppRoot: View {
         // ★ 回前台重判底栏形态(仅"未显式设置"自适应路径有意义; 显式选择时
         //   resolver 设置优先, 重判结果不变)。
         .onChange(of: scenePhase) { phase in
-            if phase == .active { root.refreshNavMode() }
+            if phase == .active {
+                root.refreshNavMode()
+                // Widget 检测：App 进入前台时检查是否有已添加的 Widget
+                WidgetCenter.shared.getCurrentConfigurations { result in
+                    if case .success(let widgets) = result, !widgets.isEmpty {
+                        AchievementTracker.shared.checkWidgetAdd()
+                    }
+                }
+            }
         }
         // 深链课程 → 编辑(← LaunchedEffect(deepLinkCourse?.id))
         .onChange(of: root.deepLinkCourse?.id) { courseId in

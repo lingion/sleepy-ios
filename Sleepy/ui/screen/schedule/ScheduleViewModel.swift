@@ -447,6 +447,8 @@ final class ScheduleViewModel: ObservableObject {
         Task {
             try? repo.deleteTable(id)
             self.manualSelectDone = false
+            // 成就：首次删除课表
+            AchievementTracker.shared.checkDeleteOnce()
         }
     }
 

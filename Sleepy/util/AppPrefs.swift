@@ -847,6 +847,51 @@ final class AppPrefs {
     func clearHolidayTransfers(_ tableId: Int64) {
         sp().removeObject(forKey: Self.transferKey(tableId))
     }
+
+    // MARK: - Game Center 成就
+
+    private static let KEY_ACHIEVEMENT_IMPORT_SUCCESS  = "achievement_import_success"
+    private static let KEY_ACHIEVEMENT_NOTIFICATION_ON = "achievement_notification_on"
+    private static let KEY_ACHIEVEMENT_WIDGET_ADD      = "achievement_widget_add"
+    private static let KEY_ACHIEVEMENT_SHARE_SUCCESS   = "achievement_share_success"
+    private static let KEY_ACHIEVEMENT_EXPORT_BACKUP   = "achievement_export_backup"
+    private static let KEY_ACHIEVEMENT_IMPORT_TWICE    = "achievement_import_twice"
+    private static let KEY_ACHIEVEMENT_DELETE_ONCE     = "achievement_delete_once"
+    private static let KEY_ACHIEVEMENT_IMPORT_BACKUP   = "achievement_import_backup"
+    private static let KEY_ACHIEVEMENT_IMPORT_COUNT    = "achievement_import_count"
+
+    func isAchievementImportSuccessUnlocked() -> Bool  { sp().bool(forKey: Self.KEY_ACHIEVEMENT_IMPORT_SUCCESS) }
+    func setAchievementImportSuccessUnlocked(_ v: Bool) { sp().set(v, forKey: Self.KEY_ACHIEVEMENT_IMPORT_SUCCESS) }
+
+    func isAchievementNotificationOnUnlocked() -> Bool  { sp().bool(forKey: Self.KEY_ACHIEVEMENT_NOTIFICATION_ON) }
+    func setAchievementNotificationOnUnlocked(_ v: Bool) { sp().set(v, forKey: Self.KEY_ACHIEVEMENT_NOTIFICATION_ON) }
+
+    func isAchievementWidgetAddUnlocked() -> Bool  { sp().bool(forKey: Self.KEY_ACHIEVEMENT_WIDGET_ADD) }
+    func setAchievementWidgetAddUnlocked(_ v: Bool) { sp().set(v, forKey: Self.KEY_ACHIEVEMENT_WIDGET_ADD) }
+
+    func isAchievementShareSuccessUnlocked() -> Bool  { sp().bool(forKey: Self.KEY_ACHIEVEMENT_SHARE_SUCCESS) }
+    func setAchievementShareSuccessUnlocked(_ v: Bool) { sp().set(v, forKey: Self.KEY_ACHIEVEMENT_SHARE_SUCCESS) }
+
+    func isAchievementExportBackupUnlocked() -> Bool  { sp().bool(forKey: Self.KEY_ACHIEVEMENT_EXPORT_BACKUP) }
+    func setAchievementExportBackupUnlocked(_ v: Bool) { sp().set(v, forKey: Self.KEY_ACHIEVEMENT_EXPORT_BACKUP) }
+
+    func isAchievementImportTwiceUnlocked() -> Bool  { sp().bool(forKey: Self.KEY_ACHIEVEMENT_IMPORT_TWICE) }
+    func setAchievementImportTwiceUnlocked(_ v: Bool) { sp().set(v, forKey: Self.KEY_ACHIEVEMENT_IMPORT_TWICE) }
+
+    func isAchievementDeleteOnceUnlocked() -> Bool  { sp().bool(forKey: Self.KEY_ACHIEVEMENT_DELETE_ONCE) }
+    func setAchievementDeleteOnceUnlocked(_ v: Bool) { sp().set(v, forKey: Self.KEY_ACHIEVEMENT_DELETE_ONCE) }
+
+    func isAchievementImportBackupUnlocked() -> Bool  { sp().bool(forKey: Self.KEY_ACHIEVEMENT_IMPORT_BACKUP) }
+    func setAchievementImportBackupUnlocked(_ v: Bool) { sp().set(v, forKey: Self.KEY_ACHIEVEMENT_IMPORT_BACKUP) }
+
+    func getAchievementImportCount() -> Int { sp().integer(forKey: Self.KEY_ACHIEVEMENT_IMPORT_COUNT) }
+
+    @discardableResult
+    func incrementAchievementImportCount() -> Int {
+        let n = getAchievementImportCount() + 1
+        sp().set(n, forKey: Self.KEY_ACHIEVEMENT_IMPORT_COUNT)
+        return n
+    }
 }
 
 /// 冲突默认置顶内存真相源(← MutableStateFlow) — @Published 供 SwiftUI 同帧刷 UI
