@@ -510,6 +510,7 @@ private struct CourseColorSection: View {
     //   uniform 映射到 course_colorless=true; 其它三档关闭 colorless + 写 mode。
     @State private var colorless: Bool = true       // uniform 选中时 → true
     @State private var mode: Int = AppPrefs.COURSE_COLOR_MODE_CLASSIC
+    @State private var seedHue: Float = 0           // CUSTOM 模式种子色相
 
     private var isCustom: Bool { mode == AppPrefs.COURSE_COLOR_MODE_CUSTOM }
 
