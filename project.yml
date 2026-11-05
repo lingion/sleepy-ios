@@ -160,6 +160,7 @@ targets:
                    "debug", "data/share",
                    "widget/notification/BatterySettingsLauncher.swift",
                    "util/NavStyleResolver.swift",
+                   "gamecenter",
                    # 主 app 的隐私清单只归 Sleepy target; widget 用自己的
                    # SleepyWidget/PrivacyInfo.xcprivacy (下方 path: SleepyWidget 已含)。
                    # 不排除 → archive 时 widget target 同时拷两份 PrivacyInfo.xcprivacy
@@ -211,6 +212,7 @@ targets:
       - path: Sleepy
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
                    "debug", "data/share",
+                   "gamecenter",
                    "Assets.xcassets", "LaunchScreen.storyboard",
                    "data/calendar", "data/jw", "data/migration",
                    "data/repository/ImportDraftRepository.swift",
@@ -283,6 +285,7 @@ targets:
       - path: Sleepy
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
                    "debug", "data/share",
+                   "gamecenter",
                    "Assets.xcassets", "LaunchScreen.storyboard",
                    "data/calendar", "data/jw", "data/migration",
                    "data/repository/ImportDraftRepository.swift",
