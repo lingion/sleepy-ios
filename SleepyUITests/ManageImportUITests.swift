@@ -41,7 +41,9 @@ final class ManageImportUITests: XCTestCase {
     // MARK: 管理页 4 卡片都存在且标题正确
 
     func testManageCardsExist() {
-        XCTAssertTrue(app.staticTexts["Import"].firstMatch.waitForExistence(timeout: 3))
+        // v1.0.63: 管理页导入卡改由导入方式页承载, 标题统一为 manage_add_table
+        // (Add Timetable); 旧文案 "Import" 已不再渲染。
+        XCTAssertTrue(app.staticTexts["Add Timetable"].firstMatch.waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["New Schedule"].firstMatch.exists)
         XCTAssertTrue(app.staticTexts["Add Course"].firstMatch.exists)
         XCTAssertTrue(app.staticTexts["Edit Current"].firstMatch.exists)
@@ -54,7 +56,9 @@ final class ManageImportUITests: XCTestCase {
 
     func testImportSheetOpensWithThreeMethods() {
         app.descendants(matching: .any)["manage_import"].tap()
-        XCTAssertTrue(app.staticTexts["Import Schedule"].waitForExistence(timeout: 5),
+        // 管理页入口带 onCreateNewTable → 方式页标题取 manage_add_table(Add Timetable),
+        // 不再是 import_title(Import Schedule)。
+        XCTAssertTrue(app.staticTexts["Add Timetable"].waitForExistence(timeout: 5),
                       "导入弹窗未打开")
         XCTAssertTrue(app.staticTexts["Connect to School"].exists, "教务直连行缺失")
         XCTAssertTrue(app.staticTexts["Paste Text"].exists, "文本导入行缺失")
