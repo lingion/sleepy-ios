@@ -96,13 +96,14 @@ final class CalendarTransferImportTests: XCTestCase {
 
     func testBuildEventSpecs_makeupDayCarriesSourceDayContentAndWeek() throws {
         let t = table()
+        let cal = utcCalendar()
         // 放假日 2026-10-11(周日, 第5周) 的课调到 2026-10-17(周六, 第6周) 补
         let transfers = [HolidayTransferEntry(sourceDate: d(2026, 10, 11), targetDate: d(2026, 10, 17), segmentId: "s")]
         let options = CalendarImportOptions(calendarId: "test", applyHolidayTransfers: true)
         try withTransfers(t.id, transfers) {
             let (specs, invalid) = SystemCalendarManager.shared.buildEventSpecs(
                 table: t, courses: [sundayCourse()], options: options,
-                from: d(2026, 10, 17), until: d(2026, 10, 18))
+                from: d(2026, 10, 17), until: d(2026, 10, 18), calendar: cal)
             XCTAssertEqual(0, invalid)
             XCTAssertEqual(1, specs.count)
             let spec = try XCTUnwrap(specs.first)
@@ -122,24 +123,26 @@ final class CalendarTransferImportTests: XCTestCase {
 
     func testBuildEventSpecs_holidayDayItselfHasNoEvents() throws {
         let t = table()
+        let cal = utcCalendar()
         let transfers = [HolidayTransferEntry(sourceDate: d(2026, 10, 11), targetDate: d(2026, 10, 17), segmentId: "s")]
         let options = CalendarImportOptions(calendarId: "test", applyHolidayTransfers: true)
         try withTransfers(t.id, transfers) {
             // 放假日当天(10-11)无课 — 课已被挪走
             let (specs, _) = SystemCalendarManager.shared.buildEventSpecs(
                 table: t, courses: [sundayCourse()], options: options,
-                from: d(2026, 10, 11), until: d(2026, 10, 12))
+                from: d(2026, 10, 11), until: d(2026, 10, 12), calendar: cal)
             XCTAssertEqual(0, specs.count)
         }
     }
 
     func testBuildEventSpecs_withoutTransfersSaturdayStaysEmpty() {
         let t = table()
+        let cal = utcCalendar()
         // 不启用调休: 周六(10-17)按自然星期取课, 无周日课 → 空
         let options = CalendarImportOptions(calendarId: "test", applyHolidayTransfers: false)
         let (specs, invalid) = SystemCalendarManager.shared.buildEventSpecs(
             table: t, courses: [sundayCourse()], options: options,
-            from: d(2026, 10, 17), until: d(2026, 10, 18))
+            from: d(2026, 10, 17), until: d(2026, 10, 18), calendar: cal)
         XCTAssertEqual(0, invalid)
         XCTAssertEqual(0, specs.count)
     }

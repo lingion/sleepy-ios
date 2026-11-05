@@ -260,7 +260,8 @@ final class SystemCalendarManager {
         courses: [CourseEntity],
         options: CalendarImportOptions,
         from: Date,
-        until: Date
+        until: Date,
+        calendar: Calendar? = nil
     ) -> (specs: [EventSpec], invalid: Int) {
         var invalid = 0
         var specs: [EventSpec] = []
@@ -268,9 +269,9 @@ final class SystemCalendarManager {
         let transfers = options.applyHolidayTransfers
             ? AppPrefs.shared.getHolidayTransfers(table.id)
             : []
-        let calendar = CourseOccurrences.calendar
-        var day = calendar.startOfDay(for: from)
-        let limit = calendar.startOfDay(for: until)
+        let cal = calendar ?? CourseOccurrences.calendar
+        var day = cal.startOfDay(for: from)
+        let limit = cal.startOfDay(for: until)
         while day < limit {
             // v1.0.62 B6 ← 原版本: 事件内容按源日、显示与闹钟按目标日 —
             // sourceDate = 该展示日的课实际来自哪天(放假日 nil / 补班日 = 被调走的源日);
@@ -283,8 +284,8 @@ final class SystemCalendarManager {
             for course in selected {
                 // 定日事件的周次/星期属于展示自然日，循环课才继承调休源日。
                 let courseDate = course.fixedDate != nil ? day : (sourceDate ?? day)
-                let week = CourseOccurrences.week(startDate: table.startDate, date: courseDate) ?? 1
-                let classDay = CourseOccurrences.day(courseDate)
+                let week = CourseOccurrences.week(startDate: table.startDate, date: courseDate, calendar: cal) ?? 1
+                let classDay = CourseOccurrences.day(courseDate, calendar: cal)
                 guard let (startHHmm, endHHmm) = TimeTableUtils.effectiveCourseTime(
                     isIrregularTime: course.isIrregularTime || course.ownTime,
                     startTime: course.startTime,
@@ -319,7 +320,7 @@ final class SystemCalendarManager {
                         && (TimeTableUtils.hmMinutes(startHHmm) ?? 0) < 720
                 ))
             }
-            day = calendar.date(byAdding: .day, value: 1, to: day) ?? until
+            day = cal.date(byAdding: .day, value: 1, to: day) ?? until
         }
         return (specs, invalid)
     }
