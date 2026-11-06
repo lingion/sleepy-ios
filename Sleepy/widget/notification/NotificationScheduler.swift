@@ -22,12 +22,12 @@
 //    (Android 接收器每次现算语义); BGAppRefreshTask handleDailyResync 兜底每日窗口
 //  - 当日提醒独立闸: AppPrefs key "today_reminder" 默认 true (scheduleDaily 前置检查)
 //  - banner 门控: ProdAlarmPort.setExact 落地前查 isBeforeClassBannerEnabled()
-//    (Android `if (!banner && !fluid) return`; iOS 无流体云载体 → banner 关 = 完全静默)
+//    (Android `if (!banner && !fluid) return`; iOS 对应物 Live Activities 未实现 → banner 关 = 完全静默)
 //  - 发送时重校验入口 beforeClassDeliveryAllowed(): 表被删/提醒被关/节假日豁免
 //    → delegate willPresent 丢弃 (Android BeforeClassNotifyReceiver.onReceive 语义)
 //
-// OPPO Fluid Cloud(SDK≥26 前台服务 + ProgressStyle)整体跳过(平台差异,iOS 无对应物,
-// 见 VendorCapabilityState.swift); banner 通知完整移植。
+// OPPO Fluid Cloud(SDK≥26 前台服务 + ProgressStyle)整体跳过(OPPO 厂商 SDK 调用不可移植;
+// iOS 对应物 = Live Activities/灵动岛, 本 app 未实现, 见 VendorCapabilityState.swift); banner 通知完整移植。
 
 import Foundation
 import UserNotifications
@@ -145,7 +145,7 @@ final class NotificationScheduler {
     private final class ProdAlarmPort: NotificationSchedulerBeforeClassAlarmPort {
         func setExact(id: String, epochMs: Int64, extras: [String: Any?]) {
             // v1.0.61 banner 门控 (← BeforeClassNotifyReceiver.handle 的 `if (!banner && !fluid) return`):
-            // iOS 无流体云载体, banner 关 = 课前通知完全静默。排期时拦截;
+            // iOS Live Activities(流体云对应物)未实现, banner 关 = 课前通知完全静默。排期时拦截;
             // 排期后才关 banner 的残留由 delegate willPresent 二次拦截 (见 beforeClassDeliveryAllowed)。
             guard AppPrefs.shared.isBeforeClassBannerEnabled() else { return }
             Task {

@@ -1,7 +1,7 @@
 # Android 特定功能审计与修复总结报告
 
 ## 执行日期
-2025-01-29
+2026-11-03（本文为修复时点快照，后续措辞更正以当前代码为准）
 
 ## 审计结果
 
@@ -199,11 +199,15 @@ xcodebuild -scheme Sleepy -sdk iphonesimulator \
 ```
 180fbfb (HEAD -> fix/remove-android-specific-features) fix(reminder): 移除 vivo 流体卡片功能
         Author: Kerry Lee <likerry22@gmail.com>
-        Date: 2025-01-29
-        
+        Date: 2026-11-03 14:23:34 +0800
+
         - 删除 ReminderScreen 中 fluid 相关状态和 UI
         - 标记 AppPrefs 中 fluid 相关方法为 deprecated
         - 添加审计报告和修复计划文档
+
+        注: 原提交正文称「iOS 平台无对应实现」不准确 — iOS 平台对应物为
+        ActivityKit 实况活动/灵动岛(iOS 16.1+), 本 app 未实现该切片;
+        移除 UI 的正当依据是 App Store 审核合规。提交信息不可改写, 现行代码注释已改准。
 ```
 
 ### 相关文档
@@ -213,5 +217,5 @@ xcodebuild -scheme Sleepy -sdk iphonesimulator \
 
 ### 联系人
 - 实施人员: Kerry Lee <likerry22@gmail.com>
-- 审计日期: 2025-01-29
+- 审计日期: 2026-11-03
 - 分支: `fix/remove-android-specific-features`

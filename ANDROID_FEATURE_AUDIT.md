@@ -1,7 +1,7 @@
 # sleepy-iOS Android 特定功能审计报告
 
 ## 审计日期
-2025-01-29
+2026-11-03（本文是审计时点快照，「待修复/待移除」多数已在 180fbfb 等提交落地，以当前代码为准）
 
 ## 审计背景
 App Store 审核反馈指出项目中存在多个 Android 特定功能：
@@ -35,8 +35,8 @@ App Store 审核反馈指出项目中存在多个 Android 特定功能：
 
 ### 3. ⚠️ **vivo 原子组件/流体卡片** (Android 专有)
 - **Android**: `KEY_BEFORE_CLASS_FLUID` - vivo 原子组件实时流体卡片
-- **iOS 现状**: 无对应功能
-- **原因**: vivo OriginOS 专属 API
+- **iOS 现状**: 平台有对应物(ActivityKit 实况活动/灵动岛, iOS 16.1+), 本 app 未实现该切片
+- **原因**: vivo OriginOS 专属 API; UI 移除依据是审核合规(他平台厂商文案误导 iOS 用户)
 - **处理**: 需要**完全移除**相关 UI
 - **修复状态**: ❌ **待修复**
 
@@ -173,7 +173,7 @@ App Store 审核反馈指出项目中存在多个 Android 特定功能：
 | 上课自动勿扰 | ✅ | ✅ | ✅ 对齐 | |
 | **通知渠道管理** | ✅ | ❌ | ⚠️ 待替代 | 用 iOS 系统设置 |
 | **电池优化豁免** | ✅ | ❌ | ⚠️ 待移除 | iOS 不需要 |
-| **vivo 流体卡片** | ✅ | ❌ | ⚠️ 待移除 | vivo 专有 |
+| **vivo 流体卡片** | ✅ | ❌ | ⚠️ 已移除 | vivo 专有；iOS 有对应物 = ActivityKit 实况活动/灵动岛，本 app 未实现，移除 UI 为审核合规 |
 
 ### 外观与主题 (AppearanceScreen)
 

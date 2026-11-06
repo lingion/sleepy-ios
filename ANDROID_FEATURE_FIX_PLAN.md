@@ -39,7 +39,7 @@
    - 删除 `fluidPrimaryLabel` computed property (lines 561-567)
 
 2. **AppPrefs.swift**:
-   - 标记 fluid 相关方法为 `@available(*, deprecated, message: "vivo 专有功能，iOS 不支持")`
+   - 标记 fluid 相关方法为 `@available(*, deprecated, message: "vivo 流体卡片功能已移除(App Store 合规)；iOS 对应物为 ActivityKit 实况活动/灵动岛，本 app 未实现")`
    - 或直接删除（如果没有其他引用）
 
 3. **本地化文件**:
@@ -49,8 +49,9 @@
 ```
 fix(reminder): 移除 vivo 流体卡片功能
 
-vivo 流体卡片是 vivo OriginOS 专有的原子组件 API，
-iOS 平台无对应实现。移除相关 UI 和设置项。
+vivo 流体卡片是 vivo OriginOS 专有的原子组件 API（iOS 对应物为 ActivityKit
+实况活动/灵动岛，本 app 未实现该切片）。移除相关 UI 和设置项的原因是
+App Store 审核合规：描述其他平台厂商功能的 UI 文案会误导 iOS 用户。
 
 - 删除 ReminderScreen 中 fluid 相关状态和 UI
 - 标记 AppPrefs 中 fluid 相关方法为过期
@@ -156,12 +157,12 @@ grep -r "Material\|material" --include="*.swift" . | grep -i icon
 
 #### 添加内容
 ```markdown
-## iOS 不支持的 Android 功能
+## 厂商专有/本 app 未实现的 Android 功能
 
 ### vivo 流体卡片 (Fluid Card)
 - **Android**: vivo OriginOS 原子组件，课前提醒实时流体卡片
-- **iOS**: 无对应 API
-- **状态**: 已移除相关 UI (v1.x.x)
+- **iOS**: 平台对应物 = ActivityKit 实况活动/灵动岛（iOS 16.1+），本 app 未实现该切片；移除 UI 是审核合规（他平台厂商文案误导 iOS 用户）
+- **状态**: 主 App UI 已移除 (v1.x.x)
 
 ### 电池优化豁免
 - **Android**: 引导用户关闭 Doze 模式限制

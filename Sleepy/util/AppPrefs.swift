@@ -238,26 +238,27 @@ final class AppPrefs {
     }
     func setBeforeClassBannerEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_BANNER) }
 
-    // ★ vivo 流体卡片功能已移除(2025-01-29): vivo OriginOS 原子组件 API 专有,
-    // iOS 无对应实现。保留方法仅为兼容旧数据(迁移/导入)。
-    @available(*, deprecated, message: "vivo 流体卡片功能已移除，iOS 不支持")
+    // ★ vivo 流体卡片功能已移除(180fbfb, 2026-11-03): vivo OriginOS 原子组件 API 专有;
+    // iOS 对应物 = Live Activities/灵动岛(ActivityKit, iOS 16.1+), 本 app 未实现该切片。
+    // 方法保留 = 配对同步字段(WatchSyncSnapshot) + 旧数据兼容(迁移/导入)。
+    @available(*, deprecated, message: "vivo 流体卡片功能已移除(App Store 合规)；iOS 对应物为 ActivityKit 实况活动/灵动岛，本 app 未实现")
     func isBeforeClassFluidEnabled() -> Bool { sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID) }
-    @available(*, deprecated, message: "vivo 流体卡片功能已移除，iOS 不支持")
+    @available(*, deprecated, message: "vivo 流体卡片功能已移除(App Store 合规)；iOS 对应物为 ActivityKit 实况活动/灵动岛，本 app 未实现")
     func setBeforeClassFluidEnabled(_ v: Bool) { sp().set(v, forKey: Self.KEY_BEFORE_CLASS_FLUID) }
 
     /// legacy multi-select 读取(死写路径已删 — setBeforeClassFluidFields 全库零调用,读取仅通知组件用旧数据)
-    @available(*, deprecated, message: "vivo 流体卡片功能已移除，iOS 不支持")
+    @available(*, deprecated, message: "vivo 流体卡片功能已移除(App Store 合规)；iOS 对应物为 ActivityKit 实况活动/灵动岛，本 app 未实现")
     func getBeforeClassFluidFields() -> Set<String> {
         let raw = sp().string(forKey: Self.KEY_BEFORE_CLASS_FLUID_FIELDS) ?? "name,time,room,teacher"
         return Set(raw.split(separator: ",").filter { !$0.isEmpty }.map(String.init))
     }
 
-    @available(*, deprecated, message: "vivo 流体卡片功能已移除，iOS 不支持")
+    @available(*, deprecated, message: "vivo 流体卡片功能已移除(App Store 合规)；iOS 对应物为 ActivityKit 实况活动/灵动岛，本 app 未实现")
     func getBeforeClassFluidPrimary() -> String {
         sp().string(forKey: Self.KEY_BEFORE_CLASS_FLUID_PRIMARY) ?? "room"
     }
 
-    @available(*, deprecated, message: "vivo 流体卡片功能已移除，iOS 不支持")
+    @available(*, deprecated, message: "vivo 流体卡片功能已移除(App Store 合规)；iOS 对应物为 ActivityKit 实况活动/灵动岛，本 app 未实现")
     func setBeforeClassFluidPrimary(_ value: String) {
         // ← Android require(name|time|room|countdown) v1.0.61: countdown 是合法主字段
         precondition(value == "name" || value == "time" || value == "room" || value == "countdown")

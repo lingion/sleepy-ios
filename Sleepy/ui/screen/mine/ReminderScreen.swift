@@ -5,8 +5,9 @@
 // 权限申请政策(2026-10): 全 app 唯一弹窗点 = master 开关 onMasterToggle(.notDetermined);
 // NotificationScheduler.createChannels 的隐式申请已摘除。denied 后系统不再弹框
 // (一次性弹窗语义), UI 显示手动设置引导行(NotifDeniedRow → 系统设置)。
-// ★ v1.x 平台差异: vivo 流体卡片(Fluid Cloud)是 vivo OriginOS 原子组件 API 专有,
-// iOS 无对应实现, 已移除相关 UI(2025-01-29 App Store 审核反馈)。
+// ★ v1.x 平台差异: vivo 流体卡片(Fluid Cloud)是 vivo OriginOS 原子组件 API 专有;
+// iOS 对应物 = Live Activities/灵动岛(ActivityKit, iOS 16.1+), 本 app 未实现该切片。
+// UI 已移除(180fbfb, 2026-11-03 App Store 审核反馈: 描述他平台厂商功能会误导 iOS 用户)。
 // 可靠性诊断 5 行 → iOS 快照仅 3 个可观测事实(通知权限/时效性/低电量),
 // widget/vendor/promoted 为 no-analog(见 BackgroundReliabilitySnapshot.swift 头部映射表),
 // 对应行不渲染(不是 silent skip: 映射决策已记录)。
