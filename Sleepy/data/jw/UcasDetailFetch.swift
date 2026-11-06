@@ -90,18 +90,7 @@ enum UcasDetailFetch {
         request.timeoutInterval = timeoutSec
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
-        let data: Data
-        let response: URLResponse
-        #if DEBUG && !WIDGET_EXT && !WATCH_APP
-        if let mocked = ConsoleJWMockStore.shared.response(for: request) {
-            data = mocked.0
-            response = mocked.1
-        } else {
-            (data, response) = try await session.data(for: request)
-        }
-        #else
-        (data, response) = try await session.data(for: request)
-        #endif
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw FetchError.nonHTTP }
         guard http.statusCode == 200 else { throw FetchError.http(http.statusCode) }
         let enc = encoding(forContentType: http.value(forHTTPHeaderField: "Content-Type"))

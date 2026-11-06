@@ -30,25 +30,9 @@ final class JwImportViewModel: ObservableObject {
     // internal: SchoolSelectScreen 的 launcher 等价接线需调 requestPermission(completion:)
     lazy var locator = SchoolCityLocator()
     private var locationJob: Task<Void, Never>? = nil
-    #if DEBUG && !WIDGET_EXT && !WATCH_APP
-    private var consoleCatalogObserver: NSObjectProtocol?
-    #endif
 
     init() {
-        #if DEBUG && !WIDGET_EXT && !WATCH_APP
-        consoleCatalogObserver = NotificationCenter.default.addObserver(
-            forName: ConsoleCatalogStore.didChange, object: nil, queue: .main
-        ) { [weak self] _ in
-            DispatchQueue.main.async { self?.loadSchools() }
-        }
-        #endif
         loadSchools()
-    }
-
-    deinit {
-        #if DEBUG && !WIDGET_EXT && !WATCH_APP
-        if let observer = consoleCatalogObserver { NotificationCenter.default.removeObserver(observer) }
-        #endif
     }
 
     /// ← locateSchoolCity(): 取消旧任务 → Locating → 启动定位
@@ -92,13 +76,7 @@ final class JwImportViewModel: ObservableObject {
                     return v
                 }
                 DispatchQueue.main.async {
-                    var effective = list
-                    #if DEBUG && !WIDGET_EXT && !WATCH_APP
-                    // 发布时读取最新覆盖，避免后台加载期间 stop/set 后带回旧覆盖。
-                    effective = ConsoleCatalogStore.shared.apply(to: effective)
-                    #endif
-                    // 覆盖先于过滤，允许给原本空 URL 的目录项提供调试入口。
-                    let visible = effective.filter { !$0.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    let visible = list.filter { !$0.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     self?.schools = visible
                     self?.searchIndex = SchoolSearchIndex(visible)
                 }
