@@ -377,19 +377,6 @@
 "about_title" = "关于";
 "about_version" = "版本信息";
 "about_version_detail" = "版本 %1$@（构建 %2$d）";
-"about_update" = "获取更新";
-"about_update_detail" = "GitHub 主站不可用时，自动回退镜像下载";
-"about_update_checking" = "正在检查更新…";
-"about_update_latest" = "当前已是最新版本 v%1$@";
-"update_found_title" = "发现新版本 v%1$@";
-"update_download" = "下载";
-"update_cancel" = "取消";
-"update_downloading" = "下载中 %1$d%%";
-"update_installing" = "下载完成，正在打开安装器";
-"update_retry" = "重试";
-"update_download_failed" = "下载失败：%1$@";
-"update_ios_sideload_title" = "下载完成";
-"update_ios_sideload_hint" = "IPA 已下载。iOS 无法自动安装，请用该文件通过 AltStore 重新侧载更新。";
 "semester_out_of_range" = "当前不在学期范围内";
 "about_author" = "作者";
 "about_author_name" = "Lingion";
@@ -473,8 +460,6 @@
 "default_course_name" = "课程";
 "default_room" = "上课地点";
 "error_unknown" = "未知错误";
-"error_no_version_found" = "主站和镜像都没找到最新版本";
-"error_empty_download" = "下载文件为空";
 "array_day_names_0" = "周一";
 "array_day_names_1" = "周二";
 "array_day_names_2" = "周三";
@@ -629,9 +614,6 @@
 "widget_manage_title" = "管理桌面小组件";
 
 /* sleepy-v1 对齐补齐 (iOS native) */
-"about_update_available" = "新版 %1$@ 可用,点此查看";
-"about_update_check" = "自动检查更新";
-"about_update_check_detail" = "启动时自动检查 GitHub Releases, 发现新版本会在「关于」页顶部提示";
 "course_alias" = "别名 (可选)";
 "exit_press_back_again" = "再按一次返回退出";
 "export_native_subtitle" = "完整备份·体积最小·推荐迁移分享";
@@ -749,7 +731,6 @@
 "about_qq_group_number" = "1063407652";
 "about_qq_no_qq" = "群号已复制,未检测到 QQ,请手动打开 QQ 搜索加入";
 "about_qq_title" = "QQ 交流群";
-"about_update_dismiss" = "关闭更新提示";
 "appearance_header_hanging" = "左右移动 %@ 个开始时间宽度";
 "schedule_drag_hint" = "长按移动本次课程，停留在左右边缘可连续翻周。";
 "schedule_drag_failed" = "未能移动本次课程，请检查目标节次与调休安排后重试。";

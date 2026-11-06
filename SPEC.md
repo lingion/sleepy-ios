@@ -60,10 +60,10 @@ sleepy-ios/
 │   │   ├── parser/                ← parser/ (ScheduleParser 738行, ScheduleExporter)
 │   │   └── repository/            ← repository/ (ScheduleRepository)
 │   ├── ui/
-│   │   ├── component/             ← component/ (PillNavigationBar, SegmentedSwitcher, DateTimePickers, ImportSheet, CourseDetailSheet, CourseTableView, SmartPeriodEditor, TimeSlotEditor, UpdateChangelogDialog…)
+│   │   ├── component/             ← component/ (PillNavigationBar, SegmentedSwitcher, DateTimePickers, ImportSheet, CourseDetailSheet, CourseTableView, SmartPeriodEditor, TimeSlotEditor…)
 │   │   ├── screen/                ← screen/ (ScheduleScreen 三视图, TodayScreen, MineScreen, ManagementPage, AllTablesScreen, EditTableScreen, AddCourseScreen, ExportScreen, ReminderScreen, AppearanceScreen, GeneralSettingsScreen, AboutScreen, SchoolSelectScreen, JwWebViewLoginScreen…)
 │   │   └── theme/                 ← theme/ (Theme, ThemePresets 5 预设+HSV)
-│   ├── util/                      ← util/ 全部 9 文件 (AppPrefs, CourseColorUtil, DateUtils, LocaleHelper, PinyinMatcher, TimeTableUtils, UpdateInfo, UpdateManager, VersionUtils)
+│   ├── util/                      ← util/ 全部 9 文件 (AppPrefs, CourseColorUtil, DateUtils, LocaleHelper, PinyinMatcher, TimeTableUtils, VersionUtils)
 │   ├── widget/
 │   │   ├── WidgetBundle           ← 5 widget 入口(Today, TwoDay, WeekList, WeekView, WeekGrid)
 │   │   └── *Layout.swift          ← WidgetBitmapRenderers.kt 的布局逻辑→SwiftUI(见平台差异表#5)
@@ -88,7 +88,7 @@ Kotlin → Swift 逐行对译,保结构:
 - 命名:Kotlin camelCase 保留;`data class` → `struct`(Codable);companion → static/enum namespace
 - 注释:原文注释一并翻译保留,不删不并
 - 字符串:🚫硬编码——全部走 `L10n.key`(对应 R.string),五语言逐条
-- 测试:Android 现有 8 个测试文件(JwParserTest, JwNewZfParserTest, JwWiseduParserTest, DateUtilsTest, CourseColorUtilTest, SmartPeriodConfigTest, VersionUtilsTest, ExportImportRoundTripTest, StringsKeyParityTest, UpdateInfoParseTest)的**每个用例**移植为 XCTest
+- 测试:Android 现有 8 个测试文件(JwParserTest, JwNewZfParserTest, JwWiseduParserTest, DateUtilsTest, CourseColorUtilTest, SmartPeriodConfigTest, VersionUtilsTest, ExportImportRoundTripTest, StringsKeyParityTest)的**每个用例**移植为 XCTest
 
 ## Testing Strategy
 
@@ -108,7 +108,7 @@ Kotlin → Swift 逐行对译,保结构:
 | # | original 机制 | iOS 等价适配 | 性质 |
 |---|---|---|---|
 | 1 | AlarmManager 精确闹钟+BootReceiver | UNUserNotificationCenter 本地通知(UNCalendarNotificationTrigger),iOS 重启后通知仍持久,BootReceiver 不需要;64 pending 上限→按天批量排程 | 等价 |
-| 2 | REQUEST_INSTALL_PACKAGES 自装 APK 更新 | UpdateManager 保留版本检查+UpdateChangelogDialog 完整移植,安装动作改为「提示重新侧载 IPA」 | 等价(动作降级) |
+| 2 | REQUEST_INSTALL_PACKAGES 自装 APK 更新 | 1.0.64 起 iOS 分发收敛 App Store/TestFlight,「获取更新」切片整体移除(无自装等价物, GitHub 仅源码公开) | 平台私有(功能移除) |
 | 3 | OPPO Fluid Cloud(FluidCloudService + oppo-fluid-cloud-upk) | 🚫OPPO 厂商 SDK 调用不可移植,**整体跳过**;iOS 对应物 = ActivityKit 实况活动/灵动岛,本 app 未实现该切片,spec 里显式记录 | 平台私有 |
 | 4 | ACTION_VIEW json 文件导入(ImportReceiverActivity) | CFBundleDocumentTypes + onOpenURL,ImportSheet 预览流程原样 | 等价 |
 | 5 | RemoteViews+Canvas bitmap 渲染 widget | WidgetKit SwiftUI 视图;WidgetBitmapRenderers.kt 的**布局/排版/配色计算逻辑逐函数移植**,bitmap 管道本身不移植 | 等价(渲染载体换) |

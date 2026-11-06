@@ -659,10 +659,7 @@ struct AppRoot: View {
                             selected: tabletRightTab == .manage) { root.currentTab = .manage },
             PillNavItemData(id: "mine", icon: "person",
                             label: L10n.format("tab_mine"),
-                            selected: tabletRightTab == .mine,
-                            // ← 原版本: 普通项形态才吃 updateNoticeVisible(胶囊
-                            //   形态由 NavigationRailBar 内 tabShowUpdateDot 分支处理)
-                            badge: updateNotifier.noticeVisible) { root.currentTab = .mine },
+                            selected: tabletRightTab == .mine) { root.currentTab = .mine },
         ]
     }
 
@@ -730,8 +727,6 @@ struct AppRoot: View {
     //     屏底, 再注入 nativeScrollBottomPadding 作滚动余量(最后一行可滚离
     //     玻璃遮挡) — 与自绘 floating 的"直通屏底+navExtra"同一语义。
     //   - tabItem 图标沿用 PillNavigationBar 同款 SF Symbols, 文案沿用 tab_* 键。
-    //   - Mine 红点: badge("") = UITabBarItem 空串小圆点语义(iOS16+ API;
-    //     iOS15 编译兜底 .badge(0/1), 实际永不执行)。
     //   - 4 屏无 onAppear 副作用(数据经 root/scheduleViewModel 常驻订阅),
     //     TabView 懒实例化其余 tab 安全。
     private var nativeTabs: some View {
@@ -750,7 +745,7 @@ struct AppRoot: View {
                     .nativeScreen(extraBottom: nativeScrollBottomPadding)
                 .tabItem { Label(L10n.t("tab_manage"), systemImage: "gearshape") }
                 .tag(AppRootViewModel.Tab.manage)
-            nativeMineScreen
+            screen(for: .mine)
                     .nativeScreen(extraBottom: nativeScrollBottomPadding)
                 .tabItem { Label(L10n.t("tab_mine"), systemImage: "person") }
                 .tag(AppRootViewModel.Tab.mine)
@@ -769,18 +764,7 @@ struct AppRoot: View {
     /// CourseTableView/Today/Mine/Management 已统一读该 env, 零页面改动。
     private var nativeScrollBottomPadding: CGFloat { 64 + 20 + 8 }
 
-    @ViewBuilder
-    private var nativeMineScreen: some View {
-        let dot: String? = updateNotifier.noticeVisible ? "" : nil
-        if #available(iOS 16.0, *) {
-            screen(for: .mine).badge(dot)
-        } else {
-            screen(for: .mine).badge(updateNotifier.noticeVisible ? 1 : 0)
-        }
-    }
-
-    /// 4 屏内容工厂(← v1.0.60 差量: Mine badge 走 UpdateNotifier.noticeVisible,
-    /// 与 原版本 SleepyNavHost 同一状态源) — docked/floating 单屏渲染与
+    /// 4 屏内容工厂 — docked/floating 单屏渲染与
     /// native TabView 多屏实例化共用, 页面接线零重复。
     @ViewBuilder
     private func screen(for tab: AppRootViewModel.Tab) -> some View {
@@ -827,9 +811,7 @@ struct AppRoot: View {
     }
 
     // 4 个 tab 的数据:共用于 docked / floating 两个自绘分支,避免重复
-    // ← v1.0.60 差量: Mine tab badge = UpdateNotifier.noticeVisible (更新红点,
-    //   与 原版本 SleepyNavHost badge = updateNoticeVisible && tab == Mine 同一状态源)
-    @ObservedObject private var updateNotifier = UpdateNotifier.shared
+    // (v1.0.60 的 Mine tab 更新红点随「获取更新」切片 1.0.64 移除)
     private var navItems: [PillNavItemData] {
         [
             PillNavItemData(id: "schedule", icon: "calendar",
@@ -843,8 +825,7 @@ struct AppRoot: View {
                             selected: root.currentTab == .manage) { root.currentTab = .manage },
             PillNavItemData(id: "mine", icon: "person",
                             label: L10n.format("tab_mine"),
-                            selected: root.currentTab == .mine,
-                            badge: updateNotifier.noticeVisible) { root.currentTab = .mine },
+                            selected: root.currentTab == .mine) { root.currentTab = .mine },
         ]
     }
 

@@ -487,22 +487,5 @@ final class MineSettingsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Reminders"].exists, "提醒页操作后不崩")
     }
 
-    // MARK: About — 检查更新按钮(点击进入 checking 态, 网络失败回落不崩)
-
-    func testAboutCheckUpdateButton() {
-        // ★ mine_about 在 Mine 页下部: 部分可见时 tap 落点会被 pill 导航栏拦截
-        //   (2026-11-06 CI 实证, 与 SwipeBackGestureUITests 同因)。先滚出拦截带。
-        let aboutEntry = app.descendants(matching: .any)["mine_about"]
-        scrollUntil(aboutEntry)
-        aboutEntry.tap()
-        XCTAssertTrue(app.staticTexts["About"].waitForExistence(timeout: 5))
-
-        let checkBtn = app.descendants(matching: .any)["about_check_update"]
-        XCTAssertTrue(checkBtn.waitForExistence(timeout: 3))
-        checkBtn.tap()
-        // 进入 checking(可能很快过去, 只要页面不崩)
-        XCTAssertTrue(app.staticTexts["About"].waitForExistence(timeout: 3),
-                      "检查更新不应崩溃")
-    }
 }
 

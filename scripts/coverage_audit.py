@@ -90,11 +90,9 @@ RENAMES = {
     'getCourseStartTime': 'courseStartTime',
     'hasNotifPermission': 'requestAuthorizationIfNeeded',
     'ensureActiveFluidCloud': 'scheduleAll',   # PD3: Fluid Cloud 无 iOS 对应物
-    # 更新: APK 自装 → IPA 下载+侧载提示(平台差异表#2)
-    'cleanOldApk': 'cleanOldIpa',
+    # 更新切片 1.0.64 移除: APK 自装/IPA 侧载映射退役; 版本号 helper 迁居 VersionUtils
     'currentAbi': 'currentVersionName',
     'currentAbiAsset': 'currentVersionName',
-    'install': 'update_ios_sideload_hint',
     # DB
     'get': 'getShared',                     # AppDatabase.get(context) → getShared()
     # 解析器(class → struct, 同名; 名字池含 struct)

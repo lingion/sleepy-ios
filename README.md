@@ -316,8 +316,8 @@ xcodebuild -project Sleepy.xcodeproj \
 
 ### 安装
 
-- **TestFlight 公测（目前唯一合法上线途径）**：点击加入 [TestFlight 公测](https://testflight.apple.com/join/SxymmDzf)，通过 Apple 官方 TestFlight App 安装体验最新版本，无需自行签名，自动接收版本更新。
-- **自签名安装**：下载 [Releases](https://github.com/lingion/sleepy-ios/releases) 中的 IPA 文件，使用 AltStore 或 SideStore 签名安装。
+- **App Store / TestFlight 为官方分发渠道**：正式版通过 App Store 安装与更新；公测版点击加入 [TestFlight 公测](https://testflight.apple.com/join/SxymmDzf)，通过 Apple 官方 TestFlight App 安装体验最新版本，自动接收版本更新。
+- **本仓库（GitHub）仅公开源码**，不作为安装包分发渠道；应用内不提供更新检查。
 
 ---
 
