@@ -161,9 +161,16 @@ final class ScheduleFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Edit Course"].waitForExistence(timeout: 5),
                       "编辑页未打开")
         // 顶栏返回(SettingsTopBar chevron.left 按钮 label=Back)
+        // ★ 不用 firstMatch.tap(): 编辑页顶栏 Back 在 AX 层触发 iOS 26 模拟器的
+        //   scrollToVisible AX action 失败(kAXErrorCannotComplete, 2026-11-06 CI 实证;
+        //   按钮 frame {129.5, 98.6} 明明在屏内)。与 MineSettings holiday 用例同口径,
+        //   按元素坐标物理点击, 不走 AX 滚动通路。
         let back = app.buttons.matching(NSPredicate(format: "label == 'Back'")).firstMatch
         XCTAssertTrue(back.waitForExistence(timeout: 3), "返回按钮未出现")
-        back.tap()
+        let win = app.windows.firstMatch
+        win.coordinate(withNormalizedOffset: CGVector(
+            dx: (back.frame.midX - win.frame.minX) / win.frame.width,
+            dy: (back.frame.midY - win.frame.minY) / win.frame.height)).tap()
         // overlay 关闭 → 底栏恢复
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 4),
                       "返回后底栏应恢复")

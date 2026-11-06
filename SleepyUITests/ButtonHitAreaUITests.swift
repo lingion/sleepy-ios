@@ -25,6 +25,23 @@ final class ButtonHitAreaUITests: XCTestCase {
         el.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5)).tap()
     }
 
+    /// 把元素滚到 pill 导航栏拦截带之上(与 MineSettingsUITests.scrollUntil 同口径)。
+    @discardableResult
+    private func scrollIntoUsableView(_ element: XCUIElement, maxSwipes: Int = 6) -> Bool {
+        let screenH = app.windows.firstMatch.frame.height
+        let usableBottom = screenH - 110
+        func visible() -> Bool {
+            guard element.exists else { return false }
+            let f = element.frame
+            return f.minY >= 0 && f.maxY <= usableBottom
+        }
+        for _ in 0...maxSwipes {
+            if visible() { return true }
+            app.swipeUp()
+        }
+        return visible()
+    }
+
     /// Mine → 关于页 "检查更新" 主按钮(整宽 44pt 色块, 最典型的用户报障形态)
     func testAboutCheckUpdateFullBlockClickable() throws {
         let app = XCUIApplication()
@@ -36,6 +53,9 @@ final class ButtonHitAreaUITests: XCTestCase {
         app.switchToPillTab("mine")
         let aboutEntry = app.descendants(matching: .any)["mine_about"]
         XCTAssertTrue(aboutEntry.waitForExistence(timeout: 8), "关于入口未出现")
+        // ★ mine_about 在 Mine 页下部: 部分可见时 tap 落点会被 pill 导航栏拦截
+        //   (2026-11-06 CI 实证, 与 SwipeBackGestureUITests 同因)。先滚出拦截带。
+        scrollIntoUsableView(aboutEntry)
         aboutEntry.tap()
 
         let checkUpdate = app.descendants(matching: .any)["about_check_update"]

@@ -435,8 +435,11 @@ final class MineSettingsUITests: XCTestCase {
                       "Holiday 顶栏应在屏内(backX=\(backX), backY=\(backY))")
         win.coordinate(withNormalizedOffset: CGVector(dx: (backX - win.frame.minX) / win.frame.width,
                                                       dy: (backY - win.frame.minY) / win.frame.height)).tap()
-        XCTAssertTrue(app.descendants(matching: .any)["mine_general"].waitForExistence(timeout: 5),
-                      "返回后应回主界面(Mine tab)")
+        // ★ 返回落点是 General overlay(SleepyNavigationUnderlay covered=true 时底层
+        //   Mine 整树 accessibilityHidden → mine_general 永不出现, 2026-11-06 CI 实证)。
+        //   正确锚点 = General 页自身顶栏返回键仍然在(= Holiday sheet 已关, 未被弹回 Mine)。
+        XCTAssertTrue(app.buttons["topbar_back"].firstMatch.waitForExistence(timeout: 5),
+                      "返回后应回到 General 页(顶栏返回键仍在, Holiday sheet 已关)")
     }
 
     // MARK: Export — 3 格式行存在
@@ -479,7 +482,11 @@ final class MineSettingsUITests: XCTestCase {
     // MARK: About — 检查更新按钮(点击进入 checking 态, 网络失败回落不崩)
 
     func testAboutCheckUpdateButton() {
-        app.descendants(matching: .any)["mine_about"].tap()
+        // ★ mine_about 在 Mine 页下部: 部分可见时 tap 落点会被 pill 导航栏拦截
+        //   (2026-11-06 CI 实证, 与 SwipeBackGestureUITests 同因)。先滚出拦截带。
+        let aboutEntry = app.descendants(matching: .any)["mine_about"]
+        scrollUntil(aboutEntry)
+        aboutEntry.tap()
         XCTAssertTrue(app.staticTexts["About"].waitForExistence(timeout: 5))
 
         let checkBtn = app.descendants(matching: .any)["about_check_update"]

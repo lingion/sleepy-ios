@@ -44,10 +44,13 @@ final class ManageImportUITests: XCTestCase {
         // v1.0.63: 管理页导入卡改由导入方式页承载, 标题统一为 manage_add_table
         // (Add Timetable); 旧文案 "Import" 已不再渲染。
         XCTAssertTrue(app.staticTexts["Add Timetable"].firstMatch.waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["New Schedule"].firstMatch.exists)
+        // v1.0.63 卡组 = Add Timetable / Add Course / Bell Schedule Management /
+        // Export Current(2026-11-06 CI 实证: 旧 "New Schedule"/"Edit Current"
+        // 卡已由顶部摘要卡(manage_edit_current, 显示表名)取代, 断言跟进新结构)
         XCTAssertTrue(app.staticTexts["Add Course"].firstMatch.exists)
-        XCTAssertTrue(app.staticTexts["Edit Current"].firstMatch.exists)
-        // 当前表摘要
+        XCTAssertTrue(app.staticTexts["Bell Schedule Management"].firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["Export Current"].firstMatch.exists)
+        // 当前表摘要(种子表名固定中文「我的课表」, 与界面语言无关)
         XCTAssertTrue(app.staticTexts["我的课表"].waitForExistence(timeout: 3),
                       "管理页应显示当前表名")
     }
