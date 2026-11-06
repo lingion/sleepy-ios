@@ -140,7 +140,8 @@ final class AppPrefsTests: XCTestCase {
     func testFactoryDefaultsAlignOriginal1061() {
         // ← AppPrefs.kt 出厂默认逐条: start_view="cards"(用户令网格优先),
         //   compact_window_today_first=true, calendar_apply_transfers=true,
-        //   holiday 规则总开关=false(四类子开关=true), 实验室组全默认关
+        //   holiday 规则总开关=false(四类子开关=true), 实验室组默认关
+    //   (例外: 双指捏放 1.0.64 转正默认开)
         XCTAssertEqual("cards", prefs.getStartView())
         XCTAssertTrue(prefs.isCompactWindowTodayFirst())
         XCTAssertTrue(prefs.isCalendarApplyTransfers())
@@ -150,7 +151,7 @@ final class AppPrefsTests: XCTestCase {
         XCTAssertTrue(prefs.isShowViewSwitcher())
         XCTAssertFalse(prefs.isGridAutoHideEmptyEvening())
         XCTAssertFalse(prefs.isGridAdaptiveHeight())
-        XCTAssertFalse(prefs.isGridPinchZoom())
+        XCTAssertTrue(prefs.isGridPinchZoom())  // 1.0.64 转正默认开(其余实验室组仍全关)
         XCTAssertFalse(prefs.isGridShowSeparators())
         XCTAssertFalse(prefs.isGridLongBreakSpacing())
         XCTAssertEqual("18:00", prefs.getGridEveningStart())

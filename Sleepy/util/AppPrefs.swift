@@ -91,8 +91,8 @@ final class AppPrefs {
     static let KEY_GRID_ADAPTIVE_HEIGHT = "grid_adaptive_height" // bool default false — 自适应行高(默认固定 52dp 基座)
     static let KEY_GRID_EVENING_START = "grid_evening_start"     // "HH:mm" default 18:00 — 晚间起始时间(用户自定义)
     static let KEY_GRID_ROW_SCALE = "grid_row_scale"             // Float default 1.0 — 双指行高缩放确认值(相对基座; 原实现读侧不钳制)
-    static let KEY_GRID_PINCH_ZOOM = "grid_pinch_zoom"           // bool default false — 双指捏放行高(v1.0.56 默认关, 关=手势不挂; 存量缩放值不清)
-    static let DEFAULT_GRID_PINCH_ZOOM = false
+    static let KEY_GRID_PINCH_ZOOM = "grid_pinch_zoom"           // bool default true — 双指捏放行高(1.0.64 转正: 默认开, 关=手势不挂; 存量缩放值不清)
+    static let DEFAULT_GRID_PINCH_ZOOM = true
     static let KEY_GRID_SHOW_SEPARATORS = "grid_show_separators" // bool default false — 网格额外分隔线
     static let DEFAULT_GRID_SHOW_SEPARATORS = false
     static let KEY_GRID_LONG_BREAK_SPACING = "grid_long_break_spacing" // bool default false — 长课间额外留白
@@ -819,7 +819,7 @@ final class AppPrefs {
     }
     func setGridRowScale(_ v: Double) { sp().set(v, forKey: Self.KEY_GRID_ROW_SCALE) }
 
-    /// 双指捏放行高 — default false(v1.0.56 默认关, 关=手势不挂) ← isGridPinchZoom
+    /// 双指捏放行高 — default true(1.0.64 转正; 关=手势不挂) ← isGridPinchZoom
     func isGridPinchZoom() -> Bool {
         sp().object(forKey: Self.KEY_GRID_PINCH_ZOOM) as? Bool ?? Self.DEFAULT_GRID_PINCH_ZOOM
     }
