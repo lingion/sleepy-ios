@@ -26,8 +26,10 @@ final class ButtonHitAreaUITests: XCTestCase {
     }
 
     /// 把元素滚到 pill 导航栏拦截带之上(与 MineSettingsUITests.scrollUntil 同口径)。
+    /// 注意: 本类 app 是用例内局部变量, 经参数传入。
     @discardableResult
-    private func scrollIntoUsableView(_ element: XCUIElement, maxSwipes: Int = 6) -> Bool {
+    private func scrollIntoUsableView(_ element: XCUIElement, in app: XCUIApplication,
+                                      maxSwipes: Int = 6) -> Bool {
         let screenH = app.windows.firstMatch.frame.height
         let usableBottom = screenH - 110
         func visible() -> Bool {
@@ -55,7 +57,7 @@ final class ButtonHitAreaUITests: XCTestCase {
         XCTAssertTrue(aboutEntry.waitForExistence(timeout: 8), "关于入口未出现")
         // ★ mine_about 在 Mine 页下部: 部分可见时 tap 落点会被 pill 导航栏拦截
         //   (2026-11-06 CI 实证, 与 SwipeBackGestureUITests 同因)。先滚出拦截带。
-        scrollIntoUsableView(aboutEntry)
+        scrollIntoUsableView(aboutEntry, in: app)
         aboutEntry.tap()
 
         let checkUpdate = app.descendants(matching: .any)["about_check_update"]
