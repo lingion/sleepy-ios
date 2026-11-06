@@ -519,8 +519,8 @@ struct ReminderScreen: View {
                             .foregroundColor(colors.onSurfaceVariant)
                             .padding(.top, 6)
                         // ★ 流体云测试入口 / 厂商设置入口 / vendor+promoted 诊断行 = Android
-                        // 平台专有(FluidCloudService 前台服务 + 厂商实况窗), iOS 无对应物 —
-                        // 见文件头平台映射注释。
+                        // 平台专有(FluidCloudService 前台服务 + 厂商实况窗)厂商 SDK 不可移植; iOS 对应物 =
+                        // ActivityKit 实况活动/灵动岛, 本 app 未实现该切片 — 见文件头平台映射注释。
                         reliabilityBlock
                     }
                     .padding(.horizontal, 4)

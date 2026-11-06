@@ -138,7 +138,7 @@
 
 | 项 | 原因 |
 |---|---|
-| 实时课程卡 (Fluid Cloud / Live Card) + `VendorLive*` 全套 | 小米/vivo/OPPO/荣耀/华为/魅族厂商 API, iOS 无等价 |
+| 实时课程卡 (Fluid Cloud / Live Card) + `VendorLive*` 全套 | 小米/vivo/OPPO/荣耀/华为/魅族厂商 API 不可移植; iOS 对应物 = ActivityKit 实况活动/灵动岛(iOS 16.1+), 本 app 未实现该切片 |
 | 电池优化白名单跳转 (`BatteryOptimizationIntents` / `BatterySettingsLauncher`) | Android 厂商设置页 |
 | `RemoteViews` 位图渲染器 (`WidgetBitmapRenderers`) | Android 渲染机制 |
 | PinWidget / WidgetRender / WidgetConfigure Activity | Android Activity 机制 (iOS 用 WidgetKit 配置意图) |

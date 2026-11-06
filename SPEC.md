@@ -109,7 +109,7 @@ Kotlin → Swift 逐行对译,保结构:
 |---|---|---|---|
 | 1 | AlarmManager 精确闹钟+BootReceiver | UNUserNotificationCenter 本地通知(UNCalendarNotificationTrigger),iOS 重启后通知仍持久,BootReceiver 不需要;64 pending 上限→按天批量排程 | 等价 |
 | 2 | REQUEST_INSTALL_PACKAGES 自装 APK 更新 | UpdateManager 保留版本检查+UpdateChangelogDialog 完整移植,安装动作改为「提示重新侧载 IPA」 | 等价(动作降级) |
-| 3 | OPPO Fluid Cloud(FluidCloudService + oppo-fluid-cloud-upk) | 🚫无 iOS 对应物,**整体跳过**,spec 里显式记录 | 平台私有 |
+| 3 | OPPO Fluid Cloud(FluidCloudService + oppo-fluid-cloud-upk) | 🚫OPPO 厂商 SDK 调用不可移植,**整体跳过**;iOS 对应物 = ActivityKit 实况活动/灵动岛,本 app 未实现该切片,spec 里显式记录 | 平台私有 |
 | 4 | ACTION_VIEW json 文件导入(ImportReceiverActivity) | CFBundleDocumentTypes + onOpenURL,ImportSheet 预览流程原样 | 等价 |
 | 5 | RemoteViews+Canvas bitmap 渲染 widget | WidgetKit SwiftUI 视图;WidgetBitmapRenderers.kt 的**布局/排版/配色计算逻辑逐函数移植**,bitmap 管道本身不移植 | 等价(渲染载体换) |
 | 6 | APPWIDGET_UPDATE 广播刷新 | WidgetCenter.reloadAllTimelines + WidgetKit timeline 策略 | 等价 |
