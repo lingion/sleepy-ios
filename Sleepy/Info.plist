@@ -65,6 +65,8 @@
 	<string>用于列出可写日历并把课程表写入系统日历</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>用于根据当前位置推荐同城学校入口</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

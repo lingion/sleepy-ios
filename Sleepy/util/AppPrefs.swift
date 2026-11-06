@@ -261,26 +261,26 @@ final class AppPrefs {
     }
 
     // iOS 未实现流体卡片；保留旧键与读写语义，兼容迁移和手表快照。
-    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步；v1.0.64 起实况活动接通此模式(见 ClassDayActivityManager)")
     func isBeforeClassFluidEnabled() -> Bool { getBeforeClassMode() == Self.BEFORE_CLASS_MODE_FLUID }
-    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步；v1.0.64 起实况活动接通此模式(见 ClassDayActivityManager)")
     func setBeforeClassFluidEnabled(_ v: Bool) {
         setBeforeClassMode(v ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER)
     }
 
     /// legacy multi-select 读取(死写路径已删 — setBeforeClassFluidFields 全库零调用,读取仅通知组件用旧数据)
-    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步；v1.0.64 起实况活动接通此模式(见 ClassDayActivityManager)")
     func getBeforeClassFluidFields() -> Set<String> {
         let raw = sp().string(forKey: Self.KEY_BEFORE_CLASS_FLUID_FIELDS) ?? "name,time,room,teacher"
         return Set(raw.split(separator: ",").filter { !$0.isEmpty }.map(String.init))
     }
 
-    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步；v1.0.64 起实况活动接通此模式(见 ClassDayActivityManager)")
     func getBeforeClassFluidPrimary() -> String {
         sp().string(forKey: Self.KEY_BEFORE_CLASS_FLUID_PRIMARY) ?? "room"
     }
 
-    @available(*, deprecated, message: "仅供旧偏好迁移与同步，iOS 无流体卡片实现")
+    @available(*, deprecated, message: "仅供旧偏好迁移与同步；v1.0.64 起实况活动接通此模式(见 ClassDayActivityManager)")
     func setBeforeClassFluidPrimary(_ value: String) {
         // ← 原版本 require(name|time|room|countdown) v1.0.61: countdown 是合法主字段
         precondition(value == "name" || value == "time" || value == "room" || value == "countdown")

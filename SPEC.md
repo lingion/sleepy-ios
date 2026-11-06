@@ -109,7 +109,7 @@ Kotlin → Swift 逐行对译,保结构:
 |---|---|---|---|
 | 1 | AlarmManager 精确闹钟+BootReceiver | UNUserNotificationCenter 本地通知(UNCalendarNotificationTrigger),iOS 重启后通知仍持久,BootReceiver 不需要;64 pending 上限→按天批量排程 | 等价 |
 | 2 | REQUEST_INSTALL_PACKAGES 自装 APK 更新 | 1.0.64 起 iOS 分发收敛 App Store/TestFlight,「获取更新」切片整体移除(无自装等价物, GitHub 仅源码公开) | 平台私有(功能移除) |
-| 3 | OPPO Fluid Cloud(FluidCloudService + oppo-fluid-cloud-upk) | 🚫OPPO 厂商 SDK 调用不可移植,**整体跳过**;iOS 对应物 = ActivityKit 实况活动/灵动岛,本 app 未实现该切片,spec 里显式记录 | 平台私有 |
+| 3 | OPPO Fluid Cloud(FluidCloudService + oppo-fluid-cloud-upk) | v1.0.64 起: iOS 对应物 = ActivityKit 实况活动/灵动岛(已实现, 并入 SleepyWidget 扩展);能力上限: 纯本地无服务端, 活动在 App 活跃时按课程段刷新(相邻课间隔>60min 断段规避 8h 存活上限), 段内倒计时系统走字;段切换需回前台 | 等价(自发声明) |
 | 4 | ACTION_VIEW json 文件导入(ImportReceiverActivity) | CFBundleDocumentTypes + onOpenURL,ImportSheet 预览流程原样 | 等价 |
 | 5 | RemoteViews+Canvas bitmap 渲染 widget | WidgetKit SwiftUI 视图;WidgetBitmapRenderers.kt 的**布局/排版/配色计算逻辑逐函数移植**,bitmap 管道本身不移植 | 等价(渲染载体换) |
 | 6 | APPWIDGET_UPDATE 广播刷新 | WidgetCenter.reloadAllTimelines + WidgetKit timeline 策略 | 等价 |

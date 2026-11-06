@@ -108,8 +108,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             guard self != nil else { return }
-            // 原版本 侧此处还有 reconcileActiveFluidCloud — vivo/OPPO 厂商 SDK 专有调用不可移植;
-            // iOS 对应物 = ActivityKit 实况活动/灵动岛, 本 app 未实现该切片
+            // 原版本 侧此处 reconcileActiveFluidCloud(厂商 SDK 不可移植);
+            // iOS 对应物 = ActivityKit 实况活动/灵动岛(v1.0.64 已实现, 能力上限见 SPEC 差异表#3)
+            if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
             ClassDndScheduler.shared.syncFromPrefs()
             // watch 伴侣 App: 回前台兜底重推 (离线期间 onDataChanged 攒的改动追平)
             WatchSyncCoordinator.shared.syncNow()
@@ -128,6 +129,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // ← onCreate: 首启刷新小组件(WidgetUpdater.notifyDataChanged)
         WidgetCenter.shared.reloadAllTimelines()
+        // v1.0.64: 课程实况活动(灵动岛/锁屏) — 本地请求, 无服务端, 只在 App 活跃时刷新
+        if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
         // 到货重查/00:05 载体/摘要刷新的 delegate 此前从未注册 = 死接线 (F128/F129 issue6)。
         UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
         // Game Center 认证：静默，不影响 App 正常使用

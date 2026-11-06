@@ -393,13 +393,13 @@
 "reminder_fluid_field_time" = "Hora";
 "reminder_fluid_fields" = "Contenido principal de la cápsula";
 "reminder_fluid_fields_hint" = "Elige un campo de visualización principal";
-"reminder_fluid_note" = "Toca la notificación para expandir los detalles del curso. Si se muestra como Nube Fluida / Súper Isla depende del sistema del teléfono, los permisos de notificación y la elegibilidad del servicio del fabricante.";
+"reminder_fluid_note" = "La actividad en vivo sigue al interruptor de recordatorios de clase; depende del sistema (iPhone 8+ con iOS 16.1+)";
 "reminder_fluid_title" = "Nube Fluida / Súper Isla";
 "reminder_mode_label" = "Estilo de aviso";
 "reminder_mode_banner" = "Banner";
 "reminder_mode_fluid" = "Nube fluida";
 "reminder_mode_banner_sub" = "Banner normal deslizable en la barra de notificaciones; compatible con la sincronización de reloj y pulsera";
-"reminder_mode_fluid_sub" = "Tarjetas de curso en tiempo real en teléfonos Xiaomi, vivo, Samsung y Meizu compatibles; puede no mostrarse si no es compatible";
+"reminder_mode_fluid_sub" = "Las tarjetas de clase aparecen en la Isla Dinámica / pantalla de bloqueo; en dispositivos sin isla se muestra la franja en vivo de la pantalla de bloqueo (iOS 16.1+). Tras cerrar la app por completo, una tarjeta nueva solo aparece en la siguiente apertura";
 "reminder_master_sub" = "Permitir que Sleepy envíe notificaciones de cursos";
 "reminder_master_title" = "Activar recordatorios";
 "reminder_notif_denied_title" = "Notificaciones denegadas";

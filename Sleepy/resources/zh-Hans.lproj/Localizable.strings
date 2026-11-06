@@ -347,14 +347,14 @@
 "reminder_mode_banner" = "横幅";
 "reminder_mode_fluid" = "流体云";
 "reminder_mode_banner_sub" = "系统通知栏普通横幅,可手动划掉;手环/手表同步不受影响";
-"reminder_mode_fluid_sub" = "在支持的小米 / vivo / 三星 / 魅族手机上显示实时课程卡片;系统不支持时可能不显示";
+"reminder_mode_fluid_sub" = "课程卡片出现在灵动岛/锁屏；无灵动岛机型显示为锁屏实况条(iOS 16.1+)。App 完全退出后，新的卡片要等下次打开才出现";
 "reminder_fluid_fields" = "胶囊主显示内容";
 "reminder_fluid_fields_hint" = "选择一个主显示内容";
 "reminder_fluid_field_name" = "课程名称";
 "reminder_fluid_field_time" = "上课时间";
 "reminder_fluid_field_room" = "上课地点";
 "reminder_fluid_field_teacher" = "任课老师";
-"reminder_fluid_note" = "点击通知后可展开课程详情。具体是否显示为流体云/超级岛由手机系统、通知权限和厂商服务资格决定。";
+"reminder_fluid_note" = "实况通知随课前提醒开关;具体以系统支持为准(需要 iPhone 8+ 且 iOS 16.1+)";
 "reminder_notif_denied_title" = "通知权限已被拒绝";
 "reminder_notif_denied_sub" = "iOS 不会再次弹出授权请求，请前往系统设置手动开启通知。";
 "reminder_pick_time" = "选择提醒时间";

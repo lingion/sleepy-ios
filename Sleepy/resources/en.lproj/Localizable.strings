@@ -393,13 +393,13 @@
 "reminder_fluid_field_time" = "Time";
 "reminder_fluid_fields" = "Capsule Primary Content";
 "reminder_fluid_fields_hint" = "Choose a primary display field";
-"reminder_fluid_note" = "Tap the notification to expand course details. Whether it appears as Fluid Cloud / Super Island depends on the phone system, notification permissions, and manufacturer service eligibility.";
+"reminder_fluid_note" = "Live Activity follows the before-class reminder switch; availability depends on the system (iPhone 8+ on iOS 16.1+)";
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
 "reminder_mode_label" = "Reminder style";
 "reminder_mode_banner" = "Banner";
 "reminder_mode_fluid" = "Fluid Cloud";
 "reminder_mode_banner_sub" = "Standard dismissible banner in the notification bar; safe for watch/band sync";
-"reminder_mode_fluid_sub" = "Real-time course cards on supported Xiaomi, vivo, Samsung, and Meizu phones; may not appear if unsupported";
+"reminder_mode_fluid_sub" = "Course cards appear on the Dynamic Island / Lock Screen; devices without the island get the lock-screen live strip (iOS 16.1+). After the app is fully quit, a new card only appears on its next launch";
 "reminder_master_sub" = "Allow Sleepy to send course notifications";
 "reminder_master_title" = "Enable Reminders";
 "reminder_notif_denied_title" = "Notifications are denied";

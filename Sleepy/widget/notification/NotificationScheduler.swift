@@ -37,7 +37,7 @@
 //    → delegate willPresent 丢弃 (原版本 BeforeClassNotifyReceiver.onReceive 语义)
 //
 // OPPO Fluid Cloud(SDK≥26 前台服务 + ProgressStyle)整体跳过(OPPO 厂商 SDK 调用不可移植;
-// iOS 对应物 = Live Activities/灵动岛, 本 app 未实现, 见 VendorCapabilityState.swift); banner 通知完整移植。
+// iOS 对应物 = Live Activities/灵动岛(v1.0.64 已实现, 见 ClassDayActivityManager), 见 VendorCapabilityState.swift); banner 通知完整移植。
 
 import Foundation
 import UserNotifications
