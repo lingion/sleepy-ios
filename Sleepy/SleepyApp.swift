@@ -124,7 +124,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             guard self != nil else { return }
-            // 原版本 侧此处还有 reconcileActiveFluidCloud — vendor platform-only, iOS 无等价
+            // 原版本 侧此处还有 reconcileActiveFluidCloud — vivo/OPPO 厂商 SDK 专有调用不可移植;
+            // iOS 对应物 = ActivityKit 实况活动/灵动岛, 本 app 未实现该切片
             ClassDndScheduler.shared.syncFromPrefs()
             // watch 伴侣 App: 回前台兜底重推 (离线期间 onDataChanged 攒的改动追平)
             WatchSyncCoordinator.shared.syncNow()
