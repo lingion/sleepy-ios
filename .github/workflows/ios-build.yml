@@ -114,6 +114,11 @@ jobs:
       - name: Run native drag acceptance
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         shell: bash
+        env:
+          # xcodebuild 只把 TEST_RUNNER_ 前缀变量转发给模拟器内 runner(去前缀可见);
+          # GH 自带 CI=true 到不了 runner 进程。CourseDragUITests 据此跳过
+          # 5 个依赖 destination 握手的移动用例(环境边界, 详见该文件 helper 注释)。
+          TEST_RUNNER_SLEEPY_CI_DRAG_SKIP: "1"
         run: |
           set -euo pipefail
           xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
