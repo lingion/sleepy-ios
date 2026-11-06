@@ -437,9 +437,18 @@ final class MineSettingsUITests: XCTestCase {
                                                       dy: (backY - win.frame.minY) / win.frame.height)).tap()
         // ★ 返回落点是 General overlay(SleepyNavigationUnderlay covered=true 时底层
         //   Mine 整树 accessibilityHidden → mine_general 永不出现, 2026-11-06 CI 实证)。
-        //   正确锚点 = General 页自身顶栏返回键仍然在(= Holiday sheet 已关, 未被弹回 Mine)。
+        //   锚点拆两条分别覆盖两种错(单靠一条都判不全):
+        //   1) topbar_back 仍在 — General 顶栏自带返回键(GeneralSettingsScreen:195,
+        //      SettingsTopBar 默认 leadingStyle = .back)。被弹回 Mine 时全屏无此按钮,
+        //      该条抓到"回错页"。
+        //   2) Holiday 标题消失 — Holiday 用 .sheet 盖在 General 上
+        //      (GeneralSettingsScreen:529 + HolidaySettingsScreen:146), 两层各有
+        //      同名 topbar_back ⇒ 第 1 条在"sheet 没关"时也成立(永真风险)。
+        //      补这条才真正锁住"Holiday sheet 已关"。
         XCTAssertTrue(app.buttons["topbar_back"].firstMatch.waitForExistence(timeout: 5),
-                      "返回后应回到 General 页(顶栏返回键仍在, Holiday sheet 已关)")
+                      "返回后应回到 General 页(顶栏返回键仍在)")
+        XCTAssertTrue(pollUntil(5) { !title.exists },
+                      "返回后 Holiday sheet 应已关闭(标题不再存在)")
     }
 
     // MARK: Export — 3 格式行存在
