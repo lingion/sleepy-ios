@@ -5,7 +5,10 @@ enum SystemColorScheme {
     static func argb(_ color: Color) -> Int {
         let rgb = CustomSchemeDeriver.rgb(of: color)
         func byte(_ value: Float) -> Int { Int((min(1, max(0, value)) * 255).rounded()) }
-        return 0xFF000000 | (byte(rgb.r) << 16) | (byte(rgb.g) << 8) | byte(rgb.b)
+        // 0xFF000000 超 Int 字面量正数范围, 按仓库惯例 UInt 拼位后 bitPattern(CourseColorUtil 同款)。
+        let argb = (UInt(0xFF) << 24) | (UInt(byte(rgb.r)) << 16)
+                   | (UInt(byte(rgb.g)) << 8) | UInt(byte(rgb.b))
+        return Int(bitPattern: argb)
     }
 
     static func resolve(snapshot: SystemColorSnapshot, dark: Bool,
