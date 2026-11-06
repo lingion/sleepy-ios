@@ -618,6 +618,7 @@
 		AB4A667621ABE9585219F855 /* MigrationBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D592A336E4B87069FB2952A3 /* MigrationBackup.swift */; };
 		AB9F415EB366901354598846 /* JwNewUrpSuperParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7BDD85AA6C684A8DFCEEC5C /* JwNewUrpSuperParser.swift */; };
 		AC8A24352585A789CA19DB2D /* JwParity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091CF54ADE6711A4CA322D6D /* JwParity.swift */; };
+		ACC9A5D1C32A957F9070F8BA /* WidgetAddGuideSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EAED4FF0AAFA97607BEBC7 /* WidgetAddGuideSheet.swift */; };
 		AD0511066366C95F452D312F /* ConflictDetailReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31FA03F7AF7A6E296C6B4BD /* ConflictDetailReporter.swift */; };
 		AD2397B6BABB52CAC0B8FA84 /* JwCfNewParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FE9965C48E2F34C544D0F2 /* JwCfNewParser.swift */; };
 		AD7C70707705DCAC38B45DBF /* JwWhutParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DCE5472D66C30D292A70BCD /* JwWhutParser.swift */; };
@@ -1450,6 +1451,7 @@
 		E00BA999BFA7BF12B2E93DFA /* MarkdownBlocksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlocksTests.swift; sourceTree = "<group>"; };
 		E18F3AC5F4DE07D22A747FE8 /* FixedDateProductionWiringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixedDateProductionWiringTests.swift; sourceTree = "<group>"; };
 		E1E0BCF9A05FDD62F8ED47C6 /* JwEams5ParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwEams5ParserTests.swift; sourceTree = "<group>"; };
+		E1EAED4FF0AAFA97607BEBC7 /* WidgetAddGuideSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAddGuideSheet.swift; sourceTree = "<group>"; };
 		E2727CEE6CD1D58B6CDF74F0 /* JwSchoolStatusRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwSchoolStatusRegressionTests.swift; sourceTree = "<group>"; };
 		E451AD795407D5BA73BD0A6B /* CourseDisplayUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDisplayUtil.swift; sourceTree = "<group>"; };
 		E5A79C624B3024F416FCDF6D /* JwThuparserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwThuparserTests.swift; sourceTree = "<group>"; };
@@ -2368,6 +2370,7 @@
 		F1C983D29EBD7B2F79AF7AE7 /* widget */ = {
 			isa = PBXGroup;
 			children = (
+				E1EAED4FF0AAFA97607BEBC7 /* WidgetAddGuideSheet.swift */,
 				CD353A49838BDA61A2D6C1C3 /* WidgetEditScreen.swift */,
 				4CAD2798811A61E5A2ED8F2C /* WidgetGalleryScreen.swift */,
 				58603B4EDA2A13DB3DE29C0F /* WidgetManagementScreen.swift */,
@@ -3023,6 +3026,7 @@
 				43944B5632697D4438ECEF4C /* WeekListWidgetView.swift in Sources */,
 				B6B35231467D21A43742BB25 /* WeekRangeOverlap.swift in Sources */,
 				F48DABCC146D655E683D42EF /* WeekViewWidgetView.swift in Sources */,
+				ACC9A5D1C32A957F9070F8BA /* WidgetAddGuideSheet.swift in Sources */,
 				6AD52E7F43DBCB0EDE8839AA /* WidgetArchiveLog.swift in Sources */,
 				24EB72FF16822D5D184758E2 /* WidgetBackgroundCompat.swift in Sources */,
 				A7AE959FB32BEF67BDD67260 /* WidgetBindingStore.swift in Sources */,

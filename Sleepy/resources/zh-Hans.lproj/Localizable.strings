@@ -1097,9 +1097,15 @@
 "appearance_header_hide_time" = "隐藏时间行";
 "appearance_header_hide_time_sub" = "旧式表头只显示节次，不显示上课时间（实验性，默认关闭）";
 "mine_widget" = "小组件";
-"widget_add_unsupported_hint" = "当前桌面不支持快捷添加,请长按桌面 → 小组件 → 选 Sleepy。";
 "widget_gallery_title" = "添加小组件";
-"widget_manage_empty_v2" = "点右上角 ＋ 添加小组件;桌面不支持快捷添加时,长按桌面 → 小组件 → 选 Sleepy。";
+"widget_manage_empty_v2" = "点右上角 ＋ 添加小组件;还没添加过时,长按桌面空白处 → ＋ → 搜索 Sleepy。";
+"widget_guide_title" = "把小组件加到桌面";
+"widget_guide_search_hint" = "小组件库里叫「%1$@」";
+"widget_guide_copy_name" = "复制名称";
+"widget_guide_step_hold" = "长按桌面空白处,直到 App 图标开始抖动";
+"widget_guide_step_plus" = "点左上角的 ➕,再点右下角的「添加小组件」";
+"widget_guide_step_search" = "在搜索框输入上面复制的名称,找到这个小组件";
+"widget_guide_step_drag" = "按住它的图标,拖到桌面空位,然后点右上角「完成」";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "每日议程";

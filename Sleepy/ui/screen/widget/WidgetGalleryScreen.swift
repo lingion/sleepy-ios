@@ -2,12 +2,12 @@
 // 添加小组件画廊页(设计 §3 末层): WidgetManagementScreen 右上「＋」进入, 把
 // allWidgetVariants 全部渲染成预览卡片(数量随注册表走, 零硬编码)。
 //
-// ★ 平台差异(差异表#8 附注): 原版本 点卡片 = WidgetPinRequest.request 发起系统
-//   「添加到主屏幕」确认(requestPinAppWidget); iOS WidgetKit 无程序化 pin API
-//   (AppWidgetManager.requestPinAppWidget 为 原 launcher 机制, PinWidget/Render/
-//   Configure Activity 亦属 原平台独占暂缓清单) → 点卡片恒走 原版本 的
-//   NOT_SUPPORTED/FAILED 分支同款反馈: 手动添加指引 snackbar。
-//   点后该卡禁用 ~2s 防连点(冷却)照搬。
+// ★ 平台差异(差异表#8 附注, v1.0.64 更新): 原版本 点卡片 = WidgetPinRequest
+//   .request 发起系统「添加到主屏幕」确认(requestPinAppWidget); iOS WidgetKit
+//   无任何应用内程序化 pin API(SDK 实证: AppIntents 无 WidgetShortcut,
+//   INRelevantShortcut.widgetKind 仅系统择时建议、不可编程) → 点卡片弹
+//   添加引导 sheet(三步图文 + 复制组件名), 取代此前「恒 NOT_SUPPORTED」
+//   死胡同 snackbar。点后该卡禁用 ~2s 防连点(冷却)照搬。
 
 import SwiftUI
 import WidgetKit
@@ -16,8 +16,8 @@ struct WidgetGalleryScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     let onDismiss: () -> Void
 
-    // ← 不支持/失败的桌面给手动添加指引 snackbar
-    @State private var hintMessage: String? = nil
+    // ← v1.0.64: 点卡片 → 该 widget 的添加引导 sheet(平台差异, 文件头注)
+    @State private var guideCard: WidgetGalleryCard? = nil
     // ← 每张卡 pin 后的冷却(防连点): receiverName → 冷却中
     @State private var cooling: Set<String> = []
     // ← cards = WidgetGalleryData.buildCards()(数量随注册表走)
@@ -44,37 +44,18 @@ struct WidgetGalleryScreen: View {
         }
         .background(colors.background)
         .navigationBarHidden(true)
-        // ← SnackbarHost: 手动添加指引(仓库同款底部胶囊浮层)
-        .overlay(alignment: .bottom) {
-            if let msg = hintMessage {
-                Text(msg)
-                    .font(.system(size: 14)) // ← 原 Snackbar bodyMedium 14
-                    .accessibilityIdentifier("widget_gallery_hint")
-                    .foregroundColor(colors.onSurface)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(colors.surfaceContainerHighest)
-                    .cornerRadius(8)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .task(id: msg) {
-                        // ← SnackbarHostState 短停留的 iOS 同族取 2.5s(MineScreen 同式)
-                        try? await Task.sleep(nanoseconds: 2_500_000_000)
-                        guard !Task.isCancelled else { return }
-                        withAnimation { hintMessage = nil }
-                    }
-            }
+        // ← v1.0.64: 原「不支持」snackbar 死胡同 → 添加引导 sheet
+        .sheet(item: $guideCard) { card in
+            WidgetAddGuideSheet(card: card, onDismiss: { guideCard = nil })
         }
     }
 
     /// ← onClick: 冷却置位 → WidgetPinRequest.request → 2s 后解除。
-    /// iOS 无 requestPinAppWidget 等价 → 恒走 NOT_SUPPORTED/FAILED 分支 = 指引 snackbar
-    /// (平台差异, 文件头注); REQUESTED 分支(系统确认弹窗接管)在 iOS 无对应通路。
+    /// iOS 无 requestPinAppWidget 等价(平台差异, 文件头注) → 弹添加引导 sheet。
     private func tap(_ card: WidgetGalleryCard) {
         guard !cooling.contains(card.receiverName) else { return }
         cooling.insert(card.receiverName)
-        withAnimation { hintMessage = L10n.format("widget_add_unsupported_hint") }
+        withAnimation { guideCard = card }
         // ← scope.launch { delay(2000); cooling.value -= receiverName }
         Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -126,7 +107,7 @@ private struct GalleryCard: View {
 
 /// 预览占位块: 按 kind 画该 widget 的形态骨架(色块布局示意, 非真实渲染 —
 /// 原版本 预览同为静态图, 不承载真实数据)。
-private struct WidgetGalleryPreview: View {
+struct WidgetGalleryPreview: View {
     @Environment(\.localWakeUpColors) private var colors
     let kind: String
 

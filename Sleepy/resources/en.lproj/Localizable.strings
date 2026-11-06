@@ -1096,9 +1096,15 @@
 "appearance_header_hide_time" = "Hide time row";
 "appearance_header_hide_time_sub" = "Show only period numbers in the legacy header (experimental, off by default)";
 "mine_widget" = "Widgets";
-"widget_add_unsupported_hint" = "This launcher does not support quick add. Long-press the home screen → Widgets → pick Sleepy.";
 "widget_gallery_title" = "Add Widget";
-"widget_manage_empty_v2" = "Tap + at the top right to add a widget. If your launcher does not support quick add, long-press the home screen → Widgets → pick Sleepy.";
+"widget_manage_empty_v2" = "Tap + at the top right to add a widget. If none is added yet, long-press an empty spot on the Home Screen → + → search for Sleepy.";
+"widget_guide_title" = "Add the Widget to Your Home Screen";
+"widget_guide_search_hint" = "It’s called “%1$@” in the widget gallery";
+"widget_guide_copy_name" = "Copy name";
+"widget_guide_step_hold" = "Press and hold an empty spot on the Home Screen until the icons start to jiggle";
+"widget_guide_step_plus" = "Tap the ➕ in the top-left corner, then “Add Widget” at the bottom right";
+"widget_guide_step_search" = "Type the copied name into the search field to find this widget";
+"widget_guide_step_drag" = "Press and hold the widget icon and drag it onto your Home Screen, then tap “Done”";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "Daily agenda";

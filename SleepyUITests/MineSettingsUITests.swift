@@ -122,6 +122,19 @@ final class MineSettingsUITests: XCTestCase {
             .matching(NSPredicate(format: "identifier BEGINSWITH 'widget_gallery_card_'"))
             .firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5), "点「＋」应打开添加小组件画廊页")
+
+        // v1.0.64: 点卡片 → 添加引导 sheet(取代原「不支持」snackbar 死胡同)
+        card.tap()
+        let guideTitle = app.descendants(matching: .any)["widget_guide_title"]
+        XCTAssertTrue(guideTitle.waitForExistence(timeout: 5), "点卡片应弹出小组件添加引导页")
+        let guideCopy = app.descendants(matching: .any)["widget_guide_copy"]
+        XCTAssertTrue(guideCopy.exists, "引导页应有复制组件名按钮")
+        let close = app.descendants(matching: .any)["topbar_close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 3), "引导页应有 ✕ 关闭按钮")
+        close.tap()
+        let gone = Date().addingTimeInterval(3)
+        while guideTitle.exists && Date() < gone { usleep(100_000) }
+        XCTAssertFalse(guideTitle.exists, "关闭后引导页应消失")
     }
 
     // MARK: All Schedules — 切表 / 编辑入口 / 新建按钮

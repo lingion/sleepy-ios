@@ -1096,9 +1096,15 @@
 "appearance_header_hide_time" = "隱藏時間列";
 "appearance_header_hide_time_sub" = "舊式表頭僅顯示節次，不顯示上課時間（實驗性，預設關閉）";
 "mine_widget" = "小工具";
-"widget_add_unsupported_hint" = "目前桌面不支援快捷新增,請長按桌面 → 小工具 → 選擇 Sleepy。";
 "widget_gallery_title" = "新增小工具";
-"widget_manage_empty_v2" = "點右上角 ＋ 新增小工具;若桌面不支援快捷新增,請長按桌面 → 小工具 → 選擇 Sleepy。";
+"widget_manage_empty_v2" = "點右上角 ＋ 新增小工具;尚未新增過時,長按桌面空白處 → ＋ → 搜尋 Sleepy。";
+"widget_guide_title" = "將小工具加到桌面";
+"widget_guide_search_hint" = "小工具庫裡叫「%1$@」";
+"widget_guide_copy_name" = "複製名稱";
+"widget_guide_step_hold" = "長按桌面空白處,直到 App 圖示開始抖動";
+"widget_guide_step_plus" = "點左上角的 ➕,再點右下角的「新增小工具」";
+"widget_guide_step_search" = "在搜尋框輸入上面複製的名稱,找到這個小工具";
+"widget_guide_step_drag" = "按住它的圖示,拖到桌面空位,然後點右上角「完成」";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "每日議程";
