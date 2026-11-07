@@ -253,6 +253,11 @@ final class AppDatabase {
             }
         }
 
+        // Android MIGRATION_12_13：可空列使旧课程继续按教学周解释。
+        m.registerMigration("v13.addFixedDate") { db in
+            try db.execute(sql: "ALTER TABLE courses ADD COLUMN fixedDate TEXT DEFAULT NULL")
+        }
+
         return m
     }
 }

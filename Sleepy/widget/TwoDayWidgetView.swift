@@ -142,21 +142,23 @@ struct TwoDayWidgetProvider: TimelineProvider {
 struct TwoDayWidgetEntryView: View {
     @Environment(\.widgetFamily) var widgetFamily
     @Environment(\.colorScheme) private var widgetColorScheme
+    @Environment(\.colorSchemeContrast) private var widgetContrast
     let entry: TwoDayWidgetEntry
 
     var body: some View {
         // iOS 26 「透明/着色」样式探测 (← WidgetBackgroundCompat): glass 态配色换白 alpha
-        WidgetGlassModeContent { isGlass in
-            content(isGlass: isGlass)
+        WidgetGlassModeContent { mode in
+            content(renderingMode: mode)
         }
         .widgetURL(URL(string: "sleepy://open"))
     }
 
     @ViewBuilder
-    private func content(isGlass: Bool) -> some View {
+    private func content(renderingMode: SleepyWidgetRenderingMode) -> some View {
         let data = entry.data
         let isDark = effectiveWidgetIsDark(themeMode: data.themeMode, snapshotIsDark: data.isDark, envScheme: widgetColorScheme)
-        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, isGlass: isGlass)
+        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, renderingMode: renderingMode,
+                                    increasedContrast: widgetContrast == .increased)
         let prefs = AppPrefs.shared
         let colorless = prefs.isWidgetColorless()
         let displayMode = prefs.getDisplayMode()

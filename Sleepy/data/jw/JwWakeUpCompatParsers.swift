@@ -1210,7 +1210,7 @@ extension WakeUpCompat {
             guard let (start, end) = nodes(nodeText) else { return [] }
             if wakeTrim(name).isEmpty || !(1...7).contains(day) { return [] }
             // 本源周次语法保持严格 (Kotlin weekPattern); 泛兼容链才刻意宽松。
-            let re = "^([0-9]{1,2})(?:[-~至]([0-9]{1,2}))?周?(?:\\(([单双])\\)|([单双])周?)?$"
+            let re = "^([0-9]{1,2})(?:[-~至]([0-9]{1,2}))?周?(?:[\\(（]([单双])[）\\)]|([单双])周?)?$"
             var out: [JwCourse] = []
             for raw in wakeSplitAny(weeksText, [",", "，", ";", "；"]) {
                 let cleaned = String(raw.filter { !$0.isWhitespace })
@@ -1231,16 +1231,43 @@ extension WakeUpCompat {
             return out
         }
 
+        func isDayHeader(_ text: String, _ day: Int) -> Bool {
+            let t = wakeTrim(text)
+            let name = ["一", "二", "三", "四", "五", "六", "日"][day - 1]
+            return t == name || (day == 7 && t == "天") ||
+                t.contains("星期\(name)") || (day == 7 && t.contains("星期天")) ||
+                t.contains("周\(name)") || (day == 7 && t.contains("周天")) ||
+                t.contains("星期\(day)") || t.contains("周\(day)")
+        }
+
         // chain1: #mytable
         var myTable: [JwCourse] = []
         for table in ((try? doc.select("#mytable")) ?? Elements()).array() {
+            var totalDays = 7
+            for row in ((try? table.select("tr")) ?? Elements()).array() {
+                let texts = row.children().array().map { wakeText($0) }
+                let hasMonday = texts.contains { isDayHeader($0, 1) }
+                if hasMonday && texts.contains(where: { isDayHeader($0, 6) || isDayHeader($0, 7) }) { break }
+                if hasMonday && texts.contains(where: { isDayHeader($0, 5) }) { totalDays = 5; break }
+            }
+            let tableCompact = ((try? table.select("div.div1")) ?? Elements()).array()
+                .contains { ((try? $0.html()) ?? "").contains("xkinfo") }
             for row in ((try? table.select("tr:not(.H)")) ?? Elements()).array() {
-                for (column, cell) in ((try? row.select("td")) ?? Elements()).array().enumerated() {
-                    let day = column + 1
+                if !((try? row.select("th")) ?? Elements()).isEmpty() { continue }
+                let rowTexts = row.children().array().map { wakeText($0) }
+                // 课程名可含「周一」，带节次的课程格不能当作表头跳过。
+                if rowTexts.contains(where: { isDayHeader($0, 1) && !$0.contains("[") }) { continue }
+                let allCells = ((try? row.select("td")) ?? Elements()).array()
+                for (column, cell) in allCells.enumerated() {
+                    // 从右端对齐，兼容行首节次/时段水槽及其 rowspan。
+                    let day = allCells.count >= totalDays ? totalDays - (allCells.count - 1 - column) : column + 1
                     if !(1...7).contains(day) { continue }
-                    var compact = false
-                    for block in ((try? cell.children()) ?? Elements()).array().filter({ wakeTag($0) == "div" }) {
-                        if (try? block.hasClass("div1")) ?? false {
+                    var compact = tableCompact
+                    let rawBlocks = cell.children().array().filter { wakeTag($0) == "div" }
+                    let hasBracket = containsMatch(#"\[[[:space:]]*[0-9]+"#, wakeText(cell))
+                    let blocks = rawBlocks.isEmpty && hasBracket ? [cell] : rawBlocks
+                    for block in blocks {
+                        if wakeTag(block) == "div" && block.hasClass("div1") {
                             let h = (try? block.html()) ?? ""
                             compact = h.contains("xkinfo") && h.contains("&nbsp;")
                             continue
@@ -1249,17 +1276,27 @@ extension WakeUpCompat {
                         let html = compact
                             ? wakeSplitRegex(rawHtml, "(?:&nbsp;)+", ci: true).joined(separator: " ")
                             : rawHtml
-                        let lines = wakeSplitRegex(html, "<br\\s*/?>", ci: true).map { fragmentText($0) }
-                        let detailIdx = compact ? 1 : 2
-                        guard lines.count > detailIdx else { continue }
+                        let lines = wakeSplitRegex(html, "<br[^>]*>", ci: true)
+                            .map { fragmentText($0) }.filter { !$0.isEmpty }
+                        guard let detailIdx = lines.firstIndex(where: {
+                            $0.contains("]") && containsMatch(#"\[[[:space:]]*[0-9]+"#, $0)
+                        }), detailIdx > 0 else { continue }
                         let detail = lines[detailIdx]
                         let name = lines.first ?? ""
-                        let teacher = compact ? wakeTrim(before(detail, " ")) : (lines.count > 1 ? lines[1] : "")
-                        let roomIdx = compact ? 2 : 3
-                        let room = lines.count > roomIdx ? lines[roomIdx] : ""
-                        let timing = compact ? after(detail, " ") : detail
-                        let weekText = wakeTrim(before(timing, "["))
-                        let nodeText = wakeTrim(before(after(timing, "["), "]"))
+                        let beforeBracket = wakeTrim(before(detail, "["))
+                        let compactMode = compact || (detailIdx == 1 && beforeBracket.contains(" ") &&
+                            !beforeBracket.contains(",") && !beforeBracket.contains("，"))
+                        let teacher: String
+                        let weekText: String
+                        if compactMode && beforeBracket.contains(" ") {
+                            teacher = wakeTrim(before(detail, " "))
+                            weekText = wakeTrim(before(after(detail, " "), "["))
+                        } else {
+                            teacher = wakeTrim(lines.dropFirst().prefix(detailIdx - 1).joined(separator: " "))
+                            weekText = beforeBracket
+                        }
+                        let room = wakeTrim(lines.dropFirst(detailIdx + 1).joined(separator: " "))
+                        let nodeText = wakeTrim(before(after(detail, "["), "]"))
                         if !weekText.isEmpty && !nodeText.isEmpty {
                             myTable.append(contentsOf: emit(name, teacher, room, day, nodeText, weekText))
                         }
@@ -1292,9 +1329,9 @@ extension WakeUpCompat {
                 guard let day = extractDay(before(timing, "[")) else { continue }
                 let nodeText = before(after(timing, "["), "]")
                 let weeks = weeksIndex >= 0 ? cellText(weeksIndex)
-                    : before(after(timing, "("), "周")
+                    : beforeLast(after(timing, "("), ")")
                 let parity = cellText(parityIndex)
-                let typedWeeks = wakeSplitAny(weeks.replacingOccurrences(of: "，", with: ","), [","])
+                let typedWeeks = wakeSplitAny(weeks, [",", "，", ";", "；"])
                     .map { part -> String in
                         let t = wakeTrim(part)
                         return (t.contains("单") || t.contains("双") || parity.isEmpty) ? t : t + parity

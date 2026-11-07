@@ -123,6 +123,7 @@ private enum DockedSpec {
 // MARK: - Docked (贴底) 76pt 通栏
 
 private struct DockedBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let items: [PillNavItemData]
     let colors: WakeUpColorScheme
 
@@ -147,7 +148,7 @@ private struct DockedBar: View {
                 .opacity(thumbPlaced ? 1 : 0)
                 .offset(x: thumbX, y: DockedSpec.thumbYOffset)
                 // 同款 — 原版本 SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
-                .animation(thumbPlaced ? sleepyThumbSpring : nil, value: thumbCenterX)
+                .animation(thumbPlaced ? SleepyMotionPolicy(reduceMotion: reduceMotion).thumb : nil, value: thumbCenterX)
 
             // ← 原版本 Row(76.dp).padding(horizontal=6.dp) + Arrangement.SpaceEvenly:
             //   定宽 64 座位, 外隙=内隙=g=(usable-64n)/(n+1)。
@@ -244,7 +245,8 @@ private struct DockedBar: View {
             to: colors.onSurface,
             fraction: Double(t))
 
-        VStack(spacing: 4) {
+        Button(action: item.onClick) {
+          VStack(spacing: 4) {
             // 图标 — ← 原版本 Box(64×32, contentAlignment=Center){ Box{ Icon(20) + badge TopEnd } }
             //   badge 直接贴 20pt 图标右上角(overlay 锚在 Image 本身), 不落座位框角。
             //   offset(x:2,y:-2) 为 SF Symbol 字形内边距补偿, 备案记录(auditor 判定可接受)。
@@ -259,7 +261,7 @@ private struct DockedBar: View {
                             fraction: Double(iconCov)))
                         // ← 原 badge (v1.0.60): 图标右上 7dp primary 圆点
                         .overlay(alignment: .topTrailing) {
-                            if item.badge {
+                            SleepyPopup(visible: item.badge) {
                                 Circle()
                                     .fill(colors.primary)
                                     .frame(width: 7, height: 7)
@@ -307,17 +309,12 @@ private struct DockedBar: View {
                     }
                 )
         }
-        // ★ v1.0.49 原生化: tab 操作语义化为 Button — 外部 onClick 改 items[*].selected → 上层重渲染
-        .contentShape(Rectangle())
-        .overlay(
-            Button(action: item.onClick) {
-                Color.clear.contentShape(Rectangle())
-            }
-            .buttonStyle(SleepyButtonStyle())
-            .accessibilityIdentifier("pill_\(item.id)")
-            .accessibilityLabel(item.label)
-            .accessibilityAddTraits(isSel ? .isSelected : [])
-        )
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(SleepyMotionButtonStyle())
+        .accessibilityIdentifier("pill_\(item.id)")
+        .accessibilityLabel(item.label)
+        .accessibilityAddTraits(isSel ? .isSelected : [])
     }
 }
 
@@ -331,6 +328,7 @@ private struct DockedBar: View {
 ///   - 选中色 = onSecondaryContainer(背景 secondaryContainer)
 ///   - shadow radius 12 y 4 black 0.2 + Material.ultraThinMaterial + 0.86 tint
 private struct FloatingBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let items: [PillNavItemData]
     let colors: WakeUpColorScheme
 
@@ -373,7 +371,7 @@ private struct FloatingBar: View {
                     .frame(width: DockSpec.thumbWidth, height: DockSpec.thumbHeight)
                     .offset(x: thumbX, y: DockSpec.thumbYOffset)
                     // 同款 — 原版本 SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
-                    .animation(sleepyThumbSpring, value: thumbCenterX)
+                    .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).thumb, value: thumbCenterX)
 
                 // 4 个 tab HStack:itemGap=4 居中分布,内边距 innerPad=8
                 HStack(spacing: DockSpec.itemGap) {
@@ -416,13 +414,14 @@ private struct FloatingBar: View {
             to: colors.onSecondaryContainer,
             fraction: Double(iconCov))
 
-        VStack(spacing: DockSpec.iconSpacer) {
+        Button(action: item.onClick) {
+          VStack(spacing: DockSpec.iconSpacer) {
             Image(systemName: item.icon)
                 .font(.system(size: DockSpec.iconSize))
                 .foregroundColor(color)
                 // ← 原 badge (v1.0.60): 图标右上 7dp primary 圆点(浮动分支同款)
                 .overlay(alignment: .topTrailing) {
-                    if item.badge {
+                    SleepyPopup(visible: item.badge) {
                         Circle()
                             .fill(colors.primary)
                             .frame(width: 7, height: 7)
@@ -435,17 +434,12 @@ private struct FloatingBar: View {
                 .lineLimit(1)
         }
         .frame(width: DockSpec.itemSeat, height: DockSpec.capsuleHeight)
-        // ★ v1.0.49 原生化: tab 操作语义化为 Button
-        .contentShape(Rectangle())
-        .overlay(
-            Button(action: item.onClick) {
-                Color.clear.contentShape(Rectangle())
-            }
-            .buttonStyle(SleepyButtonStyle())
-            .accessibilityIdentifier("pill_\(item.id)")
-            .accessibilityLabel(item.label)
-            .accessibilityAddTraits(isSel ? .isSelected : [])
-        )
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(SleepyMotionButtonStyle())
+        .accessibilityIdentifier("pill_\(item.id)")
+        .accessibilityLabel(item.label)
+        .accessibilityAddTraits(isSel ? .isSelected : [])
     }
 }
 

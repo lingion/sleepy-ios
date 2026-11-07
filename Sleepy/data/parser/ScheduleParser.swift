@@ -516,7 +516,10 @@ enum ScheduleParser {
                 color: (obj["color"] as? String) ?? defaultColor,
                 ownTime: ownTime,
                 startTime: ownTime ? ownStart : "",
-                endTime: ownTime ? ownEnd : ""
+                endTime: ownTime ? ownEnd : "",
+                fixedDate: (obj["fixedDate"] as? String).flatMap { value in
+                    CourseOccurrences.parseDate(value) == nil ? nil : value
+                }
             )
         }
 
@@ -557,7 +560,10 @@ enum ScheduleParser {
                 color: (obj["color"] as? String) ?? "#FF6750A4",
                 ownTime: ownTime,
                 startTime: ownTime ? ownStart : "",
-                endTime: ownTime ? ownEnd : ""
+                endTime: ownTime ? ownEnd : "",
+                fixedDate: (obj["fixedDate"] as? String).flatMap { value in
+                    CourseOccurrences.parseDate(value) == nil ? nil : value
+                }
             )
         }
     }

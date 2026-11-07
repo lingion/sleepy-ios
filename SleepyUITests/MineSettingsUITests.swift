@@ -421,22 +421,33 @@ final class MineSettingsUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5), "点入口应打开节假日设置页")
         // 返回(onBack = overlayScreen = null) → 回主界面, Mine tab 仍在。
         // Holiday 经 .sheet 呈现(GeneralSettingsScreen.swift:521), 背景 General 页仍在
-        // 树上且自带同名 topbar_back → 全局 firstMatch 按树序命中被盖住的背景按钮,
-        // tap 落空。改点 Holiday 顶栏自身坐标: SettingsTopBar 几何 = leading 4 +
-        // 40×40 按钮(中心距栏左缘 24) + 标题前导 4 → 返回键中心 x = 标题左缘 x - 26,
-        // y = 标题垂直中心(同一行)。XCUITest 元素 frame = 屏幕绝对系; window 归一化
-        // 点 = (绝对系 - window 原点)/window 尺寸。物理点击落在最上层 sheet 的返回键。
-        // ★ 修复: 标题可能紧贴左缘(minX≈7), 返回键中心 x 可能为负 → 用 max(24, ...) 保底,
-        //   与 SettingsTopBar 实际 leading=4 + 按钮半宽 20 = 24 对齐。
-        let win = app.windows.firstMatch
-        let backX = max(24.0, title.frame.minX - 26)
-        let backY = title.frame.midY
-        XCTAssertTrue(backX < win.frame.width && backY > win.frame.minY && backY < win.frame.maxY,
-                      "Holiday 顶栏应在屏内(backX=\(backX), backY=\(backY))")
-        win.coordinate(withNormalizedOffset: CGVector(dx: (backX - win.frame.minX) / win.frame.width,
-                                                      dy: (backY - win.frame.minY) / win.frame.height)).tap()
-        XCTAssertTrue(app.descendants(matching: .any)["mine_general"].waitForExistence(timeout: 5),
-                      "返回后应回主界面(Mine tab)")
+        // 树上且自带同名 topbar_back → 全局 firstMatch 按树序命中被盖住的背景按钮。
+        //
+        // ★ 2026-11-06 两轮 CI 实证修正: 原坐标点击(基于标题 frame 反推返回键中心)
+        //   不可信 — run 42158125671 / 42206732078 落点 [0.06, 0.12] 后
+        //   Holiday sheet 实际未关闭, 旧断言只查 topbar_back 存在(开闭两态都成立)
+        //   是假绿; 93235ca 收紧为"标题消失"后立即暴露(run 42229725312):
+        //   点击后标题持续存在 5s。
+        //   改走 AX 元素命中: sheet 打开时背景 General 顶栏的 topbar_back 被遮挡
+        //   (isHittable=false), 可命中的那个就是最上层 Holiday sheet 的返回键;
+        //   树序上 sheet 元素在后, 取最后一个可命中项兜底。
+        let backs = app.buttons.matching(identifier: "topbar_back")
+        XCTAssertGreaterThan(backs.count, 0, "Holiday sheet 打开时应存在返回键")
+        let hittable = (0..<backs.count).map { backs.element(boundBy: $0) }.filter { $0.isHittable }
+        (hittable.last ?? backs.element(boundBy: backs.count - 1)).tap()
+        // ★ 返回落点是 General overlay(SleepyNavigationUnderlay covered=true 时底层
+        //   Mine 整树 accessibilityHidden → mine_general 永不出现, 2026-11-06 CI 实证)。
+        //   锚点拆两条分别覆盖两种错(单靠一条都判不全):
+        //   1) topbar_back 仍在 — General 顶栏自带返回键(GeneralSettingsScreen:195,
+        //      SettingsTopBar 默认 leadingStyle = .back)。被弹回 Mine 时全屏无此按钮,
+        //      该条抓到"回错页"。
+        //   2) Holiday 标题消失 — 锁住"Holiday sheet 已关"。入口卡文案是
+        //      "Holiday course dimming"(settings_holiday_title), 与 sheet 标题
+        //      "Holidays & Make-up Days"(holiday_page_title)不同串, 标题不会因入口卡残留。
+        XCTAssertTrue(app.buttons["topbar_back"].firstMatch.waitForExistence(timeout: 5),
+                      "返回后应回到 General 页(顶栏返回键仍在)")
+        XCTAssertTrue(pollUntil(5) { !title.exists },
+                      "返回后 Holiday sheet 应已关闭(标题不再存在)")
     }
 
     // MARK: Export — 3 格式行存在
@@ -479,7 +490,11 @@ final class MineSettingsUITests: XCTestCase {
     // MARK: About — 检查更新按钮(点击进入 checking 态, 网络失败回落不崩)
 
     func testAboutCheckUpdateButton() {
-        app.descendants(matching: .any)["mine_about"].tap()
+        // ★ mine_about 在 Mine 页下部: 部分可见时 tap 落点会被 pill 导航栏拦截
+        //   (2026-11-06 CI 实证, 与 SwipeBackGestureUITests 同因)。先滚出拦截带。
+        let aboutEntry = app.descendants(matching: .any)["mine_about"]
+        scrollUntil(aboutEntry)
+        aboutEntry.tap()
         XCTAssertTrue(app.staticTexts["About"].waitForExistence(timeout: 5))
 
         let checkBtn = app.descendants(matching: .any)["about_check_update"]

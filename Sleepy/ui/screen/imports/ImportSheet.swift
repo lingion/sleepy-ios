@@ -78,17 +78,23 @@ enum ImportFormatKey: String, Identifiable, CaseIterable {
 
 struct ImportSheet: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.localCoursePalette) private var palette
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: ScheduleViewModel
-    let onJwImportRequested: () -> Void
     let onDismiss: () -> Void
     var onImported: () -> Void = {}
-    // ← 原版本 ImportSheet(drafts/onRestoreDraft/onDeleteDraft, 默认空 = 零行为变化)
+    // 草稿恢复在本页子 sheet 中继续，取消后保留本页输入。
     var drafts: [ImportDraftRowModel] = []
-    var onRestoreDraft: (String) -> Void = { _ in }
     var onDeleteDraft: (String) -> Void = { _ in }
+    var onJwDismissed: () -> Void = {}
+    var onCreateNewTable: (() -> Void)? = nil
 
     @State private var showDrafts = false
+    @State private var pendingRestoreDraftId: String? = nil
+    @State private var jwPresentation: JwImportPresentation? = nil
+    @State private var jwActiveImport = false
+    @State private var jwReturn = JwImportReturnState(origin: .importMethods)
     @State private var textExpanded = false
     @State private var inputText = ""
     @State private var isLoading = false
@@ -108,6 +114,9 @@ struct ImportSheet: View {
     @State private var successMsg: String? = nil
     @State private var showFilePicker = false
     @State private var detailFormat: ImportFormatKey? = nil
+    @State private var showWakeUpShare = false
+    @State private var wakeUpShareText = ""
+    @State private var pendingWakeUpJSON: String?
 
     var body: some View {
         let state = viewModel.state
@@ -115,7 +124,7 @@ struct ImportSheet: View {
             VStack(alignment: .leading, spacing: 0) {
                 // 标题与草稿入口 (标题 Row + Inventory2 IconButton)
                 HStack {
-                    Text(L10n.format("import_title"))
+                    Text(L10n.format(onCreateNewTable == nil ? "import_title" : "manage_add_table"))
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(colors.onSurface)
                     Spacer()
@@ -140,10 +149,18 @@ struct ImportSheet: View {
                     .foregroundColor(colors.onSurfaceVariant)
                     .padding(.bottom, 16)
 
+                if let onCreateNewTable {
+                    ImportMethodRow(id: "manage_new_table", icon: "plus",
+                                    label: L10n.format("manage_new_table"), onClick: onCreateNewTable)
+                }
+
                 // 行 1: 教务直连
                 ImportMethodRow(id: "import_jw", icon: "qrcode", label: L10n.format("import_jw")) {
-                    onDismiss()
-                    onJwImportRequested()
+                    jwPresentation = JwImportPresentation()
+                }
+                ImportMethodRow(id: "import_wakeup_share", icon: "link",
+                                label: L10n.format("wakeup_share_import_title")) {
+                    presentWakeUpShare(inputText)
                 }
 
                 // 行 2: 从文本导入(可折叠)
@@ -162,6 +179,10 @@ struct ImportSheet: View {
                             // ← 原 filled TextField, 无描边
                             .accessibilityIdentifier("import_paste_input")
                         Button {
+                            if WakeUpShareClient.looksLikeShareCode(inputText) {
+                                presentWakeUpShare(inputText)
+                                return
+                            }
                             isLoading = true
                             let p = ImportSheet.buildImportPreview(inputText, state) { msg in errorMsg = msg }
                             isLoading = false
@@ -283,7 +304,11 @@ struct ImportSheet: View {
                     defer { if secured { url.stopAccessingSecurityScopedResource() } }
                     let text = try String(contentsOf: url, encoding: .utf8)
                     // 不要在这里 onDismiss() —— preview state 随 sheet 销毁, dialog 永远不弹
-                    preview = ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg }
+                    if WakeUpShareClient.looksLikeShareCode(text) {
+                        presentWakeUpShare(text)
+                    } else {
+                        preview = ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg }
+                    }
                 } catch {
                     errorMsg = L10n.format("read_failed", error.localizedDescription)
                 }
@@ -390,19 +415,64 @@ struct ImportSheet: View {
             }
         }
         // 草稿箱弹窗 (if (showDrafts) ImportDraftSheet(...))
-        .sheet(isPresented: $showDrafts) {
+        .sheet(isPresented: $showWakeUpShare, onDismiss: {
+            guard let json = pendingWakeUpJSON else { return }
+            pendingWakeUpJSON = nil
+            preview = ImportSheet.buildImportPreview(json, viewModel.state) { errorMsg = $0 }
+        }) {
+            WakeUpShareImportSheet(initialText: wakeUpShareText, onResolved: { json in
+                pendingWakeUpJSON = json
+                ImportSheet.dismissKeyboard()
+                showWakeUpShare = false
+            }, onCancel: {
+                pendingWakeUpJSON = nil
+                showWakeUpShare = false
+            })
+            .environment(\.localWakeUpColors, colors)
+        }
+        .sheet(isPresented: $showDrafts, onDismiss: restoreSelectedDraft) {
             ImportDraftSheet(
                 drafts: drafts,
                 onDismiss: { showDrafts = false },
                 onRestore: { id in
+                    pendingRestoreDraftId = id
                     showDrafts = false
-                    onRestoreDraft(id)
                 },
                 onDelete: onDeleteDraft)
+        }
+        // 原生子 sheet 保留导入方式页及其输入；不拆父页、不用延时换 presentation。
+        .sheet(item: $jwPresentation, onDismiss: handleJwDismissed) { presentation in
+            JwImportFlow(onFinish: { outcome in
+                jwReturn.record(outcome)
+                jwPresentation = nil
+            }, incomingDraftId: presentation.draftId,
+               onActiveImportChanged: { jwActiveImport = $0 })
+                .environment(\.localWakeUpColors, colors)
+                .environment(\.localCoursePalette, palette)
+                .preferredColorScheme(colorScheme)
+                .interactiveDismissDisabled(jwActiveImport)
+                .sheetDragIndicator(.visible)
         }
         // 格式详情弹窗 ("支持格式"每行 ⓘ 点开)
         .sheet(item: $detailFormat) { fmt in
             FormatDetailDialog(format: fmt)
+        }
+    }
+
+    private func restoreSelectedDraft() {
+        guard let id = pendingRestoreDraftId else { return }
+        pendingRestoreDraftId = nil
+        jwPresentation = JwImportPresentation(draftId: id)
+    }
+
+    private func handleJwDismissed() {
+        SchoolSelectStateStore.shared.resetForNewEntry()
+        jwActiveImport = false
+        onJwDismissed()
+        // 下滑/取消留在原父页；成功仅在子 sheet 动画结束后关闭父页。
+        if jwReturn.didDismiss() {
+            onImported()
+            onDismiss()
         }
     }
 
@@ -470,11 +540,22 @@ struct ImportSheet: View {
         if let text = PendingImportText.value,
            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             PendingImportText.value = nil
+            if WakeUpShareClient.looksLikeShareCode(text) {
+                presentWakeUpShare(text)
+                return
+            }
             isLoading = true
             let p = ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg }
             if p != nil { preview = p }
             isLoading = false
         }
+    }
+
+    private func presentWakeUpShare(_ text: String) {
+        pendingWakeUpJSON = nil
+        wakeUpShareText = text
+        ImportSheet.dismissKeyboard()
+        showWakeUpShare = true
     }
 
     /// 成功提示(← snackbar.showSnackbar(importSuccessMessage)), 2.5s 自动消失由 overlay onAppear 管。

@@ -37,14 +37,13 @@ enum SleepyUITestSeeder {
             }
         } catch { return }
 
-        // 周一为本周起点(今天回推到本周一, ISO 8601)→ currentWeek==1
-        let cal = Calendar(identifier: .iso8601)
-        let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
-        let monday = cal.date(from: comps)!
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        fmt.calendar = cal
-        let startDate = fmt.string(from: monday)
+        // 学期起点必须锚定 App 民事日时区(Asia/Shanghai): DateUtils.parseDate/
+        // currentWeek 都按上海周界换算, 这里若跟设备时区(UTC CI 与 Asia/Shanghai
+        // 之间有 >8h 偏移), 种子周一会被算成 App 域的下一周/上一周 → 冷启动不在
+        // Week 1, 翻周基准整体错位。
+        let todayKey = HolidayTransferOps.dayKey(Date())
+        let monday = DateUtils.mondayOf(DateUtils.parseDate(todayKey)!)
+        let startDate = DateUtils.fullDate(monday)
 
         var table = TimeTableEntity(
             name: "我的课表", startDate: startDate, maxWeek: 20,

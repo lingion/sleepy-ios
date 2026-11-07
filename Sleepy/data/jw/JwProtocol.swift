@@ -225,8 +225,12 @@ enum JwProtocol {
     static let TYPE_CLASSIC_EAMS = "classic_eams"
     static let TYPE_KUST = "kust"
     static let TYPE_NUIT = "nuit"
+    /// 教务入口登记，不代表已验证的协议；解析时按自动识别处理。
+    static let TYPE_JW_HOME = "jw_home"
+    /// 内置拾光适配脚本的课程 JSON 桥。
+    static let TYPE_SG_ASSET = "sg_asset"
 
-    /// T8 新增：所有协议族常量的有序列表（用于 Registry 兜底遍历顺序）。
+    /// 协议展示列表；实际兜底候选由 Registry.TYPE_PRIORITY 决定（排除 jw_home 登记器）。
     /// 顺序按 TYPE_PRIORITY 优先级：wisedu > cqu > chaoxing > boya_pp > eams5 > classic_eams >
     ///                            pku > bnuz > cf > hnust > hniu >
     ///                            seu > zju > ustc > scu > neu > whut > bjtu >
@@ -239,6 +243,7 @@ enum JwProtocol {
         TYPE_BJTU, TYPE_YETHAN,
         TYPE_ZF, TYPE_ZF_1, TYPE_URP, TYPE_URP_NEW, TYPE_ZF_NEW,
         TYPE_QZ, TYPE_QZ_CRAZY, TYPE_QZ_BR, TYPE_QZ_WITH_NODE, TYPE_QZ_IEAS, TYPE_QZ_APP, TYPE_UCAS, TYPE_QZ_OLD,
+        TYPE_JW_HOME, TYPE_SG_ASSET,
     ]
 
     /// WakeUp 兼容层路由的协议族;与旧 UI 排序分开保存 ← WAKEUP_COMPAT_TYPES
@@ -252,6 +257,10 @@ enum JwProtocol {
     /// 协议显示名(用于 UI 提示) ← displayName
     static func displayName(_ type: String?) -> String {
         switch type {
+        case TYPE_JW_HOME:
+            return "教务入口（自动识别）"
+        case TYPE_SG_ASSET:
+            return "拾光适配脚本"
         case TYPE_QZ, TYPE_QZ_OLD, TYPE_QZ_CRAZY, TYPE_QZ_BR, TYPE_QZ_WITH_NODE:
             return "强智教务"
         case TYPE_QZ_APP:

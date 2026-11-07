@@ -10,8 +10,10 @@ final class SchoolCityIndexTests: XCTestCase {
 
     private func school(_ name: String, _ city: String, key: String = "",
                         status: String = JwSchoolInfo.STATUS_SUPPORTED) -> JwSchoolInfo {
-        JwSchoolInfo(sortKey: "A", name: name, status: status,
-                     sortKeyFull: key.isEmpty ? name : key, cities: [city])
+        // isSupported 要求 status 已支持且声明了协议类型(#28 起) → 已支持条目给出 type。
+        JwSchoolInfo(sortKey: "A", name: name,
+                     type: status == JwSchoolInfo.STATUS_SUPPORTED ? JwProtocol.TYPE_ZF : nil,
+                     status: status, sortKeyFull: key.isEmpty ? name : key, cities: [city])
     }
 
     // MARK: - normalizeCity: 只剥单个结尾"市"(原 removeSuffix 语义)

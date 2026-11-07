@@ -281,7 +281,7 @@ final class ScheduleViewModel: ObservableObject {
                 WeekDisplayResolver.resolve(
                     startDate: $0.startDate,
                     maxWeek: $0.maxWeek,
-                    now: Date(),
+                    now: AppClock.now,
                     courses: courses,
                     timeJson: $0.timeJson,
                     enabled: AppPrefs.shared.isNearestBusyDay(),
@@ -366,7 +366,7 @@ final class ScheduleViewModel: ObservableObject {
         }
         // 上周一(本周一往前 7 天 — iOS weekday 数学)
         let cal = DateUtils.isoCalendar
-        let now = Date()
+        let now = AppClock.now
         let todayDow = DateUtils.todayDayOfWeek(today: now)
         let lastWeekMonday = cal.date(byAdding: .day, value: -(todayDow - 1 + 7), to: now) ?? now
         let f = DateFormatter()
@@ -447,6 +447,8 @@ final class ScheduleViewModel: ObservableObject {
         Task {
             try? repo.deleteTable(id)
             self.manualSelectDone = false
+            // 成就：首次删除课表
+            AchievementTracker.shared.checkDeleteOnce()
         }
     }
 
@@ -481,6 +483,37 @@ final class ScheduleViewModel: ObservableObject {
         state.weekSelectionManual = true
     }
 
+    /// 源身份在 lift 时捕获；目标按逐日投影解析，写入前回查原始行。
+    var occurrenceRepository: ScheduleRepository { repo }
+
+    func occurrenceSaved() {
+        onWidgetsNeedReload()
+        recalculateWeekDisplay()
+    }
+
+    func moveDraggedOccurrence(source: CourseDragContext.Source, targetWeek: Int,
+                               displayDay: Int, targetNode: Int, targetStartTime: String? = nil) -> Bool {
+        guard source.course.tableId == state.selectedTableId,
+              let table = state.effectiveCurrentTable, table.id == source.course.tableId,
+              table.maxWeek > 0, (1...table.maxWeek).contains(source.occurrence.week) else { return false }
+        do {
+            guard let original = try repo.getCourse(source.course.id),
+                   original.tableId == source.course.tableId,
+                   source.occurrence.matches(original, startDate: table.startDate),
+                   let target = CourseOccurrenceIdentity.destination(course: original, startDate: table.startDate,
+                       maxWeek: table.maxWeek, displayWeek: targetWeek, displayDay: displayDay,
+                       transfers: state.transfers) else { return false }
+            // 仓库统一判断真实位置/时刻 no-op，不能提前按展示坐标吞掉一次显式改时刻。
+            let changed = try repo.moveCourseOccurrence(courseId: original.id,
+                sourceWeek: source.occurrence.week, targetWeek: target.week,
+                targetDay: target.day, targetNode: targetNode, targetStartTime: targetStartTime)
+            if changed { onWidgetsNeedReload() }
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// issue#44: 设置页保存调休映射后, 通知 VM 重新拉当前表的映射。
     /// 现有 courses 列表不需重查, 只需刷新 dayFor() 的真源, 一次 reload 即生效。
     /// v1.0.62 B5b: ← 原 refreshTransfer 尾部追加 recalculateWeekDisplay() —
@@ -499,7 +532,7 @@ final class ScheduleViewModel: ObservableObject {
         let context = WeekDisplayResolver.resolve(
             startDate: table.startDate,
             maxWeek: table.maxWeek,
-            now: Date(),
+            now: AppClock.now,
             courses: state.courses,
             timeJson: table.timeJson,
             enabled: AppPrefs.shared.isNearestBusyDay(),
@@ -659,10 +692,10 @@ extension ScheduleViewModel {
         Task { try? repo.updateTableRemappingCourses(table) }
     }
 
-    /// 删除时间节次表(被引用时 false, UI 提示先改绑)。
+    /// 用户确认删除后冻结绑定课表的当前作息。
     @discardableResult
     func deletePeriodTable(id: Int64) -> Bool {
-        return (try? repo.deletePeriodTable(id)) ?? false
+        return (try? repo.deletePeriodTable(id, onlyIfUnbound: false)) ?? false
     }
 
     /// 丢弃一个从未保存过的新建时间节次表(残留清理; 不走删除守卫)。

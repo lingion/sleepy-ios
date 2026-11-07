@@ -17,14 +17,11 @@ struct TodayScreen: View {
     var onEditCourse: ((CourseEntity) -> Void)? = nil
     // ← selectedCourse: 点课卡 → 详情 BottomSheet(与课表页同一组件同一交互)
     @State private var selectedCourse: CourseEntity? = nil
+    @State private var selectedCourseDate: Date? = nil
 
     var body: some View {
         let state = viewModel.state
-        let today = Date()
-        // issue#44 对齐: 调休日按映射目标星期取课, 未映射走自然星期
-        // (`state.transferDayFor(today)`; HolidayTransferHelper 直读所选表在
-        // AppPrefs 的调休映射 = 原版本 VM transfers 的同一数据源, 语义等价)。
-        let dayOfWeek = HolidayTransferHelper.effectiveDayOfWeek(state.selectedTableId, today)
+        let today = AppClock.now
         // issue#40 对齐: 节次时间域一律走水合后的当前表(← 原实现
         // `state.effectiveCurrentTable?.timeJson`)。绑定独立节次表 → 以所绑表 timeJson
         // 为准; 悬空/未绑定 → 回退旧兼容列。ScheduleState 尚无 effectiveCurrentTable
@@ -43,11 +40,11 @@ struct TodayScreen: View {
         let semesterStatus = state.currentTable.map {
             DateUtils.semesterStatus(startDate: $0.startDate, maxWeek: $0.maxWeek, today: today)
         } ?? .inRange
-        let isOutOfSemester = semesterStatus != .inRange
         let todayCourses: [CourseEntity] = {
-            let list = isOutOfSemester ? [] : state.courses.filter {
-                $0.day == dayOfWeek && $0.inWeek(actualWeek)
-            }
+            let list = state.currentTable.map { table in
+                HolidayTransferOps.coursesForDate(today, startDate: table.startDate, maxWeek: table.maxWeek,
+                    courses: state.courses, transfers: state.transfers)
+            } ?? []
             // 用户报障 2026-09-10: ownTime 课渲染前按真实时间归一化节点(与网格同一
             // 预处理), 落库的表单占位节点不再影响今日页分组与显示。
             guard let tj = effectiveTimeJson else {
@@ -77,11 +74,13 @@ struct TodayScreen: View {
                         if row.laneCount == 1, let only = row.courses.first {
                             TodayCourseCard(course: only, timeJson: effectiveTimeJson,
                                             groupRows: todayCourses.filter { $0.groupId == only.groupId }) {
+                                selectedCourseDate = today
                                 selectedCourse = only
                             }
                         } else {
                             TodayLaneRow(row: row, timeJson: effectiveTimeJson,
                                          todayCourses: todayCourses) { c in
+                                selectedCourseDate = today
                                 selectedCourse = c
                             }
                         }
@@ -110,9 +109,16 @@ struct TodayScreen: View {
                 allCourses: todayCourses,
                 onEdit: { c in
                     selectedCourse = nil
-                    onEditCourse?(c)
+                    onEditCourse?(state.courses.first { $0.id == c.id } ?? c)
                 },
-                timeJson: effectiveTimeJson)
+                timeJson: effectiveTimeJson,
+                displayDate: selectedCourseDate,
+                occurrenceTable: state.effectiveCurrentTable,
+                occurrenceRepository: viewModel.occurrenceRepository,
+                onOccurrenceSaved: {
+                    selectedCourse = nil
+                    viewModel.occurrenceSaved()
+                })
         }
     }
 }

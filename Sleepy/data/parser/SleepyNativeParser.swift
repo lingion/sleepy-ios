@@ -458,6 +458,9 @@ enum SleepyNativeParser {
 
         // issue#26: 可选第 11 列 = 课程别名。缺列/空值 → ""(向后兼容既有 v1 文件)
         let alias = cols.count >= 11 ? text(10) : ""
+        let rawFixedDate = cols.count >= 12 ? text(11) : ""
+        let fixedDate = rawFixedDate.isEmpty ? nil : SleepyNativeFormat.parseDate(rawFixedDate)
+        if !rawFixedDate.isEmpty && fixedDate == nil { markClamped(line, &dropped) }
 
         courses.append(CourseEntity(
             groupId: "",   // 分区在 pass 结束后统一分配
@@ -476,7 +479,7 @@ enum SleepyNativeParser {
             ownTime: ownTime,
             startTime: startTime,
             endTime: endTime,
-            alias: alias))
+            alias: alias, fixedDate: fixedDate))
         tokenByIndex[courses.count - 1] = token
     }
 

@@ -439,8 +439,8 @@ final class JwImportViewModelLogicTests: XCTestCase {
         //   (安卓 v1.0.62 tag 10adc247 assets/schools.json 逐条与 iOS resources/schools.json 一致)
         let list = try loadSchools()
         XCTAssertEqual(4140, list.count)
-        // 带 URL 的可导入子集闸门: 1480 里 supported 348 + grad_supported 2 + unverified 1128
-        XCTAssertEqual(1478, list.filter { !$0.url.isEmpty }.count)
+        // v1.0.63新增1402未验证入口，身份集合不变；URL不代表登录导入验证。
+        XCTAssertEqual(2880, list.filter { !$0.url.isEmpty }.count)
         let first = list[0]
         XCTAssertFalse(first.name.isEmpty)
     }

@@ -32,33 +32,52 @@ enum CustomSchemeDeriver {
     // MARK: - 派生入口
 
     static func derive(theme: CustomTheme, isDark: Bool) -> WakeUpColorScheme {
+        derive(theme: theme, isDark: isDark, systemSeed: nil)
+    }
+
+    /// 系统单种子入口：复用模板，灰度不走自定义主题的“无色相回落紫色”。
+    static func derive(systemSeed: SystemSeedRGB, isDark: Bool) -> WakeUpColorScheme {
+        derive(theme: SleepyThemeProvider.defaultSeedTheme, isDark: isDark, systemSeed: systemSeed)
+    }
+
+    private static func derive(theme: CustomTheme, isDark: Bool, systemSeed: SystemSeedRGB?) -> WakeUpColorScheme {
         let template = isDark ? darkScheme : lightScheme
-        let primaryHue = hueOfSeed(theme.primary, fallback: template.primary)
-        let secondaryHue = hueOfSeed(theme.secondary, fallback: template.secondary)
-        let tertiaryHue = hueOfSeed(theme.tertiary, fallback: template.tertiary)
-        let surfaceHue = normalizeHue(theme.surfaceHue)
-        let surfaceChroma = Float(min(max(theme.surfaceChroma, 0.0), SURFACE_CHROMA_MAX)) / 100.0
+        let systemHSV = systemSeed.map { rgbToHsv(r: Float($0.red) / 255, g: Float($0.green) / 255, b: Float($0.blue) / 255) }
+        let primaryHue = systemHSV?.h ?? hueOfSeed(theme.primary, fallback: template.primary)
+        let secondaryHue = systemHSV?.h ?? hueOfSeed(theme.secondary, fallback: template.secondary)
+        let tertiaryHue = systemHSV.map { normalizeHue(Double($0.h + 60)) }
+            ?? hueOfSeed(theme.tertiary, fallback: template.tertiary)
+        let surfaceHue = systemHSV?.h ?? normalizeHue(theme.surfaceHue)
+        let surfaceChroma = systemHSV.map { min($0.s, 0.08) }
+            ?? (Float(min(max(theme.surfaceChroma, 0.0), SURFACE_CHROMA_MAX)) / 100.0)
+
+        func chromatic(_ color: Color, _ hue: Float) -> Color {
+            guard let systemHSV else { return deriveChromatic(color, hue) }
+            let rgb = rgb(of: color)
+            let hsv = rgbToHsv(r: rgb.r, g: rgb.g, b: rgb.b)
+            return hsvToColor(h: hue, s: min(hsv.s, systemHSV.s), v: hsv.v)
+        }
 
         // 先派生三个角色族的"底色"(on* 文字色要按它们的实际亮度自适应)
-        let derivedPrimary = deriveChromatic(template.primary, primaryHue)
-        let derivedSecondary = deriveChromatic(template.secondary, secondaryHue)
-        let derivedTertiary = deriveChromatic(template.tertiary, tertiaryHue)
+        let derivedPrimary = chromatic(template.primary, primaryHue)
+        let derivedSecondary = chromatic(template.secondary, secondaryHue)
+        let derivedTertiary = chromatic(template.tertiary, tertiaryHue)
 
         return WakeUpColorScheme(
             primary: derivedPrimary,
             onPrimary: adaptOn(derivedPrimary),
-            primaryContainer: deriveChromatic(template.primaryContainer, primaryHue),
-            onPrimaryContainer: deriveChromatic(template.onPrimaryContainer, primaryHue),
+            primaryContainer: chromatic(template.primaryContainer, primaryHue),
+            onPrimaryContainer: chromatic(template.onPrimaryContainer, primaryHue),
 
             secondary: derivedSecondary,
             onSecondary: adaptOn(derivedSecondary),
-            secondaryContainer: deriveChromatic(template.secondaryContainer, secondaryHue),
-            onSecondaryContainer: deriveChromatic(template.onSecondaryContainer, secondaryHue),
+            secondaryContainer: chromatic(template.secondaryContainer, secondaryHue),
+            onSecondaryContainer: chromatic(template.onSecondaryContainer, secondaryHue),
 
             tertiary: derivedTertiary,
             onTertiary: adaptOn(derivedTertiary),
-            tertiaryContainer: deriveChromatic(template.tertiaryContainer, tertiaryHue),
-            onTertiaryContainer: deriveChromatic(template.onTertiaryContainer, tertiaryHue),
+            tertiaryContainer: chromatic(template.tertiaryContainer, tertiaryHue),
+            onTertiaryContainer: chromatic(template.onTertiaryContainer, tertiaryHue),
 
             background: deriveSurface(template.background, surfaceHue, surfaceChroma),
             onBackground: deriveSurface(template.onBackground, surfaceHue, surfaceChroma),

@@ -41,11 +41,16 @@ final class ManageImportUITests: XCTestCase {
     // MARK: 管理页 4 卡片都存在且标题正确
 
     func testManageCardsExist() {
-        XCTAssertTrue(app.staticTexts["Import"].firstMatch.waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["New Schedule"].firstMatch.exists)
+        // v1.0.63: 管理页导入卡改由导入方式页承载, 标题统一为 manage_add_table
+        // (Add Timetable); 旧文案 "Import" 已不再渲染。
+        XCTAssertTrue(app.staticTexts["Add Timetable"].firstMatch.waitForExistence(timeout: 3))
+        // v1.0.63 卡组 = Add Timetable / Add Course / Bell Schedule Management /
+        // Export Current(2026-11-06 CI 实证: 旧 "New Schedule"/"Edit Current"
+        // 卡已由顶部摘要卡(manage_edit_current, 显示表名)取代, 断言跟进新结构)
         XCTAssertTrue(app.staticTexts["Add Course"].firstMatch.exists)
-        XCTAssertTrue(app.staticTexts["Edit Current"].firstMatch.exists)
-        // 当前表摘要
+        XCTAssertTrue(app.staticTexts["Bell Schedule Management"].firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["Export Current"].firstMatch.exists)
+        // 当前表摘要(种子表名固定中文「我的课表」, 与界面语言无关)
         XCTAssertTrue(app.staticTexts["我的课表"].waitForExistence(timeout: 3),
                       "管理页应显示当前表名")
     }
@@ -54,7 +59,9 @@ final class ManageImportUITests: XCTestCase {
 
     func testImportSheetOpensWithThreeMethods() {
         app.descendants(matching: .any)["manage_import"].tap()
-        XCTAssertTrue(app.staticTexts["Import Schedule"].waitForExistence(timeout: 5),
+        // 管理页入口带 onCreateNewTable → 方式页标题取 manage_add_table(Add Timetable),
+        // 不再是 import_title(Import Schedule)。
+        XCTAssertTrue(app.staticTexts["Add Timetable"].waitForExistence(timeout: 5),
                       "导入弹窗未打开")
         XCTAssertTrue(app.staticTexts["Connect to School"].exists, "教务直连行缺失")
         XCTAssertTrue(app.staticTexts["Paste Text"].exists, "文本导入行缺失")
@@ -310,7 +317,8 @@ final class ManageImportUITests: XCTestCase {
     // MARK: 新建空表流程(管理页 → New Schedule → EditTable → 保存)
 
     func testNewTableCreateFlow() {
-        app.descendants(matching: .any)["manage_new_table"].tap()
+        app.descendants(matching: .any)["manage_import"].tap()
+        forceTap(app.descendants(matching: .any)["manage_new_table"])
         // EditTableScreen(新表默认名)
         XCTAssertTrue(app.staticTexts["Edit Schedule"].waitForExistence(timeout: 5),
                       "新建表应进编辑页")

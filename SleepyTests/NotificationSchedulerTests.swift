@@ -118,7 +118,12 @@ final class NotificationSchedulerTests: XCTestCase {
             if byDay.isEmpty { return courseIds() }
             return byDay.values.flatMap { $0 }.map { $0.id }
         }
-        func effectiveDayOfWeek(tableId: Int64?, date: Date) -> Int { dayMapping(date) }
+        func courseDateForDate(tableId: Int64?, date: Date) -> Date? {
+            let weekday = DateUtils.isoCalendar.component(.weekday, from: date)
+            let currentDay = weekday == 1 ? 7 : weekday - 1
+            // 既有 fixture 映射的是同周星期；新接口需要保留完整来源日期。
+            return DateUtils.isoCalendar.date(byAdding: .day, value: dayMapping(date) - currentDay, to: date)
+        }
         func allowsReminder(tableId: Int64, date: Date) async -> Bool {
             !holidayDates.contains(DateUtils.fullDate(date))
         }
@@ -418,6 +423,6 @@ private final class LegacyMinimalDataSource: NotificationSchedulerBeforeClassDat
     func resolveCurrentTable() -> TimeTableEntity? { table }
     func coursesForDay(tableId: Int64, dayOfWeek: Int) -> [CourseEntity] { [] }
     func allCourseIds() -> [Int64] { [] }
-    func effectiveDayOfWeek(tableId: Int64?, date: Date) -> Int { 1 }
+    func courseDateForDate(tableId: Int64?, date: Date) -> Date? { date }
     func allowsReminder(tableId: Int64, date: Date) async -> Bool { true }
 }

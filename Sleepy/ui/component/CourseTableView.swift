@@ -167,7 +167,7 @@ extension TimeTableUtils {
         // 空隙里, 都需要占位行承载(整段空隙课按比例渲染在占位行内)。
         var placeholderByGap: [Int: (lo: Int, hi: Int)] = [:]
         for c in courses {
-            guard c.ownTime else { continue }
+            guard c.isIrregularTime || c.ownTime else { continue }
             guard let st = hmToSeconds(c.startTime), let et = hmToSeconds(c.endTime), et > st else { continue }
             for gi in 0..<max(base.count - 1, 0) {
                 let leftEnd = slotEnd(base[gi])
@@ -236,8 +236,8 @@ private var systemFontScaleProxy: CGFloat {
 /// ← startDate.isNotBlank() && DateUtils.isDateToday(DateUtils.dateOfWeek(...), todayDate)
 private func isDateTodayOfWeek(startDate: String, week: Int, day: Int, todayDate: Date) -> Bool {
     guard !startDate.isEmpty,
-          let date = DateUtils.dateOfWeek(startDate: startDate, week: week, dayOfWeek: day) else { return false }
-    return DateUtils.isDateToday(date, todayDate)
+          let date = CourseOccurrences.date(startDate: startDate, week: week, day: day) else { return false }
+    return HolidayTransferOps.dayKey(date) == HolidayTransferOps.dayKey(todayDate)
 }
 
 // MARK: - 双指纵向缩放行高 ← Modifier.verticalResizeGesture
@@ -368,7 +368,7 @@ private struct HeaderColumnGeometry {
     /// headerContentHeightSp = 最矮非占位行内容高(真实行高输入 — 用户令 2026-10-03,
     /// 双指缩行/自适应行高联动;假 52f*scale 输入曾使矮卡字号过大 → 三行行盒互叠)。
     init(renderSlots: [TimeSlot], layout: String, style: String, hanging: CGFloat, showX: Bool,
-         scale: CGFloat, rowHeightAt: (Int) -> CGFloat, gapH: CGFloat, rowHeightDp: CGFloat) {
+         centerTime: Bool, scale: CGFloat, rowHeightAt: (Int) -> CGFloat, gapH: CGFloat, rowHeightDp: CGFloat) {
         let padDp = 2 * periodHeaderCardPadDp * scale
         let minRowDp = renderSlots.enumerated()
             .filter { !$0.element.isPlaceholder }
@@ -396,7 +396,7 @@ private struct HeaderColumnGeometry {
                     dashPx: textWidth("-", font: timeFont),
                     timeRightPx: textWidth(slot.displayEnd, font: timeFont))
             }
-            legacyAxis = legacyDashColumnPx(rows: rows, padPx: 0).dashCenterX
+            legacyAxis = legacyTimeColumnPx(rows: rows, padPx: 0, centerTime: centerTime).dashCenterX
         } else {
             let metricsRows = renderSlots.filter { !$0.isPlaceholder }.map { slot -> PeriodHeaderMetrics in
                 PeriodHeaderMetrics(
@@ -432,6 +432,10 @@ private struct HeaderColumnGeometry {
 // MARK: - CardsGridView ← CardsGridView
 
 struct CardsGridView: View {
+    @AppStorage(AppPrefs.KEY_PERIOD_HEADER_TIME_ALIGNMENT, store: .standard)
+    private var headerTimeAlignment = "dash"
+    @AppStorage(AppPrefs.KEY_PERIOD_HEADER_HIDE_TIME, store: .standard)
+    private var headerHideTime = false
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
     @Environment(\.localNavExtraBottomPadding) private var navExtra
@@ -448,7 +452,7 @@ struct CardsGridView: View {
     var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7) — 节假日/周末灰显
     /// 全学期课程(跨周) — 晚间自动收起判据("整学期没有晚间课才收") ← allCourses
     var allCourses: [CourseEntity]? = nil
-    var todayDate: Date = Date()
+    var todayDate: Date = AppClock.now
     /// v7.10.5 会话级置顶 override — ScheduleScreen 持有, radio 与网格同真相源 ← topOverrides
     var topOverrides: [String: Int64] = [:]
     var onSetTopOverride: (String, Int64?) -> Void = { _, _ in }
@@ -461,6 +465,11 @@ struct CardsGridView: View {
     var onRowHeightScaleChange: (CGFloat) -> Void = { _ in }
     /// v1.0.56 T3(实验室): 双指捏放行高总开关, 默认 false = 手势整个不挂 ← pinchZoomEnabled
     var pinchZoomEnabled: Bool = false
+    var dragMaxWeek: Int = 20
+    var dragTransfers: [HolidayTransferEntry] = []
+    var quickAddState: QuickAddCourseState? = nil
+    var quickAddEnabled = false
+    var onQuickAdd: ((Int, Int, Int) -> Void)? = nil
 
     // 用户反馈 2026-09-16: 占位行展开态(会话级, 键=时间串, 周内多天共享同一空隙 → 同键联动)。
     // ← 原版本 remember(mutableStateOf) — 翻周/离开页面复位由持有方视图生命周期承担。
@@ -480,22 +489,9 @@ struct CardsGridView: View {
         let longBreakSpacing = AppPrefs.shared.isGridLongBreakSpacing()
 
         // 视口策略: 先裁剪稳定的学期级基础槽位(晚间自动收起), 再为当前周合成占位行
-        let baseSlots: [TimeSlot]
-        if autoHideEmptyEvening {
-            let visible = TimetableViewportPolicy.selectVisibleSlots(
-                allCourses: allCourses ?? courses,
-                timeSlots: timeSlots.map(TimetableViewportPolicy.SlotRef.init),
-                visibleDays: visibleDays,
-                timeJson: timeJsonOpt,
-                autoHideEmptyEvening: true,
-                eveningStartMinutes: eveningStart)
-            // 回映: SlotRef 按 nodeStart 唯一性取原 TimeSlot(逐节行 nodeStart 不重复)
-            baseSlots = visible.slots.compactMap { ref in
-                timeSlots.first { $0.nodeStart == ref.nodeStart }
-            }
-        } else {
-            baseSlots = timeSlots
-        }
+        let baseSlots = CourseDropCandidateLayout.visibleBaseSlots(allCourses: allCourses ?? courses,
+            timeSlots: timeSlots, visibleDays: visibleDays, timeJson: timeJson,
+            autoHideEmptyEvening: autoHideEmptyEvening, eveningStartMinutes: eveningStart)
         let renderPlan: TimeTableUtils.RenderSlotPlan = timeJsonOpt != nil
             ? TimeTableUtils.buildRenderSlotPlan(courses: courses, timeJson: timeJson, baseSlots: baseSlots)
             : TimeTableUtils.RenderSlotPlan(slots: baseSlots)
@@ -510,25 +506,19 @@ struct CardsGridView: View {
         let headerLayout = AppPrefs.shared.getPeriodHeaderLayout()
         let headerHanging = CGFloat(AppPrefs.shared.getPeriodHeaderHanging())
         let headerShowX = AppPrefs.shared.isPeriodHeaderShowX()
+        let headerCenterTime = headerTimeAlignment == "center"
         let timeW: CGFloat
         if headerLayout == "three_line" {
             timeW = max(threeLineWidthDp(slots: renderSlots, headerStyle: headerStyle, scale: scale,
                                          hangingUnits: headerHanging, showX: headerShowX), d(46))
         } else {
-            timeW = max(legacyLineWidthDp(slots: renderSlots, headerStyle: headerStyle, scale: scale,
-                                          showX: headerShowX), d(46))
+            timeW = max(legacyTimeWidthDp(slots: renderSlots, headerStyle: headerStyle, scale: scale,
+                                          showX: headerShowX, hideTime: headerHideTime,
+                                          centerTime: headerCenterTime), d(46))
         }
         let headH = d(52)
         let gapH = d(4)
         let gapW = d(5)
-
-        // 长课间留白: 固定薄带(24dp×gridScale×fontScale), 行高保持刚性不缩放
-        // — 用户反馈 2026-10: 旧 6dp 带宽+行等比压缩累积成整行空隙(#118 原语再定义)
-        let mealBreakAfterRows: Set<Int> = (longBreakSpacing && timeJsonOpt != nil)
-            ? MealBreakDetector.detectDisplayRowIndexes(timeJson: timeJson, courses: courses,
-                                                        displayedNodeEnds: renderSlots.map { $0.nodeEnd })
-            : []
-        let mealGapExtra: CGFloat = longBreakSpacing ? d(24) * systemFontScaleProxy : 0
 
         return GeometryReader { geo in
             // 外层 padding d(8) 每边 — 可用宽/高都已扣除(← BoxWithConstraints maxWidth/maxHeight)
@@ -536,59 +526,33 @@ struct CardsGridView: View {
             let availableW = max(geo.size.width - 2 * boxPad, 0)
             // 行高基座: 自适应只改纵向; 长课间带不进可用高度预算(行高刚性, 带悬浮行间)
             let availableGridHeight = max(geo.size.height - 2 * boxPad - headH - gapH - navExtra, 0)
-            let weightsForFit = renderPlan.slotWeights.map { $0.map { CGFloat($0) } }
-            let baseRowHeight = TimetableViewportPolicy.baseRowHeightDp(
-                adaptive: adaptiveHeight,
-                fitRowHeightDp: TimetableViewportPolicy.fitRowHeightDp(
-                    availableGridHeightDp: availableGridHeight,
-                    slotWeights: weightsForFit,
-                    slotCount: renderSlots.count,
-                    contentScale: scale),
-                contentScale: scale)
-            let clampedScale = min(max(scale, 0.7), 1.3)
-            let rowHeightDp = TimetableViewportPolicy.manualRowHeightDp(
-                baseRowHeightDp: baseRowHeight,
-                verticalScale: rowHeightScale,
-                minRowHeightDp: TimetableViewportPolicy.MIN_ROW_DP * clampedScale,
-                maxRowHeightDp: TimetableViewportPolicy.MAX_ROW_DP * clampedScale)
+            let rowConfiguration = CourseGridRowLayout.Configuration(contentScale: scale,
+                verticalScale: rowHeightScale, adaptive: adaptiveHeight,
+                availableGridHeight: availableGridHeight, longBreakSpacing: longBreakSpacing,
+                fontScale: systemFontScaleProxy, expandedPlaceholders: expandedPlaceholders,
+                placeholderTextHeight: placeholderTextRequiredDp)
+            let rowLayout = CourseGridRowLayout(renderPlan: renderPlan, courses: courses,
+                timeJson: timeJson, configuration: rowConfiguration)
+            let baseRowHeight = rowLayout.baseRowHeight
+            let rowHeightDp = rowLayout.rowHeight
             let rowH = rowHeightDp
-
-            // 展开的占位行权重 = "正好显示完文字"的展开权重 — yOfRows/rowHeightAt/gridH
-            // 都读 effectiveWeights 同一张表, 行高与 y 前缀和天然同源(时间轴不破)。
-            let effectiveWeights: [CGFloat]? = renderPlan.slotWeights.map { base in
-                base.enumerated().map { i, w in
-                    let slot = i < renderSlots.count ? renderSlots[i] : nil
-                    if let slot, slot.isPlaceholder, expandedPlaceholders.contains(slot.timeString) {
-                        return max(CGFloat(w), TimeTableUtils.placeholderExpandedWeight(
-                            rowHeightDp: rowHeightDp,
-                            gapDp: TimetableViewportPolicy.ROW_GAP_DP,
-                            requiredTextHeightDp: placeholderTextRequiredDp))
-                    }
-                    return CGFloat(w)
-                }
+            let ws = rowLayout.weights
+            let mealBreakAfterRows = rowLayout.mealBreakAfterRows
+            let yOfRows: (Double) -> CGFloat = rowLayout.yOfRows
+            let rowHeightAt: (Int) -> CGFloat = rowLayout.rowHeightAt
+            let gapAfterRow: (Int) -> CGFloat = rowLayout.gapAfterRow
+            let quickAddRows = renderSlots.enumerated().compactMap { index, slot -> QuickAddRow? in
+                guard !slot.isPlaceholder else { return nil }
+                return QuickAddRow(node: slot.nodeStart, top: yOfRows(Double(index)),
+                    bottom: yOfRows(Double(index)) + rowHeightAt(index) - gapH)
             }
-
-            // yOfRows(r) — 加权行坐标 r(0.0=网格顶, 1.0=一标准行) → pt; 穿过的长课间带同帧计入
-            let ws = effectiveWeights ?? Array(repeating: CGFloat(1), count: renderSlots.count)
-            let yOfRows: (Double) -> CGFloat = { r in
-                let full = Int(min(max(r, 0), Double(ws.count)))
-                var acc: CGFloat = 0
-                for i in 0..<full { acc += ws[i] }
-                if full < ws.count && r > Double(full) { acc += ws[full] * CGFloat(r - Double(full)) }
-                let crossedBreaks = mealBreakAfterRows.filter { Double($0 + 1) <= r }.count
-                return rowH * acc + mealGapExtra * CGFloat(crossedBreaks)
-            }
-            let rowHeightAt: (Int) -> CGFloat = { i in
-                rowH * (i >= 0 && i < ws.count ? ws[i] : 1)
-            }
-            let gapAfterRow: (Int) -> CGFloat = { i in
-                gapH + (mealBreakAfterRows.contains(i) ? mealGapExtra : 0)
-            }
+            let maxStandard = timeJson.isEmpty ? (timeSlots.map(\.nodeEnd).max() ?? 12)
+                : (TimeTableUtils.parseTimeSlotRows(timeJson).filter { $0.edgeClass == nil }.map(\.node).max() ?? 0)
 
             // 整列统一字号/中点/dash 轴 — 真实行高输入(双指缩行/自适应联动)
             let headerGeo = HeaderColumnGeometry(
                 renderSlots: renderSlots, layout: headerLayout, style: headerStyle,
-                hanging: headerHanging, showX: headerShowX, scale: scale,
+                hanging: headerHanging, showX: headerShowX, centerTime: headerCenterTime, scale: scale,
                 rowHeightAt: rowHeightAt, gapH: gapH, rowHeightDp: rowHeightDp)
 
             // 列宽: (可用宽 − timeW − gapW*(dayCount+1)) / dayCount ← colW
@@ -609,7 +573,7 @@ struct CardsGridView: View {
                         ForEach(sortedDays, id: \.self) { day in
                             let dateStr: String? = {
                                 guard showDate, !startDate.isEmpty,
-                                      let dd = DateUtils.dateOfWeek(startDate: startDate, week: currentWeek, dayOfWeek: day) else { return nil }
+                                      let dd = CourseOccurrences.date(startDate: startDate, week: currentWeek, day: day) else { return nil }
                                 return DateUtils.shortDate(dd)
                             }()
                             DayHeadCell(day: day,
@@ -692,6 +656,12 @@ struct CardsGridView: View {
                                 .offset(y: yOfRows(Double(i)))
                         }
 
+                        if quickAddEnabled, onQuickAdd != nil, let quickAddState {
+                            QuickAddCourseCells(state: quickAddState, days: sortedDays, rows: quickAddRows,
+                                timeWidth: timeW, columnWidth: colW, gap: gapW)
+                                .frame(width: availableW, height: gridH, alignment: .topLeading)
+                        }
+
                         // 课程卡片: 冲突簇整簇 ConflictClusterCard, 非簇课单卡路径(回归保护)
                         GridConflictLayer(
                             courses: courses, visibleDays: visibleDays, sortedDays: sortedDays,
@@ -707,10 +677,40 @@ struct CardsGridView: View {
                             onSetTopOverride: onSetTopOverride,
                             rotationSteps: rotationSteps,
                             onRotationStep: onRotationStep,
-                            yOfRows: yOfRows,
-                            gapAfterRow: gapAfterRow)
+                             yOfRows: yOfRows,
+                             gapAfterRow: gapAfterRow)
+                        if quickAddEnabled, let quickAddState, let onQuickAdd {
+                            QuickAddCourseLayer(state: quickAddState, days: sortedDays, rows: quickAddRows,
+                                maxStandard: maxStandard, timeWidth: timeW, columnWidth: colW, gap: gapW,
+                                onConfirm: { onQuickAdd($0.day, $0.startNode, $0.step) })
+                        }
                     }
                     .frame(width: availableW, height: gridH, alignment: .topLeading)
+                    .background(GeometryReader { gridGeometry in
+                        Color.clear.preference(key: CourseDropGridKey.self, value: [
+                            currentWeek: CourseDropGrid(
+                                frame: gridGeometry.frame(in: .global), days: sortedDays,
+                                timeWidth: timeW, columnWidth: colW, gap: gapW,
+                                rows: renderSlots.enumerated().compactMap { index, slot in
+                                    guard !slot.isPlaceholder else { return nil }
+                                    return CourseDropGrid.Row(node: slot.nodeStart,
+                                        top: yOfRows(Double(index)),
+                                        bottom: yOfRows(Double(index + 1)) - gapAfterRow(index))
+                                }, timeRows: renderSlots.enumerated().map { index, slot in
+                                    CourseDropGrid.TimeRow(node: slot.nodeStart,
+                                        startMinute: slot.startMinutes, endMinute: slot.endMinutes,
+                                        top: yOfRows(Double(index)), height: rowHeightAt(index),
+                                        gapAfter: gapAfterRow(index))
+                                }, rowHeight: rowH, rowGap: gapH,
+                                candidateLayout: CourseDropCandidateLayout(week: currentWeek,
+                                    courses: courses, timeJson: timeJson, baseSlots: baseSlots,
+                                    configuration: rowConfiguration, startDate: startDate, maxWeek: dragMaxWeek,
+                                    transfers: dragTransfers, allCourses: allCourses ?? courses,
+                                    timeSlots: timeSlots, visibleDays: visibleDays,
+                                    autoHideEmptyEvening: autoHideEmptyEvening,
+                                    eveningStartMinutes: eveningStart))
+                        ])
+                    })
                     // 双指纵向缩放行高(实验室开关默认关 = 手势不挂) ← verticalResizeGesture
                     .background(GridPinchResizer(
                         enabled: pinchZoomEnabled,
@@ -726,9 +726,14 @@ struct CardsGridView: View {
                 .frame(width: availableW, alignment: .topLeading)
             }
             .padding(boxPad)
+            .onChange(of: quickAddRows) { _ in quickAddState?.dismiss() }
         }
         .background(colors.surfaceContainerHigh)
         .cornerRadius(SleepyShapes.large)
+        .onChange(of: courses) { _ in quickAddState?.dismiss() }
+        .onChange(of: timeJson) { _ in quickAddState?.dismiss() }
+        .onChange(of: visibleDays) { _ in quickAddState?.dismiss() }
+        .onChange(of: rowHeightScale) { _ in quickAddState?.dismiss() }
     }
 
     /// 占位行展开/折叠: 键=时间串(周内多天共享同一空隙 → 同键联动展开) ← togglePlaceholder
@@ -803,7 +808,7 @@ struct GridConflictLayer: View {
                         let cardX = timeW + gapW + (colW + gapW) * CGFloat(dayIdx)
                         // 用户报障 2026-09-10: 簇锚点用锚课小数行坐标(ownTime 锚课不再
                         // 被 slotIndexOf 整格吸附丢掉本体偏移);加权 dp 与簇内 spanDpOf 同一真值。
-                        let anchorFrac = (anchor.ownTime && !anchor.startTime.isEmpty && !anchor.endTime.isEmpty)
+                        let anchorFrac = ((anchor.isIrregularTime || anchor.ownTime) && !anchor.startTime.isEmpty && !anchor.endTime.isEmpty)
                             ? TimeTableUtils.timeToFractionalRows(anchor.startTime, anchor.endTime, slots: timeSlots)
                             : nil
                         let anchorRow = anchorFrac?.0 ?? Double(max(slotIndexOf(anchor.startNode), 0))
@@ -843,7 +848,7 @@ struct GridConflictLayer: View {
                     let cardX = timeW + gapW + (colW + gapW) * CGFloat(dayIdx)
                     // issue#23 §5: ownTime 单卡按真实分钟比例落位(可落在占位行内),
                     // 时间不可解析 → 回落整格吸附
-                    let frac = (course.ownTime && !course.startTime.isEmpty && !course.endTime.isEmpty)
+                    let frac = ((course.isIrregularTime || course.ownTime) && !course.startTime.isEmpty && !course.endTime.isEmpty)
                         ? TimeTableUtils.timeToFractionalRows(course.startTime, course.endTime, slots: timeSlots)
                         : nil
                     // ViewBuilder 不接受「先声明后分支赋值」(let 赋值语句不是 View) — 用即时闭包算出 (cardY, cardH)
@@ -852,13 +857,8 @@ struct GridConflictLayer: View {
                             return (yOfRows(Double(nodeIdx)),
                                     yOfRows(Double(nodeIdx + steps)) - yOfRows(Double(nodeIdx)) - gapAfterRow(nodeIdx + steps - 1))
                         }
-                        // 按比例(分钟加权), 保底 0.3 标准行避免过短课胶囊塌缩到不可点;
-                        // 整行结束(frac.1 为整数且 >0)→ 扣该行 gapAfterRow, 否则扣 gapH
-                        let span = max(yOfRows(frac.1) - yOfRows(frac.0), rowH * 0.3)
-                        let r2 = Int(frac.1.rounded())
-                        let subtract = (frac.1 == Double(r2) && frac.1 > 0)
-                            ? gapAfterRow(r2 - 1) : gapH
-                        return (yOfRows(frac.0), span - subtract)
+                        return CourseGridRowLayout.timedCardBounds(fraction: frac,
+                            rowHeight: rowH, rowGap: gapH, yOfRows: yOfRows, gapAfterRow: gapAfterRow)
                     }()
                     CourseOverlayCard(course: course, cardHeight: cardH,
                                       isDark: isDark,
@@ -1040,12 +1040,13 @@ private struct CourseOverlayCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyButtonStyle(dragSource: true))
         .accessibilityIdentifier("gridcell_\(course.id)")
         .padding(4 * scale)
         .background(effectiveBg)
         .cornerRadius(12 * scale * cornerRatio)
         .padding(2 * scale)
+        .modifier(CourseDragSource(course: course))
     }
 }
 
@@ -1120,13 +1121,25 @@ struct FullWeekView: View {
     var displayMode: String = "node"
     var timeJson: String = ""
     var today: Int = DateUtils.todayDayOfWeek()
-    var todayDate: Date = Date()
+    var todayDate: Date = AppClock.now
     /// 周页上下文: isToday 按该页(week, day)真实日期判定, 非"星期号 = 今天星期号" —
     /// 浏览非当前周高亮错天(v7.10.x 原版本 同构: cards header/WeekStrip/DetailPanel/DayColumn 全链路线程化)
     var startDate: String = ""
     var currentWeek: Int = 1
     let onCourseClick: (CourseEntity) -> Void
     var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7)
+    var showDate: Bool = false
+
+    private var dayDates: [Int: String] {
+        guard showDate, !startDate.isEmpty else { return [:] }
+        return Dictionary(uniqueKeysWithValues: visibleDays.sorted().compactMap { day in
+            guard (1...7).contains(day),
+                  let date = CourseOccurrences.date(startDate: startDate, week: currentWeek, day: day)
+            else { return nil }
+            let parts = CourseOccurrences.calendar.dateComponents([.month, .day], from: date)
+            return (day, "\(parts.month ?? 1)月\(parts.day ?? 1)日")
+        })
+    }
 
     var body: some View {
         let byDay = Dictionary(grouping: courses, by: { $0.day })
@@ -1153,7 +1166,8 @@ struct FullWeekView: View {
                             twoColumn: AppPrefs.shared.isWeekTwoColumn(),
                             twoColumnMode: AppPrefs.shared.getWeekTwoColumnMode(),
                             hideEmptyDays: AppPrefs.shared.isWeekHideEmptyDays(),
-                            onCourseClick: onCourseClick)
+                            onCourseClick: onCourseClick,
+                            dayDates: dayDates)
                 // 悬浮底栏额外余量(→ 原版本 LocalNavExtraBottomPadding Spacer):
                 //   镜像 原版本 FullWeekView 末行追加 Spacer(height = navExtra),
                 //   最后一张课不被悬浮药丸遮住。
@@ -1282,6 +1296,7 @@ private struct DetailPanel: View {
     var twoColumnMode: String = "days"
     var hideEmptyDays: Bool = false
     let onCourseClick: (CourseEntity) -> Void
+    var dayDates: [Int: String] = [:]
 
     var body: some View {
         let sd: (Double) -> CGFloat = { CGFloat($0 * scale) }
@@ -1315,7 +1330,7 @@ private struct DetailPanel: View {
                                 startDate: startDate, currentWeek: currentWeek,
                                 displayMode: displayMode, timeJson: timeJson,
                                 greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
-                                onCourseClick: onCourseClick)
+                                onCourseClick: onCourseClick, dayDates: dayDates)
                     .frame(maxWidth: .infinity)
                 if !split.1.isEmpty {
                     DetailDayColumn(days: split.1, byDay: byDay,
@@ -1323,7 +1338,7 @@ private struct DetailPanel: View {
                                     startDate: startDate, currentWeek: currentWeek,
                                     displayMode: displayMode, timeJson: timeJson,
                                     greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
-                                    onCourseClick: onCourseClick)
+                                    onCourseClick: onCourseClick, dayDates: dayDates)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -1339,7 +1354,7 @@ private struct DetailPanel: View {
                                   displayMode: displayMode, timeJson: timeJson,
                                   isGrey: greyDays.contains(day),
                                   scale: scale, cornerRatio: cornerRatio,
-                                  onCourseClick: onCourseClick)
+                                  onCourseClick: onCourseClick, dateLabel: dayDates[day])
                 }
             }
             .padding(sd(12))
@@ -1364,6 +1379,7 @@ private struct DetailDayColumn: View {
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
     let onCourseClick: (CourseEntity) -> Void
+    var dayDates: [Int: String] = [:]
 
     var body: some View {
         VStack(spacing: 10 * scale) {
@@ -1375,7 +1391,7 @@ private struct DetailDayColumn: View {
                               displayMode: displayMode, timeJson: timeJson,
                               isGrey: greyDays.contains(day),
                               scale: scale, cornerRatio: cornerRatio,
-                              onCourseClick: onCourseClick)
+                              onCourseClick: onCourseClick, dateLabel: dayDates[day])
             }
         }
         .padding(10 * scale)
@@ -1396,6 +1412,7 @@ private struct DetailDayCard: View {
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
     let onCourseClick: (CourseEntity) -> Void
+    var dateLabel: String? = nil
 
     // v7.10.4 冲突栏字体压缩: lane 实宽按内容区宽算(行满宽 → 与卡内边距对齐)
     @State private var contentW: CGFloat = 0
@@ -1405,7 +1422,8 @@ private struct DetailDayCard: View {
         VStack(spacing: 8 * scale) {
             // 头部: 星期 + 今天标记
             HStack {
-                Text(DateUtils.localizedDay(day) + (isToday ? L10n.format("today_suffix") : ""))
+                Text(DateUtils.localizedDay(day) + (dateLabel.map { "·" + $0 } ?? "")
+                     + (isToday ? L10n.format("today_suffix") : ""))
                     // ← 原版本 titleSmall.copy(SemiBold): 14sp 不随 weekScale 缩放
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(isGrey ? greyFg : colors.onSurface)

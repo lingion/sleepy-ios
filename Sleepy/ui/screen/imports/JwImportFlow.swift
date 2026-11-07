@@ -14,6 +14,37 @@ import Foundation
 import SwiftUI
 import WebKit
 
+enum JwImportOutcome {
+    case cancelled
+    case completed
+}
+
+/// 成功与取消分流；宿主只能在教务 sheet dismiss 完成后消费返回动作。
+struct JwImportReturnState {
+    enum Origin { case importMethods, direct }
+    let origin: Origin
+    private var completed = false
+
+    init(origin: Origin) {
+        self.origin = origin
+    }
+
+    mutating func record(_ outcome: JwImportOutcome) {
+        if outcome == .completed { completed = true }
+    }
+
+    mutating func didDismiss() -> Bool {
+        defer { completed = false }
+        return origin == .importMethods && completed
+    }
+}
+
+/// 一次呈现的稳定身份；草稿参数在 sheet 生命周期内不变。
+struct JwImportPresentation: Identifiable {
+    let id = UUID()
+    var draftId: String? = nil
+}
+
 enum JwStage: Int, Comparable {
     case selectSchool = 0
     case webViewLogin = 1
@@ -42,7 +73,7 @@ private let jwHmRegex = try! NSRegularExpression(pattern: #"^\d{2}:\d{2}$"#)
 struct JwImportFlow: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.dismiss) private var dismiss
-    let onFinish: () -> Void
+    let onFinish: (JwImportOutcome) -> Void
 
     // ← EXTRA_DRAFT_ID: 草稿恢复入口。SleepyApp 侧注入待集成者接线(见交付 needs_shared_wiring)。
     var incomingDraftId: String? = nil
@@ -62,6 +93,8 @@ struct JwImportFlow: View {
     @State private var errorMsg: String? = nil
     @State private var statusMsg: String? = nil
     @State private var importFinished = false
+    @State private var importOutcome: JwImportOutcome = .cancelled
+    @State private var didFinishFlow = false
     @State private var isApplying = false
     // ← importPreview / pendingMode: 预览 → 追加/覆盖/新课表 五模式共用通道
     @State private var importPreview: ImportPreview? = nil
@@ -309,8 +342,10 @@ struct JwImportFlow: View {
     /// 所有退出通路(完成导入 / 保留草稿 / 删除草稿 / 无进度直接退)统一走这里;
     /// WebView 往返不调本函数, 故搜索词/展开/滚动跨 stage 保留(rememberSaveable 语义)。
     private func finishFlow() {
+        guard !didFinishFlow else { return }
+        didFinishFlow = true
         SchoolSelectStateStore.shared.resetForNewEntry()
-        onFinish()
+        onFinish(importOutcome)
     }
 
     private func requestExit() {
@@ -372,6 +407,10 @@ struct JwImportFlow: View {
     /// 已支持学校维持原静默 finish, 零额外打扰。
     /// ← 原 `suspend fun finishOrReport(school: JwSchoolInfo?)`
     private func finishOrReport(_ school: JwSchoolInfo?) {
+        // 已落库即成功；报告弹窗期间再退出也不能回退成取消。
+        importOutcome = .completed
+        // 成就：导入成功
+        AchievementTracker.shared.checkImportSuccess()
         if let school, school.isUnverified {
             reportDialogSchool = school
         } else {

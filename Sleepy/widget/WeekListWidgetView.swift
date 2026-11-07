@@ -132,21 +132,23 @@ func shownDays(_ data: WeekData) -> [DayData] {
 struct WeekListWidgetEntryView: View {
     @Environment(\.widgetFamily) private var widgetFamily
     @Environment(\.colorScheme) private var widgetColorScheme
+    @Environment(\.colorSchemeContrast) private var widgetContrast
     let entry: WeekListWidgetEntry
 
     var body: some View {
         // iOS 26 「透明/着色」样式探测 (← WidgetBackgroundCompat): glass 态配色换白 alpha
-        WidgetGlassModeContent { isGlass in
-            content(isGlass: isGlass)
+        WidgetGlassModeContent { mode in
+            content(renderingMode: mode)
         }
         .widgetURL(URL(string: "sleepy://open"))
     }
 
     @ViewBuilder
-    private func content(isGlass: Bool) -> some View {
+    private func content(renderingMode: SleepyWidgetRenderingMode) -> some View {
         let data = entry.data
         let isDark = effectiveWidgetIsDark(themeMode: data.themeMode, snapshotIsDark: entry.data.isDark, envScheme: widgetColorScheme)
-        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, isGlass: isGlass)
+        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, renderingMode: renderingMode,
+                                    increasedContrast: widgetContrast == .increased)
         let colorless = AppPrefs.shared.isWidgetColorless()
         // issue#26: widget 全局一档别名开关
         let useAlias = AppPrefs.shared.isWidgetUseAlias()

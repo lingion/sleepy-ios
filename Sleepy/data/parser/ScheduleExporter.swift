@@ -131,6 +131,7 @@ enum ScheduleExporter {
                 fields.append(("startTime", .string(c.startTime)))
                 fields.append(("endTime", .string(c.endTime)))
             }
+            if let fixedDate = c.fixedDate { fields.append(("fixedDate", .string(fixedDate))) }
             items.append(.object(fields))
         }
         return .array(items)
@@ -140,12 +141,12 @@ enum ScheduleExporter {
     /// ← 原 `LocalDate.parse` 对非法 startDate 抛异常; 旧实现静默返回缺
     /// `END:VCALENDAR` 的 header-only 残缺日历(非法 ICS)。这里改为拒绝输出:
     /// 非法日期返回空串, 需要错误传播的新调用点走 exportIcsOrThrow。
-    static func exportIcs(_ table: TimeTableEntity, _ courses: [CourseEntity]) -> String {
-        return (try? exportIcsOrThrow(table, courses)) ?? ""
+    static func exportIcs(_ table: TimeTableEntity, _ courses: [CourseEntity], transfers: [HolidayTransferEntry] = []) -> String {
+        return (try? exportIcsOrThrow(table, courses, transfers: transfers)) ?? ""
     }
 
     /// ← exportIcs 真身: startDate 无法按 ISO yyyy-MM-dd 解析时抛 ExportError.invalidStartDate
-    static func exportIcsOrThrow(_ table: TimeTableEntity, _ courses: [CourseEntity]) throws -> String {
+    static func exportIcsOrThrow(_ table: TimeTableEntity, _ courses: [CourseEntity], transfers: [HolidayTransferEntry] = []) throws -> String {
         var lines: [String] = []
         lines.append("BEGIN:VCALENDAR")
         lines.append("VERSION:2.0")
@@ -169,7 +170,20 @@ enum ScheduleExporter {
         df.timeZone = cal.timeZone
         df.dateFormat = "yyyyMMdd"
 
-        for c in courses {
+        let exported: [CourseEntity]
+        if transfers.isEmpty {
+            exported = courses
+        } else {
+            exported = CourseOccurrences.dates(table: table, transfers: transfers).flatMap { date in
+                CourseOccurrences.coursesForDate(date, startDate: table.startDate, maxWeek: table.maxWeek,
+                    courses: courses, transfers: transfers).map { course in
+                    var course = course
+                    course.fixedDate = HolidayTransferOps.dayKey(date)
+                    return course
+                }
+            }
+        }
+        for c in exported {
             // 单双周(type=1 单周/2 双周)按起止周奇偶选第一个实际发生周
             let firstWeek: Int
             switch c.type {
@@ -181,7 +195,14 @@ enum ScheduleExporter {
             if firstWeek > c.endWeek { continue }
 
             // ← start.plusWeeks(firstWeek-1).plusDays(day-1)
-            let startDate = cal.date(byAdding: .day, value: (firstWeek - 1) * 7 + (c.day - 1), to: start)!
+            let startDate: Date
+            if let fixedDate = c.fixedDate {
+                guard isIsoDateShape(fixedDate), let parsed = isoDate(fixedDate),
+                      CourseOccurrences.parseDate(fixedDate) != nil else { throw ExportError.invalidStartDate(fixedDate) }
+                startDate = parsed
+            } else {
+                startDate = cal.date(byAdding: .day, value: (firstWeek - 1) * 7 + (c.day - 1), to: start)!
+            }
             let endDate = cal.date(byAdding: .day, value: (c.endWeek - 1) * 7 + (c.day - 1), to: start)!
 
             // ownTime 课程用自身自定义时间,否则按节次反查
@@ -219,13 +240,16 @@ enum ScheduleExporter {
 
             lines.append("BEGIN:VEVENT")
             // ← UID:${c.id}-${c.courseName.hashCode()}@sleepy (hashCode 用稳定 djb2 代理,Kotlin hashCode 不跨语言)
-            lines.append("UID:\(c.id)-\(stableHash(c.courseName))@sleepy")
+            let dateSuffix = c.fixedDate.map { "-" + $0 } ?? ""
+            lines.append("UID:\(c.id)-\(stableHash(c.courseName))\(dateSuffix)@sleepy")
             // ← ZonedDateTime.now(UTC) 形如 2026-08-24T09:30:00.123Z[TZID 无],剔非数字保留 15 位+"Z"
             let stamp = utcStampCompact()
             lines.append("DTSTAMP:\(stamp)Z")
             lines.append("DTSTART:\(dtStart)")
             lines.append("DTEND:\(dtEnd)")
-            if let byDay = byDay {
+            if c.fixedDate != nil {
+                // 定日与调休展开事件只有一个自然日，不生成 RRULE。
+            } else if let byDay = byDay {
                 lines.append("RRULE:FREQ=WEEKLY;BYDAY=\(byDay)\(interval)\(until)")
             } else {
                 lines.append("RRULE:FREQ=WEEKLY\(interval)\(until)")

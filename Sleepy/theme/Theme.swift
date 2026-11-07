@@ -239,10 +239,23 @@ enum SleepyShapes {
 /// 原版本 Material 按钮整个 View bounds 可点; SleepyButtonStyle 用
 /// contentShape(Rectangle()) 恢复该语义, 全 app Button 一律用它, 禁 .plain。
 struct SleepyButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
+    var dragSource = false
+
     func makeBody(configuration: Configuration) -> some View {
+        #if os(iOS) && !WIDGET_EXT && !WATCH_APP
+        let motion = SleepyMotionPolicy(reduceMotion: reduceMotion)
         configuration.label
             .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.7 : 1.0)
+            .scaleEffect(motion.pressScale(pressed: configuration.isPressed, enabled: isEnabled, dragSource: dragSource))
+            .opacity(configuration.isPressed && isEnabled && !dragSource ? 0.7 : 1.0)
+            .animation(motion.fastEffects, value: configuration.isPressed)
+        #else
+        configuration.label
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed && isEnabled && !dragSource ? 0.7 : 1.0)
+        #endif
     }
 }
 
@@ -291,10 +304,12 @@ extension Color {
 
 // MARK: - ← SleepyThemeProvider @Composable → SwiftUI ViewModifier
 
-/// "跟随系统"(KEY_SYSTEM)在 iOS 16 的等价:SwiftUI 无 Material You 动态取色 API,
-/// 降级为系统语义色(Color(uiColor: .systemBackground 等))构造 scheme — 见 dynamicSystemScheme()。
+/// system 使用公开窗口 tint 快照派生 HSV/M3 角色色；来源不代表壁纸或主屏幕设置。
 /// 其他 5 套用预设的 light/dark scheme。
 struct SleepyThemeProvider: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.systemColorSnapshot) private var systemSnapshot
+    @Environment(\.colorSchemeContrast) private var contrast
     let darkTheme: Bool
     let themeKey: String
     /// Invalidation token for same-id edits of the selected custom theme. The body intentionally
@@ -304,6 +319,27 @@ struct SleepyThemeProvider: ViewModifier {
     func body(content: Content) -> some View {
         let customThemeInvalidation = customThemeVersion
         _ = customThemeInvalidation
+        let wakeColors = Self.resolve(themeKey: themeKey, dark: darkTheme,
+            snapshot: systemSnapshot ?? SystemColorSeedStore.read(), increasedContrast: contrast == .increased)
+        let palette = darkTheme ? darkCoursePalette : lightCoursePalette
+        #if os(iOS) && !WIDGET_EXT && !WATCH_APP
+        let vector = ThemeColorVector(scheme: wakeColors, dark: darkTheme,
+                                      increasedContrast: contrast == .increased)
+
+        return content
+            .modifier(InterpolatedThemeColors(vector: vector, reduceMotion: reduceMotion))
+            .animation(reduceMotion ? nil : SleepyMotionPolicy(reduceMotion: false).defaultEffects, value: vector)
+            .environment(\.localCoursePalette, palette)
+        #else
+        return content
+            .environment(\.localWakeUpColors, wakeColors)
+            .environment(\.localCoursePalette, palette)
+        #endif
+    }
+
+    /// 统一终值解析入口；根布局中的颜色消费者须下沉读取插值后的 environment。
+    static func resolve(themeKey: String, dark: Bool, snapshot: SystemColorSnapshot,
+                        increasedContrast: Bool) -> WakeUpColorScheme {
         // "custom:<id>" 走用户自定义主题:CustomThemeStore 读种子 → CustomSchemeDeriver
         //   派生整套深浅 scheme(与 widget resolveWidgetScheme 同一派生函数);已删 id
         //   读不到 → 用默认淡紫种子派生(与 原版本 Theme.kt 回落语义逐字一致)。
@@ -313,22 +349,15 @@ struct SleepyThemeProvider: ViewModifier {
             ? nil
             : ThemePresets.byKey(themeKey)
 
-        let wakeColors: WakeUpColorScheme
-        let palette: CoursePalette
         if isCustom {
             let id = String(themeKey.dropFirst(ThemePresets.CUSTOM_KEY_PREFIX.count))
             let seed = CustomThemeStore.getById(id) ?? Self.defaultSeedTheme
-            wakeColors = CustomSchemeDeriver.derive(theme: seed, isDark: darkTheme)
+            return CustomSchemeDeriver.derive(theme: seed, isDark: dark)
         } else if let preset = preset {
-            wakeColors = darkTheme ? preset.dark : preset.light
+            return dark ? preset.dark : preset.light
         } else {
-            wakeColors = Self.dynamicSystemScheme(dark: darkTheme)
+            return SystemColorScheme.resolve(snapshot: snapshot, dark: dark, increasedContrast: increasedContrast)
         }
-        palette = darkTheme ? darkCoursePalette : lightCoursePalette
-
-        return content
-            .environment(\.localWakeUpColors, wakeColors)
-            .environment(\.localCoursePalette, palette)
     }
 
     /// "custom:<id>" 的 id 读不到(已删/损坏)时的回落种子 = 默认淡紫。
@@ -344,48 +373,9 @@ struct SleepyThemeProvider: ViewModifier {
         createdAt: 0
     )
 
-    /// 原版本 dynamicColorScheme(context) 的 iOS 等价:系统语义色映射到 M3 槽位
+    /// 非视图调用方使用共享快照；视图 provider 使用所属窗口环境，避免多窗口串色。
     static func dynamicSystemScheme(dark: Bool) -> WakeUpColorScheme {
-        #if os(watchOS)
-        // watchOS SDK 无 iOS 语义色族(systemPurple/systemBackground/label 等
-        // unavailable) — "system" 主题键在手表回落 M3 默认预设 (默认套主色
-        // #6750A4 即本映射 systemPurple 的视觉基准, 两端观感同源)。2026-10 watch 伴侣 App。
-        let preset = ThemePresets.byKey(ThemePresets.KEY_DEFAULT)
-        return dark ? preset.dark : preset.light
-        #else
-        WakeUpColorScheme(
-            primary: Color(uiColor: .systemPurple),
-            onPrimary: dark ? Color(0xFF2D165C) : .white,
-            primaryContainer: dark ? Color(0xFF564092) : Color(0xFFEADDFF),
-            onPrimaryContainer: dark ? Color(0xFFF2E8FF) : Color(0xFF21005D),
-            secondary: Color(uiColor: .systemGray),
-            onSecondary: dark ? Color(0xFF2C2638) : .white,
-            secondaryContainer: dark ? Color(0xFF524B61) : Color(0xFFE8DEF8),
-            onSecondaryContainer: dark ? Color(0xFFF0E7FF) : Color(0xFF1D192B),
-            tertiary: Color(uiColor: .systemPink),
-            onTertiary: dark ? Color(0xFF472230) : .white,
-            tertiaryContainer: dark ? Color(0xFF6E4452) : Color(0xFFFFD8E4),
-            onTertiaryContainer: dark ? Color(0xFFFFEAF1) : Color(0xFF31111D),
-            background: Color(uiColor: .systemBackground),
-            onBackground: Color(uiColor: .label),
-            surface: Color(uiColor: .secondarySystemBackground),
-            onSurface: Color(uiColor: .label),
-            surfaceVariant: Color(uiColor: .tertiarySystemFill),
-            onSurfaceVariant: Color(uiColor: .secondaryLabel),
-            surfaceContainerLowest: dark ? Color(0xFF100E13) : .white,
-            surfaceContainerLow: dark ? Color(0xFF1D1A22) : Color(0xFFF7F2FA),
-            surfaceContainer: dark ? Color(0xFF25212B) : Color(0xFFF3EDF7),
-            surfaceContainerHigh: dark ? Color(0xFF302C36) : Color(0xFFECE6F0),
-            surfaceContainerHighest: dark ? Color(0xFF3B3641) : Color(0xFFE6E0E9),
-            outline: dark ? Color(0xFFA9A2AE) : Color(0xFF79747E),
-            outlineVariant: dark ? Color(0xFF5C5661) : Color(0xFFCAC4D0),
-            scrim: .black,
-            error: Color(uiColor: .systemRed),
-            onError: dark ? Color(0xFF690005) : .white,
-            errorContainer: dark ? Color(0xFF93000A) : Color(0xFFF9DEDC),
-            onErrorContainer: dark ? Color(0xFFFFDAD6) : Color(0xFF410E0B)
-        )
-        #endif
+        SystemColorScheme.resolve(snapshot: SystemColorSeedStore.read(), dark: dark)
     }
 }
 

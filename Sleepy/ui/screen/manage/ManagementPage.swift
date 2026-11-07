@@ -1,14 +1,14 @@
 // ManagementPage.swift — ← ui/screen/manage/ManagementPage.kt
-// 课表管理页: 当前课表摘要卡 + 6 管理卡(导入/新建课表/新建作息表/手动添加/编辑/导出) + ImportSheet。
+// 课表管理页：摘要编辑、独立全部课表入口和四个管理操作。
 
 import SwiftUI
 
 struct ManagementPage: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.localCoursePalette) private var palette
     @Environment(\.localNavExtraBottomPadding) private var navExtra
     @ObservedObject var viewModel: ScheduleViewModel
     var autoShowImportSheet: Bool = false
-    let onJwImportRequested: () -> Void
     let onCreateNewTableRequested: () -> Void
     let onManualAdd: () -> Void
     let onEditCurrentTable: () -> Void
@@ -16,41 +16,43 @@ struct ManagementPage: View {
     var onImported: () -> Void = {}
     // 2026-09-21 用户令: 点当前课表大卡 → 跳「所有课表」页(onOpenAllTables)
     var onOpenAllTables: () -> Void = {}
+    var onOpenPeriodTables: () -> Void = {}
     // v1.0.56 T7: 新建作息表 — 内部建表(自动命名+全局唯一)落库后回调新 id, 调用方进其编辑页
     var onCreateNewPeriodTableRequested: (Int64) -> Void = { _ in }
-    // ← 原版本 drafts/onRestoreDraft/onDeleteDraft(默认空 = 零行为变化)
+    // 草稿列表/删除由宿主提供；恢复由导入方式页保留原入口后呈现。
     var drafts: [ImportDraftRowModel] = []
-    var onRestoreDraft: (String) -> Void = { _ in }
     var onDeleteDraft: (String) -> Void = { _ in }
+    var onJwDismissed: () -> Void = {}
 
     @State private var showImportSheet: Bool
+    @State private var createTableAfterDismiss = false
 
     init(viewModel: ScheduleViewModel,
          autoShowImportSheet: Bool = false,
-         onJwImportRequested: @escaping () -> Void,
          onCreateNewTableRequested: @escaping () -> Void,
          onManualAdd: @escaping () -> Void,
          onEditCurrentTable: @escaping () -> Void,
          onExportRequested: @escaping () -> Void = {},
          onImported: @escaping () -> Void = {},
          onOpenAllTables: @escaping () -> Void = {},
+         onOpenPeriodTables: @escaping () -> Void = {},
          onCreateNewPeriodTableRequested: @escaping (Int64) -> Void = { _ in },
          drafts: [ImportDraftRowModel] = [],
-         onRestoreDraft: @escaping (String) -> Void = { _ in },
-         onDeleteDraft: @escaping (String) -> Void = { _ in }) {
+         onDeleteDraft: @escaping (String) -> Void = { _ in },
+         onJwDismissed: @escaping () -> Void = {}) {
         self.viewModel = viewModel
         self.autoShowImportSheet = autoShowImportSheet
-        self.onJwImportRequested = onJwImportRequested
         self.onCreateNewTableRequested = onCreateNewTableRequested
         self.onManualAdd = onManualAdd
         self.onEditCurrentTable = onEditCurrentTable
         self.onExportRequested = onExportRequested
         self.onImported = onImported
         self.onOpenAllTables = onOpenAllTables
+        self.onOpenPeriodTables = onOpenPeriodTables
         self.onCreateNewPeriodTableRequested = onCreateNewPeriodTableRequested
         self.drafts = drafts
-        self.onRestoreDraft = onRestoreDraft
         self.onDeleteDraft = onDeleteDraft
+        self.onJwDismissed = onJwDismissed
         _showImportSheet = State(initialValue: autoShowImportSheet)
     }
 
@@ -59,74 +61,60 @@ struct ManagementPage: View {
         let table = state.currentTable
         ScrollView {
             VStack(spacing: 16) {
-                Text(L10n.format("tab_manage"))
+                Text(L10n.format("manage_title"))
                     // ← Material 3 headlineMedium.copy(Medium) = 28sp/medium (ManagementPage.kt L82)
                     .font(.system(size: 28, weight: .medium))
                     .foregroundColor(colors.onBackground)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("manage_page_title")
 
-                // 当前课表摘要
-                // 2026-09-21 用户令: 点整卡 → 跳「所有课表」页(noRippleClickable(onOpenAllTables))
-                if let table = table {
-                    VStack(alignment: .leading, spacing: 8) {
-                        // ← 原版本 L114-126: Row[manage_current_table(weight 1f), manage_view_all_tables]
-                        HStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 8) {
+                    Button(action: onEditCurrentTable) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text(L10n.format("manage_current_table"))
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(colors.primary)
-                            Spacer()
-                            Text(L10n.format("manage_view_all_tables"))
-                                // ← labelMedium 12/medium
-                                .font(.system(size: 12, weight: .medium))
+                            Text(table?.name ?? L10n.format("manage_no_table"))
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundColor(colors.onSurface)
+                            Text(table.map { L10n.format("table_info", $0.startDate, state.currentWeek, state.courses.count) }
+                                 ?? L10n.format("manage_no_table_hint"))
+                                .font(.system(size: 12))
                                 .foregroundColor(colors.onSurfaceVariant)
                         }
-                        Text(table.name)
-                            // ← Material 3 titleLarge.copy(SemiBold) = 22sp/semibold (ManagementPage.kt L129)
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(colors.onSurface)
-                        Text(L10n.format("table_info", table.startDate, state.currentWeek, state.courses.count))
-                            .font(.system(size: 12))
-                            .foregroundColor(colors.onSurfaceVariant)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(colors.surfaceContainer)
-                    .cornerRadius(SleepyShapes.large)
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: onOpenAllTables)
-                    .accessibilityIdentifier("manage_current_table_card")
+                    .buttonStyle(.plain)
+                    .disabled(table == nil)
+                    .accessibilityIdentifier("manage_edit_current")
+                    Button(action: onOpenAllTables) {
+                        Text(L10n.format("manage_view_all_tables"))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(colors.onSurfaceVariant)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("manage_all_tables")
                 }
+                .padding(16)
+                .background(colors.surfaceContainer)
+                .cornerRadius(SleepyShapes.large)
 
-                // 管理按钮(6 个: 导入 / 新建课表 / 新建作息表 / 手动添加 / 编辑 / 导出)
                 VStack(spacing: 12) {
                     ManageCard(id: "manage_import", icon: "square.and.arrow.up",
-                               title: L10n.format("manage_import"),
-                               subtitle: L10n.format("manage_import_sub")) {
+                               title: L10n.format("manage_add_table"),
+                               subtitle: L10n.format("manage_add_table_sub")) {
                         showImportSheet = true
-                    }
-                    ManageCard(id: "manage_new_table", icon: "sparkles",
-                               title: L10n.format("manage_new_table"),
-                               subtitle: L10n.format("manage_new_table_sub"),
-                               onClick: onCreateNewTableRequested)
-                    // v1.0.56 T7: 新建作息表 — 插在「新建课表」正下方(用户指定卡位, ← 原版本 L158-173)
-                    ManageCard(id: "manage_new_period_table", icon: "clock",
-                               title: L10n.format("manage_new_period_table"),
-                               subtitle: L10n.format("manage_new_period_table_sub")) {
-                        // 建表(自动唯一命名, T2 suggestUniqueName)落库后回调新 id
-                        let newId = viewModel.insertPeriodTableWithUniqueName(
-                            name: "",
-                            defaultName: L10n.format("period_table_new"))
-                        if newId > 0 { onCreateNewPeriodTableRequested(newId) }
                     }
                     ManageCard(id: "manage_add_course", icon: "plus",
                                title: L10n.format("manage_manual_add"),
                                subtitle: L10n.format("manage_manual_add_sub"),
                                onClick: onManualAdd)
-                    ManageCard(id: "manage_edit_current", icon: "pencil",
-                               title: L10n.format("manage_edit_current"),
-                               subtitle: L10n.format("manage_edit_current_sub"),
-                               onClick: onEditCurrentTable)
+                    ManageCard(id: "manage_period_tables", icon: "clock",
+                               title: L10n.format("manage_period_tables"),
+                               subtitle: L10n.format("manage_period_tables_sub"),
+                               onClick: onOpenPeriodTables)
                     ManageCard(id: "manage_export", icon: "square.and.arrow.up.on.square",
                                title: L10n.format("manage_export"),
                                subtitle: L10n.format("manage_export_sub"),
@@ -139,19 +127,25 @@ struct ManagementPage: View {
             .padding(.bottom, navExtra)
         }
         .background(colors.background)
-        .sheet(isPresented: $showImportSheet) {
+        .sheet(isPresented: $showImportSheet, onDismiss: {
+            if createTableAfterDismiss {
+                createTableAfterDismiss = false
+                onCreateNewTableRequested()
+            }
+        }) {
             ImportSheet(
                 viewModel: viewModel,
-                onJwImportRequested: {
-                    showImportSheet = false
-                    onJwImportRequested()
-                },
                 onDismiss: { showImportSheet = false },
                 onImported: onImported,
                 drafts: drafts,
-                onRestoreDraft: onRestoreDraft,
-                onDeleteDraft: onDeleteDraft)
-
+                onDeleteDraft: onDeleteDraft,
+                onJwDismissed: onJwDismissed,
+                onCreateNewTable: {
+                    createTableAfterDismiss = true
+                    showImportSheet = false
+                })
+                .environment(\.localWakeUpColors, colors)
+                .environment(\.localCoursePalette, palette)
         }
     }
 }

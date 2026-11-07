@@ -38,6 +38,11 @@ func adaptiveHeaderLabelStyle(scale: CGFloat, font: PeriodHeaderAdaptiveFont) ->
 /// 节次表头单元格(预览/周视图/小组件共用) — 真实网格列宽与设置页预览卡共用同一算法。
 struct PeriodHeaderCellContent: View {
     @Environment(\.localWakeUpColors) private var colors
+    // 首页保留视图身份时订阅偏好；预览仍以显式 override 为准。
+    @AppStorage(AppPrefs.KEY_PERIOD_HEADER_TIME_ALIGNMENT, store: .standard)
+    private var timeAlignment = "dash"
+    @AppStorage(AppPrefs.KEY_PERIOD_HEADER_HIDE_TIME, store: .standard)
+    private var persistedHideTime = false
 
     /// ← data class TimeSlot 的渲染期最小集; iOS TimeSlot 已存在于 CourseTableView.swift,
     /// 渲染函数单独解构字段避免跨文件耦合。
@@ -56,6 +61,7 @@ struct PeriodHeaderCellContent: View {
     // v1.0.62 B4: hideTimeOverride (旧式表头「隐藏时间行」) — nil = 直读 prefs,
     //   设置页预览传实时值(开关拨动即时反映, ← 原版本 hideTimeOverride)
     var hideTimeOverride: Bool? = nil
+    var centerTimeOverride: Bool? = nil
     var sharedFont: PeriodHeaderAdaptiveFont? = nil
     var sharedPlacement: PeriodHeaderPlacement? = nil
     var sharedLegacyAxis: CGFloat? = nil
@@ -66,7 +72,8 @@ struct PeriodHeaderCellContent: View {
             let cardW = geo.size.width
             let cardH = geo.size.height
             let showX = showXOverride ?? AppPrefs.shared.isPeriodHeaderShowX()  // ← showXOverride ?: AppPrefs.isPeriodHeaderShowX(context)
-            let hideTime = hideTimeOverride ?? AppPrefs.shared.isPeriodHeaderHideTime()  // ← hideTimeOverride ?: AppPrefs.isPeriodHeaderHideTime(context)
+            let hideTime = hideTimeOverride ?? persistedHideTime
+            let centerTime = centerTimeOverride ?? (timeAlignment == "center")
             let label: String = (showX && nodeStart == nodeEnd)
                 ? PeriodHeaderFormatter.fullLabel(nodeStart, style)
                 : PeriodHeaderFormatter.range(nodeStart, nodeEnd, style)
@@ -74,7 +81,7 @@ struct PeriodHeaderCellContent: View {
             if layout == "three_line" {
                 threeLineBody(cardW: cardW, cardH: cardH, label: label, showX: showX)
             } else {
-                legacyBody(cardW: cardW, cardH: cardH, label: label, hideTime: hideTime)
+                legacyBody(cardW: cardW, cardH: cardH, label: label, hideTime: hideTime, centerTime: centerTime)
             }
         }
     }
@@ -218,11 +225,13 @@ struct PeriodHeaderCellContent: View {
     // MARK: - Legacy 两行
 
     @ViewBuilder
-    private func legacyBody(cardW: CGFloat, cardH: CGFloat, label: String, hideTime: Bool) -> some View {
+    private func legacyBody(cardW: CGFloat, cardH: CGFloat, label: String, hideTime: Bool, centerTime: Bool) -> some View {
         // 测量走共享路径 ← 原 legacyRowInk (基准字号, 行高 13×scale/14×scale)
         let rowInk = legacyRowInk(displayStart: displayStart, displayEnd: displayEnd,
                                   label: label, scale: scale)
-        let axisX = sharedLegacyAxis ?? max(rowInk.labelPx / 2, rowInk.timeLeftPx)
+        // 居中按实际内容宽计算，包含列宽下限带来的额外空间。
+        let axisX = centerTime ? cardW / 2
+            : (sharedLegacyAxis ?? max(rowInk.labelPx / 2, rowInk.timeLeftPx + rowInk.dashPx / 2))
         let vertical = legacyColumnVerticalFit(
             rows: [rowInk],
             cardContentHeightPx: cardH,
@@ -236,7 +245,10 @@ struct PeriodHeaderCellContent: View {
         let labelFontScaled = UIFont.systemFont(ofSize: baseFont.labelSize * effectiveScale, weight: .semibold)
         let timeFontScaled = UIFont.systemFont(ofSize: baseFont.timeSize * effectiveScale)
         let labelLeft = axisX - rowInk.labelPx / 2
-        let timeLeft = axisX - rowInk.timeLeftPx - rowInk.dashPx / 2
+        let timeOffset = centerTime
+            ? (rowInk.timeLeftPx + rowInk.dashPx + rowInk.timeRightPx) / 2
+            : rowInk.timeLeftPx + rowInk.dashPx / 2
+        let timeLeft = axisX - timeOffset
 
         if hideTime {
             // 隐藏时间行 (用户 2026-10-05): 只剩标签一行 — 不参与 dash 轴/双行
@@ -366,7 +378,8 @@ func legacyLineWidthDp(
     slots: [TimeSlot],
     headerStyle: String,
     scale: CGFloat,
-    showX: Bool = false
+    showX: Bool = false,
+    centerTime: Bool = AppPrefs.shared.getPeriodHeaderTimeAlignment() == "center"
 ) -> CGFloat {
     let timeFont = UIFont.systemFont(ofSize: 11 * scale)
     let labelFont = UIFont.systemFont(ofSize: 12 * scale, weight: .semibold)
@@ -382,9 +395,29 @@ func legacyLineWidthDp(
             timeRightPx: textWidth(slot.displayEnd, font: timeFont)
         )
     }
-    let geometry = legacyDashColumnPx(rows: rows, padPx: 0)
+    let geometry = legacyTimeColumnPx(rows: rows, padPx: 0, centerTime: centerTime)
     // + 卡片内边距 ×2 (periodHeaderCardPadDp, 预览/网格/widget 同一常量), 乘 scale
     return geometry.columnWidthPx + 2 * periodHeaderCardPadDp * scale
+}
+
+/// 旧式表头共享几何：dash 档保留原轴，center 档按完整时间串的半宽预算。
+func legacyTimeColumnPx(rows: [LegacyDashRowInk], padPx: CGFloat,
+                        centerTime: Bool) -> LegacyDashColumn {
+    guard centerTime else { return legacyDashColumnPx(rows: rows, padPx: padPx) }
+    guard !rows.isEmpty else {
+        return LegacyDashColumn(columnWidthPx: 0, dashCenterX: 0, placements: [])
+    }
+    let halfExtent = rows.map {
+        max($0.labelPx / 2, ($0.timeLeftPx + $0.dashPx + $0.timeRightPx) / 2)
+    }.max() ?? 0
+    let center = padPx + halfExtent
+    return LegacyDashColumn(
+        columnWidthPx: 2 * halfExtent + 2 * padPx,
+        dashCenterX: center,
+        placements: rows.map {
+            LegacyDashPlacement(labelLeft: center - $0.labelPx / 2,
+                                timeLeft: center - ($0.timeLeftPx + $0.dashPx + $0.timeRightPx) / 2)
+        })
 }
 
 /// v1.0.62 B4 ← legacyTimeWidthDp: 旧式表头时间列宽(pt, dp→pt 1:1 项目惯例)。
@@ -396,9 +429,13 @@ func legacyTimeWidthDp(
     headerStyle: String,
     scale: CGFloat,
     showX: Bool = false,
-    hideTime: Bool = false
+    hideTime: Bool = false,
+    centerTime: Bool = AppPrefs.shared.getPeriodHeaderTimeAlignment() == "center"
 ) -> CGFloat {
-    if !hideTime { return legacyLineWidthDp(slots: slots, headerStyle: headerStyle, scale: scale, showX: showX) }
+    if !hideTime {
+        return legacyLineWidthDp(slots: slots, headerStyle: headerStyle, scale: scale,
+                                 showX: showX, centerTime: centerTime)
+    }
     let labelFont = UIFont.systemFont(ofSize: 12 * scale, weight: .semibold) // ← headerLabelStyle
     var maxLabel: CGFloat = 0
     for slot in slots {

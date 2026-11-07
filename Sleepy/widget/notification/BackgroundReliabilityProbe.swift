@@ -7,7 +7,8 @@
 // - exactAlarmAllowed ← AlarmManager.canScheduleExactAlarms → timeSensitiveSetting == .enabled
 // - batteryOptimizationIgnored ← PowerManager.isIgnoringBatteryOptimizations → !isLowPowerModeEnabled
 // - vendor/liveCardState/widgetBound/promotedOngoingAllowed: 原版本-only 事实,
-//   iOS 无对应物(no-analog), 见 BackgroundReliabilitySnapshot.swift 头部映射表;
+//   iOS 侧不设字段(no-analog; liveCard 的 iOS 对应物 = ActivityKit 实况活动/灵动岛, 本 app 未实现),
+//   见 BackgroundReliabilitySnapshot.swift 头部映射表;
 //   "失败的私有厂商探测保持 UNKNOWN 且永不禁用标准通知"(原版本 注释)在 iOS 侧天然成立:
 //   单厂商, 探测不存在, 标准通知路径不受本 probe 影响。
 

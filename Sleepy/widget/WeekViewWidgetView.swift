@@ -54,21 +54,23 @@ struct WeekViewWidgetProvider: TimelineProvider {
 struct WeekViewWidgetEntryView: View {
     @Environment(\.widgetFamily) private var widgetFamily
     @Environment(\.colorScheme) private var widgetColorScheme
+    @Environment(\.colorSchemeContrast) private var widgetContrast
     let entry: WeekViewWidgetEntry
 
     var body: some View {
         // iOS 26 「透明/着色」样式探测 (← WidgetBackgroundCompat): glass 态配色换白 alpha
-        WidgetGlassModeContent { isGlass in
-            content(isGlass: isGlass)
+        WidgetGlassModeContent { mode in
+            content(renderingMode: mode)
         }
         .widgetURL(URL(string: "sleepy://open"))
     }
 
     @ViewBuilder
-    private func content(isGlass: Bool) -> some View {
+    private func content(renderingMode: SleepyWidgetRenderingMode) -> some View {
         let data = entry.data
         let isDark = effectiveWidgetIsDark(themeMode: data.themeMode, snapshotIsDark: data.isDark, envScheme: widgetColorScheme)
-        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, isGlass: isGlass)
+        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, renderingMode: renderingMode,
+                                    increasedContrast: widgetContrast == .increased)
         let showSeparator = AppPrefs.shared.isWidgetSeparator()
         let todayDow = DateUtils.todayDayOfWeek(today: Date())
         // issue#26: widget 全局一档别名开关
@@ -248,4 +250,3 @@ struct WeekViewWidget: Widget {
 // ← weekViewCompactColumns / compactDays 旧转发已删 (无调用点);
 // compact 选列单一事实源 = WidgetCompactHelpers.compactShownDays /
 // weekViewCompactColumns (← WidgetBitmapRenderers.kt 同名函数)。
-

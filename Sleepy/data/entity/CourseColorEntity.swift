@@ -17,11 +17,16 @@ struct CourseColorEntity: Codable, FetchableRecord, MutablePersistableRecord {
     var groupId: String
     var hue: Float
 
+    // GRDB 自动生成的行标识，不参与复合主键与序列化。
+    var rowid: Int64?
+
     enum CodingKeys: String, CodingKey {
         case tableKey, groupId, hue
     }
 
     static let GLOBAL_TABLE_KEY = "__global__"
+    // 旧同步胶水及测试使用的 Swift 风格名称，与跨端常量同源。
+    static let globalTableKey = GLOBAL_TABLE_KEY
 
     // MARK: - PersistableRecord
 
@@ -39,9 +44,14 @@ struct CourseColorEntity: Codable, FetchableRecord, MutablePersistableRecord {
         container["hue"] = hue
     }
 
-    init(tableKey: String = GLOBAL_TABLE_KEY, groupId: String, hue: Float) {
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        rowid = inserted.rowID
+    }
+
+    init(tableKey: String = GLOBAL_TABLE_KEY, groupId: String, hue: Float, rowid: Int64? = nil) {
         self.tableKey = tableKey
         self.groupId = groupId
         self.hue = hue
+        self.rowid = rowid
     }
 }

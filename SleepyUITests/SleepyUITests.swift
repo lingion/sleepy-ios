@@ -145,7 +145,7 @@ final class SleepyUITests: XCTestCase {
 
         // 课表管理页有"导入课表"按钮(ManagementPage 顶部 + 4 manage cards)
         // 文本 "Import" 或 "导入课表" — 优先英文版
-        let importBtn = app.staticTexts["Import"].firstMatch
+        let importBtn = app.staticTexts["Add Timetable"].firstMatch
         XCTAssertTrue(importBtn.waitForExistence(timeout: 3),
                       "Import 入口未出现(管理页)")
     }

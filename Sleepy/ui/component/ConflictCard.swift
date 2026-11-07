@@ -208,7 +208,7 @@ struct ConflictClusterCard: View {
         let rowGeomOf: [Int64: (start: Double, rows: Double)] =
             Dictionary(uniqueKeysWithValues: drawList.map { laidItem in
                 let c = laidItem.course
-                if c.ownTime && !c.startTime.isEmpty && !c.endTime.isEmpty,
+                if (c.isIrregularTime || c.ownTime) && !c.startTime.isEmpty && !c.endTime.isEmpty,
                    let f = TimeTableUtils.timeToFractionalRows(c.startTime, c.endTime, slots: timeSlots) {
                     return (c.id, (f.0, f.1 - f.0))
                 }
@@ -291,8 +291,9 @@ struct ConflictClusterCard: View {
                         isDark: isDark, isGrey: isGrey,
                         folded: cardIsFolded && !l.hidden,
                         foldSize: foldSize, corner: cardCorner,
-                        groupRows: groupRowsForCard)
+                        groupRows: groupRowsForCard, dragSource: true)
                         .frame(width: CGFloat(r.width), height: CGFloat(r.height))
+                        .modifier(CourseDragSource(course: course))
                         .offset(x: CGFloat(r.x), y: CGFloat(r.y)))
                 }
                 // 沉底卡: 点击 = N≥3 轮换推进;否则该课所在层整层上移
@@ -505,6 +506,7 @@ private struct ConflictCourseCard: View {
     var corner: CGFloat = 12
     /// issue#22: 同 groupId 全行(AUTO 模式按行序算 hue; 不传 = 退化为单行 groupRows)
     var groupRows: [CourseEntity] = []
+    var dragSource = false
 
     var body: some View {
         let effRows = groupRows.isEmpty ? [course] : groupRows
@@ -569,7 +571,7 @@ private struct ConflictCourseCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyButtonStyle(dragSource: dragSource))
         .padding(4)
         .background(effectiveBg)
         .clipShape(ConflictCardShape(folded: folded, fold: foldSize, corner: corner))
@@ -663,4 +665,3 @@ private struct ConflictCoursePickerSheet: View {
         .modifier(SleepyThemeProvider(darkTheme: false, themeKey: ""))
     }
 }
-

@@ -29,8 +29,14 @@ struct SleepyApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG && !WIDGET_EXT && !WATCH_APP
             AppRoot()
                 .environmentObject(appDelegate.rootViewModel)
+                .environmentObject(appDelegate.debugConsole)
+            #else
+            AppRoot()
+                .environmentObject(appDelegate.rootViewModel)
+            #endif
         }
     }
 }
@@ -41,6 +47,16 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     let repository: ScheduleRepository
     let notificationScheduler: NotificationScheduler
     let rootViewModel: AppRootViewModel
+
+    #if DEBUG && !WIDGET_EXT && !WATCH_APP
+    @MainActor
+    lazy var debugConsole = DebugConsole(
+        repository: repository,
+        root: rootViewModel,
+        catalogConsumerWired: true,
+        nativeMockConsumerWired: true
+    )
+    #endif
 
     override init() {
         database = AppDatabase.getShared()
@@ -85,9 +101,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             }
         }
         WatchSyncCoordinator.shared.start()
-        // ← 原版本 SleepyApp.onCreate:44 CourseHueStore.start(this)
-        //   持久色相只读快照首载 + 订阅 mode/seed/theme/themeMode 四键变更。
-        CourseHueStore.shared.start()
         // ← 原版本 SleepyApp.onCreate: classDndScheduler 注入 (F128 issue#2)
         ClassDndScheduler.shared.configure(repositoryProvider: { [weak self] in self?.repository })
         // ← 原版本 ReminderRescheduler.init 块 (SleepyApp.kt:44-52) — 同时修复 init_ 从未被调用、
@@ -111,7 +124,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             guard self != nil else { return }
-            // 原版本 侧此处还有 reconcileActiveFluidCloud — vendor platform-only, iOS 无等价
+            // 原版本 侧此处还有 reconcileActiveFluidCloud — vivo/OPPO 厂商 SDK 专有调用不可移植;
+            // iOS 对应物 = ActivityKit 实况活动/灵动岛, 本 app 未实现该切片
             ClassDndScheduler.shared.syncFromPrefs()
             // watch 伴侣 App: 回前台兜底重推 (离线期间 onDataChanged 攒的改动追平)
             WatchSyncCoordinator.shared.syncNow()
@@ -132,9 +146,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         WidgetCenter.shared.reloadAllTimelines()
         // 到货重查/00:05 载体/摘要刷新的 delegate 此前从未注册 = 死接线 (F128/F129 issue6)。
         UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
+        #if DEBUG && !WIDGET_EXT && !WATCH_APP
+        debugConsole.start()
+        #endif
+        // Game Center 认证：静默，不影响 App 正常使用
+        GameCenterManager.shared.authenticate()
         // 高刷新率:iOS 无公开刷率 API(原 HighRefreshRate 桩已删),ProMotion 上
         // 系统自动调度 120Hz,无需 app 侧动作(2026-09-10 原生化审计)。
         return true
+    }
+
+    func applicationWillTerminate(_ application: UIApplication) {
+        #if DEBUG && !WIDGET_EXT && !WATCH_APP
+        debugConsole.stop()
+        #endif
     }
 }
 
@@ -162,8 +187,13 @@ final class AppRootViewModel: ObservableObject {
     }
 
     @Published var currentTab: Tab = .schedule
-    @Published var overlayScreen: OverlayScreen? = nil
-    @Published var editingCourse: CourseEntity? = nil
+    @Published var overlayScreen: OverlayScreen? = nil {
+        didSet { if overlayScreen != .addCourse { initialCourseSlot = nil } }
+    }
+    @Published var editingCourse: CourseEntity? = nil {
+        didSet { if editingCourse != nil { initialCourseSlot = nil } }
+    }
+    @Published var initialCourseSlot: CourseAddSlot? = nil
     // ← 原版本 b96c865b: 课表视图模式(周/网格)会话级真值, 与 currentTab 同级 —
     // tab 切换/overlay 都会整页移除 ScheduleScreen, 状态必须提层才存活; 初始化读启动默认
     @Published var scheduleViewMode: ViewMode = AppPrefs.shared.getStartView() == "cards" ? .cards : .full
@@ -360,21 +390,21 @@ final class AppRootViewModel: ObservableObject {
 struct AppRoot: View {
     @EnvironmentObject var root: AppRootViewModel
     @Environment(\.colorScheme) private var systemScheme
-    @Environment(\.localWakeUpColors) private var colors
     // ← themeMode/手动切主题联动
     @State private var themeMode: String = AppPrefs.shared.getThemeMode()
     @State private var themeKey: String = AppPrefs.shared.getThemeKey()
     // ← MainActivity.kt:171 CustomThemeStore.changes() 订阅: 同 id 就地改自定义主题时
     //   themeKey 不变, 只有这份文档串变化能让 SleepyThemeProvider 重跑并回读 getById。
     @State private var customThemesJson: String = ""
+    // 每个窗口独立采样；冷启不借用其他窗口的缓存冒充当前信号。
+    @State private var systemColorSnapshot: SystemColorSnapshot = .fallback(.noWindow)
     // ★ 底栏形态冷启兜底刷新: 自适应只在"未显式设置"路径生效, 而该判定依赖
     //   keyWindow.safeAreaInsets — 冷启极早窗口未就绪时 resolver 保守按悬浮。
     //   回前台(active)必然有窗口 → 重判一次纠偏(悬浮↔贴底切换仅非全面屏设备可见)。
     @Environment(\.scenePhase) private var scenePhase
     @State private var jwImportActive = false
-    // ★ iOS 16 sheet 冲突修复: ImportSheet 关闭动画中直接 present JwImportFlow
-    //   会被 SwiftUI 丢弃(同一 runloop 两个 sheet 状态翻转)→ 延到 dismiss 完成。
-    @State private var jwImportRequested = false
+    // 直接/外部草稿入口独立呈现，不伪造导入方式页作为返回目标。
+    @State private var jwReturn = JwImportReturnState(origin: .direct)
     // ← 原版本 EXTRA_DRAFT_ID 入参: 恢复草稿时带进 JwImportFlow(普通导入为 nil)
     @State private var jwIncomingDraftId: String? = nil
     // ← issue#39: 流程内 activeImport 为真时封掉 sheet 下滑关闭, 否则绕过退出确认静默丢进度
@@ -406,6 +436,9 @@ struct AppRoot: View {
         .id(root.languageReload)
         .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                       customThemeVersion: customThemesJson))
+        .environment(\.systemColorSnapshot, systemColorSnapshot)
+        // 此 background 在主题 tint 外，probe 只读所属 window。
+        .background(SystemColorProbe(snapshot: $systemColorSnapshot).frame(width: 0, height: 0))
         .preferredColorScheme(schemeOverride)
         // ← MainActivity.kt:171: 自定义主题文档变更 = 独立失效信号(同 id 就地编辑时
         //   themeKey 不变), 订阅后回写 token → provider 重跑 → 重读 CustomThemeStore.getById
@@ -436,7 +469,15 @@ struct AppRoot: View {
         // ★ 回前台重判底栏形态(仅"未显式设置"自适应路径有意义; 显式选择时
         //   resolver 设置优先, 重判结果不变)。
         .onChange(of: scenePhase) { phase in
-            if phase == .active { root.refreshNavMode() }
+            if phase == .active {
+                root.refreshNavMode()
+                // Widget 检测：App 进入前台时检查是否有已添加的 Widget
+                WidgetCenter.shared.getCurrentConfigurations { result in
+                    if case .success(let widgets) = result, !widgets.isEmpty {
+                        AchievementTracker.shared.checkWidgetAdd()
+                    }
+                }
+            }
         }
         // 深链课程 → 编辑(← LaunchedEffect(deepLinkCourse?.id))
         .onChange(of: root.deepLinkCourse?.id) { courseId in
@@ -463,36 +504,29 @@ struct AppRoot: View {
             guard let id = id else { return }
             jwIncomingDraftId = id
             root.pendingDraftId = nil
-            jwImportRequested = true
+            jwImportActive = true
         }
         .sheet(isPresented: $jwImportActive, onDismiss: {
             // 下滑关闭与流程内关闭两条路径都收敛到这里: 选校状态重置、入参带完即清、草稿列表随流程结束刷新
             SchoolSelectStateStore.shared.resetForNewEntry()
             jwIncomingDraftId = nil
             jwActiveImport = false
+            _ = jwReturn.didDismiss()
             root.refreshDrafts()
         }) {
-            JwImportFlow(onFinish: {
+            JwImportFlow(onFinish: { outcome in
+                jwReturn.record(outcome)
                 jwImportActive = false
             }, incomingDraftId: jwIncomingDraftId,
                onActiveImportChanged: { jwActiveImport = $0 })
             // Sheet 是独立 presentation tree；显式注入主题，避免自定义颜色环境回落到 lightScheme。
             .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                           customThemeVersion: customThemesJson))
+            .environment(\.systemColorSnapshot, systemColorSnapshot)
             .preferredColorScheme(schemeOverride)
             // ← issue#39: 教务流程进行中禁止下滑关闭(绕过退出确认 = 静默丢进度)
             .interactiveDismissDisabled(jwActiveImport)
             .sheetDragIndicator(.visible)
-        }
-        // ★ sheet 冲突修复续: ImportSheet dismiss 完成后(0.45s 动画)再 present JW 流程
-        .onChange(of: jwImportRequested) { req in
-            guard req else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                if jwImportRequested {
-                    jwImportActive = true
-                    jwImportRequested = false
-                }
-            }
         }
     }
 
@@ -523,6 +557,7 @@ struct AppRoot: View {
                 customThemeVersion: customThemesJson,
                 overlayScreen: $root.overlayScreen,
                 editingCourse: root.editingCourse,
+                initialCourseSlot: root.initialCourseSlot,
                 editTableId: root.editTableId,
                 pendingNewTableId: root.pendingNewTableId,
                 periodEditId: root.periodEditId,
@@ -623,8 +658,7 @@ struct AppRoot: View {
             HStack(spacing: 16) {
                 tabletPaneCard(content: tabletSchedulePane)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Rectangle()
-                    .fill(railGapColor)
+                ThemeRoleFill(role: \.background)
                     .frame(width: 12)
                 tabletPaneCard(content: tabletRightPane)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -673,6 +707,9 @@ struct AppRoot: View {
             onEditCourse: { course in
                 root.navigator.session.beginEditCourse(course)
                 root.navigator.openAddCourse(courseId: course.id, editing: true)
+            },
+            onAddAt: { tableId, week, day, node, step in
+                _ = root.navigator.openAddCourseAt(tableId: tableId, week: week, day: day, node: node, step: step)
             })
     }
 
@@ -681,8 +718,7 @@ struct AppRoot: View {
     /// Manage/Mine 复用手机版原样(与 原版本 右半直构 ManagementPage/MineScreen 同)。
     @ViewBuilder
     private var tabletRightPane: some View {
-        let tab = tabletRightTab
-        Group {
+        SleepyNavigationContent(selection: tabletRightTab) { tab in
             switch tab {
             case .today:
                 TodayScreen(viewModel: root.scheduleViewModel,
@@ -697,10 +733,6 @@ struct AppRoot: View {
                 screen(for: tab)
             }
         }
-        // .id 强制 tab 切换时重建视图身份 → 入场/离场各走 opacity 过渡(← fade 200ms)
-        .id(tab)
-        .transition(.opacity)
-        .animation(.easeInOut(duration: 0.2), value: tab)
     }
 
     /// 双栏面板卡(Box.clip(RoundedCornerShape(16.dp))
@@ -709,15 +741,10 @@ struct AppRoot: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(railCardColor)
+                ThemeRoleFill(role: \.surfaceContainerLow)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
-
-    // 主题色在计算属性内解析(AppRoot 已注入 @Environment colors)
-    private var railCardColor: Color { colors.surfaceContainerLow }
-    private var railGapColor: Color { colors.background }
 
     // ★ native 分支(ios26 起生效 — 部署目标 15.6 下此分支永不触达, iOS15/16
     //   设备由 resolver 判 floating/docked): 系统 TabView = 原生悬浮玻璃胶囊,
@@ -753,7 +780,7 @@ struct AppRoot: View {
                 .tabItem { Label(L10n.t("tab_mine"), systemImage: "person") }
                 .tag(AppRootViewModel.Tab.mine)
         }
-        .tint(colors.primary)
+        .modifier(ThemePrimaryTint())
         // ★ 视口直通屏底(2026-10-26 实机): 每屏子级 ignoresSafeArea 在 iOS26
         // TabView 内被系统重新钳回安全区 → 提到 TabView 层打穿, 内容容器
         // 铺到玻璃 dock 正下方(与 原版本 edge-to-edge 一致)。
@@ -796,6 +823,9 @@ struct AppRoot: View {
                 onEditCourse: { course in
                     root.navigator.session.beginEditCourse(course)
                     root.navigator.openAddCourse(courseId: course.id, editing: true)
+                },
+                onAddAt: { tableId, week, day, node, step in
+                    _ = root.navigator.openAddCourseAt(tableId: tableId, week: week, day: day, node: node, step: step)
                 })
         case .today:
             TodayScreen(viewModel: root.scheduleViewModel,
@@ -846,7 +876,9 @@ struct AppRoot: View {
     // 当前 Tab 对应屏 — 工厂 screen(for:) 单源, 本壳仅供自绘 docked/floating 分支取当前页。
     @ViewBuilder
     private var tabContent: some View {
-        screen(for: root.currentTab)
+        SleepyNavigationContent(selection: root.currentTab) { tab in
+            screen(for: tab)
+        }
     }
 
     // 管理页(AppRoot 私有状态绑定最重的一屏) — docked/floating/native 共用。
@@ -854,7 +886,6 @@ struct AppRoot: View {
         ManagementPage(
             viewModel: root.scheduleViewModel,
             autoShowImportSheet: PendingImportText.value != nil,
-            onJwImportRequested: { jwImportRequested = true },
             // ← 原版本 MainTabs:352 onCreateNewTableRequested = onCreateNewTable
             //   (MainActivity 闭包 = createEmptyTable + openEditTable; iOS 状态机
             //   封装在 createNewTableThenEdit, 含 allTables-cover 换页时序, 保持直调)
@@ -872,17 +903,16 @@ struct AppRoot: View {
             },
             // ← 原版本 SleepyNavHost: onOpenAllTables = navigator.openAllTables()
             onOpenAllTables: { root.navigator.openAllTables() },
+            onOpenPeriodTables: { root.navigator.openPeriodTables() },
             // ← 原版本 MainTabs:354 createPeriodTableAndEdit(newId) =
             //   navigator.createPeriodTableAndEdit(newId) (内部 openPeriodEdit(newId, isNew=true))
             onCreateNewPeriodTableRequested: { newId in
                 root.navigator.createPeriodTableAndEdit(newId: newId)
             },
-            // ← 原版本 MainActivity.kt:353-364 drafts/onRestoreDraft/onDeleteDraft
-            //   (onRestoreDraft = startActivity(JwImportActivity + EXTRA_DRAFT_ID) —
-            //   iOS 无 Activity 通道, restoreImportDraft → pendingDraftId 等价 plumbing)
+            // 草稿箱恢复由 ImportSheet 子 sheet 承载；直接草稿入口仍走 pendingDraftId。
             drafts: root.importDrafts,
-            onRestoreDraft: { id in root.restoreImportDraft(id) },
-            onDeleteDraft: { id in root.deleteDraft(id) })
+            onDeleteDraft: { id in root.deleteDraft(id) },
+            onJwDismissed: { root.refreshDrafts() })
     }
 
     // ★ docked 模式:bar 占用 76pt(老行为)
@@ -1092,6 +1122,7 @@ private struct PresentOverlay: ViewModifier {
     var customThemeVersion: String = ""
     @Binding var overlayScreen: AppRootViewModel.OverlayScreen?
     let editingCourse: CourseEntity?
+    let initialCourseSlot: CourseAddSlot?
     let editTableId: Int64?
     let pendingNewTableId: Int64?
     // ← v1.0.60 作息表编辑路由参数(镜像 editTable 的 pending 丢弃链)
@@ -1134,7 +1165,7 @@ private struct PresentOverlay: ViewModifier {
         // ★ 系统性手势适配: 所有 overlay 页共用一个自绘容器, 右滑转场 + 跟手侧滑返回。
         //   不再逐页挂 recognizer——以后新增 OverlayScreen case 自动获得同一套手势。
         ZStack {
-            content
+            content.modifier(SleepyNavigationUnderlay(covered: shownScreen != nil))
             if let screen = shownScreen {
                 overlayContent(screen)
                     .offset(x: dragX)
@@ -1218,7 +1249,9 @@ private struct PresentOverlay: ViewModifier {
                 viewModel: scheduleViewModel,
                 onDismiss: onDismiss,
                 onSaved: onSavedAdd,
-                editingCourse: editingCourse)
+                editingCourse: editingCourse,
+                initialSlot: initialCourseSlot)
+                .id(CourseEditorIdentity(courseId: editingCourse?.id, initialSlot: initialCourseSlot))
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)

@@ -104,12 +104,15 @@ enum JwParserRegistry {
         (JwProtocol.TYPE_QZ_APP, 141),
         (JwProtocol.TYPE_UCAS, 142),
         (JwProtocol.TYPE_QZ_OLD, 145),
+        (JwProtocol.TYPE_SG_ASSET, 210),
     ]
 
     /// 单一来源：协议 type → parser 工厂。
     /// 注意：TYPE_ZF_1 复用 JwOldZfParser(type=1)。
     static func factoryFor(_ type: String) -> ((String) -> JwParser)? {
         switch type {
+        case JwProtocol.TYPE_JW_HOME: return { JwHomeParser($0) }
+        case JwProtocol.TYPE_SG_ASSET: return { JwSgAssetParser($0) }
         case JwProtocol.TYPE_WISEDU: return { JwWiseduParser($0) }
         case JwProtocol.TYPE_WHUT: return { JwWhutParser($0) }
         case JwProtocol.TYPE_CQU: return { JwCquParser($0) }

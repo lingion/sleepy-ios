@@ -160,6 +160,10 @@ final class WebViewNavigationPolicyTests: XCTestCase {
     }
 
     // ———————— 单页站(提供 page.html 与 page2.html 两个路径) ————————
+    /// 首页加载等待上限。类内首个用例承担 WebKit 冷启动(本地实测 >5s), 原 5s 窗口
+    /// 未等到 page.html 就注入点击 → getElementById 为 null。条件轮询, 加载完成即退出。
+    private static let firstLoadTimeout: TimeInterval = 30
+
     private func makeServer() -> LocalPageServer {
         // 简化: 单页站按 path 返回。page2 用同一 server 不同内容不可行(手写 socket)
         // → 两个路径都由同一 HTML 兜底, page2 判定改为 URL path 判定
@@ -174,7 +178,7 @@ final class WebViewNavigationPolicyTests: XCTestCase {
         let (wv, probe) = makeWebView(uidDelegate: nil, inPlaceLoad: false)
         wv.load(URLRequest(url: server.url()))
         // 轮询等首页加载(不允许挂起的 expectation)
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(Self.firstLoadTimeout)
         while Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
             if probe.navigations.contains(where: { $0.contains("page") }) { break }
@@ -203,7 +207,7 @@ final class WebViewNavigationPolicyTests: XCTestCase {
         let prodDelegate = NavUIDelegate()
         let (wv, probe) = makeWebView(uidDelegate: prodDelegate, inPlaceLoad: true)
         wv.load(URLRequest(url: server.url()))
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(Self.firstLoadTimeout)
         while Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
             if !probe.navigations.isEmpty { break }
@@ -227,7 +231,7 @@ final class WebViewNavigationPolicyTests: XCTestCase {
         let prodDelegate = NavUIDelegate()
         let (wv, probe) = makeWebView(uidDelegate: prodDelegate, inPlaceLoad: true)
         wv.load(URLRequest(url: server.url()))
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(Self.firstLoadTimeout)
         while Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
             if !probe.navigations.isEmpty { break }
@@ -249,7 +253,7 @@ final class WebViewNavigationPolicyTests: XCTestCase {
         let prodDelegate = NavUIDelegate()
         let (wv, probe) = makeWebView(uidDelegate: prodDelegate, inPlaceLoad: true)
         wv.load(URLRequest(url: server.url()))
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(Self.firstLoadTimeout)
         while Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
             if !probe.navigations.isEmpty { break }

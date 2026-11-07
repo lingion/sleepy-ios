@@ -147,7 +147,7 @@ enum TimetableViewportPolicy {
         let mapped = timeJson.flatMap {
             TimeTableUtils.courseTimeParts(
                 courseStartNode: course.startNode, courseStep: course.step, timeJson: $0,
-                ownTime: course.ownTime, startTime: course.startTime, endTime: course.endTime)
+                ownTime: course.isIrregularTime || course.ownTime, startTime: course.startTime, endTime: course.endTime)
         }
         let parts: (String, String)?
         if let mapped {

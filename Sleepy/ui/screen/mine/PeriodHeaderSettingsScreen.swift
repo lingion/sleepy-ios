@@ -19,6 +19,9 @@ struct PeriodHeaderSettingsScreen: View {
     @State private var showX: Bool = AppPrefs.shared.isPeriodHeaderShowX()
     // v1.0.62 B4: 旧式表头「隐藏时间行」(← AppPrefs.isPeriodHeaderHideTime)
     @State private var hideTime: Bool = AppPrefs.shared.isPeriodHeaderHideTime()
+    @State private var timeAlignment: String = AppPrefs.shared.getPeriodHeaderTimeAlignment()
+    // 同一页面身份内仅捕获一次，切换布局/重复 onAppear 都保留进页基线。
+    @State private var baselineHanging: Float? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,6 +36,7 @@ struct PeriodHeaderSettingsScreen: View {
                         hangingUnits: hangingUnits,
                         showX: showX,
                         hideTime: hideTime,
+                        centerTime: timeAlignment == "center",
                         onStyleSelected: { value in
                             style = value
                             prefs.setPeriodHeaderStyle(value)
@@ -73,6 +77,22 @@ struct PeriodHeaderSettingsScreen: View {
                             }))
                         // v1.0.62 B4: 隐藏时间行仅适用旧式两行表头; 三行式以时间为主体, 不适用。
                         if layout == "legacy" {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(L10n.t("appearance_header_time_alignment"))
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(colors.onSurfaceVariant)
+                                SegmentedSwitcher(
+                                    options: [
+                                        ("dash", L10n.t("appearance_header_alignment_dash")),
+                                        ("center", L10n.t("appearance_header_alignment_center"))
+                                    ],
+                                    selected: timeAlignment,
+                                    onSelect: { value in
+                                        timeAlignment = value
+                                        prefs.setPeriodHeaderTimeAlignment(value)
+                                    },
+                                    containerColor: colors.surfaceContainerHighest)
+                            }
                             VStack(alignment: .leading, spacing: 2) {
                                 Toggle(L10n.t("appearance_header_hide_time"), isOn: Binding(
                                     get: { hideTime },
@@ -86,20 +106,25 @@ struct PeriodHeaderSettingsScreen: View {
                             }
                         }
                         if layout == "three_line" {
-                            // ← 原版本 String.format("%+.1f", hangingUnits)
-                            Text(L10n.format("appearance_header_hanging",
-                                             String(format: "%+.1f", hangingUnits)))
-                                .font(.system(size: 14))   // ← bodyMedium
-                                .foregroundColor(colors.onSurfaceVariant)
-                            Slider(
-                                value: Binding(
-                                    get: { Double(hangingUnits) },
-                                    set: { v in
+                            VStack(spacing: 4) {
+                                Text("\(L10n.t("appearance_header_hanging"))  \(String(format: "%+.1f", hangingUnits))")
+                                    .font(.system(size: 14))   // ← bodyMedium
+                                    .foregroundColor(colors.onSurfaceVariant)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                NativeBaselineSlider(
+                                    value: Double(hangingUnits),
+                                    range: -1...1,
+                                    baseline: baselineHanging.map { Double($0) },
+                                    label: L10n.t("appearance_header_hanging"),
+                                    valueText: String(format: "%+.1f", hangingUnits),
+                                    onValueChange: { v in
                                         hangingUnits = Float((v * 10).rounded() / 10)
-                                    }),
-                                in: -1...1) { _ in
-                                    prefs.setPeriodHeaderHanging(hangingUnits)
-                                }
+                                    },
+                                    onFinished: {
+                                        prefs.setPeriodHeaderHanging(hangingUnits)
+                                    })
+                                    .frame(height: 32)
+                            }
                         }
                     }
                 }
@@ -108,6 +133,12 @@ struct PeriodHeaderSettingsScreen: View {
         }
         .background(colors.background)
         .navigationBarHidden(true)
+        .onAppear { captureBaselines() }
+    }
+
+    private func captureBaselines() {
+        guard baselineHanging == nil else { return }
+        baselineHanging = hangingUnits
     }
 }
 
@@ -126,6 +157,7 @@ private struct HeaderStylePreviews: View {
     let showX: Bool
     // v1.0.62 B4: 旧式表头「隐藏时间行」实时值(预览卡与列宽同步反映)
     let hideTime: Bool
+    let centerTime: Bool
     let onStyleSelected: (String) -> Void
 
     /// 预览槽位(previewSlot: label "12", 08:00-08:45, nodeStart=nodeEnd=12)
@@ -151,7 +183,7 @@ private struct HeaderStylePreviews: View {
                 ? threeLineWidthDp(slots: slots, headerStyle: value, scale: 1,
                                    hangingUnits: CGFloat(hangingUnits), showX: showX)
                 : legacyTimeWidthDp(slots: slots, headerStyle: value, scale: 1,
-                                    showX: showX, hideTime: hideTime)
+                                    showX: showX, hideTime: hideTime, centerTime: centerTime)
         }
     }
 
@@ -214,6 +246,7 @@ private struct HeaderStylePreviews: View {
                     hangingUnitsOverride: CGFloat(hangingUnits),
                     showXOverride: showX,
                     hideTimeOverride: hideTime,
+                    centerTimeOverride: centerTime,
                     sharedFont: sharedFont)
                 .padding(periodHeaderCardPadDp)
                 .frame(width: contentWidth, height: 52)

@@ -26,7 +26,7 @@ private let foundationalEntries: [FoundationalEntry] = [
     FoundationalEntry(
         title: "Old-QZ 协议核对",
         meta: "历史协议参考",
-        usage: "Old-QZ protocol verification: Crazy-ChenMiLin/TableAPK (Apache-2.0; protocol reference); LonelyMarch/OpenWakeUp (AGPL-3.0; protocol reference); ThaiCao/WakeupSchedule_Kotlin (Apache-2.0; protocol reference); YuZhangWang/Java-Demo (GPL-3.0; protocol reference); dIT8Zv/WakeupSchedule_BUPT (Apache-2.0; protocol reference); ershiyidian/WakeUp_SHU (NOASSERTION; protocol reference); historical WakeUp APK (YZune; closed-source protocol reference, no code reused)."
+        usage: "旧版强智教务协议参考：[Crazy-ChenMiLin 的课表项目](https://github.com/Crazy-ChenMiLin/TableAPK) (Apache-2.0)；LonelyMarch/OpenWakeUp (AGPL-3.0)；ThaiCao/WakeupSchedule_Kotlin (Apache-2.0)；YuZhangWang/Java-Demo (GPL-3.0)；dIT8Zv/WakeupSchedule_BUPT (Apache-2.0)；ershiyidian/WakeUp_SHU (NOASSERTION，许可未确认)；历史 WakeUp 版本 (YZune，闭源，仅参考协议，未复用代码)。"
     ),
     FoundationalEntry(
         title: "WakeUp 课程表 (YZune)",
@@ -41,7 +41,7 @@ private let foundationalEntries: [FoundationalEntry] = [
     FoundationalEntry(
         title: "WakeupSchedule_Kotlin (YZune)",
         meta: "Apache-2.0",
-        usage: "经典金智 EAMS 导入实现 (TaskActivity 位图解析) 的参考"
+        usage: "经典金智 EAMS 课表导入与课程时间解析的参考"
     ),
     FoundationalEntry(
         title: "时光课程表 cqu.js",
@@ -49,9 +49,9 @@ private let foundationalEntries: [FoundationalEntry] = [
         usage: "重庆大学门户 REST 协议 (session / 课表 / 作息三接口) 的分析依据"
     ),
     FoundationalEntry(
-        title: "shiguang_warehouse (XingHeYuZhuan)",
+        title: "ShiGuangSchedule/shiguang_warehouse (星河欲转 / XingHeYuZhuan)",
         meta: "MIT",
-        usage: "武汉理工大学 kcbcxby 协议、经典金智 EAMS (hunnu/uestc/hpu) 与新正方网格视图 (zhengfang_01) 的协议形态参考"
+        usage: "武汉理工大学 kcbcxby、经典金智 EAMS 与新正方网格协议参考；拾光学校脚本随应用分发。来源：https://github.com/ShiGuangSchedule/shiguang_warehouse ，许可原文：third_party/shiguang/LICENSE-MIT.txt。"
     ),
     FoundationalEntry(
         title: "zfn_api (openschoolcn)",
@@ -118,7 +118,7 @@ private let perSchoolEntries: [PerSchoolEntry] = [
     ),
     PerSchoolEntry(
         id: "school-gdufe", title: "广东财经大学 GDUFE",
-        usage: "jkgeekJack/Android-GDUFE-JWC-SDK-1.0.0\nKiteio/GDUFE-wrapper"
+        usage: "[jkgeekJack 的广东财经大学教务接口项目](https://github.com/jkgeekJack/Android-GDUFE-JWC-SDK-1.0.0)\nKiteio/GDUFE-wrapper"
     ),
     PerSchoolEntry(
         id: "school-gduf", title: "广东金融学院 GDUf",
@@ -214,7 +214,7 @@ private let perSchoolEntries: [PerSchoolEntry] = [
     ),
     PerSchoolEntry(
         id: "school-bjtu", title: "北京交通大学 BJTU",
-        usage: "bjtu_mis_Android (wan300, MIT)\nBJTU-MIS-HarmonyOS (Anyes666, MIT)\nBJTUselfService (HFDLYS, MIT)\nbjtu-cli (fish2lab)\nBJTUselfService-macOS (fish2lab)\nBJTU-course-assistant (s1y4x1)\nZiuChen/userscript (MIT)\nBJTU-iCalendar-Generator (ymzhang-cs, MIT)\nbjtu-timetable (Moliseeee)\nBJTU-course-autoget-program (hyskr)\nBjtuCoursePlatform (57Darling02)\nbjtuDean (jlytwhx, MIT)\nbjtubox_python (jlytwhx)\nCampus-Mate (Orien233)\nBJTU-STU-MCP (ymzhang-cs)\nCourseRobber (xschur)\nFuturemind-BJTU\nBJTU_ezRate (Yukikasu, MIT)\nbjtu_teaching_assessment (xxxand, MIT)\nBJTU-script (Coconut00)\nBJTU-CC (aooxin)\nCourseTable (etherealviator, MIT)\nZF-Assistant (mcdona1d)\nGreasy Fork 430918 北交大iCalender课表生成"
+        usage: "[wan300 的北京交通大学教务项目](https://github.com/wan300/bjtu_mis_Android) (MIT)\n[Anyes666 的北京交通大学教务项目](https://github.com/Anyes666/BJTU-MIS-HarmonyOS) (MIT)\nBJTUselfService (HFDLYS, MIT)\nbjtu-cli (fish2lab)\nBJTUselfService-macOS (fish2lab)\nBJTU-course-assistant (s1y4x1)\nZiuChen/userscript (MIT)\nBJTU-iCalendar-Generator (ymzhang-cs, MIT)\nbjtu-timetable (Moliseeee)\nBJTU-course-autoget-program (hyskr)\nBjtuCoursePlatform (57Darling02)\nbjtuDean (jlytwhx, MIT)\nbjtubox_python (jlytwhx)\nCampus-Mate (Orien233)\nBJTU-STU-MCP (ymzhang-cs)\nCourseRobber (xschur)\nFuturemind-BJTU\nBJTU_ezRate (Yukikasu, MIT)\nbjtu_teaching_assessment (xxxand, MIT)\nBJTU-script (Coconut00)\nBJTU-CC (aooxin)\nCourseTable (etherealviator, MIT)\nZF-Assistant (mcdona1d)\nGreasy Fork 430918 北交大iCalender课表生成"
     ),
     PerSchoolEntry(
         id: "school-jou", title: "江苏海洋大学 JOU",
@@ -230,11 +230,11 @@ private let perSchoolEntries: [PerSchoolEntry] = [
     ),
     PerSchoolEntry(
         id: "school-kingo-zx", title: "新青果 super 协议适配（2026-10）",
-        usage: "WakeUp NewKingosoftSuperParser smali 主参考 (YZune, 反向)\nOpenWakeUp NewKingosoftSuperParser (LonelyMarch, AGPL-3.0)\nNYIST-CIPS/CourseTable (NYIST-CIPS, MIT, 间接协议旁证)\nicepie/aischedule-lit-kingosoft (MIT, 间接协议旁证)\nlizhengqiang/kingosoft_api (间接接口旁证)\nershiyidian/WakeUp_SHU (ershiyidian, 同源青果协议旁证)\n52funny/KINGOSOFT-LOGIN (青果登录端点)\nXTAI9/SYU_KINGGOClassSel (青果选课端点旁证)\nwzj1122/jxufe-auto-evaluate (MIT, 青果族批量请求)\nKou-JunHao/mi-schedule (MIT, 青果族渲染)\nDaydream357/WakeUpSchedule (MIT, WakeUp 通用反混淆)\nicepie/oh-my-lit (AGPL-3.0, negative layout control)"
+        usage: "WakeUp 新青果教务协议分析的主要参考 (YZune，历史版本逆向分析)\nOpenWakeUp NewKingosoftSuperParser (LonelyMarch, AGPL-3.0)\nNYIST-CIPS/CourseTable (NYIST-CIPS, MIT, 间接协议旁证)\nicepie/aischedule-lit-kingosoft (MIT, 间接协议旁证)\nlizhengqiang/kingosoft_api (间接接口旁证)\nershiyidian/WakeUp_SHU (ershiyidian, 同源青果协议旁证)\n52funny/KINGOSOFT-LOGIN (青果登录端点)\nXTAI9/SYU_KINGGOClassSel (青果选课端点旁证)\nwzj1122/jxufe-auto-evaluate (MIT, 青果族批量请求)\nKou-JunHao/mi-schedule (MIT, 青果族渲染)\nDaydream357/WakeUpSchedule (MIT, WakeUp 通用反混淆)\nicepie/oh-my-lit (AGPL-3.0, negative layout control)"
     ),
     PerSchoolEntry(
         id: "school-wakeup-family", title: "WakeUp 兼容协议族调研",
-        usage: "Dawn-Course (HF-CYGG, GPL-3.0)\nWakeUp_SHU (ershiyidian)\nCourseHelper (jiangyiqi99, GPL-3.0)\naischedule-lit-kingosoft (icepie, MIT)\nXiaoAISchedule_hebust (web1n)\nai-schedule-chaoxing (moeshin, MIT)\ntzvcst-schedule-chaoxing (Sittymin, AGPL-3.0)\nxiaoai-shuwei-course (ZKJJaker, 反向证据)\njxufe-auto-evaluate (wzj1122, MIT)\nKINGOSOFT-LOGIN (52funny)\nxiaoaiSchedule (xiaxiaoyu8)\nmi-schedule (Kou-JunHao, MIT)\nAISchedule-xjsf (ltxhhz, MIT)\nAIScheduleSCAU (greyovo)\nMI_AI_Course_Schedule (ceresOPA)\nAISchedule-QiangZhi (MyLikeGirl)\nclasspush (sungithub270, GPL-3.0)\nXiaoAiScheduleOfSUOT (trueWangSyutung)\nXiaoAiCurriculumSchedule (LukeJean)\ngetICS (Konata09)\nWITClassScheduleToCalendar (DOROMOLLL, MIT)\nCrawlerCourseTable (canliture)\nSYU_KINGGOClassSel (XTAI9)\nhait_AICourseTable (zzzsq1)\nAIShedule_cqwu (cqwu-ehall, AGPL-3.0)\nWakeUpSchedule (Daydream357, MIT)\nshike-android (sw7943604-del)\nshiguang_Tester (XingHeYuZhuan, MIT)\ndutsso (yuanyuanzijin)\npub-docs (zfman, 青果接口文档)\neduData-GoBack (huhu415)\nNUISTTable (zyc-816)\nSCAU-Grad-Automatically-Fill-Evaluation-Form-JS (jiefing, Gwork 族控件命名旁证)"
+        usage: "Dawn-Course (HF-CYGG, GPL-3.0)\nWakeUp_SHU (ershiyidian)\nCourseHelper (jiangyiqi99, GPL-3.0)\naischedule-lit-kingosoft (icepie, MIT)\nXiaoAISchedule_hebust (web1n)\nai-schedule-chaoxing (moeshin, MIT)\ntzvcst-schedule-chaoxing (Sittymin, AGPL-3.0)\nxiaoai-shuwei-course (ZKJJaker, 反向证据)\njxufe-auto-evaluate (wzj1122, MIT)\nKINGOSOFT-LOGIN (52funny)\nxiaoaiSchedule (xiaxiaoyu8)\nmi-schedule (Kou-JunHao, MIT)\nAISchedule-xjsf (ltxhhz, MIT)\nAIScheduleSCAU (greyovo)\nMI_AI_Course_Schedule (ceresOPA)\nAISchedule-QiangZhi (MyLikeGirl)\nclasspush (sungithub270, GPL-3.0)\nXiaoAiScheduleOfSUOT (trueWangSyutung)\nXiaoAiCurriculumSchedule (LukeJean)\ngetICS (Konata09)\nWITClassScheduleToCalendar (DOROMOLLL, MIT)\nCrawlerCourseTable (canliture)\nSYU_KINGGOClassSel (XTAI9)\nhait_AICourseTable (zzzsq1)\nAIShedule_cqwu (cqwu-ehall, AGPL-3.0)\nWakeUpSchedule (Daydream357, MIT)\n[sw7943604-del 的 shike 课表项目](https://github.com/sw7943604-del/shike-android)\nshiguang_Tester (XingHeYuZhuan, MIT)\ndutsso (yuanyuanzijin)\npub-docs (zfman, 青果接口文档)\neduData-GoBack (huhu415)\nNUISTTable (zyc-816)\nSCAU-Grad-Automatically-Fill-Evaluation-Form-JS (jiefing, Gwork 族控件命名旁证)"
     ),
     PerSchoolEntry(
         id: "school-four-school-jw", title: "四校教务协议交叉验证（2026-09）",
@@ -246,7 +246,7 @@ private let perSchoolEntries: [PerSchoolEntry] = [
     ),
     PerSchoolEntry(
         id: "school-ecupl", title: "华东政法大学 ECUPL",
-        usage: "LonelyMarch/OpenWakeUp (AGPL-3.0; CourseTable 脚本协议参考)\nlingion/wakeup-mod (历史 WakeUp APK 归档；仅核实 TaskActivity/index 协议；原作者许可未确认)\n调研对照，尚未证实适用于 ECUPL 课表字段：ershiyidian/WakeUp_SHU、zimo0o0omiz/wisedu-unified-login-api、only9464/HEU-Wisedu、CreamPig233/neu_wisedu2wakeup、wisedu/bh-mobile-sdk"
+        usage: "LonelyMarch/OpenWakeUp (AGPL-3.0; CourseTable 脚本协议参考)\nlingion/wakeup-mod (历史 WakeUp 版本归档；仅核实课表导入协议；原作者许可未确认)\n调研对照，尚未证实适用于 ECUPL 课表字段：ershiyidian/WakeUp_SHU、zimo0o0omiz/wisedu-unified-login-api、only9464/HEU-Wisedu、CreamPig233/neu_wisedu2wakeup、wisedu/bh-mobile-sdk"
     ),
     PerSchoolEntry(
         id: "school-hzcu", title: "浙大城市学院 HZCU",
@@ -258,11 +258,11 @@ private let perSchoolEntries: [PerSchoolEntry] = [
     ),
     PerSchoolEntry(
         id: "school-nwpu-post", title: "西北工业大学研究生教务 NWPU Post",
-        usage: "WakeUp 反编译 smali 实锤 sample-table-1 HTML 一维清单协议层; 51 候选 GitHub 仓库跨仓求证 (0 POSITIVE / 20 INDIRECT / 31 NEGATIVE), 协议层无任何开源实现, 全量迁移至新门户 jwxt.nwpu.edu.cn print-data JSON 端点; 致谢 20 个 NWPU 同校生态仓 (新门户 print-data / 智慧校园 ecampus / 强智 URP):\nLorcas-Zephyr/aoxiang-assistant\nShiGuangSchedule/shiguang_warehouse (MIT, nwpu_01.js 跨校适配)\nQingQiz/AoxiangRobot (LGPL-3.0, archived 旧 EAMS courseTableForStd)\nqiqqqqq517/shangkeschchedule (Apache-2.0, 时光 NWPU 适配镜像)\nqllokirin/nonebot-plugin-npu (MIT, ecampus + print-data 双轨)\nCR200J1-A/NPU-Course-picker (新门户 print-data 油猴脚本)\nJungod1121/nwpu-jwxt (强智 URP + Playwright 自动化)\nNikaidou-Shinku/sjw (WTFPL, course-selection-api 选课端点)\nstevexyh/AutoAoxiang (WTFPL, 翱翔 NCP/图书馆辅助)\ncheanus/SelectCourseEasily (新门户 lesson-search 排课抓取)\nfantian-bilibili/NWPU_COURSE_MONITOR (ecampus WebView 历史课表)\nzengzoxiong/aoxiang-jwxt-enhance (西工大研究生系统挂载)\nzhanghaoran124/NWPU_AISchedule (iframe course-table 解析)\nHydrostic/NWPU-EAMS-helper (Svelte userscript jwxt iframe)\nfantian-bilibili/NCP-NWPU-Course-Parser (Aoxiang localStorage 缓存)\ntop-tree/nwpu-edu-plus (显式 print-data 端点 + studentTableVm)\nLiYulin-s/nwpu-coursetable (jwxt localStorage cs-selectedLessons)\nPanoramasx/aoxiang-harmonyos (HarmonyOS api_collect.js 镜像)\niiijiashu/guagua-course (NwpuPrintDataParser + NwpuJwxtExtractor 双端点)\nxiaozhuang357/NPU-eCampus-ICS-Exporter (智慧校园 studentTableVm 导出)\nDy1anT/NWPUgrade (NEGATIVE, 教务相关协议边界)\n2ndelement/nwpu-lesson-select-enhance (NEGATIVE, 教务相关协议边界)\nzymelaii/nwpu-toy-scripts (NEGATIVE, 教务相关协议边界)\nFlowingFrost/NWPU-Course-Helper (NEGATIVE, 教务相关协议边界)\nPhoenix-ZH/NWPU_GPA (NEGATIVE, 教务相关协议边界)\nMoeMion/NPU-Course-Evalue-Script (NEGATIVE, 教务相关协议边界)\nchurehill/JWhelper (NEGATIVE, 教务相关协议边界)\nBakerBunker/nwpu_helper (NEGATIVE, 教务相关协议边界)\nBakerBunker/NpuGpa (NEGATIVE, 教务相关协议边界)\nNaraLan0502/AoxiangHelp_QQBotPlugin (NEGATIVE, 教务相关协议边界)\nDryzk/nwpu-gpa-and-rank (NEGATIVE, 教务相关协议边界)\nXio-Shark/aoxiang-kebiao (NEGATIVE, 教务相关协议边界)\nhuohuo132/Aoxiang-assistant-for-HarmonyOS (NEGATIVE, 教务相关协议边界)\nnpuNancy/AoXiangGrades (NEGATIVE, 教务相关协议边界)\nsjrsjz/nwpu-gpa-rank (NEGATIVE, 教务相关协议边界)"
+        usage: "历史 WakeUp 版本的逆向分析提供了旧课表格式参考。核对 51 个候选仓库后，未找到该旧协议的直接开源实现（20 个间接参考，31 个不匹配）；现采用学校新门户课表接口。以下项目为相关调研来源，不代表均被复用：\nLorcas-Zephyr/aoxiang-assistant\nShiGuangSchedule/shiguang_warehouse (MIT, nwpu_01.js 跨校适配)\nQingQiz/AoxiangRobot (LGPL-3.0, archived 旧 EAMS courseTableForStd)\nqiqqqqq517/shangkeschchedule (Apache-2.0, 时光 NWPU 适配镜像)\nqllokirin/nonebot-plugin-npu (MIT, ecampus + print-data 双轨)\nCR200J1-A/NPU-Course-picker (新门户 print-data 油猴脚本)\nJungod1121/nwpu-jwxt (强智 URP + Playwright 自动化)\nNikaidou-Shinku/sjw (WTFPL, course-selection-api 选课端点)\nstevexyh/AutoAoxiang (WTFPL, 翱翔 NCP/图书馆辅助)\ncheanus/SelectCourseEasily (新门户 lesson-search 排课抓取)\nfantian-bilibili/NWPU_COURSE_MONITOR (ecampus WebView 历史课表)\nzengzoxiong/aoxiang-jwxt-enhance (西工大研究生系统挂载)\nzhanghaoran124/NWPU_AISchedule (iframe course-table 解析)\nHydrostic/NWPU-EAMS-helper (Svelte userscript jwxt iframe)\nfantian-bilibili/NCP-NWPU-Course-Parser (Aoxiang localStorage 缓存)\ntop-tree/nwpu-edu-plus (显式 print-data 端点 + studentTableVm)\nLiYulin-s/nwpu-coursetable (jwxt localStorage cs-selectedLessons)\n[Panoramasx 的翱翔校园项目](https://github.com/Panoramasx/aoxiang-harmonyos) (api_collect.js 接口参考镜像)\niiijiashu/guagua-course (NwpuPrintDataParser + NwpuJwxtExtractor 双端点)\nxiaozhuang357/NPU-eCampus-ICS-Exporter (智慧校园 studentTableVm 导出)\nDy1anT/NWPUgrade (NEGATIVE, 教务相关协议边界)\n2ndelement/nwpu-lesson-select-enhance (NEGATIVE, 教务相关协议边界)\nzymelaii/nwpu-toy-scripts (NEGATIVE, 教务相关协议边界)\nFlowingFrost/NWPU-Course-Helper (NEGATIVE, 教务相关协议边界)\nPhoenix-ZH/NWPU_GPA (NEGATIVE, 教务相关协议边界)\nMoeMion/NPU-Course-Evalue-Script (NEGATIVE, 教务相关协议边界)\nchurehill/JWhelper (NEGATIVE, 教务相关协议边界)\nBakerBunker/nwpu_helper (NEGATIVE, 教务相关协议边界)\nBakerBunker/NpuGpa (NEGATIVE, 教务相关协议边界)\nNaraLan0502/AoxiangHelp_QQBotPlugin (NEGATIVE, 教务相关协议边界)\nDryzk/nwpu-gpa-and-rank (NEGATIVE, 教务相关协议边界)\nXio-Shark/aoxiang-kebiao (NEGATIVE, 教务相关协议边界)\n[huohuo132 的翱翔校园助手项目](https://github.com/huohuo132/Aoxiang-assistant-for-HarmonyOS) (NEGATIVE, 教务相关协议边界)\nnpuNancy/AoXiangGrades (NEGATIVE, 教务相关协议边界)\nsjrsjz/nwpu-gpa-rank (NEGATIVE, 教务相关协议边界)"
     ),
     PerSchoolEntry(
         id: "school-new-urp-super", title: "新 URP 数组变体（跨校协议）",
-        usage: "WakeUp NewUrpSuperParser 反编译提供字段模型；39 个相关仓库仅为间接生态或协议边界参考，未证实同款接口：\nAirmole/ShellBox\ndanbaixi/yunxiaozhi\ndairoot/school-api\nfrederick-wang/scu-urp-assistant\nLeonidasCl/seu-jwc-catcher\nHaoZai000/NexioSchedule\nStageGuard/SuperCourseTimetableBot (NEGATIVE, 协议边界)\nyeliqin666/xjtu-toolbox-android\nLittFlower/SCU-URP-Helper\nLorcas-Zephyr/aoxiang-assistant\nShiGuangSchedule/shiguang_warehouse\nBIT101-dev/BIT101-Android\nxiaomanjun233/SleepDown-Schedule\nMutx163/mikcb\nAriaPokotengYe/SEU-NewSystem-catcher\nhiguangke/Higk\nyuchenii/HHUClassSchedule\nHeraldStudio/herald-webservice\nyuan1994/ZCrawler\nsuperdaobo/mini-hbut\nBIT101-dev/BIT101-GO\ndemocard/xmu_assistant\nki-ljl/ncepu-edm\nwcomaqsw/indulge-in-study\nCrazyRunning/MyStudyHelper\nchaolan2019/SCU-URP-plusplus\nmlkgrnt/ScheduleX\nHolit/HEU_edusys_miui\nershiyidian/WakeUp_SHU\nBritneyOvO/swun_ehall\nleavesvv-source/NEU-Timetable\nArrogHie/XMUTimeTabel\nyuchenii/AIschedule-HHU-URP\nshouDeveloper/shou-api\nkuailiaojie/classtable (NEGATIVE, 无匹配源码)\nadminerest/SHOU-urp-auto-choose-lessons\nneiro-o/seuGrabber\narnoliudaxia/shanghaitech-chooseCourse-query\nfangd123/funhubu"
+        usage: "历史 WakeUp 版本的逆向分析提供了新 URP 课表字段参考；39 个相关仓库仅用于间接参考或排除不匹配的协议，尚未证实使用同款接口：\nAirmole/ShellBox\ndanbaixi/yunxiaozhi\ndairoot/school-api\nfrederick-wang/scu-urp-assistant\nLeonidasCl/seu-jwc-catcher\nHaoZai000/NexioSchedule\nStageGuard/SuperCourseTimetableBot (NEGATIVE, 协议边界)\n[yeliqin666 的西安交通大学工具项目](https://github.com/yeliqin666/xjtu-toolbox-android)\nLittFlower/SCU-URP-Helper\nLorcas-Zephyr/aoxiang-assistant\nShiGuangSchedule/shiguang_warehouse\n[BIT101-dev 的 BIT101 校园项目](https://github.com/BIT101-dev/BIT101-Android)\nxiaomanjun233/SleepDown-Schedule\nMutx163/mikcb\nAriaPokotengYe/SEU-NewSystem-catcher\nhiguangke/Higk\nyuchenii/HHUClassSchedule\nHeraldStudio/herald-webservice\nyuan1994/ZCrawler\nsuperdaobo/mini-hbut\nBIT101-dev/BIT101-GO\ndemocard/xmu_assistant\nki-ljl/ncepu-edm\nwcomaqsw/indulge-in-study\nCrazyRunning/MyStudyHelper\nchaolan2019/SCU-URP-plusplus\nmlkgrnt/ScheduleX\n[Holit 的 HEU 教务项目](https://github.com/Holit/HEU_edusys_miui)\nershiyidian/WakeUp_SHU\nBritneyOvO/swun_ehall\nleavesvv-source/NEU-Timetable\nArrogHie/XMUTimeTabel\nyuchenii/AIschedule-HHU-URP\nshouDeveloper/shou-api\nkuailiaojie/classtable (NEGATIVE, 无匹配源码)\nadminerest/SHOU-urp-auto-choose-lessons\nneiro-o/seuGrabber\narnoliudaxia/shanghaitech-chooseCourse-query\nfangd123/funhubu"
     ),
 ]
 
@@ -292,11 +292,11 @@ private let contributorEntries: [ContributorEntry] = [
     ),
     ContributorEntry(
         id: "contributor-LzBsA", title: "LzBsA", meta: "GitHub @LzBsA",
-        usage: "已合并 PR #30 燕山大学研究生平台 boya_pp 协议适配 (贡献者保留式 merge) — 全部提交与讨论记录见 github.com/LzBsA"
+        usage: "已合并 PR #30 燕山大学研究生课表导入适配 — 全部提交与讨论记录见 github.com/LzBsA"
     ),
     ContributorEntry(
         id: "contributor-Cold577", title: "冷冷冷 Cold577", meta: "GitHub @Cold577",
-        usage: "已合并 PR #79 小组件选择器预览图修复 (运行时位图容器 previewLayout 摘除) — 全部提交与讨论记录见 github.com/Cold577"
+        usage: "已合并 PR #79 小组件选择器预览图修复 — 全部提交与讨论记录见 github.com/Cold577"
     ),
     ContributorEntry(
         id: "contributor-X-art-hash", title: "X-art-hash", meta: "GitHub @X-art-hash",
@@ -308,7 +308,7 @@ private let contributorEntries: [ContributorEntry] = [
     ),
     ContributorEntry(
         id: "contributor-Kerry1020", title: "Kerry1020", meta: "GitHub @Kerry1020",
-        usage: "已合并 PR #115 Room schema 导出与迁移门禁 (本仓库 v10 schema 真值 + v9→v10 instrumented 迁移测试 + schema 漂移契约测试) — 全部提交与讨论记录见 github.com/Kerry1020"
+        usage: "已合并 PR #115 数据库结构导出与升级验证，帮助保障版本升级时的数据完整性 — 全部提交与讨论记录见 github.com/Kerry1020"
     ),
 ]
 
@@ -453,14 +453,14 @@ struct LicenseScreen: View {
                         row
                     }
                     if onToggle == nil, let d = description, !d.isEmpty {
-                        Text(d)
+                        Text(attributionText(d))
                             .font(.system(size: 14))
                             .foregroundColor(colors.onSurfaceVariant)
                     }
                     if expanded, let lines = lines {
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                                Text(line)
+                                Text(attributionText(line))
                                     .font(.system(size: 12))
                                     .foregroundColor(colors.onSurfaceVariant)
                             }
@@ -469,6 +469,15 @@ struct LicenseScreen: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+
+        // 来源链接使用描述性标签，目标保留真实仓库名；普通致谢保持原样。
+        private func attributionText(_ text: String) -> AttributedString {
+            guard text.contains("](") else { return AttributedString(text) }
+            return (try? AttributedString(
+                markdown: text,
+                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+            )) ?? AttributedString(text)
         }
 
         private var row: some View {

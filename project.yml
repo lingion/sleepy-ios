@@ -62,6 +62,10 @@ targets:
       - path: Sleepy/resources
         # iOS 标准:lproj 目录直接作为 resources bundle 根(xcodegen 默认逐文件拷贝)
         buildPhase: resources
+        excludes: ["third_party"]
+      - path: Sleepy/resources/third_party
+        buildPhase: resources
+        type: folder
     dependencies:
       - package: GRDB
       - package: SwiftSoup
@@ -153,8 +157,10 @@ targets:
       #   extension 里禁用; 仅 SleepyApp/AppPrefs 消费, widget 无引用)
       - path: Sleepy
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
+                   "debug", "data/share",
                    "widget/notification/BatterySettingsLauncher.swift",
                    "util/NavStyleResolver.swift",
+                   "gamecenter",
                    # 主 app 的隐私清单只归 Sleepy target; widget 用自己的
                    # SleepyWidget/PrivacyInfo.xcprivacy (下方 path: SleepyWidget 已含)。
                    # 不排除 → archive 时 widget target 同时拷两份 PrivacyInfo.xcprivacy
@@ -162,6 +168,7 @@ targets:
                    "PrivacyInfo.xcprivacy"]
       - path: Sleepy/resources
         buildPhase: resources
+        excludes: ["third_party"]
     dependencies:
       - package: GRDB
       - package: SwiftSoup
@@ -204,6 +211,8 @@ targets:
       #   教务导入)、data/migration (仅 ui/ 引用, 手表镜像库不做迁移包)。
       - path: Sleepy
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
+                   "debug", "data/share",
+                   "gamecenter",
                    "Assets.xcassets", "LaunchScreen.storyboard",
                    "data/calendar", "data/jw", "data/migration",
                    "data/repository/ImportDraftRepository.swift",
@@ -224,6 +233,7 @@ targets:
                    "util/NavStyleResolver.swift"]
       - path: Sleepy/resources
         buildPhase: resources
+        excludes: ["third_party"]
     dependencies:
       - package: GRDB
       # 嵌入表盘复杂功能 + Control Center extension (PR#16 阶段四)
@@ -274,6 +284,8 @@ targets:
       - path: SleepyWatchWidgets
       - path: Sleepy
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
+                   "debug", "data/share",
+                   "gamecenter",
                    "Assets.xcassets", "LaunchScreen.storyboard",
                    "data/calendar", "data/jw", "data/migration",
                    "data/repository/ImportDraftRepository.swift",
@@ -291,6 +303,7 @@ targets:
                    "util/NavStyleResolver.swift"]
       - path: Sleepy/resources
         buildPhase: resources
+        excludes: ["third_party"]
     dependencies:
       - package: GRDB
     info:
@@ -327,6 +340,8 @@ targets:
       - path: SleepyTests/resources
         buildPhase: resources
         type: folder
+      - path: docs/catalog-v1063-candidates.json
+        buildPhase: resources
     dependencies:
       - target: Sleepy
     info:
@@ -382,6 +397,10 @@ schemes:
       targets:
         - SleepyTests
         - SleepyUITests
+      # 民事日锚定 Asia/Shanghai(DateUtils.parseDate / CourseOccurrences.calendar);
+      # GitHub runner 默认 UTC, 与锚时区差 8h 会让日期类断言整体错位一天。
+      environmentVariables:
+        TZ: Asia/Shanghai
   # watchOS 伴侣 App 独立运行入口 (手表模拟器调试; CI 仍只跑 -scheme Sleepy)
   Sleepy Watch:
     build:

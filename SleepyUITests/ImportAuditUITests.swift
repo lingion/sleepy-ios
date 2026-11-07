@@ -25,11 +25,11 @@ final class ImportAuditUITests: XCTestCase {
         // 进管理页/课程清单)→ 容器节点在 AX 树不浮出(无同名可查元素, waitForExistence
         // 必超时; 原版本 侧也无该 tag)。改断言测试 :28-30 已在用的 _value 子节点
         // (MineScreen.swift StatItem 内 Text(value).accessibilityIdentifier("\(id)_value"))。
-        // 校验种子表/课程数文本(1 表 / 4 课程 / 第 1 周)
+        // 校验种子表/课程数文本(1 表 / 5 课程 / 第 1 周)
         let tablesValue = app.descendants(matching: .any)["mine_stat_tables_value"].firstMatch
         XCTAssertTrue(tablesValue.waitForExistence(timeout: 4), "Mine 页统计应可见(种子数据)")
         XCTAssertEqual(tablesValue.label, "1")
-        XCTAssertEqual(app.descendants(matching: .any)["mine_stat_courses_value"].firstMatch.label, "4")
+        XCTAssertEqual(app.descendants(matching: .any)["mine_stat_courses_value"].firstMatch.label, "5")
         XCTAssertEqual(app.descendants(matching: .any)["mine_stat_week_value"].firstMatch.label, "1")
     }
 }

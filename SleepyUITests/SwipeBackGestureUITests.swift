@@ -76,6 +76,11 @@ final class SwipeBackGestureUITests: XCTestCase {
         guard aboutEntry.waitForExistence(timeout: 5) else {
             throw XCTSkip("mine_about 入口不可见, 跳过")
         }
+        // ★ mine_about 在 Mine 页下部, 部分可见时 tap 落点可能被 pill 导航栏拦截
+        //   (2026-11-06 CI 实证: 无滚动直接 tap → overlay 不弹; A1 截图用例先
+        //   swipeUp 再 tap 则稳定过)。滚出 pill bar 拦截区再点, 与
+        //   MineSettingsUITests.scrollUntil 同口径(底部 110pt 拦截带)。
+        scrollEntryIntoView(aboutEntry)
         aboutEntry.tap()
 
         // 等待 overlay 顶栏 ⬅️ 按钮
@@ -136,10 +141,32 @@ final class SwipeBackGestureUITests: XCTestCase {
         guard aboutEntry.waitForExistence(timeout: 5) else {
             throw XCTSkip("mine_about 入口不可见, 跳过")
         }
+        // ★ 同 testFullScreenOverlaySwipeDismiss: 先滚出 pill bar 拦截区再 tap。
+        scrollEntryIntoView(aboutEntry)
         aboutEntry.tap()
 
         let backButton = app.buttons["topbar_back"]
         XCTAssertTrue(backButton.waitForExistence(timeout: 5),
                       "SettingsTopBar ⬅️ 按钮 (topbar_back) 必须存在")
+    }
+
+    // MARK: - 滚动助手(与 MineSettingsUITests.scrollUntil 同口径)
+
+    /// 把元素滚到 pill 导航栏拦截带之上; 最多 6 次上滑。
+    /// 与 MineSettingsUITests.scrollUntil 的 110pt 底部拦截带同一经验值。
+    @discardableResult
+    private func scrollEntryIntoView(_ element: XCUIElement, maxSwipes: Int = 6) -> Bool {
+        let screenH = app.windows.firstMatch.frame.height
+        let usableBottom = screenH - 110
+        func visible() -> Bool {
+            guard element.exists else { return false }
+            let f = element.frame
+            return f.minY >= 0 && f.maxY <= usableBottom
+        }
+        for _ in 0...maxSwipes {
+            if visible() { return true }
+            app.swipeUp()
+        }
+        return visible()
     }
 }

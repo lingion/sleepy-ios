@@ -49,13 +49,13 @@ struct WeekGridWidgetEntryView: View {
     var body: some View {
         // iOS 26 「透明/着色」样式探测 (← WidgetBackgroundCompat): glass 态配色换白 alpha;
         // SMALL 档 Today 紧凑面与网格主体共用同一探测结果
-        WidgetGlassModeContent { isGlass in
+        WidgetGlassModeContent { mode in
             // issue#26: SMALL 档 — 仅渲染今日紧凑面(复用 Today compact face;
             // TodayWidgetEntryView 自身再探测 glass, 嵌套探测无害)
             if widgetFamily == .systemSmall {
                 WeekGridMinimumTodayFace(data: entry.data)
             } else {
-                gridBody(isGlass: isGlass)
+                gridBody(renderingMode: mode)
             }
         }
         .widgetURL(URL(string: "sleepy://open"))
@@ -63,10 +63,10 @@ struct WeekGridWidgetEntryView: View {
 
     // ← 常规/中大尺寸: 网格渲染(冲突分栏走 ConflictLayoutEngine.gridDayLanes)
     @ViewBuilder
-    private func gridBody(isGlass: Bool) -> some View {
+    private func gridBody(renderingMode: SleepyWidgetRenderingMode) -> some View {
         // today 高亮铺满整个 body, 分隔线跨全列, 三行表头墨迹可越出时间列 —
         // 全部在 body 层用画布坐标绝对定位 (复刻 原版本 Canvas 绘制顺序)
-        WeekGridBody(data: entry.data, layout: WeekGridBody.GridLayout(), isGlass: isGlass)
+        WeekGridBody(data: entry.data, layout: WeekGridBody.GridLayout(), renderingMode: renderingMode)
     }
 }
 
@@ -86,13 +86,15 @@ private struct WeekGridBody: View {
     let data: WeekData
     let layout: GridLayout
     /// iOS 26 「透明/着色」样式 (← WeekGridWidgetEntryView 探测) — glass 态配色换白 alpha
-    let isGlass: Bool
+    let renderingMode: SleepyWidgetRenderingMode
     @Environment(\.colorScheme) private var widgetColorScheme
+    @Environment(\.colorSchemeContrast) private var widgetContrast
 
     var body: some View {
         let isDark = effectiveWidgetIsDark(themeMode: data.themeMode, snapshotIsDark: data.isDark,
                                             envScheme: widgetColorScheme)
-        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, isGlass: isGlass)
+        let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, renderingMode: renderingMode,
+                                    increasedContrast: widgetContrast == .increased)
         let colorless = AppPrefs.shared.isWidgetColorless()
         let todayDow = DateUtils.todayDayOfWeek(today: Date())
         // issue#22: 同名课程多地点 — 跨天汇总 course 全集, 传取色入口做 AUTO/CUSTOM 按行判
