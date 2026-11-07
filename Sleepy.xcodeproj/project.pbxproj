@@ -562,6 +562,7 @@
 		98A433888141B39883E37167 /* WidgetDataLoaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = B445492F562DDC2A16B5171D /* WidgetDataLoaders.swift */; };
 		98C58C476CAEC096E95B72A0 /* JwParserRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26CF08C9ED257788E53D0309 /* JwParserRegistry.swift */; };
 		990AB2AAF76FD0526908555A /* FeedbackComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F1E27AEBC58B8A02E88519 /* FeedbackComposer.swift */; };
+		99271AD383215D31F66B3532 /* WatchTimeStripProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2F7AE3D88421C231F3F990 /* WatchTimeStripProvider.swift */; };
 		99880A99CECAE11D2D3DDAE2 /* JwQzAppParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6057944C03E91C59FC223358 /* JwQzAppParser.swift */; };
 		9A1D51364D41BEC42AF36C0D /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1205376525F575AF970B7CD4 /* Localizable.strings */; };
 		9A76AFB9856857FA425DA1FA /* CourseOccurrences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21110C5EC7715F2104013B70 /* CourseOccurrences.swift */; };
@@ -680,6 +681,7 @@
 		B946F93F767DE214C2567E03 /* WatchPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = B74E99119576AF81E6F6A973 /* WatchPalette.swift */; };
 		B9565500F0E41BE6FD0A49BF /* WakeUpV6170CryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EE8A20C3E335D801B6BB4FE /* WakeUpV6170CryptoTests.swift */; };
 		B97DD574CBBD426AFB4CDB21 /* WeekRangeOverlap.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8C75554581BE8C26C81B68 /* WeekRangeOverlap.swift */; };
+		B9916A8499A5177B5B4E5C19 /* WatchTimeStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B387DB6D5E321BBFC978A6DF /* WatchTimeStripView.swift */; };
 		B9AD5C163D32ED432392B809 /* WidgetSettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B0AA7A7A590FC36AAAE7D0 /* WidgetSettingsScreen.swift */; };
 		B9F2E54ACCFF7426F9E03EDD /* TimetableViewportPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AD1DB72537D5FB202ADBE25 /* TimetableViewportPolicy.swift */; };
 		BA0886BFD5285B9F2ED4B736 /* BackgroundReliabilityProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A2B9F752990795A5BDC657 /* BackgroundReliabilityProbe.swift */; };
@@ -1372,6 +1374,7 @@
 		B26C1FC7457815C7A78F9026 /* DateTimePickers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateTimePickers.swift; sourceTree = "<group>"; };
 		B2C4F0122B013F0C9601D7DB /* JwHomeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwHomeParser.swift; sourceTree = "<group>"; };
 		B31ED92C2240B798F37A4F8A /* ConflictCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictCard.swift; sourceTree = "<group>"; };
+		B387DB6D5E321BBFC978A6DF /* WatchTimeStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripView.swift; sourceTree = "<group>"; };
 		B413E30FAD9261068960FC5F /* JwImportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportViewModel.swift; sourceTree = "<group>"; };
 		B41AA3A6188D5A6651648F24 /* ExportFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFlowUITests.swift; sourceTree = "<group>"; };
 		B445492F562DDC2A16B5171D /* WidgetDataLoaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataLoaders.swift; sourceTree = "<group>"; };
@@ -1497,6 +1500,7 @@
 		EB16BBC06209972B0E6B63A1 /* AllTablesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllTablesScreen.swift; sourceTree = "<group>"; };
 		EB8C75554581BE8C26C81B68 /* WeekRangeOverlap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekRangeOverlap.swift; sourceTree = "<group>"; };
 		EB9D554C17B07C5E84921BFF /* WatchTodayListViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTodayListViews.swift; sourceTree = "<group>"; };
+		EC2F7AE3D88421C231F3F990 /* WatchTimeStripProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripProvider.swift; sourceTree = "<group>"; };
 		EC764912B65C30BEF4ABB94B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EDC6BEB3E8D377C5952F4450 /* JwJsonParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwJsonParserTests.swift; sourceTree = "<group>"; };
 		EEFFFB7B27071D52A6BF4CD8 /* JwParseDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParseDiagnostics.swift; sourceTree = "<group>"; };
@@ -2400,6 +2404,8 @@
 				AF680AA6331226481842B6E5 /* WatchComplicationViews.swift */,
 				D04622449C96DB2BB15D6100 /* WatchCurrentClassViews.swift */,
 				92BDFF07EFDCE99A1169FB4E /* WatchTimelineSupport.swift */,
+				EC2F7AE3D88421C231F3F990 /* WatchTimeStripProvider.swift */,
+				B387DB6D5E321BBFC978A6DF /* WatchTimeStripView.swift */,
 				EB9D554C17B07C5E84921BFF /* WatchTodayListViews.swift */,
 				B7295991FEB56734AAE5B65B /* WatchTodayOverviewViews.swift */,
 				1047803991AE45848D425670 /* WatchTomorrowViews.swift */,
@@ -2802,6 +2808,8 @@
 				B365C08AC9F09ACFB4EC868D /* WatchSyncSnapshot.swift in Sources */,
 				B5B090CED25BD53408C3D0D8 /* WatchTimeStripCore.swift in Sources */,
 				612CF15076F5F3DEEC17AE77 /* WatchTimeStripPreferences.swift in Sources */,
+				99271AD383215D31F66B3532 /* WatchTimeStripProvider.swift in Sources */,
+				B9916A8499A5177B5B4E5C19 /* WatchTimeStripView.swift in Sources */,
 				55B51C8337410D907CF68416 /* WatchTimelineSupport.swift in Sources */,
 				8E4B78FB82A1F3FA990F0AAF /* WatchTodayListViews.swift in Sources */,
 				5C0563EE54EAF0BFEBA9F48D /* WatchTodayOverviewViews.swift in Sources */,
