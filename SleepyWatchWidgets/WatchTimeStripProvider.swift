@@ -67,8 +67,9 @@ struct WatchTimeStripProvider: TimelineProvider {
     private func entry(at date: Date, agendas: [Date: [WatchAgendaCore.ClassItem]]?,
                        preferences: WatchTimeStripPreferences) -> WatchTimeStripEntry {
         guard let agendas = agendas else {
-            return WatchTimeStripEntry(date: date, snapshot: .unavailable(at: date),
-                                      language: preferences.language)
+            return WatchTimeStripEntry(date: date,
+                snapshot: WatchTimeStripCore.unavailable(at: date, calendar: calendar),
+                language: preferences.language)
         }
         let day = calendar.startOfDay(for: date)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: day) ?? day
