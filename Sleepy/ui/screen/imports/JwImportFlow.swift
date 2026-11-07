@@ -431,7 +431,7 @@ struct JwImportFlow: View {
         return JwImportReport.build(
             school: school,
             courseCount: parsedCourses.count,
-            versionName: UpdateManager.currentVersionName,
+            versionName: VersionUtils.currentVersionName,
             versionCode: appBuildCode,
             date: JwImportReport.todayStamp())
     }
@@ -1718,7 +1718,7 @@ struct JwImportReportDialog: View {
         JwImportReport.build(
             school: school,
             courseCount: courseCount,
-            versionName: UpdateManager.currentVersionName,
+            versionName: VersionUtils.currentVersionName,
             versionCode: (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
                 .flatMap(Int.init) ?? 0,
             date: JwImportReport.todayStamp())

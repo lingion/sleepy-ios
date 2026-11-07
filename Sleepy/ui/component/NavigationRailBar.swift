@@ -48,8 +48,7 @@ struct NavigationRailBar: View {
                                           colors: colors)
                         .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).content)
                 } else {
-                    // 另两槽 = 普通项(恒未选中态, ← 原版本 PlainRailItem
-                    // selected=false; Mine 普通项时 badge 由 item.badge 携带)
+                    // 另两槽 = 普通项(恒未选中态, ← 原版本 PlainRailItem selected=false)
                     RailItemView(item: item, colors: colors)
                         .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).content)
                 }
@@ -89,14 +88,14 @@ private struct CombinedRailItemView: View {
     var body: some View {
         Button(action: item.onClick) {
             VStack(spacing: 0) {
-                iconSlot(scheduleIcon, desc: L10n.t("tab_schedule"), dot: false)
+                iconSlot(scheduleIcon, desc: L10n.t("tab_schedule"))
                 // 中线发丝分隔(HorizontalDivider 0.5dp,
                 // onSurfaceVariant × Alpha.hairline(0.3), 左右 padding 10)
                 Rectangle()
                     .fill(colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.hairline))
                     .frame(height: 0.5)
                     .padding(.horizontal, 10)
-                iconSlot(item.icon, desc: item.label, dot: item.badge)
+                iconSlot(item.icon, desc: item.label)
             }
             .frame(width: 56)
             .padding(.vertical, 4)
@@ -114,25 +113,15 @@ private struct CombinedRailItemView: View {
         .accessibilityIdentifier("rail_schedule_\(item.id)")
     }
 
-    private func iconSlot(_ name: String, desc: String, dot: Bool) -> some View {
-        ZStack(alignment: .topTrailing) {
-            // 28pt 图标盒(Box(size=28) 居中 22dp 图标)
-            Color.clear.frame(width: 28, height: 28)
-            Image(systemName: name)
-                .font(.system(size: 22))
-                .foregroundColor(item.selected ? colors.onPrimaryContainer
-                                               : colors.onSurfaceVariant)
-                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: item.selected)
-                .frame(width: 28, height: 28)
-            SleepyPopup(visible: dot) {
-                // 7pt primary 红点(NavigationTabIcon showUpdateDot)
-                Circle()
-                    .fill(colors.primary)
-                    .frame(width: 7, height: 7)
-                    .offset(x: 4, y: -2)
-            }
-        }
-        .accessibilityLabel(desc)
+    private func iconSlot(_ name: String, desc: String) -> some View {
+        // 28pt 图标盒(Box(size=28) 居中 22dp 图标; v1.0.60 showUpdateDot 随更新切片移除)
+        Image(systemName: name)
+            .font(.system(size: 22))
+            .foregroundColor(item.selected ? colors.onPrimaryContainer
+                                           : colors.onSurfaceVariant)
+            .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: item.selected)
+            .frame(width: 28, height: 28)
+            .accessibilityLabel(desc)
     }
 }
 
@@ -156,12 +145,6 @@ private struct RailItemView: View {
                             .font(.system(size: 20))
                             .foregroundColor(item.selected ? colors.onPrimaryContainer
                                                            : colors.onSurfaceVariant)
-                        SleepyPopup(visible: item.badge) {
-                            Circle()
-                                .fill(colors.primary)
-                                .frame(width: 7, height: 7)
-                                .offset(x: 4, y: -3)
-                        }
                     }
                 }
                 Text(item.label)

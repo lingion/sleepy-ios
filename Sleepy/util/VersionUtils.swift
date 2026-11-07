@@ -4,6 +4,12 @@
 import Foundation
 
 enum VersionUtils {
+    /// 当前 App 版本(= 原版本 BuildConfig.VERSION_NAME;iOS = CFBundleShortVersionString)
+    /// 1.0.64 自 UpdateManager 迁居(更新检查下线, 版本号展示仍被关于页/导入报告消费)。
+    static var currentVersionName: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0"
+    }
+
     private static func parts(_ version: String) -> [Int] {
         // ← Regex("\\d+").findAll(version.removePrefix("v"))
         let digits = version.hasPrefix("v") ? String(version.dropFirst()) : version

@@ -151,7 +151,7 @@ final class UIElementAuditUITests: XCTestCase {
     }
 
     private func navigateToAbout() {
-        openMineSetting("mine_about", assertAnchor: "about_check_update")
+        openMineSetting("mine_about", assertAnchor: "topbar_back")
     }
 
     private func navigateToAllTables() {

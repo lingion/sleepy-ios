@@ -122,6 +122,19 @@ final class MineSettingsUITests: XCTestCase {
             .matching(NSPredicate(format: "identifier BEGINSWITH 'widget_gallery_card_'"))
             .firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5), "点「＋」应打开添加小组件画廊页")
+
+        // v1.0.64: 点卡片 → 添加引导 sheet(取代原「不支持」snackbar 死胡同)
+        card.tap()
+        let guideTitle = app.descendants(matching: .any)["widget_guide_title"]
+        XCTAssertTrue(guideTitle.waitForExistence(timeout: 5), "点卡片应弹出小组件添加引导页")
+        let guideCopy = app.descendants(matching: .any)["widget_guide_copy"]
+        XCTAssertTrue(guideCopy.exists, "引导页应有复制组件名按钮")
+        let close = app.descendants(matching: .any)["topbar_close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 3), "引导页应有 ✕ 关闭按钮")
+        close.tap()
+        let gone = Date().addingTimeInterval(3)
+        while guideTitle.exists && Date() < gone { usleep(100_000) }
+        XCTAssertFalse(guideTitle.exists, "关闭后引导页应消失")
     }
 
     // MARK: All Schedules — 切表 / 编辑入口 / 新建按钮
@@ -487,22 +500,5 @@ final class MineSettingsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Reminders"].exists, "提醒页操作后不崩")
     }
 
-    // MARK: About — 检查更新按钮(点击进入 checking 态, 网络失败回落不崩)
-
-    func testAboutCheckUpdateButton() {
-        // ★ mine_about 在 Mine 页下部: 部分可见时 tap 落点会被 pill 导航栏拦截
-        //   (2026-11-06 CI 实证, 与 SwipeBackGestureUITests 同因)。先滚出拦截带。
-        let aboutEntry = app.descendants(matching: .any)["mine_about"]
-        scrollUntil(aboutEntry)
-        aboutEntry.tap()
-        XCTAssertTrue(app.staticTexts["About"].waitForExistence(timeout: 5))
-
-        let checkBtn = app.descendants(matching: .any)["about_check_update"]
-        XCTAssertTrue(checkBtn.waitForExistence(timeout: 3))
-        checkBtn.tap()
-        // 进入 checking(可能很快过去, 只要页面不崩)
-        XCTAssertTrue(app.staticTexts["About"].waitForExistence(timeout: 3),
-                      "检查更新不应崩溃")
-    }
 }
 

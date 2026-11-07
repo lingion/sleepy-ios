@@ -242,12 +242,17 @@ private func isDateTodayOfWeek(startDate: String, week: Int, day: Int, todayDate
 
 // MARK: - 双指纵向缩放行高 ← Modifier.verticalResizeGesture
 // v1.0.56 T3: pinchZoomEnabled=false 时手势不挂(存量缩放值不清)。
+// v1.0.64 修复(用户实测开关开了仍捏不动): 识别器改挂最近祖先 UIScrollView。
+// 根因 = hitTest 不命中的 view 其识别器永收不到触摸; 旧代码把 pinch 加在
+// .background(GridPinchResizer) 的 superview(SwiftUI 背景宿主, 不在滚动
+// 内容的 hit 链上) → 永不触发; 且无 delegate, 与外层 ScrollView 纵向 pan/
+// TabView 横向 pager 竞争必败。坐标取 in:self, verticalSpan 是平移不变量,
+// 与宿主坐标系无关。
 // 阈值/主导比/上下限求解全走 TimetableViewportPolicy(与 原版本 同一纯函数)。
-private final class GridPinchResizeUIView: UIView {
-    /// 实验室总开关。开关在页面存活期间被翻成 true(设置页返回/同帧重算)时,
-    /// didMoveToWindow 不会再次触发 → 必须即时挂手势, 否则开关"看起来开了但捏不动"。
-    /// (`if (pinchZoomEnabled) Modifier.verticalResizeGesture(...) else Modifier`
-    ///  每次 recompose 重建 pointerInput, 开关即时生效。)
+private final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
+    /// 实验室开关(1.0.64 起默认开)。开关在页面存活期间被翻成 true(设置页返回/
+    /// 同帧重算)时, didMoveToWindow 不会再次触发 → didMoveToSuperview/syncGesture
+    /// 即时重挂, 否则开关"看起来开了但捏不动"。
     var enabled = false { didSet { if oldValue != enabled { syncGesture() } } }
     var baseRowHeightDp: CGFloat = 52
     var currentRowHeightDp: CGFloat = 52
@@ -256,6 +261,7 @@ private final class GridPinchResizeUIView: UIView {
 
     private var pinch: UIPinchGestureRecognizer?
     private weak var attachedTo: UIView?
+    private weak var hostScroll: UIScrollView?
     private var startVerticalSpan: CGFloat?
     private var startHorizontalSpan: CGFloat = 0
     private var startRowHeightDp: CGFloat = 0
@@ -266,13 +272,29 @@ private final class GridPinchResizeUIView: UIView {
         syncGesture()
     }
 
-    /// 依据当前 window + enabled 同步识别器挂载状态(幂等)。
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        syncGesture()
+    }
+
+    /// pinch 宿主 = 最近祖先 UIScrollView(课表内容的真实触摸宿主);
+    /// 无滚动祖先时退回直接 superview(保持旧行为面, 不退化)。
+    private func resolveHost() -> UIView? {
+        var v = superview
+        while let cur = v {
+            if cur is UIScrollView { return cur }
+            v = cur.superview
+        }
+        return superview
+    }
+
+    /// 依据当前 window + enabled 同步挂载状态(幂等)。
     private func syncGesture() {
         if window == nil {
             detachGesture()
             return
         }
-        guard enabled, let host = superview else {
+        guard enabled, let host = resolveHost() else {
             detachGesture()
             return
         }
@@ -280,19 +302,37 @@ private final class GridPinchResizeUIView: UIView {
         detachGesture()
         let g = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
         g.cancelsTouchesInView = false   // 平台偏差: 不劫持单指点击/滚动
+        g.delegate = self                // v1.0.64: 与滚动/pager 并存, 否则竞争必败
         host.addGestureRecognizer(g)
         attachedTo = host; pinch = g
+        hostScroll = host as? UIScrollView
     }
 
     private func detachGesture() {
         if let g = pinch { attachedTo?.removeGestureRecognizer(g) }
         pinch = nil; attachedTo = nil
+        restoreScroll()
+        hostScroll = nil
+    }
+
+    /// 纵向意图锁定后接管滚动(← 原 consume 屏蔽 pager 的 iOS 等价物):
+    /// 捏合期间页面不跟手漂移。
+    private func suppressScroll() { hostScroll?.isScrollEnabled = false }
+    private func restoreScroll() {
+        if hostScroll?.isScrollEnabled == false { hostScroll?.isScrollEnabled = true }
+    }
+
+    // 与 ScrollView 纵向 pan / TabView 横向 pager 并存; 单指点击/滚动不受影响。
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
     }
 
     @objc private func handlePinch(_ g: UIPinchGestureRecognizer) {
         guard enabled, g.state == .began || g.state == .changed, g.numberOfTouches >= 2 else {
             startVerticalSpan = nil
             locked = false
+            restoreScroll()
             return
         }
         let p0 = g.location(ofTouch: 0, in: self)
@@ -311,6 +351,7 @@ private final class GridPinchResizeUIView: UIView {
                                                        startHorizontalSpan: startHorizontalSpan,
                                                        currentHorizontalSpan: horizontalSpan) {
             locked = true
+            suppressScroll()
         }
         if locked {
             let clampedScale = min(max(contentScale, 0.7), 1.3)

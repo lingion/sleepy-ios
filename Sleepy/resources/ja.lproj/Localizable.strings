@@ -304,16 +304,6 @@
 "settings_nav_style" = "ナビバーのスタイル";
 "settings_nav_style_docked" = "下部に固定";
 "settings_nav_style_floating" = "フローティング";
-"about_update_latest" = "最新バージョン v%1$@ です";
-"update_found_title" = "新しいバージョン v%1$@ があります";
-"update_download" = "ダウンロード";
-"update_cancel" = "キャンセル";
-"update_downloading" = "ダウンロード中 %1$d%%";
-"update_installing" = "ダウンロード完了、インストーラーを起動中";
-"update_retry" = "再試行";
-"update_download_failed" = "ダウンロード失敗: %1$@";
-"update_ios_sideload_title" = "ダウンロード完了";
-"update_ios_sideload_hint" = "IPA をダウンロードしました。iOS は自動インストール不可のため、AltStore で再サイドロードして更新してください。";
 "about_author" = "作者";
 "about_author_name" = "Lingion";
 "about_license_body" = "本アプリの一部の履修取り込みアダプタは、以下のオープンソースプロジェクトの公開実装を参考にしています。跨校(複数大学共通の基盤的)プロジェクトと単校(各校固有)プロジェクトの二層構造に整理し、単校カードはタップで展開して当該校が参考にした全ての学生プロジェクトを確認できます。\n\n跨校基盤的プロジェクト:WakeUp Schedule (YZune, Apache-2.0) および WakeupSchedule_BUPT (dIT8Zv, Apache-2.0) — 12 種類の教育システムパーサー(強智系・旧正方・URP・青果・湖南科技大学等)と中間データ構造のリファレンス実装;WakeupSchedule_Kotlin (Apache-2.0) クラシック金智 EAMS;cqu.js(時光課程表重慶大学アダプタ)重慶大学ポータル REST;shiguang_warehouse (XingHeYuZhuan, MIT) 武漢理工大学 kcbcxby・クラシック EAMS・新正方グリッドビュー;zfn_api (openschoolcn, MPL-2.0) と FlowCourse (jiaweiyaya, GPL-3.0) 新正方 kbList 形式のクロスバリデーション;iwut (TokenTeam, AGPL-3.0、プロトコル形式のみ参考) 武漢理工大学のコマ割りマッピング;「上课」shangkeschedule (qiqqqqq517, Apache-2.0) と WakeUp Schedule 学校登録データは、リスト照合に活用。\n\n単校プロジェクト（1 校 1 カード、展開で明細）—— 合肥工業大学 HFUT:HFUT-Schedule (Chiu-xaH, MIT)、HfutOpenApi (BoynChan, MIT)、hfut_schedule_hacker (Aoi-cn)、django-hfut-auth (elonzh, MIT);東南大学 SEU:SEUTimetable (sakimidare, Apache-2.0)、Aetik-yue/hormone、luzy99/SEUAutoLogin;浙江大学 ZJU:zju-ical-py (Xecades, LGPL-2.1);中国科学技術大学 USTC:USTC-timetable-to-ics (1970633640);四川大学 SCU:ScuTimetable (Z-P-J);東北部大学 NEU:neu_wisedu2wakeup (CreamPig233)、PopulusYang/NeuTimetable、neucn/elise、RekaYOO/NEU-JWXT-Toolkit、PeterPtroc/neu-jwxt-to-wakeup、leavesvv-source/NEU-Timetable;重慶大学 CQU:321CQU/pymycqu、BillYang2016/CQU-class2ics、haowang02/CourseMonitor、LengerHu/CQU_classtabletoics、Hagb/cqu_timetable_new、VayneDuan/CQU-Grade-Monitor、weearc/cm-http-api、barryZZJ/course_to_calander_converter;武漢理工大学 WHUT:courseTable (acm910);電子科技大学 UESTC:MilLoong/UESTC-EAMS-Helper-App、MilLoong/UESTC-EAMS-Helper-Python、KaranocaVe/UESTCJWCWatchdog、whtsky/uestc-eams-cleartimeout-userscript、Sunmxt/UESTC-EAMS;広東工業大学 GDUT:N0tExpectErr0r/GDUT-ClassTimeTable、Richard-Zheng/GDUT-Schedule-ng、StarArchive/gdut-course-frontend、StarArchive/gdut-course-backend、HoneQ7/GDUT_iOS_Timetable;広東財経大学 GDUFE:jkgeekJack/GDUFE-JWC-SDK-1.0.0、Kiteio/GDUFE-wrapper;広東金融学院 GDUf:Kiteio/Punica、gduf-finmind;広東外語外貿大学 GDUFS:yongjianzheng/Gdufszhushou、Crazioker/agency;広東医科大学 GDMU:ユーザー提供のキャプチャで zf_new プロトコル確定 (新正方 zftal-ui-v5 素 /kbcx/ パス)、docs/release-notes-v1.0.49.md 参照;長沙理工大学 CSUST:zHElEARN/CSUSTKit、CreaMakers/EduSpider、timeisthe/CSUSTDataGet、Julius-lq/EduAdminSystem、JS-CAUTION/csust-course-schedule;北京郵電大学 BUPT:helium777/bupt-course-grab、JmPotato/BUPT-Grader、Seizzzz/Auto-Login-BUPT;北京大学 PKU:zhongxinghong/PKUAutoElective、thezzisu/pku-elective、Hovennnnn/PKUAutoElective2023、Lihhan/AutoElective_4_PKU、AuYang261/PKU_Elective_Toolset;北京化工大学 BUCT:MarkYangKp/ZhengFangJY;中国科学院大学 UCAS:ldiex/UCAS_Course_Schedule_Convertor (Python, 13 節次 + 選課周次マッピング)、Hurray0/UCAS_GET_Course (Python, xkgo.ucas.ac.cn 選課取得スクリプト)、cld378632668/ucas_course_tool (Java, UCAS コースユーティリティ)、GentleCP/UCAS-Helper (TypeScript, UCAS コース/成績ヘルパー);北京航空航天大学 BUAA:APassbyDreg/BUAA_JW_Utils (Python 工具集, ieas2.1 选课 + 评教 URL 锚点)、SE2020-TopUnderstanding/BUAA-Campus-Tools-Backend (Python, jwxt-7001.e2.buaa.edu.cn/ieas2.1/kbcx/queryGrkb 课表 endpoint 实锤)、fondoger/buaa-teacher-evaluation (MIT, 一键评教 sso.buaa.edu.cn CAS)、Cauchy1412/BUAAGetCourse (Python 抢课脚本)、KKRainbow/JWOneShotEval (PHP, 校内 IP 锚点等价);北京林業大学 BJFU:Bloomberg2000/bjfu_course_ics_generator、Bloomberg2000/bjfu_util.py;安徽大学 AHU:Tonyseth/AHU_JW_GPA_Calculator;東北林業大学 NEFU:bboy-xp/nefu-crawler、heyMahalo/crouse_select;東華大学 DHU:tk.dcmmcc、Bad-086/DHU_CourseMonitor;雲南財経大学 YNUFE:NINIYOYYO/ynufe-campus-app、MiaoWuNYA/ynufeRealLogin;北京理工大学 BIT:BIT-Login (BIT101-dev);北京信息科技大学 BISTU:iBistu (ProjektMing);安徽建築大学 AHU-JZ:JdaAssist (CH4019, MIT);重慶邮电大学移通学院 CQYTU:CQYTZFCheckScores (xM3GAN, Apache-2.0);華南農業大学 SCAU:ScheduleXParser_SCAU (greyovo);斉魯工業大学 QLU:JW-spider (Zhy423310825);渤海大学 BHU:BohaiServiceDome (joun233);東北石油大学 NEPU:WeNEPU (cutiechi);南京理工大学 NUST:HeraldStudentCurriculum (idailylife)。\n\n";
@@ -330,9 +320,6 @@
 "about_feedback_email_body" = "問題やアイデアを説明してください：\n\n— 環境 —\n（任意）\n";
 "about_feedback_no_mail_app" = "メールアプリが見つかりません。GitHub Issue を使用してください。";
 "about_title" = "について";
-"about_update" = "更新を確認";
-"about_update_checking" = "更新を確認中…";
-"about_update_detail" = "GitHub が利用できない場合は、自動でミラーにフォールバックします";
 "about_version" = "バージョン情報";
 "about_version_detail" = "バージョン %1$@（ビルド %2$d）";
 "action_cancel" = "キャンセル";
@@ -406,13 +393,13 @@
 "reminder_fluid_field_time" = "時刻";
 "reminder_fluid_fields" = "カプセルメイン表示内容";
 "reminder_fluid_fields_hint" = "メイン表示内容を選択";
-"reminder_fluid_note" = "通知をタップすると授業詳細を展開できます。Fluid Cloud / Super Island として表示されるかどうかは、スマホのシステム、通知権限、メーカーのサービス資格によって決まります。";
+"reminder_fluid_note" = "ライブアクティビティは授業前リマインダー設定に追従します;iOS 16.1+ の iPhone 8 以降が必要です";
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
 "reminder_mode_label" = "リマインダー形態";
 "reminder_mode_banner" = "バナー";
 "reminder_mode_fluid" = "リアルタイムカード";
 "reminder_mode_banner_sub" = "通知バーに表示する通常のスワイプ削除可能バナー。ウェアラブル同期に影響なし";
-"reminder_mode_fluid_sub" = "対応する Xiaomi・vivo・Samsung・Meizu スマホでリアルタイム授業カードを表示。非対応の場合は表示されないことがあります";
+"reminder_mode_fluid_sub" = "授業カードが Dynamic Island / ロック画面に表示されます(島なし機種ではロック画面のライブバー、iOS 16.1+)。アプリを完全に終了した後、新しいカードは次回起動時にしか現れません";
 "reminder_master_sub" = "Sleepy に授業通知の送信を許可";
 "reminder_master_title" = "リマインダーを有効化";
 "reminder_notif_denied_title" = "通知の権限が拒否されています";
@@ -473,8 +460,6 @@
 "default_course_name" = "授業";
 "default_room" = "教室";
 "error_unknown" = "不明なエラー";
-"error_no_version_found" = "本サイトでもミラーでもバージョンが見つかりません";
-"error_empty_download" = "ダウンロードファイルが空です";
 "array_day_names_0" = "月";
 "array_day_names_1" = "火";
 "array_day_names_2" = "水";
@@ -629,9 +614,6 @@
 "irregular_switch_sub" = "課表外の時限 · カスタム時限";
 
 /* sleepy-v1 对齐补齐 (iOS native) */
-"about_update_available" = "新バージョン %1$@ があります — タップで表示";
-"about_update_check" = "自動的にアップデートを確認";
-"about_update_check_detail" = "起動時に GitHub Releases を確認し、新バージョンがあれば「について」ページ上部にバナーを表示します";
 "course_alias" = "別名 (任意)";
 "exit_press_back_again" = "もう一度戻るボタンを押すと終了します";
 "export_native_subtitle" = "完全バックアップ · 最小サイズ · 移行に最適";
@@ -748,7 +730,6 @@
 "about_qq_group_number" = "1063407652";
 "about_qq_no_qq" = "グループ番号をコピーしました。QQ が見つかりません";
 "about_qq_title" = "QQ グループ";
-"about_update_dismiss" = "更新のお知らせを閉じる";
 "appearance_header_hanging" = "開始時刻幅 %@ 個分 左右移動";
 "schedule_drag_hint" = "長押しで今回の授業を移動します。左右の端で待つと週が切り替わります。";
 "schedule_drag_failed" = "授業を移動できませんでした。移動先の時限と振替設定を確認してください。";
@@ -1115,9 +1096,15 @@
 "appearance_header_hide_time" = "時間行を表示しない";
 "appearance_header_hide_time_sub" = "旧式ヘッダーで限のみ表示（実験的、デフォルト OFF）";
 "mine_widget" = "ウィジェット";
-"widget_add_unsupported_hint" = "このランチャーはクイック追加に対応していません。ホーム画面を長押し → ウィジェット → Sleepy を選択してください。";
 "widget_gallery_title" = "ウィジェットを追加";
-"widget_manage_empty_v2" = "右上の＋からウィジェットを追加できます。クイック追加非対応のランチャーでは、ホーム画面を長押し → ウィジェット → Sleepy を選択してください。";
+"widget_manage_empty_v2" = "右上の＋からウィジェットを追加できます。まだ追加していない場合は、ホーム画面の何もないところを長押し → ＋ → Sleepy を検索、でも開けます。";
+"widget_guide_title" = "ウィジェットをホーム画面に追加する";
+"widget_guide_search_hint" = "ウィジェット一覧での名前は「%1$@」";
+"widget_guide_copy_name" = "名前をコピー";
+"widget_guide_step_hold" = "ホーム画面の何もないところを長押しし、アプリアイコンが揺れ始めたら離します";
+"widget_guide_step_plus" = "左上の ➕ をタップし、右下の「ウィジェットを追加」をタップします";
+"widget_guide_step_search" = "検索欄にコピーした名前を入力して、このウィジェットを探します";
+"widget_guide_step_drag" = "アイコンを長押ししてホーム画面の空きマスにドラッグし、最後に右上の「完了」をタップします";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "一日の予定";

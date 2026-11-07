@@ -1,5 +1,5 @@
-// VersionAndUpdateTests.swift — ← VersionUtilsTest.kt + UpdateInfoParseTest.kt (逐用例)
-// + AppPrefs/LocaleHelper iOS 新增覆盖
+// VersionAndUpdateTests.swift — ← VersionUtilsTest.kt (逐用例)
+// + AppPrefs/LocaleHelper iOS 新增覆盖 (UpdateInfoParseTest 切片随更新功能 1.0.64 移除)
 
 import XCTest
 import Combine
@@ -14,59 +14,6 @@ final class VersionUtilsTests: XCTestCase {
         XCTAssertEqual(0, VersionUtils.compare("v1.0.26", "1.0.26"))
         XCTAssertLessThan(VersionUtils.compare("1.0.25", "1.0.26"), 0)
         XCTAssertGreaterThan(VersionUtils.compare("1.0.10", "1.0.9"), 0)
-    }
-}
-
-// MARK: - ← UpdateInfoParseTest.kt (5 用例,逐条)
-
-final class UpdateInfoParseTests: XCTestCase {
-
-    private let sampleBody = """
-    {"tag_name":"v1.0.32","body":"## v1.0.32\\n\\n修复 bug","assets":[
-        {"name":"app-arm64-v8a-release.apk","browser_download_url":"https://example.com/a.apk"},
-        {"name":"app-armeabi-v7a-release.apk","browser_download_url":"https://example.com/b.apk"}]}
-    """
-
-    func testParsesVersionChangelogUrlFromGithubJson() {  // ← parses_version_changelog_url_from_github_json
-        let info = parseReleaseJson(sampleBody, currentVersion: "1.0.31", abi: "ios")
-        XCTAssertEqual("1.0.32", info.version)
-        // 原 changelog = "## v1.0.32\n\n修复 bug";iOS asset 名 = Sleepy.ipa
-        XCTAssertEqual("## v1.0.32\n\n修复 bug", info.changelog)
-        XCTAssertTrue(info.isUpdateAvailable)
-    }
-
-    func testOlderRemoteVersionIsNotAnUpdate() {  // ← older_remote_version_is_not_an_update
-        let info = parseReleaseJson(sampleBody, currentVersion: "1.0.33", abi: "ios")
-        XCTAssertFalse(info.isUpdateAvailable)
-    }
-
-    func testSameVersionWithForceFlagIsUpdate() {  // ← same_version_with_force_flag_is_update
-        let body = sampleBody.replacingOccurrences(of: "修复 bug", with: "修复 bug SLEEPY_FORCE_UPDATE=true")
-        let info = parseReleaseJson(body, currentVersion: "1.0.32", abi: "ios")
-        XCTAssertTrue(info.isUpdateAvailable)
-    }
-
-    func testMissingAssetForAbiReturnsBlankUrl() {  // ← missing_asset_for_abi_returns_blank_url
-        // 原版本: x86_64 无 asset → 空 url;iOS: assets 无 Sleepy.ipa → 空 url(等价断言)
-        let noIpa = """
-        {"tag_name":"v2.0.0","body":"x","assets":[
-            {"name":"app-arm64-v8a-release.apk","browser_download_url":"https://example.com/a.apk"}]}
-        """
-        let info = parseReleaseJson(noIpa, currentVersion: "1.0.0", abi: "ios")
-        XCTAssertEqual("", info.downloadUrl)
-    }
-
-    func testEmptyTagFallsBackToZero() {
-        // 原版本: version.ifBlank { "0" } — 空 tag 不该 crash 且恒非更新
-        let empty = #"{"tag_name":"","body":"x","assets":[]}"#
-        let info = parseReleaseJson(empty, currentVersion: "1.0.0", abi: "ios")
-        XCTAssertFalse(info.isUpdateAvailable)
-    }
-
-    func testBrokenJsonIsNotUpdate() {
-        let info = parseReleaseJson("not json {{{", currentVersion: "1.0.0", abi: "ios")
-        XCTAssertFalse(info.isUpdateAvailable)
-        XCTAssertEqual("", info.downloadUrl)
     }
 }
 
@@ -193,7 +140,8 @@ final class AppPrefsTests: XCTestCase {
     func testFactoryDefaultsAlignOriginal1061() {
         // ← AppPrefs.kt 出厂默认逐条: start_view="cards"(用户令网格优先),
         //   compact_window_today_first=true, calendar_apply_transfers=true,
-        //   holiday 规则总开关=false(四类子开关=true), 实验室组全默认关
+        //   holiday 规则总开关=false(四类子开关=true), 实验室组默认关
+    //   (例外: 双指捏放 1.0.64 转正默认开)
         XCTAssertEqual("cards", prefs.getStartView())
         XCTAssertTrue(prefs.isCompactWindowTodayFirst())
         XCTAssertTrue(prefs.isCalendarApplyTransfers())
@@ -203,7 +151,7 @@ final class AppPrefsTests: XCTestCase {
         XCTAssertTrue(prefs.isShowViewSwitcher())
         XCTAssertFalse(prefs.isGridAutoHideEmptyEvening())
         XCTAssertFalse(prefs.isGridAdaptiveHeight())
-        XCTAssertFalse(prefs.isGridPinchZoom())
+        XCTAssertTrue(prefs.isGridPinchZoom())  // 1.0.64 转正默认开(其余实验室组仍全关)
         XCTAssertFalse(prefs.isGridShowSeparators())
         XCTAssertFalse(prefs.isGridLongBreakSpacing())
         XCTAssertEqual("18:00", prefs.getGridEveningStart())

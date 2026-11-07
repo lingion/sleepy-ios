@@ -1,26 +1,8 @@
-// AboutScreen.swift — ← ui/screen/mine/AboutScreen.kt + UpdateChangelogDialog.kt
-// 关于页: App 名+版本 / 一键更新(检查+changelog+下载 IPA)/作者/源码/许可证。
-// 平台差异表#2: 原版本 下载 APK 自装 → iOS 下载 IPA 后提示重新侧载(install 动作降级)。
+// AboutScreen.swift — ← ui/screen/mine/AboutScreen.kt
+// 关于页: App 名+版本 / 作者 / 源码 / 隐私 / 反馈 / QQ 群 / 许可证。
+// (1.0.64: 获取更新切片移除 — 分发收敛到 App Store/TestFlight, GitHub 仅源码公开。)
 
 import SwiftUI
-
-// ← UpdateUiState sealed class
-enum UpdateUiState: Equatable {
-    case idle
-    case checking
-    case noUpdate(String)
-    case updateAvailable(version: String, changelog: String, url: String)
-    case downloading(Int)
-    case installing
-    case failed(message: String, version: String, changelog: String, url: String, isCheckFailure: Bool)
-
-    var isActiveDialog: Bool {
-        switch self {
-        case .updateAvailable, .downloading, .failed, .installing: return true
-        default: return false
-        }
-    }
-}
 
 struct AboutScreen: View {
     @Environment(\.localWakeUpColors) private var colors
@@ -28,34 +10,14 @@ struct AboutScreen: View {
     // ★ v7.10.18 Track D: 长 License 卡拆二级页, AboutScreen 留入口行
     var onOpenLicense: () -> Void = {}
 
-    @State private var uiState: UpdateUiState = .idle
-    @State private var downloadTask: Task<Void, Never>? = nil
     @State private var snackMessage: String? = nil
-    @State private var downloadedIpa: URL? = nil
-    // ← 1.0.51: 冷启动更新检查结果(横幅/高亮) + 自动检查开关(持久化 key 同 原版本)
-    @ObservedObject private var updateNotifier = UpdateNotifier.shared
-    @State private var updateCheckEnabled = UpdateCheckPrefs.isEnabled
 
     var body: some View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("about_title"), onBack: onDismiss)
             ScrollView {
                 VStack(spacing: 0) {
-                    // ← 1.0.51 UpdateBanner: 仅提醒可见(未被该版本叉掉)时渲染, 点击跳 GitHub Releases tag 页
-                    //   (镜像站只代理下载, 网页 UI 渲染不全, 浏览器入口一律走主站; iOS 更新源=lingion/sleepy-ios),
-                    //   叉号按版本关闭提醒 ← UpdateNotifier.dismiss(version)
-                    if updateNotifier.noticeVisible, let banner = updateNotifier.updateAvailable {
-                        Spacer().frame(height: 12)
-                        UpdateBanner(
-                            version: banner.version,
-                            onTap: {
-                                openURL("https://github.com/lingion/sleepy-ios/releases/tag/v\(banner.version)")
-                            },
-                            onDismiss: { updateNotifier.dismiss(version: banner.version) }
-                        )
-                        Spacer().frame(height: 8)
-                    }
-                    // ← 原版本 无横幅时也恒有 Spacer(24): 名字上方 8+24=32, 有横幅时 12+banner+8+24
+                    // ← 原版本 无横幅恒有 Spacer(24)(名字上方 8+24=32); 1.0.64 更新横幅随功能移除
                     Spacer().frame(height: 24)
 
                     appNameHeader
@@ -71,46 +33,10 @@ struct AboutScreen: View {
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(colors.onSurface)
                                 Text(L10n.format("about_version_detail",
-                                                 UpdateManager.currentVersionName, buildCode))
+                                                 VersionUtils.currentVersionName, buildCode))
                                     .font(.system(size: 14))
                                     .foregroundColor(colors.onSurfaceVariant)
                             }
-                        }
-                    }
-                    Spacer().frame(height: 12)
-
-                    // One-click update
-                    InfoCard {
-                        VStack(spacing: 12) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "arrow.down.circle")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(colors.primary)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(L10n.format("about_update"))
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(colors.onSurface)
-                                    Text(L10n.format("about_update_detail"))
-                                        .font(.system(size: 12))
-                                        .foregroundColor(colors.onSurfaceVariant)
-                                }
-                            }
-                            Button(action: checkUpdate) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "arrow.down.circle")
-                                    Text(isChecking ? L10n.format("about_update_checking")
-                                                    : L10n.format("about_update"))
-                                }
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(colors.onPrimary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 40)
-                                .background(colors.primary)
-                                .cornerRadius(20) // ← M3 Button 默认 shape=full-round(胶囊), 40 高 → 圆角 20
-                            }
-                            .buttonStyle(SleepyButtonStyle())
-                            .disabled(isChecking)
-                            .accessibilityIdentifier("about_check_update")
                         }
                     }
                     Spacer().frame(height: 12)
@@ -301,44 +227,19 @@ struct AboutScreen: View {
                     }
                     Spacer().frame(height: 12)
 
-                    // ← 1.0.51 自动检查更新 Toggle: 关闭后冷启动不拉远端, 高亮也立即消失
-                    InfoCard {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.format("about_update_check"))
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(colors.onSurface)
-                                Text(L10n.format("about_update_check_detail"))
-                                    .font(.system(size: 12))
-                                    .foregroundColor(colors.onSurfaceVariant)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            Toggle("", isOn: $updateCheckEnabled)
-                                .labelsHidden()
-                                .tint(colors.primary) // ← M3 Switch checkedTrack=primary
-                                .onChange(of: updateCheckEnabled) { v in
-                                    UpdateCheckPrefs.setEnabled(v)
-                                    if !v { updateNotifier.clearCache() }
-                                }
-                        }
-                    }
-
                     Spacer().frame(height: 32)
                     }
                 }
                 .padding(.horizontal, 20)
             }
         }
-        // ← 1.0.51: 有更新可用且提醒未被该版本叉掉时页面底色高亮 primary 5% (门控同横幅 = noticeVisible)
-        .background(updateNotifier.noticeVisible ? colors.primary.opacity(0.05) : colors.background)
-        // 原版本 在 MainActivity.onCreate 检查; iOS 入口不可改, 由关于页触发(一次进程最多一次)
-        .task { updateNotifier.maybeCheckOnStart() }
+        .background(colors.background)
         .overlay(alignment: .bottom) {
             if let msg = snackMessage {
                 Text(msg)
                     .font(.system(size: 14)) // ← 原 Snackbar bodyMedium 14
-                    // ← G5: 稳定锚点 — 「已是最新版本」是「检查更新」在无更新时的
-                    //   正常结果信号(不是 sheet), 无 id 时 UI 测试无法断言该分支。
+                    // ← G5: 稳定锚点 — QQ 群复制/无邮件客户端提示的结果信号,
+                    //   无 id 时 UI 测试无法断言该分支。
                     .accessibilityIdentifier("about_snackbar")
                     .foregroundColor(colors.onSurface)
                     .padding(.horizontal, 16)
@@ -353,31 +254,6 @@ struct AboutScreen: View {
                     }
             }
         }
-        // ← UpdateChangelogDialog
-        .sheet(isPresented: Binding(
-            get: { uiState.isActiveDialog },
-            set: { if !$0 { uiState = .idle } }
-        )) {
-            UpdateChangelogDialog(state: uiState,
-                                  onDismiss: { uiState = .idle },
-                                  onDownload: { version, changelog, url in
-                                      startDownload(version: version, changelog: changelog, url: url)
-                                  },
-                                  onCancelDownload: { cancelDownload() },
-                                  onRetry: { version, changelog, url in
-                                      if case .failed(_, _, _, _, let isCheck) = uiState, isCheck {
-                                          checkUpdate()
-                                      } else {
-                                          startDownload(version: version, changelog: changelog, url: url)
-                                      }
-                                  })
-                .sheetDetents([.medium])
-        }
-    }
-
-    private var isChecking: Bool {
-        if case .checking = uiState { return true }
-        return false
     }
 
     private var buildCode: Int {
@@ -394,7 +270,7 @@ struct AboutScreen: View {
                 .font(.system(size: 28, weight: .bold))
                 .foregroundColor(colors.onSurface)
             Spacer().frame(height: 4)
-            Text("v\(UpdateManager.currentVersionName)")
+            Text("v\(VersionUtils.currentVersionName)")
                 .font(.system(size: 14))
                 .foregroundColor(colors.onSurfaceVariant)
             Spacer().frame(height: 24)
@@ -403,12 +279,6 @@ struct AboutScreen: View {
 
     private func openURL(_ s: String) {
         if let url = URL(string: s) { UIApplication.shared.open(url) }
-    }
-
-    // ← 原 `e.message ?: unknownErrorMessage`: 错误无有效信息时兜底 error_unknown
-    private func errorMessage(_ error: Error) -> String {
-        let raw = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        return raw.isEmpty ? L10n.format("error_unknown") : raw
     }
 
     // ← joinQqGroup: 复制群号 → 五级拉起降级链(群资料卡 → ALT → TIM → QQ 首页 → 浏览器加群页)。
@@ -444,7 +314,7 @@ struct AboutScreen: View {
         let scale = UIScreen.main.scale
         let bounds = UIScreen.main.bounds.size
         return FeedbackComposer.Diagnostic(
-            versionName: UpdateManager.currentVersionName,
+            versionName: VersionUtils.currentVersionName,
             versionCode: buildCode,
             osVersion: UIDevice.current.systemVersion,
             deviceBrand: "Apple",
@@ -484,177 +354,6 @@ struct AboutScreen: View {
         UIApplication.shared.open(url)
     }
 
-    // ← checkUpdate
-    private func checkUpdate() {
-        guard !isChecking else { return }
-        uiState = .checking
-        Task {
-            do {
-                let info = try await UpdateManager.fetchUpdateInfo()
-                if info.isUpdateAvailable {
-                    uiState = .updateAvailable(version: info.version, changelog: info.changelog,
-                                               url: info.downloadUrl)
-                } else {
-                    // NoUpdate → snackbar + 回 Idle
-                    snackMessage = L10n.format("about_update_latest", info.version)
-                    uiState = .idle
-                }
-            } catch {
-                // ← 原 `e.message ?: unknownErrorMessage`: 空/无信息错误兜底 error_unknown
-                uiState = .failed(message: errorMessage(error), version: "", changelog: "",
-                                  url: "", isCheckFailure: true)
-            }
-        }
-    }
-
-    // ← startDownload: 下载 IPA;完成 → Installing(= iOS 提示侧载)
-    private func startDownload(version: String, changelog: String, url: String) {
-        let info = UpdateInfo(version: version, changelog: changelog, downloadUrl: url, isUpdateAvailable: true)
-        uiState = .downloading(0)
-        downloadTask = Task {
-            do {
-                let file = try await UpdateManager.downloadIpa(info) { progress in
-                    uiState = .downloading(progress)
-                }
-                downloadedIpa = file
-                uiState = .installing
-            } catch is CancellationError {
-                uiState = .updateAvailable(version: version, changelog: changelog, url: url)
-            } catch {
-                // ← 原 `e.message ?: unknownErrorMessage`
-                uiState = .failed(message: errorMessage(error), version: version,
-                                  changelog: changelog, url: url, isCheckFailure: false)
-            }
-        }
-    }
-
-    private func cancelDownload() {
-        downloadTask?.cancel()
-    }
 }
 
 // ← InfoCard 已迁移到 Sleepy/ui/component/SettingsCards.swift 共享
-
-// ← UpdateBanner(1.0.51): primary 12% 底色横幅, 左整行点击跳 Releases tag 页(主站), 右叉号按版本关闭提醒
-private struct UpdateBanner: View {
-    @Environment(\.localWakeUpColors) private var colors
-    let version: String
-    let onTap: () -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        HStack(spacing: 0) {
-            Button(action: onTap) {
-                HStack(spacing: 10) {
-                    Image(systemName: "sparkles.rectangle.stack") // ← Icons.Outlined.NewReleases 20dp
-                        .font(.system(size: 20))
-                        .foregroundColor(colors.primary)
-                    Text(L10n.format("about_update_available", "v\(version)"))
-                        .font(.system(size: 14, weight: .semibold)) // ← bodyMedium SemiBold primary
-                        .foregroundColor(colors.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Image(systemName: "arrow.up.right.square") // ← Icons.AutoMirrored.OpenInNew 18dp
-                        .font(.system(size: 18))
-                        .foregroundColor(colors.primary)
-                }
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(SleepyButtonStyle())
-            Button(action: onDismiss) { // ← Icons.Outlined.Close IconButton, 默认图标 24dp, contentDescription about_update_dismiss
-                Image(systemName: "xmark")
-                    .font(.system(size: 24)) // ← 原 Icon 无 size modifier = 默认 24dp
-                    .foregroundColor(colors.primary)
-                    .padding(8)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(SleepyButtonStyle())
-            .accessibilityLabel(L10n.format("about_update_dismiss"))
-        }
-        .padding(.init(top: 8, leading: 16, bottom: 8, trailing: 4)) // ← 原 padding(start16/end4/vert8)
-        .background(colors.primary.opacity(0.12))
-        .cornerRadius(SleepyShapes.large) // ← clip(shapes.large) = 16dp
-    }
-}
-
-// ← MarkdownChangelog(1.0.51): changelog 按 Markdown 渲染
-//   标题: L1=titleLarge 22 Bold / L2=titleMedium 16 Bold / L3+=titleSmall 14 Bold, 上 10 下 2
-//   圆点: "•" primary 12sp + 间距 8, 缩进 6, 行距 2; 段落行距 2; 链接 accent+下划线
-private struct MarkdownChangelog: View {
-    @Environment(\.localWakeUpColors) private var colors
-    let markdown: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(MarkdownBlocks.parse(markdown).enumerated()), id: \.offset) { _, block in
-                blockView(block)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func blockView(_ block: MarkdownBlocks.Block) -> some View {
-        switch block {
-        case .heading(let level, let text):
-            headingView(level: level, text: text)
-        case .bullet(let items):
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    bulletRow(item)
-                }
-            }
-        case .paragraph(let text):
-            Text(inlineText(text))
-                .font(.system(size: 12)) // ← bodySmall 12sp
-                .foregroundColor(colors.onSurfaceVariant)
-                .padding(.vertical, 2)
-        }
-    }
-
-    @ViewBuilder
-    private func headingView(level: Int, text: String) -> some View {
-        // ← titleLarge 22 / titleMedium 16 / titleSmall 14, 均 Bold
-        //   原版本 UpdateChangelogDialog.kt:216 标题用 raw block.text, 不做行内解析
-        let size = level == 1 ? 22.0 : (level == 2 ? 16.0 : 14.0)
-        Text(text)
-            .font(.system(size: size, weight: .bold))
-            .foregroundColor(colors.onSurfaceVariant)
-            .padding(.top, 10)
-            .padding(.bottom, 2)
-    }
-
-    private func bulletRow(_ item: String) -> some View {
-        HStack(alignment: .top, spacing: 0) {
-            Text("•")
-                .font(.system(size: 12))
-                .foregroundColor(colors.primary)
-            Spacer().frame(width: 8)
-            Text(inlineText(item))
-                .font(.system(size: 12))
-                .foregroundColor(colors.onSurfaceVariant)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.leading, 6)
-        .padding(.vertical, 2)
-    }
-
-    /// ← inlineAnnotated: 确定性 span 渲染(对齐 原版本 inlineAnnotated), 不再走
-    ///   AttributedString(markdown:) 黑盒; 链接截断语义随 原版本 正则(首 ')' 截止)
-    private func inlineText(_ text: String) -> AttributedString {
-        var out = AttributedString()
-        for span in MarkdownBlocks.parseInline(text) {
-            var a: AttributedString
-            switch span {
-            case .text(let s): a = AttributedString(s)
-            case .bold(let s): a = AttributedString(s); a.font = .system(size: 12, weight: .bold)
-            case .code(let s): a = AttributedString(s); a.font = .system(size: 12, design: .monospaced)
-            case .link(let s, _): a = AttributedString(s); a.foregroundColor = colors.primary; a.underlineStyle = .single
-            }
-            a.font = a.font ?? .system(size: 12)
-            a.foregroundColor = a.foregroundColor ?? colors.onSurfaceVariant
-            out.append(a)
-        }
-        return out
-    }
-}

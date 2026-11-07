@@ -35,10 +35,10 @@ enum PlatformParityNotes {
      *   1. handleDeepLinkIntent(EXTRA_COURSE_ID) → AppRootViewModel.handleDeepLinkCourse(id)
      *      + AppRoot.handleDeepLink(url) 的 sleepy://course/<id> 路由 (平台差异表#4)
      *   2. pendingImportText / incomingImportText → PendingImportText + sleepy://import?text=
-     *   3. UpdateNotifier.loadDismissedVersion + maybeCheckOnStart → iOS UpdateNotifier.shared
-     *      + AboutScreen.task 触发 (iOS 入口不可改, 平台差异)
+     *   3. UpdateNotifier(冷启动检查更新) → 1.0.64 随「获取更新」切片整体移除
+     *      (分发收敛 App Store/TestFlight, GitHub 仅源码公开)
      *   4. HighRefreshRate.apply → 见上节 (iOS 无对应)
-     *   5. UpdateManager.cleanOldApk → UpdateManager.cleanOldIpa() (iOS 命名对齐)
+     *   5. UpdateManager.cleanOldApk → 同随更新切片移除
      *   6. 深链路由表 (sleepy://open | sleepy://course/<id> | sleepy://import?text=)
      *      已在 SleepyApp.swift AppRoot.handleDeepLink 集中定义 — 即 原平台侧
      *      handleDeepLinkIntent 的路由表抽出, 壳本身不动。

@@ -347,14 +347,14 @@
 "reminder_mode_banner" = "横幅";
 "reminder_mode_fluid" = "流体云";
 "reminder_mode_banner_sub" = "系统通知栏普通横幅,可手动划掉;手环/手表同步不受影响";
-"reminder_mode_fluid_sub" = "在支持的小米 / vivo / 三星 / 魅族手机上显示实时课程卡片;系统不支持时可能不显示";
+"reminder_mode_fluid_sub" = "课程卡片出现在灵动岛/锁屏；无灵动岛机型显示为锁屏实况条(iOS 16.1+)。App 完全退出后，新的卡片要等下次打开才出现";
 "reminder_fluid_fields" = "胶囊主显示内容";
 "reminder_fluid_fields_hint" = "选择一个主显示内容";
 "reminder_fluid_field_name" = "课程名称";
 "reminder_fluid_field_time" = "上课时间";
 "reminder_fluid_field_room" = "上课地点";
 "reminder_fluid_field_teacher" = "任课老师";
-"reminder_fluid_note" = "点击通知后可展开课程详情。具体是否显示为流体云/超级岛由手机系统、通知权限和厂商服务资格决定。";
+"reminder_fluid_note" = "实况通知随课前提醒开关;具体以系统支持为准(需要 iPhone 8+ 且 iOS 16.1+)";
 "reminder_notif_denied_title" = "通知权限已被拒绝";
 "reminder_notif_denied_sub" = "iOS 不会再次弹出授权请求，请前往系统设置手动开启通知。";
 "reminder_pick_time" = "选择提醒时间";
@@ -377,19 +377,6 @@
 "about_title" = "关于";
 "about_version" = "版本信息";
 "about_version_detail" = "版本 %1$@（构建 %2$d）";
-"about_update" = "获取更新";
-"about_update_detail" = "GitHub 主站不可用时，自动回退镜像下载";
-"about_update_checking" = "正在检查更新…";
-"about_update_latest" = "当前已是最新版本 v%1$@";
-"update_found_title" = "发现新版本 v%1$@";
-"update_download" = "下载";
-"update_cancel" = "取消";
-"update_downloading" = "下载中 %1$d%%";
-"update_installing" = "下载完成，正在打开安装器";
-"update_retry" = "重试";
-"update_download_failed" = "下载失败：%1$@";
-"update_ios_sideload_title" = "下载完成";
-"update_ios_sideload_hint" = "IPA 已下载。iOS 无法自动安装，请用该文件通过 AltStore 重新侧载更新。";
 "semester_out_of_range" = "当前不在学期范围内";
 "about_author" = "作者";
 "about_author_name" = "Lingion";
@@ -473,8 +460,6 @@
 "default_course_name" = "课程";
 "default_room" = "上课地点";
 "error_unknown" = "未知错误";
-"error_no_version_found" = "主站和镜像都没找到最新版本";
-"error_empty_download" = "下载文件为空";
 "array_day_names_0" = "周一";
 "array_day_names_1" = "周二";
 "array_day_names_2" = "周三";
@@ -629,9 +614,6 @@
 "widget_manage_title" = "管理桌面小组件";
 
 /* sleepy-v1 对齐补齐 (iOS native) */
-"about_update_available" = "新版 %1$@ 可用,点此查看";
-"about_update_check" = "自动检查更新";
-"about_update_check_detail" = "启动时自动检查 GitHub Releases, 发现新版本会在「关于」页顶部提示";
 "course_alias" = "别名 (可选)";
 "exit_press_back_again" = "再按一次返回退出";
 "export_native_subtitle" = "完整备份·体积最小·推荐迁移分享";
@@ -749,7 +731,6 @@
 "about_qq_group_number" = "1063407652";
 "about_qq_no_qq" = "群号已复制,未检测到 QQ,请手动打开 QQ 搜索加入";
 "about_qq_title" = "QQ 交流群";
-"about_update_dismiss" = "关闭更新提示";
 "appearance_header_hanging" = "左右移动 %@ 个开始时间宽度";
 "schedule_drag_hint" = "长按移动本次课程，停留在左右边缘可连续翻周。";
 "schedule_drag_failed" = "未能移动本次课程，请检查目标节次与调休安排后重试。";
@@ -1116,9 +1097,15 @@
 "appearance_header_hide_time" = "隐藏时间行";
 "appearance_header_hide_time_sub" = "旧式表头只显示节次，不显示上课时间（实验性，默认关闭）";
 "mine_widget" = "小组件";
-"widget_add_unsupported_hint" = "当前桌面不支持快捷添加,请长按桌面 → 小组件 → 选 Sleepy。";
 "widget_gallery_title" = "添加小组件";
-"widget_manage_empty_v2" = "点右上角 ＋ 添加小组件;桌面不支持快捷添加时,长按桌面 → 小组件 → 选 Sleepy。";
+"widget_manage_empty_v2" = "点右上角 ＋ 添加小组件;还没添加过时,长按桌面空白处 → ＋ → 搜索 Sleepy。";
+"widget_guide_title" = "把小组件加到桌面";
+"widget_guide_search_hint" = "小组件库里叫「%1$@」";
+"widget_guide_copy_name" = "复制名称";
+"widget_guide_step_hold" = "长按桌面空白处,直到 App 图标开始抖动";
+"widget_guide_step_plus" = "点左上角的 ➕,再点右下角的「添加小组件」";
+"widget_guide_step_search" = "在搜索框输入上面复制的名称,找到这个小组件";
+"widget_guide_step_drag" = "按住它的图标,拖到桌面空位,然后点右上角「完成」";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "每日议程";
