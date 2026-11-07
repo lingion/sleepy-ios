@@ -399,17 +399,7 @@ struct AppRoot: View {
         // ★ 键盘避让只在 tab 层忽略(旧 fullScreenCover 时代对整个 mainContent 忽略);
         //   浮层走自绘 ZStack 容器, 保留键盘避让 → AddCourse 输入框自动避开键盘。
         mainContent
-        // ★ 实时尺寸通道(← 原版本 Configuration.screenWidthDp/HeightDp 逐帧
-        //   重算语义 + PR#235 几何闸口径): background GeometryReader 零布局侵入,
-        //   变更回灌 VM → rail 双栏↔手机形态随旋转/分屏/Stage Manager 缩放即切。
-        //   iPhone 恒竖屏, 回调值不变=空操作。
-        .background(GeometryReader { proxy in
-            Color.clear.preference(key: WindowSizePreferenceKey.self,
-                                   value: proxy.size)
-        })
-        .onPreferenceChange(WindowSizePreferenceKey.self) { size in
-            root.updateWindowSize(size)
-        }
+        .background(WindowGeometryProbe(onChange: { root.updateWindowSize($0) }))
         // ← Activity.recreate(): 语言切换 → L10n.didChange → languageReload+1 → 全树重建
         .id(root.languageReload)
         .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
@@ -1046,15 +1036,6 @@ private struct TabBarTransparentProbe: UIViewRepresentable {
 private extension View {
     func nativeScreen(extraBottom: CGFloat) -> some View {
         modifier(NativeScreenModifier(extraBottom: extraBottom))
-    }
-}
-
-/// 实时窗口尺寸上报通道(AppRoot background GeometryReader → root.updateWindowSize)。
-/// 初值 .zero = 未就绪(与 VM windowSize=nil 区分开: 首个真实回调前不参与判定)。
-private struct WindowSizePreferenceKey: PreferenceKey {
-    static var defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
-        value = nextValue()
     }
 }
 
