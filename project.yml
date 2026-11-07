@@ -161,6 +161,7 @@ targets:
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
                    "debug", "data/share",
                    "widget/notification/BatterySettingsLauncher.swift",
+                   "widget/liveactivity/ClassDayActivityManager.swift",
                    "util/NavStyleResolver.swift",
                    "gamecenter",
                    # 主 app 的隐私清单只归 Sleepy target; widget 用自己的

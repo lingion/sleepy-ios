@@ -393,13 +393,13 @@
 "reminder_fluid_field_time" = "時刻";
 "reminder_fluid_fields" = "カプセルメイン表示内容";
 "reminder_fluid_fields_hint" = "メイン表示内容を選択";
-"reminder_fluid_note" = "ライブアクティビティは授業前リマインダー設定に追従します;iOS 16.1+ の iPhone 8 以降が必要です";
+"reminder_fluid_note" = "授業前の通知時刻と各時間割の設定に従います。Sleepy が前面にある間は授業の切り替え・更新・終了が反映されます。バックグラウンドでも既存のタイマーは動きますが、新規表示や授業切り替え、自動削除は保証されません。再度アプリを開くと更新されます。iOS 16.1 以降が必要で、ライブアクティビティの許可は通知とは別です。";
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
 "reminder_mode_label" = "リマインダー形態";
 "reminder_mode_banner" = "バナー";
-"reminder_mode_fluid" = "リアルタイムカード";
+"reminder_mode_fluid" = "ライブアクティビティ";
 "reminder_mode_banner_sub" = "通知バーに表示する通常のスワイプ削除可能バナー。ウェアラブル同期に影響なし";
-"reminder_mode_fluid_sub" = "授業カードが Dynamic Island / ロック画面に表示されます(島なし機種ではロック画面のライブバー、iOS 16.1+)。アプリを完全に終了した後、新しいカードは次回起動時にしか現れません";
+"reminder_mode_fluid_sub" = "授業前の通知時刻と各時間割の設定に従います。Sleepy が前面にある間は授業の切り替え・更新・終了が反映されます。バックグラウンドでも既存のタイマーは動きますが、新規表示や授業切り替え、自動削除は保証されません。再度アプリを開くと更新されます。iOS 16.1 以降が必要で、ライブアクティビティの許可は通知とは別です。";
 "reminder_master_sub" = "Sleepy に授業通知の送信を許可";
 "reminder_master_title" = "リマインダーを有効化";
 "reminder_notif_denied_title" = "通知の権限が拒否されています";
@@ -1182,3 +1182,12 @@
 
 "import_target_missing" = "選択した時間割が見つかりません。取り込みプレビューを開き直してください。";
 "import_period_missing" = "選択した時限設定が見つかりません。選び直してください。";
+
+"live_activity_title" = "ライブアクティビティ";
+"live_activity_limits" = "授業前の通知時刻と各時間割の設定に従います。Sleepy が前面にある間は授業の切り替え・更新・終了が反映されます。バックグラウンドでも既存のタイマーは動きますが、新規表示や授業切り替え、自動削除は保証されません。再度アプリを開くと更新されます。iOS 16.1 以降が必要で、ライブアクティビティの許可は通知とは別です。";
+"live_activity_permission" = "設定でライブアクティビティが無効です。タップして設定を開きます。";
+"live_activity_starts" = "開始まで";
+"live_activity_ends" = "終了まで";
+"live_activity_stale" = "授業情報が古い可能性があります";
+"live_activity_open_to_refresh" = "Sleepy を開いて更新";
+"live_activity_next" = "次の授業：%1$@";

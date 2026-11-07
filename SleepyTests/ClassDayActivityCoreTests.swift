@@ -27,10 +27,10 @@ final class ClassDayActivityCoreTests: XCTestCase {
 
     func testActiveSegmentPrefersRunningThenNext() {
         let items = [item(480, 540), item(600, 660)]
-        // 10:05 (605min) 在第二段进行中
+        // 仍属于同一完整分段；运行选择返回未结束的后缀，从第二节开始。
         let at605 = AccountForMinute(605)
         XCTAssertEqual(ClassDayActivityCore.activeSegment(from: items, now: at605)?.first?.startMin, 600)
-        // 课后 17:00 (540) 前 → 最近未来段
+        // 09:50 位于课间，不能因为完整分段从08:00开始而漏掉10:00的课。
         let at590 = AccountForMinute(590)
         XCTAssertEqual(ClassDayActivityCore.activeSegment(from: items, now: at590)?.first?.startMin, 600)
     }

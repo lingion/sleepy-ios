@@ -74,6 +74,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             guard let self = self else { return }
             WidgetCenter.shared.reloadAllTimelines()
             self.notificationScheduler.scheduleAll()
+            Task { @MainActor in
+                if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
+            }
             // ← 2026-10 watch 伴侶 App: 同一条 refresh 总线挂手表全量快照推送
             // (scheduleSync 只持 Coordinator 单例, [weak self] 模式與本 hook 其余行一致)
             WatchSyncCoordinator.shared.scheduleSync()
@@ -87,12 +90,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         WatchSyncCoordinator.shared.start()
         // ← 原版本 SleepyApp.onCreate: classDndScheduler 注入 (F128 issue#2)
         ClassDndScheduler.shared.configure(repositoryProvider: { [weak self] in self?.repository })
-        // ← 原版本 ReminderRescheduler.init 块 (SleepyApp.kt:44-52) — 同时修复 init_ 从未被调用、
-        //   全树 20+ 处 ReminderRescheduler.shared.request() 被静默丢弃的缺口。fluid-cloud 分支为
-        //   platform-only 不移植:
         ReminderRescheduler.shared.init_(debounceMs: 300) {
             NotificationScheduler.shared.scheduleAll()
             ClassDndScheduler.shared.reconcileReminderRules()
+            await MainActor.run {
+                if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
+            }
         }
         // ← 原版本 BootReceiver kt:808 冷启动无条件校准 (pref 关时 rebuildState 守卫 = 安全 no-op):
         ClassDndScheduler.shared.syncFromPrefs()
@@ -110,7 +113,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             guard self != nil else { return }
             // 原版本 侧此处 reconcileActiveFluidCloud(厂商 SDK 不可移植);
             // iOS 对应物 = ActivityKit 实况活动/灵动岛(v1.0.64 已实现, 能力上限见 SPEC 差异表#3)
-            if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
+            Task { @MainActor in
+                if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
+            }
             ClassDndScheduler.shared.syncFromPrefs()
             // watch 伴侣 App: 回前台兜底重推 (离线期间 onDataChanged 攒的改动追平)
             WatchSyncCoordinator.shared.syncNow()
@@ -129,8 +134,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // ← onCreate: 首启刷新小组件(WidgetUpdater.notifyDataChanged)
         WidgetCenter.shared.reloadAllTimelines()
-        // v1.0.64: 课程实况活动(灵动岛/锁屏) — 本地请求, 无服务端, 只在 App 活跃时刷新
-        if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
         // 到货重查/00:05 载体/摘要刷新的 delegate 此前从未注册 = 死接线 (F128/F129 issue6)。
         UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
         // Game Center 认证：静默，不影响 App 正常使用
@@ -437,6 +440,7 @@ struct AppRoot: View {
         // ★ 回前台重判底栏形态(仅"未显式设置"自适应路径有意义; 显式选择时
         //   resolver 设置优先, 重判结果不变)。
         .onChange(of: scenePhase) { phase in
+            if #available(iOS 16.1, *), phase != .active { ClassDayActivityManager.suspend() }
             if phase == .active {
                 root.refreshNavMode()
                 // Widget 检测：App 进入前台时检查是否有已添加的 Widget

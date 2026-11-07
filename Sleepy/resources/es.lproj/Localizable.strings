@@ -393,13 +393,13 @@
 "reminder_fluid_field_time" = "Hora";
 "reminder_fluid_fields" = "Contenido principal de la cápsula";
 "reminder_fluid_fields_hint" = "Elige un campo de visualización principal";
-"reminder_fluid_note" = "La actividad en vivo sigue al interruptor de recordatorios de clase; depende del sistema (iPhone 8+ con iOS 16.1+)";
+"reminder_fluid_note" = "Respeta la antelación y los horarios con recordatorios activados. Sleepy actualiza, cambia y finaliza las tarjetas mientras está en primer plano. En segundo plano continúa el temporizador existente, pero no se garantizan nuevas tarjetas, cambios de clase ni retirada automática. Abre Sleepy para actualizar. Requiere iOS 16.1+; su permiso es independiente del de notificaciones.";
 "reminder_fluid_title" = "Nube Fluida / Súper Isla";
 "reminder_mode_label" = "Estilo de aviso";
 "reminder_mode_banner" = "Banner";
-"reminder_mode_fluid" = "Nube fluida";
+"reminder_mode_fluid" = "Actividades en directo";
 "reminder_mode_banner_sub" = "Banner normal deslizable en la barra de notificaciones; compatible con la sincronización de reloj y pulsera";
-"reminder_mode_fluid_sub" = "Las tarjetas de clase aparecen en la Isla Dinámica / pantalla de bloqueo; en dispositivos sin isla se muestra la franja en vivo de la pantalla de bloqueo (iOS 16.1+). Tras cerrar la app por completo, una tarjeta nueva solo aparece en la siguiente apertura";
+"reminder_mode_fluid_sub" = "Respeta la antelación y los horarios con recordatorios activados. Sleepy actualiza, cambia y finaliza las tarjetas mientras está en primer plano. En segundo plano continúa el temporizador existente, pero no se garantizan nuevas tarjetas, cambios de clase ni retirada automática. Abre Sleepy para actualizar. Requiere iOS 16.1+; su permiso es independiente del de notificaciones.";
 "reminder_master_sub" = "Permitir que Sleepy envíe notificaciones de cursos";
 "reminder_master_title" = "Activar recordatorios";
 "reminder_notif_denied_title" = "Notificaciones denegadas";
@@ -1182,3 +1182,12 @@
 
 "import_target_missing" = "El horario seleccionado ya no existe. Abre de nuevo la vista previa de importación.";
 "import_period_missing" = "La tabla de periodos seleccionada ya no existe. Selecciónala de nuevo.";
+
+"live_activity_title" = "Actividades en directo";
+"live_activity_limits" = "Respeta la antelación y los horarios con recordatorios activados. Sleepy actualiza, cambia y finaliza las tarjetas mientras está en primer plano. En segundo plano continúa el temporizador existente, pero no se garantizan nuevas tarjetas, cambios de clase ni retirada automática. Abre Sleepy para actualizar. Requiere iOS 16.1+; su permiso es independiente del de notificaciones.";
+"live_activity_permission" = "Las actividades en directo están desactivadas. Toca para abrir Ajustes.";
+"live_activity_starts" = "Empieza en";
+"live_activity_ends" = "Termina en";
+"live_activity_stale" = "La información puede estar desactualizada";
+"live_activity_open_to_refresh" = "Abre Sleepy para actualizar";
+"live_activity_next" = "Siguiente: %1$@";

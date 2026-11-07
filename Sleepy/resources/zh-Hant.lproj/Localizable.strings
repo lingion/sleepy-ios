@@ -393,13 +393,13 @@
 "reminder_fluid_field_time" = "上課時間";
 "reminder_fluid_fields" = "膠囊主顯示內容";
 "reminder_fluid_fields_hint" = "選擇一個主顯示內容";
-"reminder_fluid_note" = "即時通知隨課前提醒開關;以系統支援為準(需 iPhone 8+ 且 iOS 16.1+)";
+"reminder_fluid_note" = "依課前提前時間和各課表提醒設定顯示課程。Sleepy 在前景時會更新、切換課程和結束卡片。進入背景後已有倒數可繼續，但不保證新增卡片、切換課程或下課後自動移除；再次開啟應用程式即可更新。需要 iOS 16.1+，即時動態權限與通知權限獨立。";
 "reminder_fluid_title" = "流體雲 / 超級島";
 "reminder_mode_label" = "提醒形態";
 "reminder_mode_banner" = "橫幅";
-"reminder_mode_fluid" = "流體雲";
+"reminder_mode_fluid" = "即時動態（動態島）";
 "reminder_mode_banner_sub" = "系統通知欄一般橫幅,可手動劃掉;手環/手錶同步不受影響";
-"reminder_mode_fluid_sub" = "課程卡片出現在動態島/鎖定畫面；無動態島機型顯示為鎖定畫面即時條(iOS 16.1+)。App 完全退出後，新卡片要等下次開啟才出現";
+"reminder_mode_fluid_sub" = "依課前提前時間和各課表提醒設定顯示課程。Sleepy 在前景時會更新、切換課程和結束卡片。進入背景後已有倒數可繼續，但不保證新增卡片、切換課程或下課後自動移除；再次開啟應用程式即可更新。需要 iOS 16.1+，即時動態權限與通知權限獨立。";
 "reminder_master_sub" = "允許 Sleepy 發送課程通知";
 "reminder_master_title" = "開啟提醒";
 "reminder_notif_denied_title" = "通知權限已被拒絕";
@@ -1182,3 +1182,12 @@
 
 "import_target_missing" = "目標課表已不存在，請重新開啟匯入預覽。";
 "import_period_missing" = "所選作息表已不存在，請重新選擇。";
+
+"live_activity_title" = "即時動態（動態島）";
+"live_activity_limits" = "依課前提前時間和各課表提醒設定顯示課程。Sleepy 在前景時會更新、切換課程和結束卡片。進入背景後已有倒數可繼續，但不保證新增卡片、切換課程或下課後自動移除；再次開啟應用程式即可更新。需要 iOS 16.1+，即時動態權限與通知權限獨立。";
+"live_activity_permission" = "系統已關閉即時動態，點此開啟設定。";
+"live_activity_starts" = "距離上課";
+"live_activity_ends" = "距離下課";
+"live_activity_stale" = "課程狀態可能已過期";
+"live_activity_open_to_refresh" = "開啟 Sleepy 更新";
+"live_activity_next" = "下節：%1$@";

@@ -393,13 +393,13 @@
 "reminder_fluid_field_time" = "Time";
 "reminder_fluid_fields" = "Capsule Primary Content";
 "reminder_fluid_fields_hint" = "Choose a primary display field";
-"reminder_fluid_note" = "Live Activity follows the before-class reminder switch; availability depends on the system (iPhone 8+ on iOS 16.1+)";
+"reminder_fluid_note" = "Uses the configured lead time and enabled timetables. Sleepy refreshes, switches and ends cards while active. In the background, existing timers continue but new cards, course changes and automatic removal are not guaranteed. Reopen Sleepy to refresh. Requires iOS 16.1+; Live Activities have a separate system permission.";
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
 "reminder_mode_label" = "Reminder style";
 "reminder_mode_banner" = "Banner";
-"reminder_mode_fluid" = "Fluid Cloud";
+"reminder_mode_fluid" = "Live Activities (Dynamic Island)";
 "reminder_mode_banner_sub" = "Standard dismissible banner in the notification bar; safe for watch/band sync";
-"reminder_mode_fluid_sub" = "Course cards appear on the Dynamic Island / Lock Screen; devices without the island get the lock-screen live strip (iOS 16.1+). After the app is fully quit, a new card only appears on its next launch";
+"reminder_mode_fluid_sub" = "Uses the configured lead time and enabled timetables. Sleepy refreshes, switches and ends cards while active. In the background, existing timers continue but new cards, course changes and automatic removal are not guaranteed. Reopen Sleepy to refresh. Requires iOS 16.1+; Live Activities have a separate system permission.";
 "reminder_master_sub" = "Allow Sleepy to send course notifications";
 "reminder_master_title" = "Enable Reminders";
 "reminder_notif_denied_title" = "Notifications are denied";
@@ -1182,3 +1182,12 @@
 
 "import_target_missing" = "The selected timetable no longer exists. Reopen the import preview.";
 "import_period_missing" = "The selected period table no longer exists. Choose it again.";
+
+"live_activity_title" = "Live Activities (Dynamic Island)";
+"live_activity_limits" = "Uses the configured lead time and enabled timetables. Sleepy refreshes, switches and ends cards while active. In the background, existing timers continue but new cards, course changes and automatic removal are not guaranteed. Reopen Sleepy to refresh. Requires iOS 16.1+; Live Activities have a separate system permission.";
+"live_activity_permission" = "Live Activities are disabled. Tap to open Settings.";
+"live_activity_starts" = "Starts in";
+"live_activity_ends" = "Ends in";
+"live_activity_stale" = "Schedule may be out of date";
+"live_activity_open_to_refresh" = "Open Sleepy to refresh";
+"live_activity_next" = "Next: %1$@";

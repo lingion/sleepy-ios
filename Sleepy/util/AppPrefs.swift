@@ -250,7 +250,7 @@ final class AppPrefs {
     }
 
     func isBeforeClassBannerEnabled() -> Bool {
-        // iOS 只有横幅实现，保留独立投递闸，兼容旧版显式关闭及手表快照。
+        // 保留独立投递闸，兼容旧版显式关闭及手表快照。
         getBeforeClassMode() == Self.BEFORE_CLASS_MODE_BANNER
             && (sp().object(forKey: Self.KEY_BEFORE_CLASS_BANNER) as? Bool ?? true)
     }
@@ -260,10 +260,8 @@ final class AppPrefs {
         if v { setBeforeClassMode(Self.BEFORE_CLASS_MODE_BANNER) }
     }
 
-    // iOS 未实现流体卡片；保留旧键与读写语义，兼容迁移和手表快照。
-    @available(*, deprecated, message: "仅供旧偏好迁移与同步；v1.0.64 起实况活动接通此模式(见 ClassDayActivityManager)")
+    // fluid 是历史存储值，iOS 使用它选择 ActivityKit 实况活动。
     func isBeforeClassFluidEnabled() -> Bool { getBeforeClassMode() == Self.BEFORE_CLASS_MODE_FLUID }
-    @available(*, deprecated, message: "仅供旧偏好迁移与同步；v1.0.64 起实况活动接通此模式(见 ClassDayActivityManager)")
     func setBeforeClassFluidEnabled(_ v: Bool) {
         setBeforeClassMode(v ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER)
     }
