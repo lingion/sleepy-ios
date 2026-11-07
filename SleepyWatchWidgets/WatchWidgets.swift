@@ -142,6 +142,24 @@ struct WatchComplicationEntryView: View {
     }
 }
 
+struct WatchTimeStripWidget: Widget {
+    let kind = "WatchTimeStripWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: WatchTimeStripProvider()) { entry in
+            WatchTimeStripView(entry: entry)
+        }
+        .configurationDisplayName(localized("watch_time_strip_display_name"))
+        .description(localized("watch_time_strip_description"))
+        .supportedFamilies([.accessoryRectangular])
+    }
+
+    private func localized(_ key: String) -> String {
+        let language = WatchTimeStripPreferencesStore.shared.load().language
+        return NSLocalizedString(key, bundle: LocaleHelper.bundle(for: language), comment: "")
+    }
+}
+
 @main
 struct SleepyWatchWidgetsBundle: WidgetBundle {
     var body: some Widget {
@@ -151,5 +169,6 @@ struct SleepyWatchWidgetsBundle: WidgetBundle {
         WatchTodayOverviewWidget()
         WatchTomorrowWidget()
         WatchWeekWidget()
+        WatchTimeStripWidget()
     }
 }

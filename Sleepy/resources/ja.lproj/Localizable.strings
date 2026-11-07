@@ -1179,3 +1179,19 @@
 "watch_tomorrow_mark" = "明日";
 "watch_tomorrow_no_class" = "明日は授業なし";
 "watch_holiday" = "休み";
+
+// MARK: - Watch course time strip
+"watch_time_strip_display_name" = "授業タイムバー";
+"watch_time_strip_description" = "幅を90分に固定したバーで授業と空き時間を表示。更新はシステムが行います。";
+"watch_time_strip_preview" = "明日のプレビュー";
+"watch_time_strip_break" = "休み時間";
+"watch_time_strip_free" = "空き時間";
+"watch_time_strip_finished" = "今日の授業は終了しました";
+"watch_time_strip_scale" = "90分";
+"watch_time_strip_overlap" = "%1$d コマ";
+"watch_time_strip_unavailable" = "時間割を表示できません。iPhoneから同期してください。";
+"settings_watch_time_strip_section" = "Apple Watchの授業タイムバー";
+"settings_watch_time_strip_tomorrow" = "今日の授業終了後に明日を表示";
+"settings_watch_time_strip_tomorrow_hint" = "翌日だけをプレビューします。次の授業日の表示や通知の設定とは連動しません。";
+"settings_watch_time_strip_overview" = "バー全体の幅は常に90分を表します。更新のタイミングはシステムが決めるため、毎秒動き続ける表示ではありません。";
+"settings_watch_time_strip_preview_details" = "初期設定はオフです。今日の授業が終わると（今日に授業がない場合も）、翌日だけを日付と「明日のプレビュー」の表示付きでプレビューします。翌日の最初の授業から実際の時間と同じ速さで進み、最後の授業が終わると最初に戻ります。翌日に授業がなければ「明日は授業なし」と表示し、その先の授業日には移りません。";

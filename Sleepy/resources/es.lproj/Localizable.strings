@@ -1179,3 +1179,19 @@
 "watch_tomorrow_mark" = "Mañana";
 "watch_tomorrow_no_class" = "Sin clases mañana";
 "watch_holiday" = "Vacaciones";
+
+// MARK: - Watch course time strip
+"watch_time_strip_display_name" = "Franja horaria de clases";
+"watch_time_strip_description" = "Muestra clases y huecos en una franja fija de 90 minutos. El sistema programa las actualizaciones.";
+"watch_time_strip_preview" = "Vista previa de mañana";
+"watch_time_strip_break" = "Descanso";
+"watch_time_strip_free" = "Libre";
+"watch_time_strip_finished" = "Las clases de hoy han terminado";
+"watch_time_strip_scale" = "90 min";
+"watch_time_strip_overlap" = "%1$d clases";
+"watch_time_strip_unavailable" = "Horario no disponible. Sincroniza desde el iPhone.";
+"settings_watch_time_strip_section" = "Franja de clases de Apple Watch";
+"settings_watch_time_strip_tomorrow" = "Mostrar mañana al terminar las clases de hoy";
+"settings_watch_time_strip_tomorrow_hint" = "Solo muestra el día siguiente. Es independiente de la opción del próximo día con clases y de los recordatorios.";
+"settings_watch_time_strip_overview" = "El ancho completo siempre representa 90 minutos. El sistema decide cuándo actualizar; no es una animación continua.";
+"settings_watch_time_strip_preview_details" = "Desactivado por defecto. Al terminar las clases de hoy (o si hoy no hay clases), solo se muestra el día siguiente, con su fecha y la etiqueta «Vista previa de mañana». La vista previa empieza en la primera clase, avanza un minuto de horario por cada minuto transcurrido y vuelve al inicio tras la última clase. Si mañana no hay clases, muestra «Sin clases mañana» sin saltar a un día posterior.";

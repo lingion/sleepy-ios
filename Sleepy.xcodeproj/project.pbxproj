@@ -76,6 +76,7 @@
 		11D7A6FEAD0AED19CF03111F /* SleepyNativeFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397DC86E9AB0B03EE79461D2 /* SleepyNativeFormatTests.swift */; };
 		11F96A836ABDDC2904674E9F /* CourseColorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 821D9D0180308F350FCB6CC4 /* CourseColorSection.swift */; };
 		124C150E7516307A12A3F02F /* CustomSchemeDeriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F2D8DA1BAD4105612867AE /* CustomSchemeDeriver.swift */; };
+		12570467EB8FE2AB02BBDE91 /* WatchTimeStripCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C71B2E61B48201CC8AAB974 /* WatchTimeStripCore.swift */; };
 		126A5D5FFF85391361E73AB9 /* ThemePresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B72E006270ED69703F906F4 /* ThemePresets.swift */; };
 		128824CB5EB4EA4E54EEFF3B /* JwPekingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6264A390C22B85F9DD9F0CAC /* JwPekingParser.swift */; };
 		12A3FB8A2D5619B9E47D97DF /* MealBreakDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A1DB6476DB4970E3D39BFC5 /* MealBreakDetector.swift */; };
@@ -143,6 +144,7 @@
 		22A7084A7E874B58177C314E /* WatchSyncReceiver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522A76986ED4843C6F93EF90 /* WatchSyncReceiver.swift */; };
 		22C390F65068B7B99CA619C3 /* WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3C1BE11E1D3338FD98721F /* WidgetContent.swift */; };
 		2333CE80B1AC298CAAD6A321 /* ScheduleParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7DC9AA7E9C052C705251AA6 /* ScheduleParser.swift */; };
+		2350DA7F035167D5A6F56DC9 /* WatchTimeStripCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C71B2E61B48201CC8AAB974 /* WatchTimeStripCore.swift */; };
 		2396B64AC47D49F561D49C31 /* HolidayTransferHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FAF9304707FC68029AD02F /* HolidayTransferHelper.swift */; };
 		2440FCE0F60D962D55FFBD62 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15DCA636E9FBBAFF5CEB6B16 /* SettingsView.swift */; };
 		247BD2909D3811BF1E518627 /* LocaleHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F0807AB00ED93A168AD2C6 /* LocaleHelper.swift */; };
@@ -357,6 +359,7 @@
 		604B7BDD5B076C1166D516F8 /* ScheduleParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7DC9AA7E9C052C705251AA6 /* ScheduleParser.swift */; };
 		6085193D5B1E636E87B64A95 /* JwEcuplSuperParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9A3791BAB2C3DB6208EDB7E /* JwEcuplSuperParserTests.swift */; };
 		60F79EBE24A19AF0C6614276 /* TodayDateNavStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF9EC856471726DFD200E17 /* TodayDateNavStore.swift */; };
+		612CF15076F5F3DEEC17AE77 /* WatchTimeStripPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAE4621C281E4D91FA2E274 /* WatchTimeStripPreferences.swift */; };
 		615F9EEEE290D91C4B780F12 /* ConflictDetailReporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 984F3C8B5FC81B912AD5527B /* ConflictDetailReporterTests.swift */; };
 		61639588D86095F728021619 /* school_city_boundaries.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = 0F6A3A4DB6AEC3D8277B080A /* school_city_boundaries.bin.gz */; };
 		619F43033ACAD2712AC888CB /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B945AD465F81AFC535B658B /* NotificationScheduler.swift */; };
@@ -368,6 +371,7 @@
 		64731FE6BC355297EC4B0606 /* ReminderCapabilityFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 989DD79C335C4640D40750EF /* ReminderCapabilityFlowTests.swift */; };
 		6490703A999373DFF63E3F2A /* SchoolSelectScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B4ADA3F4D0F22AB81E78C4 /* SchoolSelectScreen.swift */; };
 		65159DFE2C381A0FA2742717 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 7063967109C7E5366BA3B4B1 /* GRDB */; };
+		651BAD8D3730F292EA6F11E6 /* WatchTimeStripPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAE4621C281E4D91FA2E274 /* WatchTimeStripPreferences.swift */; };
 		656B92D8C96921200777C5F8 /* WidgetBindingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32FA87FAC3D04B6686F6E0DB /* WidgetBindingStore.swift */; };
 		658D875BFD9C89E43F647582 /* CourseEditorUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64BF7FAB38EE44A780C793BD /* CourseEditorUITests.swift */; };
 		65B1F40F4C6052E987E212A9 /* MigrationPrefsCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533E6E3F3AB73AFB11C872D9 /* MigrationPrefsCodecTests.swift */; };
@@ -421,6 +425,7 @@
 		7266949D539DF168F2489AB0 /* WatchComplicationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF680AA6331226481842B6E5 /* WatchComplicationViews.swift */; };
 		728B5288C0C8D46FFF033A93 /* JwParseDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEFFFB7B27071D52A6BF4CD8 /* JwParseDiagnostics.swift */; };
 		72A00D50BE1018210D7AC3DA /* JwEcuplSuperParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 977FCB4CFE0B6F7FFAD20A22 /* JwEcuplSuperParser.swift */; };
+		72D0AA486A5A42B330398248 /* WatchTimeStripCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C71B2E61B48201CC8AAB974 /* WatchTimeStripCore.swift */; };
 		7321415F6CE1352B83B69421 /* JwCfNewParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FE9965C48E2F34C544D0F2 /* JwCfNewParser.swift */; };
 		73A53B07D725587DD43E8777 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8D929FCEF4A32DF472275A70 /* Assets.xcassets */; };
 		73B677685CA5B391BE4231B0 /* SchoolSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089AF7B5A308D8889ABF3C6A /* SchoolSearchIndex.swift */; };
@@ -557,6 +562,7 @@
 		98A433888141B39883E37167 /* WidgetDataLoaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = B445492F562DDC2A16B5171D /* WidgetDataLoaders.swift */; };
 		98C58C476CAEC096E95B72A0 /* JwParserRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26CF08C9ED257788E53D0309 /* JwParserRegistry.swift */; };
 		990AB2AAF76FD0526908555A /* FeedbackComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F1E27AEBC58B8A02E88519 /* FeedbackComposer.swift */; };
+		99271AD383215D31F66B3532 /* WatchTimeStripProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2F7AE3D88421C231F3F990 /* WatchTimeStripProvider.swift */; };
 		99880A99CECAE11D2D3DDAE2 /* JwQzAppParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6057944C03E91C59FC223358 /* JwQzAppParser.swift */; };
 		9A1D51364D41BEC42AF36C0D /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1205376525F575AF970B7CD4 /* Localizable.strings */; };
 		9A76AFB9856857FA425DA1FA /* CourseOccurrences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21110C5EC7715F2104013B70 /* CourseOccurrences.swift */; };
@@ -626,6 +632,7 @@
 		ACC9A5D1C32A957F9070F8BA /* WidgetAddGuideSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EAED4FF0AAFA97607BEBC7 /* WidgetAddGuideSheet.swift */; };
 		AD0511066366C95F452D312F /* ConflictDetailReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31FA03F7AF7A6E296C6B4BD /* ConflictDetailReporter.swift */; };
 		AD2397B6BABB52CAC0B8FA84 /* JwCfNewParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FE9965C48E2F34C544D0F2 /* JwCfNewParser.swift */; };
+		AD3A94B923E9CB968FE2D01A /* WatchTimeStripPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAE4621C281E4D91FA2E274 /* WatchTimeStripPreferences.swift */; };
 		AD7C70707705DCAC38B45DBF /* JwWhutParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DCE5472D66C30D292A70BCD /* JwWhutParser.swift */; };
 		ADA1BC83653DD79633C7D2B2 /* FixedDateCourseField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90DBDCFA1604CB99344F4334 /* FixedDateCourseField.swift */; };
 		ADC5B1DC5FC83964820C18EE /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60056452C13B6C1D48E232C7 /* L10n.swift */; };
@@ -640,6 +647,7 @@
 		AF8DBDEE4CD86CF89308BC0D /* JwEcuplScriptParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3454051E6DC5AF797F4FF45 /* JwEcuplScriptParserTests.swift */; };
 		AFF3B11956F0113DC8F955C2 /* ClassDayActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8C9D5CC7724D2A331C5616 /* ClassDayActivityManager.swift */; };
 		B004ACB03D7A91CB778D08F6 /* HolidayReminderPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F572ACD5CFFF9BA922865C0 /* HolidayReminderPolicy.swift */; };
+		B0942CFA851CCEA8D642EB66 /* WatchTimeStripCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D7A1444B9965C53DD04011 /* WatchTimeStripCoreTests.swift */; };
 		B0C3A9CD26C699017100E223 /* JwBoyaPpParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6267C653C62742958073FDD7 /* JwBoyaPpParser.swift */; };
 		B0DF4982A9F4B0441D5F0D57 /* JwKingoZxParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8210AED098F754F64C038B8F /* JwKingoZxParser.swift */; };
 		B1717BF470AC4DBA9FE176B3 /* WidgetWeekSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F5F152011B05D7D4679807 /* WidgetWeekSource.swift */; };
@@ -652,6 +660,7 @@
 		B460C3CBB7055E64EE7187E5 /* HolidayTransferHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FAF9304707FC68029AD02F /* HolidayTransferHelper.swift */; };
 		B4ACEF6476B50F05AA6975B6 /* JwNewUrpParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE7E49A169E2B9312B44369 /* JwNewUrpParserTests.swift */; };
 		B55B8ACFD1834BE3A590440D /* WidgetGalleryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FCF63330F56FEE242126B7 /* WidgetGalleryData.swift */; };
+		B5B090CED25BD53408C3D0D8 /* WatchTimeStripCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C71B2E61B48201CC8AAB974 /* WatchTimeStripCore.swift */; };
 		B5CFFB98AB5D7E7BC9801B84 /* SleepyNativeExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DDC1DB2898102E2021052B3 /* SleepyNativeExporterTests.swift */; };
 		B618F0EA7C5E645958A78CF6 /* SchoolLocationLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0019194E612B127ADA12CF26 /* SchoolLocationLookupTests.swift */; };
 		B65064E11BAFEA92D191DEE4 /* JwClassicEamsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3F6B5708FBF3585FFE2EC2 /* JwClassicEamsParser.swift */; };
@@ -672,6 +681,7 @@
 		B946F93F767DE214C2567E03 /* WatchPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = B74E99119576AF81E6F6A973 /* WatchPalette.swift */; };
 		B9565500F0E41BE6FD0A49BF /* WakeUpV6170CryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EE8A20C3E335D801B6BB4FE /* WakeUpV6170CryptoTests.swift */; };
 		B97DD574CBBD426AFB4CDB21 /* WeekRangeOverlap.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8C75554581BE8C26C81B68 /* WeekRangeOverlap.swift */; };
+		B9916A8499A5177B5B4E5C19 /* WatchTimeStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B387DB6D5E321BBFC978A6DF /* WatchTimeStripView.swift */; };
 		B9AD5C163D32ED432392B809 /* WidgetSettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B0AA7A7A590FC36AAAE7D0 /* WidgetSettingsScreen.swift */; };
 		B9F2E54ACCFF7426F9E03EDD /* TimetableViewportPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AD1DB72537D5FB202ADBE25 /* TimetableViewportPolicy.swift */; };
 		BA0886BFD5285B9F2ED4B736 /* BackgroundReliabilityProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A2B9F752990795A5BDC657 /* BackgroundReliabilityProbe.swift */; };
@@ -868,9 +878,11 @@
 		EFBA358CFB2F74092DBDB6CB /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D79D23433FE386230D5AB1 /* DateUtils.swift */; };
 		F00F32B82D112F4EAF2326DD /* WatchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7520D91A2F46FD230A9D9E7 /* WatchStore.swift */; };
 		F0299BF92B48D57BF4556370 /* JwEams5ParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E0BCF9A05FDD62F8ED47C6 /* JwEams5ParserTests.swift */; };
+		F0ABEDDEEE087E34FFC7193F /* WatchTimeStripPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAE4621C281E4D91FA2E274 /* WatchTimeStripPreferences.swift */; };
 		F233C73F377B5DDCDC081C14 /* CourseColorUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F8589E7A5EA8C34355C1FFF /* CourseColorUtil.swift */; };
 		F3C52FFD89C2D0D908A32C89 /* LocaleHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F0807AB00ED93A168AD2C6 /* LocaleHelper.swift */; };
 		F3CB1231775E739C101A0A3F /* CalendarImportRecordDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8A83BDF70AF60240387895 /* CalendarImportRecordDao.swift */; };
+		F3E65F811B012B5B6CA5F01F /* WatchTimeStripPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D947CE36AC71405BBBA282 /* WatchTimeStripPreferencesTests.swift */; };
 		F48DABCC146D655E683D42EF /* WeekViewWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804FD9B63BCC3C1726B9CAFF /* WeekViewWidgetView.swift */; };
 		F49B03852D2F7DB787A8639C /* CalendarImportRecordEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0DABC28BEA6BE6A4C2179D /* CalendarImportRecordEntity.swift */; };
 		F4F3C180248F3621BFF7E4C4 /* TimeTableUtilsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B54C7ABE0AD4B91392A32A1 /* TimeTableUtilsTests.swift */; };
@@ -883,6 +895,7 @@
 		F641EDE75578F5F85B651651 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1205376525F575AF970B7CD4 /* Localizable.strings */; };
 		F65B4753901D75DE1D367046 /* ParserAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCB8B72B49233D52340AB7A /* ParserAuditTests.swift */; };
 		F6A5B480AC1E0C9801B33498 /* PeriodHeaderLayoutModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0585AEDD24C0DBDDF049B0 /* PeriodHeaderLayoutModel.swift */; };
+		F6E02BC863B382E8CFAAD4AF /* WatchTimeStripAgendaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA12984653358142453BDBB3 /* WatchTimeStripAgendaTests.swift */; };
 		F6FDF34931FA550215ED96A4 /* CourseDropCandidateGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BE975B5C2E5C83C6458B62 /* CourseDropCandidateGeometryTests.swift */; };
 		F87EA186C46911B2273DBDD0 /* JwCatalogMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C830876C8FBBE1CF992152 /* JwCatalogMigrationTests.swift */; };
 		F88DECDC5844B50BB54A2770 /* NavigationRailBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D5BFC656D3F3C24D3651480 /* NavigationRailBar.swift */; };
@@ -897,6 +910,7 @@
 		FAB9B2708140EE98876A75A0 /* CourseDisplayUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = E451AD795407D5BA73BD0A6B /* CourseDisplayUtil.swift */; };
 		FAE28F0D5FC1877DEC0EB3F1 /* WatchCurrentClassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D04622449C96DB2BB15D6100 /* WatchCurrentClassViews.swift */; };
 		FAEA3EF606941B6C04F71AAC /* JwHomeParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C4F0122B013F0C9601D7DB /* JwHomeParser.swift */; };
+		FB209E5C6CE38B6D3F97529A /* WatchTimeStripSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCF650CBCA0D0B5B19251A0 /* WatchTimeStripSettingsUITests.swift */; };
 		FB63563BAAF964DF077FA5B1 /* AppGroupResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */; };
 		FB6439B2F4A47AFA4FDAC353 /* JwClassicEamsFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100AA35EB3BAC880E74249AB /* JwClassicEamsFetch.swift */; };
 		FB79D50E122806F9E402CEE1 /* WatchAgendaCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F531F5DFCAE7C0DAEE119A61 /* WatchAgendaCore.swift */; };
@@ -1111,6 +1125,7 @@
 		3B82CAC0319EEE6B78526019 /* JwSgAssetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwSgAssetBridge.swift; sourceTree = "<group>"; };
 		3BB9A3170E31D64A578F3B56 /* ImportReceiverActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportReceiverActivity.swift; sourceTree = "<group>"; };
 		3C66E6D2ABAEEAC25D75D8C3 /* ExportImportRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImportRoundTripTests.swift; sourceTree = "<group>"; };
+		3CCF650CBCA0D0B5B19251A0 /* WatchTimeStripSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripSettingsUITests.swift; sourceTree = "<group>"; };
 		3CE7034F859FC0E80A0569C9 /* SleepyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SleepyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3E20E86B4FD984D1F80869C5 /* CustomThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomThemeStore.swift; sourceTree = "<group>"; };
 		3E75995AB2FB7D4568AE0E14 /* SchoolLocationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolLocationPolicy.swift; sourceTree = "<group>"; };
@@ -1175,6 +1190,7 @@
 		5ACF85CE927A56FE05B7CABB /* WidgetCourseCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCourseCard.swift; sourceTree = "<group>"; };
 		5B51026659FD36F62B0A0281 /* ManagementPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementPage.swift; sourceTree = "<group>"; };
 		5C1D8BD48F149CE16160CE84 /* JwNewZfParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwNewZfParser.swift; sourceTree = "<group>"; };
+		5C71B2E61B48201CC8AAB974 /* WatchTimeStripCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripCore.swift; sourceTree = "<group>"; };
 		5C90F21885B1E17FA515F36A /* CountdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownView.swift; sourceTree = "<group>"; };
 		5CD0851531D7F71E0ED03D36 /* ScheduleParserLosslessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleParserLosslessTests.swift; sourceTree = "<group>"; };
 		5D01ED756BE86C51A9663993 /* FeedbackComposerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackComposerTests.swift; sourceTree = "<group>"; };
@@ -1288,6 +1304,7 @@
 		9275738703FAD36D408DAA49 /* ExportScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportScreen.swift; sourceTree = "<group>"; };
 		92BDFF07EFDCE99A1169FB4E /* WatchTimelineSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimelineSupport.swift; sourceTree = "<group>"; };
 		931C7675820A5CFD1E1D2D75 /* CustomThemeEditorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomThemeEditorScreen.swift; sourceTree = "<group>"; };
+		93D947CE36AC71405BBBA282 /* WatchTimeStripPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripPreferencesTests.swift; sourceTree = "<group>"; };
 		94285CA1C0D50C093623A6AD /* JwPekingParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwPekingParserTests.swift; sourceTree = "<group>"; };
 		945AE1E7D6D417CE3FBD4C89 /* WidgetCompactHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCompactHelpers.swift; sourceTree = "<group>"; };
 		94B6495A761202081C7C1888 /* WidgetResizeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetResizeCore.swift; sourceTree = "<group>"; };
@@ -1357,6 +1374,7 @@
 		B26C1FC7457815C7A78F9026 /* DateTimePickers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateTimePickers.swift; sourceTree = "<group>"; };
 		B2C4F0122B013F0C9601D7DB /* JwHomeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwHomeParser.swift; sourceTree = "<group>"; };
 		B31ED92C2240B798F37A4F8A /* ConflictCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictCard.swift; sourceTree = "<group>"; };
+		B387DB6D5E321BBFC978A6DF /* WatchTimeStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripView.swift; sourceTree = "<group>"; };
 		B413E30FAD9261068960FC5F /* JwImportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportViewModel.swift; sourceTree = "<group>"; };
 		B41AA3A6188D5A6651648F24 /* ExportFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFlowUITests.swift; sourceTree = "<group>"; };
 		B445492F562DDC2A16B5171D /* WidgetDataLoaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataLoaders.swift; sourceTree = "<group>"; };
@@ -1376,6 +1394,7 @@
 		B99EABD46A9E378C7363591F /* JwQzVariantsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzVariantsTests.swift; sourceTree = "<group>"; };
 		B9A63896A64FC145BFC01F39 /* JwQzIeasParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzIeasParserTests.swift; sourceTree = "<group>"; };
 		B9C22DE3433DD8BF4069C158 /* SleepyUITests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SleepyUITests.entitlements; sourceTree = "<group>"; };
+		BBAE4621C281E4D91FA2E274 /* WatchTimeStripPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripPreferences.swift; sourceTree = "<group>"; };
 		BBFED0C6AAB92E8C3D18FB7A /* SystemColorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemColorTests.swift; sourceTree = "<group>"; };
 		BC2745AD826F30FABAEB0D32 /* SwipeBackGestureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeBackGestureUITests.swift; sourceTree = "<group>"; };
 		BC294FCD0137EEE4504AB607 /* JwNuitParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwNuitParser.swift; sourceTree = "<group>"; };
@@ -1415,6 +1434,7 @@
 		C8DB7D7CEE9EE6215B4FDFEC /* SleepyClassLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyClassLiveActivity.swift; sourceTree = "<group>"; };
 		C9499DA6423AC6165B96C599 /* SchoolSelectUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolSelectUITests.swift; sourceTree = "<group>"; };
 		C9A3791BAB2C3DB6208EDB7E /* JwEcuplSuperParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwEcuplSuperParserTests.swift; sourceTree = "<group>"; };
+		CA12984653358142453BDBB3 /* WatchTimeStripAgendaTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripAgendaTests.swift; sourceTree = "<group>"; };
 		CAE3D4154D8B09B67CD942EC /* SchoolCityIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolCityIndex.swift; sourceTree = "<group>"; };
 		CB070EA63C58455FEB8A0DDB /* UndoHistoryDepthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoHistoryDepthTests.swift; sourceTree = "<group>"; };
 		CB3FF942AD486AE4C2BB486F /* JwUmoocYlParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwUmoocYlParserTests.swift; sourceTree = "<group>"; };
@@ -1471,6 +1491,7 @@
 		E640C1A188AC5138D468DFE2 /* WidgetCompactWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCompactWindow.swift; sourceTree = "<group>"; };
 		E6C202EA6E5DE4FC41312B62 /* JwHnustParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwHnustParser.swift; sourceTree = "<group>"; };
 		E7717787BC54237EC484E5E5 /* JwBoyaPpParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwBoyaPpParserTests.swift; sourceTree = "<group>"; };
+		E7D7A1444B9965C53DD04011 /* WatchTimeStripCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripCoreTests.swift; sourceTree = "<group>"; };
 		E863D5E148DA13657A66F19F /* WidgetScrollStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetScrollStore.swift; sourceTree = "<group>"; };
 		E88F90810A74D8BE44117CCA /* ImportedPeriodTableDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportedPeriodTableDraft.swift; sourceTree = "<group>"; };
 		E9C683580CF237672D635028 /* WeekView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekView.swift; sourceTree = "<group>"; };
@@ -1479,6 +1500,7 @@
 		EB16BBC06209972B0E6B63A1 /* AllTablesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllTablesScreen.swift; sourceTree = "<group>"; };
 		EB8C75554581BE8C26C81B68 /* WeekRangeOverlap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekRangeOverlap.swift; sourceTree = "<group>"; };
 		EB9D554C17B07C5E84921BFF /* WatchTodayListViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTodayListViews.swift; sourceTree = "<group>"; };
+		EC2F7AE3D88421C231F3F990 /* WatchTimeStripProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripProvider.swift; sourceTree = "<group>"; };
 		EC764912B65C30BEF4ABB94B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EDC6BEB3E8D377C5952F4450 /* JwJsonParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwJsonParserTests.swift; sourceTree = "<group>"; };
 		EEFFFB7B27071D52A6BF4CD8 /* JwParseDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParseDiagnostics.swift; sourceTree = "<group>"; };
@@ -1813,6 +1835,8 @@
 				4025E8D10A574C8F59C29E21 /* TodayWidgetView.swift */,
 				D52AFD49A9FA76836199F06A /* TwoDayWidgetView.swift */,
 				F531F5DFCAE7C0DAEE119A61 /* WatchAgendaCore.swift */,
+				5C71B2E61B48201CC8AAB974 /* WatchTimeStripCore.swift */,
+				BBAE4621C281E4D91FA2E274 /* WatchTimeStripPreferences.swift */,
 				76EC0EF9B72C669E4A56B91E /* WeekGridWidgetView.swift */,
 				12CB5E397A61641128360FA3 /* WeekListWidgetView.swift */,
 				804FD9B63BCC3C1726B9CAFF /* WeekViewWidgetView.swift */,
@@ -2157,6 +2181,9 @@
 				55E80733E53FBC8E4F9A0FE6 /* WatchAgendaCoreTests.swift */,
 				C8547539653D1E71711BDB34 /* WatchCommandTests.swift */,
 				FE9B8E632B798EE88123F87B /* WatchSyncSnapshotTests.swift */,
+				CA12984653358142453BDBB3 /* WatchTimeStripAgendaTests.swift */,
+				E7D7A1444B9965C53DD04011 /* WatchTimeStripCoreTests.swift */,
+				93D947CE36AC71405BBBA282 /* WatchTimeStripPreferencesTests.swift */,
 				EAA351FA5E1B5313277092F1 /* WebViewNavigationPolicyTests.swift */,
 				D9D08D0F2D4A4985859EFCC8 /* WidgetGlassPreviewRenderTests.swift */,
 				883A8F99C25404524386B89E /* WidgetLogicTests.swift */,
@@ -2341,6 +2368,7 @@
 				62E666B657065219FD1335EA /* TopBarOverlapUITests.swift */,
 				8CAD39D80DA896A487637E86 /* UIElementAuditUITests.swift */,
 				A7FEE8627F23A972326DD0C3 /* UITestLaunch.swift */,
+				3CCF650CBCA0D0B5B19251A0 /* WatchTimeStripSettingsUITests.swift */,
 				3E7AD6CE77CFDEF12C064E61 /* WidgetArchivingUITests.swift */,
 			);
 			path = SleepyUITests;
@@ -2376,6 +2404,8 @@
 				AF680AA6331226481842B6E5 /* WatchComplicationViews.swift */,
 				D04622449C96DB2BB15D6100 /* WatchCurrentClassViews.swift */,
 				92BDFF07EFDCE99A1169FB4E /* WatchTimelineSupport.swift */,
+				EC2F7AE3D88421C231F3F990 /* WatchTimeStripProvider.swift */,
+				B387DB6D5E321BBFC978A6DF /* WatchTimeStripView.swift */,
 				EB9D554C17B07C5E84921BFF /* WatchTodayListViews.swift */,
 				B7295991FEB56734AAE5B65B /* WatchTodayOverviewViews.swift */,
 				1047803991AE45848D425670 /* WatchTomorrowViews.swift */,
@@ -2776,6 +2806,10 @@
 				7266949D539DF168F2489AB0 /* WatchComplicationViews.swift in Sources */,
 				FAE28F0D5FC1877DEC0EB3F1 /* WatchCurrentClassViews.swift in Sources */,
 				B365C08AC9F09ACFB4EC868D /* WatchSyncSnapshot.swift in Sources */,
+				B5B090CED25BD53408C3D0D8 /* WatchTimeStripCore.swift in Sources */,
+				612CF15076F5F3DEEC17AE77 /* WatchTimeStripPreferences.swift in Sources */,
+				99271AD383215D31F66B3532 /* WatchTimeStripProvider.swift in Sources */,
+				B9916A8499A5177B5B4E5C19 /* WatchTimeStripView.swift in Sources */,
 				55B51C8337410D907CF68416 /* WatchTimelineSupport.swift in Sources */,
 				8E4B78FB82A1F3FA990F0AAF /* WatchTodayListViews.swift in Sources */,
 				5C0563EE54EAF0BFEBA9F48D /* WatchTodayOverviewViews.swift in Sources */,
@@ -3050,6 +3084,8 @@
 				0551E27199A225FDF1FE8EE6 /* WatchCommand.swift in Sources */,
 				DE7D1F79D40D6CBCAAE4C97E /* WatchSyncCoordinator.swift in Sources */,
 				799157EED3EEFCA74C65EA68 /* WatchSyncSnapshot.swift in Sources */,
+				2350DA7F035167D5A6F56DC9 /* WatchTimeStripCore.swift in Sources */,
+				AD3A94B923E9CB968FE2D01A /* WatchTimeStripPreferences.swift in Sources */,
 				DE54D9ABD789E271BD9CEB33 /* WeekDisplayResolver.swift in Sources */,
 				C8B2D015F3FAFE55BA27BBE9 /* WeekGridWidgetView.swift in Sources */,
 				43944B5632697D4438ECEF4C /* WeekListWidgetView.swift in Sources */,
@@ -3111,6 +3147,7 @@
 				6C8953C9D9137CB64BADA902 /* TopBarOverlapUITests.swift in Sources */,
 				5BBFF48EE96BC7C8BFB2E820 /* UIElementAuditUITests.swift in Sources */,
 				E0C79D8919C1E4EE10294597 /* UITestLaunch.swift in Sources */,
+				FB209E5C6CE38B6D3F97529A /* WatchTimeStripSettingsUITests.swift in Sources */,
 				76D1F3F2759F5FBE76A9D061 /* WidgetArchivingUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -3282,6 +3319,8 @@
 				50A10624EBC3AF4E9C816EB0 /* WatchAgendaCore.swift in Sources */,
 				BEEF1F450F462996F51AEBFA /* WatchCommand.swift in Sources */,
 				00E6025E93680F06FF5DE5C0 /* WatchSyncSnapshot.swift in Sources */,
+				12570467EB8FE2AB02BBDE91 /* WatchTimeStripCore.swift in Sources */,
+				651BAD8D3730F292EA6F11E6 /* WatchTimeStripPreferences.swift in Sources */,
 				78F17A670A6F6C7204CB379B /* WeekDisplayResolver.swift in Sources */,
 				85CDA2ACCCF749A4D3DC7619 /* WeekGridWidgetView.swift in Sources */,
 				5CC516C7ED012D9929322DC7 /* WeekListWidgetView.swift in Sources */,
@@ -3461,6 +3500,9 @@
 				ED6E1B7D18661242DF77D113 /* WatchAgendaCoreTests.swift in Sources */,
 				9C82F48B03666912E8296988 /* WatchCommandTests.swift in Sources */,
 				861F76FBEF8F54A2A7F2F55D /* WatchSyncSnapshotTests.swift in Sources */,
+				F6E02BC863B382E8CFAAD4AF /* WatchTimeStripAgendaTests.swift in Sources */,
+				B0942CFA851CCEA8D642EB66 /* WatchTimeStripCoreTests.swift in Sources */,
+				F3E65F811B012B5B6CA5F01F /* WatchTimeStripPreferencesTests.swift in Sources */,
 				71CF8D75E142FF4C91354E7B /* WebViewNavigationPolicyTests.swift in Sources */,
 				F5E829CCBE2823FA37CBD0FF /* WidgetGlassPreviewRenderTests.swift in Sources */,
 				EC2F5B2FFEEF908131D0D88E /* WidgetLogicTests.swift in Sources */,
@@ -3569,6 +3611,8 @@
 				F00F32B82D112F4EAF2326DD /* WatchStore.swift in Sources */,
 				22A7084A7E874B58177C314E /* WatchSyncReceiver.swift in Sources */,
 				2B081332F507C7E53ED7600E /* WatchSyncSnapshot.swift in Sources */,
+				72D0AA486A5A42B330398248 /* WatchTimeStripCore.swift in Sources */,
+				F0ABEDDEEE087E34FFC7193F /* WatchTimeStripPreferences.swift in Sources */,
 				E3759F54B5F3021A4C98B36E /* WeekDisplayResolver.swift in Sources */,
 				B97DD574CBBD426AFB4CDB21 /* WeekRangeOverlap.swift in Sources */,
 				42BD1E2CE229C8ABC3C25A7B /* WeekView.swift in Sources */,
