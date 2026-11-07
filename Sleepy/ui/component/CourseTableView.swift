@@ -242,14 +242,9 @@ private func isDateTodayOfWeek(startDate: String, week: Int, day: Int, todayDate
 
 // MARK: - 双指纵向缩放行高 ← Modifier.verticalResizeGesture
 // v1.0.56 T3: pinchZoomEnabled=false 时手势不挂(存量缩放值不清)。
-// v1.0.64 修复(用户实测开关开了仍捏不动): 识别器改挂最近祖先 UIScrollView。
-// 根因 = hitTest 不命中的 view 其识别器永收不到触摸; 旧代码把 pinch 加在
-// .background(GridPinchResizer) 的 superview(SwiftUI 背景宿主, 不在滚动
-// 内容的 hit 链上) → 永不触发; 且无 delegate, 与外层 ScrollView 纵向 pan/
-// TabView 横向 pager 竞争必败。坐标取 in:self, verticalSpan 是平移不变量,
-// 与宿主坐标系无关。
-// 阈值/主导比/上下限求解全走 TimetableViewportPolicy(与 原版本 同一纯函数)。
-private final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
+// 识别器挂在滚动内容的祖先上；背景探针本身不参与命中。
+// 阈值/主导比/上下限求解统一由 TimetableViewportPolicy 决定。
+final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
     /// 实验室开关(1.0.64 起默认开)。开关在页面存活期间被翻成 true(设置页返回/
     /// 同帧重算)时, didMoveToWindow 不会再次触发 → didMoveToSuperview/syncGesture
     /// 即时重挂, 否则开关"看起来开了但捏不动"。
@@ -266,6 +261,7 @@ private final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
     private var startHorizontalSpan: CGFloat = 0
     private var startRowHeightDp: CGFloat = 0
     private var locked = false
+    private var suppressedScrolling = false
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -302,24 +298,31 @@ private final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
         detachGesture()
         let g = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
         g.cancelsTouchesInView = false   // 平台偏差: 不劫持单指点击/滚动
-        g.delegate = self                // v1.0.64: 与滚动/pager 并存, 否则竞争必败
+        g.delegate = self
+        g.name = "sleepy.gridRowPinch"
         host.addGestureRecognizer(g)
         attachedTo = host; pinch = g
         hostScroll = host as? UIScrollView
     }
 
-    private func detachGesture() {
-        if let g = pinch { attachedTo?.removeGestureRecognizer(g) }
-        pinch = nil; attachedTo = nil
+    func detachGesture() {
         restoreScroll()
-        hostScroll = nil
+        if let g = pinch { attachedTo?.removeGestureRecognizer(g) }
+        pinch = nil; attachedTo = nil; hostScroll = nil
+        startVerticalSpan = nil
+        locked = false
     }
 
     /// 纵向意图锁定后接管滚动(← 原 consume 屏蔽 pager 的 iOS 等价物):
     /// 捏合期间页面不跟手漂移。
-    private func suppressScroll() { hostScroll?.isScrollEnabled = false }
+    private func suppressScroll() {
+        guard let hostScroll, hostScroll.isScrollEnabled else { return }
+        suppressedScrolling = true
+        hostScroll.isScrollEnabled = false
+    }
     private func restoreScroll() {
-        if hostScroll?.isScrollEnabled == false { hostScroll?.isScrollEnabled = true }
+        if suppressedScrolling { hostScroll?.isScrollEnabled = true }
+        suppressedScrolling = false
     }
 
     // 与 ScrollView 纵向 pan / TabView 横向 pager 并存; 单指点击/滚动不受影响。
@@ -385,6 +388,10 @@ private struct GridPinchResizer: UIViewRepresentable {
         v.contentScale = contentScale
         v.onScaleChange = onScaleChange
         return v
+    }
+
+    static func dismantleUIView(_ uiView: GridPinchResizeUIView, coordinator: ()) {
+        uiView.detachGesture()
     }
 
     func updateUIView(_ v: GridPinchResizeUIView, context: Context) {

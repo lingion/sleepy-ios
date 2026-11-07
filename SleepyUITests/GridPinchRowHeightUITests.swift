@@ -1,48 +1,44 @@
-// GridPinchRowHeightUITests.swift — v1.0.64 双指捏放行高端到端回归。
-// 验证链: 周 pager 上双指放大 → 顶栏出现未提交 tick(scale_keep) → 点 tick
-// 提交 → tick 熄灭 + 值落盘 → relaunch 后 tick 仍不出现(持久化生效)。
-// 注: pinchWithScale:velocity: 为 XCUIElement 无 availability 标注的老 API
-// (SDK 头文件实证), 全测试运行时可用; 合成双指纵向 span 主导 → 触发
-// locksVerticalResize。行为断言由用户真机/CI 执行(用户令)。
 import XCTest
 
 final class GridPinchRowHeightUITests: XCTestCase {
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
+    override func setUpWithError() throws { continueAfterFailure = false }
 
     func testPinchShowsTickAndCommitPersists() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
-                               "-SLEEPY_UI_TEST_SEED"]
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-SLEEPY_UI_TEST_SEED",
+                               "-grid_pinch_zoom", "YES", "-grid_adaptive_height", "NO",
+                               "-grid_long_break_spacing", "NO", "-grid_scale", "1"]
         app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"]
                         .waitForExistence(timeout: 10), "课表 tab 应出现")
-
         let pager = app.collectionViews["schedule_week_pager"]
-        XCTAssertTrue(pager.waitForExistence(timeout: 10), "周 pager 应存在(CourseDragUITests 同锚点)")
-
+        XCTAssertTrue(pager.waitForExistence(timeout: 10))
+        let card = pager.buttons["gridcell_1"]
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        let beforeHeight = card.frame.height
+        let enlarge = beforeHeight < 128
         let tick = app.descendants(matching: .any)["scale_keep"]
-        XCTAssertFalse(tick.exists, "捏合前不应出现未提交 tick")
+        XCTAssertFalse(tick.exists)
 
-        // 双指放大(纵向 span 主导 → locksVerticalResize 置锁)
-        pager.pinch(withScale: 1.5, velocity: 0.6)
-
-        XCTAssertTrue(tick.waitForExistence(timeout: 5),
-                      "双指放大应使顶栏出现 scale_keep(手势→scale→tick 链路)")
-
+        // The CI recording for scale 1.5 has a 10 pt vertical span at 0.1s and 16.47 pt
+        // at release. It doesn't record recognition time; use a larger gesture rather than weakening 8 pt.
+        pager.pinch(withScale: enlarge ? 4.0 : 0.25, velocity: enlarge ? 1.0 : -1.0)
+        XCTAssertTrue(tick.waitForExistence(timeout: 5), "A full vertical pinch must change row height")
+        let resizedHeight = card.frame.height
+        if enlarge { XCTAssertGreaterThan(resizedHeight, beforeHeight + 4) }
+        else { XCTAssertLessThan(resizedHeight, beforeHeight - 4) }
         tick.tap()
-        let deadline = Date().addingTimeInterval(3)
-        while tick.exists && Date() < deadline { usleep(100_000) }
-        XCTAssertFalse(tick.exists, "tick 提交后应消失(值已落盘)")
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: tick)
+        wait(for: [gone], timeout: 3)
+        let committedHeight = card.frame.height
 
-        // 持久化: 重启后不该再出现未提交态
         app.terminate()
-        app.launch()
-        XCTAssertTrue(app.collectionViews["schedule_week_pager"]
-                        .waitForExistence(timeout: 15), "重启后课表应恢复")
-        XCTAssertFalse(app.descendants(matching: .any)["scale_keep"].exists,
-                       "重启后 scale 应等于落盘值(无未提交差量)")
+        app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
+        app.sleepyLaunch()
+        let restored = app.collectionViews["schedule_week_pager"].buttons["gridcell_1"]
+        XCTAssertTrue(restored.waitForExistence(timeout: 15))
+        XCTAssertEqual(restored.frame.height, committedHeight, accuracy: 1)
+        XCTAssertGreaterThan(abs(restored.frame.height - beforeHeight), 4)
+        XCTAssertFalse(app.descendants(matching: .any)["scale_keep"].exists)
     }
 }
