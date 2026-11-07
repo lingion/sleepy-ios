@@ -388,7 +388,7 @@ struct ImportSheet: View {
                 if mode == .appendNonConflict || mode == .appendAll {
                     guard let p = preview else { return }
                     isLoading = true
-                    _ = ImportSheet.applyImportPreview(
+                    let importedId = ImportSheet.applyImportPreview(
                         preview: p, mode: mode,
                         confirmedStartDateRaw: p.parseResult.startDate.isEmpty
                             ? (state.currentTable?.startDate ?? Self.todayISO())
@@ -399,6 +399,8 @@ struct ImportSheet: View {
                             incomingJson: p.parseResult.timeJson,
                             requiredNodeCount: p.parseResult.nodesPerDay),
                         onImported: onImported) { msg in errorMsg = msg }
+                    isLoading = false
+                    guard importedId != nil else { return }
                     preview = nil
                     pendingMode = nil
                     isLoading = false
@@ -510,7 +512,7 @@ struct ImportSheet: View {
                 // 「确认导入」= 唯一写库点, 点下即落库。之后不再跳编辑课表页 —
                 // 那个页面有「保存」按钮, 会造成"没点保存数据也在"的假保存闸误导
                 // (原版本 v1.0.56 已删跳转, 改 snackbar 明示 import_success)。
-                _ = ImportSheet.applyImportPreview(
+                let importedId = ImportSheet.applyImportPreview(
                     preview: currentPreview, mode: mode,
                     confirmedStartDateRaw: confirmedStartDate,
                     confirmedTableName: confirmedTableName,
@@ -518,6 +520,8 @@ struct ImportSheet: View {
                     onImported: onImported,
                     onError: { msg in errorMsg = msg },
                     bindPeriodTableId: confirmedBindPeriodTableId)
+                isLoading = false
+                guard importedId != nil else { return }
                 confirmedPreview = nil
                 pendingMode = nil
                 // ← 原版本: 导入成功预览一并关闭 (preview = null)
@@ -1432,54 +1436,28 @@ extension ImportSheet {
         defer { UndoManager.shared.endBatch() }
         // 应用约定 startDate=周一；用户在确认框可能手填非周一日期，落库前归一（issue #5）
         let confirmedStartDate = normalizeStartDate(confirmedStartDateRaw)
+        do {
         switch mode {
         case .replaceCurrent:
-            if let existing = try? repo.getTable(preview.targetTableId) {
-                let newName = confirmedTableName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? preview.parseResult.tableName
-                    : confirmedTableName.trimmingCharacters(in: .whitespacesAndNewlines)
-                // 时间域写回真实 owner: 绑定独立作息表时写 period_tables, 不污染兼容列
-                let bound = existing.periodTableId.flatMap { try? repo.getPeriodTable($0) }
-                var nameDateCopy = existing
-                nameDateCopy.name = newName
-                nameDateCopy.startDate = confirmedStartDate
-                try? repo.updateTable(nameDateCopy)
-                if let bound = bound {
-                    var updatedBound = bound
-                    updatedBound.timeJson = confirmedTimeJson
-                    if preview.parseResult.nodesPerDay > 0 {
-                        updatedBound.nodesPerDay = preview.parseResult.nodesPerDay
-                    }
-                    _ = try? repo.savePeriodTable(updatedBound)
-                } else {
-                    var copy = nameDateCopy
-                    copy.timeJson = confirmedTimeJson
-                    copy.nodesPerDay = preview.parseResult.nodesPerDay > 0 ? preview.parseResult.nodesPerDay : existing.nodesPerDay
-                    try? repo.updateTable(copy)
-                }
-            }
-            // sleepy-v1 (§3.4 契约一): 解析端权威 groupId → 绕过 assignGroupIds 再分配
-            if preview.parseResult.groupIdsAuthoritative {
-                try? repo.replaceCoursesKeepingGroups(preview.targetTableId, preview.parseResult.courses)
-            } else {
-                try? repo.replaceCourses(preview.targetTableId, preview.parseResult.courses)
-            }
-            // v7.10.12: 整表替换不过闸门(换的是整张表, 拦截太武断), 但超层时提示
+            let name = confirmedTableName.trimmingCharacters(in: .whitespacesAndNewlines)
+            try repo.replaceImportedTable(preview.targetTableId,
+                name: name.isEmpty ? preview.parseResult.tableName : name,
+                startDate: confirmedStartDate, maxWeek: preview.parseResult.maxWeek,
+                nodesPerDay: preview.parseResult.nodesPerDay, timeJson: confirmedTimeJson,
+                courses: preview.parseResult.courses, keepGroups: preview.parseResult.groupIdsAuthoritative)
             let badDays = ConflictLayoutEngine.daysExceedingTwoLanes(preview.parseResult.courses)
-            if !badDays.isEmpty {
-                onError(L10n.format("import_three_layers_kept", dayNames(badDays)))
-            }
+            if !badDays.isEmpty { onError(L10n.format("import_three_layers_kept", dayNames(badDays))) }
             onImported()
             return preview.targetTableId
         case .importAsNew:
-            let base = (try? repo.getTable(preview.targetTableId)) ?? nil
+            let base = try repo.getTable(preview.targetTableId)
             // issue#40 §6: 新格式带 P 区块 → 建 period_tables 并绑定(恢复共享关系);
             // v1.0.62 B7b 用户 2026-10-05(2a): 无 P 区块(旧格式/粘贴文本)不再"不建" — 恒以确认页
             // 最终 confirmedTimeJson 兜底建表并绑定, 三个入口作息表行为统一。
             // v1.0.56 T6: 用户在第三 Tab 显式选了作息表 → 绑定用户所选(优先于自动建表绑定);
             // v1.0.56 T10: 自动建表走全局唯一名顺延(撞名加后缀, 禁与既有课表/作息表同名)
-            let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
-            let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
+            let courseNames = try repo.getAllTables().map { $0.name }
+            let periodNames = try repo.getAllPeriodTables().map { $0.name }
             // ← 原版本 importedPeriodTableDraft: 选中既有作息表则共享, 否则确认行 owns 新表
             let importedPeriod = importedPeriodTableDraft(
                 bindingId: bindPeriodTableId,
@@ -1490,7 +1468,7 @@ extension ImportSheet {
                     defaultName: preview.parseResult.tableName),
                 confirmedTimeJson: confirmedTimeJson)
             // v1.0.62 B7b ← repo.importNewTable: 表+作息表+课程+默认切换单事务原子提交
-            let newTableId = (try? repo.importNewTable(
+            let newTableId = try repo.importNewTable(
                 table: TimeTableEntity(
                     name: uniqueImportedTableName(confirmedTableName, courseNames),
                     startDate: confirmedStartDate,
@@ -1502,7 +1480,7 @@ extension ImportSheet {
                 courses: preview.parseResult.courses,
                 periodTable: importedPeriod,
                 bindPeriodTableId: bindPeriodTableId,
-                keepGroups: preview.parseResult.groupIdsAuthoritative)) ?? 0
+                keepGroups: preview.parseResult.groupIdsAuthoritative)
             // v7.10.12: 整表新建不过闸门, 超层时提示(同 ReplaceCurrent 策略)
             let badDaysNew = ConflictLayoutEngine.daysExceedingTwoLanes(preview.parseResult.courses)
             if !badDaysNew.isEmpty {
@@ -1543,22 +1521,15 @@ extension ImportSheet {
                 courses[i].id = 0
                 courses[i].tableId = preview.targetTableId
             }
-            if preview.parseResult.groupIdsAuthoritative {
-                _ = try? repo.insertCoursesKeepingGroups(courses)
-            } else {
-                _ = try? repo.insertCourses(courses)
-            }
-            // v7.10.16k 无损延伸: 老表作息∪导入作息, 并拓到导入课程实际到达的最大节。
-            // 旧代码 timeJson 空白(粘贴文本常态)就整段跳过 → 课程入库了课表却不延伸 = 静默丢。
-            // 2026-09-23: 绑定共享作息表时写入兼容列不生效(水合读 period); 写回真正 owner。
-            extendTimeDomain(repo: repo, tableId: preview.targetTableId,
-                             incomingJson: preview.parseResult.timeJson,
-                             requiredNodeCount: preview.parseResult.nodesPerDay)
+            try repo.appendImportedCourses(preview.targetTableId, courses: courses,
+                incomingTimeJson: preview.parseResult.timeJson,
+                requiredNodeCount: preview.parseResult.nodesPerDay,
+                keepGroups: preview.parseResult.groupIdsAuthoritative)
             onImported()
             return preview.targetTableId
         case .appendAsNew:
             // 当前课表 + 导入数据合并 → 新课表(用户命名)
-            let base = (try? repo.getTable(preview.targetTableId)) ?? nil
+            let base = try repo.getTable(preview.targetTableId)
             let incoming = preview.parseResult
             // v7.10.16k: 时间表 = 用户确认框里的 confirmedTimeJson 优先(它本身就是
             // mergeMostComplete 的无损合并初值, 用户又可手拓); 万一为空白再兜底无损合并。
@@ -1571,8 +1542,8 @@ extension ImportSheet {
                 : confirmedTimeJson
             let mergedRows = TimeTableUtils.parseTimeSlotRows(mergedTimeJson)
             // v1.0.62 B7b 用户 2026-10-05(2a): 合并新建课表同样恒建+绑作息表(以 mergedTimeJson 为源)。
-            let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
-            let periodNames = ((try? repo.getAllPeriodTables()) ?? []).map { $0.name }
+            let courseNames = try repo.getAllTables().map { $0.name }
+            let periodNames = try repo.getAllPeriodTables().map { $0.name }
             let mergedName = uniqueImportedTableName(confirmedTableName, courseNames)
             let mergedPeriod = PeriodTableEntity(
                 name: TimeTableUtils.suggestUniqueName(
@@ -1587,8 +1558,8 @@ extension ImportSheet {
                 !preview.existingCourses.contains { existing in Self.coursesConflict(inc, existing) }
             }
             let oldCourses: [CourseEntity]
-            if let b = base, let fetched = (try? repo.getCourses(b.id)) ?? nil {
-                oldCourses = fetched
+            if let b = base {
+                oldCourses = try repo.getCourses(b.id)
             } else {
                 oldCourses = []
             }
@@ -1603,7 +1574,7 @@ extension ImportSheet {
             // AppendAsNew 合并新老课: 导入侧 groupId 权威时仅对导入课保组, 老课照原样保组
             // v1.0.62 B7b ← repo.importNewTable: 表+作息表+课程+默认切换单事务原子提交
             // (id/tableId 重置在 importNewTable 内统一做, 调用方不再自行拷贝)
-            let newTableId = (try? repo.importNewTable(
+            let newTableId = try repo.importNewTable(
                 table: TimeTableEntity(
                     name: mergedName,
                     startDate: confirmedStartDate,
@@ -1614,7 +1585,7 @@ extension ImportSheet {
                     isDefault: false),
                 courses: oldCourses + cleanIncoming,
                 periodTable: mergedPeriod,
-                keepGroups: preview.parseResult.groupIdsAuthoritative)) ?? 0
+                keepGroups: preview.parseResult.groupIdsAuthoritative)
             onImported()
             return newTableId
         case .appendAll:
@@ -1634,18 +1605,16 @@ extension ImportSheet {
                 courses[i].id = 0
                 courses[i].tableId = preview.targetTableId
             }
-            if preview.parseResult.groupIdsAuthoritative {
-                _ = try? repo.insertCoursesKeepingGroups(courses)
-            } else {
-                _ = try? repo.insertCourses(courses)
-            }
-            // v7.10.16k: 节次无损延伸 — 与 AppendNonConflict 同策略(不再要求导入带 timeJson)
-            // 2026-09-23: 绑定态写 period_tables(真正 owner), 不污染兼容列。
-            extendTimeDomain(repo: repo, tableId: preview.targetTableId,
-                             incomingJson: preview.parseResult.timeJson,
-                             requiredNodeCount: preview.parseResult.nodesPerDay)
+            try repo.appendImportedCourses(preview.targetTableId, courses: courses,
+                incomingTimeJson: preview.parseResult.timeJson,
+                requiredNodeCount: preview.parseResult.nodesPerDay,
+                keepGroups: preview.parseResult.groupIdsAuthoritative)
             onImported()
             return preview.targetTableId
+        }
+        } catch {
+            onError(L10n.format("import_failed", error.localizedDescription))
+            return nil
         }
     }
 

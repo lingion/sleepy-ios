@@ -1179,3 +1179,6 @@
 "watch_tomorrow_mark" = "Mañana";
 "watch_tomorrow_no_class" = "Sin clases mañana";
 "watch_holiday" = "Vacaciones";
+
+"import_target_missing" = "El horario seleccionado ya no existe. Abre de nuevo la vista previa de importación.";
+"import_period_missing" = "La tabla de periodos seleccionada ya no existe. Selecciónala de nuevo.";

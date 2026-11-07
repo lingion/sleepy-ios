@@ -859,6 +859,9 @@ struct AppRoot: View {
             onImported: {
                 // ← 原版本 ce7f7924: 导入完成留在管理页(摘要卡就地刷新), 不再硬跳课表 Tab
                 PendingImportText.value = nil
+                WidgetCenter.shared.reloadAllTimelines()
+                ReminderRescheduler.shared.request()
+                WatchSyncCoordinator.shared.scheduleSync()
             },
             // ← 原版本 SleepyNavHost: onOpenAllTables = navigator.openAllTables()
             onOpenAllTables: { root.navigator.openAllTables() },

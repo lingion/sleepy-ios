@@ -1179,3 +1179,6 @@
 "watch_tomorrow_mark" = "明日";
 "watch_tomorrow_no_class" = "明日は授業なし";
 "watch_holiday" = "休み";
+
+"import_target_missing" = "選択した時間割が見つかりません。取り込みプレビューを開き直してください。";
+"import_period_missing" = "選択した時限設定が見つかりません。選び直してください。";

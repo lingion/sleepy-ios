@@ -1180,3 +1180,6 @@
 "watch_tomorrow_mark" = "明日";
 "watch_tomorrow_no_class" = "明日无课";
 "watch_holiday" = "假期中";
+
+"import_target_missing" = "目标课表已不存在，请重新打开导入预览。";
+"import_period_missing" = "所选作息表已不存在，请重新选择。";

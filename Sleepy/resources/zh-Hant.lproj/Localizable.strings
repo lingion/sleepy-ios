@@ -1179,3 +1179,6 @@
 "watch_tomorrow_mark" = "明日";
 "watch_tomorrow_no_class" = "明日無課";
 "watch_holiday" = "假期中";
+
+"import_target_missing" = "目標課表已不存在，請重新開啟匯入預覽。";
+"import_period_missing" = "所選作息表已不存在，請重新選擇。";
