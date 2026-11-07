@@ -721,8 +721,7 @@ final class NotificationScheduler {
         return
         #else
         guard #available(iOS 15.0, *), !bgTaskRegistered else { return }
-        bgTaskRegistered = true
-        try? BGTaskScheduler.shared.register(
+        bgTaskRegistered = BGTaskScheduler.shared.register(
             forTaskWithIdentifier: BG_RESYNC_TASK_ID, using: nil
         ) { task in
             guard let refreshTask = task as? BGAppRefreshTask else { task.setTaskCompleted(success: false); return }
@@ -736,7 +735,7 @@ final class NotificationScheduler {
         NotificationScheduler.shared.submitDailyResyncTask()
         let work = Task {
             await NotificationScheduler.shared.handleDailyResync()
-            task.setTaskCompleted(success: true)
+            task.setTaskCompleted(success: !Task.isCancelled)
         }
         task.expirationHandler = { work.cancel() }
     }
