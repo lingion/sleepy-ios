@@ -1097,14 +1097,14 @@
 "appearance_header_hide_time_sub" = "旧式ヘッダーで限のみ表示（実験的、デフォルト OFF）";
 "mine_widget" = "ウィジェット";
 "widget_gallery_title" = "ウィジェットを追加";
-"widget_manage_empty_v2" = "右上の＋からウィジェットを追加できます。まだ追加していない場合は、ホーム画面の何もないところを長押し → ＋ → Sleepy を検索、でも開けます。";
+"widget_manage_empty_v2" = "右上の ＋ でウィジェットとホーム画面への追加手順を確認できます。";
 "widget_guide_title" = "ウィジェットをホーム画面に追加する";
-"widget_guide_search_hint" = "ウィジェット一覧での名前は「%1$@」";
+"widget_guide_search_hint" = "アプリ「%1$@」を検索し、下のウィジェットを選んでください。";
 "widget_guide_copy_name" = "名前をコピー";
 "widget_guide_step_hold" = "ホーム画面の何もないところを長押しし、アプリアイコンが揺れ始めたら離します";
-"widget_guide_step_plus" = "左上の ➕ をタップし、右下の「ウィジェットを追加」をタップします";
-"widget_guide_step_search" = "検索欄にコピーした名前を入力して、このウィジェットを探します";
-"widget_guide_step_drag" = "アイコンを長押ししてホーム画面の空きマスにドラッグし、最後に右上の「完了」をタップします";
+"widget_guide_step_plus" = "左上の「編集」から「ウィジェットを追加」を選びます。以前の iOS では ＋ をタップします。";
+"widget_guide_step_search" = "Sleepy を検索してアプリを選び、ウィジェットとサイズを選びます。";
+"widget_guide_step_drag" = "「ウィジェットを追加」をタップし、配置を調整して「完了」をタップします。";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "一日の予定";

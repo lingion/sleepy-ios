@@ -13,24 +13,23 @@ struct WidgetAddGuideSheet: View {
     let onDismiss: () -> Void
     @State private var copied = false
 
-    /// 系统小组件库里该条目的显示名 = configurationDisplayName(L10n label),
-    /// 用户搜索时输入的就是它(WidgetVariantInfo 注册表单一真源)。
     private var displayName: String { L10n.format(card.variant.displayNameKey) }
+    private let searchName = "Sleepy"
 
     var body: some View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("widget_guide_title"),
-                           leadingStyle: .close, onBack: onDismiss)
+                           leadingStyle: .close, titleIdentifier: "widget_guide_title", onBack: onDismiss)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // 组件名行: 名称 + 复制按钮(搜桌面小组件库用)
                     HStack(spacing: 8) {
-                        Text(L10n.format("widget_guide_search_hint", displayName))
+                        Text(L10n.format("widget_guide_search_hint", searchName))
                             .font(.system(size: 14))
                             .foregroundColor(colors.onSurface)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Button {
-                            UIPasteboard.general.string = displayName
+                            UIPasteboard.general.string = searchName
                             withAnimation { copied = true }
                         } label: {
                             HStack(spacing: 6) {
@@ -49,7 +48,10 @@ struct WidgetAddGuideSheet: View {
                     .padding(.top, 16)
                     .padding(.bottom, 20)
 
-                    // 该组件形态示意(画廊同款 schematic)
+                    Text(displayName)
+                        .font(.headline)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
                     WidgetGalleryPreview(kind: card.variant.kind)
                         .aspectRatio(WidgetGalleryData.aspectRatio(of: card.previewFamily),
                                      contentMode: .fit)
@@ -68,7 +70,6 @@ struct WidgetAddGuideSheet: View {
             }
         }
         .background(colors.background)
-        .accessibilityIdentifier("widget_guide_sheet")
     }
 
     private var steps: [String] {

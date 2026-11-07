@@ -1097,14 +1097,14 @@
 "appearance_header_hide_time_sub" = "Solo el número de periodo en el encabezado clásico (experimental, desactivado)";
 "mine_widget" = "Widgets";
 "widget_gallery_title" = "Añadir widget";
-"widget_manage_empty_v2" = "Toca + arriba a la derecha para añadir un widget. Si aún no tienes ninguno, mantén pulsado un hueco del inicio → + → busca Sleepy.";
+"widget_manage_empty_v2" = "Toca + arriba a la derecha para ver los widgets y cómo añadirlos a la pantalla de inicio.";
 "widget_guide_title" = "Añade el widget a tu pantalla de inicio";
-"widget_guide_search_hint" = "En la galería se llama “%1$@”";
+"widget_guide_search_hint" = "Busca la app «%1$@» y elige el widget que aparece abajo.";
 "widget_guide_copy_name" = "Copiar nombre";
 "widget_guide_step_hold" = "Mantén pulsado un hueco vacío de la pantalla de inicio hasta que los iconos tiemblen";
-"widget_guide_step_plus" = "Pulsa el ➕ arriba a la izquierda y luego «Añadir widgets» abajo a la derecha";
-"widget_guide_step_search" = "Escribe en el buscador el nombre que acabas de copiar para encontrar el widget";
-"widget_guide_step_drag" = "Mantén pulsado su icono y arrástralo a un hueco; después pulsa «Hecho» arriba a la derecha";
+"widget_guide_step_plus" = "Toca Editar arriba a la izquierda y luego Añadir widget. En versiones anteriores de iOS, toca +.";
+"widget_guide_step_search" = "Busca Sleepy, selecciona la app y elige un widget y su tamaño.";
+"widget_guide_step_drag" = "Toca Añadir widget, colócalo donde quieras y toca Hecho.";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "Agenda diaria";
