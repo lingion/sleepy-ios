@@ -895,6 +895,10 @@ struct GridConflictLayer: View {
                     // ViewBuilder 不接受「先声明后分支赋值」(let 赋值语句不是 View) — 用即时闭包算出 (cardY, cardH)
                     let (cardY, cardH): (CGFloat, CGFloat) = {
                         guard let frac else {
+                            if let bounds = CourseGridRowLayout.standardCardBounds(startNode: course.startNode,
+                                step: course.step, slots: timeSlots, yOfRows: yOfRows, gapAfterRow: gapAfterRow) {
+                                return bounds
+                            }
                             return (yOfRows(Double(nodeIdx)),
                                     yOfRows(Double(nodeIdx + steps)) - yOfRows(Double(nodeIdx)) - gapAfterRow(nodeIdx + steps - 1))
                         }
