@@ -29,9 +29,8 @@ final class WatchStore: ObservableObject {
     /// 届时需已接好 provider, 否则 resolveCurrentTable 返 nil 撤错通知。
     func prepareScheduler() {
         NotificationScheduler.shared.repositoryProvider = { [weak self] in self?.repo }
-        // 手表自有通知链路须本地授权批文才投递 (申请点唯一, 幂等)。
-        // alert/sound 无需 Info.plist usage 文案 (仅 location/calendar 类才需)。
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        // 2026-10-30 权限政策对齐: 首启无条件 requestAuthorization 已摘除 —
+        // 违反"弹窗点=master 开关"政策且挡 ASC 截图; 申请改懒触发(见 applySnapshot)。
     }
 
     // MARK: - 数据查询
@@ -222,7 +221,17 @@ final class WatchStore: ObservableObject {
         ackDate = (body.prefs?.ackSentAt).flatMap { $0 > 0 ? Date(timeIntervalSince1970: Double($0) / 1000) : nil }
         version += 1
         // prefs 落盘后立即重排手表本地通知 (BGTask 分支已被 WATCH_APP 守卫裁掉)。
-        // master 关时 scheduleAll=撤净, 语义自洽。⚠ 前提=通知授权已批 (prepareScheduler)。
+        // master 关时 scheduleAll=撤净, 语义自洽。
+        // 2026-10-30 懒授权: master 开(镜像自 iPhone)且 notDetermined 才申请 — 对齐权限政策
+        // 截图模式(-SLEEPY_SHOT_TAB=)整体跳过授权弹窗, 保证商店截图干净
+        let shotMode = ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-SLEEPY_SHOT_TAB=") })
+        if !shotMode && AppPrefs.shared.isReminderEnabled() {
+            let center = UNUserNotificationCenter.current()
+            center.getNotificationSettings { s in
+                guard s.authorizationStatus == .notDetermined else { return }
+                center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            }
+        }
         NotificationScheduler.shared.scheduleAll()
         // 表盘复杂功能刷新 (PR#16): 镜像数据变 → 重算「下一节」timeline。
         // extension 进程独立读同 App Group 容器 GRDB, reload 触发其 getTimeline 重跑。

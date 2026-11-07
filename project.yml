@@ -258,6 +258,11 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.lingion.sleepy
+        # 2026-10-30 修: watch 侧 onOpenURL(sleepy://watch?tab=) 此前因 scheme 未注册永远收不到
+        # (表盘 complication 深链真机同样失效的潜伏 bug); 补注册与主 app 同 scheme
+        CFBundleURLTypes:
+          - CFBundleURLName: com.lingion.sleepy.watch
+            CFBundleURLSchemes: [sleepy]
         # 独立启动语义 (通知/Complication 刷新不要求 iPhone App 在前台)
         WKRunsIndependentlyOfCompanionApp: true
     settings:

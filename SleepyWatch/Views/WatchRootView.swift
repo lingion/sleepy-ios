@@ -13,7 +13,16 @@ struct WatchRootView: View {
     @EnvironmentObject private var store: WatchStore
     @Environment(\.colorScheme) private var envScheme
     @Environment(\.scenePhase) private var scenePhase
-    @State private var selection: WatchTab = .today
+    @State private var selection: WatchTab = {
+        // 2026-10-30 截图钩子: -SLEEPY_SHOT_TAB=today|schedule|mine (同 iOS 侧手法;
+        // simctl openurl 对 watch 模拟器不通 LS 115, 改启动参数切初始 tab)
+        guard let a = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("-SLEEPY_SHOT_TAB=") }) else { return .today }
+        switch String(a.dropFirst("-SLEEPY_SHOT_TAB=".count)) {
+        case "schedule": return .schedule
+        case "mine": return .mine
+        default: return .today
+        }
+    }()
 
     var body: some View {
         // watchOS 26+ 新导航要求内容内嵌 NavigationStack — 每个 tab 各自包一层

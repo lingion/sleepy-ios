@@ -26,6 +26,9 @@ struct SleepyWatchApp: App {
         // 调度器 repo 接线 (delegate 到货 handleDailyResync 冷启动即需,
         // 不等首次 applySnapshot)
         store.prepareScheduler()
+        if ProcessInfo.processInfo.arguments.contains("-SLEEPY_UI_TEST_SEED") {
+            SleepyUITestSeeder.seed(database: AppDatabase.getShared())
+        }
         // 持久色相快照首载(手表本地镜像库) — 与手机同口径的派生档课程色。
         CourseHueStore.shared.invalidate(
             mode: AppPrefs.shared.getCourseColorMode(),

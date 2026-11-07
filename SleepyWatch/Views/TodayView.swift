@@ -51,8 +51,10 @@ struct TodayView: View {
 
         // 冲突分栏 — 与 iOS 今日页/周视图同一引擎同一分组; 手表窄屏多栏并排
         let laneRows = ConflictLayoutEngine.weekLaneRows(courses, timeJson: table.timeJson)
+        // 预计算 groupId 分组 (避免 courseLink 内 2N 次线性扫描)
+        let groupMap = Dictionary(grouping: courses, by: { $0.groupId })
         List {
-            headerRow(status: status, table: table, count: courses.count, scheme: scheme)
+            headerRow(status: status, table: table, count: courses.count, scheme: scheme, today: today)
             if courses.isEmpty {
                 Text(status == .inRange ? L10n.t("schedule_no_course_today") : L10n.t("today_semester_out_hint"))
                     .font(.footnote).foregroundColor(scheme.onSurfaceVariant)
@@ -60,10 +62,10 @@ struct TodayView: View {
                 ForEach(Array(laneRows.enumerated()), id: \.offset) { _, row in
                     if row.laneCount == 1, let only = row.courses.first {
                         courseLink(only, courses: courses, table: table, scheme: scheme,
-                                   mark: markOf(only, in: courses, marks: marks))
+                                   mark: markOf(only, in: courses, marks: marks), groupMap: groupMap)
                     } else {
                         // 多栏行: 横向均分, 栏间 0.5pt hairline 竖线 (← TodayLaneRow 同款)
-                        HStack(alignment: .top, spacing: 4) {
+                        HStack(alignment: .top, spacing: 8) {
                             ForEach(0..<row.laneCount, id: \.self) { li in
                                 if li > 0 {
                                     Rectangle()
@@ -73,7 +75,7 @@ struct TodayView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     ForEach(row.courses.filter { row.laneOf[$0.id] == li }) { c in
                                         courseLink(c, courses: courses, table: table, scheme: scheme,
-                                                   mark: markOf(c, in: courses, marks: marks))
+                                                   mark: markOf(c, in: courses, marks: marks), groupMap: groupMap)
                                     }
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -94,16 +96,17 @@ struct TodayView: View {
         }
     }
 
-    /// 单课链接 — groupRows 传同 groupId 行集 (issue#22 取色按组判定, 全量传会歪)
+    /// 单课链接 — groupRows 从预计算 groupMap 取 (避免 2N 次线性扫描)
+    @ViewBuilder
     private func courseLink(_ course: CourseEntity, courses: [CourseEntity],
                             table: TimeTableEntity, scheme: WidgetScheme,
-                            mark: CourseMark?) -> some View {
+                            mark: CourseMark?, groupMap: [String: [CourseEntity]]) -> some View {
+        let groupRows = groupMap[course.groupId] ?? [course]
         NavigationLink {
-            CourseDetailView(course: course, table: table,
-                             groupRows: courses.filter { $0.groupId == course.groupId })
+            CourseDetailView(course: course, table: table, groupRows: groupRows)
         } label: {
             CourseRowView(course: course, table: table, scheme: scheme, mark: mark,
-                          groupRows: courses.filter { $0.groupId == course.groupId })
+                          groupRows: groupRows)
         }
     }
 
@@ -115,8 +118,8 @@ struct TodayView: View {
     /// 头卡 — ← TodayHeader 降维: 日期行 (可点进全屏倒计时) + 「第 N 周 / N 节」两枚 Stat
     @ViewBuilder
     private func headerRow(status: DateUtils.SemesterStatus, table: TimeTableEntity,
-                           count: Int, scheme: WidgetScheme) -> some View {
-        let comps = DateUtils.isoCalendar.dateComponents([.month, .day, .weekday], from: Date())
+                           count: Int, scheme: WidgetScheme, today: Date) -> some View {
+        let comps = DateUtils.isoCalendar.dateComponents([.month, .day, .weekday], from: today)
         VStack(alignment: .leading, spacing: 0) {
             // ★ 日期行 = 全屏倒计时入口 (双击/单击进入沉浸式大字倒计时)
             NavigationLink {
@@ -124,7 +127,7 @@ struct TodayView: View {
             } label: {
                 HStack(alignment: .bottom, spacing: 8) {
                     Text(L10n.format("date_long_format", comps.month ?? 1, comps.day ?? 1))
-                        .font(.system(size: 22, weight: .bold))
+                        .font(SleepyTypography.titleLarge).fontWeight(.bold)
                         .foregroundColor(scheme.onSurface)
                     Text(DateUtils.localizedDay(((comps.weekday ?? 2) + 5) % 7 + 1))
                         .font(.system(size: 10, weight: .medium))
@@ -140,7 +143,7 @@ struct TodayView: View {
             Spacer().frame(height: 8)
 
             HStack(spacing: 12) {
-                stat(weekOrStatusText(status, table: table),
+                stat(weekOrStatusText(status, table: table, today: today),
                      bg: scheme.primaryContainer, fg: scheme.onPrimaryContainer, scheme: scheme)
                 // 节数 chip = 课程清单 push 入口 (手表今日页唯一入口位; 语义
                 // ← iOS「我的页课程数卡 → CourseListScreen」同路径降维)。
@@ -159,11 +162,11 @@ struct TodayView: View {
         .cornerRadius(SleepyShapes.medium)
     }
 
-    private func weekOrStatusText(_ status: DateUtils.SemesterStatus, table: TimeTableEntity) -> String {
+    private func weekOrStatusText(_ status: DateUtils.SemesterStatus, table: TimeTableEntity, today: Date) -> String {
         switch status {
         case .inRange:
             return L10n.format("schedule_current_week",
-                               DateUtils.currentWeek(startDate: table.startDate, today: Date()))
+                               DateUtils.currentWeek(startDate: table.startDate, today: today))
         case .beforeStart: return L10n.t("semester_not_started")
         case .afterEnd: return L10n.t("semester_ended")
         }
