@@ -198,7 +198,7 @@ enum HolidayReminderPolicy {
         let day = Calendar.gregorianCST.startOfDay(for: date)
         let isHoliday = publicHolidays.contains { Calendar.gregorianCST.startOfDay(for: $0) == day }
         let isWorkday = transferWorkdays.contains { Calendar.gregorianCST.startOfDay(for: $0) == day }
-        let dow = DateUtils.todayDayOfWeek(today: date)
+        let dow = CourseOccurrences.day(date)
         if isWorkday { return .makeupWorkday }
         if isHoliday && transfers.contains(where: { Calendar.gregorianCST.startOfDay(for: $0.sourceDate) == day }) {
             return .transferHoliday

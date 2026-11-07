@@ -345,16 +345,16 @@
 "reminder_fluid_title" = "流体云 / 超级岛";
 "reminder_mode_label" = "提醒形态";
 "reminder_mode_banner" = "横幅";
-"reminder_mode_fluid" = "流体云";
+"reminder_mode_fluid" = "实况活动（灵动岛）";
 "reminder_mode_banner_sub" = "系统通知栏普通横幅,可手动划掉;手环/手表同步不受影响";
-"reminder_mode_fluid_sub" = "课程卡片出现在灵动岛/锁屏；无灵动岛机型显示为锁屏实况条(iOS 16.1+)。App 完全退出后，新的卡片要等下次打开才出现";
+"reminder_mode_fluid_sub" = "按课前提前时间和各课表提醒开关显示课程。Sleepy 在前台时会更新、切课和结束卡片。退到后台后已有倒计时可继续，但无法保证新卡片、课程切换或下课后自动移除；再次打开应用即可刷新。需要 iOS 16.1+，系统实况活动权限与通知权限独立。";
 "reminder_fluid_fields" = "胶囊主显示内容";
 "reminder_fluid_fields_hint" = "选择一个主显示内容";
 "reminder_fluid_field_name" = "课程名称";
 "reminder_fluid_field_time" = "上课时间";
 "reminder_fluid_field_room" = "上课地点";
 "reminder_fluid_field_teacher" = "任课老师";
-"reminder_fluid_note" = "实况通知随课前提醒开关;具体以系统支持为准(需要 iPhone 8+ 且 iOS 16.1+)";
+"reminder_fluid_note" = "按课前提前时间和各课表提醒开关显示课程。Sleepy 在前台时会更新、切课和结束卡片。退到后台后已有倒计时可继续，但无法保证新卡片、课程切换或下课后自动移除；再次打开应用即可刷新。需要 iOS 16.1+，系统实况活动权限与通知权限独立。";
 "reminder_notif_denied_title" = "通知权限已被拒绝";
 "reminder_notif_denied_sub" = "iOS 不会再次弹出授权请求，请前往系统设置手动开启通知。";
 "reminder_pick_time" = "选择提醒时间";
@@ -1098,14 +1098,14 @@
 "appearance_header_hide_time_sub" = "旧式表头只显示节次，不显示上课时间（实验性，默认关闭）";
 "mine_widget" = "小组件";
 "widget_gallery_title" = "添加小组件";
-"widget_manage_empty_v2" = "点右上角 ＋ 添加小组件;还没添加过时,长按桌面空白处 → ＋ → 搜索 Sleepy。";
+"widget_manage_empty_v2" = "点右上角 ＋ 查看小组件样式和添加到主屏幕的步骤。";
 "widget_guide_title" = "把小组件加到桌面";
-"widget_guide_search_hint" = "小组件库里叫「%1$@」";
+"widget_guide_search_hint" = "搜索应用「%1$@」，再选择下方的小组件。";
 "widget_guide_copy_name" = "复制名称";
 "widget_guide_step_hold" = "长按桌面空白处,直到 App 图标开始抖动";
-"widget_guide_step_plus" = "点左上角的 ➕,再点右下角的「添加小组件」";
-"widget_guide_step_search" = "在搜索框输入上面复制的名称,找到这个小组件";
-"widget_guide_step_drag" = "按住它的图标,拖到桌面空位,然后点右上角「完成」";
+"widget_guide_step_plus" = "点左上角「编辑」，再点「添加小组件」；较早版本的 iOS 请点 ＋。";
+"widget_guide_step_search" = "搜索 Sleepy 并点开应用，选择需要的小组件和尺寸。";
+"widget_guide_step_drag" = "点「添加小组件」，调整到桌面合适位置，再点「完成」。";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "每日议程";
@@ -1196,3 +1196,15 @@
 "settings_watch_time_strip_tomorrow_hint" = "仅预览下一个自然日，与最近有课日和提醒设置互不影响。";
 "settings_watch_time_strip_overview" = "整条宽度始终代表 90 分钟。刷新时机由系统安排，不会持续逐秒滑动。";
 "settings_watch_time_strip_preview_details" = "默认关闭。今日课程结束后（或今日无课时），仅预览下一个自然日，并标明日期与「明日预览」。预览从明日第一节课开始，按实际时间流速前进，最后一节课结束后重新循环。明日无课时显示「明日无课」，不会跳到之后的有课日。";
+
+"import_target_missing" = "目标课表已不存在，请重新打开导入预览。";
+"import_period_missing" = "所选作息表已不存在，请重新选择。";
+
+"live_activity_title" = "实况活动（灵动岛）";
+"live_activity_limits" = "按课前提前时间和各课表提醒开关显示课程。Sleepy 在前台时会更新、切课和结束卡片。退到后台后已有倒计时可继续，但无法保证新卡片、课程切换或下课后自动移除；再次打开应用即可刷新。需要 iOS 16.1+，系统实况活动权限与通知权限独立。";
+"live_activity_permission" = "系统已关闭实况活动，点此打开设置。";
+"live_activity_starts" = "距离上课";
+"live_activity_ends" = "距离下课";
+"live_activity_stale" = "课程状态可能已过期";
+"live_activity_open_to_refresh" = "打开 Sleepy 刷新";
+"live_activity_next" = "下节：%1$@";

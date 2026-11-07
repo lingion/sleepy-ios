@@ -1,23 +1,61 @@
-// ClassDayActivityCore.swift — 实况活动分段纯逻辑 (v1.0.64)
-//
-// 纯 Foundation(不 import ActivityKit) — Sleepy 主 target 单测 +
-// SleepyWidget 扩展共源编译。分段规则:
-//   相邻课间隔 > 60min 断段 → 规避 Live Activity「单条最长 8h / 4h 无更新腐坏」
-//   的平台上限, 每段内一次前台刷新即可覆盖一整段。
-
 import Foundation
 
 enum ClassDayActivityCore {
+    struct Course: Equatable {
+        let tableId: Int64
+        let courseId: Int64
+        let tableName: String
+        let name: String
+        let room: String
+        let start: Date
+        let end: Date
+    }
 
-    /// 断段阈值(分钟): 相邻课之间的空闲超过它 → 拆成两条活动。
+    enum Phase: String, Codable { case upcoming, ongoing }
+
+    struct Selection: Equatable {
+        let current: Course
+        let next: Course?
+        let phase: Phase
+        var refreshAt: Date { phase == .upcoming ? current.start : current.end }
+    }
+
+    static func isEnabled(prefs: AppPrefs) -> Bool {
+        prefs.isReminderEnabled() && prefs.isBeforeClassEnabled()
+            && prefs.getBeforeClassMode() == AppPrefs.BEFORE_CLASS_MODE_FLUID
+    }
+
+    static func selection(from courses: [Course], now: Date, leadMinutes: Int) -> Selection? {
+        let sorted = validCourses(courses)
+        let running = sorted.first { $0.start <= now && now < $0.end }
+        let lead = Double(min(999, max(0, leadMinutes))) * 60
+        guard let current = running ?? sorted.first(where: {
+            $0.start > now && $0.start.timeIntervalSince(now) <= lead
+        }) else { return nil }
+        return Selection(current: current, next: sorted.first { $0.start > current.start && $0.end > now },
+                         phase: current.start > now ? .upcoming : .ongoing)
+    }
+
+    static func nextRefreshDate(from courses: [Course], now: Date, leadMinutes: Int) -> Date? {
+        let lead = Double(min(999, max(0, leadMinutes))) * 60
+        return validCourses(courses).flatMap { [$0.start.addingTimeInterval(-lead), $0.start, $0.end] }
+            .filter { $0 > now }.min()
+    }
+
+    private static func validCourses(_ courses: [Course]) -> [Course] {
+        courses.filter { $0.end > $0.start }.sorted {
+            if $0.start != $1.start { return $0.start < $1.start }
+            if $0.tableId != $1.tableId { return $0.tableId < $1.tableId }
+            return $0.courseId < $1.courseId
+        }
+    }
+
     static let gapThresholdMin = 60
-
-    /// 当日课程 → 活动段。输入按 startMin 升序(WatchAgendaCore.dayItems 保证)。
     static func segments(from items: [WatchAgendaCore.ClassItem]) -> [[WatchAgendaCore.ClassItem]] {
         var result: [[WatchAgendaCore.ClassItem]] = []
         var current: [WatchAgendaCore.ClassItem] = []
-        for item in items {
-            if let last = current.last, item.startMin - last.endMin > gapThresholdMin {
+        for item in items.sorted(by: { $0.startMin < $1.startMin }) {
+            if let end = current.map(\.endMin).max(), item.startMin - end > gapThresholdMin {
                 result.append(current)
                 current = []
             }
@@ -27,26 +65,14 @@ enum ClassDayActivityCore {
         return result
     }
 
-    /// 当前该呈现的段: 含 now 的进行段优先; 否则最近一节未来课所在的段(课前展示);
-    /// 全部已过去 → nil(调用方据此结束活动)。
-    static func activeSegment(from items: [WatchAgendaCore.ClassItem],
-                              now: Date) -> [WatchAgendaCore.ClassItem]? {
-        let all = segments(from: items)
-        guard !all.isEmpty else { return nil }
-        let nowMin = minutesOfDay(now)
-        if let running = all.first(where: { seg in
-            seg.contains { $0.startMin <= nowMin && nowMin < $0.endMin }
-        }) {
-            return running
-        }
-        return all.first { seg in
-            guard let first = seg.first else { return false }
-            return first.startMin > nowMin
-        }
+    /// Returns the unfinished suffix, including the next course during a break.
+    static func activeSegment(from items: [WatchAgendaCore.ClassItem], now: Date) -> [WatchAgendaCore.ClassItem]? {
+        let minute = minutesOfDay(now)
+        return segments(from: items).map { $0.filter { $0.endMin > minute } }.first { !$0.isEmpty }
     }
 
     static func minutesOfDay(_ date: Date) -> Int {
-        let cal = Calendar(identifier: .gregorian)
-        return cal.component(.hour, from: date) * 60 + cal.component(.minute, from: date)
+        let calendar = Calendar(identifier: .gregorian)
+        return calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
     }
 }

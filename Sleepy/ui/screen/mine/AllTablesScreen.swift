@@ -141,6 +141,7 @@ struct SettingsTopBar: View {
     @Environment(\.localWakeUpColors) private var colors
     let title: String
     var leadingStyle: LeadingStyle = .back
+    var titleIdentifier: String = "settings_topbar_title"
     let onBack: () -> Void
 
     var body: some View {
@@ -167,6 +168,7 @@ struct SettingsTopBar: View {
             .accessibilityLabel(L10n.format(leadingStyle == .close ? "action_close" : "back"))
             .padding(.leading, 4)   // ← TopAppBarHorizontalPadding 4dp
             Text(title)
+                .accessibilityIdentifier(titleIdentifier)
                 .font(.system(size: 22))   // ← 原 TopAppBar titleLarge 22 Normal(去 Medium)
                 .foregroundColor(colors.onBackground)
                 .padding(.leading, 4)   // ← 标题盒水平内边距 4dp

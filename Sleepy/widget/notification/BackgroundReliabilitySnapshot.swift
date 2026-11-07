@@ -10,12 +10,8 @@
 // - batteryOptimizationIgnored ← PowerManager.isIgnoringBatteryOptimizations → iOS 无电池优化白名单,
 //   等价替代事实 = 低电量模式未开启(ProcessInfo.isLowPowerModeEnabled == false;
 //   低电量模式会推迟后台任务与通知聚合投递, 是 iOS 唯一的"系统级省电干预")
-// - vendor / liveCardState ← LiveCardVendor + VendorCapabilityState: 原版本 厂商 ROM 探测,
-//   iOS 单一厂商无多厂商探测维度(no-analog, 本结构不设字段); iOS 对应物 = ActivityKit
-//   实况活动/灵动岛, 本 app 未实现(属 reminder-live 切片)
-// - widgetBound ← AppWidgetManager.getAppWidgetIds → WidgetKit 无"已在桌面添加"公开 API(no-analog)
-// - promotedOngoingAllowed ← 原版本 16 promoted notifications → iOS 无同名机制;近似探针 =
-//   ActivityAuthorizationInfo().areLiveActivitiesEnabled(iOS 16.2+), 随 ActivityKit 切片一并未实现
+// - ActivityKit 权限独立于通知权限，由 ReminderScreen 读取 areActivitiesEnabled。
+// - WidgetCenter.getCurrentConfigurations 可查询已配置的小组件；不代表准时刷新保证。
 
 import Foundation
 

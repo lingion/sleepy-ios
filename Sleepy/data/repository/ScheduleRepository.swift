@@ -890,6 +890,73 @@ final class ScheduleRepository {
 
     func totalCourseCount() throws -> Int { try courseDao.totalCount() }
 
+    enum ImportMutationError: LocalizedError {
+        case tableMissing, periodMissing
+        var errorDescription: String? {
+            switch self {
+            case .tableMissing: return L10n.t("import_target_missing")
+            case .periodMissing: return L10n.t("import_period_missing")
+            }
+        }
+    }
+
+    func replaceImportedTable(_ tableId: Int64, name: String, startDate: String, maxWeek: Int,
+                              nodesPerDay: Int, timeJson: String, courses: [CourseEntity], keepGroups: Bool) throws {
+        try writeWithUndo { db in
+            guard var table = try TimeTableEntity.fetchOne(db, key: tableId) else { throw ImportMutationError.tableMissing }
+            table.name = name
+            table.startDate = startDate
+            if maxWeek > 0 { table.maxWeek = maxWeek }
+            if let periodId = table.periodTableId {
+                guard var period = try PeriodTableEntity.fetchOne(db, key: periodId) else { throw ImportMutationError.periodMissing }
+                period.timeJson = timeJson
+                if nodesPerDay > 0 { period.nodesPerDay = nodesPerDay }
+                try period.update(db)
+            } else {
+                table.timeJson = timeJson
+                if nodesPerDay > 0 { table.nodesPerDay = nodesPerDay }
+            }
+            try table.update(db)
+            var rows = courses.map { row -> CourseEntity in
+                var copy = row; copy.id = 0; copy.tableId = tableId; return copy
+            }
+            if !keepGroups { rows = try assignGroupIds(rows, in: db) }
+            try db.execute(sql: "DELETE FROM courses WHERE tableId = ?", arguments: [tableId])
+            _ = try courseDao.insertAllInDb(db, rows)
+            _ = CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: db, dao: courseColorDao, entities: rows)
+        }
+        onDataChanged()
+        pruneDefaultTopPrefs()
+    }
+
+    func appendImportedCourses(_ tableId: Int64, courses: [CourseEntity], incomingTimeJson: String,
+                               requiredNodeCount: Int, keepGroups: Bool) throws {
+        try writeWithUndo { db in
+            guard var table = try TimeTableEntity.fetchOne(db, key: tableId) else { throw ImportMutationError.tableMissing }
+            let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
+            if table.periodTableId != nil && period == nil { throw ImportMutationError.periodMissing }
+            let extended = TimeTableUtils.mergeMostComplete(currentJson: period?.timeJson ?? table.timeJson,
+                incomingJson: incomingTimeJson, requiredNodeCount: requiredNodeCount)
+            let count = TimeTableUtils.parseTimeSlotRows(extended).map(\.node).max() ?? table.nodesPerDay
+            if var period {
+                period.timeJson = extended
+                period.nodesPerDay = count
+                try period.update(db)
+            } else {
+                table.timeJson = extended
+                table.nodesPerDay = count
+                try table.update(db)
+            }
+            var rows = courses.map { row -> CourseEntity in
+                var copy = row; copy.id = 0; copy.tableId = tableId; return copy
+            }
+            if !keepGroups { rows = try assignGroupIds(rows, in: db) }
+            _ = try courseDao.insertAllInDb(db, rows)
+            _ = CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: db, dao: courseColorDao, entities: rows)
+        }
+        onDataChanged()
+    }
+
     /// 覆盖式导入(先删后插)
     func replaceCourses(_ tableId: Int64, _ courses: [CourseEntity]) throws {
         let withGroupIds = try writeWithUndo { db in

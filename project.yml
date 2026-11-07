@@ -119,6 +119,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # ★ v1.0.64 课程实况活动(灵动岛/锁屏) — 缺此键 → ActivityKit 请求被系统拒绝
         NSSupportsLiveActivities: true
+        BGTaskSchedulerPermittedIdentifiers: [sleepy.alarm.daily.resync]
+        UIBackgroundModes: [fetch]
         # ★ QQ/TIM 加群拉起探针 (2026-10-31 B2 对齐)
         #   iOS 的 UIApplication.canOpenURL 对未声明的 scheme 恒返回 false,
         #   缺此键 → 教务导入报告弹窗的「加入 QQ 群」链只剩浏览器兜底,
@@ -161,6 +163,7 @@ targets:
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
                    "debug", "data/share",
                    "widget/notification/BatterySettingsLauncher.swift",
+                   "widget/liveactivity/ClassDayActivityManager.swift",
                    "util/NavStyleResolver.swift",
                    "gamecenter",
                    # 主 app 的隐私清单只归 Sleepy target; widget 用自己的

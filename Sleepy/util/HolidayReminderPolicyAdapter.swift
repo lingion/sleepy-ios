@@ -12,6 +12,8 @@
 import Foundation
 
 enum HolidayReminderPolicyAdapter {
+    static func year(for date: Date) -> Int { CourseOccurrences.calendar.component(.year, from: date) }
+
     static func decide(date: Date, tableId: Int64) async -> HolidayReminderPolicy.Result {
         // ← 原版本 L9 HolidayManager.getYearData(ctx, date.year): 返回"已合并用户覆盖并
         // 按天展开"的生效条目 + available。getYearData 内部 available = hasCachedData ||
@@ -19,7 +21,7 @@ enum HolidayReminderPolicyAdapter {
         // 清除 yearFetchFailed(← kt L221; iOS 落点 HolidayManager.swift 的
         // yearFetchFailed.removeValue), 因此瞬时网络失败不会把标记卡在整个进程生命周期,
         // 缓存命中年也不会被误判 dataUnavailable 而走策略兜底分支。
-        let yearData = await HolidayManager.getYearData(date.year)
+        let yearData = await HolidayManager.getYearData(year(for: date))
         let holidays = Set(yearData.entries
             .filter { $0.type == HolidayManager.TYPE_PUBLIC_HOLIDAY }
             .map { $0.date })

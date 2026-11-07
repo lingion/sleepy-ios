@@ -10,7 +10,7 @@ final class WatchSyncReceiver: NSObject, WCSessionDelegate {
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         // 激活完成即消费已代存上下文 + 主动补拉一次 (iPhone 在跑则秒回)
-        ingest(session.applicationContext, fromDelegate: false)
+        ingest(session.receivedApplicationContext, fromDelegate: false)
         if activationState == .activated {
             Task { @MainActor in WatchStore.shared.requestSync() }
         }

@@ -182,12 +182,32 @@ struct CourseGridRowLayout {
     func gapAfterRow(_ index: Int) -> CGFloat {
         rowGap + (mealBreakAfterRows.contains(index) ? mealGapExtra : 0)
     }
+    /// Placeholder rows affect geometry, but never count as course periods.
+    static func standardRowRange(startNode: Int, step: Int, slots: [TimeSlot]) -> Range<Int>? {
+        guard let first = slots.firstIndex(where: { !$0.isPlaceholder && $0.nodeStart == startNode }) else { return nil }
+        let (endNode, overflow) = startNode.addingReportingOverflow(max(step, 1) - 1)
+        guard !overflow else { return nil }
+        let last = slots.indices.last(where: {
+            $0 >= first && !slots[$0].isPlaceholder && slots[$0].nodeStart <= endNode
+        }) ?? first
+        return first..<(last + 1)
+    }
+
+    static func standardCardBounds(startNode: Int, step: Int, slots: [TimeSlot],
+                                   yOfRows: (Double) -> CGFloat, gapAfterRow: (Int) -> CGFloat)
+        -> (top: CGFloat, height: CGFloat)? {
+        guard let rows = standardRowRange(startNode: startNode, step: step, slots: slots) else { return nil }
+        let top = yOfRows(Double(rows.lowerBound))
+        return (top, yOfRows(Double(rows.upperBound)) - top - gapAfterRow(rows.upperBound - 1))
+    }
+
     static func timedCardBounds(fraction: (Double, Double), rowHeight: CGFloat, rowGap: CGFloat,
                                yOfRows: (Double) -> CGFloat, gapAfterRow: (Int) -> CGFloat)
         -> (top: CGFloat, height: CGFloat) {
         let endRow = Int(fraction.1.rounded())
-        let subtract = fraction.1 == Double(endRow) && fraction.1 > 0 ? gapAfterRow(endRow - 1) : rowGap
-        return (yOfRows(fraction.0), max(yOfRows(fraction.1) - yOfRows(fraction.0), rowHeight * 0.3) - subtract)
+        let trailingGap = fraction.1 == Double(endRow) && fraction.1 > 0 ? gapAfterRow(endRow - 1) : rowGap
+        let naturalSpan = yOfRows(fraction.1) - yOfRows(fraction.0) - (trailingGap - rowGap)
+        return (yOfRows(fraction.0), max(naturalSpan, rowHeight * 0.3) - rowGap)
     }
     func timedCardBounds(start: String, end: String) -> (top: CGFloat, height: CGFloat)? {
         guard let fraction = TimeTableUtils.timeToFractionalRows(start, end, slots: renderPlan.slots) else { return nil }

@@ -110,7 +110,7 @@ struct ExportScreen: View {
                                            id: "export_json_row") {
                                     exportFile(displayName: table.name,
                                                ext: "json", mime: "application/json",
-                                               content: ScheduleExporter.exportWakeUpJson(table, courses))
+                                               content: ScheduleExporter.exportWakeUpJson(table.hydratedWith(boundPeriodTable(table)), courses))
                                 }
                                 RowDivider()
                                 ExportItem(icon: "square.and.arrow.up",
@@ -119,10 +119,14 @@ struct ExportScreen: View {
                                            id: "export_share_row") {
                                     // ← shareText: sleepy-v1 文本(【来自Sleepy】包裹), 与原实现
                                     //   SleepyNativeExporter.exportShareText 同构(不再用 WakeUp URL JSON)
+                                    let period = boundPeriodTable(table)
+                                    let effective = table.hydratedWith(period)
                                     shareSheet = ShareItem(text: SleepyNativeExporter.exportShareText(
-                                                tableName: table.name, startDate: table.startDate,
-                                                maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
-                                                timeJson: table.timeJson, courses: courses),
+                                                tableName: effective.name, startDate: effective.startDate,
+                                                maxWeek: effective.maxWeek, nodesPerDay: effective.nodesPerDay,
+                                                timeJson: effective.timeJson, courses: courses,
+                                                periodTable: period.map { .init(id: $0.id, name: $0.name,
+                                                    nodesPerDay: $0.nodesPerDay, timeJson: $0.timeJson) }),
                                                 subject: table.name, url: nil)
                                     snackMessage = L10n.format("export_copied_hint")
                                 }
@@ -148,7 +152,7 @@ struct ExportScreen: View {
                                     do {
                                         exportFile(displayName: table.name,
                                                    ext: "ics", mime: "text/calendar",
-                                                   content: try ScheduleExporter.exportIcsOrThrow(table, courses,
+                                                   content: try ScheduleExporter.exportIcsOrThrow(table.hydratedWith(boundPeriodTable(table)), courses,
                                                        transfers: AppPrefs.shared.getHolidayTransfers(table.id)))
                                     } catch {
                                         snackMessage = L10n.format("export_failed")

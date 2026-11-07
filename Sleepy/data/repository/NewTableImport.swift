@@ -64,12 +64,16 @@ final class GRDBNewTableImportStore: NewTableImportStore {
     func captureUndo(in dbw: Database) throws {
         // ← captureForUndo() — 快照形状与 ScheduleRepository.captureForUndo 同一四元组;
         //   GRDB 禁 db.read 重入, 改用事务句柄直读(列序与各 DAO 的 SELECT 语句一致)。
-        UndoManager.shared.capture(
+        let snapshot = UndoSnapshot(
+            periodTables: try PeriodTableEntity.fetchAll(dbw),
             tables: try TimeTableEntity.fetchAll(dbw, sql: "SELECT * FROM time_tables ORDER BY createdAt DESC"),
             courses: try CourseEntity.fetchAll(dbw, sql: "SELECT * FROM courses ORDER BY id"),
             defaultTableId: try TimeTableEntity.fetchOne(
-                dbw, sql: "SELECT * FROM time_tables WHERE isDefault = 1 LIMIT 1")?.id,
-            periodTables: try PeriodTableEntity.fetchAll(dbw, sql: "SELECT * FROM period_tables"))
+                dbw, sql: "SELECT * FROM time_tables WHERE isDefault = 1 LIMIT 1")?.id)
+        dbw.afterNextTransaction { _ in
+            UndoManager.shared.capture(tables: snapshot.tables, courses: snapshot.courses,
+                defaultTableId: snapshot.defaultTableId, periodTables: snapshot.periodTables)
+        }
     }
 
     func insertPeriod(_ period: PeriodTableEntity, in dbw: Database) throws -> Int64 {

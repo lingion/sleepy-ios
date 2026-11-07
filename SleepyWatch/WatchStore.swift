@@ -212,7 +212,7 @@ final class WatchStore: ObservableObject {
             WidgetArchiveLog.append(kind: "watch", family: "apply", result: "fail \(String(describing: error))")
             return
         }
-        WatchSyncSnapshot.applyPrefs(body.prefs)
+        WatchSyncSnapshot.applyPrefs(body.prefs, tableIds: body.timeTables.map(\.id))
         // 镜像快照已落 course_colors → 重读本地快照, 手表课程色与手机一致。
         CourseHueStore.shared.invalidate(
             mode: AppPrefs.shared.getCourseColorMode(), dao: db.courseColorDao)
