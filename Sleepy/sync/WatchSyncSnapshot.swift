@@ -80,6 +80,8 @@ enum WatchSyncSnapshot {
         var courseColorMode: Int = 0
         // CUSTOM 档种子色相 0..360 (未设 = -1)
         var courseColorSeedHue: Float = -1
+        // 可选以兼容尚未携带此字段的 iPhone; 缺失在使用侧按 false 处理。
+        var timeStripTomorrow: Bool? = nil
     }
 
     struct Body: Codable {
@@ -155,7 +157,8 @@ enum WatchSyncSnapshot {
             autoHideEvening: prefs.isGridAutoHideEmptyEvening(),
             eveningStart: prefs.getGridEveningStart(),
             courseColorMode: prefs.getCourseColorMode(),
-            courseColorSeedHue: prefs.getCourseColorSeedHue())
+            courseColorSeedHue: prefs.getCourseColorSeedHue(),
+            timeStripTomorrow: prefs.isWatchTimeStripTomorrow())
         // course_colors 表仅派生档有值; CLASSIC 档恒空(渲染零变化)。
         let mode = prefs.getCourseColorMode()
         if mode != AppPrefs.COURSE_COLOR_MODE_CLASSIC {
@@ -220,7 +223,11 @@ enum WatchSyncSnapshot {
     /// 走 setter 显式写 (sp().set), 缺省字段也写死当前值 — 全量载荷无"保留旧值"语义。
     static func applyPrefs(_ snapshot: PrefsSnapshot?) {
         guard let snapshot = snapshot else { return }
+        // 先写共享快照: 下方 setNearestBusyDay 也会触发 timeline reload,
+        // WatchStore 的最终 reload 同样必须读到完整的新选项/语言/映射。
+        WatchTimeStripPreferencesStore.shared.apply(snapshot)
         let prefs = AppPrefs.shared
+        prefs.setWatchTimeStripTomorrow(snapshot.timeStripTomorrow ?? false)
         prefs.setReminderEnabled(snapshot.reminderMaster)
         prefs.setDailyReminderEnabled(snapshot.dailyEnabled)
         prefs.setDailyReminderTime(snapshot.dailyTime)

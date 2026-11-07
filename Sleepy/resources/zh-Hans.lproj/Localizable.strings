@@ -1180,3 +1180,19 @@
 "watch_tomorrow_mark" = "明日";
 "watch_tomorrow_no_class" = "明日无课";
 "watch_holiday" = "假期中";
+
+// MARK: - Watch course time strip
+"watch_time_strip_display_name" = "课程时间带";
+"watch_time_strip_description" = "以固定 90 分钟宽度显示课程与空档，由系统安排刷新。";
+"watch_time_strip_preview" = "明日预览";
+"watch_time_strip_break" = "课间";
+"watch_time_strip_free" = "空闲";
+"watch_time_strip_finished" = "今日课程已结束";
+"watch_time_strip_scale" = "90 分钟";
+"watch_time_strip_overlap" = "%1$d 门课程";
+"watch_time_strip_unavailable" = "课表暂不可用，请在 iPhone 同步";
+"settings_watch_time_strip_section" = "Apple Watch 课程时间带";
+"settings_watch_time_strip_tomorrow" = "今日结束后显示明日";
+"settings_watch_time_strip_tomorrow_hint" = "仅预览下一个自然日，与最近有课日和提醒设置互不影响。";
+"settings_watch_time_strip_overview" = "整条宽度始终代表 90 分钟。刷新时机由系统安排，不会持续逐秒滑动。";
+"settings_watch_time_strip_preview_details" = "默认关闭。今日课程结束后（或今日无课时），仅预览下一个自然日，并标明日期与「明日预览」。预览从明日第一节课开始，按实际时间流速前进，最后一节课结束后重新循环。明日无课时显示「明日无课」，不会跳到之后的有课日。";

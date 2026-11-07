@@ -1179,3 +1179,19 @@
 "watch_tomorrow_mark" = "Tomorrow";
 "watch_tomorrow_no_class" = "No classes tomorrow";
 "watch_holiday" = "On break";
+
+// MARK: - Watch course time strip
+"watch_time_strip_display_name" = "Course time strip";
+"watch_time_strip_description" = "Shows classes and gaps on a fixed 90-minute strip, refreshed on the system’s schedule.";
+"watch_time_strip_preview" = "Tomorrow preview";
+"watch_time_strip_break" = "Break";
+"watch_time_strip_free" = "Free";
+"watch_time_strip_finished" = "Today’s classes are finished";
+"watch_time_strip_scale" = "90 min";
+"watch_time_strip_overlap" = "%1$d classes";
+"watch_time_strip_unavailable" = "Schedule unavailable. Sync from iPhone.";
+"settings_watch_time_strip_section" = "Apple Watch course time strip";
+"settings_watch_time_strip_tomorrow" = "Show tomorrow after today ends";
+"settings_watch_time_strip_tomorrow_hint" = "Previews only the next calendar day, independently of nearest class day and reminder settings.";
+"settings_watch_time_strip_overview" = "The full width always represents 90 minutes. Updates are scheduled by the system, not a continuous animation.";
+"settings_watch_time_strip_preview_details" = "Off by default. After today’s classes end (or if today has none), only the next calendar day is previewed, with its date and a “Tomorrow preview” label. The preview starts at the first class, advances one schedule minute per elapsed minute, and repeats after the last class. If tomorrow is empty, it shows “No classes tomorrow” instead of skipping to a later day.";

@@ -103,6 +103,7 @@ final class AppPrefs {
     static let KEY_SHOW_VIEW_SWITCHER = "show_view_switcher"     // bool default true — 首页周/网格视图切换栏显隐(GeneralSettingsScreen.LabPrefs 正式归属地)
     // ★ widget v1.0.60 对齐键 (← AppPrefs.kt)
     static let KEY_NEAREST_BUSY_DAY = "nearest_busy_day" // bool default false — 今天没课时自动显示最近一个有课的日子
+    static let KEY_WATCH_TIME_STRIP_TOMORROW = "watch_time_strip_tomorrow" // bool default false — 仅 Watch 课程时间带的次日预览
     static let KEY_COMPACT_WINDOW_TODAY_FIRST = "compact_window_today_first" // bool default true — 最小档三天窗口锚点(2026-09-15 用户令)
     static let KEY_WIDGET_SCROLL_ENABLED = "widget_scroll_enabled" // bool default false — 强制滚动(实验), 默认 FIXED 固定窗口
     static let GRID_SCALE_RANGE: ClosedRange<Double> = 0.7...1.3
@@ -561,6 +562,11 @@ final class AppPrefs {
         sp().set(v, forKey: Self.KEY_NEAREST_BUSY_DAY)
         WidgetCenter.shared.reloadAllTimelines()
     }
+
+    /// 仅 Watch 课程时间带: 今日结束后预览下一个自然日, 默认关闭。
+    /// 与最近有课日及明日提醒独立; 手机设置页负责请求 Watch 同步。
+    func isWatchTimeStripTomorrow() -> Bool { sp().bool(forKey: Self.KEY_WATCH_TIME_STRIP_TOMORROW) }
+    func setWatchTimeStripTomorrow(_ v: Bool) { sp().set(v, forKey: Self.KEY_WATCH_TIME_STRIP_TOMORROW) }
 
     /// 最小档三天窗口锚点全局旧值 — 默认 true (getBoolean(KEY_COMPACT_WINDOW_TODAY_FIRST, true);
     /// 2026-09-15 用户令: 未写入过时今日居第一位)
