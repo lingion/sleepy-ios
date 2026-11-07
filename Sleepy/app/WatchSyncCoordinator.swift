@@ -99,12 +99,11 @@ final class WatchSyncCoordinator: NSObject, WCSessionDelegate {
     /// **键分离纪律**: 手机 context 只读 `sync` (手表侧 Receiver 已隐式过滤非
     /// watchAck 键), 手表 context 只读 `watchAck` — 两端各写各键互不覆盖
     /// (updateApplicationContext 是整包替换, 靠各自只处理自家键达成共存)。
-    /// 消费: 存 AppPrefs → debounce 补推一次, 快照把 ackSentAt 镜像回手表
-    /// (手表设置页「手表已同步」与 iPhone 提醒页同源显示)。
+    /// 回执仅更新送达状态；不能再触发带新 sentAt 的全量快照，否则双方会无限确认。
     public func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
-        guard let ms = context[WatchSyncSnapshot.keyAckPayload] as? Int64, ms > 0 else { return }
+        guard let ms = context[WatchSyncSnapshot.keyAckPayload] as? Int64,
+              ms > AppPrefs.shared.getWatchAckSentAt() else { return }
         AppPrefs.shared.setWatchAckSentAt(ms)
-        scheduleSync()
     }
 
     /// 手表 → iPhone transferUserInfo 回写通道 (WatchCommand 信封)。
