@@ -12,10 +12,10 @@ enum CourseOccurrences {
         case invalidDate, invalidOccurrence, invalidNodes, invalidTime
         var errorDescription: String? {
             switch self {
-            case .invalidDate: return "请选择学期内的有效日期。"
-            case .invalidOccurrence: return "该次课程已发生变化，请重新打开。"
-            case .invalidNodes: return "所选节次不在当前作息表中。"
-            case .invalidTime: return "请输入有效起止时间，结束时间须晚于开始时间。"
+            case .invalidDate: return L10n.t("occurrence_invalid_date")
+            case .invalidOccurrence: return L10n.t("occurrence_stale")
+            case .invalidNodes: return L10n.t("occurrence_invalid_nodes")
+            case .invalidTime: return L10n.t("occurrence_invalid_time")
             }
         }
     }

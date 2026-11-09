@@ -1161,6 +1161,9 @@
 "occurrence_keep_date" = "Keep original date";
 "occurrence_continue" = "Continue";
 "occurrence_stale" = "The timetable or holiday transfers have changed. Reopen this occurrence.";
+"occurrence_invalid_date" = "Choose a date within this semester.";
+"occurrence_invalid_nodes" = "Choose valid consecutive periods.";
+"occurrence_invalid_time" = "Enter valid times with the end later than the start.";
 "occurrence_actions" = "Edit or delete this occurrence";
 "theme_system_source_window_tint" = "Color source: current interface tint";
 "theme_system_source_fallback" = "Color source: default seed (no valid interface tint available)";

@@ -1161,6 +1161,9 @@
 "occurrence_keep_date" = "元の日付で保存";
 "occurrence_continue" = "続ける";
 "occurrence_stale" = "時間割または振替設定が変更されました。この授業を開き直してください。";
+"occurrence_invalid_date" = "現在の学期内の日付を選択してください。";
+"occurrence_invalid_nodes" = "有効な開始時限と連続する時限数を選択してください。";
+"occurrence_invalid_time" = "有効な時刻を入力してください。終了は開始より後にしてください。";
 "occurrence_actions" = "今回の授業を編集・削除";
 "theme_system_source_window_tint" = "配色元：現在の画面のアクセントカラー";
 "theme_system_source_fallback" = "配色元：既定のシードカラー（有効な画面のアクセントカラーを取得できません）";

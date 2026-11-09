@@ -1162,6 +1162,9 @@
 "occurrence_keep_date" = "按原日保存";
 "occurrence_continue" = "继续";
 "occurrence_stale" = "课表或调休设置已变化，请重新打开本次课程。";
+"occurrence_invalid_date" = "请选择当前学期内的日期。";
+"occurrence_invalid_nodes" = "请选择有效的起始节次和连续节数。";
+"occurrence_invalid_time" = "请输入有效起止时间，结束时间须晚于开始时间。";
 "occurrence_actions" = "调整或删除本次课程";
 "theme_system_source_window_tint" = "配色来源：当前界面强调色";
 "theme_system_source_fallback" = "配色来源：默认种子（暂未取得有效界面强调色）";
