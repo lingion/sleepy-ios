@@ -935,6 +935,7 @@
 		F3C52FFD89C2D0D908A32C89 /* LocaleHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F0807AB00ED93A168AD2C6 /* LocaleHelper.swift */; };
 		F3CB1231775E739C101A0A3F /* CalendarImportRecordDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8A83BDF70AF60240387895 /* CalendarImportRecordDao.swift */; };
 		F3E65F811B012B5B6CA5F01F /* WatchTimeStripPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D947CE36AC71405BBBA282 /* WatchTimeStripPreferencesTests.swift */; };
+		F3FA1EB04CBD052CAB0E7E99 /* JwImportLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDA71109B561D712EA5F76AC /* JwImportLifecycleTests.swift */; };
 		F4078C0500501DDB216F8A9D /* LiveActivitySelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57469AF0CE273D87BED628C /* LiveActivitySelectionTests.swift */; };
 		F48DABCC146D655E683D42EF /* WeekViewWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804FD9B63BCC3C1726B9CAFF /* WeekViewWidgetView.swift */; };
 		F49B03852D2F7DB787A8639C /* CalendarImportRecordEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0DABC28BEA6BE6A4C2179D /* CalendarImportRecordEntity.swift */; };
@@ -1594,6 +1595,7 @@
 		EB9D554C17B07C5E84921BFF /* WatchTodayListViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTodayListViews.swift; sourceTree = "<group>"; };
 		EC2F7AE3D88421C231F3F990 /* WatchTimeStripProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimeStripProvider.swift; sourceTree = "<group>"; };
 		EC764912B65C30BEF4ABB94B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		EDA71109B561D712EA5F76AC /* JwImportLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportLifecycleTests.swift; sourceTree = "<group>"; };
 		EDC6BEB3E8D377C5952F4450 /* JwJsonParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwJsonParserTests.swift; sourceTree = "<group>"; };
 		EE111F2DF650D0D1D30E8359 /* SchedulePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulePolicy.swift; sourceTree = "<group>"; };
 		EEFFFB7B27071D52A6BF4CD8 /* JwParseDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParseDiagnostics.swift; sourceTree = "<group>"; };
@@ -2226,6 +2228,7 @@
 				D459BE5930B1DBC7C47F71B0 /* JwImportDiagnosticsTests.swift */,
 				547FA015C2ED83C464E4A228 /* JwImportDraftCodecTests.swift */,
 				49ACC545589A76ED84024036 /* JwImportFlowTests.swift */,
+				EDA71109B561D712EA5F76AC /* JwImportLifecycleTests.swift */,
 				FA6FB4EA603D000B36F0CA61 /* JwImportViewModelTests.swift */,
 				EDC6BEB3E8D377C5952F4450 /* JwJsonParserTests.swift */,
 				C59FDFBF7ACB7D4CC1761F68 /* JwKingoHTMLRegressionTests.swift */,
@@ -3599,6 +3602,7 @@
 				1FA991BF1C4FA26B51E8A9E7 /* JwImportDiagnosticsTests.swift in Sources */,
 				1838AAC5D3E893EA083F3EF6 /* JwImportDraftCodecTests.swift in Sources */,
 				471B0D0CA625A98108CFBF7F /* JwImportFlowTests.swift in Sources */,
+				F3FA1EB04CBD052CAB0E7E99 /* JwImportLifecycleTests.swift in Sources */,
 				9CD15FB64044347529E02189 /* JwImportViewModelTests.swift in Sources */,
 				7D937FA178D2B32F57D5AEBA /* JwJsonParserTests.swift in Sources */,
 				0C15D5D38A93310F3359AD8E /* JwKingoHTMLRegressionTests.swift in Sources */,

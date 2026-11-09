@@ -45,6 +45,34 @@ struct JwImportPresentation: Identifiable {
     var draftId: String? = nil
 }
 
+/// Detached parsing and autosaves can finish after navigation or an exit choice.
+/// Only the current epoch may update the flow; discarded saves never replace a kept draft.
+struct JwImportParseLifecycle {
+    private var epoch = UUID()
+    private var keepsDraftOnExit = false
+
+    mutating func beginParse() -> UUID {
+        epoch = UUID()
+        return epoch
+    }
+
+    mutating func invalidate(keepingDraft: Bool = false) {
+        epoch = UUID()
+        keepsDraftOnExit = keepingDraft
+    }
+
+    func accepts(_ capturedEpoch: UUID, didFinishFlow: Bool) -> Bool {
+        !didFinishFlow && epoch == capturedEpoch
+    }
+
+    func shouldDeleteLateSave(_ savedId: String, retainedDraftId: String?) -> Bool {
+        guard savedId != retainedDraftId else { return false }
+        // Keep normally persists the latest snapshot before exit. If that write failed,
+        // retain the in-flight autosave as a fallback instead of losing every draft.
+        return !(keepsDraftOnExit && retainedDraftId == nil)
+    }
+}
+
 enum JwStage: Int, Comparable {
     case selectSchool = 0
     case webViewLogin = 1
@@ -82,6 +110,8 @@ struct JwImportFlow: View {
     var onActiveImportChanged: ((Bool) -> Void)? = nil
     // 下滑关闭尝试外抛回调 (当处于有进度态 interactiveDismissDisabled(true) 触发)
     var onDismissAttempt: (() -> Void)? = nil
+    var targetTableId: Int64? = nil
+    var newTableOnly = false
 
     @StateObject private var jwViewModel = JwImportViewModel()
     // ← SleepyApp.get().importDraftRepository: iOS 无 app 级单例, 自装配同库仓储。
@@ -98,6 +128,9 @@ struct JwImportFlow: View {
     @State private var isApplying = false
     // ← importPreview / pendingMode: 预览 → 追加/覆盖/新课表 五模式共用通道
     @State private var importPreview: ImportPreview? = nil
+    @State private var courseSelectionConfirmed = false
+    @State private var previewGeneration = UUID()
+    @State private var parseLifecycle = JwImportParseLifecycle()
     @State private var pendingMode: ImportApplyMode = .importAsNew
     // ← exitDraftState: issue#39 退出确认防御(reducer 已移植, 本文件接线)
     @State private var exitDraftState = ExitDraftState()
@@ -132,6 +165,10 @@ struct JwImportFlow: View {
     //   ← 原 `var reportDialogSchool by remember { mutableStateOf<JwSchoolInfo?>(null) }`
     @State private var reportDialogSchool: JwSchoolInfo? = nil
 
+    private var requiresDraftExitConfirmation: Bool {
+        targetTableId == nil || incomingDraftId != nil
+    }
+
     var body: some View {
         ZStack {
             content
@@ -157,7 +194,7 @@ struct JwImportFlow: View {
                         // mayTry 才有"仍要尝试"这条路; 不可导入的条目确认键只是关闭
                         if school.isUnverified && school.canImport {
                             selectedSchool = school
-                            exitDraftState.activeImport = true
+                            exitDraftState.activeImport = requiresDraftExitConfirmation
                             stage = .webViewLogin
                         }
                     })
@@ -216,6 +253,14 @@ struct JwImportFlow: View {
             if importFinished { finishFlow() }
             restoreIncomingDraftIfNeeded()
         }
+        .onDisappear {
+            // A fresh Add Courses flow permits native dismissal without an exit dialog.
+            // Invalidate its pending work even when the host removes the sheet directly.
+            guard !didFinishFlow else { return }
+            didFinishFlow = true
+            parseLifecycle.invalidate()
+            previewGeneration = UUID()
+        }
         .onChange(of: importFinished) { finished in
             if finished { finishFlow() }
         }
@@ -223,7 +268,7 @@ struct JwImportFlow: View {
         //    ← LaunchedEffect(stage) { errorMsg = null }
         .onChange(of: stage) { _ in errorMsg = nil }
         // issue#39: activeImport 翻转外抛给 sheet 宿主(交互下滑关闭闸门用)
-        .onChange(of: exitDraftState.activeImport) { active in
+        .onChange(of: exitDraftState.activeImport || reportDialogSchool != nil) { active in
             onActiveImportChanged?(active)
         }
     }
@@ -236,6 +281,7 @@ struct JwImportFlow: View {
     }
 
     private func navigateToStage(_ newStage: JwStage) {
+        if newStage == .configureConfirm { loadPeriodTables() }
         let forward = newStage >= stage
         isNavigatingForward = forward
         withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
@@ -244,6 +290,10 @@ struct JwImportFlow: View {
     }
 
     private func handleDismissAttempt() {
+        if reportDialogSchool != nil {
+            closeReportDialog()
+            return
+        }
         if exitDraftState.activeImport {
             requestExit()
         }
@@ -254,6 +304,8 @@ struct JwImportFlow: View {
         if draftId != nil || !parsedCourses.isEmpty {
             requestExit()
         } else {
+            parseLifecycle.invalidate()
+            statusMsg = nil
             exitDraftState.activeImport = false
             navigateToStage(.selectSchool)
         }
@@ -274,7 +326,7 @@ struct JwImportFlow: View {
                         }
                         selectedSchool = school
                         // ← activeImport=true: 选校即进入"有进度"态, 退出须走确认(issue#39)
-                        exitDraftState.activeImport = true
+                        exitDraftState.activeImport = requiresDraftExitConfirmation
                         navigateToStage(.webViewLogin)
                     }, onDismiss: { requestExit() })
                     .transition(stageTransition)
@@ -304,10 +356,28 @@ struct JwImportFlow: View {
                     if !parsedCourses.isEmpty {
                         Group {
                             if let preview = importPreview {
-                                JwImportPreviewDialog(preview: preview,
-                                                      isApplying: isApplying,
-                                                      onDismiss: { requestExit() },
-                                                      onApply: onPreviewApply)
+                                if targetTableId != nil {
+                                    if courseSelectionConfirmed {
+                                        ImportPreviewDialog(preview: preview, courseDecision: true,
+                                            onCourseApply: { decision in applySelectedCourses(preview, decision: decision) },
+                                            onDismiss: { requestExit() }, onApply: { _ in })
+                                            .disabled(isApplying)
+                                    } else {
+                                        CourseSelectionSheet(parseResult: preview.parseResult, onConfirm: { keys in
+                                            guard importPreview?.id == preview.id, !isApplying else { return }
+                                            do {
+                                                let filtered = try AddCoursesImport.filtered(preview.parseResult, selectedKeys: keys)
+                                                importPreview = ImportSheet.buildImportPreview(filtered, targetTableId: preview.targetTableId)
+                                                courseSelectionConfirmed = true
+                                            } catch { errorMsg = error.localizedDescription }
+                                        }, onDismiss: { requestExit() })
+                                    }
+                                } else {
+                                    JwImportPreviewDialog(preview: preview,
+                                                          isApplying: isApplying,
+                                                          onDismiss: { requestExit() },
+                                                          onApply: onPreviewApply)
+                                }
                             } else {
                                 ProgressView()
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -341,9 +411,11 @@ struct JwImportFlow: View {
     /// F084: 流程真正结束(← Activity finish) → 共享选校状态清零后外抛 onFinish。
     /// 所有退出通路(完成导入 / 保留草稿 / 删除草稿 / 无进度直接退)统一走这里;
     /// WebView 往返不调本函数, 故搜索词/展开/滚动跨 stage 保留(rememberSaveable 语义)。
-    private func finishFlow() {
+    private func finishFlow(keepingDraft: Bool = false) {
         guard !didFinishFlow else { return }
         didFinishFlow = true
+        parseLifecycle.invalidate(keepingDraft: keepingDraft)
+        previewGeneration = UUID()
         SchoolSelectStateStore.shared.resetForNewEntry()
         onFinish(importOutcome)
     }
@@ -360,14 +432,14 @@ struct JwImportFlow: View {
         exitDraftState = result.state
         switch result.outcome {
         case .keepDraft:
-            guard let snapshot = currentDraftSnapshot() else { finishFlow(); return }
+            guard let snapshot = currentDraftSnapshot() else { finishFlow(keepingDraft: true); return }
             if draftId == nil {
                 draftId = try? draftRepository.save(snapshot, sourceType: "jw",
                                                     sourceUrl: snapshot.school.url)
             } else {
                 try? draftRepository.update(draftId!, snapshot)
             }
-            finishFlow()
+            finishFlow(keepingDraft: true)
         case .deleteDraft:
             if let id = draftId { try? draftRepository.delete(id) }
             finishFlow()
@@ -397,6 +469,7 @@ struct JwImportFlow: View {
 
     private func completeImport() {
         if let id = draftId { try? draftRepository.delete(id) }
+        draftId = nil
         importFinished = true
         exitDraftState.activeImport = false
     }
@@ -409,6 +482,10 @@ struct JwImportFlow: View {
     private func finishOrReport(_ school: JwSchoolInfo?) {
         // 已落库即成功；报告弹窗期间再退出也不能回退成取消。
         importOutcome = .completed
+        parseLifecycle.invalidate()
+        if let id = draftId { try? draftRepository.delete(id) }
+        draftId = nil
+        exitDraftState.activeImport = false
         // 成就：导入成功
         AchievementTracker.shared.checkImportSuccess()
         if let school, school.isUnverified {
@@ -484,11 +561,13 @@ struct JwImportFlow: View {
 
     private func restoreIncomingDraftIfNeeded() {
         guard let id = incomingDraftId, draftId == nil else { return }
+        let epoch = parseLifecycle.beginParse()
         let repo = draftRepository
         Task { @MainActor in
             let snapshot = await Task.detached(priority: .userInitiated) {
                 try? repo.get(id)
             }.value
+            guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else { return }
             guard let snapshot = snapshot else {
                 // snapshot 缺失 → import_drafts_empty(← 原版本)
                 errorMsg = L10n.format("import_drafts_empty")
@@ -498,6 +577,9 @@ struct JwImportFlow: View {
             parsedSchool = snapshot.school
             selectedSchool = snapshot.school
             parsedCourses = snapshot.courses
+            importPreview = nil
+            courseSelectionConfirmed = false
+            previewGeneration = UUID()
             configStartDate = snapshot.termStartDate
             configTableName = jwIsBlank(snapshot.tableName)
                 ? L10n.format("jw_import_title", snapshot.school.name)
@@ -518,8 +600,8 @@ struct JwImportFlow: View {
                     totalPeriods: max(configRows.count, 1))
             // v1.0.56 T10: 默认选中「本次导入自动建作息表」(合成 id=-1)
             configBindPeriodTableId = -1
-            exitDraftState.activeImport = true
-            navigateToStage(snapshot.phase == .webViewLogin ? .webViewLogin : .preview)
+            exitDraftState.activeImport = requiresDraftExitConfirmation
+            navigateToStage(snapshot.phase == .webViewLogin ? .webViewLogin : (newTableOnly ? .configureConfirm : .preview))
         }
     }
 
@@ -560,6 +642,8 @@ struct JwImportFlow: View {
     private func parseAndAdvance(_ html: String, _ sch: JwSchoolInfo,
                                  _ periods: [(Int, String, String)],
                                  _ termStartDate: String) async {
+        guard !didFinishFlow else { return }
+        let epoch = parseLifecycle.beginParse()
         // T6 双层判定: sch.type 已知直接用; 空 → HTML/URL 组合兜底
         let rawType = sch.type
         let effectiveType = (rawType?.isEmpty == false ? rawType : nil)
@@ -573,6 +657,7 @@ struct JwImportFlow: View {
         } else {
             htmlForParse = html
         }
+        guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else { return }
         // ← 原 parseHtml 在 scope.launch try/catch 内: parser 抛异常 →
         //   errorMsg = jw_parse_failed(message) + jw_parse_failed_hint。
         //   iOS parse 返回 Outcome(error), 语义映射: error 非空 = 原版本 异常路径。
@@ -593,8 +678,11 @@ struct JwImportFlow: View {
         }
         // 不直接落库, 进预览页(v1.0.56 T10 起解析成功默认选中自动建表)
         parsedCourses = courses
+        importPreview = nil
+        courseSelectionConfirmed = false
+        previewGeneration = UUID()
         parsedSchool = sch
-        exitDraftState.activeImport = true
+        exitDraftState.activeImport = requiresDraftExitConfirmation
         // 课程实际节次数生成行; WebView 抓到 periods 则预填
         let maxNode = courses.map { max($0.startNode, $0.endNode) }.max() ?? 0
         let periodMap = Dictionary(periods.map { ($0.0, ($0.1, $0.2)) }, uniquingKeysWith: { a, _ in a })
@@ -628,11 +716,22 @@ struct JwImportFlow: View {
             tableName: L10n.format("jw_import_title", sch.name),
             smartConfigJson: encodeSmartConfigJson(inferredSmartConfig),
             usedDefaultTimes: configUsedDefaultTimes)
-        let repo = draftRepository
-        draftId = await Task.detached(priority: .userInitiated) {
-            try? repo.save(snapshot, sourceType: "jw", sourceUrl: sch.url)
-        }.value
-        navigateToStage(.preview)
+        if targetTableId == nil {
+            guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else { return }
+            let repo = draftRepository
+            let savedId = await Task.detached(priority: .userInitiated) {
+                try? repo.save(snapshot, sourceType: "jw", sourceUrl: sch.url)
+            }.value
+            guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else {
+                if let savedId, parseLifecycle.shouldDeleteLateSave(savedId, retainedDraftId: draftId) {
+                    try? repo.delete(savedId)
+                }
+                return
+            }
+            draftId = savedId
+        }
+        guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else { return }
+        navigateToStage(newTableOnly ? .configureConfirm : .preview)
         // v1.0.56 T10: 默认选中「本次导入自动建作息表」(合成 id=-1)
         configBindPeriodTableId = -1
         statusMsg = nil
@@ -641,19 +740,21 @@ struct JwImportFlow: View {
     // MARK: - 预览 (← Stage.Preview LaunchedEffect(parsedCourses))
 
     private func rebuildPreview() {
+        if targetTableId != nil && importPreview != nil { return }
+        let generation = UUID()
+        previewGeneration = generation
         let courses = parsedCourses
         let rows = configRows
         let bindId = configBindPeriodTableId
         let tableName = configTableName
         let startDate = configStartDate
         // L10n 取词留主线程; DB IO 走工作线程(repo.getAllTables suspend)
-        let currentTableLabel = L10n.format("manage_current_table")
         Task { @MainActor in
             do {
                 let inputs = try await Task.detached(priority: .userInitiated) { () throws -> (Int64, [(Int64, String)]) in
                     let repo = ScheduleRepository(AppDatabase.getShared())
                     let tables = try repo.getAllTables()
-                    let targetId = tables.first(where: { $0.isDefault })?.id ?? tables.first?.id ?? 0
+                    let targetId = targetTableId ?? tables.first(where: { $0.isDefault })?.id ?? tables.first?.id ?? 0
                     let periodTimeRows = ((try? repo.getAllPeriodTables()) ?? []).map { ($0.id, $0.timeJson) }
                     return (targetId, periodTimeRows)
                 }.value
@@ -676,34 +777,13 @@ struct JwImportFlow: View {
                         timeJson: timeJson,
                         nodesPerDay: courses.map { max($0.startNode, $0.endNode) }.max() ?? 0,
                         maxWeek: courses.map { $0.endWeek }.max() ?? 0)
-                    let existingTable = targetId == 0 ? nil : ((try? repo.getTable(targetId)) ?? nil)
-                    let existingCourses = targetId == 0 ? [] : ((try? repo.getCourses(targetId)) ?? [])
-                    let conflicts: [CourseConflict] = targetId == 0 ? []
-                        : parseResult.courses.compactMap { incoming in
-                            existingCourses.first { ImportSheet.coursesConflict(incoming, $0) }
-                                .map { CourseConflict(incoming: incoming, existing: $0) }
-                        }
-                    // issue#22: 同 groupId 多地点提示 — 不阻塞导入, 只让用户心里有数
-                    var multiLocWarnings: [String] = []
-                    let roomGroups = Dictionary(grouping: parseResult.courses) { $0.groupId }
-                    for (gid, cs) in roomGroups {
-                        if jwIsBlank(gid) { continue }
-                        let distinctRooms = Set(cs.map { $0.room.trimmingCharacters(in: .whitespacesAndNewlines) }
-                            .filter { !$0.isEmpty })
-                        if distinctRooms.count >= 2 {
-                            multiLocWarnings.append(L10n.format(
-                                "import_multi_location_warning_detail",
-                                cs.first?.courseName ?? "", distinctRooms.count))
-                        }
+                    guard let preview = ImportSheet.buildImportPreview(parseResult, targetTableId: targetId, repository: repo) else {
+                        throw AddCoursesImport.ValidationError.empty
                     }
-                    return ImportPreview(
-                        targetTableId: targetId,
-                        targetTableName: existingTable?.name ?? currentTableLabel,
-                        parseResult: parseResult,
-                        existingCourses: existingCourses,
-                        conflicts: conflicts,
-                        multiLocationWarnings: multiLocWarnings)
+                    return preview
                 }.value
+                guard !didFinishFlow, previewGeneration == generation else { return }
+                if targetTableId != nil { try AddCoursesImport.validate(preview.parseResult) }
                 withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
                     importPreview = preview
                 }
@@ -712,6 +792,16 @@ struct JwImportFlow: View {
                 errorMsg = L10n.format("jw_parse_failed", error.localizedDescription)
             }
         }
+    }
+
+    private func applySelectedCourses(_ displayed: ImportPreview, decision: CourseImportDecision) {
+        guard !isApplying, let preview = importPreview, preview.id == displayed.id,
+              targetTableId == preview.targetTableId else { return }
+        isApplying = true
+        let saved = ImportSheet.applyCourseImport(preview: preview, decision: decision,
+            onImported: {}, onError: { errorMsg = $0 })
+        isApplying = false
+        if saved != nil { finishOrReport(selectedSchool ?? parsedSchool) }
     }
 
     // MARK: - 预览五模式路由 (← ImportPreviewDialog onApply)
@@ -830,8 +920,11 @@ struct JwImportFlow: View {
                     // ← 原版本 TextButton 默认色 = primary, labelLarge 14sp Medium, 高 40dp;
                     //   dismissButton = importPreview=null; stage=Preview — 保留已解析课程回预览
                     Button(L10n.format("back")) {
-                        importPreview = nil
-                        navigateToStage(.preview)
+                        if newTableOnly { requestExit() }
+                        else {
+                            importPreview = nil
+                            navigateToStage(.preview)
+                        }
                     }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
