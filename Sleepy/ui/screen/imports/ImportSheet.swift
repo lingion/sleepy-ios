@@ -165,7 +165,8 @@ struct ImportSheet: View {
     @State private var jwReturn = JwImportReturnState(origin: .importMethods)
     @State private var textExpanded = false
     @State private var inputText = ""
-    @State private var inputViewportHeight: CGFloat = 0
+    @State private var importInputHeight: CGFloat = 160
+    @State private var inputRevealRequest = 0
     @FocusState private var inputFocused: Bool
     @State private var isLoading = false
     @State private var errorMsg: String? = nil
@@ -252,6 +253,8 @@ struct ImportSheet: View {
                             .frame(height: importInputHeight, alignment: .topLeading)
                             .background(colors.surfaceContainerHighest)   // ← fieldColors 容器色 surfaceContainerHighest
                             .cornerRadius(SleepyTheme.fieldShape)
+                            .contentShape(Rectangle())
+                            .onTapGesture { inputFocused = true }
                             // ← 原 filled TextField, 无描边
                             .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("import_paste_viewport")
@@ -351,18 +354,20 @@ struct ImportSheet: View {
         .background(colors.surface)
         .background(GeometryReader { geometry in
             Color.clear
-                .onAppear { inputViewportHeight = geometry.size.height }
+                .onAppear { updateImportInputViewport(geometry.size) }
                 .onChange(of: geometry.size) { size in
-                    inputViewportHeight = size.height
-                    revealImportInput(using: proxy)
+                    updateImportInputViewport(size)
                 }
         })
-        .onChange(of: inputFocused) { _ in revealImportInput(using: proxy) }
+        .onChange(of: inputFocused) { _ in requestImportInputReveal() }
         .onChange(of: textExpanded) { expanded in
             if !expanded { inputFocused = false }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidChangeFrameNotification)) { _ in
-            revealImportInput(using: proxy)
+            requestImportInputReveal()
+        }
+        .task(id: inputRevealRequest) {
+            await revealImportInput(using: proxy)
         }
         // ← 原版本 SnackbarHost + LaunchedEffect(importJustApplied):
         //   导入成功提示(不再跳编辑课表页), 底部胶囊浮层, 复用 JwImportFlow statusMsg 同款
@@ -599,11 +604,13 @@ struct ImportSheet: View {
         }
     }
 
-    private var importInputHeight: CGFloat {
-        guard inputViewportHeight > 0 else { return 160 }
+    private func updateImportInputViewport(_ size: CGSize) {
         // A short landscape sheet still needs an editable line and room above
-        // the keyboard. Longer pasted text scrolls inside the native input.
-        return min(160, max(44, inputViewportHeight - 80))
+        // the keyboard. Publish only the clamped height used by the card, so
+        // keyboard/rotation layout does not repeatedly change unrelated state.
+        let height = min(160, max(44, floor(size.height - 80)))
+        if importInputHeight != height { importInputHeight = height }
+        requestImportInputReveal()
     }
 
     @ViewBuilder
@@ -630,15 +637,25 @@ struct ImportSheet: View {
         }
     }
 
-    private func revealImportInput(using proxy: ScrollViewProxy) {
+    private func requestImportInputReveal() {
         guard textExpanded && inputFocused else { return }
-        // Focus arrives before the sheet and keyboard finish resizing. Use the
-        // settled viewport after both keyboard-frame and geometry changes.
-        DispatchQueue.main.async {
-            guard textExpanded && inputFocused else { return }
-            withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo("import_paste_focus_target", anchor: .top)
-            }
+        inputRevealRequest &+= 1
+    }
+
+    @MainActor
+    private func revealImportInput(using proxy: ScrollViewProxy) async {
+        guard textExpanded && inputFocused else { return }
+        // Geometry and keyboard notifications arrive in a burst during rotation.
+        // The view task cancels the previous request and waits for settled layout.
+        do { try await Task.sleep(nanoseconds: 100_000_000) }
+        catch { return }
+        guard !Task.isCancelled && textExpanded && inputFocused else { return }
+        // Reveal is part of keyboard layout, not another scroll animation racing
+        // UIKit's rotation/caret positioning. Also discard inherited animation.
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            proxy.scrollTo("import_paste_focus_target", anchor: .top)
         }
     }
 

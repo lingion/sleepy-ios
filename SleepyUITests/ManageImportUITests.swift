@@ -116,85 +116,30 @@ final class ManageImportUITests: XCTestCase {
         XCTAssertTrue(expanded, "展开后应出现 Preview 按钮")
         // 最小合法 WakeUp JSON(对象 + courses 数组, 字段 camelCase)
         let json = "{\"name\":\"测试导入表\",\"startDate\":\"2026-08-24\",\"courses\":[{\"name\":\"编译原理\",\"teacher\":\"陈老师\",\"position\":\"教3-401\",\"day\":4,\"startNode\":7,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}]}"
-        // 步骤1: 复制 JSON 到 UIPasteboard
-        UIPasteboard.general.string = json
+        let textField = app.descendants(matching: .any)["import_paste_input"].firstMatch
+        let inputCard = app.descendants(matching: .any)["import_paste_viewport"].firstMatch
+        let scroll = app.scrollViews["import_methods_scroll"].firstMatch
+        XCTAssertTrue(textField.waitForExistence(timeout: 5))
+        for _ in 0..<5 where !inputCard.isHittable { scroll.swipeUp() }
+        XCTAssertTrue(inputCard.isHittable)
+        // The filled card's blank area must focus the actual input, too.
+        inputCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65)).tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5),
+                      "Tapping the filled import card must focus its text input")
+        textField.typeText(json)
+        XCTAssertEqual(textField.value as? String, json,
+                       "Preview must consume the complete user-entered document")
+        let draft = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        draft.name = "full-text-import-draft"
+        draft.lifetime = .keepAlways
+        add(draft)
 
-        // 步骤2: 找到文本输入区域(import_paste_input)并尝试聚焦
-        // 注意: SwiftUI TextField(axis:.vertical) 在 iOS16 accessibility tree 中可能不暴露为 textField
-        // 我们用其 identifier 定位，然后尝试多种方式输入
-        let textField = app.descendants(matching: .any)["import_paste_input"]
-
-        // 先把输入区域滚入可视范围
-        app.swipeUp()
-        sleep(1)
-
-        // 尝试点击文本区域激活键盘(使用坐标点击确保命中)
-        let previewBtn = app.descendants(matching: .any)["import_preview_btn"]
-        XCTAssertTrue(previewBtn.waitForExistence(timeout: 3))
-
-        // TextField 在 Preview 上方, 使用相对坐标
-        // 按钮高 48(2026-08-29 从 44 调齐 原版本 regularHeight) + VStack spacing 8:
-        // dy=-1.7 ≈ 82pt 上方 = TextField 下半区中心, 保证命中输入框
-        let textFieldCenter = previewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -1.7))
-        textFieldCenter.tap()
-        sleep(1)
-
-        // 检查键盘是否出现
-        if app.keyboards.count > 0 {
-            // 键盘已弹出，尝试使用 Paste 功能
-            // 在焦点元素上长按弹出上下文菜单
-            textFieldCenter.press(forDuration: 0.8)
-            sleep(1)
-
-            // 查找 Paste 菜单项
-            if app.menuItems["Paste"].waitForExistence(timeout: 2) {
-                app.menuItems["Paste"].tap()
-                sleep(1)
-            } else {
-                // 菜单没出现，回退到选中+替换方式
-                textFieldCenter.doubleTap()
-                sleep(1)
-                app.typeText(UIPasteboard.general.string ?? json)
-            }
-        } else {
-            // 键盘未弹出，尝试其他激活方式
-            // 再次点击并等待
-            textFieldCenter.tap()
-            sleep(2)
-
-            if app.keyboards.count > 0 {
-                // 现在键盘出现了
-                textFieldCenter.press(forDuration: 0.8)
-                sleep(1)
-                if app.menuItems["Paste"].waitForExistence(timeout: 2) {
-                    app.menuItems["Paste"].tap()
-                } else {
-                    // 直接输入
-                    textFieldCenter.doubleTap()
-                    sleep(1)
-                    app.typeText(json)
-                }
-            } else {
-                // 最后的尝试：使用坐标直接输入(会替换选中文本或追加)
-                app.typeText(json)
-            }
-        }
-
-        // 确保输入框有内容
-        // 如果输入失败，使用 launch argument 传递 JSON
-        let inputField = app.descendants(matching: .any)["import_paste_input"]
-        let hasInput = inputField.exists  // 元素存在即认为可能已有输入
-
-        sleep(1)
-        // 收键盘: 向下滑动手势
-        let scrollStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
-        let scrollEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
-        scrollStart.press(forDuration: 0.05, thenDragTo: scrollEnd)
-        sleep(1)
-
-        // 步骤4: 点击 Preview 按钮
-        let previewButton = app.descendants(matching: .any)["import_preview_btn"]
-        XCTAssertTrue(previewButton.waitForExistence(timeout: 3))
+        let previewButton = app.buttons["import_preview_btn"].firstMatch
+        XCTAssertTrue(previewButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(previewButton.isHittable,
+                      "The import preview action must remain reachable above the keyboard")
+        XCTAssertFalse(previewButton.frame.intersects(app.keyboards.firstMatch.frame),
+                       "The keyboard must not cover the preview action")
         previewButton.tap()
         // Management's new-table entry goes straight to configuration, matching
         // Android v1.0.63. It must never expose overwrite/append modes here.
