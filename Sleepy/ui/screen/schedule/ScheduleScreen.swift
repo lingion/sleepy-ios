@@ -232,7 +232,6 @@ struct ScheduleScreen: View {
                                  showWeekJumpMenu = false
                              },
                              onDismiss: { showWeekJumpMenu = false })
-                    .padding(.top, 56)   // 锚在顶栏周胶囊正下方
             }
         }
         // 详情 Bottom Sheet
@@ -283,11 +282,13 @@ struct ScheduleScreen: View {
     }
 }
 
-// 胶囊挤压测量坐标系 ← 原版本 onGloballyPositioned/positionInParent
-private enum CapsuleMeasureSpace { static let name = "scheduleTopBar" }
+private struct TopBarWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
 
-private struct TripleOriginXKey: PreferenceKey {
-    static var defaultValue: CGFloat = .greatestFiniteMagnitude   // 未测得 = 不挤压
+private struct WeekControlsWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
@@ -498,6 +499,7 @@ private struct WeekPager: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .environment(\.courseDragContext, viewMode == .cards ? drag : nil)
                 .environment(\.courseDragWeek, page)
+                .accessibilityHidden(page != state.selectedWeek)
                 .tag(page)
             }
         }
@@ -585,9 +587,8 @@ private struct ScheduleTopBar: View {
     // ← 原版本 menuOpen=true: 打开跳周 DropdownMenu(浮层由 ScheduleScreen 呈现)
     var onOpenWeekJump: () -> Void = {}
 
-    // 胶囊动态挤压 ← 原版本 centerLeftPx/onGloballyPositioned:
-    // 翻页三件套左缘实测 x(初始 +∞ = 未测得不挤压), 与 iOS 仓库同模式(PreferenceKey 测量)
-    @State private var tripleOriginX: CGFloat = .greatestFiniteMagnitude
+    @State private var barWidth: CGFloat = 0
+    @State private var weekControlsWidth: CGFloat = 0
 
     var body: some View {
         // ← 原版本: actualWeek = displayContext?.actualWeek ?: currentWeek(startDate);
@@ -597,65 +598,74 @@ private struct ScheduleTopBar: View {
         let isOnActual = currentWeek == actualWeek
         let semesterStatus = displayContext?.semesterStatus
             ?? DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek)
-        // capsuleScale = ((centerLeftPx − 32 − 6 − (scaleUncommitted ? 38 : 0) − 6) / 65).coerceIn(0.65,1)
-        // — 周三件套把胶囊挤到左边时按剩余空间缩, 0.65 封底(TopBar 空间紧张)
-        let capsuleScale = min(max((tripleOriginX - 32 - 6 - (scaleUncommitted ? 38 : 0) - 6) / 65, 0.65), 1.0)
-
-        // v7.10.12: 三件套改 ZStack 叠加实现屏幕正中 —
-        // 旧 Spacer 平衡是在"扣除两侧按钮后的剩余空间"里居中, 视觉偏移;
-        // ZStack 叠加让三件套对齐全宽正中, 两侧操作区绝对定位(Box 叠加)。
-        ZStack {
-            // 翻页三件套(箭头+胶囊+箭头) — 箭头紧贴胶囊, 全宽正中;
-            // background 挂在 hug-content HStack 上(在 frame 撑满之前), GeometryReader 上报
-            // 居中内容簇左缘 x ← 原版本 onGloballyPositioned{ positionInParent().x }(非撑满后的 0)
-            HStack(spacing: 8) {
-                pagerTriple(isOnActual: isOnActual, semesterStatus: semesterStatus)   // 见下(week label sheet 挂在胶囊上)
-            }
+        let leadingWidth: CGFloat = 32
+            + ((hasUndoSnapshot || hasRedoSnapshot) ? 6 + 65 : 0)
+            + (scaleUncommitted ? 38 : 0)
+        // Compare widths in one local layout space. A global origin includes
+        // the window/column inset and can incorrectly admit overlapping buttons.
+        let sideSpace = (barWidth - weekControlsWidth) / 2
+        let separateActions = barWidth <= 0 || weekControlsWidth <= 0
+            || sideSpace < max(leadingWidth, 70) + 8
+        let weekControls = pagerTriple(isOnActual: isOnActual, semesterStatus: semesterStatus)
             .background(GeometryReader { proxy in
-                Color.clear.preference(key: TripleOriginXKey.self,
-                                       value: proxy.frame(in: .named(CapsuleMeasureSpace.name)).minX)
+                Color.clear.preference(key: WeekControlsWidthKey.self, value: proxy.size.width)
             })
             .frame(maxWidth: .infinity)
-
-            // 最左操作区: logo + 撤回/取消撤回胶囊 + 行高 tick(各自有则现)
-            HStack(spacing: 0) {
-                WeekNavButton(icon: "calendar", a11yLabel: L10n.format("schedule_switch_table"), onClick: onSwitchTable)
-                    .accessibilityIdentifier("switch_table")
-                // 2026-09-21 用户令: 一起出现一起消失 — 无 undo 也无 redo 时整胶囊隐藏
-                // 宿主持续存在以保留退场；间距随内容收回，隐藏后不留空槽。
-                SleepyPopup(visible: hasUndoSnapshot || hasRedoSnapshot) {
-                    UndoRedoCapsule(showUndo: hasUndoSnapshot,
-                                    showRedo: hasRedoSnapshot,
-                                    scale: capsuleScale,
-                                    onUndo: onUndo,
-                                    onRedo: onRedo)
-                        .padding(.leading, 6)
+        Group {
+            if separateActions {
+                VStack(spacing: 8) {
+                    weekControls
+                    HStack {
+                        leadingActions(capsuleScale: 1)
+                        Spacer(minLength: 8)
+                        trailingActions
+                    }
                 }
-                // 2026-09-16 用户令: tick 单列圆形按钮, 与数据撤回胶囊语义不同互不干涉;
-                // tick=落盘长期生效, 胶囊撤回=回到上次确认值
-                if scaleUncommitted {
-                    WeekNavButton(icon: "checkmark", a11yLabel: L10n.format("schedule_scale_keep"), onClick: onScaleCommit)
-                        .accessibilityIdentifier("scale_keep")
-                        .padding(.leading, 6)
+            } else {
+                ZStack {
+                    weekControls
+                    leadingActions(capsuleScale: 1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    trailingActions
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // 右侧操作区: 加课 + 分享 — 与翻页箭头同款圆形底
-            HStack(spacing: 6) {
-                WeekNavButton(icon: "plus", a11yLabel: L10n.format("schedule_add_course"), onClick: onAddCourse)
-                    .accessibilityIdentifier("topbar_add")
-                WeekNavButton(icon: "square.and.arrow.up", a11yLabel: L10n.format("schedule_share_table"), onClick: onShare)
-                    .accessibilityIdentifier("topbar_share")
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .coordinateSpace(name: CapsuleMeasureSpace.name)
-        .onPreferenceChange(TripleOriginXKey.self) { tripleOriginX = $0 }
         .frame(maxWidth: .infinity)
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: TopBarWidthKey.self, value: proxy.size.width)
+        })
+        .onPreferenceChange(TopBarWidthKey.self) { barWidth = $0 }
+        .onPreferenceChange(WeekControlsWidthKey.self) { weekControlsWidth = $0 }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(colors.surface)
+    }
+
+    private func leadingActions(capsuleScale: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            WeekNavButton(icon: "calendar", a11yLabel: L10n.format("schedule_switch_table"), onClick: onSwitchTable)
+                .accessibilityIdentifier("switch_table")
+            SleepyPopup(visible: hasUndoSnapshot || hasRedoSnapshot) {
+                UndoRedoCapsule(showUndo: hasUndoSnapshot, showRedo: hasRedoSnapshot,
+                                scale: capsuleScale, onUndo: onUndo, onRedo: onRedo)
+                    .padding(.leading, 6)
+            }
+            if scaleUncommitted {
+                WeekNavButton(icon: "checkmark", a11yLabel: L10n.format("schedule_scale_keep"), onClick: onScaleCommit)
+                    .accessibilityIdentifier("scale_keep")
+                    .padding(.leading, 6)
+            }
+        }
+    }
+
+    private var trailingActions: some View {
+        HStack(spacing: 6) {
+            WeekNavButton(icon: "plus", a11yLabel: L10n.format("schedule_add_course"), onClick: onAddCourse)
+                .accessibilityIdentifier("topbar_add")
+            WeekNavButton(icon: "square.and.arrow.up", a11yLabel: L10n.format("schedule_share_table"), onClick: onShare)
+                .accessibilityIdentifier("topbar_share")
+        }
     }
 
     // 翻页三件套(箭头+胶囊+箭头); 胶囊点击 = 跳周菜单/一键跳回
@@ -798,49 +808,54 @@ private struct WeekJumpMenu: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        ZStack {
-            // 弹层外点击关闭(原版本 DropdownMenu 外点 scrim);近透明不遮内容
-            Color.black.opacity(0.001)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onDismiss)
-            menuPanel
-                .padding(.top, 56)   // 锚在顶栏周胶囊正下方
+        GeometryReader { geometry in
+            let panelWidth = min(280, max(geometry.size.width - 24, 0))
+            let columns = max(Int((panelWidth - 24 + 8) / 48), 1)
+            let rows = (max(maxWeek, 1) - 1) / columns + 1
+            let gridHeight = CGFloat(rows) * 48 - 8
+            ZStack(alignment: .top) {
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onDismiss)
+                menuPanel(gridHeight: min(gridHeight, max(geometry.size.height - 108, 40)))
+                    .frame(width: panelWidth, alignment: .leading)
+                    .background(colors.surfaceContainerHighest)
+                    .cornerRadius(4)
+                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                    .padding(.top, 56)
+            }
         }
     }
 
-    // 面板: 宽 280 + containerColor surfaceContainerHighest + Column padding 12
-    private var menuPanel: some View {
+    private func menuPanel(gridHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(L10n.format("schedule_jump_week"))
                 .font(.system(size: 12, weight: .medium))   // ← labelMedium 12
                 .foregroundColor(colors.onSurfaceVariant)
                 .padding(.leading, 4)
                 .padding(.bottom, 8)
-            chipGrid
-        }
-        .padding(12)                                  // ← Column(padding 12dp)
-        .frame(width: 280, alignment: .leading)       // ← DropdownMenu 宽 280dp
-        .background(colors.surfaceContainerHighest)   // ← containerColor
-        .cornerRadius(4)                              // ← M3 menu 容器 extra-small 圆角
-        .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
-    }
-
-    // FlowRow(spacedBy 8/8, fillMaxWidth): 均一 40pt chip → 256pt 内每行 5 枚
-    private var chipGrid: some View {
-        let clampedMax = max(maxWeek, 1)
-        let rows = stride(from: 1, through: clampedMax, by: 5).map {
-            Array($0...min($0 + 4, clampedMax))
-        }
-        return VStack(spacing: 8) {   // ← FlowRow 纵向 spacedBy(8)
-            ForEach(rows.indices, id: \.self) { r in
-                HStack(spacing: 8) {  // ← FlowRow 横向 spacedBy(8)
-                    ForEach(rows[r], id: \.self) { w in
-                        weekChip(w)
-                    }
+                .accessibilityIdentifier("week_jump_title")
+            ScrollViewReader { proxy in
+                ScrollView {
+                    chipGrid
                 }
+                .frame(height: gridHeight)
+                .onAppear { proxy.scrollTo(currentWeek, anchor: .center) }
             }
         }
-        .frame(maxWidth: .infinity)   // ← FlowRow fillMaxWidth
+        .padding(12)
+    }
+
+    // Keep the familiar five-column menu, allowing fewer columns in narrow panes.
+    private var chipGrid: some View {
+        let clampedMax = max(maxWeek, 1)
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 40, maximum: 40), spacing: 8)],
+                         alignment: .leading, spacing: 8) {
+            ForEach(1...clampedMax, id: \.self) { week in
+                weekChip(week).id(week)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // 40dp Circle chip: 选中 primary/Bold/onPrimary,未选中 surfaceContainerHigh/Regular/onSurface
