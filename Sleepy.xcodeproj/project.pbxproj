@@ -55,6 +55,7 @@
 		0C15D5D38A93310F3359AD8E /* JwKingoHTMLRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59FDFBF7ACB7D4CC1761F68 /* JwKingoHTMLRegressionTests.swift */; };
 		0C43277538AC5AA5DF57DD35 /* JwImportFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990A9D3555C706514CFAA8B3 /* JwImportFlow.swift */; };
 		0C5563E0494965DA7AF8E4CB /* SystemColorScheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AADC4D523663B1B42026758 /* SystemColorScheme.swift */; };
+		0CE8702BE803123277CC19A8 /* CourseDeepLinkNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B73E1E34476D5626CD6E8C /* CourseDeepLinkNavigationTests.swift */; };
 		0CF027A0FD153C28E4A90C3E /* CourseEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */; };
 		0DAD4E04D2C6C8A448349C53 /* NativeCourseDrag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E3A127E5A807424565EB70 /* NativeCourseDrag.swift */; };
 		0DF86B83C7DAA37A8C106AB8 /* CourseListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6A1018CDA12035558C1A35 /* CourseListScreen.swift */; };
@@ -1330,6 +1331,7 @@
 		804FD9B63BCC3C1726B9CAFF /* WeekViewWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekViewWidgetView.swift; sourceTree = "<group>"; };
 		807D2193B6730A4A295A42AC /* CourseListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseListView.swift; sourceTree = "<group>"; };
 		808431739643CC9DF6D6126D /* SleepyWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyWatchApp.swift; sourceTree = "<group>"; };
+		80B73E1E34476D5626CD6E8C /* CourseDeepLinkNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDeepLinkNavigationTests.swift; sourceTree = "<group>"; };
 		81949E978A8725C92FCA42C2 /* WeekDisplayResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekDisplayResolver.swift; sourceTree = "<group>"; };
 		8196FB929621E7BD5615C068 /* WidgetResizeCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetResizeCoreTests.swift; sourceTree = "<group>"; };
 		8210AED098F754F64C038B8F /* JwKingoZxParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwKingoZxParser.swift; sourceTree = "<group>"; };
@@ -2152,6 +2154,7 @@
 				D81A47CC19CD103543B9322D /* CourseColorWriteGlueTests.swift */,
 				4137A928F47C7A0A6EFD9C2D /* CourseCustomTimeContractTests.swift */,
 				425CDED54ED7F74106731E8F /* CourseDaoChainTests.swift */,
+				80B73E1E34476D5626CD6E8C /* CourseDeepLinkNavigationTests.swift */,
 				3256067B02E3F8DEC9B0CC14 /* CourseDisplayUtilTests.swift */,
 				40B90C7F7B88017B3B95ECD1 /* CourseDraftAtomicSaveTests.swift */,
 				0AE3CF98D3C3CB258D479CF7 /* CourseDragPolicyTests.swift */,
@@ -3522,6 +3525,7 @@
 				48048B19335D586C4A1CF4B8 /* CourseColorWriteGlueTests.swift in Sources */,
 				4E4E619C364DDD1DAEF0F5A8 /* CourseCustomTimeContractTests.swift in Sources */,
 				2AB1C979346A5D643A0C2F16 /* CourseDaoChainTests.swift in Sources */,
+				0CE8702BE803123277CC19A8 /* CourseDeepLinkNavigationTests.swift in Sources */,
 				E8F4FE29733449ED72FB1C93 /* CourseDisplayUtilTests.swift in Sources */,
 				983A92D57326DF756BC6ED07 /* CourseDraftAtomicSaveTests.swift in Sources */,
 				79923A8BEB7A4B2B3500A697 /* CourseDragPolicyTests.swift in Sources */,

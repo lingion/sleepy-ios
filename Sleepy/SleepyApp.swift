@@ -195,8 +195,6 @@ final class AppRootViewModel: ObservableObject {
     @Published var pendingNewPeriodTableId: Int64? = nil
     @Published var pendingNewTableId: Int64? = nil
     @Published var previousDefaultTableId: Int64? = nil
-    // 深链课程
-    @Published var deepLinkCourse: CourseEntity? = nil
     // ← v1.0.62 B5: 议程页路由参数(通知点击/深链共用; openDailyAgenda 单一入口)
     @Published var dailyAgendaDate: Date? = nil
     // 语言切换重建 token(← Activity.recreate): L10n.didChange → 递增 → AppRoot 全树重建
@@ -219,6 +217,7 @@ final class AppRootViewModel: ObservableObject {
     private var prefsObserver: NSObjectProtocol?
 
     let scheduleViewModel: ScheduleViewModel
+    private let repository: ScheduleRepository
     private let draftRepository = ImportDraftRepository(AppDatabase.getShared())
     // ← 原版本 MainActivity.kt:261 `rememberSleepyNavigator()`: 门面唯一实例。
     //   iOS 无 composition 生命周期, 挂在 VM 上 = 与 AppRoot 同寿(VM 由 AppDelegate
@@ -228,6 +227,7 @@ final class AppRootViewModel: ObservableObject {
     lazy var navigator: SleepyNavigator = SleepyNavigator(viewModel: self)
 
     init(repository: ScheduleRepository) {
+        self.repository = repository
         scheduleViewModel = ScheduleViewModel(
             repo: repository,
             onWidgetsNeedReload: { WidgetCenter.shared.reloadAllTimelines() })
@@ -349,12 +349,16 @@ final class AppRootViewModel: ObservableObject {
     }
 
     // ← 深链: sleepy://course/<id>
-    func handleDeepLinkCourse(_ id: Int64) {
-        if deepLinkCourse?.id == id { return }
-        let repo = ScheduleRepository(AppDatabase.getShared())
-        if let course = try? repo.getCourse(id) {
-            deepLinkCourse = course
-        }
+    @discardableResult
+    func handleDeepLinkCourse(_ id: Int64) -> Bool {
+        guard let course = try? repository.getCourse(id) else { return false }
+        // Use the existing discard path before replacing the route. Otherwise
+        // Back from this course could discard a previous unsaved table instead.
+        handleBack()
+        if pendingNewPeriodTableId != nil { handleBack() }
+        navigator.session.beginEditCourse(course)
+        navigator.openAddCourse(courseId: course.id, editing: true)
+        return true
     }
 
     // ← v1.0.62 B5: 议程页单一打开入口 (通知点击 + 深链共用)。
@@ -473,13 +477,6 @@ struct AppRoot: View {
                         AchievementTracker.shared.checkWidgetAdd()
                     }
                 }
-            }
-        }
-        // 深链课程 → 编辑(← LaunchedEffect(deepLinkCourse?.id))
-        .onChange(of: root.deepLinkCourse?.id) { courseId in
-            if courseId != nil {
-                root.editingCourse = root.deepLinkCourse
-                root.deepLinkCourse = nil
             }
         }
         // ← v1.0.62 B5: 通知点击 → 议程页 (delegate didReceive 广播; 冷启竞态由
