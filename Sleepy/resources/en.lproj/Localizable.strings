@@ -184,6 +184,7 @@
 "mine_stat_tables" = "Schedules";
 "mine_stat_courses" = "Courses";
 "mine_stat_week" = "Week";
+"mine_stat_period_tables" = "Bell schedules";
 "settings_language" = "Language";
 "settings_display_mode" = "Time Display";
 "settings_grid_sub_info" = "Grid card sub-info";

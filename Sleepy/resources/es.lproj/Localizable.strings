@@ -183,6 +183,7 @@
 "mine_stat_tables" = "Horarios";
 "mine_stat_courses" = "Cursos";
 "mine_stat_week" = "Semana";
+"mine_stat_period_tables" = "Horarios de períodos";
 "settings_language" = "Idioma / Language";
 "settings_display_mode" = "Visualización de hora";
 "settings_grid_sub_info" = "Sub-info de la tarjeta";

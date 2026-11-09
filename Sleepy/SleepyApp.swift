@@ -829,7 +829,6 @@ struct AppRoot: View {
                 onOpenPeriodTables: { root.navigator.openPeriodTables() },
                 onOpenAppearance: { root.navigator.openAppearance() },
                 onOpenGeneral: { root.navigator.openGeneral() },
-                onOpenExport: { root.navigator.openExport() },
                 onOpenReminder: { root.navigator.openReminder() },
                 onOpenAbout: { root.navigator.openAbout() })
         }

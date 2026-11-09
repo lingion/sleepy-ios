@@ -28,9 +28,9 @@ final class ExportFlowUITests: XCTestCase {
     }
 
     private func openExport() {
-        app.switchToPillTab("mine")
-        let exportEntry = app.descendants(matching: .any)["mine_export"]
-        XCTAssertTrue(exportEntry.waitForExistence(timeout: 5), "Mine 页应有导出入口")
+        app.switchToPillTab("manage")
+        let exportEntry = app.descendants(matching: .any)["manage_export"]
+        XCTAssertTrue(exportEntry.waitForExistence(timeout: 5), "管理页应有导出入口")
         exportEntry.tap()
         XCTAssertTrue(app.descendants(matching: .any)["export_json_row"].waitForExistence(timeout: 5),
                       "导出页应显示 JSON 行")

@@ -69,7 +69,7 @@ final class SleepyUITests: XCTestCase {
 
         // 6 个设置项都存在(通过 accessibilityIdentifier)
         XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"].exists, "all_tables 入口缺失")
-        XCTAssertTrue(app.descendants(matching: .any)["mine_export"].exists, "export 入口缺失")
+        XCTAssertTrue(app.descendants(matching: .any)["mine_period_tables"].exists, "作息表入口缺失")
         XCTAssertTrue(app.descendants(matching: .any)["mine_reminder"].exists, "reminder 入口缺失")
         XCTAssertTrue(app.descendants(matching: .any)["mine_appearance"].exists, "appearance 入口缺失")
         XCTAssertTrue(app.descendants(matching: .any)["mine_general"].exists, "general 入口缺失")

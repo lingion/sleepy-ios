@@ -183,6 +183,7 @@
 "mine_stat_tables" = "時間割数";
 "mine_stat_courses" = "授業数";
 "mine_stat_week" = "現在の週";
+"mine_stat_period_tables" = "時程表数";
 "settings_language" = "言語 / Language";
 "settings_display_mode" = "時間表示";
 "settings_grid_sub_info" = "グリッドカードの補足情報";

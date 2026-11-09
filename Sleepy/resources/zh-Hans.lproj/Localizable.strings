@@ -211,6 +211,7 @@
 "mine_stat_tables" = "课表数";
 "mine_stat_courses" = "课程数";
 "mine_stat_week" = "当前周";
+"mine_stat_period_tables" = "作息表数";
 "settings_language" = "语言 / Language";
 "settings_display_mode" = "课程时间显示";
 "settings_grid_sub_info" = "网格卡片副信息";

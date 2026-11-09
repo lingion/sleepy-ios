@@ -183,6 +183,7 @@
 "mine_stat_tables" = "課表數";
 "mine_stat_courses" = "課程數";
 "mine_stat_week" = "目前週";
+"mine_stat_period_tables" = "作息表數";
 "settings_language" = "語言 / Language";
 "settings_display_mode" = "課程時間顯示";
 "settings_grid_sub_info" = "網格卡片副資訊";
