@@ -372,14 +372,28 @@ final class SheetPlatformUITests: XCTestCase {
         makeHittable(rangeStart)
         XCTAssertEqual(rangeStart.value as? String, "1")
         XCTAssertEqual(rangeEnd.value as? String, "2")
+        let editorControls = [app.buttons["occurrence_date"].firstMatch,
+                              app.descendants(matching: .any)["occurrence_fixed_date"].firstMatch,
+                              app.staticTexts["occurrence_nodes_summary"].firstMatch,
+                              rangeStart, rangeEnd, custom,
+                              app.buttons["occurrence_save"].firstMatch,
+                              app.buttons["occurrence_delete"].firstMatch]
+        let allControlsFit = editorControls.allSatisfy { fullyVisible($0) }
         let previousY = custom.frame.minY
         let origin = app.coordinate(withNormalizedOffset: .zero)
         let sliderPoint = CGPoint(x: (rangeStart.frame.midX + rangeEnd.frame.midX) / 2, y: rangeStart.frame.midY)
         origin.withOffset(CGVector(dx: sliderPoint.x, dy: sliderPoint.y)).press(forDuration: 0.05,
             thenDragTo: origin.withOffset(CGVector(dx: sliderPoint.x, dy: sliderPoint.y - 80)),
             withVelocity: XCUIGestureVelocity(rawValue: 300), thenHoldForDuration: 0.15)
-        XCTAssertTrue(waitUntil { custom.frame.minY <= previousY - 20 },
-                      "A vertical drag on the period slider must scroll the editor")
+        if allControlsFit {
+            // A tall tablet sheet has no scroll budget when every control fits.
+            // Exercise the same drag and verify it leaves the full form usable.
+            XCTAssertTrue(waitUntil { editorControls.allSatisfy { fullyVisible($0) } },
+                          "A vertical drag must keep a fully visible editor usable")
+        } else {
+            XCTAssertTrue(waitUntil { custom.frame.minY <= previousY - 20 },
+                          "A vertical drag on the period slider must scroll the editor")
+        }
         XCTAssertEqual(rangeStart.value as? String, "1", "Vertical scrolling must not edit the range")
         XCTAssertEqual(rangeEnd.value as? String, "2")
         makeHittable(custom)
