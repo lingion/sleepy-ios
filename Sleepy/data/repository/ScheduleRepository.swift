@@ -924,10 +924,16 @@ final class ScheduleRepository {
 
     /// Course rows and their staged edge slots either commit together or remain a draft.
     func saveCourseDrafts(tableId: Int64, editingGroupId: String?, drafts: [CourseEntity],
-                          timeChange: CourseTimeChange? = nil) throws {
+                          timeChange: CourseTimeChange? = nil, editingCourseId: Int64? = nil) throws {
         let newGroups = try writeWithUndo { db -> [CourseEntity] in
             guard let table = try TimeTableEntity.fetchOne(db, key: tableId) else { throw TableEditSaveError.missingTable }
             guard drafts.allSatisfy({ $0.tableId == tableId }) else { throw TableEditSaveError.invalidCourseDraft }
+            if let editingCourseId {
+                guard let source = try CourseEntity.fetchOne(db, key: editingCourseId),
+                      source.tableId == tableId, source.groupId == editingGroupId else {
+                    throw TableEditSaveError.invalidCourseDraft
+                }
+            }
             let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
             if let change = timeChange {
                 guard table.periodTableId == change.expectedPeriodTableId,
