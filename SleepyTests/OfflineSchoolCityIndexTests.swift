@@ -1,12 +1,11 @@
-// OfflineSchoolCityIndexTests.swift — ← OfflineSchoolCityIndexTest.kt (8 用例逐条)
+// OfflineSchoolCityIndexTests.swift — ← Android v1.0.63 OfflineSchoolCityIndexTest.kt
 // + SchoolBoundaryFixture.kt 的 SCB1 字节构造器镜像(hole/island fixture)。
 //
 // 真资产 school_city_boundaries.bin.gz 打进 app bundle(Sleepy/resources),
 // 测试经 Bundle(for: JwImportViewModel.self) 取 — 与 JwJsonParserTests 取
 // schools.json 的先例一致; .bin 兜底对齐 原版本 AAPT 去 .gz 后缀的行为。
 //
-// 资源缺失 ≠ 失败: 与 原版本 offlineIndex() catch→null 的生产语义一致,
-// 真资产用例在资源不可得时 XCTSkip(单元测试不逼 xcodegen 打包布局就位)。
+// 真资产也是生产定位的必要输入，缺失应让回归失败，不能跳过掩盖打包问题。
 
 import XCTest
 import Compression
@@ -64,9 +63,8 @@ final class OfflineSchoolCityIndexTests: XCTestCase {
             else { return nil }
             return try? Data(contentsOf: url)
         }
-        guard let raw = asset("gz") ?? asset("bin") else {
-            throw XCTSkip("school_city_boundaries 资产未打进测试可见的 bundle")
-        }
+        let raw = try XCTUnwrap(asset("bin.gz") ?? asset("bin"),
+                               "school_city_boundaries 资产未打进测试可见的 bundle")
         let decompressed = (raw.count > 1 && raw[0] == 0x1f && raw[1] == 0x8b) ? (gunzip(raw) ?? raw) : raw
         return try OfflineSchoolCityIndex.parse(InputStream(data: decompressed))
     }
@@ -78,7 +76,8 @@ final class OfflineSchoolCityIndexTests: XCTestCase {
         guard let url = appBundle.url(forResource: "school_cities", withExtension: "json")
             ?? bundle.url(forResource: "school_cities", withExtension: "json")
             ?? Bundle.main.url(forResource: "school_cities", withExtension: "json")
-        else { throw XCTSkip("school_cities.json 未打进测试可见的 bundle") }
+        else { throw NSError(domain: "OfflineSchoolCityIndexTests", code: 1,
+                             userInfo: [NSLocalizedDescriptionKey: "school_cities.json 未打进测试可见的 bundle"]) }
         return try String(contentsOf: url, encoding: .utf8)
     }
 
@@ -199,17 +198,62 @@ final class OfflineSchoolCityIndexTests: XCTestCase {
         XCTAssertEqual([school], SchoolCityIndex.schoolsInCity([school, other], city: city))
     }
 
-    // MARK: - 用例 8: all configured school cities exist in the bundled boundary names
+    // MARK: - 用例 8: normalized city coverage + exact audited snapshot limitations
 
-    func testAllConfiguredSchoolCitiesHaveBoundaries() throws {
+    func testAllConfiguredSchoolCitiesResolveOrHaveAuditedBoundaryLimitations() throws {
         let index = try Self.loadRealIndex()
-        let names = index.cityNames
+        let names = Set(index.cityNames.map(SchoolCityIndex.normalizeCity))
+        let unsupported = OfflineSchoolCityIndex.unsupportedCityReasons
         let cities = try SchoolCityIndex.parse(Self.loadSchoolCitiesText())
         for (school, locations) in cities {
             for city in locations {
-                XCTAssertTrue(names.contains(city), "Missing boundary for \(school): \(city)")
+                XCTAssertTrue(names.contains(SchoolCityIndex.normalizeCity(city)) || unsupported[city] != nil,
+                              "Unaccounted boundary for \(school): \(city)")
             }
         }
+        let missingCities = Set(cities.values.flatMap { $0 }.filter {
+            !names.contains(SchoolCityIndex.normalizeCity($0))
+        })
+        XCTAssertEqual(Set(unsupported.keys), missingCities, "Remove stale or unneeded boundary exclusions")
+        XCTAssertTrue(unsupported.values.allSatisfy { !$0.isBlank })
+    }
+
+    func testProvinceOutlineNeverMasqueradesAsCityWhileHongKongAndMacauResolve() throws {
+        let index = try Self.loadRealIndex()
+        XCTAssertFalse(index.cityNames.contains("台湾省"))
+        XCTAssertEqual("臺北市", index.cityAt(latitude: 25.0330, longitude: 121.5654))
+        XCTAssertEqual("臺中市", index.cityAt(latitude: 24.1477, longitude: 120.6736))
+        XCTAssertEqual("香港", index.cityAt(latitude: 22.3193, longitude: 114.1694))
+        XCTAssertEqual("澳门", index.cityAt(latitude: 22.1987, longitude: 113.5439))
+    }
+
+    func testOldProvinceOnlyAssetIsRejectedAsCityCoverage() throws {
+        let old = try parseFixture([areaJSON(name: "台湾省", polygons: [[
+            [[120, 20], [125, 20], [125, 26], [120, 26], [120, 20]],
+        ]])])
+        XCTAssertNil(old.cityAt(latitude: 25.0330, longitude: 121.5654))
+        XCTAssertTrue(old.cityNames.isEmpty)
+    }
+
+    func testTaiwanCitiesCountiesAndOffshoreIslandsResolveSeparately() throws {
+        let index = try Self.loadRealIndex()
+        XCTAssertEqual("新北市", index.cityAt(latitude: 25.012, longitude: 121.465))
+        XCTAssertEqual("高雄市", index.cityAt(latitude: 22.6273, longitude: 120.3014))
+        XCTAssertEqual("澎湖縣", index.cityAt(latitude: 23.565, longitude: 119.565))
+        XCTAssertEqual("金門縣", index.cityAt(latitude: 24.432, longitude: 118.318))
+        XCTAssertEqual("連江縣", index.cityAt(latitude: 26.151, longitude: 119.930))
+    }
+
+    func testOfficialCityAliasesUseActualPrefectureBoundaries() throws {
+        let index = try Self.loadRealIndex()
+        let schools = [
+            JwSchoolInfo(sortKey: "K", name: "昆山杜克大学", cities: ["昆山市"]),
+            JwSchoolInfo(sortKey: "L", name: "临夏现代职业学院", cities: ["临夏州"]),
+        ]
+        XCTAssertEqual("苏州市", index.cityAt(latitude: 31.385, longitude: 120.953))
+        XCTAssertEqual([schools[0]], SchoolCityIndex.schoolsInCity(schools, city: "苏州市"))
+        XCTAssertEqual([schools[1]], SchoolCityIndex.schoolsInCity(schools, city: "临夏回族自治州"))
+        XCTAssertTrue(SchoolCityIndex.schoolsInCity(schools, city: "临夏").isEmpty)
     }
 
     // MARK: - 用例 9 (fixture 版补充, 覆盖真资产用例 8 的资源依赖之外):
@@ -267,7 +311,7 @@ final class OfflineSchoolCityIndexTests: XCTestCase {
         XCTAssertEqual(["A\u{FFFD}B"], Array(parsed.cityNames))
     }
 
-    // MARK: - moved-school (29.2,115.8)→"九江市" not "南昌市" — 真资产不可得时跳过
+    // MARK: - moved-school (29.2,115.8)→"九江市" not "南昌市" — 真资产必需
 
     func testMovedSchoolResolvesByLocationNotName() throws {
         let index = try Self.loadRealIndex()

@@ -12,6 +12,16 @@ import Foundation
 import Compression
 
 final class OfflineSchoolCityIndex {
+    // Android v1.0.63: an older province outline must never be exposed as a city.
+    private static let nonCityAreas: Set<String> = ["台湾省"]
+
+    /// Exact audited snapshot limitations, never derived from unrecognized names.
+    /// Keep factual school locations even when their city polygon is unavailable.
+    /// Source: Android v1.0.63 (a821c6a), docs/catalog/city-boundary-coverage.md.
+    static let unsupportedCityReasons = [
+        "新星市": "The bundled boundary snapshot has no Xinxing city polygon."
+    ]
+
     private struct Ring {
         let coordinates: [Int32]     // [x0, y0, x1, y1, ...] 缩放整数(度×10000)
         let minX: Int32, maxX: Int32, minY: Int32, maxY: Int32
@@ -81,7 +91,7 @@ final class OfflineSchoolCityIndex {
     }
 
     var cityNames: Set<String> {
-        return Set(areas.map { $0.name })
+        return Set(areas.map { $0.name }.filter { !Self.nonCityAreas.contains($0) })
     }
 
     func cityAt(latitude: Double, longitude: Double) -> String? {
@@ -92,7 +102,8 @@ final class OfflineSchoolCityIndex {
             return nil
         }
         return areas.first { area in
-            area.polygons.contains { $0.contains(x: longitude * 10000, y: latitude * 10000) }
+            !Self.nonCityAreas.contains(area.name)
+                && area.polygons.contains { $0.contains(x: longitude * 10000, y: latitude * 10000) }
         }?.name
     }
 
