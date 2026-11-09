@@ -1210,6 +1210,7 @@
 "live_activity_next" = "Siguiente: %1$@";
 
 "timeslot_reorder_standard_only" = "Los períodos especiales permanecen fijos. Arrastra los períodos normales para reordenarlos.";
+
 // Readable static examples in the widget gallery.
 "widget_preview_calculus" = "Cálculo";
 "widget_preview_english" = "Lectura en inglés";
@@ -1218,8 +1219,12 @@
 "widget_preview_programming" = "Prácticas de programación";
 "widget_preview_seminar" = "Seminario";
 "widget_preview_gym" = "Gimnasio";
+
+// Android v1.0.63 THU course-page navigation and recovery.
 "jw_nav_hint_thu" = "Abra el horario general en el sistema de cursos, elija el semestre y toque Importar esta página";
 "jw_err_thu_course_page" = "No se encontró el script de cursos del horario general de THU. Inicie sesión, abra el horario general, elija el semestre y toque Importar esta página.";
+
+// Android v1.0.63 — explicit-target course imports.
 "add_course_title" = "Añadir curso";
 "add_course_from_existing" = "Desde un horario existente";
 "select_courses_title" = "Seleccionar asignaturas";

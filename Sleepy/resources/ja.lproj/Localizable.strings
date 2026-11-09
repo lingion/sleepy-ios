@@ -1210,6 +1210,7 @@
 "live_activity_next" = "次の授業：%1$@";
 
 "timeslot_reorder_standard_only" = "特別時限の位置は固定です。通常の時限をドラッグして並べ替えます。";
+
 // Readable static examples in the widget gallery.
 "widget_preview_calculus" = "微積分";
 "widget_preview_english" = "英語リーディング";
@@ -1218,8 +1219,12 @@
 "widget_preview_programming" = "プログラミング演習";
 "widget_preview_seminar" = "ゼミナール";
 "widget_preview_gym" = "体育館";
+
+// Android v1.0.63 THU course-page navigation and recovery.
 "jw_nav_hint_thu" = "履修システムの「全体時間割」を開き、学期を選んでから「このページを取り込む」をタップ";
 "jw_err_thu_course_page" = "清華大学の「全体時間割」の授業スクリプトが見つかりません。ログインし、全体時間割を開いて学期を選び、再度取り込んでください。";
+
+// Android v1.0.63 — explicit-target course imports.
 "add_course_title" = "授業を追加";
 "add_course_from_existing" = "既存の時間割から";
 "select_courses_title" = "授業を選択";

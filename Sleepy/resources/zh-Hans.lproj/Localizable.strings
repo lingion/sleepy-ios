@@ -35,7 +35,7 @@
 "manage_edit_current_sub" = "编辑当前课表名称、日期、节次时间";
 "manage_export" = "导出当前课表";
 "manage_export_sub" = "以文件分享当前课表";
-"manage_manual_add" = "手动添加课程";
+"manage_manual_add" = "添加课程";
 "manage_manual_add_sub" = "从课表导入或手动添加课程";
 "table_info" = "开始日期: %1$@  |  第%2$d周  |  %3$d门课";
 "current_table_week" = "当前课表 · 第%1$d周";
@@ -1211,6 +1211,7 @@
 "live_activity_next" = "下节：%1$@";
 
 "timeslot_reorder_standard_only" = "边缘节次保持固定，仅标准节次支持拖拽排序。";
+
 // Readable static examples in the widget gallery.
 "widget_preview_calculus" = "高等数学";
 "widget_preview_english" = "英文阅读";
@@ -1219,8 +1220,12 @@
 "widget_preview_programming" = "程序设计实践";
 "widget_preview_seminar" = "研讨课";
 "widget_preview_gym" = "体育馆";
+
+// Android v1.0.63 THU course-page navigation and recovery.
 "jw_nav_hint_thu" = "导航到选课系统「整体课表」页，选好学期后点「导入此页」";
 "jw_err_thu_course_page" = "尚未检测到清华大学「整体课表」的课程脚本。请登录选课系统、打开「整体课表」、选好学期后再点「导入此页」";
+
+// Android v1.0.63 — explicit-target course imports.
 "add_course_title" = "添加课程";
 "add_course_from_existing" = "从现有课表";
 "select_courses_title" = "选择课程";

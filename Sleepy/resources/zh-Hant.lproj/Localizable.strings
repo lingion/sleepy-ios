@@ -35,7 +35,7 @@
 "manage_edit_current_sub" = "編輯課表名稱、日期、節次時間";
 "manage_export" = "匯出目前課表";
 "manage_export_sub" = "以檔案分享目前課表";
-"manage_manual_add" = "手動新增課程";
+"manage_manual_add" = "新增課程";
 "manage_manual_add_sub" = "從課表匯入或手動新增課程";
 "table_info" = "開始日期: %1$@  |  第%2$d週  |  %3$d門課";
 "current_table_week" = "目前課表 · 第%1$d週";
@@ -1210,6 +1210,7 @@
 "live_activity_next" = "下節：%1$@";
 
 "timeslot_reorder_standard_only" = "邊緣節次保持固定，僅標準節次支援拖曳排序。";
+
 // Readable static examples in the widget gallery.
 "widget_preview_calculus" = "高等數學";
 "widget_preview_english" = "英文閱讀";
@@ -1218,8 +1219,12 @@
 "widget_preview_programming" = "程式設計實作";
 "widget_preview_seminar" = "研討課";
 "widget_preview_gym" = "體育館";
+
+// Android v1.0.63 THU course-page navigation and recovery.
 "jw_nav_hint_thu" = "導航到選課系統「整體課表」頁，選好學期後點「匯入此頁」";
 "jw_err_thu_course_page" = "尚未偵測到清華大學「整體課表」的課程腳本。請登入選課系統、開啟「整體課表」、選好學期後再點「匯入此頁」";
+
+// Android v1.0.63 — explicit-target course imports.
 "add_course_title" = "新增課程";
 "add_course_from_existing" = "從現有課表";
 "select_courses_title" = "選擇課程";

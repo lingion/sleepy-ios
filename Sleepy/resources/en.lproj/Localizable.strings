@@ -1210,6 +1210,7 @@
 "live_activity_next" = "Next: %1$@";
 
 "timeslot_reorder_standard_only" = "Edge periods stay fixed. Drag standard periods to reorder.";
+
 // Readable static examples in the widget gallery.
 "widget_preview_calculus" = "Calculus";
 "widget_preview_english" = "English Reading";
@@ -1218,8 +1219,12 @@
 "widget_preview_programming" = "Programming Lab";
 "widget_preview_seminar" = "Seminar";
 "widget_preview_gym" = "Gym";
+
+// Android v1.0.63 THU course-page navigation and recovery.
 "jw_nav_hint_thu" = "Open the course system’s Overall Timetable, select the semester, then tap Import This Page";
 "jw_err_thu_course_page" = "No THU Overall Timetable course script was found. Sign in, open Overall Timetable, select the semester, then tap Import This Page.";
+
+// Android v1.0.63 — explicit-target course imports.
 "add_course_title" = "Add Course";
 "add_course_from_existing" = "From Existing Timetable";
 "select_courses_title" = "Select Courses";
