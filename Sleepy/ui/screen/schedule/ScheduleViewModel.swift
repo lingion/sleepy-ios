@@ -140,6 +140,21 @@ final class ScheduleViewModel: ObservableObject {
         return session
     }
 
+    /// An explicit editor target can differ from the selected timetable. Resolve
+    /// its binding directly instead of borrowing the selected table's snapshot.
+    @discardableResult
+    func startEditSessionForEditing(tableId: Int64) throws -> ScheduleEditPolicyState {
+        guard let table = try repo.getTable(tableId) else { throw ScheduleRepository.TableEditSaveError.missingTable }
+        let effective: PeriodTableEntity?
+        if let periodId = table.periodTableId {
+            guard let period = try repo.getPeriodTable(periodId) else { throw ScheduleRepository.TableEditSaveError.missingPeriodTable }
+            effective = period
+        } else {
+            effective = nil
+        }
+        return startEditSession(tableId: tableId, originalEffectiveSchedule: effective)
+    }
+
     /// 该课表当前是否有已登记未执行的策略 (UI 待执行提醒 banner 依据)。
     func hasPendingPolicy(tableId: Int64) -> Bool {
         guard let policy = editStates[tableId]?.pendingSchedulePolicy else { return false }
@@ -158,70 +173,48 @@ final class ScheduleViewModel: ObservableObject {
 
     /// 甲案 (设计文档 §3.1-§3.3, §3.5): 执行已登记的作息策略 + 完成普通保存。
     /// 三选项共用同一份草稿源 (§3.4) = 用户编辑后的 draftEffectiveSchedule。
-    /// 全程 UndoManager 批内 = 单撤回单元(§7: 绑定关系+作息内容一次回退)。
-    /// 策略执行完清 pendingSchedulePolicy — 下次保存不再弹窗(invariant ④)。
+    /// 仓库在单事务内完成策略与普通字段保存，提交成功才清策略并退出编辑页。
     ///
     /// - Parameters:
     ///   - editedTable: 普通字段(名称/日期/周次)+本表节次兼容列写值, 由 UI 层构建
     ///   - onFinish: 普通保存(策略写库)完成后的 UI 回调(导航返回)
+    @discardableResult
     func executePolicyAndSave(
         tableId: Int64,
         editedTable: TimeTableEntity,
         newTimeJson: String,
         smartConfigJson: String,
         nodesPerDay: Int,
-        onFinish: @escaping () -> Void = {}
-    ) {
-        guard let editState = editStates[tableId] else { return }
-        let policy = editState.pendingSchedulePolicy
-        guard let draft = editState.draftEffectiveSchedule, policy != .none else { return }
-        Task {
-            UndoManager.shared.beginBatch()
-            defer { UndoManager.shared.endBatch() }
-            guard let current = try? repo.getTable(tableId) else { return }
-            switch policy {
-            case .detachCopy:
-                // ① 写本表内置作息(兼容列) + 解绑; X 与其他绑定课表零改动
-                // bindPeriodTable 内部走 restoredForUnbind 会把兼容列回滚到旧快照,
-                // 所以先 updateTable 写入新内置作息, 再解绑会把快照值覆盖回去 —
-                // 顺序必须反过来: 先解绑(恢复快照)再写内置列(草稿), 写入在最后保赢。
-                try? repo.bindPeriodTable(timeTableId: tableId, periodTableId: nil)
-                var detached = editedTable
-                detached.periodTableId = nil
-                detached.timeJson = newTimeJson
-                detached.smartConfigJson = smartConfigJson
-                detached.nodesPerDay = nodesPerDay
-                try? repo.updateTableRemappingCourses(detached)
-            case .createNew:
-                // ② 按课表名新建独立作息表(全局唯一名顺延, §3.2) + 改绑; X 零改动
-                let newId = insertPeriodTableWithUniqueName(
-                    name: current.name,
-                    defaultName: current.name,
-                    timeJson: newTimeJson,
-                    nodesPerDay: nodesPerDay,
-                    smartConfigJson: smartConfigJson
-                )
-                guard newId > 0 else { return }   // insert 失败 = 整个策略中止(不动绑定)
-                try? repo.bindPeriodTable(timeTableId: tableId, periodTableId: newId)
-                var rebound = editedTable
-                rebound.periodTableId = newId
-                try? repo.updateTableRemappingCourses(rebound)
-            case .sync:
-                // ③ 写回共享作息表 X, 保持绑定; 全部绑定课表读到新作息
-                if let boundId = current.periodTableId {
-                    var synced = draft
-                    synced.id = boundId
-                    synced.timeJson = newTimeJson
-                    synced.smartConfigJson = smartConfigJson
-                    synced.nodesPerDay = nodesPerDay
-                    try? repo.updatePeriodTable(synced)
-                    try? repo.updateTable(editedTable)
-                }
-            case .none:
-                break // unreachable — 前置 guard 已拦截
-            }
+        onFinish: @escaping () -> Void = {},
+        onFailure: (String) -> Void = { _ in }
+    ) -> Bool {
+        performTableSave({
+            guard let editState = editStates[tableId], editedTable.id == tableId,
+                  var draft = editState.draftEffectiveSchedule,
+                  editState.pendingSchedulePolicy != .none else { throw ScheduleRepository.TableEditSaveError.missingPolicy }
+            draft.timeJson = newTimeJson
+            draft.smartConfigJson = smartConfigJson
+            draft.nodesPerDay = nodesPerDay
+            try repo.executeScheduleEditPolicy(editedTable: editedTable, draft: draft,
+                                               policy: editState.pendingSchedulePolicy)
             editState.selectPolicy(.none)
+        }, onFinish: onFinish, onFailure: onFailure)
+    }
+
+    /// Navigation and draft disposal belong after a successful database commit.
+    @discardableResult
+    private func performTableSave(_ save: () throws -> Void, onFinish: () -> Void,
+                                  onFailure: (String) -> Void) -> Bool {
+        do {
+            try save()
+            state.error = nil
             onFinish()
+            return true
+        } catch {
+            let message = L10n.format("table_reminder_save_failed")
+            state.error = message
+            onFailure(message)
+            return false
         }
     }
 
@@ -405,41 +398,10 @@ final class ScheduleViewModel: ObservableObject {
 
     /// v7.10.15 创建课表副本 — 全量复制表配置+课程, 新副本不接管默认表也不切选中,
     /// 命名沿用导入路径的去重规则(原名+"2"/"3"...)。
-    func duplicateTable(_ id: Int64) {
-        Task {
-            guard let source = try? repo.getTable(id) else { return }
-            let courses = (try? repo.getCourses(id)) ?? []
-            let existingNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
-            var index = 2
-            var name = "\(source.name)2"
-            while existingNames.contains(name) { index += 1; name = "\(source.name)\(index)" }
-            var copy = source
-            copy.id = 0
-            copy.name = name
-            copy.isDefault = false
-            copy.createdAt = Int64(Date().timeIntervalSince1970 * 1000)
-            // v7.10.16w: 建表+插课是一个撤回动作 — beginBatch 保首快照, 撤回一次整步回退
-            // (此前两步写两次覆盖快照, 撤回只删掉课程行留下空表壳)。
-            UndoManager.shared.beginBatch()
-            defer { UndoManager.shared.endBatch() }
-            let newId = (try? repo.insertTable(copy)) ?? 0
-            if newId != 0 && !courses.isEmpty {
-                // groupId 整组映射到新 UUID — 同一门课的节次共享新组 ID, 副本内仍可整组编辑
-                var groupMap: [String: String] = [:]
-                for c in courses where groupMap[c.groupId] == nil {
-                    groupMap[c.groupId] = UUID().uuidString
-                }
-                let newCourses = courses.map { c -> CourseEntity in
-                    var n = c
-                    n.id = 0
-                    n.groupId = groupMap[c.groupId] ?? c.groupId
-                    n.tableId = newId
-                    return n
-                }
-                try? repo.insertCourses(newCourses)
-            }
-            onWidgetsNeedReload()
-        }
+    @discardableResult
+    func duplicateTable(_ id: Int64, onFailure: (String) -> Void = { _ in }) -> Bool {
+        performTableSave({ _ = try repo.duplicateTable(id) },
+                         onFinish: onWidgetsNeedReload, onFailure: onFailure)
     }
 
     func deleteTable(_ id: Int64) {
@@ -651,15 +613,18 @@ extension ScheduleViewModel {
     }
 
     /// issue#40: 修改共享时间节次表内容 — 全部绑定课表立即生效, 课程行零改动(updatePeriodTableContent)
-    /// repo.savePeriodTable 是同步方法; 行为与 updateTable 保持一致 — 在 fire-and-forget Task 内执行,
-    /// 失败吞(→ repo update 抛错时上层按 updateTable 同语义吞掉, 数据层不会半写)。
-    func updatePeriodTableContent(_ table: PeriodTableEntity) {
-        Task { try? repo.savePeriodTable(table) }
+    @discardableResult
+    func updatePeriodTableContent(_ table: PeriodTableEntity, onFinish: () -> Void = {},
+                                  onFailure: (String) -> Void = { _ in }) -> Bool {
+        performTableSave({ _ = try repo.savePeriodTable(table) }, onFinish: onFinish, onFailure: onFailure)
     }
 
     /// issue#40: 换绑课程表的时间节次表(只写 periodTableId, 课程行零改动)
-    func bindPeriodTable(timeTableId: Int64, periodTableId: Int64?) {
-        Task { try? repo.bindPeriodTable(timeTableId: timeTableId, periodTableId: periodTableId) }
+    @discardableResult
+    func bindPeriodTable(timeTableId: Int64, periodTableId: Int64?, onFinish: () -> Void = {},
+                         onFailure: (String) -> Void = { _ in }) -> Bool {
+        performTableSave({ try repo.bindPeriodTable(timeTableId: timeTableId, periodTableId: periodTableId) },
+                         onFinish: onFinish, onFailure: onFailure)
     }
 
     /// issue#40: 复制时间节次表, 返回新副本 id (-1 = 源不存在)
@@ -669,27 +634,39 @@ extension ScheduleViewModel {
     }
 
     /// 2026-09-23 症状3修复: 仅写课程表元数据, 不动绑定关系。
-    func updateTableMetadata(_ table: TimeTableEntity, writeTimeDomain: Bool = false) {
-        Task { try? repo.updateTableMetadata(table, writeTimeDomain: writeTimeDomain) }
+    @discardableResult
+    func updateTableMetadata(_ table: TimeTableEntity, writeTimeDomain: Bool = false,
+                             onFinish: () -> Void = {}, onFailure: (String) -> Void = { _ in }) -> Bool {
+        performTableSave({ try repo.updateTableMetadata(table, writeTimeDomain: writeTimeDomain) },
+                         onFinish: onFinish, onFailure: onFailure)
     }
 
     /// 2026-09-23 症状3修复: 元数据 + 共享作息表内容, 单事务原子双写。
-    func updateTableMetadataWithPeriodTable(table: TimeTableEntity, periodTable: PeriodTableEntity) {
-        Task { try? repo.updateTableMetadataWithPeriodTable(table: table, periodTable: periodTable) }
+    @discardableResult
+    func updateTableMetadataWithPeriodTable(table: TimeTableEntity, periodTable: PeriodTableEntity,
+                                           onFinish: () -> Void = {}, onFailure: (String) -> Void = { _ in }) -> Bool {
+        performTableSave({ try repo.updateTableMetadataWithPeriodTable(table: table, periodTable: periodTable) },
+                         onFinish: onFinish, onFailure: onFailure)
     }
 
     /// 2026-09-23 症状3修复: 元数据 + 换绑/解绑(+目标作息表内容), 单事务原子完成。
+    @discardableResult
     func updateTableMetadataAndBind(
         table: TimeTableEntity,
         periodTableId: Int64?,
-        periodContent: PeriodTableEntity? = nil
-    ) {
-        Task { try? repo.updateTableMetadataAndBind(table: table, periodTableId: periodTableId, periodContent: periodContent) }
+        periodContent: PeriodTableEntity? = nil,
+        onFinish: () -> Void = {},
+        onFailure: (String) -> Void = { _ in }
+    ) -> Bool {
+        performTableSave({ try repo.updateTableMetadataAndBind(table: table, periodTableId: periodTableId, periodContent: periodContent) },
+                         onFinish: onFinish, onFailure: onFailure)
     }
 
     /// issue#28 P3: 保存课表编辑 — timeJson 变更时课程节次按绝对时间自适应
-    func updateTableRemappingCourses(_ table: TimeTableEntity) {
-        Task { try? repo.updateTableRemappingCourses(table) }
+    @discardableResult
+    func updateTableRemappingCourses(_ table: TimeTableEntity, onFinish: () -> Void = {},
+                                    onFailure: (String) -> Void = { _ in }) -> Bool {
+        performTableSave({ try repo.updateTableRemappingCourses(table) }, onFinish: onFinish, onFailure: onFailure)
     }
 
     /// 用户确认删除后冻结绑定课表的当前作息。
@@ -706,6 +683,11 @@ extension ScheduleViewModel {
     /// issue#40: 全库课程(保存预览用) — 预览须覆盖所有绑定表的课。
     func getAllCoursesOnce() -> [CourseEntity] {
         return (try? repo.getAllCourses()) ?? []
+    }
+
+    /// Editing a nonselected table still needs its complete course spans for reorder validation.
+    func getCoursesForEditing(_ tableId: Int64) throws -> [CourseEntity] {
+        try repo.getCourses(tableId)
     }
 
     /// v1.0.56 T9: 全局唯一名预填用 — 课表名 + 作息表名。

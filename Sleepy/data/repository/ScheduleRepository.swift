@@ -9,6 +9,13 @@ import Combine
 import GRDB
 
 final class ScheduleRepository {
+    enum TableEditSaveError: Error {
+        case missingTable
+        case missingPeriodTable
+        case missingPolicy
+        case staleTimeTable
+        case invalidCourseDraft
+    }
     private let db: AppDatabase
     private let courseDao: CourseDao
     /// 库句柄对外只读暴露(镜像快照需要读 course_colors 表) — 只读用途。
@@ -147,6 +154,52 @@ final class ScheduleRepository {
         }
     }
 
+    /// 表配置、课程与新组 ID 一次提交；任一插入失败不留下空副本，也不消费撤回历史。
+    /// 保留原表绑定与兼容列，不改变当前默认表。
+    @discardableResult
+    func duplicateTable(_ id: Int64) throws -> Int64 {
+        let (newID, copiedCourses) = try writeWithUndo { db in
+            guard let source = try TimeTableEntity.fetchOne(db, key: id) else {
+                throw TableEditSaveError.missingTable
+            }
+            let courses = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ? ORDER BY id", arguments: [id])
+            let names = Set(try String.fetchAll(db, sql: "SELECT name FROM time_tables"))
+            var suffix = 2
+            var name = "\(source.name)\(suffix)"
+            while names.contains(name) {
+                suffix += 1
+                name = "\(source.name)\(suffix)"
+            }
+            var copy = source
+            copy.id = 0
+            copy.name = name
+            copy.isDefault = false
+            copy.createdAt = Int64(Date().timeIntervalSince1970 * 1000)
+            let newID = try tableDao.insertInDb(db, copy)
+            var groupMap: [String: String] = [:]
+            let copiedCourses = courses.map { course -> CourseEntity in
+                let groupID: String
+                if let mapped = groupMap[course.groupId] {
+                    groupID = mapped
+                } else {
+                    groupID = UUID().uuidString
+                    groupMap[course.groupId] = groupID
+                }
+                var row = course
+                row.id = 0
+                row.tableId = newID
+                row.groupId = groupID
+                return row
+            }
+            // Copies keep their own groups; import name matching would rejoin them to the source.
+            _ = try courseDao.insertAllInDb(db, copiedCourses)
+            return (newID, copiedCourses)
+        }
+        persistNewGroupColors(copiedCourses)
+        onDataChanged()
+        return newID
+    }
+
     /// v1.0.62 B7b ← 原版本 ScheduleRepository.importNewTable: 新课表 + 可选私有作息表 +
     /// 课程 + 默认表切换, 单事务原子提交(一个撤回单元)。
     /// 认亲（spec §2.4）: 事务内读导入前全库名册; 新课 hue 同事务落库(见 GRDBNewTableImportStore)。
@@ -195,7 +248,7 @@ final class ScheduleRepository {
     /// 解绑场景: 用户编辑的是旧源兼容列, 解绑后兼容列是真值。
     func updateTableMetadata(_ table: TimeTableEntity, writeTimeDomain: Bool = false) throws {
         let found = try writeWithUndo { db -> Bool in
-            guard let current = try TimeTableEntity.fetchOne(db, key: table.id) else { return false }
+            guard let current = try TimeTableEntity.fetchOne(db, key: table.id) else { throw TableEditSaveError.missingTable }
             var merged = current
             merged.name = table.name
             merged.startDate = table.startDate
@@ -226,7 +279,7 @@ final class ScheduleRepository {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let changed = try writeWithUndo { db -> Bool in
             guard let current = try TimeTableEntity.fetchOne(db, key: table.id),
-                  try PeriodTableEntity.fetchOne(db, key: periodTable.id) != nil else { return false }
+                  try PeriodTableEntity.fetchOne(db, key: periodTable.id) != nil else { throw TableEditSaveError.missingPeriodTable }
             var next = current
             next.name = table.name
             next.startDate = table.startDate
@@ -251,19 +304,17 @@ final class ScheduleRepository {
         periodTableId: Int64?,
         periodContent: PeriodTableEntity? = nil
     ) throws {
-        guard let current = try tableDao.getById(table.id) else { return }
-        if let pid = periodTableId, try periodTableDao.getById(pid) == nil { return }
-        if let pc = periodContent, try periodTableDao.getById(pc.id) == nil { return }
-        if current.periodTableId == periodTableId && periodContent == nil {
-            // 绑定关系与目标内容都没变 — 退化为纯元数据写; 解绑态写时间域(兼容列即真值)
-            try updateTableMetadata(table, writeTimeDomain: periodTableId == nil)
-            return
-        }
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let changed = try writeWithUndo { db -> Bool in
-            guard let current = try TimeTableEntity.fetchOne(db, key: table.id) else { return false }
-            if let pid = periodTableId, try PeriodTableEntity.fetchOne(db, key: pid) == nil { return false }
-            if let pc = periodContent, try PeriodTableEntity.fetchOne(db, key: pc.id) == nil { return false }
+            guard let current = try TimeTableEntity.fetchOne(db, key: table.id) else { throw TableEditSaveError.missingTable }
+            if let pid = periodTableId, try PeriodTableEntity.fetchOne(db, key: pid) == nil { throw TableEditSaveError.missingPeriodTable }
+            if let pc = periodContent, try PeriodTableEntity.fetchOne(db, key: pc.id) == nil { throw TableEditSaveError.missingPeriodTable }
+            if current.periodTableId == periodTableId && periodContent == nil,
+               current.name == table.name, current.startDate == table.startDate, current.maxWeek == table.maxWeek,
+               periodTableId != nil || (current.timeJson == table.timeJson
+                && current.smartConfigJson == table.smartConfigJson && current.nodesPerDay == table.nodesPerDay) {
+                return true
+            }
             let next: TimeTableEntity
             if current.periodTableId == nil && periodTableId != nil {
                 next = TimeTableEntity.snapshotForBind(table: current, targetId: periodTableId!)
@@ -284,6 +335,11 @@ final class ScheduleRepository {
             merged.name = table.name
             merged.startDate = table.startDate
             merged.maxWeek = table.maxWeek
+            if periodTableId == nil {
+                merged.timeJson = table.timeJson
+                merged.smartConfigJson = table.smartConfigJson
+                merged.nodesPerDay = table.nodesPerDay
+            }
             try merged.update(db)
             if let pc = periodContent {
                 var stamped = pc
@@ -303,13 +359,75 @@ final class ScheduleRepository {
     /// 撤回单元(首快照 = 改表前)。
     func updateTableRemappingCourses(_ table: TimeTableEntity) throws {
         try writeWithUndo { db in
-            let oldJson = try TimeTableEntity.fetchOne(db, key: table.id)?.timeJson ?? ""
+            guard let old = try TimeTableEntity.fetchOne(db, key: table.id) else { throw TableEditSaveError.missingTable }
+            try updateTableRemappingCoursesInDb(db, table: table, oldTimeJson: old.timeJson)
+        }
+        onDataChanged()
+    }
+
+    /// A policy save is one database transaction and one undo action. No nested DAO writes.
+    func executeScheduleEditPolicy(editedTable: TimeTableEntity, draft: PeriodTableEntity,
+                                   policy: SchedulePolicy) throws {
+        try writeWithUndo { db in
+            guard let current = try TimeTableEntity.fetchOne(db, key: editedTable.id) else { throw TableEditSaveError.missingTable }
+            let oldPeriod = try current.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
+            let oldTimeJson = current.hydratedWith(oldPeriod).timeJson
+            switch policy {
+            case .detachCopy:
+                var detached = editedTable
+                detached.periodTableId = nil
+                detached.preBindSnapshotJson = ""
+                detached.timeJson = draft.timeJson
+                detached.smartConfigJson = draft.smartConfigJson
+                detached.nodesPerDay = draft.nodesPerDay
+                try updateTableRemappingCoursesInDb(db, table: detached, oldTimeJson: oldTimeJson)
+            case .createNew:
+                let name = TimeTableUtils.suggestUniqueName(current.name,
+                    courseTableNames: try TimeTableEntity.fetchAll(db).map(\.name),
+                    periodTableNames: try PeriodTableEntity.fetchAll(db).map(\.name), defaultName: current.name)
+                let period = PeriodTableEntity(name: name, nodesPerDay: draft.nodesPerDay,
+                                              timeJson: draft.timeJson, smartConfigJson: draft.smartConfigJson)
+                let newID = try periodTableDao.insertInDb(db, period)
+                let bound = current.periodTableId == nil
+                    ? TimeTableEntity.snapshotForBind(table: current, targetId: newID) : current
+                var rebound = editedTable
+                rebound.periodTableId = newID
+                rebound.preBindSnapshotJson = bound.preBindSnapshotJson
+                rebound.timeJson = current.timeJson
+                rebound.smartConfigJson = current.smartConfigJson
+                rebound.nodesPerDay = current.nodesPerDay
+                try updateTableRemappingCoursesInDb(db, table: rebound, oldTimeJson: oldTimeJson,
+                                                   newTimeJson: draft.timeJson)
+            case .sync:
+                guard let boundID = current.periodTableId,
+                      try PeriodTableEntity.fetchOne(db, key: boundID) != nil else { throw TableEditSaveError.missingPeriodTable }
+                var synced = draft
+                synced.id = boundID
+                synced.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
+                try synced.update(db)
+                var next = editedTable
+                next.periodTableId = current.periodTableId
+                next.preBindSnapshotJson = current.preBindSnapshotJson
+                next.timeJson = current.timeJson
+                next.smartConfigJson = current.smartConfigJson
+                next.nodesPerDay = current.nodesPerDay
+                try next.update(db)
+            case .none:
+                throw TableEditSaveError.missingPolicy
+            }
+        }
+        onDataChanged()
+    }
+
+    private func updateTableRemappingCoursesInDb(_ db: Database, table: TimeTableEntity,
+                                               oldTimeJson: String, newTimeJson: String? = nil) throws {
+            let destinationTimeJson = newTimeJson ?? table.timeJson
             try table.update(db)
-            guard table.timeJson != oldJson else { return }
+            guard destinationTimeJson != oldTimeJson else { return }
             let courses = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ?", arguments: [table.id])
             let remapped = courses.map { c -> CourseEntity in
                 if c.ownTime {
-                    if let mapped = TimeTableUtils.timeToNode(c.startTime, c.endTime, table.timeJson) {
+                    if let mapped = TimeTableUtils.timeToNode(c.startTime, c.endTime, destinationTimeJson) {
                         var copy = c
                         copy.startNode = mapped.0
                         copy.step = mapped.1
@@ -319,7 +437,7 @@ final class ScheduleRepository {
                 } else {
                     let (node, step) = Self.remapCourseNodes(
                         startNode: c.startNode, step: c.step,
-                        oldTimeJson: oldJson, newTimeJson: table.timeJson
+                        oldTimeJson: oldTimeJson, newTimeJson: destinationTimeJson
                     )
                     if node == c.startNode && step == c.step { return c }
                     var copy = c
@@ -331,8 +449,6 @@ final class ScheduleRepository {
             let changed = zip(remapped, courses).filter { $0.0.id != $0.1.id || $0.0.startNode != $0.1.startNode || $0.0.step != $0.1.step }
                 .map { $0.0 }
             for course in changed { try course.update(db) }
-        }
-        onDataChanged()
     }
 
     /// issue#28 P3: 作息表变更后的课程节次自适应(TimeTableUtils.remapCourseNodes)。
@@ -449,8 +565,8 @@ final class ScheduleRepository {
     /// 首次绑定存 preBindSnapshotJson; 解绑恢复; 悬空目标拒绝。
     func bindPeriodTable(timeTableId: Int64, periodTableId: Int64?) throws {
         let changed = try writeWithUndo { db -> Bool in
-            guard let table = try TimeTableEntity.fetchOne(db, key: timeTableId) else { return false }
-            if let pid = periodTableId, try PeriodTableEntity.fetchOne(db, key: pid) == nil { return false }
+            guard let table = try TimeTableEntity.fetchOne(db, key: timeTableId) else { throw TableEditSaveError.missingTable }
+            if let pid = periodTableId, try PeriodTableEntity.fetchOne(db, key: pid) == nil { throw TableEditSaveError.missingPeriodTable }
             if table.periodTableId == periodTableId { return false }
             let next: TimeTableEntity
             if table.periodTableId == nil && periodTableId != nil {
@@ -478,7 +594,7 @@ final class ScheduleRepository {
     @discardableResult
     func savePeriodTable(_ table: PeriodTableEntity) throws -> Int {
         let bound = try writeWithUndo { db -> Int? in
-            guard try PeriodTableEntity.fetchOne(db, key: table.id) != nil else { return nil }
+            guard try PeriodTableEntity.fetchOne(db, key: table.id) != nil else { throw TableEditSaveError.missingPeriodTable }
             let bound = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM time_tables WHERE periodTableId = ?", arguments: [table.id]) ?? 0
             var stamped = table
             stamped.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
@@ -799,6 +915,59 @@ final class ScheduleRepository {
         onDataChanged()
     }
 
+    /// The course editor stages edge slots against the effective schedule it loaded.
+    struct CourseTimeChange {
+        let expectedPeriodTableId: Int64?
+        let originalTimeJson: String
+        let updatedTimeJson: String
+    }
+
+    /// Course rows and their staged edge slots either commit together or remain a draft.
+    func saveCourseDrafts(tableId: Int64, editingGroupId: String?, drafts: [CourseEntity],
+                          timeChange: CourseTimeChange? = nil) throws {
+        let newGroups = try writeWithUndo { db -> [CourseEntity] in
+            guard let table = try TimeTableEntity.fetchOne(db, key: tableId) else { throw TableEditSaveError.missingTable }
+            guard drafts.allSatisfy({ $0.tableId == tableId }) else { throw TableEditSaveError.invalidCourseDraft }
+            let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
+            if let change = timeChange {
+                guard table.periodTableId == change.expectedPeriodTableId,
+                      table.hydratedWith(period).timeJson == change.originalTimeJson else { throw TableEditSaveError.staleTimeTable }
+                if table.periodTableId != nil && period == nil { throw TableEditSaveError.missingPeriodTable }
+            }
+            let inserted: [CourseEntity]
+            var deletedRows = false
+            if let groupID = editingGroupId {
+                guard drafts.allSatisfy({ $0.groupId == groupID }) else { throw TableEditSaveError.invalidCourseDraft }
+                let existing = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ? AND groupId = ?",
+                                                          arguments: [tableId, groupID])
+                let diff = RowKeyDiffer.diff(drafts, existing)
+                for id in diff.toDelete { try CourseEntity.deleteOne(db, key: id) }
+                for course in diff.toUpdate { try course.update(db) }
+                _ = try courseDao.insertAllInDb(db, diff.toInsert)
+                deletedRows = !diff.toDelete.isEmpty
+                inserted = []
+            } else {
+                inserted = try assignGroupIds(drafts, in: db)
+                _ = try courseDao.insertAllInDb(db, inserted)
+            }
+            if let change = timeChange, change.updatedTimeJson != change.originalTimeJson {
+                if var period {
+                    period.timeJson = change.updatedTimeJson
+                    period.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
+                    try period.update(db)
+                } else {
+                    var next = table
+                    next.timeJson = change.updatedTimeJson
+                    try next.update(db)
+                }
+            }
+            if deletedRows { try reclaimUnusedEdgeNodes(tableId, in: db) }
+            return inserted
+        }
+        persistNewGroupColors(newGroups)
+        onDataChanged()
+    }
+
     /// 改组色(issue#22 spec §6.2 "改组色"按钮的落库路径):
     /// 把选中色写到同 groupId 所有 colorMode=GROUP 行的 color 字段。
     ///
@@ -849,27 +1018,36 @@ final class ScheduleRepository {
     /// 同款算法先落本文件私有静态成员(← TimeTableUtils.kt:624), 集成者可平移。
     private func reclaimUnusedEdgeNodes(_ tableId: Int64, in db: Database) throws {
         guard let table = try TimeTableEntity.fetchOne(db, key: tableId) else { return }
-        let remaining = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ?", arguments: [tableId])
+        let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
+        let effective = table.hydratedWith(period)
+        let owners = try period.map { period in
+            try TimeTableEntity.fetchAll(db).filter { $0.periodTableId == period.id }
+        } ?? [table]
+        let ownerIDs = Set(owners.map(\.id))
+        let remaining = try CourseEntity.fetchAll(db).filter { ownerIDs.contains($0.tableId) }
         var used = Set<Int>()
         for c in remaining {
-            let effStart: Int
-            if c.ownTime, let mapped = TimeTableUtils.timeToNode(c.startTime, c.endTime, table.timeJson) {
-                effStart = mapped.0
-            } else {
-                effStart = c.startNode
-            }
-            let end = max(effStart + c.step - 1, effStart)
-            for n in effStart...end { used.insert(n) }
+            // Malformed spans cannot safely prove an edge unused.
+            guard c.step > 0, c.step <= 10_000, c.startNode <= Int.max - c.step else { return }
+            let normalized = c.normalizeNode(timeJson: effective.timeJson)
+            guard normalized.step > 0, normalized.step <= 10_000,
+                  normalized.startNode <= Int.max - normalized.step else { return }
+            used.formUnion(normalized.startNode..<(normalized.startNode + normalized.step))
             // 防御: 存储的 startNode 也算"用户意图", 即便 normalize 后位置不同
             // 也保留节点 — 防止误回收导致课崩。
-            let storedEnd = max(c.startNode + c.step - 1, c.startNode)
-            for n in c.startNode...storedEnd { used.insert(n) }
+            used.formUnion(c.startNode..<(c.startNode + c.step))
         }
-        let reclaimed = Self.reclaimUnusedEdgeNodes(timeJson: table.timeJson, usedNodes: used)
-        if reclaimed != table.timeJson {
-            var next = table
-            next.timeJson = reclaimed
-            try next.update(db)
+        let reclaimed = Self.reclaimUnusedEdgeNodes(timeJson: effective.timeJson, usedNodes: used)
+        if reclaimed != effective.timeJson {
+            if var period {
+                period.timeJson = reclaimed
+                period.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
+                try period.update(db)
+            } else {
+                var next = table
+                next.timeJson = reclaimed
+                try next.update(db)
+            }
         }
     }
 
