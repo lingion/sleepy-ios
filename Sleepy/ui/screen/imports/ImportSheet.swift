@@ -37,6 +37,8 @@ struct ImportPreview {
     let conflicts: [CourseConflict]
     /// issue#22: 同 groupId 多地点提示 — 不阻塞导入,只让用户心里有数
     var multiLocationWarnings: [String] = []
+    var effectiveTimeJson: String = ""
+    var sourceDraftId: String? = nil
 
     var incomingCount: Int { parseResult.courses.count }
     var conflictCount: Int { conflicts.count }
@@ -1419,50 +1421,72 @@ extension ImportSheet {
                                         to: nil, from: nil, for: nil)
     }
 
-    // ← buildImportPreview
+    static func effectiveTargetTable(_ tableId: Int64, repository: ScheduleRepository? = nil) -> TimeTableEntity? {
+        let repo = repository ?? ScheduleRepository(AppDatabase.getShared())
+        return try? AddCoursesImport.target(repository: repo, tableId: tableId)
+    }
+
     static func buildImportPreview(
         _ text: String,
         _ state: ScheduleState,
+        targetTableId: Int64? = nil,
+        repository: ScheduleRepository? = nil,
         onError: (String) -> Void
     ) -> ImportPreview? {
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            onError(L10n.format("import_content_empty"))
-            return nil
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            onError(L10n.format("import_content_empty")); return nil
         }
-        // selectedTableId 缺失时也能导入 — tableId=0, apply 时按 ImportAsNew 自动建表
-        let tableId = state.selectedTableId ?? 0
-        let repo = ScheduleRepository(AppDatabase.getShared())
+        let tableId = targetTableId ?? state.selectedTableId ?? 0
         switch ScheduleParser.parse(text, defaultTableId: tableId) {
-        case .success(let parseResult):
-            let existingTable = tableId == 0 ? nil : try? repo.getTable(tableId)
-            let existingCourses = tableId == 0 ? [] : ((try? repo.getCourses(tableId)) ?? [])
-            let conflicts: [CourseConflict] = tableId == 0 ? [] : parseResult.courses.compactMap { incoming in
-                existingCourses.first { Self.coursesConflict(incoming, $0) }
-                    .map { CourseConflict(incoming: incoming, existing: $0) }
-            }
-            // ← issue#22: 同 groupId 多地点提示 — 不阻塞导入, 让用户心里有数
-            var multiLocWarnings: [String] = []
-            let roomGroups = Dictionary(grouping: parseResult.courses) { $0.groupId }
-            for (gid, cs) in roomGroups {
-                if gid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
-                let distinctRooms = Set(cs.map { $0.room.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty })
-                if distinctRooms.count >= 2 {
-                    multiLocWarnings.append(L10n.format(
-                        "import_multi_location_warning_detail", cs.first?.courseName ?? "", distinctRooms.count))
-                }
-            }
-            return ImportPreview(
-                targetTableId: tableId,
-                targetTableName: existingTable?.name ?? L10n.format("manage_current_table"),
-                parseResult: parseResult,
-                existingCourses: existingCourses,
-                conflicts: conflicts,
-                multiLocationWarnings: multiLocWarnings)
-        case .failure(let e):
-            onError(L10n.format("import_failed", e.localizedDescription))
-            return nil
+        case .success(let result):
+            return buildImportPreview(result, targetTableId: tableId, repository: repository)
+        case .failure(let error):
+            onError(L10n.format("import_failed", error.localizedDescription)); return nil
         }
+    }
+
+    static func buildImportPreview(
+        _ parseResult: ScheduleParser.ParseResult,
+        targetTableId: Int64,
+        repository: ScheduleRepository? = nil,
+        sourceDraftId: String? = nil
+    ) -> ImportPreview? {
+        let repo = repository ?? ScheduleRepository(AppDatabase.getShared())
+        let existingTable = effectiveTargetTable(targetTableId, repository: repo)
+        let existingCourses = targetTableId == 0 ? [] : ((try? repo.getCourses(targetTableId)) ?? [])
+        let effectiveTimeJson = CourseImportPolicy.mergeTimeJson(current: existingTable?.timeJson ?? "",
+            incoming: parseResult.timeJson, requiredNodes: max(parseResult.nodesPerDay,
+                parseResult.courses.map { $0.startNode + $0.step - 1 }.max() ?? 0))
+        let conflicts = parseResult.courses.compactMap { incoming in
+            existingCourses.first { CourseImportPolicy.conflicts(incoming, $0, timeJson: effectiveTimeJson) }
+                .map { CourseConflict(incoming: incoming, existing: $0) }
+        }
+        let warnings = Dictionary(grouping: parseResult.courses, by: \.groupId).compactMap { group, rows -> String? in
+            guard !group.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            let rooms = Set(rows.map { $0.room.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+            return rooms.count >= 2 ? L10n.format("import_multi_location_warning_detail", rows[0].courseName, rooms.count) : nil
+        }
+        return ImportPreview(targetTableId: targetTableId,
+            targetTableName: existingTable?.name ?? L10n.format("manage_current_table"), parseResult: parseResult,
+            existingCourses: existingCourses, conflicts: conflicts, multiLocationWarnings: warnings,
+            effectiveTimeJson: effectiveTimeJson, sourceDraftId: sourceDraftId)
+    }
+
+    @discardableResult
+    static func applyCourseImport(preview: ImportPreview, decision: CourseImportDecision,
+                                  onImported: () -> Void, onError: (String) -> Void,
+                                  repository: ScheduleRepository? = nil) -> Int64? {
+        let repo = repository ?? ScheduleRepository(AppDatabase.getShared())
+        do {
+            try AddCoursesImport.validate(preview.parseResult)
+            let count = try repo.appendImportedCoursesWithBackup(preview.targetTableId, courses: preview.parseResult.courses,
+                incomingTimeJson: preview.parseResult.timeJson, requiredNodeCount: preview.parseResult.nodesPerDay,
+                keepGroups: preview.parseResult.groupIdsAuthoritative, backupOriginal: decision.backupOriginal,
+                appendConflicts: decision.appendConflicts)
+            guard count > 0 else { onError(L10n.format("import_all_conflict")); return nil }
+            onImported()
+            return preview.targetTableId
+        } catch { onError(L10n.format("read_failed", error.localizedDescription)); return nil }
     }
 
     // ← applyImportPreview: 五模式落地 (v1.0.61 全对齐)
@@ -1476,9 +1500,10 @@ extension ImportSheet {
         onImported: () -> Void,
         onError: (String) -> Void,
         // v1.0.56 T6: 第三 Tab「作息表」绑定 — 非 nil 且 ImportAsNew 时, 新建课表直接绑该表
-        bindPeriodTableId: Int64? = nil
+        bindPeriodTableId: Int64? = nil,
+        repository: ScheduleRepository? = nil
     ) -> Int64? {
-        let repo = ScheduleRepository(AppDatabase.getShared())
+        let repo = repository ?? ScheduleRepository(AppDatabase.getShared())
         // v7.10.16 撤回: 整个导入是一个动作 — 批内只保首快照, 撤回一次回退到导入前。
         // defer 收口(↔ 原版本 try/finally): 分支里的 early return 也要退出批边界。
         UndoManager.shared.beginBatch()

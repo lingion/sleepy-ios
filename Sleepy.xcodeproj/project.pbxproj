@@ -179,6 +179,7 @@
 		2AF41DFF031A84BCE6622A6B /* JwKingoZxParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8210AED098F754F64C038B8F /* JwKingoZxParser.swift */; };
 		2B081332F507C7E53ED7600E /* WatchSyncSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10EAB15CF44A3E2DD61E368 /* WatchSyncSnapshot.swift */; };
 		2BBBE362200FC7D505993AD1 /* JwKustParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AB83DCC65798AF11C37CD62 /* JwKustParser.swift */; };
+		2C09665FC32479EA75AFC667 /* AddCoursesImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C46E87F6C7DE34B2462440 /* AddCoursesImportTests.swift */; };
 		2C1994A31222CF55F7225933 /* ImportDraftRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D96D4B4460BFB76E92F792 /* ImportDraftRepository.swift */; };
 		2C1BA4A22077D73922B38B3C /* RowKeyDiffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C14C917D9FFF63F1BDA1150 /* RowKeyDiffer.swift */; };
 		2C818AFA2C7B39B09A099FE4 /* DiagDumpProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53AF3563BDB09DC9C5D951A1 /* DiagDumpProgressTests.swift */; };
@@ -519,6 +520,7 @@
 		83307E8E08B747A78BD2BD2F /* SchedulePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE111F2DF650D0D1D30E8359 /* SchedulePolicy.swift */; };
 		83439E6A9F38CC8D2EE1357D /* DialogButtonsLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605E90839E51A5E622A86165 /* DialogButtonsLayoutPolicy.swift */; };
 		83A4F8E096E900A4A5C045D2 /* GlobalWidgetCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B00E403E87446234A08FCF /* GlobalWidgetCompatibility.swift */; };
+		848B5EA16FBB66EBFEF879F0 /* AddCoursesImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC4834B041CD8B0721548D4 /* AddCoursesImport.swift */; };
 		84DB1225A1B92ACD725D994C /* SystemColorProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE3AC9450211B1691131AA2 /* SystemColorProbe.swift */; };
 		84FC6D0B5696C1AF3C7ED675 /* ImportRosterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E0C397C35B589BA063FC4D /* ImportRosterTests.swift */; };
 		855F5BB386D6E4CD46BD4544 /* XiaoaiPresetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68536393477E84721CF8AE2C /* XiaoaiPresetData.swift */; };
@@ -1299,6 +1301,7 @@
 		6D55DCE880E3E0DCD8FC3892 /* SleepyMarkerTimeBlockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyMarkerTimeBlockTests.swift; sourceTree = "<group>"; };
 		6E5DE7210118C9EC520F007E /* TimeTableDao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTableDao.swift; sourceTree = "<group>"; };
 		6E90E5E329FD653EB6867546 /* ScheduleEditPolicyStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditPolicyStateTests.swift; sourceTree = "<group>"; };
+		6EC4834B041CD8B0721548D4 /* AddCoursesImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCoursesImport.swift; sourceTree = "<group>"; };
 		70745609A81489E4D9B7258B /* WidgetBoundaryScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetBoundaryScheduler.swift; sourceTree = "<group>"; };
 		713C016B6B2A7FCBBE0600AE /* ScheduleConflictBottomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleConflictBottomSheet.swift; sourceTree = "<group>"; };
 		715802C2A36A63F13CDA2C0C /* JwBjtuParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwBjtuParser.swift; sourceTree = "<group>"; };
@@ -1541,6 +1544,7 @@
 		D45F1BCDED26439A06A8B36E /* WindowGeometryProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowGeometryProbeTests.swift; sourceTree = "<group>"; };
 		D52AFD49A9FA76836199F06A /* TwoDayWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoDayWidgetView.swift; sourceTree = "<group>"; };
 		D592A336E4B87069FB2952A3 /* MigrationBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationBackup.swift; sourceTree = "<group>"; };
+		D5C46E87F6C7DE34B2462440 /* AddCoursesImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCoursesImportTests.swift; sourceTree = "<group>"; };
 		D644FDEFF6DF3DD5AC5FB2C6 /* SleepyWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SleepyWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D651B0E8CCB723BAB435B4C8 /* UndoManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManagerTests.swift; sourceTree = "<group>"; };
 		D6F763D73235F22097DED00F /* JwSeuFetchJs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwSeuFetchJs.swift; sourceTree = "<group>"; };
@@ -1882,6 +1886,7 @@
 		4B828127530D3B6ED1E323CD /* imports */ = {
 			isa = PBXGroup;
 			children = (
+				6EC4834B041CD8B0721548D4 /* AddCoursesImport.swift */,
 				B72D4794F4BF53B6DB3E463D /* DiagDumpProgress.swift */,
 				1FEB37F6ED53F4F90389D3E4 /* ExitDraftState.swift */,
 				F23A2B4444411C710BF3C0B2 /* ImportDraftSheet.swift */,
@@ -2137,6 +2142,7 @@
 			isa = PBXGroup;
 			children = (
 				0368F806C26524593AA0FA86 /* AddCourseEditTests.swift */,
+				D5C46E87F6C7DE34B2462440 /* AddCoursesImportTests.swift */,
 				8BA3B7F525825D51CDEC9739 /* BackgroundReliabilityTests.swift */,
 				DD16A8D777E02206641DCE1C /* CalendarTransferImportTests.swift */,
 				A6A03100D7B4127079A00D7A /* ClassDayActivityCoreTests.swift */,
@@ -2979,6 +2985,7 @@
 				0333BECAA6548B30792CDBBD /* AboutScreen.swift in Sources */,
 				D4555882C631BE9D1AC1F27B /* AchievementTracker.swift in Sources */,
 				37E1E714388305B1022FBD29 /* AddCourseScreen.swift in Sources */,
+				848B5EA16FBB66EBFEF879F0 /* AddCoursesImport.swift in Sources */,
 				3866EF19BC8241EF0F67905F /* AllTablesScreen.swift in Sources */,
 				A7955B820017D243FB4730FC /* AppClock.swift in Sources */,
 				65CF01F49FC04AD316F12BB6 /* AppDatabase.swift in Sources */,
@@ -3508,6 +3515,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				003679E74521CD360B6C8FD6 /* AddCourseEditTests.swift in Sources */,
+				2C09665FC32479EA75AFC667 /* AddCoursesImportTests.swift in Sources */,
 				1019C91B3D4BD3F7F3756DA8 /* BackgroundReliabilityTests.swift in Sources */,
 				A71AF9100E148A25FC30A84E /* CalendarTransferImportTests.swift in Sources */,
 				96C7E7A2A3B52C08C63DCBE3 /* ClassDayActivityCoreTests.swift in Sources */,
