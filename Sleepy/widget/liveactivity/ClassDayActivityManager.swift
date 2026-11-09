@@ -66,7 +66,13 @@ enum ClassDayActivityManager {
         let state = SleepyClassActivityAttributes.ContentState(selection: selection)
         let activities = Activity<SleepyClassActivityAttributes>.activities
         let reusable = activities.first { activity in
-            guard activity.activityState == .active || activity.activityState == .stale else { return false }
+            let canUpdate: Bool
+            if #available(iOS 16.2, *) {
+                canUpdate = activity.activityState == .active || activity.activityState == .stale
+            } else {
+                canUpdate = activity.activityState == .active
+            }
+            guard canUpdate else { return false }
             let old = content(of: activity)
             return old.tableId == state.tableId && old.courseId == state.courseId
                 && old.entries.first?.start == state.entries.first?.start
