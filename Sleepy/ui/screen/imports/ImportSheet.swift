@@ -140,6 +140,8 @@ struct ImportSheet: View {
     @State private var jwReturn = JwImportReturnState(origin: .importMethods)
     @State private var textExpanded = false
     @State private var inputText = ""
+    @State private var inputViewportHeight: CGFloat = 0
+    @FocusState private var inputFocused: Bool
     @State private var isLoading = false
     @State private var errorMsg: String? = nil
     @State private var previewSession = ImportPreviewSession()
@@ -163,6 +165,7 @@ struct ImportSheet: View {
 
     var body: some View {
         let state = viewModel.state
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // 标题与草稿入口 (标题 Row + Inventory2 IconButton)
@@ -219,13 +222,14 @@ struct ImportSheet: View {
                 }
                 if textExpanded {
                     VStack(spacing: 8) {
-                        MultilineFieldCompat(placeholder: L10n.format("import_paste_hint"), text: $inputText, minLines: 4, maxLines: 8)
+                        importTextField
                             .padding(12)
-                            .frame(height: 160, alignment: .topLeading)
+                            .frame(height: importInputHeight, alignment: .topLeading)
                             .background(colors.surfaceContainerHighest)   // ← fieldColors 容器色 surfaceContainerHighest
                             .cornerRadius(SleepyTheme.fieldShape)
                             // ← 原 filled TextField, 无描边
-                            .accessibilityIdentifier("import_paste_input")
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("import_paste_viewport")
                         Button {
                             if WakeUpShareClient.looksLikeShareCode(inputText) {
                                 presentWakeUpShare(inputText)
@@ -262,9 +266,10 @@ struct ImportSheet: View {
                         .disabled(!canImport || inputText.isEmpty)
                     }
                     .padding(.leading, 56)
-                    .padding(.top, 4)
+                    .padding(.top, 8)
                     .padding(.bottom, 8)
                     .padding(.trailing, 4)
+                    .id("import_paste_focus_target")
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
@@ -316,8 +321,24 @@ struct ImportSheet: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
         }
+        .accessibilityIdentifier("import_methods_scroll")
         .scrollDismissesKeyboardImmediatelyCompat()
         .background(colors.surface)
+        .background(GeometryReader { geometry in
+            Color.clear
+                .onAppear { inputViewportHeight = geometry.size.height }
+                .onChange(of: geometry.size) { size in
+                    inputViewportHeight = size.height
+                    revealImportInput(using: proxy)
+                }
+        })
+        .onChange(of: inputFocused) { _ in revealImportInput(using: proxy) }
+        .onChange(of: textExpanded) { expanded in
+            if !expanded { inputFocused = false }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidChangeFrameNotification)) { _ in
+            revealImportInput(using: proxy)
+        }
         // ← 原版本 SnackbarHost + LaunchedEffect(importJustApplied):
         //   导入成功提示(不再跳编辑课表页), 底部胶囊浮层, 复用 JwImportFlow statusMsg 同款
         .overlay(alignment: .bottom) {
@@ -549,6 +570,50 @@ struct ImportSheet: View {
         // 格式详情弹窗 ("支持格式"每行 ⓘ 点开)
         .sheet(item: $detailFormat) { fmt in
             FormatDetailDialog(format: fmt)
+        }
+        }
+    }
+
+    private var importInputHeight: CGFloat {
+        guard inputViewportHeight > 0 else { return 160 }
+        // A short landscape sheet still needs an editable line and room above
+        // the keyboard. Longer pasted text scrolls inside the native input.
+        return min(160, max(44, inputViewportHeight - 80))
+    }
+
+    @ViewBuilder
+    private var importTextField: some View {
+        if #available(iOS 16.0, *) {
+            TextField(L10n.format("import_paste_hint"), text: $inputText, axis: .vertical)
+                .lineLimit(1...8)
+                .focused($inputFocused)
+                .accessibilityIdentifier("import_paste_input")
+        } else {
+            ZStack(alignment: .topLeading) {
+                if inputText.isEmpty {
+                    Text(L10n.format("import_paste_hint"))
+                        .foregroundColor(Color(.placeholderText))
+                        .padding(.top, 8)
+                        .padding(.leading, 4)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text: $inputText)
+                    .padding(-4)
+                    .focused($inputFocused)
+                    .accessibilityIdentifier("import_paste_input")
+            }
+        }
+    }
+
+    private func revealImportInput(using proxy: ScrollViewProxy) {
+        guard textExpanded && inputFocused else { return }
+        // Focus arrives before the sheet and keyboard finish resizing. Use the
+        // settled viewport after both keyboard-frame and geometry changes.
+        DispatchQueue.main.async {
+            guard textExpanded && inputFocused else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo("import_paste_focus_target", anchor: .top)
+            }
         }
     }
 

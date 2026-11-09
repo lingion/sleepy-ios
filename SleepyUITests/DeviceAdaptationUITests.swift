@@ -146,6 +146,30 @@ final class DeviceAdaptationUITests: XCTestCase {
                       file: file, line: line)
     }
 
+    private func assertImportInputVisibleAfterRotation(_ field: XCUIElement,
+                                                       file: StaticString = #filePath, line: UInt = #line) {
+        let visible = waitFor {
+            let keyboard = self.app.keyboards.firstMatch
+            let scroll = self.app.scrollViews["import_methods_scroll"].firstMatch
+            let input = self.app.descendants(matching: .any)["import_paste_viewport"].firstMatch
+            guard field.exists && field.isHittable && keyboard.exists,
+                  scroll.exists && input.exists && input.frame.height >= 44 else { return false }
+            var viewport = self.app.frame.intersection(scroll.frame).insetBy(dx: 2, dy: 4)
+            viewport.size.height = max(0, min(viewport.maxY, keyboard.frame.minY - 44) - viewport.minY)
+            return !viewport.isNull && viewport.contains(input.frame) && viewport.contains(field.frame)
+        }
+        if !visible {
+            let diagnostic = XCTAttachment(string: app.debugDescription)
+            diagnostic.name = "import-rotation-visibility-diagnostic"
+            diagnostic.lifetime = .keepAlways
+            add(diagnostic)
+            capture("import-rotation-input-obscured")
+        }
+        XCTAssertTrue(visible,
+                      "Rotation must retain the keyboard and automatically reveal the complete import editing viewport",
+                      file: file, line: line)
+    }
+
     func testPortraitNativeTabsAndBellScheduleStatistic() {
         let mine = nativeTab("Me")
         XCTAssertTrue(mine.waitForExistence(timeout: 10), "Portrait must expose the native tab bar")
@@ -260,9 +284,16 @@ final class DeviceAdaptationUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10), "Rotation must retain the active import sheet")
         XCTAssertTrue((field.value as? String ?? "").contains("Rotation keeps this draft"),
                       "Changing the navigation layout must preserve unsaved import text")
+        assertImportInputVisibleAfterRotation(field)
+        field.typeText(" after landscape")
+        XCTAssertTrue((field.value as? String ?? "").contains("Rotation keeps this draft after landscape"))
         capture("landscape-import-draft")
         XCUIDevice.shared.orientation = .portrait
-        XCTAssertTrue((field.value as? String ?? "").contains("Rotation keeps this draft"))
+        assertImportInputVisibleAfterRotation(field)
+        XCTAssertTrue((field.value as? String ?? "").contains("Rotation keeps this draft after landscape"))
+        field.typeText(" after portrait")
+        XCTAssertTrue((field.value as? String ?? "").contains("Rotation keeps this draft after landscape after portrait"))
+        capture("portrait-import-draft")
     }
 
     func testOccurrenceDraftSurvivesNativeAndRailRotation() {
