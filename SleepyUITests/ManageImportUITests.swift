@@ -95,7 +95,7 @@ final class ManageImportUITests: XCTestCase {
             .waitForExistence(timeout: 3), "再点应收起")
     }
 
-    // MARK: 完整文本导入链(输入 WakeUp JSON → Preview → 3 模式按钮 → 确认 → 新表)
+    // MARK: 完整文本导入链(输入 WakeUp JSON → 新表配置确认 → 新表)
 
     func testFullTextImportFlow() {
         // 方案: UIPasteboard + context menu paste 解决 SwiftUI TextField 在 iOS16
@@ -196,47 +196,9 @@ final class ManageImportUITests: XCTestCase {
         let previewButton = app.descendants(matching: .any)["import_preview_btn"]
         XCTAssertTrue(previewButton.waitForExistence(timeout: 3))
         previewButton.tap()
-        // 预览对话框: 标题 + 3 模式按钮(any — 内嵌 sheet 里的元素类型不定)
-        XCTAssertTrue(app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS 'Import Preview'")).firstMatch
-            .waitForExistence(timeout: 6), "预览对话框未弹出(解析失败?)")
-        // 课程名行可能是任意元素类型;再等 1s 后不强断(解析成功由 Import Preview 弹出证明)
-        _ = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS '编译原理'")).firstMatch.waitForExistence(timeout: 2)
-
-        // 选 "Import as new schedule" 模式: 只有该模式(及 Append as new table / Overwrite
-        // current)会弹 "Confirm Before Import" 对话框; "Append non-conflicting" 在原平台
-        // 源上本来就不弹 confirm(直接应用) → 旧断言不可能通过。
-        // ★ v1.0.62 对齐: 改按 accessibilityIdentifier 定位(import_mode_as_new 等),
-        //   不再按本地化文案匹配 —— 预览底部按钮浮在 List 之上, 按 label 匹配时偶发
-        //   拿到无效 frame({inf,inf}/{0,0}) → "Failed to compute hit point"(旧失败根因之一)。
-        let asNewBtn = app.descendants(matching: .any)["import_mode_as_new"]
-        if asNewBtn.waitForExistence(timeout: 3) {
-            // 预览 sheet 弹出前粘贴框仍是 first responder 时键盘不收,键盘会把预览
-            // sheet 的内容容器下移 → 模式按钮落到屏幕外(frame 变成 {{inf,inf}})。
-            // App 侧已收键盘,这里再兜一次底:键盘还在就收掉再点。
-            if app.keyboards.count > 0 {
-                let dismissKey = app.keyboards.buttons.matching(
-                    NSPredicate(format: "label IN {'Return', 'Done', 'return', 'done', '换行', '完成'}")
-                ).firstMatch
-                if dismissKey.waitForExistence(timeout: 2) {
-                    dismissKey.tap()
-                }
-                sleep(1)
-            }
-            if asNewBtn.isHittable {
-                asNewBtn.tap()
-            } else {
-                // 元素存在但不可点(仍在屏幕外)→ 用坐标兜底点它的中心
-                asNewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            }
-        } else {
-            // 兜底: "⚠ Overwrite current" 也走 confirm 流(替换种子表为导入内容,
-            // 编译原理 周四 7-8 不碰种子课时段, 课表仍可验证)
-            let replace = app.descendants(matching: .any)["import_mode_overwrite"]
-            XCTAssertTrue(replace.waitForExistence(timeout: 2), "confirm 流模式按钮都不在")
-            replace.tap()
-        }
+        // Management's new-table entry goes straight to configuration, matching
+        // Android v1.0.63. It must never expose overwrite/append modes here.
+        XCTAssertFalse(app.buttons["import_mode_overwrite"].exists)
 
         // 确认对话框: 表名/开始日期/Confirm Import
         XCTAssertTrue(app.descendants(matching: .any)["import_confirm_title"]

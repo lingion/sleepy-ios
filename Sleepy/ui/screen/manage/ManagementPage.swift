@@ -5,56 +5,14 @@ import SwiftUI
 
 struct ManagementPage: View {
     @Environment(\.localWakeUpColors) private var colors
-    @Environment(\.localCoursePalette) private var palette
     @Environment(\.localNavExtraBottomPadding) private var navExtra
     @ObservedObject var viewModel: ScheduleViewModel
-    var autoShowImportSheet: Bool = false
-    let onCreateNewTableRequested: () -> Void
-    let onManualAdd: () -> Void
+    let onImportRequested: () -> Void
+    let onAddCourses: () -> Void
     let onEditCurrentTable: () -> Void
-    var onExportRequested: () -> Void = {}
-    var onImported: () -> Void = {}
-    // 2026-09-21 用户令: 点当前课表大卡 → 跳「所有课表」页(onOpenAllTables)
-    var onOpenAllTables: () -> Void = {}
-    var onOpenPeriodTables: () -> Void = {}
-    // v1.0.56 T7: 新建作息表 — 内部建表(自动命名+全局唯一)落库后回调新 id, 调用方进其编辑页
-    var onCreateNewPeriodTableRequested: (Int64) -> Void = { _ in }
-    // 草稿列表/删除由宿主提供；恢复由导入方式页保留原入口后呈现。
-    var drafts: [ImportDraftRowModel] = []
-    var onDeleteDraft: (String) -> Void = { _ in }
-    var onJwDismissed: () -> Void = {}
-
-    @State private var showImportSheet: Bool
-    @State private var createTableAfterDismiss = false
-
-    init(viewModel: ScheduleViewModel,
-         autoShowImportSheet: Bool = false,
-         onCreateNewTableRequested: @escaping () -> Void,
-         onManualAdd: @escaping () -> Void,
-         onEditCurrentTable: @escaping () -> Void,
-         onExportRequested: @escaping () -> Void = {},
-         onImported: @escaping () -> Void = {},
-         onOpenAllTables: @escaping () -> Void = {},
-         onOpenPeriodTables: @escaping () -> Void = {},
-         onCreateNewPeriodTableRequested: @escaping (Int64) -> Void = { _ in },
-         drafts: [ImportDraftRowModel] = [],
-         onDeleteDraft: @escaping (String) -> Void = { _ in },
-         onJwDismissed: @escaping () -> Void = {}) {
-        self.viewModel = viewModel
-        self.autoShowImportSheet = autoShowImportSheet
-        self.onCreateNewTableRequested = onCreateNewTableRequested
-        self.onManualAdd = onManualAdd
-        self.onEditCurrentTable = onEditCurrentTable
-        self.onExportRequested = onExportRequested
-        self.onImported = onImported
-        self.onOpenAllTables = onOpenAllTables
-        self.onOpenPeriodTables = onOpenPeriodTables
-        self.onCreateNewPeriodTableRequested = onCreateNewPeriodTableRequested
-        self.drafts = drafts
-        self.onDeleteDraft = onDeleteDraft
-        self.onJwDismissed = onJwDismissed
-        _showImportSheet = State(initialValue: autoShowImportSheet)
-    }
+    let onExportRequested: () -> Void
+    let onOpenAllTables: () -> Void
+    let onOpenPeriodTables: () -> Void
 
     var body: some View {
         let state = viewModel.state
@@ -110,12 +68,12 @@ struct ManagementPage: View {
                     ManageCard(id: "manage_import", icon: "square.and.arrow.up",
                                title: L10n.format("manage_add_table"),
                                subtitle: L10n.format("manage_add_table_sub")) {
-                        showImportSheet = true
+                        onImportRequested()
                     }
                     ManageCard(id: "manage_add_course", icon: "plus",
                                title: L10n.format("manage_manual_add"),
                                subtitle: L10n.format("manage_manual_add_sub"),
-                               onClick: onManualAdd)
+                               onClick: onAddCourses)
                     ManageCard(id: "manage_period_tables", icon: "clock",
                                title: L10n.format("manage_period_tables"),
                                subtitle: L10n.format("manage_period_tables_sub"),
@@ -132,27 +90,8 @@ struct ManagementPage: View {
             .padding(.bottom, navExtra)
         }
         .background(colors.background)
-        .sheet(isPresented: $showImportSheet, onDismiss: {
-            if createTableAfterDismiss {
-                createTableAfterDismiss = false
-                onCreateNewTableRequested()
-            }
-        }) {
-            ImportSheet(
-                viewModel: viewModel,
-                onDismiss: { showImportSheet = false },
-                onImported: onImported,
-                drafts: drafts,
-                onDeleteDraft: onDeleteDraft,
-                onJwDismissed: onJwDismissed,
-                onCreateNewTable: {
-                    createTableAfterDismiss = true
-                    showImportSheet = false
-                })
-                .environment(\.localWakeUpColors, colors)
-                .environment(\.localCoursePalette, palette)
-        }
     }
+
 }
 
 // ← ManageCard

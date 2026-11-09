@@ -175,8 +175,31 @@ final class AppRootViewModel: ObservableObject {
     }
 
     @Published var currentTab: Tab = .schedule
+    @Published var importRequested = false
+    @Published private(set) var requestedImportTargetTableId: Int64? = nil
+
+    /// Import is a presentation request, independent of whether Manage is already visible.
+    func requestImport() {
+        currentTab = .manage
+        requestedImportTargetTableId = nil
+        importRequested = true
+    }
+
+    func requestAddCourses(targetTableId: Int64) {
+        guard targetTableId > 0 else { return }
+        currentTab = .manage
+        requestedImportTargetTableId = targetTableId
+        importRequested = true
+    }
+
+    func openManualAddCourse(targetTableId: Int64) {
+        guard targetTableId > 0 else { return }
+        navigator.openAddCourse()
+        addCourseTargetTableId = targetTableId
+    }
     @Published var shareRequest: ScheduleShareRequest? = nil
     @Published var courseDetailRequest: ScheduleCourseDetailRequest? = nil
+    @Published var addCourseTargetTableId: Int64? = nil
     @Published private(set) var overlayNavigationRevision: UInt64 = 0
     private let overlayDismissalState = OverlayDismissalState()
     @Published var overlayScreen: OverlayScreen? = nil {
@@ -184,12 +207,14 @@ final class AppRootViewModel: ObservableObject {
             recordOverlayNavigation()
             if overlayScreen != .addCourse {
                 initialCourseSlot = nil
+                addCourseTargetTableId = nil
             }
         }
     }
     @Published var editingCourse: CourseEntity? = nil {
         didSet {
             recordOverlayNavigation()
+            addCourseTargetTableId = nil
             if editingCourse != nil { initialCourseSlot = nil }
         }
     }
@@ -426,6 +451,13 @@ struct AppRoot: View {
     //   keyWindow.safeAreaInsets — 冷启极早窗口未就绪时 resolver 保守按悬浮。
     //   回前台(active)必然有窗口 → 重判一次纠偏(悬浮↔贴底切换仅非全面屏设备可见)。
     @Environment(\.scenePhase) private var scenePhase
+    @State private var importPresentation = ImportPresentationState()
+    @State private var requestedExternalImportDeliveryID: UUID?
+    @State private var showImportSheet = false
+    @State private var importTargetTableId: Int64? = nil
+    @State private var importInitialText: String?
+    @State private var manualAddTargetAfterImportDismiss: Int64? = nil
+    @State private var createTableAfterImportDismiss = false
     @State private var jwImportActive = false
     // 直接/外部草稿入口独立呈现，不伪造导入方式页作为返回目标。
     @State private var jwReturn = JwImportReturnState(origin: .direct)
@@ -474,6 +506,9 @@ struct AppRoot: View {
             Task { await HolidayManager.preload() }
             // ← 原版本 observeAll() 常驻订阅的等价: 进入即读一次草稿列表
             root.refreshDrafts()
+            requestPendingExternalImport()
+            presentRequestedDraft()
+            presentRequestedImport()
             // 冷启兜底: onAppear 时窗口已就位, 重判一次(inset 判定不再可能 nil)
             root.refreshNavMode()
             // ← v1.0.62 B5: 冷启兜底 — 通知点击拉起 app 时 delegate 先落 pending,
@@ -502,10 +537,52 @@ struct AppRoot: View {
             drainPendingAgendaDate(raw)
         }
         // pendingImportText → 自动切 Manage + 弹导入(← LaunchedEffect(pendingImportText))
-        .onChange(of: PendingImportText.value) { text in
-            if text != nil {
-                root.currentTab = .manage
+        .onReceive(NotificationCenter.default.publisher(for: PendingImportText.changedNotification)
+            .receive(on: RunLoop.main)) { _ in
+            requestPendingExternalImport()
+        }
+        .onChange(of: root.importRequested) { requested in
+            if requested { presentRequestedImport() }
+        }
+        .sheet(isPresented: $showImportSheet, onDismiss: {
+            let manualTarget = manualAddTargetAfterImportDismiss
+            let createTable = createTableAfterImportDismiss
+            manualAddTargetAfterImportDismiss = nil
+            createTableAfterImportDismiss = false
+            importTargetTableId = nil
+            importInitialText = nil
+            importPresentation.didDismiss(.methods)
+            if let manualTarget {
+                root.openManualAddCourse(targetTableId: manualTarget)
+            } else if createTable {
+                root.createNewTableThenEdit()
             }
+            drainRequestedImportsAfterDismissal()
+        }) {
+            let targetTableId = importTargetTableId
+            ImportSheet(viewModel: root.scheduleViewModel,
+                        onDismiss: { showImportSheet = false },
+                        onImported: importDidFinish,
+                        drafts: root.importDrafts,
+                        onDeleteDraft: { root.deleteDraft($0) },
+                        onJwDismissed: { root.refreshDrafts() },
+                        onCreateNewTable: {
+                            createTableAfterImportDismiss = true
+                            showImportSheet = false
+                        },
+                        targetTableId: targetTableId,
+                        initialImportText: importInitialText,
+                        onManualAddCourse: targetTableId.map { target in
+                            {
+                                manualAddTargetAfterImportDismiss = target
+                                showImportSheet = false
+                            }
+                        })
+                .id(targetTableId)
+                .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                              customThemeVersion: customThemesJson))
+                .environment(\.systemColorSnapshot, systemColorSnapshot)
+                .preferredColorScheme(schemeOverride)
         }
         .sheet(item: $root.shareRequest) { request in
             ShareScheduleSheet(table: request.table, courses: request.courses,
@@ -540,12 +617,7 @@ struct AppRoot: View {
                 .preferredColorScheme(schemeOverride)
         }
         // 待恢复草稿 → 带进 JwImportFlow 入参并消费清零(← EXTRA_DRAFT_ID 一次性语义)
-        .onChange(of: root.pendingDraftId) { id in
-            guard let id = id else { return }
-            jwIncomingDraftId = id
-            root.pendingDraftId = nil
-            jwImportActive = true
-        }
+        .onChange(of: root.pendingDraftId) { _ in presentRequestedDraft() }
         .sheet(isPresented: $jwImportActive, onDismiss: {
             // 下滑关闭与流程内关闭两条路径都收敛到这里: 选校状态重置、入参带完即清、草稿列表随流程结束刷新
             SchoolSelectStateStore.shared.resetForNewEntry()
@@ -553,6 +625,8 @@ struct AppRoot: View {
             jwActiveImport = false
             _ = jwReturn.didDismiss()
             root.refreshDrafts()
+            importPresentation.didDismiss(.jw)
+            drainRequestedImportsAfterDismissal()
         }) {
             JwImportFlow(onFinish: { outcome in
                 jwReturn.record(outcome)
@@ -568,6 +642,47 @@ struct AppRoot: View {
             .interactiveDismissDisabled(jwActiveImport)
             .sheetDragIndicator(.visible)
         }
+    }
+
+    private func requestPendingExternalImport() {
+        guard let text = PendingImportText.value,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let deliveryID = PendingImportText.deliveryID,
+              requestedExternalImportDeliveryID != deliveryID else { return }
+        requestedExternalImportDeliveryID = deliveryID
+        root.requestImport()
+    }
+
+    private func presentRequestedImport() {
+        guard root.importRequested, importPresentation.begin(.methods) else { return }
+        importTargetTableId = root.requestedImportTargetTableId
+        importInitialText = importTargetTableId == nil ? PendingImportText.take() : nil
+        showImportSheet = true
+        root.importRequested = false
+    }
+
+    private func presentRequestedDraft() {
+        guard let id = root.pendingDraftId, importPresentation.begin(.jw) else { return }
+        jwIncomingDraftId = id
+        root.pendingDraftId = nil
+        jwImportActive = true
+    }
+
+    private func drainRequestedImportsAfterDismissal() {
+        // Keep the current identity through UIKit's dismissal animation; a queued
+        // document or draft starts only after its previous sheet has gone away.
+        DispatchQueue.main.async {
+            presentRequestedDraft()
+            presentRequestedImport()
+        }
+    }
+
+    private func importDidFinish() {
+        // The active sheet consumes its payload on appearance. A remaining value
+        // belongs to a later delivery and must survive this import's completion.
+        WidgetCenter.shared.reloadAllTimelines()
+        ReminderRescheduler.shared.request()
+        WatchSyncCoordinator.shared.scheduleSync()
     }
 
     // ← AppPrefs.isDarkMode(context, systemDark)
@@ -602,6 +717,7 @@ struct AppRoot: View {
                 completeDismissal: { ticket, action in root.completeOverlayDismissal(ticket, then: action) },
                 editingCourse: root.editingCourse,
                 initialCourseSlot: root.initialCourseSlot,
+                addCourseTargetTableId: root.addCourseTargetTableId,
                 editTableId: root.editTableId,
                 pendingNewTableId: root.pendingNewTableId,
                 periodEditId: root.periodEditId,
@@ -751,8 +867,7 @@ struct AppRoot: View {
             viewModel: root.scheduleViewModel,
             viewMode: $root.scheduleViewMode,
             onGoImport: {
-                root.currentTab = .manage
-                root.createNewTableThenEdit()
+                root.requestImport()
             },
             onShareRequested: { table, courses in
                 root.shareRequest = ScheduleShareRequest(table: table, courses: courses)
@@ -858,13 +973,13 @@ struct AppRoot: View {
             ScheduleScreen(
                 viewModel: root.scheduleViewModel,
                 viewMode: $root.scheduleViewMode,
-                onGoImport: { root.currentTab = .manage },
-                // ← 原版本 MainTabs:328 onManualAdd = navigator.openAddCourse()
+                onGoImport: { root.requestImport() },
                 onShareRequested: { table, courses in
                     root.shareRequest = ScheduleShareRequest(table: table, courses: courses)
                 },
                 onCourseDetailRequested: { root.courseDetailRequest = $0 },
                 courseDetailPresented: root.courseDetailRequest != nil,
+                // ← 原版本 MainTabs:328 onManualAdd = navigator.openAddCourse()
                 onManualAdd: { root.navigator.openAddCourse() },
                 onCreateTable: { root.createNewTableThenEdit() },
                 // ← 原版本 MainTabs:330 onEditCourse = session.beginEditCourse(course)
@@ -926,41 +1041,16 @@ struct AppRoot: View {
         }
     }
 
-    // 管理页(AppRoot 私有状态绑定最重的一屏) — docked/floating/native 共用。
+    // Window-owned presentations keep import drafts alive across native/rail changes.
     private var managementPage: some View {
         ManagementPage(
             viewModel: root.scheduleViewModel,
-            autoShowImportSheet: PendingImportText.value != nil,
-            // ← 原版本 MainTabs:352 onCreateNewTableRequested = onCreateNewTable
-            //   (MainActivity 闭包 = createEmptyTable + openEditTable; iOS 状态机
-            //   封装在 createNewTableThenEdit, 含 allTables-cover 换页时序, 保持直调)
-            onCreateNewTableRequested: { root.createNewTableThenEdit() },
-            // ← 原版本 MainTabs:355 onManualAdd = navigator.openAddCourse()
-            onManualAdd: { root.navigator.openAddCourse() },
-            // ← 原版本 MainTabs:355 onEditCurrentTable = navigator.openEditTable()
+            onImportRequested: { root.requestImport() },
+            onAddCourses: { root.requestAddCourses(targetTableId: root.scheduleViewModel.state.selectedTableId ?? 0) },
             onEditCurrentTable: { root.navigator.openEditTable() },
-            // ← 原版本 MainTabs:355 onExportRequested = navigator.openExport()
             onExportRequested: { root.navigator.openExport() },
-            // ★ 导入完成链(onImported: 留在管理页, 摘要卡就地刷新)
-            onImported: {
-                // ← 原版本 ce7f7924: 导入完成留在管理页(摘要卡就地刷新), 不再硬跳课表 Tab
-                PendingImportText.value = nil
-                WidgetCenter.shared.reloadAllTimelines()
-                ReminderRescheduler.shared.request()
-                WatchSyncCoordinator.shared.scheduleSync()
-            },
-            // ← 原版本 SleepyNavHost: onOpenAllTables = navigator.openAllTables()
             onOpenAllTables: { root.navigator.openAllTables() },
-            onOpenPeriodTables: { root.navigator.openPeriodTables() },
-            // ← 原版本 MainTabs:354 createPeriodTableAndEdit(newId) =
-            //   navigator.createPeriodTableAndEdit(newId) (内部 openPeriodEdit(newId, isNew=true))
-            onCreateNewPeriodTableRequested: { newId in
-                root.navigator.createPeriodTableAndEdit(newId: newId)
-            },
-            // 草稿箱恢复由 ImportSheet 子 sheet 承载；直接草稿入口仍走 pendingDraftId。
-            drafts: root.importDrafts,
-            onDeleteDraft: { id in root.deleteDraft(id) },
-            onJwDismissed: { root.refreshDrafts() })
+            onOpenPeriodTables: { root.navigator.openPeriodTables() })
     }
 
     // ★ docked 模式:bar 占用 76pt(老行为)
@@ -1002,6 +1092,9 @@ struct AppRoot: View {
 
     // ← handleDeepLinkIntent(平台差异表#4: Intent extras → URL scheme)
     private func handleDeepLink(_ url: URL) {
+        if ImportReceiverActivity.receiveIfFileURL(url) {
+            return
+        }
         guard url.scheme == "sleepy" else { return }
         switch url.host {
         case "open":
@@ -1015,7 +1108,6 @@ struct AppRoot: View {
             if let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
                let text = comps.queryItems?.first(where: { $0.name == "text" })?.value {
                 PendingImportText.value = text
-                root.currentTab = .manage
             }
         case "daily-agenda":
             // ← v1.0.62 B5: sleepy://daily-agenda/<date> (← DailyAgendaRoute.identity)
@@ -1166,6 +1258,7 @@ private struct PresentOverlay: ViewModifier {
     let completeDismissal: (OverlayDismissalState.Ticket, @escaping () -> Void) -> Void
     let editingCourse: CourseEntity?
     let initialCourseSlot: CourseAddSlot?
+    let addCourseTargetTableId: Int64?
     let editTableId: Int64?
     let pendingNewTableId: Int64?
     // ← v1.0.60 作息表编辑路由参数(镜像 editTable 的 pending 丢弃链)
@@ -1301,8 +1394,10 @@ private struct PresentOverlay: ViewModifier {
                 onDismiss: onDismiss,
                 onSaved: onSavedAdd,
                 editingCourse: editingCourse,
-                initialSlot: initialCourseSlot)
-                .id(CourseEditorIdentity(courseId: editingCourse?.id, initialSlot: initialCourseSlot))
+                initialSlot: initialCourseSlot,
+                targetTableId: addCourseTargetTableId)
+                .id(CourseEditorIdentity(courseId: editingCourse?.id, initialSlot: initialCourseSlot,
+                                         targetTableId: addCourseTargetTableId))
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)

@@ -128,7 +128,11 @@ struct ImportSheet: View {
     var onDeleteDraft: (String) -> Void = { _ in }
     var onJwDismissed: () -> Void = {}
     var onCreateNewTable: (() -> Void)? = nil
+    var targetTableId: Int64? = nil
+    var initialImportText: String? = nil
+    var onManualAddCourse: (() -> Void)? = nil
 
+    @State private var consumedInitialImport = false
     @State private var showDrafts = false
     @State private var pendingRestoreDraftId: String? = nil
     @State private var jwPresentation: JwImportPresentation? = nil
@@ -148,6 +152,14 @@ struct ImportSheet: View {
     @State private var showWakeUpShare = false
     @State private var wakeUpShareText = ""
     @State private var pendingWakeUpJSON: String?
+    @State private var showExistingTables = false
+    @State private var pendingSelection: ImportPreview? = nil
+    @State private var selectedPreview: ImportPreview? = nil
+    @State private var preparationId = UUID()
+
+    private var canImport: Bool {
+        !isLoading && (targetTableId == nil || viewModel.state.tables.contains { $0.id == targetTableId })
+    }
 
     var body: some View {
         let state = viewModel.state
@@ -155,7 +167,7 @@ struct ImportSheet: View {
             VStack(alignment: .leading, spacing: 0) {
                 // 标题与草稿入口 (标题 Row + Inventory2 IconButton)
                 HStack {
-                    Text(L10n.format(onCreateNewTable == nil ? "import_title" : "manage_add_table"))
+                    Text(L10n.format(targetTableId != nil ? "add_course_title" : (onCreateNewTable == nil ? "import_title" : "manage_add_table")))
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(colors.onSurface)
                     Spacer()
@@ -180,7 +192,12 @@ struct ImportSheet: View {
                     .foregroundColor(colors.onSurfaceVariant)
                     .padding(.bottom, 16)
 
-                if let onCreateNewTable {
+                if targetTableId != nil {
+                    ImportMethodRow(id: "import_existing", icon: "doc.on.doc",
+                                    label: L10n.format("add_course_from_existing")) {
+                        showExistingTables = true
+                    }.disabled(!canImport)
+                } else if let onCreateNewTable {
                     ImportMethodRow(id: "manage_new_table", icon: "plus",
                                     label: L10n.format("manage_new_table"), onClick: onCreateNewTable)
                 }
@@ -188,11 +205,11 @@ struct ImportSheet: View {
                 // 行 1: 教务直连
                 ImportMethodRow(id: "import_jw", icon: "qrcode", label: L10n.format("import_jw")) {
                     jwPresentation = JwImportPresentation()
-                }
+                }.disabled(!canImport)
                 ImportMethodRow(id: "import_wakeup_share", icon: "link",
                                 label: L10n.format("wakeup_share_import_title")) {
                     presentWakeUpShare(inputText)
-                }
+                }.disabled(!canImport)
 
                 // 行 2: 从文本导入(可折叠)
                 ImportMethodRow(id: "import_text", icon: "doc.text",
@@ -215,9 +232,11 @@ struct ImportSheet: View {
                                 return
                             }
                             isLoading = true
-                            let p = ImportSheet.buildImportPreview(inputText, state) { msg in errorMsg = msg }
+                            invalidatePreparedImport()
+                            let p = ImportSheet.buildImportPreview(inputText, state, targetTableId: targetTableId) { msg in errorMsg = msg }
                             isLoading = false
                             guard let p else { return }
+                            let deliveryId = preparationId
                             // ★ v1.0.62 对齐(根因修复): 原版本 的导入预览是 AlertDialog,
                             //   以 dialog 形式弹出时系统会先收走键盘;iOS 用 .sheet 弹预览时,
                             //   粘贴框仍是 first responder → 键盘不收 → UIKit 把预览 sheet
@@ -226,7 +245,8 @@ struct ImportSheet: View {
                             //   对策: 先强制收键盘(与 DateTimePickers 同款),再延一小拍弹预览。
                             ImportSheet.dismissKeyboard()
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                previewSession.replacePreview(p)
+                                guard preparationId == deliveryId else { return }
+                                acceptPreview(p)
                             }
                         } label: {
                             Text(isLoading ? L10n.format("import_parsing") : L10n.format("import_preview"))
@@ -239,7 +259,7 @@ struct ImportSheet: View {
                         }
                         .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("import_preview_btn")
-                        .disabled(isLoading || inputText.isEmpty)
+                        .disabled(!canImport || inputText.isEmpty)
                     }
                     .padding(.leading, 56)
                     .padding(.top, 4)
@@ -248,10 +268,16 @@ struct ImportSheet: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
+                if targetTableId != nil, let onManualAddCourse {
+                    ImportMethodRow(id: "import_manual", icon: "plus",
+                                    label: L10n.format("add_course_manual"), onClick: onManualAddCourse)
+                        .disabled(!canImport)
+                }
+
                 // 行 3: 从文件导入
                 ImportMethodRow(id: "import_file", icon: "square.and.arrow.up", label: L10n.format("import_file")) {
                     showFilePicker = true
-                }
+                }.disabled(!canImport)
 
                 Spacer().frame(height: 20)
 
@@ -290,6 +316,7 @@ struct ImportSheet: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
         }
+        .scrollDismissesKeyboardImmediatelyCompat()
         .background(colors.surface)
         // ← 原版本 SnackbarHost + LaunchedEffect(importJustApplied):
         //   导入成功提示(不再跳编辑课表页), 底部胶囊浮层, 复用 JwImportFlow statusMsg 同款
@@ -317,13 +344,9 @@ struct ImportSheet: View {
                     .accessibilityIdentifier("import_success_snackbar")
             }
         }
-        // 外部打开 json: pendingImportText 自动触发 paste 路径。
-        // ← 原版本 LaunchedEffect(pendingImportText): 以 pendingImportText 为 key,
-        //   sheet 存活期间外部再塞 text 会重新触发预览(旧 onAppear+一次性消费会把
-        //   sheet 开着时的推送丢掉)。onAppear 兜冷启动首值，通知处理已打开后的推送。
+        // The window queues later deliveries until this presentation dismisses,
+        // preserving the current input, preview, target and any nested JW flow.
         .onAppear { consumePendingImportText() }
-        .onReceive(NotificationCenter.default.publisher(for: PendingImportText.changedNotification)
-            .receive(on: RunLoop.main)) { _ in consumePendingImportText() }
         .fileImporter(isPresented: $showFilePicker,
                       allowedContentTypes: [.json, .plainText, .text, .html, .data],
                       allowsMultipleSelection: false) { result in
@@ -339,7 +362,7 @@ struct ImportSheet: View {
                     if WakeUpShareClient.looksLikeShareCode(text) {
                         presentWakeUpShare(text)
                     } else {
-                        previewSession.replacePreview(ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg })
+                        prepareImport(text)
                     }
                 } catch {
                     errorMsg = L10n.format("read_failed", error.localizedDescription)
@@ -359,6 +382,27 @@ struct ImportSheet: View {
             Button(L10n.format("jw_err_dismiss"), role: .cancel) {}
         } message: {
             Text(errorMsg ?? "")
+        }
+        .overlay {
+            if showExistingTables { existingTablesDialog }
+        }
+        .sheet(item: Binding(
+            get: { pendingSelection.map { PreviewBox(preview: $0) } },
+            set: { if $0 == nil { pendingSelection = nil } }
+        ), onDismiss: {
+            guard let selected = selectedPreview else { return }
+            selectedPreview = nil
+            previewSession.replacePreview(selected)
+        }) { box in
+            CourseSelectionSheet(parseResult: box.preview.parseResult, onConfirm: { keys in
+                guard pendingSelection?.id == box.preview.id else { return }
+                do {
+                    let filtered = try AddCoursesImport.filtered(box.preview.parseResult, selectedKeys: keys)
+                    selectedPreview = Self.buildImportPreview(filtered, targetTableId: box.preview.targetTableId,
+                        sourceDraftId: box.preview.sourceDraftId)
+                    pendingSelection = nil
+                } catch { errorMsg = error.localizedDescription }
+            }, onDismiss: { pendingSelection = nil })
         }
         // 预览对话框
         .sheet(item: Binding(
@@ -389,8 +433,12 @@ struct ImportSheet: View {
                         // ← 原版本 importJustApplied=true → snackbar 明示已落库
                         showSuccess(L10n.format("import_success"))
                     })
+            } else if onCreateNewTable != nil && targetTableId == nil {
+                confirmDialogContent
             } else {
             ImportPreviewDialog(preview: box.preview,
+                                courseDecision: targetTableId != nil,
+                                onCourseApply: { decision in applyCourseImport(box.preview, decision: decision) },
                                 showConfirm: previewSession.pendingMode != nil,
                                 onConfirmDismiss: { previewSession.pendingMode = nil },
                                 confirmContent: { AnyView(confirmDialogContent) },
@@ -400,7 +448,7 @@ struct ImportSheet: View {
                                 }) { mode in
                 guard let currentPreview = previewSession.preview,
                       currentPreview.id == box.preview.id else { return }
-                let existingTable = state.currentTable
+                let existingTable = Self.effectiveTargetTable(currentPreview.targetTableId)
                 previewSession.confirmedStartDate = currentPreview.parseResult.startDate.isEmpty
                     ? (existingTable?.startDate ?? Self.todayISO())
                     : currentPreview.parseResult.startDate
@@ -434,14 +482,14 @@ struct ImportSheet: View {
                     let importedId = ImportSheet.applyImportPreview(
                         preview: p, mode: mode,
                         confirmedStartDateRaw: p.parseResult.startDate.isEmpty
-                            ? (state.currentTable?.startDate ?? Self.todayISO())
+                            ? (existingTable?.startDate ?? Self.todayISO())
                             : p.parseResult.startDate,
-                        confirmedTableName: state.currentTable?.name ?? "",
+                        confirmedTableName: existingTable?.name ?? "",
                         confirmedTimeJson: TimeTableUtils.mergeMostComplete(
-                            currentJson: state.currentTable?.timeJson ?? "",
+                            currentJson: existingTable?.timeJson ?? "",
                             incomingJson: p.parseResult.timeJson,
                             requiredNodeCount: p.parseResult.nodesPerDay),
-                        onImported: onImported) { msg in errorMsg = msg }
+                        onImported: { finishImported(p) }) { msg in errorMsg = msg }
                     isLoading = false
                     guard importedId != nil else { return }
                     previewSession.replacePreview(nil)
@@ -462,7 +510,7 @@ struct ImportSheet: View {
         .sheet(isPresented: $showWakeUpShare, onDismiss: {
             guard let json = pendingWakeUpJSON else { return }
             pendingWakeUpJSON = nil
-            previewSession.replacePreview(ImportSheet.buildImportPreview(json, viewModel.state) { errorMsg = $0 })
+            prepareImport(json)
         }) {
             WakeUpShareImportSheet(initialText: wakeUpShareText, onResolved: { json in
                 pendingWakeUpJSON = json
@@ -490,7 +538,8 @@ struct ImportSheet: View {
                 jwReturn.record(outcome)
                 jwPresentation = nil
             }, incomingDraftId: presentation.draftId,
-               onActiveImportChanged: { jwActiveImport = $0 })
+               onActiveImportChanged: { jwActiveImport = $0 },
+               targetTableId: targetTableId, newTableOnly: onCreateNewTable != nil && targetTableId == nil)
                 .environment(\.localWakeUpColors, colors)
                 .environment(\.localCoursePalette, palette)
                 .preferredColorScheme(colorScheme)
@@ -539,7 +588,10 @@ struct ImportSheet: View {
             onTableNameChange: { previewSession.confirmedTableName = $0 },
             onStartDateChange: { previewSession.confirmedStartDate = $0 },
             onTimeJsonChange: { previewSession.confirmedTimeJson = $0 },
-            onDismiss: { previewSession.pendingMode = nil },
+            onDismiss: {
+                if onCreateNewTable != nil && targetTableId == nil { previewSession.replacePreview(nil) }
+                else { previewSession.pendingMode = nil }
+            },
             // v1.0.56 T6: 第三 Tab「作息表」
             periodTableOptions: viewModel.loadAllPeriodTables().map {
                 PeriodTableOption(id: $0.id, name: $0.name, nodesPerDay: $0.nodesPerDay)
@@ -560,7 +612,7 @@ struct ImportSheet: View {
                     confirmedStartDateRaw: previewSession.confirmedStartDate,
                     confirmedTableName: previewSession.confirmedTableName,
                     confirmedTimeJson: previewSession.confirmedTimeJson,
-                    onImported: onImported,
+                    onImported: { finishImported(currentPreview) },
                     onError: { msg in errorMsg = msg },
                     bindPeriodTableId: previewSession.confirmedBindPeriodTableId)
                 isLoading = false
@@ -578,30 +630,121 @@ struct ImportSheet: View {
         return f.string(from: Date())
     }
 
-    /// 外部 app 塞来的 json → 自动触发 paste 路径 buildImportPreview。
-    /// 一次性消费: 读完即清空全局字段(LaunchedEffect 引用为 key 的语义)。
+    /// Consume the payload captured by this presentation exactly once. Later
+    /// deliveries remain queued at the window and cannot change this target.
     private func consumePendingImportText() {
+        guard !consumedInitialImport else { return }
+        consumedInitialImport = true
         let state = viewModel.state
-        if let text = PendingImportText.value,
+        if let text = initialImportText,
            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            PendingImportText.value = nil
             // A new delivery invalidates every action and binding choice from the previous one,
             // including when this payload is invalid or must continue through the share flow.
-            previewSession.replacePreview(nil)
+            invalidatePreparedImport()
             errorMsg = nil
             if WakeUpShareClient.looksLikeShareCode(text) {
                 presentWakeUpShare(text)
                 return
             }
             isLoading = true
-            let p = ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg }
-            previewSession.replacePreview(p)
+            let p = ImportSheet.buildImportPreview(text, state, targetTableId: targetTableId) { msg in errorMsg = msg }
+            acceptPreview(p)
             isLoading = false
         }
     }
 
-    private func presentWakeUpShare(_ text: String) {
+    private func invalidatePreparedImport() {
+        preparationId = UUID()
+        pendingSelection = nil
+        selectedPreview = nil
         previewSession.replacePreview(nil)
+    }
+
+    private func prepareImport(_ text: String) {
+        invalidatePreparedImport()
+        acceptPreview(Self.buildImportPreview(text, viewModel.state, targetTableId: targetTableId) { errorMsg = $0 })
+    }
+
+    private func acceptPreview(_ preview: ImportPreview?) {
+        guard let preview else { return }
+        do {
+            if let targetTableId {
+                _ = try AddCoursesImport.target(repository: ScheduleRepository(AppDatabase.getShared()), tableId: targetTableId)
+                try AddCoursesImport.validate(preview.parseResult)
+                pendingSelection = preview
+            } else {
+                previewSession.replacePreview(preview)
+                // Prepare before SwiftUI constructs the dialog's @State values.
+                // An onAppear callback runs after its initial date/name were captured.
+                if onCreateNewTable != nil { configureNewTableConfirmation(preview) }
+            }
+        } catch { errorMsg = error.localizedDescription }
+    }
+
+    private func configureNewTableConfirmation(_ preview: ImportPreview) {
+        guard previewSession.preview?.id == preview.id else { return }
+        previewSession.confirmedPreview = preview
+        previewSession.pendingMode = .importAsNew
+        previewSession.confirmedStartDate = preview.parseResult.startDate.isEmpty ? Self.todayISO() : preview.parseResult.startDate
+        previewSession.confirmedTableName = preview.parseResult.tableName.isEmpty ? L10n.format("default_table_name") : preview.parseResult.tableName
+        previewSession.confirmedTimeJson = TimeTableUtils.mergeMostComplete(currentJson: "", incomingJson: preview.parseResult.timeJson,
+            requiredNodeCount: max(preview.parseResult.nodesPerDay, preview.parseResult.courses.map { $0.startNode + $0.step - 1 }.max() ?? 0))
+    }
+
+    private func finishImported(_ preview: ImportPreview) {
+        if let draftId = preview.sourceDraftId {
+            try? ImportDraftRepository(AppDatabase.getShared()).delete(draftId)
+        }
+        onImported()
+    }
+
+    private func applyCourseImport(_ displayed: ImportPreview, decision: CourseImportDecision) {
+        guard !isLoading, let preview = previewSession.preview, preview.id == displayed.id,
+              targetTableId == preview.targetTableId else { return }
+        isLoading = true
+        let saved = Self.applyCourseImport(preview: preview, decision: decision,
+            onImported: { finishImported(preview) }, onError: { errorMsg = $0 })
+        isLoading = false
+        guard saved != nil else { return }
+        previewSession.replacePreview(nil)
+        showSuccess(L10n.format("import_success"))
+    }
+
+    private var existingTablesDialog: some View {
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea().onTapGesture { showExistingTables = false }
+            VStack(alignment: .leading, spacing: 16) {
+                Text(L10n.format("add_course_from_existing")).font(.system(size: 22, weight: .semibold))
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        let sources = viewModel.state.tables.filter { $0.id != targetTableId }
+                        if sources.isEmpty {
+                            Text(L10n.format("add_course_no_source")).accessibilityIdentifier("add_course_no_source")
+                        }
+                        ForEach(sources) { table in
+                            Button(table.name) {
+                                guard let targetTableId else { return }
+                                do {
+                                    let result = try AddCoursesImport.source(repository: ScheduleRepository(AppDatabase.getShared()),
+                                        sourceTableId: table.id, targetTableId: targetTableId)
+                                    invalidatePreparedImport()
+                                    showExistingTables = false
+                                    acceptPreview(Self.buildImportPreview(result, targetTableId: targetTableId))
+                                } catch { errorMsg = error.localizedDescription }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading).frame(minHeight: 44)
+                            .accessibilityIdentifier("import_source_\(table.id)")
+                        }
+                    }
+                }.frame(maxHeight: 320)
+                Button(L10n.format("cancel")) { showExistingTables = false }.frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .padding(24).background(colors.surfaceContainerHigh).cornerRadius(SleepyShapes.extraLarge).padding(24)
+        }
+    }
+
+    private func presentWakeUpShare(_ text: String) {
+        invalidatePreparedImport()
         pendingWakeUpJSON = nil
         wakeUpShareText = text
         ImportSheet.dismissKeyboard()
@@ -1311,7 +1454,9 @@ private struct ImportConfirmDialog: View {
                 confirmText: L10n.format("import_confirm"),
                 onConfirm: validateAndConfirm,
                 dismissText: L10n.format("back"),
-                onDismiss: onDismiss)
+                onDismiss: onDismiss,
+                confirmIdentifier: "import_dialog_confirm",
+                dismissIdentifier: "import_dialog_back")
                 .padding(.horizontal, 20)
                 .padding(.vertical, 10)
                 .background(colors.surface)
