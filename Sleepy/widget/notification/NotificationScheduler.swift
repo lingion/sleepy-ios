@@ -49,6 +49,27 @@ import UserNotifications
 import BackgroundTasks
 #endif
 
+/// Keep an entire scheduling operation exclusive while its I/O suspends. An
+/// actor alone would allow another operation to enter during each await.
+private actor NotificationScheduleGate {
+    private var occupied = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func perform(_ operation: () async -> Void) async {
+        if occupied {
+            await withCheckedContinuation { waiters.append($0) }
+        } else {
+            occupied = true
+        }
+        await operation()
+        if waiters.isEmpty {
+            occupied = false
+        } else {
+            waiters.removeFirst().resume()
+        }
+    }
+}
+
 final class NotificationScheduler {
     static let shared = NotificationScheduler()
 
@@ -82,19 +103,27 @@ final class NotificationScheduler {
     /// 课前提醒预排窗口: 今天起 7 个日历天(参照 shiguang WIDGET_SYNC_DAYS=7)
     static let BEFORE_CLASS_WINDOW_DAYS = 7
 
-    private let center = UNUserNotificationCenter.current()
     private let prefs = AppPrefs.shared
 
     var repositoryProvider: (() -> ScheduleRepository?)?
 
-    // 进程级锁 — Mutex 不可重入, 持锁路径只调 *Locked
-    private let scheduleLock = NSLock()
+    private let scheduleGate = NotificationScheduleGate()
+    private let writeNotification: (UNNotificationRequest) async -> Void
+    private let loadAgenda: ((Date) async throws -> LoadedDailyAgenda)?
+    private let cleanupLegacySummaries: () -> Void
+    private let usesBackgroundTasks: Bool
 
     // MARK: - 生产实现 (协议定义在文件底部顶层 — Swift 不允许协议嵌套在类内)
 
     /// prefs/时钟/独立账本文件(闹钟是本机状态, 不随 sleepy_prefs 云备份迁移)。
     private final class ProdEnv: NotificationSchedulerBeforeClassEnv {
         private let ledger = UserDefaults(suiteName: "sleepy_alarm_ledger")
+        func isReminderEnabled() -> Bool { AppPrefs.shared.isReminderEnabled() }
+        func isDailyReminderEnabled() -> Bool { AppPrefs.shared.isDailyReminderEnabled() }
+        func isTodayReminderEnabled() -> Bool { AppPrefs.shared.isTodayReminderEnabled() }
+        func isTomorrowReminderEnabled() -> Bool { AppPrefs.shared.isTomorrowReminderEnabled() }
+        func dailyReminderTime() -> String { AppPrefs.shared.getDailyReminderTime() }
+        func tomorrowReminderTime() -> String { AppPrefs.shared.getTomorrowReminderTime() }
         func isBeforeClassEnabled() -> Bool { AppPrefs.shared.isBeforeClassEnabled() }
         func beforeClassMinutes() -> Int { AppPrefs.shared.getBeforeClassMinutes() }
         func nowEpochMs() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
@@ -157,48 +186,46 @@ final class NotificationScheduler {
     }
 
     private final class ProdAlarmPort: NotificationSchedulerBeforeClassAlarmPort {
-        func setExact(id: String, epochMs: Int64, extras: [String: Any?]) {
+        func setExact(id: String, epochMs: Int64, extras: [String: Any?]) async {
             // v1.0.61 banner 门控 (← BeforeClassNotifyReceiver.handle 的 `if (!banner && !fluid) return`):
             // iOS Live Activities(流体云对应物)未实现, banner 关 = 课前通知完全静默。排期时拦截;
             // 排期后才关 banner 的残留由 delegate willPresent 二次拦截 (见 beforeClassDeliveryAllowed)。
             guard AppPrefs.shared.isBeforeClassBannerEnabled() else { return }
-            Task {
-                let content = UNMutableNotificationContent()
-                let courseName = extras["courseName"] as? String ?? ""
-                let room = (extras["room"] as? String) ?? ""
-                let startTime = (extras["startTime"] as? String) ?? ""
-                let roomStr = room.isEmpty ? L10n.t("notif_room_unknown") : room
-                // v1.0.62 ← CourseNotificationScheduler.handle: 标准横幅统一 compact 文案 —
-                //   title=课程名, 正文=「开始时间 · 教室」+ 多表来源标签〔…〕(教师不再进正文)。
-                content.title = courseName
-                var body = L10n.format(
-                    "notif_before_class_compact",
-                    startTime.trimmingCharacters(in: .whitespaces).isEmpty
-                        ? L10n.t("agenda_time_unknown") : startTime,
-                    roomStr)
-                // ← handle(context, intent, source): 来源标签 = 该表在「开启提醒的全部表」
-                //   中的标注 (notificationSourceLabels; 单表/无标注 → 空表 → 无〔…〕后缀)。
-                if let tableId = extras["tableId"] as? Int64,
-                   let repo = NotificationScheduler.shared.repositoryProvider?() {
-                    let enabled = ((try? repo.getAllTables()) ?? []).filter { $0.reminderEnabled }
-                    if let source = notificationSourceLabels(enabled, L10n.t("agenda_table_unknown"))[tableId] {
-                        body += "\u{3014}\(source)\u{3015}"
-                    }
+            let content = UNMutableNotificationContent()
+            let courseName = extras["courseName"] as? String ?? ""
+            let room = (extras["room"] as? String) ?? ""
+            let startTime = (extras["startTime"] as? String) ?? ""
+            let roomStr = room.isEmpty ? L10n.t("notif_room_unknown") : room
+            // v1.0.62 ← CourseNotificationScheduler.handle: 标准横幅统一 compact 文案 —
+            //   title=课程名, 正文=「开始时间 · 教室」+ 多表来源标签〔…〕(教师不再进正文)。
+            content.title = courseName
+            var body = L10n.format(
+                "notif_before_class_compact",
+                startTime.trimmingCharacters(in: .whitespaces).isEmpty
+                    ? L10n.t("agenda_time_unknown") : startTime,
+                roomStr)
+            // ← handle(context, intent, source): 来源标签 = 该表在「开启提醒的全部表」
+            //   中的标注 (notificationSourceLabels; 单表/无标注 → 空表 → 无〔…〕后缀)。
+            if let tableId = extras["tableId"] as? Int64,
+               let repo = NotificationScheduler.shared.repositoryProvider?() {
+                let enabled = ((try? repo.getAllTables()) ?? []).filter { $0.reminderEnabled }
+                if let source = notificationSourceLabels(enabled, L10n.t("agenda_table_unknown"))[tableId] {
+                    body += "\u{3014}\(source)\u{3015}"
                 }
-                content.body = body
-                content.sound = .default
-                // 发送时重校验载荷 (Intent extras tableId/reminderDate):
-                // delegate willPresent 用这两个键复查 表存在+reminderEnabled+节假日策略。
-                var info: [String: Any] = [:]
-                if let tableId = extras["tableId"] as? Int64 { info["tableId"] = tableId }
-                if let reminderDate = extras["reminderDate"] as? String { info["reminderDate"] = reminderDate }
-                content.userInfo = info
-                let date = Date(timeIntervalSince1970: TimeInterval(epochMs) / 1000)
-                let comps = DateUtils.isoCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-                let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-                let req = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-                try? await UNUserNotificationCenter.current().add(req)
             }
+            content.body = body
+            content.sound = .default
+            // 发送时重校验载荷 (Intent extras tableId/reminderDate):
+            // delegate willPresent 用这两个键复查 表存在+reminderEnabled+节假日策略。
+            var info: [String: Any] = [:]
+            if let tableId = extras["tableId"] as? Int64 { info["tableId"] = tableId }
+            if let reminderDate = extras["reminderDate"] as? String { info["reminderDate"] = reminderDate }
+            content.userInfo = info
+            let date = Date(timeIntervalSince1970: TimeInterval(epochMs) / 1000)
+            let comps = DateUtils.isoCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+            let req = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+            try? await UNUserNotificationCenter.current().add(req)
         }
         func cancel(id: String) {
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
@@ -213,52 +240,70 @@ final class NotificationScheduler {
         self.env = ProdEnv()
         self.dataSource = ProdDataSource()
         self.alarmPort = ProdAlarmPort()
+        self.writeNotification = { request in _ = try? await UNUserNotificationCenter.current().add(request) }
+        self.loadAgenda = nil
+        self.cleanupLegacySummaries = { cleanupLegacyDailySummaryNotifications() }
+        self.usesBackgroundTasks = true
     }
 
     /// 测试构造器 — 注入 fake 端口。
-    init(env: NotificationSchedulerBeforeClassEnv, dataSource: NotificationSchedulerBeforeClassDataSource, alarmPort: NotificationSchedulerBeforeClassAlarmPort) {
+    init(env: NotificationSchedulerBeforeClassEnv, dataSource: NotificationSchedulerBeforeClassDataSource,
+         alarmPort: NotificationSchedulerBeforeClassAlarmPort,
+         writeNotification: @escaping (UNNotificationRequest) async -> Void = { request in _ = try? await UNUserNotificationCenter.current().add(request) },
+         loadAgenda: ((Date) async throws -> LoadedDailyAgenda)? = nil) {
         self.env = env
         self.dataSource = dataSource
         self.alarmPort = alarmPort
+        self.writeNotification = writeNotification
+        self.loadAgenda = loadAgenda
+        self.cleanupLegacySummaries = {}
+        self.usesBackgroundTasks = false
     }
 
     // ==================== scheduleAll ← ====================
 
-    func scheduleAll() {
+    @discardableResult
+    func scheduleAll() -> Task<Void, Never> {
         // iOS 无 NotificationChannel; 原 createChannels 在此处的隐式
         // requestAuthorization 已按权限政策摘除 —— 全 app 唯一申请点 =
         // ReminderScreen master 开关(用户显式操作), denied 后走系统设置引导。
-        Self.registerDailyResyncTask()
-        submitDailyResyncTask()
-        Task {
-            scheduleLock.lock(); defer { scheduleLock.unlock() }
-            cancelRecurringLocked()
-
-            guard prefs.isReminderEnabled() else {
-                await cancelBeforeClassLocked()
-                return
-            }
-
-            if prefs.isDailyReminderEnabled() {
-                // v1.0.61: 当日摘要可独立关闭 (← AppPrefs.isTodayReminderEnabled, key "today_reminder")
-                if isTodayReminderEnabled() {
-                    scheduleDaily()
-                }
-                scheduleTomorrowReminder()
-            }
-            guard prefs.isBeforeClassEnabled() else {
-                await cancelBeforeClassLocked()
-                return
-            }
-            scheduleBeforeClassDailyResync()
-            await resyncBeforeClassLocked()
+        if usesBackgroundTasks {
+            Self.registerDailyResyncTask()
+            submitDailyResyncTask()
+        }
+        return Task {
+            await scheduleGate.perform { await self.scheduleAllLocked() }
         }
     }
 
-    func cancelAll() async {
-        scheduleLock.lock(); defer { scheduleLock.unlock() }
+    private func scheduleAllLocked() async {
         cancelRecurringLocked()
-        await cancelBeforeClassLocked()
+
+        guard env.isReminderEnabled() else {
+            cancelBeforeClassLocked()
+            return
+        }
+
+        if env.isDailyReminderEnabled() {
+            // v1.0.61: 当日摘要可独立关闭 (← AppPrefs.isTodayReminderEnabled, key "today_reminder")
+            if isTodayReminderEnabled() {
+                await scheduleDaily()
+            }
+            await scheduleTomorrowReminder()
+        }
+        guard env.isReminderEnabled(), env.isBeforeClassEnabled() else {
+            cancelBeforeClassLocked()
+            return
+        }
+        await scheduleBeforeClassDailyResync()
+        await resyncBeforeClassLocked()
+    }
+
+    func cancelAll() async {
+        await scheduleGate.perform {
+            self.cancelRecurringLocked()
+            self.cancelBeforeClassLocked()
+        }
     }
 
     private func cancelRecurringLocked() {
@@ -274,12 +319,12 @@ final class NotificationScheduler {
         }
     }
 
-    private func cancelBeforeClassLocked() async {
+    private func cancelBeforeClassLocked() {
         alarmPort.cancel(id: Self.NOTIFY_RESYNC)
-        await cancelBeforeClassCourseAlarmsLocked()
+        cancelBeforeClassCourseAlarmsLocked()
     }
 
-    private func cancelBeforeClassCourseAlarmsLocked() async {
+    private func cancelBeforeClassCourseAlarmsLocked() {
         // 账本覆盖已删课程/已换掉的课表; 现存课程 id 覆盖账本上线前旧版本排下的闹钟
         let courseIds = dataSource.allCourseIds()
         let armed = env.loadArmedIds()
@@ -295,40 +340,34 @@ final class NotificationScheduler {
 
     /// 取消指定课程 id 的课前通知(ScheduleRepository.deleteTable 调 — 孤儿清理)。
     func cancelCourseAlarms(courseIds: [Int64]) {
-        for id in courseIds {
-            alarmPort.cancel(id: Self.NOTIFY_BEFORE_CLASS_PREFIX + String(id))
+        Task {
+            await scheduleGate.perform {
+                for id in courseIds {
+                    self.alarmPort.cancel(id: Self.NOTIFY_BEFORE_CLASS_PREFIX + String(id))
+                }
+            }
         }
     }
 
     // ==================== Daily ====================
 
-    private func scheduleDaily() {
-        scheduleDailyAlarm(
-            timeStr: prefs.getDailyReminderTime(),
+    private func scheduleDaily() async {
+        await postDailySummariesLocked(
+            timeStr: env.dailyReminderTime(),
             fallbackHour: 7, fallbackMinute: 0,
             identifier: Self.NOTIFY_DAILY,
             isTomorrowPreview: false
         )
     }
 
-    private func scheduleTomorrowReminder() {
-        guard prefs.isTomorrowReminderEnabled() else { return }
-        scheduleDailyAlarm(
-            timeStr: prefs.getTomorrowReminderTime(),
+    private func scheduleTomorrowReminder() async {
+        guard env.isTomorrowReminderEnabled() else { return }
+        await postDailySummariesLocked(
+            timeStr: env.tomorrowReminderTime(),
             fallbackHour: 22, fallbackMinute: 0,
             identifier: Self.NOTIFY_TOMORROW_DAILY,
             isTomorrowPreview: true
         )
-    }
-
-    private func scheduleDailyAlarm(
-        timeStr: String, fallbackHour: Int, fallbackMinute: Int,
-        identifier: String, isTomorrowPreview: Bool
-    ) {
-        Task {
-            await postDailySummaries(timeStr: timeStr, fallbackHour: fallbackHour, fallbackMinute: fallbackMinute,
-                                     identifier: identifier, isTomorrowPreview: isTomorrowPreview)
-        }
     }
 
     /// 摘要 id ← sendScheduleSummary 扇出号段: NOTIFY_TABLE_SUMMARY_BASE + tableId*2
@@ -369,6 +408,15 @@ final class NotificationScheduler {
     /// 纯函数保留并由单测锁定 (DailyAgendaTests)。
     func postDailySummaries(timeStr: String, fallbackHour: Int, fallbackMinute: Int,
                             identifier: String, isTomorrowPreview: Bool) async {
+        await scheduleGate.perform {
+            await self.postDailySummariesLocked(timeStr: timeStr, fallbackHour: fallbackHour,
+                fallbackMinute: fallbackMinute, identifier: identifier, isTomorrowPreview: isTomorrowPreview)
+        }
+    }
+
+    private func postDailySummariesLocked(timeStr: String, fallbackHour: Int, fallbackMinute: Int,
+                                         identifier: String, isTomorrowPreview: Bool) async {
+        guard dailySummaryAllowed(isTomorrowPreview: isTomorrowPreview) else { return }
         let parts = timeStr.split(separator: ":").map(String.init)
         // 钳制到合法范围, 避免破损 pref 触发崩溃
         let hour = min(max(Int(parts.count > 0 ? parts[0] : "") ?? fallbackHour, 0), 23)
@@ -385,17 +433,26 @@ final class NotificationScheduler {
             : nextFire
 
         // ← sendScheduleSummary: 先清 v1.0.61 扇出遗留, 再现读现算
-        cleanupLegacyDailySummaryNotifications()
+        cleanupLegacySummaries()
         let loaded: LoadedDailyAgenda
         do {
-            guard let repo = repositoryProvider?() else { throw AgendaLoadError.noRepository }
-            loaded = try await loadDailyAgenda(repository: repo, targetDate: targetDate)
+            if let loadAgenda {
+                loaded = try await loadAgenda(targetDate)
+            } else {
+                guard let repo = repositoryProvider?() else { throw AgendaLoadError.noRepository }
+                loaded = try await loadDailyAgenda(repository: repo, targetDate: targetDate)
+            }
         } catch {
             // ← 原 sendScheduleSummary 抛错即接收器协程静默不发; iOS 主 id 触发器
             //   是每日重算锚不能撤, 贴静默载荷保锚存活, 到货/BGTask 重算兜底。
-            await postSilentAnchor(identifier: identifier, trigger: trigger)
+            if dailySummaryAllowed(isTomorrowPreview: isTomorrowPreview) {
+                await postSilentAnchor(identifier: identifier, trigger: trigger)
+            }
             return
         }
+        // Settings may change while holiday data is loading. Do not restore a
+        // notification after its master or daily sub-switch was turned off.
+        guard dailySummaryAllowed(isTomorrowPreview: isTomorrowPreview) else { return }
         // 上一轮扇出账本全撤 (单条聚合后不再有扇出 id; v1.0.61 升级残留在此收口)
         let previous = env.loadDailySummaryIds(isTomorrowPreview: isTomorrowPreview)
         for id in previous { alarmPort.cancel(id: id) }
@@ -461,7 +518,7 @@ final class NotificationScheduler {
         content.sound = .default
         // 点击 → 议程页 (绝对日历日期, ← DailyAgendaActivity.pendingIntent EXTRA_DATE)
         content.userInfo = [Self.KEY_USERINFO_AGENDA_DATE: DateUtils.fullDate(targetDate)]
-        try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+        await writeNotification(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     }
 
     /// 节假日全豁免/重算失败时的锚保活载体: 空载荷 + silent 标记, delegate 到货丢弃展示。
@@ -470,7 +527,7 @@ final class NotificationScheduler {
         content.title = "Sleepy"
         content.body = ""
         content.userInfo = [Self.KEY_USERINFO_SUMMARY_SILENT: true]
-        try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+        await writeNotification(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     }
 
     private enum AgendaLoadError: Error { case noRepository }
@@ -478,13 +535,24 @@ final class NotificationScheduler {
     /// 到货/后台唤醒重算入口: 按当前 prefs 重贴当日/次日摘要 (schedule 侧同款逻辑)。
     /// ← DailyNotifyReceiver/TomorrowNotifyReceiver.onReceive 的到货重查。
     func refreshDailySummaries(isTomorrowPreview: Bool) async {
+        await scheduleGate.perform {
+            await self.refreshDailySummariesLocked(isTomorrowPreview: isTomorrowPreview)
+        }
+    }
+
+    private func refreshDailySummariesLocked(isTomorrowPreview: Bool) async {
         // 与 原版本 接收器同款到货重查: 总闸/日提醒闸/当日子闸
-        guard Self.dailySummaryGateOpen(isTomorrowPreview: isTomorrowPreview) else { return }
+        guard dailySummaryAllowed(isTomorrowPreview: isTomorrowPreview) else { return }
         let identifier = isTomorrowPreview ? Self.NOTIFY_TOMORROW_DAILY : Self.NOTIFY_DAILY
-        let timeStr = isTomorrowPreview ? prefs.getTomorrowReminderTime() : prefs.getDailyReminderTime()
-        await postDailySummaries(timeStr: timeStr, fallbackHour: isTomorrowPreview ? 22 : 7,
+        let timeStr = isTomorrowPreview ? env.tomorrowReminderTime() : env.dailyReminderTime()
+        await postDailySummariesLocked(timeStr: timeStr, fallbackHour: isTomorrowPreview ? 22 : 7,
                                  fallbackMinute: 0, identifier: identifier,
                                  isTomorrowPreview: isTomorrowPreview)
+    }
+
+    private func dailySummaryAllowed(isTomorrowPreview: Bool) -> Bool {
+        guard env.isReminderEnabled(), env.isDailyReminderEnabled() else { return false }
+        return isTomorrowPreview ? env.isTomorrowReminderEnabled() : env.isTodayReminderEnabled()
     }
 
     /// 每日摘要到货闸 ← DailyNotifyReceiver/TomorrowNotifyReceiver 的三闸重查:
@@ -500,7 +568,7 @@ final class NotificationScheduler {
     /// AppPrefs 的 getter 已落地 (Sleepy/util/AppPrefs.swift), 直接走公开访问器 —— 与
     /// ReminderScreen 的开关节同一入口, 不再经 sharedBackedStore 直读。
     func isTodayReminderEnabled() -> Bool {
-        AppPrefs.shared.isTodayReminderEnabled()
+        env.isTodayReminderEnabled()
     }
 
     // ==================== Before-class 7 天幂等重同步 ====================
@@ -508,7 +576,7 @@ final class NotificationScheduler {
     /// 每日 00:05 的全窗口重同步载体 — 静默通知, 到货由 delegate
     /// SleepyNotificationDelegate 调 handleDailyResync (v1.0.61: 此前注释宣称的 delegate
     /// 从未注册 = 死接线; 现在 delegate 实现 + BGAppRefreshTask 双通路都已落地)。
-    private func scheduleBeforeClassDailyResync() {
+    private func scheduleBeforeClassDailyResync() async {
         var comps = DateComponents()
         comps.hour = 0
         comps.minute = 5
@@ -521,7 +589,7 @@ final class NotificationScheduler {
         }
         content.userInfo = [Self.KEY_USERINFO_RESYNC: true]
         let req = UNNotificationRequest(identifier: Self.NOTIFY_RESYNC, content: content, trigger: trigger)
-        try? center.add(req)
+        await writeNotification(req)
     }
 
     /// 兼容入口 — 语义已升级为「未来 7 天全窗口重同步」(幂等)。
@@ -534,13 +602,12 @@ final class NotificationScheduler {
     /// 只需撤销"上次排过、这次不再需要"的 id。上次排过的集合持久化在账本里。
     /// 学期范围外的天跳过(防呆: currentWeek 钳制会误匹配第 1 周的课)。
     func scheduleNext7DaysExactAlarms() async {
-        scheduleLock.lock(); defer { scheduleLock.unlock() }
-        await resyncBeforeClassLocked()
+        await scheduleGate.perform { await self.resyncBeforeClassLocked() }
     }
 
     private func resyncBeforeClassLocked() async {
         let previous = env.loadArmedIds()
-        let tables = env.isBeforeClassEnabled() ? dataSource.resolveReminderTables() : []
+        let tables = env.isReminderEnabled() && env.isBeforeClassEnabled() ? dataSource.resolveReminderTables() : []
         if tables.isEmpty {
             for id in previous { alarmPort.cancel(id: id) }
             env.saveArmedIds([])
@@ -560,6 +627,10 @@ final class NotificationScheduler {
                                     desired: &desired, desiredIds: &desiredIds,
                                     windowCourseIds: &windowCourseIds)
         }
+        guard env.isReminderEnabled(), env.isBeforeClassEnabled() else {
+            cancelBeforeClassLocked()
+            return
+        }
 
         // 撤销不再需要的: 账本里的 + 窗口内出现过的(覆盖账本上线前旧版本排下的)
         var toCancel = previous
@@ -568,7 +639,12 @@ final class NotificationScheduler {
             alarmPort.cancel(id: id)
         }
         for (id, epoch, extras) in desired {
-            alarmPort.setExact(id: id, epochMs: epoch, extras: extras)
+            await alarmPort.setExact(id: id, epochMs: epoch, extras: extras)
+        }
+        if !env.isReminderEnabled() || !env.isBeforeClassEnabled() {
+            for id in desiredIds { alarmPort.cancel(id: id) }
+            env.saveArmedIds([])
+            return
         }
         env.saveArmedIds(desiredIds)
     }
@@ -699,13 +775,15 @@ final class NotificationScheduler {
     /// 每日接收器每次现算语义: 课前链路开时重同步 7 天窗口, 每日链路开时重算摘要内容。
     /// delegate 收到 sleepy_resync / BGAppRefreshTask handler 都调此函数。
     func handleDailyResync() async {
-        guard prefs.isReminderEnabled() else { return }
-        if prefs.isBeforeClassEnabled() {
-            await scheduleNext7DaysExactAlarms()
-        }
-        if prefs.isDailyReminderEnabled() {
-            await refreshDailySummaries(isTomorrowPreview: false)
-            await refreshDailySummaries(isTomorrowPreview: true)
+        await scheduleGate.perform {
+            guard self.env.isReminderEnabled() else { return }
+            if self.env.isBeforeClassEnabled() {
+                await self.resyncBeforeClassLocked()
+            }
+            if self.env.isDailyReminderEnabled() {
+                await self.refreshDailySummariesLocked(isTomorrowPreview: false)
+                await self.refreshDailySummariesLocked(isTomorrowPreview: true)
+            }
         }
     }
 
@@ -763,6 +841,12 @@ final class NotificationScheduler {
 
 /// 课前通知环境值 — prefs/时钟/账本读取接缝。
 protocol NotificationSchedulerBeforeClassEnv {
+    func isReminderEnabled() -> Bool
+    func isDailyReminderEnabled() -> Bool
+    func isTodayReminderEnabled() -> Bool
+    func isTomorrowReminderEnabled() -> Bool
+    func dailyReminderTime() -> String
+    func tomorrowReminderTime() -> String
     func isBeforeClassEnabled() -> Bool
     func beforeClassMinutes() -> Int
     func nowEpochMs() -> Int64
@@ -776,6 +860,12 @@ protocol NotificationSchedulerBeforeClassEnv {
 
 /// 默认实现回退空账本 — 兼容未升级的旧测试替身 (接口默认方法同款兼容策略)。
 extension NotificationSchedulerBeforeClassEnv {
+    func isReminderEnabled() -> Bool { true }
+    func isDailyReminderEnabled() -> Bool { false }
+    func isTodayReminderEnabled() -> Bool { true }
+    func isTomorrowReminderEnabled() -> Bool { true }
+    func dailyReminderTime() -> String { "07:00" }
+    func tomorrowReminderTime() -> String { "22:00" }
     func loadDailySummaryIds(isTomorrowPreview: Bool) -> Set<String> { [] }
     func saveDailySummaryIds(_ ids: Set<String>, isTomorrowPreview: Bool) {}
 }
@@ -805,7 +895,7 @@ extension NotificationSchedulerBeforeClassDataSource {
 
 /// 课前通知落地端口 — UNUserNotificationCenter 接缝。
 protocol NotificationSchedulerBeforeClassAlarmPort {
-    func setExact(id: String, epochMs: Int64, extras: [String: Any?])
+    func setExact(id: String, epochMs: Int64, extras: [String: Any?]) async
     func cancel(id: String)
 }
 

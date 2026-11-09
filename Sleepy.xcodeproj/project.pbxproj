@@ -501,6 +501,7 @@
 		84DB1225A1B92ACD725D994C /* SystemColorProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE3AC9450211B1691131AA2 /* SystemColorProbe.swift */; };
 		84FC6D0B5696C1AF3C7ED675 /* ImportRosterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E0C397C35B589BA063FC4D /* ImportRosterTests.swift */; };
 		855F5BB386D6E4CD46BD4544 /* XiaoaiPresetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68536393477E84721CF8AE2C /* XiaoaiPresetData.swift */; };
+		8576D141BBF77009F22F0D93 /* NotificationSchedulerSerializationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F4C75E5725D7BAF0FAB23E /* NotificationSchedulerSerializationTests.swift */; };
 		857D502CBB7F65B3266E11D1 /* CourseDragViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA40C3996D971B76BB4C1C7 /* CourseDragViewModelTests.swift */; };
 		85CDA2ACCCF749A4D3DC7619 /* WeekGridWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76EC0EF9B72C669E4A56B91E /* WeekGridWidgetView.swift */; };
 		861AB6B5478DB2423D1323C2 /* NativeColorPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9103FA65945B83156A93E926 /* NativeColorPicker.swift */; };
@@ -1160,6 +1161,7 @@
 		461D4FA2DB17915ACF3D0063 /* JwUrpParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwUrpParser.swift; sourceTree = "<group>"; };
 		467B034A9889202CEA76931B /* JwWiseduParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWiseduParser.swift; sourceTree = "<group>"; };
 		46936162C031CBA022123E64 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+		46F4C75E5725D7BAF0FAB23E /* NotificationSchedulerSerializationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSchedulerSerializationTests.swift; sourceTree = "<group>"; };
 		470B2F1B228FAF14D3C44AE7 /* JwFetchJs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwFetchJs.swift; sourceTree = "<group>"; };
 		4737C8EBD3C461383C3E9868 /* UcasDetailFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UcasDetailFetch.swift; sourceTree = "<group>"; };
 		47B6F574D4104631810ED34D /* SchoolLocationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolLocationPolicyTests.swift; sourceTree = "<group>"; };
@@ -2154,6 +2156,7 @@
 				D8594A29E16AA5CD4AA06BD6 /* MigrationV11Tests.swift */,
 				4184711E3032D79F5EFBB8EA /* NavStyleResolverTests.swift */,
 				FC05E15831A481E31568369A /* NewTableImportTests.swift */,
+				46F4C75E5725D7BAF0FAB23E /* NotificationSchedulerSerializationTests.swift */,
 				DA5552387A1965D9D7A826FD /* NotificationSchedulerTests.swift */,
 				0509FB949FB47C89D3DF4D3F /* OfflineSchoolCityIndexTests.swift */,
 				8AEB87F1BAD17F9852E4B728 /* ParityInterfaceCompatibilityTests.swift */,
@@ -3482,6 +3485,7 @@
 				448F58E97EC4E4577A6888A8 /* MigrationV7toV10Tests.swift in Sources */,
 				8F8E2B9C098E42D7DEF21A20 /* NavStyleResolverTests.swift in Sources */,
 				8CFDB523597E9B801D140C8E /* NewTableImportTests.swift in Sources */,
+				8576D141BBF77009F22F0D93 /* NotificationSchedulerSerializationTests.swift in Sources */,
 				D6A77838155D92547C7D6395 /* NotificationSchedulerTests.swift in Sources */,
 				2CBD595B07B651F609293D57 /* OfflineSchoolCityIndexTests.swift in Sources */,
 				C00E24573D445F38DB5F1FE1 /* ParityInterfaceCompatibilityTests.swift in Sources */,
