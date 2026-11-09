@@ -128,7 +128,7 @@ struct WidgetManagementScreen: View {
     }
 }
 
-// ← PlacedWidgetRow: Card = surfaceContainer + large 圆角(项目既有映射), padding 12dp
+// ← v1.0.63 Material3 1.5.0-beta02 默认 Card: surfaceContainerHighest + medium(12), padding 12dp
 private struct PlacedWidgetRow: View {
     @Environment(\.localWakeUpColors) private var colors
     let item: PlacedWidgetItem
@@ -152,8 +152,8 @@ private struct PlacedWidgetRow: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(colors.surfaceContainer)
-            .cornerRadius(SleepyShapes.large)
+            .background(colors.surfaceContainerHighest)
+            .cornerRadius(SleepyShapes.medium)
         }
         .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("widget_manage_row_\(item.kind)")
