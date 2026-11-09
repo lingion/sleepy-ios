@@ -54,6 +54,10 @@ final class UIElementAuditUITests: XCTestCase {
     }
 
     private func captureScreenshot(named name: String) {
+        // Selection traits update before the production 0.42s content spring.
+        // Let that transition finish so captures show a stable page rather than
+        // the outgoing schedule superimposed on the incoming management page.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
         let screenshot = app.windows.firstMatch.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
@@ -147,7 +151,11 @@ final class UIElementAuditUITests: XCTestCase {
     }
 
     private func navigateToExport() {
-        openMineSetting("mine_export", assertAnchor: "topbar_back")
+        switchToTab("manage")
+        let export = app.descendants(matching: .any)["manage_export"].firstMatch
+        XCTAssertTrue(export.waitForExistence(timeout: 5))
+        export.tap()
+        XCTAssertTrue(app.buttons["topbar_back"].firstMatch.waitForExistence(timeout: 5))
     }
 
     private func navigateToAbout() {
@@ -159,11 +167,14 @@ final class UIElementAuditUITests: XCTestCase {
     }
 
     private func navigateToAddCourseEmpty() {
-        // 加课页入口在 manage Tab 的 manage_add_course 卡(schedule 页无固定加课按钮)
+        // 管理页先选择添加方式，再进入手动课程表单。
         switchToTab("manage")
         let addBtn = app.buttons["manage_add_course"].firstMatch
         XCTAssertTrue(addBtn.waitForExistence(timeout: 5), "manage_add_course 未找到")
         addBtn.tap()
+        let manual = app.buttons["import_manual"].firstMatch
+        XCTAssertTrue(manual.waitForExistence(timeout: 5), "添加课程方式页缺少手动入口")
+        manual.tap()
         let back = app.descendants(matching: .any)["topbar_back"].firstMatch
         XCTAssertTrue(back.waitForExistence(timeout: 5), "加课页未打开(topbar_back 未出现)")
         Thread.sleep(forTimeInterval: 1)
@@ -242,7 +253,7 @@ final class UIElementAuditUITests: XCTestCase {
     func testA1_Mine_Main() {
         launchApp(language: "zh-Hans", appearance: "light")
         switchToTab("mine")
-        // Mine 有三个统计卡:mine_stat_tables / mine_stat_courses / mine_stat_week
+        // Mine 有三个统计卡:mine_stat_tables / mine_stat_courses / mine_stat_period_tables
         captureScreenshot("A1_mine_zh-Hans_light")
     }
 
@@ -376,10 +387,7 @@ final class UIElementAuditUITests: XCTestCase {
 
     func testA4_AddCourseNavigationBack() {
         launchApp(language: "zh-Hans", appearance: "light")
-        switchToTab("manage")
-        let add = app.buttons["manage_add_course"].firstMatch
-        XCTAssertTrue(add.waitForExistence(timeout: 5), "加课入口未出现")
-        add.tap()
+        navigateToAddCourseEmpty()
         let addBack = app.descendants(matching: .any)["topbar_back"].firstMatch
         XCTAssertTrue(addBack.waitForExistence(timeout: 5), "加课页未打开")
         addBack.tap()
