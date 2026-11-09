@@ -112,7 +112,32 @@ enum ImportFormatKey: String, Identifiable, CaseIterable {
         return items
     }
     /// 示例(← format_*_example)
-    var exampleText: String { L10n.format("format_\(l10nKey)_example") }
+    var exampleText: String {
+        Self.decodeAndroidResourceEscapes(L10n.format("format_\(l10nKey)_example"))
+    }
+
+    /// Decode the migrated Android resource layer once. A doubled backslash
+    /// belongs to the example itself, such as an ICS DESCRIPTION's literal \n.
+    static func decodeAndroidResourceEscapes(_ value: String) -> String {
+        var output = ""
+        output.reserveCapacity(value.utf8.count)
+        var characters = value.makeIterator()
+        while let character = characters.next() {
+            guard character == "\\", let escaped = characters.next() else {
+                output.append(character)
+                continue
+            }
+            switch escaped {
+            case "n": output.append("\n")
+            case "t": output.append("\t")
+            case "\\": output.append("\\")
+            default:
+                output.append("\\")
+                output.append(escaped)
+            }
+        }
+        return output
+    }
 }
 
 struct ImportSheet: View {
@@ -959,9 +984,7 @@ private struct FormatDetailDialog: View {
                     }
                 }
                 Section(L10n.format("format_help_example")) {
-                    Text(format.exampleText
-                            .replacingOccurrences(of: "\\n", with: "\n")
-                            .replacingOccurrences(of: "\\t", with: "\t"))
+                    Text(format.exampleText)
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundColor(colors.onSurface)
                         .frame(maxWidth: .infinity, alignment: .leading)

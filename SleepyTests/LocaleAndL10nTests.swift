@@ -56,4 +56,45 @@ final class LocaleAndL10nTests: XCTestCase {
         }
         LocaleHelper.applyLanguage("zh-CN")
     }
+
+    func testFormatExampleDecodesOnlyTheAndroidResourceEscapeLayer() {
+        XCTAssertEqual(ImportFormatKey.decodeAndroidResourceEscapes(#"line\ncolumn\t\\n\q\\"#),
+                       "line\ncolumn\t\\n\\q\\")
+        XCTAssertEqual(ImportFormatKey.decodeAndroidResourceEscapes("trailing\\"), "trailing\\")
+        XCTAssertEqual(ImportFormatKey.decodeAndroidResourceEscapes("already\nexpanded\ttext"),
+                       "already\nexpanded\ttext")
+    }
+
+    func testLocalizedIcsExamplesPreserveDescriptionEscapesAndParseTeacher() throws {
+        let cases = [("zh-CN", "张三"), ("zh-TW", "張三"),
+                     ("en", "John"), ("ja", "John"), ("es", "Juan")]
+        for (language, teacher) in cases {
+            LocaleHelper.applyLanguage(language)
+            // Exercise the same localized value consumed by FormatDetailDialog.
+            let example = ImportFormatKey.ics.exampleText
+            XCTAssertEqual(example.filter { $0 == "\n" }.count, 9, language)
+            XCTAssertEqual(example.components(separatedBy: #"\n"#).count - 1, 2, language)
+            XCTAssertFalse(example.contains("\\\n"), "A resource escape must not become a backslash plus LF: \(language)")
+            let description = try XCTUnwrap(example.components(separatedBy: "\n")
+                .first { $0.hasPrefix("DESCRIPTION:") }, language)
+            XCTAssertEqual(description.components(separatedBy: #"\n"#).count, 3, language)
+
+            let parsed = try ScheduleParser.parse(example, defaultTableId: 1).get()
+            XCTAssertEqual(parsed.courses.count, 1, language)
+            let course = try XCTUnwrap(parsed.courses.first, language)
+            XCTAssertEqual(course.room, "A101", language)
+            XCTAssertEqual(course.teacher, teacher, "The production parser must retain the DESCRIPTION teacher: \(language)")
+        }
+    }
+
+    func testLocalizedWakeUpShareExamplesPreservePercentEncodingAndLineBreaks() {
+        for language in ["zh-CN", "zh-TW", "en", "ja", "es"] {
+            LocaleHelper.applyLanguage(language)
+            let example = ImportFormatKey.wakeupShare.exampleText
+            XCTAssertEqual(example.filter { $0 == "\n" }.count, 2, language)
+            XCTAssertTrue(example.contains("%5B%7B%22name%22"), language)
+            XCTAssertFalse(example.contains("%%5B"), language)
+            XCTAssertFalse(example.contains("\\\n"), language)
+        }
+    }
 }
