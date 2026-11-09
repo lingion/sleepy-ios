@@ -117,6 +117,7 @@
 		1C8E683FDAFAE99A1ED64D2F /* JwQzAppParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 991A8A88EDA9AC6FE69501FB /* JwQzAppParserTests.swift */; };
 		1C9FAB55A97BAE3BA49E1698 /* ThemePresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B72E006270ED69703F906F4 /* ThemePresets.swift */; };
 		1CCAD24DDB460F17DADB2344 /* HolidayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C280149FF5701E57DD8E3418 /* HolidayManager.swift */; };
+		1CD005A3C8D3469EC13CCBCA /* TimeSlotReorderParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F3758DE5315D82A3690C8C /* TimeSlotReorderParityTests.swift */; };
 		1D36BC8B9FD884814139619C /* JwCatalogueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB11F437022C4816C0AD581 /* JwCatalogueTests.swift */; };
 		1D4043F77A7E026C5EABF415 /* WidgetScrollStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E863D5E148DA13657A66F19F /* WidgetScrollStore.swift */; };
 		1D949EFE0C48290C2D6B4618 /* PARSERS_NOTICE.json in Resources */ = {isa = PBXBuildFile; fileRef = 5D43712C2EE55C28649E9A6B /* PARSERS_NOTICE.json */; };
@@ -1276,6 +1277,7 @@
 		713C016B6B2A7FCBBE0600AE /* ScheduleConflictBottomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleConflictBottomSheet.swift; sourceTree = "<group>"; };
 		715802C2A36A63F13CDA2C0C /* JwBjtuParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwBjtuParser.swift; sourceTree = "<group>"; };
 		71FC5D5AEF8AC95542F912DF /* CourseDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDetailView.swift; sourceTree = "<group>"; };
+		72F3758DE5315D82A3690C8C /* TimeSlotReorderParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeSlotReorderParityTests.swift; sourceTree = "<group>"; };
 		73294570746FDF69FA280F6E /* SleepyMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyMotion.swift; sourceTree = "<group>"; };
 		7336E89D8D3A426358DF3F51 /* ImportPreviewSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPreviewSessionTests.swift; sourceTree = "<group>"; };
 		7451AB70BA89941A9C56CBB5 /* WidgetTextWrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTextWrap.swift; sourceTree = "<group>"; };
@@ -2241,6 +2243,7 @@
 				BCC4B67228CB7512A7890C3D /* ThemeAndPinyinTests.swift */,
 				48B57B506E8C062A76A1C62B /* ThemeColorInterpolationTests.swift */,
 				C6A4164038C77837963DF96E /* TimeSlotEditorTests.swift */,
+				72F3758DE5315D82A3690C8C /* TimeSlotReorderParityTests.swift */,
 				2F1563123EEBE8166F29623F /* TimeTableUtilsAlignmentTests.swift */,
 				6B54C7ABE0AD4B91392A32A1 /* TimeTableUtilsTests.swift */,
 				0ADF37AF4B24FC388BA9CEE2 /* UndoCaptureCoverageTests.swift */,
@@ -3589,6 +3592,7 @@
 				334E4375A4D51E4A269A969C /* ThemeAndPinyinTests.swift in Sources */,
 				E5B0C9DCEC66A20716C89B00 /* ThemeColorInterpolationTests.swift in Sources */,
 				5B93D71FE038783849334AC2 /* TimeSlotEditorTests.swift in Sources */,
+				1CD005A3C8D3469EC13CCBCA /* TimeSlotReorderParityTests.swift in Sources */,
 				6F9732E349AFDA68CA653E3C /* TimeTableUtilsAlignmentTests.swift in Sources */,
 				F4F3C180248F3621BFF7E4C4 /* TimeTableUtilsTests.swift in Sources */,
 				C8093691F612B15E78BCE398 /* UndoCaptureCoverageTests.swift in Sources */,
