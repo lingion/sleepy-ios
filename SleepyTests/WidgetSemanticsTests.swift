@@ -552,7 +552,8 @@ final class WidgetSemanticsTests: XCTestCase {
                           courses: [course(1, start: "08:00", end: "08:45"),
                                     course(2, startNode: 3, start: "10:00", end: "10:45")], timeJson: "")
         let data = WeekData(days: [day], hasTable: true)
-        let timeline = WeekGridWidgetProvider.timelineEntries(data: data, family: .systemSmall, from: now)
+        let timeline = WeekGridWidgetProvider.timelineEntries(data: data, family: .systemSmall,
+                                                              width: 149, from: now)
         XCTAssertEqual(timeline.map { $0.minimumTodayEntry.nowMin }, [480, 526, 646])
         XCTAssertEqual(timeline.map(\.date), [now, now.addingTimeInterval(46 * 60),
                                                now.addingTimeInterval(166 * 60)])
@@ -576,8 +577,10 @@ final class WidgetSemanticsTests: XCTestCase {
                           courses: [course(1, start: "08:00", end: "08:45")], timeJson: "")
         let data = WeekData(days: [day], hasTable: true, weekDisplayStatus: .nearestBusyDay,
                             nearestBusyTargetDate: day.date)
-        XCTAssertEqual(WeekGridWidgetProvider.timelineEntries(data: data, family: .systemLarge, from: now).count, 1)
-        let compact = WeekGridWidgetProvider.timelineEntries(data: data, family: .systemSmall, from: now)
+        XCTAssertEqual(WeekGridWidgetProvider.timelineEntries(data: data, family: .systemLarge,
+                                                              width: 149, from: now).count, 1)
+        let compact = WeekGridWidgetProvider.timelineEntries(data: data, family: .systemSmall,
+                                                             width: 149, from: now)
         XCTAssertEqual(compact.count, 1)
         XCTAssertFalse(compact[0].minimumTodayEntry.data.isToday)
         XCTAssertEqual(compact[0].minimumTodayEntry.data.date, day.date)
@@ -589,8 +592,23 @@ final class WidgetSemanticsTests: XCTestCase {
         let day = DayData(date: calendar.startOfDay(for: now), dayOfWeek: DateUtils.todayDayOfWeek(today: now),
                           courses: [course(1, start: "23:00", end: "23:59")], timeJson: "")
         let timeline = WeekGridWidgetProvider.timelineEntries(data: WeekData(days: [day], hasTable: true),
-                                                              family: .systemSmall, from: now)
+                                                              family: .systemSmall, width: 149, from: now)
         XCTAssertEqual(timeline.map(\.date), [now], "午夜必须重新装载日期/周次，不能复用昨天的数据")
+    }
+
+    func testFullGridFacesDoNotGenerateTodayCourseBoundaryEntries() throws {
+        let calendar = DateUtils.isoCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 8)))
+        let day = DayData(date: calendar.startOfDay(for: now), dayOfWeek: DateUtils.todayDayOfWeek(today: now),
+                          courses: [course(1, start: "08:00", end: "08:45")], timeJson: "")
+        let data = WeekData(days: [day], hasTable: true)
+        let sizes: [(WidgetFamily, CGFloat)] = [(.systemSmall, 150), (.systemSmall, 158),
+                                                (.systemMedium, 149), (.systemLarge, 149)]
+        for (family, width) in sizes {
+            let entries = WeekGridWidgetProvider.timelineEntries(data: data, family: family,
+                                                                 width: width, from: now)
+            XCTAssertEqual(entries.map(\.date), [now], "\(family), \(width)pt is a full grid")
+        }
     }
 
     // MARK: - timeJson 分簇 (← 25c943f0 非标准时间被误判冲突)

@@ -8,6 +8,13 @@
 import SwiftUI
 import WidgetKit
 
+enum WeekGridWidgetLayout {
+    /// Android v1.0.63 upgrades even its SMALL variant to a grid at 150dp.
+    static func usesTodayFace(family: WidgetFamily, width: CGFloat) -> Bool {
+        family == .systemSmall && width < 150
+    }
+}
+
 struct WeekGridWidgetEntry: TimelineEntry {
     let date: Date
     let data: WeekData
@@ -38,17 +45,19 @@ struct WeekGridWidgetProvider: TimelineProvider {
         Task {
             let now = Date()
             let data = await WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19")
-            let entries = Self.timelineEntries(data: data, family: context.family, from: now)
+            let entries = Self.timelineEntries(data: data, family: context.family,
+                                               width: context.displaySize.width, from: now)
             let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
             WidgetArchiveLog.append(kind: "WeekGridWidgetV19", family: context.family.description, result: "success")
             completion(Timeline(entries: entries, policy: .after(refresh)))
         }
     }
 
-    static func timelineEntries(data: WeekData, family: WidgetFamily, from date: Date) -> [WeekGridWidgetEntry] {
+    static func timelineEntries(data: WeekData, family: WidgetFamily, width: CGFloat,
+                                from date: Date) -> [WeekGridWidgetEntry] {
         let current = WeekGridWidgetEntry(date: date, data: data)
         let today = current.minimumTodayEntry.data
-        guard family == .systemSmall, today.hasTable, today.isToday,
+        guard WeekGridWidgetLayout.usesTodayFace(family: family, width: width), today.hasTable, today.isToday,
               today.semesterStatus == .inRange else { return [current] }
         let refresh = WidgetBoundaryScheduler.nextRefresh(after: date)
         let boundaries = WidgetWindows.boundaryDates(courses: today.courses, timeJson: today.timeJson, from: date)
@@ -67,14 +76,15 @@ struct WeekGridWidgetEntryView: View {
 
     var body: some View {
         // iOS 26 「透明/着色」样式探测 (← WidgetBackgroundCompat): glass 态配色换白 alpha;
-        // SMALL 档 Today 紧凑面与网格主体共用同一探测结果
+        // SMALL 且实际宽度 <150pt 才用 Today 脸；宽 small 与中/大档保留完整网格。
         WidgetGlassModeContent { mode in
-            // issue#26: SMALL 档 — 仅渲染今日紧凑面(复用 Today compact face;
-            // TodayWidgetEntryView 自身再探测 glass, 嵌套探测无害)
-            if (galleryFamily ?? widgetFamily) == .systemSmall {
-                WeekGridMinimumTodayFace(entry: entry)
-            } else {
-                gridBody(renderingMode: mode)
+            GeometryReader { geometry in
+                if WeekGridWidgetLayout.usesTodayFace(family: galleryFamily ?? widgetFamily,
+                                                       width: geometry.size.width) {
+                    WeekGridMinimumTodayFace(entry: entry)
+                } else {
+                    gridBody(renderingMode: mode)
+                }
             }
         }
         .widgetURL(URL(string: "sleepy://open"))
@@ -1090,7 +1100,7 @@ enum VerticalNameTokenizer {
 
 // MARK: - SMALL 档 ← weekGridMinimumTodayData + pushTodayData(SMALL)
 
-/// WeekGrid systemSmall: 不再"折叠成单列的网格脸", 直接渲染今日课程·小
+/// WeekGrid systemSmall 且宽 <150pt: 不再"折叠成单列的网格脸", 直接渲染今日课程·小
 /// (数据侧 weekGridMinimumTodayData: WeekData → 今日 WidgetData, 纯函数;
 ///  原版本 今日·小已删纯文本脸改走常规渲染器 → iOS 直接复用 TodayWidgetEntryView)
 private struct WeekGridMinimumTodayFace: View {
