@@ -11,12 +11,15 @@ struct WidgetBaselineText: View {
     let width: CGFloat
     let height: CGFloat
     let baseline: CGFloat
+    /// Canvas day headings draw complete labels beyond their column bounds.
+    var allowsHorizontalOverflow: Bool = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.clear
             text
                 .lineLimit(1)
+                .fixedSize(horizontal: allowsHorizontalOverflow, vertical: false)
                 .frame(width: width, alignment: .center)
                 .alignmentGuide(.top) { $0[.firstTextBaseline] - baseline }
         }

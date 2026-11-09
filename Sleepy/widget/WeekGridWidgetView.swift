@@ -99,6 +99,34 @@ struct WeekGridWidgetEntryView: View {
     }
 }
 
+/// Canvas day headings may extend beyond a narrow column; only the widget clips them.
+struct WeekGridDayHeader: View {
+    let dayName: String
+    let subtitle: String
+    let width: CGFloat
+    let height: CGFloat
+    let isToday: Bool
+    let scheme: WidgetScheme
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            WidgetBaselineText(text: Text(dayName)
+                .font(.system(size: min(max(height * 0.24, 9), 13), weight: .bold))
+                .foregroundColor(isToday ? scheme.primary : scheme.onSurface),
+                width: width, height: height, baseline: height * 0.4,
+                allowsHorizontalOverflow: true)
+            WidgetBaselineText(text: Text(subtitle)
+                .font(.system(size: min(max(height * 0.18, 7), 10)))
+                .foregroundColor(scheme.onSurfaceVariant),
+                width: width, height: height, baseline: height * 0.72,
+                allowsHorizontalOverflow: true)
+        }
+        .frame(width: width, height: height)
+        .background(RoundedRectangle(cornerRadius: 14)
+            .fill(isToday ? scheme.primaryContainer : scheme.surface))
+    }
+}
+
 // MARK: - 网格主体 ← renderBitmap 主体段
 
 private struct WeekGridBody: View {
@@ -212,20 +240,9 @@ private struct WeekGridBody: View {
                                     return count > 0 ? "\(count)" : "—"
                                 }()
 
-                                ZStack(alignment: .topLeading) {
-                                    WidgetBaselineText(text: Text(DateUtils.localizedDay(dow))
-                                        .font(.system(size: min(max(headH * 0.24, 9), 13), weight: .bold))
-                                        .foregroundColor(isToday ? s.primary : s.onSurface),
-                                        width: dayW, height: headH, baseline: headH * 0.4)
-                                    WidgetBaselineText(text: Text(sub)
-                                        .font(.system(size: min(max(headH * 0.18, 7), 10)))
-                                        .foregroundColor(s.onSurfaceVariant),
-                                        width: dayW, height: headH, baseline: headH * 0.72)
-                                }
-                                .frame(width: dayW, height: headH)
-                                .background(isToday ? s.primaryContainer : s.surface)
-                                .cornerRadius(14)
-                                .offset(x: ctx.colX(idx))
+                                WeekGridDayHeader(dayName: DateUtils.localizedDay(dow), subtitle: sub,
+                                                  width: dayW, height: headH, isToday: isToday, scheme: s)
+                                    .offset(x: ctx.colX(idx))
                             }
                         }
 

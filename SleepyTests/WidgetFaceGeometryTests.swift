@@ -109,6 +109,73 @@ final class WidgetFaceGeometryTests: XCTestCase {
 
     @available(iOS 16.0, *)
     @MainActor
+    func testNarrowGridDayHeaderProductionRendererPreservesCompleteWeekdayAndDate() throws {
+        let scheme = resolveWidgetScheme(themeKey: "default", isDark: false)
+        // Both 150pt and 158pt seven-day grids reach the production 20pt column minimum.
+        let columnWidth: CGFloat = 20
+        let headerHeight: CGFloat = 56
+        let horizontalPadding: CGFloat = 64
+        let size = CGSize(width: columnWidth + horizontalPadding * 2, height: headerHeight + 16)
+
+        // Independent full-label reference: use intrinsic text width, with no truncation or mask.
+        func completeLine(_ text: Text, baseline: CGFloat) -> some View {
+            ZStack(alignment: .topLeading) {
+                Color.clear
+                text.fixedSize(horizontal: true, vertical: false)
+                    .frame(width: columnWidth, alignment: .center)
+                    .alignmentGuide(.top) { $0[.firstTextBaseline] - baseline }
+            }
+            .frame(width: columnWidth, height: headerHeight, alignment: .topLeading)
+        }
+        func hasInkBeyondColumn(_ image: UIImage) throws -> Bool {
+            let imageWidth = try XCTUnwrap(image.cgImage).width
+            let rgba = try pixels(image)
+            let left = Int(horizontalPadding * 2)
+            let right = Int((horizontalPadding + columnWidth) * 2)
+            return stride(from: 3, to: rgba.count, by: 4).contains { alpha in
+                let x = (alpha / 4) % imageWidth
+                return (x < left - 2 || x >= right + 2) && rgba[alpha] > 16
+            }
+        }
+
+        for (name, fileName) in [("周三", "Chinese"), ("Wednesday", "English")] {
+            for isToday in [false, true] {
+                let weekday = Text(name).font(.system(size: 13, weight: .bold))
+                    .foregroundColor(isToday ? scheme.primary : scheme.onSurface)
+                let date = Text("10-21").font(.system(size: 10))
+                    .foregroundColor(scheme.onSurfaceVariant)
+                let reference = ZStack(alignment: .topLeading) {
+                    completeLine(weekday, baseline: headerHeight * 0.4)
+                    completeLine(date, baseline: headerHeight * 0.72)
+                }
+                .frame(width: columnWidth, height: headerHeight)
+                .background(RoundedRectangle(cornerRadius: 14)
+                    .fill(isToday ? scheme.primaryContainer : scheme.surface))
+                let production = WeekGridDayHeader(dayName: name, subtitle: "10-21",
+                    width: columnWidth, height: headerHeight, isToday: isToday, scheme: scheme)
+                let actual = try render(production.padding(.horizontal, horizontalPadding)
+                    .padding(.vertical, 8), size: size)
+                let expected = try render(reference.padding(.horizontal, horizontalPadding)
+                    .padding(.vertical, 8), size: size)
+                XCTAssertTrue(try pixels(actual).elementsEqual(pixels(expected)),
+                              "The real \(name) header must retain every weekday and date glyph")
+                for line in [weekday, date] {
+                    let fullLine = try render(completeLine(line, baseline: headerHeight * 0.4)
+                        .padding(.horizontal, horizontalPadding).padding(.vertical, 8), size: size)
+                    XCTAssertTrue(try hasInkBeyondColumn(fullLine),
+                                  "The reference must exercise text wider than the real column")
+                }
+                let clipped = try render(production.clipped().padding(.horizontal, horizontalPadding)
+                    .padding(.vertical, 8), size: size)
+                XCTAssertFalse(try pixels(actual).elementsEqual(pixels(clipped)),
+                               "The day header must allow ink beyond its rounded background")
+                try attach(actual, name: "WeekGridDayHeader-20-\(fileName)-\(isToday ? "today" : "regular")")
+            }
+        }
+    }
+
+    @available(iOS 16.0, *)
+    @MainActor
     private func render<Content: View>(_ content: Content, size: CGSize) throws -> UIImage {
         let renderer = ImageRenderer(content: content.frame(width: size.width, height: size.height)
             .environment(\.colorScheme, .light))
