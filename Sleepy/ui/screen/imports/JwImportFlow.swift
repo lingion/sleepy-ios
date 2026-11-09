@@ -84,6 +84,30 @@ enum JwStage: Int, Comparable {
     }
 }
 
+struct JwImportEntryRoute {
+    let stage: JwStage
+    let catalogNotice: JwSchoolInfo?
+
+    init(school: JwSchoolInfo, acceptedCatalogNotice: Bool = false) {
+        let opensWebView = acceptedCatalogNotice
+            ? school.isUnverified && school.canImport
+            : school.canImport && !school.isUnverified
+        stage = opensWebView ? .webViewLogin : .selectSchool
+        catalogNotice = opensWebView || acceptedCatalogNotice ? nil : school
+    }
+
+    init(snapshot: JwImportDraftSnapshot, newTableOnly: Bool) {
+        if snapshot.phase == .webViewLogin {
+            let route = Self(school: snapshot.school)
+            stage = route.stage
+            catalogNotice = route.catalogNotice
+        } else {
+            stage = newTableOnly ? .configureConfirm : .preview
+            catalogNotice = nil
+        }
+    }
+}
+
 // 与 原版本 Regex("""^...$""").matches 同语义的整串匹配。
 private func jwMatchesFull(_ regex: NSRegularExpression, _ s: String) -> Bool {
     let range = NSRange(s.startIndex..., in: s)
@@ -172,6 +196,7 @@ struct JwImportFlow: View {
     var body: some View {
         ZStack {
             content
+                .accessibilityHidden(catalogNotice != nil)
 
             // 退出确认弹窗 ← ExitDraftConfirmationDialog(遮罩轻点 = 继续)
             if exitDraftState.confirmationVisible {
@@ -190,13 +215,7 @@ struct JwImportFlow: View {
                     school: school,
                     onDismiss: { catalogNotice = nil },
                     onConfirm: {
-                        catalogNotice = nil
-                        // mayTry 才有"仍要尝试"这条路; 不可导入的条目确认键只是关闭
-                        if school.isUnverified && school.canImport {
-                            selectedSchool = school
-                            exitDraftState.activeImport = requiresDraftExitConfirmation
-                            stage = .webViewLogin
-                        }
+                        openSelectedSchool(school, acceptedCatalogNotice: true)
                     })
                     .transition(.opacity)
                     .zIndex(3)
@@ -289,6 +308,15 @@ struct JwImportFlow: View {
         }
     }
 
+    private func openSelectedSchool(_ school: JwSchoolInfo, acceptedCatalogNotice: Bool = false) {
+        let route = JwImportEntryRoute(school: school, acceptedCatalogNotice: acceptedCatalogNotice)
+        catalogNotice = route.catalogNotice
+        guard route.stage == .webViewLogin else { return }
+        selectedSchool = school
+        exitDraftState.activeImport = requiresDraftExitConfirmation
+        navigateToStage(route.stage)
+    }
+
     private func handleDismissAttempt() {
         if reportDialogSchool != nil {
             closeReportDialog()
@@ -320,14 +348,7 @@ struct JwImportFlow: View {
                 switch stage {
                 case .selectSchool:
                     SchoolSelectScreen(onSchoolSelected: { school in
-                        if jwIsBlank(school.url) {
-                            errorMsg = L10n.format("jw_no_url")
-                            return
-                        }
-                        selectedSchool = school
-                        // ← activeImport=true: 选校即进入"有进度"态, 退出须走确认(issue#39)
-                        exitDraftState.activeImport = requiresDraftExitConfirmation
-                        navigateToStage(.webViewLogin)
+                        openSelectedSchool(school)
                     }, onDismiss: { requestExit() })
                     .transition(stageTransition)
                     .zIndex(stage == .selectSchool ? 1 : 0)
@@ -601,7 +622,9 @@ struct JwImportFlow: View {
             // v1.0.56 T10: 默认选中「本次导入自动建作息表」(合成 id=-1)
             configBindPeriodTableId = -1
             exitDraftState.activeImport = requiresDraftExitConfirmation
-            navigateToStage(snapshot.phase == .webViewLogin ? .webViewLogin : (newTableOnly ? .configureConfirm : .preview))
+            let route = JwImportEntryRoute(snapshot: snapshot, newTableOnly: newTableOnly)
+            catalogNotice = route.catalogNotice
+            navigateToStage(route.stage)
         }
     }
 
@@ -1741,6 +1764,7 @@ enum DiagMapper {
 }
 struct JwCatalogNoticeDialog: View {
     @Environment(\.localWakeUpColors) private var colors
+    @State private var measuredContentHeight: CGFloat = 1
     let school: JwSchoolInfo
     var onDismiss: () -> Void
     var onConfirm: () -> Void
@@ -1773,8 +1797,12 @@ struct JwCatalogNoticeDialog: View {
                             dismissText: mayTry ? L10n.t("jw_pending_close") : nil,
                             onDismiss: onDismiss)
                     }
+                    .background(GeometryReader { geometry in
+                        Color.clear.preference(key: CatalogNoticeContentHeight.self, value: geometry.size.height)
+                    })
                 }
-                .frame(maxHeight: 320)
+                .frame(height: min(320, measuredContentHeight))
+                .onPreferenceChange(CatalogNoticeContentHeight.self) { measuredContentHeight = max(1, $0) }
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1782,8 +1810,14 @@ struct JwCatalogNoticeDialog: View {
                 .fill(colors.surfaceContainerHigh))
             .padding(.horizontal, 24)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("jw_catalog_notice_dialog")
     }
+}
+
+private struct CatalogNoticeContentHeight: PreferenceKey {
+    static var defaultValue: CGFloat = 1
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 // MARK: - 导入成功报告弹窗 (reportDialogSchool?.let { AlertDialog(...) })
