@@ -643,22 +643,32 @@ struct AppRoot: View {
     //   宽度通道: background GeometryReader 零布局侵入, .global 系分屏/Stage
     //   Manager 缩放后的实际窗口尺寸; 变更即回灌 refreshNavMode 重判。
     private var railTabs: some View {
+        GeometryReader { geometry in
+            railContent(sideBySide: NavStyleResolver.usesSideBySidePanes(windowSize: geometry.size))
+        }
+    }
+
+    private func railContent(sideBySide: Bool) -> some View {
         HStack(spacing: 0) {
-            NavigationRailBar(rightTabs: tabletRailItems,
-                              selectedTab: tabletRightTab,
-                              scheduleIcon: "calendar")
+            NavigationRailBar(rightTabs: sideBySide ? tabletRailItems : navItems,
+                              selectedTab: sideBySide ? tabletRightTab : root.currentTab,
+                              scheduleIcon: "calendar", scheduleIsPinned: sideBySide)
                 .ignoresSafeArea(edges: .bottom)
             // ← 原版本 内容 Row: padding(horizontal=16, vertical=12) +
             //   spacedBy(16){ 左卡; Box(width=12, background 沟槽); 右卡 }
             //   → 两卡之间总间隔 = 16 + 12(沟槽盒) + 16 = 44dp, 沟槽盒 background
             //   色整高(卡片同高, 含卡上下缘)。iOS HStack(spacing:16) + 12pt 盒逐字复刻。
             HStack(spacing: 16) {
-                tabletPaneCard(content: tabletSchedulePane)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                ThemeRoleFill(role: \.background)
-                    .frame(width: 12)
-                tabletPaneCard(content: tabletRightPane)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if sideBySide {
+                    tabletPaneCard(content: tabletSchedulePane)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ThemeRoleFill(role: \.background)
+                        .frame(width: 12)
+                    tabletPaneCard(content: tabletRightPane)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    tabletPaneCard(content: tabContent)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
