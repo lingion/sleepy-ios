@@ -3,8 +3,7 @@
 // (列名/类型亲和/索引/FK CASCADE — Room 注解生成语义手工落 SQL)。
 // Room 仅在 @ColumnInfo(defaultValue=) 声明处输出 DEFAULT,故 v1 建表 DDL 各列裸 NOT NULL。
 // 原版本 严禁 fallbackToDestructiveMigration (AppDatabase.kt:45-46) — 迁移失败即抛;
-// iOS 等价物: migrate 失败 fatalError,绝不静默在未迁移库上运行。
-// 目录不可写 → 内存库保命,是 iOS 侧独有防御,与 原版本 机制无关。
+// iOS 等价物: 持久化打开/迁移失败即明确失败，保留原文件；禁止静默退到内存库。
 // v4 = 1.0.52 issue#22 colorMode; v5 = issue#23 isIrregularNode/isIrregularTime;
 // v6 = issue#26 alias; v7 = issue#39 import_drafts; v8 = issue#40 period_tables
 //      + time_tables.periodTableId; v9 = issue#40 C2 preBindSnapshotJson;
@@ -49,24 +48,21 @@ final class AppDatabase {
 
     /// 默认走共享目录(AppGroupResolver: AltStore 侧载共享给 widget;Xcode 直跑回退沙箱)
     convenience init() {
-        let dir = AppGroupResolver.sharedDirectory()
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let path = dir.appendingPathComponent(Self.DB_NAME).path
-        let queue: DatabaseQueue
+        let url = AppGroupResolver.sharedDirectory().appendingPathComponent(Self.DB_NAME)
         do {
-            queue = try DatabaseQueue(path: path)
+            try self.init(persistentURL: url)
         } catch {
-            // 文件库打不开(目录不可写等极端情形)→ 内存库保命。
-            // 注: 这是 iOS 侧独有防御;原版本 无对应机制,勿引用其名义。
-            queue = try! DatabaseQueue()
+            // 不提供假成功的临时数据库，不删除或替换无法打开的用户文件。
+            fatalError("AppDatabase persistent open/migration failed — 原数据库已保留，禁止使用临时空库: \(error)")
         }
-        do {
-            try self.init(queue: queue)
-        } catch {
-            // 对齐 原版本 严禁 fallbackToDestructiveMigration (AppDatabase.kt:45-46):
-            // Room 迁移失败在首次访问即抛出、应用崩溃,绝不在未迁移的库上继续运行。
-            fatalError("AppDatabase schema migration failed — 禁止静默运行在未迁移库上: \(error)")
-        }
+    }
+
+    /// 可恢复的调用方可显式处理打开错误；成功时始终使用指定文件。
+    convenience init(persistentURL: URL) throws {
+        try FileManager.default.createDirectory(at: persistentURL.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        let queue = try DatabaseQueue(path: persistentURL.path)
+        try self.init(queue: queue)
     }
 
     /// throws: 迁移失败向上抛(Room 无兜底 = 响亮失败),调用方不得吞掉。

@@ -536,6 +536,7 @@
 		8E080F4B16D294B3B48C5020 /* JwEcuplParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB39102E9E92009ED853BCC3 /* JwEcuplParserTests.swift */; };
 		8E42C8EFE1AAC1372F4B27FE /* ExitDraftState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FEB37F6ED53F4F90389D3E4 /* ExitDraftState.swift */; };
 		8E4B78FB82A1F3FA990F0AAF /* WatchTodayListViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB9D554C17B07C5E84921BFF /* WatchTodayListViews.swift */; };
+		8EBD80F32EC4B9F5B8B55493 /* PersistentDatabaseOpenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C031BA3B43B022C30F0FBF2 /* PersistentDatabaseOpenTests.swift */; };
 		8EECC95AA4B4692227082826 /* ScheduleDisplayScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = C221BBAE2EEB506EF4E1D090 /* ScheduleDisplayScreen.swift */; };
 		8F0DCCC39A23A9A6A7093EA5 /* JwCquParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C11210F0D929BD75517DDD5 /* JwCquParser.swift */; };
 		8F75D32B8EFC4E5730F75A2F /* CustomSchemeDeriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F2D8DA1BAD4105612867AE /* CustomSchemeDeriver.swift */; };
@@ -1103,6 +1104,7 @@
 		294E4802305814CD4DB358BA /* CourseRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseRowView.swift; sourceTree = "<group>"; };
 		2A1DB6476DB4970E3D39BFC5 /* MealBreakDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealBreakDetector.swift; sourceTree = "<group>"; };
 		2AD1DB72537D5FB202ADBE25 /* TimetableViewportPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableViewportPolicy.swift; sourceTree = "<group>"; };
+		2C031BA3B43B022C30F0FBF2 /* PersistentDatabaseOpenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentDatabaseOpenTests.swift; sourceTree = "<group>"; };
 		2D5BFC656D3F3C24D3651480 /* NavigationRailBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationRailBar.swift; sourceTree = "<group>"; };
 		2D91020B7AECA19BEC7D1A96 /* JwCfNewFetchJs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCfNewFetchJs.swift; sourceTree = "<group>"; };
 		2DDC1DB2898102E2021052B3 /* SleepyNativeExporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyNativeExporterTests.swift; sourceTree = "<group>"; };
@@ -2158,6 +2160,7 @@
 				1BCB8B72B49233D52340AB7A /* ParserAuditTests.swift */,
 				C8B55F290CCBB3B62487C5DA /* PeriodHeaderTimeAlignmentPrefsTests.swift */,
 				1947644D0633EEBB564DD3EF /* PeriodTableFreezeDeletionTests.swift */,
+				2C031BA3B43B022C30F0FBF2 /* PersistentDatabaseOpenTests.swift */,
 				8914D7724268506DD70BA8A5 /* QuickAddCourseTests.swift */,
 				1B5DF4A9257B7E6ED5AA44C8 /* QuickAddPrefillTests.swift */,
 				54F8C6D3080AE57961A4E115 /* RealUserScheduleTests.swift */,
@@ -3485,6 +3488,7 @@
 				F65B4753901D75DE1D367046 /* ParserAuditTests.swift in Sources */,
 				331FA5B062C41D7D7E9B5859 /* PeriodHeaderTimeAlignmentPrefsTests.swift in Sources */,
 				63D35E8D49F3E5E719DE8458 /* PeriodTableFreezeDeletionTests.swift in Sources */,
+				8EBD80F32EC4B9F5B8B55493 /* PersistentDatabaseOpenTests.swift in Sources */,
 				3B15FB2D0AE51D71193BDFD9 /* QuickAddCourseTests.swift in Sources */,
 				8D2BF048A6312D63C6824403 /* QuickAddPrefillTests.swift in Sources */,
 				CD4DBDBD4665DCDAE1B70954 /* RealUserScheduleTests.swift in Sources */,
