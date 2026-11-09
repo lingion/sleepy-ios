@@ -32,10 +32,9 @@ struct PeriodTablesScreen: View {
         //   页面透出下层 Tab 内容(iPhone 6 真机复现: 作息表页透明悬浮)。
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(colors.background)
-        .accessibilityIdentifier("period_tables_screen")
         .navigationBarHidden(true)
         .onAppear { reload() }
-        .sheet(item: $copyTarget) { target in
+        .sheet(item: $copyTarget, onDismiss: reload) { target in
             copyDialog(target)
         }
     }
@@ -47,9 +46,11 @@ struct PeriodTablesScreen: View {
                     .font(.system(size: 17, weight: .medium))
             }
             .accessibilityLabel(Text(L10n.t("back")))
+            .accessibilityIdentifier("period_tables_back")
             Spacer()
             Text(L10n.t("period_tables_title"))
                 .font(.headline)
+                .accessibilityIdentifier("period_tables_screen")
             Spacer()
             Color.clear.frame(width: 30, height: 30)
         }
@@ -77,6 +78,7 @@ struct PeriodTablesScreen: View {
                 Text(pt.name)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(colors.onSurface)
+                    .accessibilityIdentifier("period_table_name_\(pt.id)")
                 Text(L10n.format("period_table_bound_count", bound))
                     .font(.caption)
                     .foregroundColor(colors.onSurfaceVariant)
@@ -89,6 +91,7 @@ struct PeriodTablesScreen: View {
                     .foregroundColor(colors.onSurfaceVariant)
             }
             .accessibilityLabel(Text(L10n.t("edit_table_title")))
+            .accessibilityIdentifier("period_table_edit_\(pt.id)")
             Button {
                 if let suggested = viewModel.suggestPeriodTableCopyName(sourceId: pt.id) {
                     copyTarget = pt
@@ -99,6 +102,7 @@ struct PeriodTablesScreen: View {
                     .foregroundColor(colors.onSurfaceVariant)
             }
             .accessibilityLabel(Text(L10n.t("period_table_copy")))
+            .accessibilityIdentifier("period_table_copy_\(pt.id)")
             // v1.0.56 T7: 删除键在编辑页底部, 行内只留 编辑+复制
         }
         .padding(16)
@@ -123,6 +127,7 @@ struct PeriodTablesScreen: View {
             .cornerRadius(SleepyShapes.large)   // ← SleepyTheme.Buttons.shape
         }
         .buttonStyle(SleepyButtonStyle())
+        .accessibilityIdentifier("period_tables_new")
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
@@ -136,34 +141,41 @@ struct PeriodTablesScreen: View {
             courseTableNames: courseTables.map { $0.name },
             periodTableNames: periodTables.map { $0.name }
         )
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.t("period_table_copy_dialog_title"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(colors.onSurface)
-            FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
-                .disableAutocorrection(true)
-            if nameTaken {
-                Text(L10n.t("period_table_name_taken"))
-                    .font(.system(size: 12))
-                    .foregroundColor(colors.error)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.t("period_table_copy_dialog_title"))
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(colors.onSurface)
+                    .accessibilityIdentifier("period_table_copy_dialog")
+                FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
+                    .disableAutocorrection(true)
+                    .accessibilityIdentifier("period_table_copy_name")
+                if nameTaken {
+                    Text(L10n.t("period_table_name_taken"))
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.error)
+                }
+                Spacer().frame(height: 12)
+                // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
+                DialogActionButtons(
+                    confirmText: L10n.t("ok"),
+                    onConfirm: {
+                        // 二次查重: 列表可能在弹窗打开期间变化, 不能只信预览态
+                        let newId = viewModel.copyPeriodTableAs(sourceId: target.id, newName: candidate)
+                        if newId > 0 {
+                            copyTarget = nil
+                            reload()
+                        }
+                    },
+                    dismissText: L10n.t("cancel"),
+                    onDismiss: { copyTarget = nil },
+                    confirmEnabled: !candidate.isEmpty && !nameTaken,
+                    confirmIdentifier: "period_table_copy_confirm",
+                    dismissIdentifier: "period_table_copy_cancel")
             }
-            Spacer().frame(height: 12)
-            // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
-            DialogActionButtons(
-                confirmText: L10n.t("ok"),
-                onConfirm: {
-                    // 二次查重: 列表可能在弹窗打开期间变化, 不能只信预览态
-                    let newId = viewModel.copyPeriodTableAs(sourceId: target.id, newName: candidate)
-                    if newId > 0 {
-                        copyTarget = nil
-                        reload()
-                    }
-                },
-                dismissText: L10n.t("cancel"),
-                onDismiss: { copyTarget = nil },
-                confirmEnabled: !candidate.isEmpty && !nameTaken)
+            .padding(24)
         }
-        .padding(24)
+        .scrollDismissesKeyboardImmediatelyCompat()
         .background(colors.surface)
     }
 
