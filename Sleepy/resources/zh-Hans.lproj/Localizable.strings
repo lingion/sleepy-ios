@@ -1217,3 +1217,5 @@
 "widget_preview_programming" = "程序设计实践";
 "widget_preview_seminar" = "研讨课";
 "widget_preview_gym" = "体育馆";
+"jw_nav_hint_thu" = "导航到选课系统「整体课表」页，选好学期后点「导入此页」";
+"jw_err_thu_course_page" = "尚未检测到清华大学「整体课表」的课程脚本。请登录选课系统、打开「整体课表」、选好学期后再点「导入此页」";

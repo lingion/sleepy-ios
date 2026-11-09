@@ -1216,3 +1216,5 @@
 "widget_preview_programming" = "プログラミング演習";
 "widget_preview_seminar" = "ゼミナール";
 "widget_preview_gym" = "体育館";
+"jw_nav_hint_thu" = "履修システムの「全体時間割」を開き、学期を選んでから「このページを取り込む」をタップ";
+"jw_err_thu_course_page" = "清華大学の「全体時間割」の授業スクリプトが見つかりません。ログインし、全体時間割を開いて学期を選び、再度取り込んでください。";

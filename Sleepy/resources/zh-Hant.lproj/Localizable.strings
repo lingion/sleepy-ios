@@ -1216,3 +1216,5 @@
 "widget_preview_programming" = "程式設計實作";
 "widget_preview_seminar" = "研討課";
 "widget_preview_gym" = "體育館";
+"jw_nav_hint_thu" = "導航到選課系統「整體課表」頁，選好學期後點「匯入此頁」";
+"jw_err_thu_course_page" = "尚未偵測到清華大學「整體課表」的課程腳本。請登入選課系統、開啟「整體課表」、選好學期後再點「匯入此頁」";

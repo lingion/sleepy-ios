@@ -1216,3 +1216,5 @@
 "widget_preview_programming" = "Programming Lab";
 "widget_preview_seminar" = "Seminar";
 "widget_preview_gym" = "Gym";
+"jw_nav_hint_thu" = "Open the course system’s Overall Timetable, select the semester, then tap Import This Page";
+"jw_err_thu_course_page" = "No THU Overall Timetable course script was found. Sign in, open Overall Timetable, select the semester, then tap Import This Page.";

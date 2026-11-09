@@ -1216,3 +1216,5 @@
 "widget_preview_programming" = "Prácticas de programación";
 "widget_preview_seminar" = "Seminario";
 "widget_preview_gym" = "Gimnasio";
+"jw_nav_hint_thu" = "Abra el horario general en el sistema de cursos, elija el semestre y toque Importar esta página";
+"jw_err_thu_course_page" = "No se encontró el script de cursos del horario general de THU. Inicie sesión, abra el horario general, elija el semestre y toque Importar esta página.";
