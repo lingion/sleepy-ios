@@ -36,7 +36,7 @@
 "manage_export" = "匯出目前課表";
 "manage_export_sub" = "以檔案分享目前課表";
 "manage_manual_add" = "手動新增課程";
-"manage_manual_add_sub" = "直接新增一門課程到目前課表";
+"manage_manual_add_sub" = "從課表匯入或手動新增課程";
 "table_info" = "開始日期: %1$@  |  第%2$d週  |  %3$d門課";
 "current_table_week" = "目前課表 · 第%1$d週";
 "table_start_date" = "開始日期: %1$@";
@@ -1220,3 +1220,17 @@
 "widget_preview_gym" = "體育館";
 "jw_nav_hint_thu" = "導航到選課系統「整體課表」頁，選好學期後點「匯入此頁」";
 "jw_err_thu_course_page" = "尚未偵測到清華大學「整體課表」的課程腳本。請登入選課系統、開啟「整體課表」、選好學期後再點「匯入此頁」";
+"add_course_title" = "新增課程";
+"add_course_from_existing" = "從現有課表";
+"select_courses_title" = "選擇課程";
+"select_courses_all" = "全選";
+"select_courses_none" = "取消全選";
+"select_courses_count" = "已選 %1$lld / 共 %2$lld 門";
+"import_selection_empty" = "未選擇任何課程";
+"add_course_manual" = "手動新增課程";
+"add_course_no_source" = "沒有其他可用課表，請先新增課表";
+"import_backup_original" = "備份原課表";
+"import_backup_original_sub" = "開啟後先複製原課表作為備份，再新增本次課程";
+"import_append_conflicts_option" = "追加衝突課程";
+"import_append_conflicts_option_sub" = "關閉後放棄與現有課程衝突的課程";
+"import_backup_name" = "%1$@-備份";

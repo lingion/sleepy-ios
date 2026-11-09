@@ -249,6 +249,7 @@
 		3FACC910C2E6DC38F406E578 /* DailyAgendaScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC7E2B7A13FAED53DC01A04A /* DailyAgendaScreen.swift */; };
 		3FE11B7DAAFFC2CB8E59B45B /* ImportDraftDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DE9B51955EBD571182B827 /* ImportDraftDao.swift */; };
 		40061C26490E27046B141D5A /* JwWiseduParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467B034A9889202CEA76931B /* JwWiseduParser.swift */; };
+		40DB9A0F170EE94649E0E59C /* CourseSelectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B372DB6508FA846C4A664C4 /* CourseSelectionSheet.swift */; };
 		41E4CB66648841DF940050C0 /* WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3C1BE11E1D3338FD98721F /* WidgetContent.swift */; };
 		41EE28379E9850F49629598C /* LocalCalendarFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25AC6BA5397C193730D19A1B /* LocalCalendarFallbackTests.swift */; };
 		41F5B59C468562763A588C8D /* CourseDisplayUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = E451AD795407D5BA73BD0A6B /* CourseDisplayUtil.swift */; };
@@ -1113,6 +1114,7 @@
 		1A1C33090A09C0E1868CAEA5 /* JwCaptureDump.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCaptureDump.swift; sourceTree = "<group>"; };
 		1AEFC2A0E1B4E3D771CDD8C2 /* JwWebViewFrameCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWebViewFrameCaptureTests.swift; sourceTree = "<group>"; };
 		1B1EF1B2C5CAED6827418503 /* SleepyMaterialTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyMaterialTransition.swift; sourceTree = "<group>"; };
+		1B372DB6508FA846C4A664C4 /* CourseSelectionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseSelectionSheet.swift; sourceTree = "<group>"; };
 		1B5DF4A9257B7E6ED5AA44C8 /* QuickAddPrefillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddPrefillTests.swift; sourceTree = "<group>"; };
 		1BCB8B72B49233D52340AB7A /* ParserAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParserAuditTests.swift; sourceTree = "<group>"; };
 		1C1972DF48A00AB2312D9DF0 /* CourseHueStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseHueStore.swift; sourceTree = "<group>"; };
@@ -1887,6 +1889,7 @@
 			isa = PBXGroup;
 			children = (
 				6EC4834B041CD8B0721548D4 /* AddCoursesImport.swift */,
+				1B372DB6508FA846C4A664C4 /* CourseSelectionSheet.swift */,
 				B72D4794F4BF53B6DB3E463D /* DiagDumpProgress.swift */,
 				1FEB37F6ED53F4F90389D3E4 /* ExitDraftState.swift */,
 				F23A2B4444411C710BF3C0B2 /* ImportDraftSheet.swift */,
@@ -3026,6 +3029,7 @@
 				46590B262DC8750B9CE9722A /* CourseOccurrenceEditor.swift in Sources */,
 				1E5075DB94213CF4E28AD41D /* CourseOccurrenceIdentity.swift in Sources */,
 				043A0666D4BA9B5735080C34 /* CourseOccurrences.swift in Sources */,
+				40DB9A0F170EE94649E0E59C /* CourseSelectionSheet.swift in Sources */,
 				ED1304B67D86E2778FC7A12F /* CourseTableView.swift in Sources */,
 				124C150E7516307A12A3F02F /* CustomSchemeDeriver.swift in Sources */,
 				142F0F71A6D0A380C5DB0A39 /* CustomThemeEditorScreen.swift in Sources */,

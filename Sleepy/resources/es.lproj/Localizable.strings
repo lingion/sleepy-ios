@@ -36,7 +36,7 @@
 "manage_export" = "Exportar horario actual";
 "manage_export_sub" = "Comparte el horario actual como archivo";
 "manage_manual_add" = "Añadir curso";
-"manage_manual_add_sub" = "Añadir un curso al horario actual";
+"manage_manual_add_sub" = "Importar cursos o añadirlos manualmente";
 "table_info" = "Inicio: %1$@  |  Semana %2$d  |  %3$d cursos";
 "current_table_week" = "Actual · Semana %1$d";
 "table_start_date" = "Inicio: %1$@";
@@ -1220,3 +1220,17 @@
 "widget_preview_gym" = "Gimnasio";
 "jw_nav_hint_thu" = "Abra el horario general en el sistema de cursos, elija el semestre y toque Importar esta página";
 "jw_err_thu_course_page" = "No se encontró el script de cursos del horario general de THU. Inicie sesión, abra el horario general, elija el semestre y toque Importar esta página.";
+"add_course_title" = "Añadir curso";
+"add_course_from_existing" = "Desde un horario existente";
+"select_courses_title" = "Seleccionar asignaturas";
+"select_courses_all" = "Seleccionar todo";
+"select_courses_none" = "Deseleccionar todo";
+"select_courses_count" = "%1$lld de %2$lld seleccionadas";
+"import_selection_empty" = "No se seleccionó ninguna asignatura";
+"add_course_manual" = "Añadir curso manualmente";
+"add_course_no_source" = "No hay otros horarios. Añade un horario primero.";
+"import_backup_original" = "Hacer copia del horario original";
+"import_backup_original_sub" = "Copia el horario original antes de añadir estos cursos";
+"import_append_conflicts_option" = "Añadir cursos en conflicto";
+"import_append_conflicts_option_sub" = "Desactivado: se omiten los cursos que entren en conflicto";
+"import_backup_name" = "%1$@ - Copia";

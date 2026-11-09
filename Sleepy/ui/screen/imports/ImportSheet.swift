@@ -824,9 +824,12 @@ private struct FormatDetailDialog: View {
 // ← ImportPreviewDialog
 //   iOS 原生化: NavigationView + List(.insetGrouped) 替代裸 ScrollView → 系统原生导航栏 +
 //   系统原生分隔线 + 系统原生 inset 分组, 安全区适配自动处理。底部按钮组保留纯色块(危险动作风格统一)
-private struct ImportPreviewDialog: View {
+struct ImportPreviewDialog: View {
     @Environment(\.localWakeUpColors) private var colors
     let preview: ImportPreview
+    var courseDecision = false
+    var onCourseApply: (CourseImportDecision) -> Void = { _ in }
+    @State private var decision = CourseImportDecision()
     /// ← 原版本: 预览 Dialog 不关, 确认 Dialog 作为第二个 Dialog 叠在上面。
     ///   iOS 用同一 presented surface 内的 overlay 层实现(嵌套 .sheet 会被丢弃)。
     var showConfirm: Bool = false
@@ -986,6 +989,23 @@ private struct ImportPreviewDialog: View {
 
                 // 底部按钮组 - List 之下的真实容器(AlertDialog 的 confirmButton 容器)
                 VStack(spacing: 8) {
+                    if courseDecision {
+                        Toggle(isOn: $decision.backupOriginal) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.format("import_backup_original")).font(.system(size: 14, weight: .medium))
+                                Text(L10n.format("import_backup_original_sub")).font(.system(size: 11)).foregroundColor(colors.onSurfaceVariant)
+                            }
+                        }.accessibilityIdentifier("import_preview_backup")
+                        Toggle(isOn: $decision.appendConflicts) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.format("import_append_conflicts_option")).font(.system(size: 14, weight: .medium))
+                                Text(L10n.format("import_append_conflicts_option_sub")).font(.system(size: 11)).foregroundColor(colors.onSurfaceVariant)
+                            }
+                        }.accessibilityIdentifier("import_preview_append")
+                        PrimaryDialogButton(L10n.format("import_confirm"), identifier: "import_preview_apply") {
+                            onCourseApply(decision)
+                        }
+                    } else {
                     HStack(spacing: 8) {
                         if preview.targetTableId == 0 {
                             PrimaryDialogButton(L10n.format("import_as_new"), identifier: "import_mode_as_new") {
@@ -1033,6 +1053,7 @@ private struct ImportPreviewDialog: View {
                         }
                         .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("import_mode_overwrite")
+                    }
                     }
                     // ← 原版本 TextButton: 纯文字 40dp, onSurfaceVariant
                     Button(action: onDismiss) {

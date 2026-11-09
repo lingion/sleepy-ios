@@ -36,7 +36,7 @@
 "manage_export" = "Export Current";
 "manage_export_sub" = "Share the current timetable as file";
 "manage_manual_add" = "Add Course";
-"manage_manual_add_sub" = "Add a course directly to current schedule";
+"manage_manual_add_sub" = "Import courses or add them manually";
 "table_info" = "Start: %1$@  |  Week %2$d  |  %3$d courses";
 "current_table_week" = "Current · Week %1$d";
 "table_start_date" = "Start: %1$@";
@@ -1220,3 +1220,17 @@
 "widget_preview_gym" = "Gym";
 "jw_nav_hint_thu" = "Open the course system’s Overall Timetable, select the semester, then tap Import This Page";
 "jw_err_thu_course_page" = "No THU Overall Timetable course script was found. Sign in, open Overall Timetable, select the semester, then tap Import This Page.";
+"add_course_title" = "Add Course";
+"add_course_from_existing" = "From Existing Timetable";
+"select_courses_title" = "Select Courses";
+"select_courses_all" = "Select All";
+"select_courses_none" = "Deselect All";
+"select_courses_count" = "%1$lld of %2$lld selected";
+"import_selection_empty" = "No courses selected";
+"add_course_manual" = "Add Course Manually";
+"add_course_no_source" = "No other timetables available. Add a timetable first.";
+"import_backup_original" = "Back up original timetable";
+"import_backup_original_sub" = "Copy the original timetable before adding these courses";
+"import_append_conflicts_option" = "Append conflicting courses";
+"import_append_conflicts_option_sub" = "When off, courses conflicting with existing ones are skipped";
+"import_backup_name" = "%1$@ - Backup";

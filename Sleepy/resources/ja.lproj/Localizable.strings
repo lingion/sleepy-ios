@@ -36,7 +36,7 @@
 "manage_export" = "現在の時間割をエクスポート";
 "manage_export_sub" = "現在の時間割をファイルで共有";
 "manage_manual_add" = "授業を追加";
-"manage_manual_add_sub" = "現在の時間割に授業を追加";
+"manage_manual_add_sub" = "時間割から取り込む・手動で授業を追加";
 "table_info" = "開始日: %1$@  |  第%2$d週  |  %3$dコマ";
 "current_table_week" = "現在 · 第%1$d週";
 "table_start_date" = "開始日: %1$@";
@@ -1220,3 +1220,17 @@
 "widget_preview_gym" = "体育館";
 "jw_nav_hint_thu" = "履修システムの「全体時間割」を開き、学期を選んでから「このページを取り込む」をタップ";
 "jw_err_thu_course_page" = "清華大学の「全体時間割」の授業スクリプトが見つかりません。ログインし、全体時間割を開いて学期を選び、再度取り込んでください。";
+"add_course_title" = "授業を追加";
+"add_course_from_existing" = "既存の時間割から";
+"select_courses_title" = "授業を選択";
+"select_courses_all" = "すべて選択";
+"select_courses_none" = "すべて解除";
+"select_courses_count" = "%1$lld / %2$lld 件選択";
+"import_selection_empty" = "授業が選択されていません";
+"add_course_manual" = "授業を手動で追加";
+"add_course_no_source" = "他の時間割がありません。先に時間割を追加してください。";
+"import_backup_original" = "元の時間割をバックアップ";
+"import_backup_original_sub" = "追加前に元の時間割をコピーします";
+"import_append_conflicts_option" = "競合する授業も追加";
+"import_append_conflicts_option_sub" = "オフにすると既存授業と競合する授業を除外します";
+"import_backup_name" = "%1$@ - バックアップ";
