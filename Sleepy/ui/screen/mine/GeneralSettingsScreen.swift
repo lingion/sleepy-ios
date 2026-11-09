@@ -6,7 +6,7 @@
 // 等价适配:iOS 由窗口重建语言环境)。
 // 分组②③④⑤与各折叠卡抽为子视图 — SwiftUI ViewBuilder 单闭包 10 子视图上限。
 // 平台适配说明:
-// - 高刷新率行: iOS 无公开刷率 API(ProMotion 系统调度), 不移植 — 已载于
+// - 高刷新率行: 本 App 由系统按需调度，未移植 Android 窗口固定高刷开关 — 已载于
 //   PlatformParityNotes.swift; ③组仅 启动默认页 + 底栏样式。
 // - 数据迁移: 原版本 CreateDocument/OpenDocument → fileExporter(临时 .sleepybackup
 //   文件分享落盘) + fileImporter; Toast → 底部胶囊浮层(仓库同款模式)。
@@ -214,7 +214,7 @@ struct GeneralSettingsScreen: View {
                             //    移出至 WidgetSettingsScreen 独立页, 「我的」页进入) ──
                             Group {
                                 // 分组③ (启动默认页 + 底栏样式;
-                                //    高刷新率 = 原版本 专有, iOS 无公开刷率 API, 不移植)
+                                //    高刷新率 = 未移植原版本窗口固定刷率开关，iOS 按需调度)
                                 DisplayNavigationSection(
                                     startView: $startView,
                                     navStyleIdx: $navStyleIdx,
@@ -583,7 +583,7 @@ private struct VisibleDayRow: View {
 //   偏好键零迁移: settings_widget_colorless / separator / nearest_busy_day 三开关
 //   与「管理桌面小组件」入口行现宿主于 ui/screen/mine/WidgetSettingsScreen.swift。
 
-// ← 分组③ 画面与导航: 启动默认页 + 底栏样式(高刷新率 = 原版本 专有, 见 PlatformParityNotes)
+// ← 分组③ 画面与导航: 启动默认页 + 底栏样式(高刷新率 = 当前未移植，见 PlatformParityNotes)
 private struct DisplayNavigationSection: View {
     // 卡片样式由 SettingsFlatCard 自带(surfaceContainer + 内嵌 tab), 本组无需直读 colors
     @Binding var startView: String
