@@ -154,6 +154,82 @@ final class ScheduleRenderingB5Tests: XCTestCase {
         XCTAssertEqual(st.courseDayFor(target), 7)
     }
 
+    // MARK: - 今天页日期上下文
+
+    func testTodayContextUsesSourceWeekForCrossWeekMakeup() {
+        let source = DateUtils.dateOfWeek(startDate: start, week: 2, dayOfWeek: 4)!
+        let today = DateUtils.dateOfWeek(startDate: start, week: 5, dayOfWeek: 7)!
+        let state = makeState(maxWeek: 20, transfers: [
+            HolidayTransferEntry(sourceDate: source, targetDate: today, segmentId: "today")
+        ])
+
+        let context = TodayDisplayContext(state: state, today: today)
+
+        XCTAssertEqual(context.actualWeek, 2)
+        XCTAssertEqual(context.semesterStatus, .inRange)
+        XCTAssertEqual(context.date, today, "日期标题仍显示实际补课日")
+    }
+
+    func testTodayContextUsesInSemesterSourceBeforeSemesterStarts() {
+        let source = DateUtils.parseDate("2026-09-07")!
+        let today = DateUtils.parseDate("2026-09-06")!
+        let state = makeState(maxWeek: 1, transfers: [
+            HolidayTransferEntry(sourceDate: source, targetDate: today, segmentId: "early")
+        ])
+
+        let context = TodayDisplayContext(state: state, today: today)
+
+        XCTAssertEqual(context.actualWeek, 1)
+        XCTAssertEqual(context.semesterStatus, .inRange)
+        XCTAssertEqual(context.date, today)
+    }
+
+    func testTodayContextUsesInSemesterSourceAfterSemesterEnds() {
+        let source = DateUtils.parseDate("2026-09-07")!
+        let today = DateUtils.parseDate("2026-09-20")!
+        let state = makeState(maxWeek: 1, transfers: [
+            HolidayTransferEntry(sourceDate: source, targetDate: today, segmentId: "late")
+        ])
+
+        let context = TodayDisplayContext(state: state, today: today)
+
+        XCTAssertEqual(context.actualWeek, 1)
+        XCTAssertEqual(context.semesterStatus, .inRange)
+        XCTAssertEqual(context.date, today)
+    }
+
+    func testTodayContextUsesNaturalDateForHolidayAndUnmappedDays() {
+        let source = DateUtils.parseDate("2026-09-07")!
+        let target = DateUtils.parseDate("2026-09-20")!
+        let state = makeState(maxWeek: 1, transfers: [
+            HolidayTransferEntry(sourceDate: source, targetDate: target, segmentId: "holiday")
+        ])
+        XCTAssertNil(state.courseDateFor(source), "放假原日没有取课源日期")
+
+        let holiday = TodayDisplayContext(state: state, today: source)
+        XCTAssertEqual(holiday.actualWeek, 1)
+        XCTAssertEqual(holiday.semesterStatus, .inRange)
+        XCTAssertEqual(holiday.date, source)
+
+        let unmappedDate = DateUtils.parseDate("2026-09-14")!
+        let unmapped = TodayDisplayContext(state: state, today: unmappedDate)
+        XCTAssertEqual(unmapped.actualWeek, 2)
+        XCTAssertEqual(unmapped.semesterStatus, .afterEnd)
+        XCTAssertEqual(unmapped.date, unmappedDate)
+    }
+
+    func testTodayContextWithoutCurrentTableKeepsStateFallback() {
+        let today = DateUtils.parseDate("2026-09-20")!
+        var state = ScheduleState()
+        state.currentWeek = 7
+
+        let context = TodayDisplayContext(state: state, today: today)
+
+        XCTAssertEqual(context.actualWeek, 7)
+        XCTAssertEqual(context.semesterStatus, .inRange)
+        XCTAssertEqual(context.date, today)
+    }
+
     // MARK: - shortDateChinese
 
     /// M月d日 无前导零 ← DateUtils.kt shortDateChinese
