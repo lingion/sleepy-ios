@@ -1141,6 +1141,95 @@ final class ScheduleRepository {
         onDataChanged()
     }
 
+    /// Add-course imports use one live database snapshot for conflict filtering,
+    /// the optional frozen backup, and the append. A stale preview cannot bypass
+    /// a course added by another writer, and a failed append cannot leave a backup.
+    @discardableResult
+    func appendImportedCoursesWithBackup(_ tableId: Int64, courses: [CourseEntity], incomingTimeJson: String,
+                                         requiredNodeCount: Int, keepGroups: Bool, backupOriginal: Bool,
+                                         appendConflicts: Bool = false) throws -> Int {
+        let added = try writeWithUndo { db -> Int in
+            guard var table = try TimeTableEntity.fetchOne(db, key: tableId) else {
+                throw ImportMutationError.tableMissing
+            }
+            let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
+            if table.periodTableId != nil && period == nil { throw ImportMutationError.periodMissing }
+            let effective = table.hydratedWith(period)
+            let existing = try CourseEntity.fetchAll(db,
+                sql: "SELECT * FROM courses WHERE tableId = ? ORDER BY id", arguments: [tableId])
+            let incomingEnd = try courses.map { row -> Int in
+                guard row.step > 0 else { throw TableEditSaveError.invalidCourseDraft }
+                let (end, overflow) = row.startNode.addingReportingOverflow(row.step - 1)
+                guard !overflow else { throw TableEditSaveError.invalidCourseDraft }
+                return end
+            }.max() ?? 0
+            let extended = CourseImportPolicy.mergeTimeJson(current: effective.timeJson,
+                incoming: incomingTimeJson, requiredNodes: max(requiredNodeCount, incomingEnd))
+            let accepted = CourseImportPolicy.selectIncoming(incoming: courses, existing: existing,
+                appendConflicts: appendConflicts, timeJson: extended)
+            guard !accepted.isEmpty else { return 0 }
+
+            if backupOriginal {
+                let names = try String.fetchAll(db, sql: "SELECT name FROM time_tables")
+                let periodNames = try String.fetchAll(db, sql: "SELECT name FROM period_tables")
+                var backup = effective
+                backup.id = 0
+                backup.name = TimeTableUtils.suggestUniqueName(L10n.format("import_backup_name", table.name),
+                    courseTableNames: names, periodTableNames: periodNames)
+                backup.isDefault = false
+                backup.reminderEnabled = false
+                backup.periodTableId = nil
+                backup.preBindSnapshotJson = ""
+                backup.createdAt = Int64(Date().timeIntervalSince1970 * 1000)
+                let backupId = try tableDao.insertInDb(db, backup)
+                _ = try courseDao.insertAllInDb(db, existing.map { row in
+                    var copy = row
+                    copy.id = 0
+                    copy.tableId = backupId
+                    return copy
+                })
+            }
+
+            var prepared = accepted
+            var groups: [String: String] = [:]
+            for index in prepared.indices {
+                // Match AddCoursesImport.groupKey for every parser: a selected
+                // source group must remain one group after appending. This file
+                // also compiles in extensions that do not include the UI helper.
+                let source = prepared[index]
+                let sourceKey = source.groupId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "name:" + source.courseName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        + "|" + source.teacher.trimmingCharacters(in: .whitespacesAndNewlines)
+                    : source.groupId
+                let newGroup = groups[sourceKey] ?? UUID().uuidString
+                groups[sourceKey] = newGroup
+                prepared[index].id = 0
+                prepared[index].tableId = tableId
+                prepared[index].groupId = newGroup
+            }
+            _ = try courseDao.insertAllInDb(db, prepared)
+            _ = CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: db, dao: courseColorDao, entities: prepared)
+            let count = TimeTableUtils.parseTimeSlotRows(extended).map(\.node).max() ?? effective.nodesPerDay
+            if var period {
+                if period.timeJson != extended {
+                    period.timeJson = extended
+                    period.nodesPerDay = count
+                    period.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
+                    try period.update(db)
+                }
+            } else {
+                table.timeJson = extended
+                table.nodesPerDay = count
+            }
+            table.maxWeek = max(table.maxWeek, accepted.map(\.endWeek).max() ?? table.maxWeek)
+            try table.update(db)
+            try tableDao.setDefaultInDb(db, tableId)
+            return prepared.count
+        }
+        if added > 0 { onDataChanged() }
+        return added
+    }
+
     /// 覆盖式导入(先删后插)
     func replaceCourses(_ tableId: Int64, _ courses: [CourseEntity]) throws {
         let withGroupIds = try writeWithUndo { db in
