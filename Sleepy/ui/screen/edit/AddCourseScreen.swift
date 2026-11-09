@@ -122,6 +122,7 @@ struct AddCourseScreen: View {
     // loadIfNeeded 写入, effectiveTimeJson/保存写回读取。currentTable.timeJson 兼容列
     // 在绑定共享作息表时可能过期, 禁止直接当节次时间域用。
     @State private var hydratedTimeJson: String = TimeTableUtils.DEFAULT_TIME_JSON
+    @State private var hydratedPeriodTableId: Int64? = nil
     @State private var edgePickTargetIndex: Int? = nil
     @State private var newSlotTarget: NewSlotTarget? = nil
     @State private var slotEditTarget: SlotEditTarget? = nil
@@ -481,8 +482,10 @@ struct AddCourseScreen: View {
             let period = (try? ScheduleRepository(AppDatabase.getShared())
                 .effectivePeriodTable(tableId: table.id)) ?? nil
             hydratedTimeJson = table.hydratedWith(period).timeJson
+            hydratedPeriodTableId = table.periodTableId
         } else {
             hydratedTimeJson = TimeTableUtils.DEFAULT_TIME_JSON
+            hydratedPeriodTableId = nil
         }
 
         if editingCourse == nil, let initialSlot {
@@ -630,60 +633,24 @@ struct AddCourseScreen: View {
         for i in fixedDrafts.indices { fixedDrafts[i].tableId = tableId }
         do {
             if let eg = editingCourse {
-                // 编辑: 行级 diff/patch 替换整组覆盖 — issue#22 同名同周不同地点
-                let gid = eg.groupId
-                for i in fixedDrafts.indices { fixedDrafts[i].groupId = gid }
-                let existing = ((try? repo.getCourses(tableId)) ?? []).filter { $0.groupId == gid }
-                let diff = RowKeyDiffer.diff(fixedDrafts, existing)
-                try repo.applyDiff(tableId, diff)
+                for i in fixedDrafts.indices { fixedDrafts[i].groupId = eg.groupId }
             } else {
                 // 新建: 所有草稿共享同一个 groupId
                 let gid = UUID().uuidString
                 for i in fixedDrafts.indices { fixedDrafts[i].groupId = gid }
-                _ = try repo.insertCourses(fixedDrafts)
             }
+            let hasStagedSlots = !pendingEdgeInserts.isEmpty || !pendingEdgeEdits.isEmpty
+            let timeChange = hasStagedSlots ? ScheduleRepository.CourseTimeChange(
+                expectedPeriodTableId: hydratedPeriodTableId,
+                originalTimeJson: hydratedTimeJson, updatedTimeJson: timeJson) : nil
+            // The repository reads the group, applies its row diff and writes staged
+            // slots to their real owner in one transaction and one undo action.
+            try repo.saveCourseDrafts(tableId: tableId, editingGroupId: editingCourse?.groupId,
+                                      drafts: fixedDrafts, timeChange: timeChange)
         } catch {
             // 落库失败留在表单，不触发 onSaved 伪装成保存成功。
-            validationIssues = [ValidationIssue(blockId: nil, message: error.localizedDescription)]
+            validationIssues = [ValidationIssue(blockId: nil, message: L10n.t("table_reminder_save_failed"))]
             return
-        }
-        // issue#23: 新建槽位 / 槽位时间编辑先在编辑页暂存, 课程落库成功后再写回课表 timeJson。
-        // 顺序串接保证一次添加多个槽位时编号连续且方向元数据不丢失。
-        // v7.10.16v 撤回: 课程行 + timeJson 写回是一个动作 — beginBatch 让快照
-        // 固定在动作前, 撤回一次整步回退(否则第二写覆盖快照, 只回退一半)。
-        // 2026-09-23 对齐 原 kt L388-406: 基准用水合表(兼容列可能过期);
-        // 绑定共享作息表时槽位变更必须写回 period_tables(真正 owner),
-        // 写兼容列既不生效也违反 issue#40 不污染原则。
-        if !pendingEdgeInserts.isEmpty || !pendingEdgeEdits.isEmpty {
-            let repo2 = ScheduleRepository(AppDatabase.getShared())
-            let storedTable = (try? repo2.getTable(tableId)) ?? nil
-            let boundPeriodTable = (try? repo2.effectivePeriodTable(tableId: tableId)) ?? nil
-            // ← 原 `val table = currentTable ?: repo.getTable(tableId)` (currentTable=水合表)
-            let hydrated = state.currentTable.map { $0.hydratedWith(boundPeriodTable) } ?? storedTable
-            if let table = hydrated {
-                UndoManager.shared.beginBatch()
-                defer { UndoManager.shared.endBatch() }
-                var updated = table.timeJson
-                for insert in pendingEdgeInserts {
-                    updated = TimeTableUtils.insertEdgeNode(timeJson: updated, edgeClass: insert.edgeClass,
-                                                            start: insert.start, end: insert.end)
-                }
-                for edit in pendingEdgeEdits {
-                    updated = TimeTableUtils.updateEdgeNodeTimes(timeJson: updated, node: edit.node,
-                                                                 start: edit.start, end: edit.end)
-                }
-                if updated != table.timeJson {
-                    if let pt = boundPeriodTable {
-                        var ptCopy = pt
-                        ptCopy.timeJson = updated
-                        viewModel.updatePeriodTableContent(ptCopy)
-                    } else {
-                        var copy = table
-                        copy.timeJson = updated
-                        viewModel.updateTable(copy)
-                    }
-                }
-            }
         }
         onSaved()
     }

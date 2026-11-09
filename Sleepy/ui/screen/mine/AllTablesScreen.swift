@@ -10,11 +10,21 @@ struct AllTablesScreen: View {
     let onDismiss: () -> Void
     let onCreateNewTable: () -> Void
     let onOpenEditTable: (Int64) -> Void
+    @State private var duplicateError: String? = nil
 
     var body: some View {
         let state = viewModel.state
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("all_tables"), onBack: onDismiss)
+            if let duplicateError {
+                Text(duplicateError)
+                    .font(.system(size: 12))
+                    .foregroundColor(colors.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                    .accessibilityIdentifier("table_duplicate_save_error")
+            }
             ScrollView {
                 VStack(spacing: 12) {
                     Spacer().frame(height: 4)
@@ -68,7 +78,8 @@ struct AllTablesScreen: View {
                             Spacer(minLength: 0)
                             // v7.10.15 duplicate 图标 — 创建课表副本, 置于设置图标左边
                             Button {
-                                viewModel.duplicateTable(table.id)
+                                duplicateError = nil
+                                viewModel.duplicateTable(table.id, onFailure: { duplicateError = $0 })
                             } label: {
                                 Image(systemName: "doc.on.doc")
                                     .font(.system(size: 20))   // ← ContentCopy size(20.dp)
