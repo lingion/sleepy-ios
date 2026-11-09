@@ -28,6 +28,8 @@ struct CourseConflict {
 }
 
 struct ImportPreview {
+    /// Stored once per parsed document; editing its confirmation keeps the same identity.
+    let id = UUID()
     let targetTableId: Int64
     let targetTableName: String
     let parseResult: ScheduleParser.ParseResult
@@ -41,9 +43,36 @@ struct ImportPreview {
     var cleanCount: Int { incomingCount - conflictCount }
 }
 
+/// Preview and confirmation belong to the same document. Replacing it invalidates old actions.
+struct ImportPreviewSession {
+    var preview: ImportPreview? = nil
+    var pendingMode: ImportApplyMode? = nil
+    var confirmedPreview: ImportPreview? = nil
+    var confirmedTableName = ""
+    var confirmedStartDate = ""
+    var confirmedTimeJson = ""
+    var confirmedBindPeriodTableId: Int64? = nil
+
+    mutating func replacePreview(_ preview: ImportPreview?) {
+        self = ImportPreviewSession(preview: preview)
+    }
+
+    /// Failed saves retain the same presented draft, including the dialog's edited name.
+    mutating func completeImportIfSaved(_ save: () -> Bool) -> Bool {
+        guard save() else { return false }
+        replacePreview(nil)
+        return true
+    }
+}
+
 // 外部打开 json → 主壳 pendingImportText(← MainActivity companion, iOS 为全局)
 enum PendingImportText {
-    static var value: String? = nil
+    static let changedNotification = Notification.Name("sleepy.import.pending.changed")
+    static var value: String? = nil {
+        didSet {
+            NotificationCenter.default.post(name: changedNotification, object: nil)
+        }
+    }
 }
 
 /// 格式详情弹窗键(ImportFormat, sheet(item:) 驱动)
@@ -99,15 +128,7 @@ struct ImportSheet: View {
     @State private var inputText = ""
     @State private var isLoading = false
     @State private var errorMsg: String? = nil
-    @State private var preview: ImportPreview? = nil
-    @State private var pendingMode: ImportApplyMode? = nil
-    // ★ sheet 冲突修复配套: 预览快照(确认 sheet 期间 preview 已置 nil)
-    @State private var confirmedPreview: ImportPreview? = nil
-    @State private var confirmedTableName = ""
-    @State private var confirmedStartDate = ""
-    @State private var confirmedTimeJson = ""
-    // v1.0.56 T6: 第三 Tab「作息表」— 绑定选择; 确认导入时传给 applyImportPreview 落绑定
-    @State private var confirmedBindPeriodTableId: Int64? = nil
+    @State private var previewSession = ImportPreviewSession()
     // v1.0.56 T9: 纯作息导入 — 解析结果只有作息表没课程时, 走独立确认框(只建作息表)
     @State private var purePeriodName = ""
     // ← 原版本 snackbar.showSnackbar(import_success): 导入成功提示(不再跳编辑页)
@@ -195,7 +216,7 @@ struct ImportSheet: View {
                             //   对策: 先强制收键盘(与 DateTimePickers 同款),再延一小拍弹预览。
                             ImportSheet.dismissKeyboard()
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                preview = p
+                                previewSession.replacePreview(p)
                             }
                         } label: {
                             Text(isLoading ? L10n.format("import_parsing") : L10n.format("import_preview"))
@@ -230,22 +251,22 @@ struct ImportSheet: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(colors.onSurface)
                         .padding(.bottom, 8)
-                    FormatRow(name: L10n.format("format_wakeup_share"), desc: L10n.format("format_wakeup_desc")) {
+                    FormatRow(id: "format_help_wakeup_share", name: L10n.format("format_wakeup_share"), desc: L10n.format("format_wakeup_desc")) {
                         detailFormat = .wakeupShare
                     }
-                    FormatRow(name: L10n.format("format_wakeup_json"), desc: L10n.format("format_json_desc")) {
+                    FormatRow(id: "format_help_wakeup_json", name: L10n.format("format_wakeup_json"), desc: L10n.format("format_json_desc")) {
                         detailFormat = .wakeupJson
                     }
-                    FormatRow(name: L10n.format("format_ics"), desc: L10n.format("format_ics_desc")) {
+                    FormatRow(id: "format_help_ics", name: L10n.format("format_ics"), desc: L10n.format("format_ics_desc")) {
                         detailFormat = .ics
                     }
-                    FormatRow(name: L10n.format("format_csv"), desc: L10n.format("format_csv_desc")) {
+                    FormatRow(id: "format_help_csv", name: L10n.format("format_csv"), desc: L10n.format("format_csv_desc")) {
                         detailFormat = .csv
                     }
-                    FormatRow(name: L10n.format("format_html"), desc: L10n.format("format_html_desc")) {
+                    FormatRow(id: "format_help_html", name: L10n.format("format_html"), desc: L10n.format("format_html_desc")) {
                         detailFormat = .html
                     }
-                    FormatRow(name: L10n.format("format_plain"), desc: L10n.format("format_plain_desc")) {
+                    FormatRow(id: "format_help_plain", name: L10n.format("format_plain"), desc: L10n.format("format_plain_desc")) {
                         detailFormat = .plain
                     }
                 }
@@ -289,9 +310,10 @@ struct ImportSheet: View {
         // 外部打开 json: pendingImportText 自动触发 paste 路径。
         // ← 原版本 LaunchedEffect(pendingImportText): 以 pendingImportText 为 key,
         //   sheet 存活期间外部再塞 text 会重新触发预览(旧 onAppear+一次性消费会把
-        //   sheet 开着时的推送丢掉)。onAppear 兜冷启动首值, onChange 管后续推送。
+        //   sheet 开着时的推送丢掉)。onAppear 兜冷启动首值，通知处理已打开后的推送。
         .onAppear { consumePendingImportText() }
-        .onChange(of: PendingImportText.value) { _ in consumePendingImportText() }
+        .onReceive(NotificationCenter.default.publisher(for: PendingImportText.changedNotification)
+            .receive(on: RunLoop.main)) { _ in consumePendingImportText() }
         .fileImporter(isPresented: $showFilePicker,
                       allowedContentTypes: [.json, .plainText, .text, .html, .data],
                       allowsMultipleSelection: false) { result in
@@ -307,7 +329,7 @@ struct ImportSheet: View {
                     if WakeUpShareClient.looksLikeShareCode(text) {
                         presentWakeUpShare(text)
                     } else {
-                        preview = ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg }
+                        previewSession.replacePreview(ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg })
                     }
                 } catch {
                     errorMsg = L10n.format("read_failed", error.localizedDescription)
@@ -330,8 +352,8 @@ struct ImportSheet: View {
         }
         // 预览对话框
         .sheet(item: Binding(
-            get: { preview.map { PreviewBox(preview: $0) } },
-            set: { if $0 == nil { preview = nil } }
+            get: { previewSession.preview.map { PreviewBox(preview: $0) } },
+            set: { if $0 == nil { previewSession.replacePreview(nil) } }
         )) { box in
             // v1.0.56 T9: 纯作息导入(只有 P 区块/节次, 零课程) — 不进课程确认框,
             // 弹独立命名框(预填全局唯一名, 用户可改), 确认只建作息表不建空课表。
@@ -341,36 +363,47 @@ struct ImportSheet: View {
                     suggestUniqueName: { Self.suggestPurePeriodName(for: pt, state: state, viewModel: viewModel) },
                     courseTableNames: state.tables.map { $0.name },
                     periodTableNames: viewModel.loadAllPeriodTables().map { $0.name },
-                    onDismiss: { preview = nil },
+                    onDismiss: {
+                        guard previewSession.preview?.id == box.preview.id else { return }
+                        previewSession.replacePreview(nil)
+                    },
                     onConfirm: { candidate in
+                        guard previewSession.preview?.id == box.preview.id else { return }
                         isLoading = true
-                        ImportSheet.applyPurePeriodImport(name: candidate, parsed: pt,
-                                                          onImported: onImported) { msg in errorMsg = msg }
-                        preview = nil
+                        let saved = previewSession.completeImportIfSaved {
+                            ImportSheet.applyPurePeriodImport(name: candidate, parsed: pt,
+                                                              onImported: onImported) { msg in errorMsg = msg }
+                        }
                         isLoading = false
+                        guard saved else { return }
                         // ← 原版本 importJustApplied=true → snackbar 明示已落库
                         showSuccess(L10n.format("import_success"))
                     })
             } else {
             ImportPreviewDialog(preview: box.preview,
-                                showConfirm: pendingMode != nil,
-                                onConfirmDismiss: { pendingMode = nil },
+                                showConfirm: previewSession.pendingMode != nil,
+                                onConfirmDismiss: { previewSession.pendingMode = nil },
                                 confirmContent: { AnyView(confirmDialogContent) },
-                                onDismiss: { preview = nil }) { mode in
+                                onDismiss: {
+                                    guard previewSession.preview?.id == box.preview.id else { return }
+                                    previewSession.replacePreview(nil)
+                                }) { mode in
+                guard let currentPreview = previewSession.preview,
+                      currentPreview.id == box.preview.id else { return }
                 let existingTable = state.currentTable
-                confirmedStartDate = preview!.parseResult.startDate.isEmpty
+                previewSession.confirmedStartDate = currentPreview.parseResult.startDate.isEmpty
                     ? (existingTable?.startDate ?? Self.todayISO())
-                    : preview!.parseResult.startDate
-                confirmedTableName = preview!.parseResult.tableName.isEmpty
+                    : currentPreview.parseResult.startDate
+                previewSession.confirmedTableName = currentPreview.parseResult.tableName.isEmpty
                     ? (existingTable?.name ?? L10n.format("default_table_name"))
-                    : preview!.parseResult.tableName
+                    : currentPreview.parseResult.tableName
                 // v7.10.16k 无损合并(用户 2026-09-03「哪个大用哪个, 最完整优先」):
                 // 不再 ifBlank 单选 — 老表作息与导入作息逐节合并, 节次数取双方最大,
                 // 并拓到导入课程实际到达的最大节。导入源 13 节绝不被老表 10 节压小。
-                confirmedTimeJson = TimeTableUtils.mergeMostComplete(
+                previewSession.confirmedTimeJson = TimeTableUtils.mergeMostComplete(
                     currentJson: existingTable?.timeJson ?? "",
-                    incomingJson: preview!.parseResult.timeJson,
-                    requiredNodeCount: preview!.parseResult.nodesPerDay)
+                    incomingJson: currentPreview.parseResult.timeJson,
+                    requiredNodeCount: currentPreview.parseResult.nodesPerDay)
                 // ★ 架构对齐 原版本 v1.0.62 (ImportSheet.kt: `if (preview != null &&
                 //   pendingMode != null)` 同时组合 ImportPreviewDialog 与 ImportConfirmDialog):
                 //   原版本 的预览**不关**, 确认框作为第二个 Dialog 叠在上面, 两者共存。
@@ -386,7 +419,7 @@ struct ImportSheet: View {
                 // ★ 无需延时: 追加分支不弹确认框, 预览 sheet 保持打开直到导入完成,
                 //   不存在"第二个 presentation 被丢弃"的竞态。
                 if mode == .appendNonConflict || mode == .appendAll {
-                    guard let p = preview else { return }
+                    let p = currentPreview
                     isLoading = true
                     let importedId = ImportSheet.applyImportPreview(
                         preview: p, mode: mode,
@@ -401,8 +434,7 @@ struct ImportSheet: View {
                         onImported: onImported) { msg in errorMsg = msg }
                     isLoading = false
                     guard importedId != nil else { return }
-                    preview = nil
-                    pendingMode = nil
+                    previewSession.replacePreview(nil)
                     isLoading = false
                     // ← 原版本: 导入成功不再跳编辑课表页(假保存闸), snackbar 明示已落库
                     showSuccess(L10n.format("import_success"))
@@ -410,8 +442,8 @@ struct ImportSheet: View {
                 }
                 // ← 原版本: preview 保持非 nil, pendingMode 同步置位;
                 //   确认框作为第二个 Dialog 叠在预览之上(见预览 sheet 内的 overlay)。
-                confirmedPreview = preview
-                pendingMode = mode
+                previewSession.confirmedPreview = currentPreview
+                previewSession.pendingMode = mode
             }
             .sheetDetents([.large])
             }
@@ -420,7 +452,7 @@ struct ImportSheet: View {
         .sheet(isPresented: $showWakeUpShare, onDismiss: {
             guard let json = pendingWakeUpJSON else { return }
             pendingWakeUpJSON = nil
-            preview = ImportSheet.buildImportPreview(json, viewModel.state) { errorMsg = $0 }
+            previewSession.replacePreview(ImportSheet.buildImportPreview(json, viewModel.state) { errorMsg = $0 })
         }) {
             WakeUpShareImportSheet(initialText: wakeUpShareText, onResolved: { json in
                 pendingWakeUpJSON = json
@@ -489,43 +521,42 @@ struct ImportSheet: View {
     @ViewBuilder
     private var confirmDialogContent: some View {
         ImportConfirmDialog(
-            startDate: confirmedStartDate,
-            tableName: confirmedTableName,
-            timeJson: confirmedTimeJson,
+            startDate: previewSession.confirmedStartDate,
+            tableName: previewSession.confirmedTableName,
+            timeJson: previewSession.confirmedTimeJson,
             // 仅"创建新课表"或"追加为新课表"需要命名; 覆盖课表不强制重命名
-            showTableName: pendingMode == .importAsNew || pendingMode == .appendAsNew,
-            onTableNameChange: { confirmedTableName = $0 },
-            onStartDateChange: { confirmedStartDate = $0 },
-            onTimeJsonChange: { confirmedTimeJson = $0 },
-            onDismiss: { pendingMode = nil },
+            showTableName: previewSession.pendingMode == .importAsNew || previewSession.pendingMode == .appendAsNew,
+            onTableNameChange: { previewSession.confirmedTableName = $0 },
+            onStartDateChange: { previewSession.confirmedStartDate = $0 },
+            onTimeJsonChange: { previewSession.confirmedTimeJson = $0 },
+            onDismiss: { previewSession.pendingMode = nil },
             // v1.0.56 T6: 第三 Tab「作息表」
             periodTableOptions: viewModel.loadAllPeriodTables().map {
                 PeriodTableOption(id: $0.id, name: $0.name, nodesPerDay: $0.nodesPerDay)
             },
-            selectedPeriodTableId: confirmedBindPeriodTableId,
-            onSelectPeriodTable: { confirmedBindPeriodTableId = $0 },
+            selectedPeriodTableId: previewSession.confirmedBindPeriodTableId,
+            onSelectPeriodTable: { previewSession.confirmedBindPeriodTableId = $0 },
             periodTableTimeJsonById: Dictionary(
                 uniqueKeysWithValues: viewModel.loadAllPeriodTables().map { ($0.id, $0.timeJson) }),
             onConfirm: {
-                guard let mode = pendingMode, let currentPreview = confirmedPreview else { return }
+                guard let mode = previewSession.pendingMode, let currentPreview = previewSession.confirmedPreview,
+                      currentPreview.id == previewSession.preview?.id else { return }
                 isLoading = true
                 // 「确认导入」= 唯一写库点, 点下即落库。之后不再跳编辑课表页 —
                 // 那个页面有「保存」按钮, 会造成"没点保存数据也在"的假保存闸误导
                 // (原版本 v1.0.56 已删跳转, 改 snackbar 明示 import_success)。
                 let importedId = ImportSheet.applyImportPreview(
                     preview: currentPreview, mode: mode,
-                    confirmedStartDateRaw: confirmedStartDate,
-                    confirmedTableName: confirmedTableName,
-                    confirmedTimeJson: confirmedTimeJson,
+                    confirmedStartDateRaw: previewSession.confirmedStartDate,
+                    confirmedTableName: previewSession.confirmedTableName,
+                    confirmedTimeJson: previewSession.confirmedTimeJson,
                     onImported: onImported,
                     onError: { msg in errorMsg = msg },
-                    bindPeriodTableId: confirmedBindPeriodTableId)
+                    bindPeriodTableId: previewSession.confirmedBindPeriodTableId)
                 isLoading = false
                 guard importedId != nil else { return }
-                confirmedPreview = nil
-                pendingMode = nil
                 // ← 原版本: 导入成功预览一并关闭 (preview = null)
-                preview = nil
+                previewSession.replacePreview(nil)
                 isLoading = false
                 showSuccess(L10n.format("import_success"))
             })
@@ -544,18 +575,23 @@ struct ImportSheet: View {
         if let text = PendingImportText.value,
            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             PendingImportText.value = nil
+            // A new delivery invalidates every action and binding choice from the previous one,
+            // including when this payload is invalid or must continue through the share flow.
+            previewSession.replacePreview(nil)
+            errorMsg = nil
             if WakeUpShareClient.looksLikeShareCode(text) {
                 presentWakeUpShare(text)
                 return
             }
             isLoading = true
             let p = ImportSheet.buildImportPreview(text, state) { msg in errorMsg = msg }
-            if p != nil { preview = p }
+            previewSession.replacePreview(p)
             isLoading = false
         }
     }
 
     private func presentWakeUpShare(_ text: String) {
+        previewSession.replacePreview(nil)
         pendingWakeUpJSON = nil
         wakeUpShareText = text
         ImportSheet.dismissKeyboard()
@@ -582,20 +618,17 @@ struct ImportSheet: View {
 }
 
 // Identifiable 包装(sheet(item:) 需要)
-// ★ 根因修复(2026-10-31): id 必须**由内容派生**, 不能用 UUID()。
+// id 从解析后的预览实例读取，不能在 get 闭包里重新生成。
 //   .sheet(item:) 的 get 闭包在每次父视图重绘时都会重新求值, 若 id 每次都是新的
 //   UUID, SwiftUI 会认为"换了一个 item" → 旧 sheet 关闭 + 新 sheet 重新弹出。
 //   点"导入模式"时父状态(pendingMode)一变就触发重绘 → 预览 sheet 被重新呈现,
 //   呈现动画中容器停在起始位置(y=874), 模式按钮 frame 落到屏幕外
 //   (y=1450…1594), XCUITest 报 "Activation point invalid"(ManageImportUITests
-//   testFullTextImportFlow 失败)。稳定 id ⇒ 只更新内容, 不重新呈现。
+//   testFullTextImportFlow 失败)。稳定 id ⇒ 编辑只更新内容；新文档有独立 id，
+//   即使名称、日期、课程数相同，也必须替换旧预览。
 private struct PreviewBox: Identifiable {
     let preview: ImportPreview
-    /// 内容派生的稳定标识: 同一份预览在任何重绘下 id 不变。
-    var id: String {
-        let r = preview.parseResult
-        return "\(preview.targetTableId)|\(r.tableName)|\(r.startDate)|\(r.courses.count)|\(preview.conflicts.count)"
-    }
+    var id: UUID { preview.id }
 }
 
 // ← ImportMethodRow
@@ -638,6 +671,7 @@ private struct ImportMethodRow: View {
 // ← FormatRow(每行带 ⓘ 详情入口)
 private struct FormatRow: View {
     @Environment(\.localWakeUpColors) private var colors
+    let id: String
     let name: String
     let desc: String
     var onDetail: (() -> Void)? = nil
@@ -667,6 +701,7 @@ private struct FormatRow: View {
                 .buttonStyle(SleepyButtonStyle())
                 .padding(.leading, 6)   // ← 原 icon padding(start = 6.dp)
                 .accessibilityLabel(L10n.format("format_detail_content_desc"))
+                .accessibilityIdentifier(id)
             }
         }
         .padding(.vertical, 3)
@@ -689,6 +724,7 @@ private struct FormatDetailDialog: View {
                         .font(.system(size: 14))
                         .foregroundColor(colors.onSurfaceVariant)
                         .listRowBackground(colors.surfaceContainer)
+                        .accessibilityIdentifier("format_help_when")
                 }
                 Section(L10n.format("format_help_spec")) {
                     ForEach(format.specItems, id: \.self) { item in
@@ -766,9 +802,12 @@ private struct FormatDetailDialog: View {
                     // ← 原版本 行884-886 关闭按钮 = format_help_close「知道了」(旧版误用 cancel「取消」)
                     Button(L10n.format("format_help_close")) { dismiss() }
                         .foregroundColor(colors.primary)
+                        .accessibilityIdentifier("format_help_close")
                 }
             }
         }
+        .navigationViewStyle(.stack)
+        .accessibilityIdentifier("format_help_dialog")
     }
 }
 
@@ -1015,6 +1054,7 @@ private struct ImportPreviewDialog: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(L10n.format("cancel")) { onDismiss() }
                         .foregroundColor(colors.primary)
+                        .accessibilityIdentifier("import_preview_close")
                 }
             }
             .accessibilityElement(children: .contain)
@@ -1039,6 +1079,7 @@ private struct ImportPreviewDialog: View {
             }
             }
         }
+        .navigationViewStyle(.stack)
     }
 }
 
@@ -1620,13 +1661,15 @@ extension ImportSheet {
 
     // ← v1.0.56 T9 纯作息导入: 只建一张作息表, 不建空课表。
     // 名字已由确认框查重; 落库前再走 suggestUniqueName 兜底(同屏并发导入等边缘)。
+    @discardableResult
     static func applyPurePeriodImport(
         name: String,
         parsed: ScheduleParser.ParsedPeriodTable,
+        repository: ScheduleRepository? = nil,
         onImported: () -> Void,
         onError: (String) -> Void
-    ) {
-        let repo = ScheduleRepository(AppDatabase.getShared())
+    ) -> Bool {
+        let repo = repository ?? ScheduleRepository(AppDatabase.getShared())
         UndoManager.shared.beginBatch()
         defer { UndoManager.shared.endBatch() }
         let courseNames = ((try? repo.getAllTables()) ?? []).map { $0.name }
@@ -1639,9 +1682,10 @@ extension ImportSheet {
             timeJson: parsed.timeJson)
         if (try? repo.insertPeriodTable(entity)) == nil {
             onError(L10n.format("import_failed", ""))
-            return
+            return false
         }
         onImported()
+        return true
     }
 
     /// v7.10.16k 节次无损延伸(行1644-1664/1741-1760): 插课后把老表作息∪导入作息
