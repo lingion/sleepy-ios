@@ -42,7 +42,7 @@ struct WeekViewWidgetProvider: TimelineProvider {
         Task {
             let now = Date()
             let data = await WeekListWidgetDataLoader.loadData(kind: "WeekViewWidgetRV")
-            let refresh = now.addingTimeInterval(6 * 3600)  // 半天兜底;数据变化由 App 端 reloadAllTimelines 触发
+            let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
             WidgetArchiveLog.append(kind: "WeekViewWidgetRV", family: context.family.description, result: "success")
             completion(Timeline(entries: [WeekViewWidgetEntry(date: now, data: data)], policy: .after(refresh)))
         }

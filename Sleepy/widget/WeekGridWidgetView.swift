@@ -11,6 +11,12 @@ import WidgetKit
 struct WeekGridWidgetEntry: TimelineEntry {
     let date: Date
     let data: WeekData
+
+    var minimumTodayEntry: TodayWidgetEntry {
+        TodayWidgetEntry(date: date,
+                         data: WidgetCompactHelpers.weekGridMinimumTodayData(data, today: date),
+                         nowMin: WidgetWindows.nowMinutes(date))
+    }
 }
 
 struct WeekGridWidgetProvider: TimelineProvider {
@@ -30,12 +36,24 @@ struct WeekGridWidgetProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekGridWidgetEntry>) -> Void) {
         Task {
+            let now = Date()
             let data = await WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19")
-            let entry = WeekGridWidgetEntry(date: Date(), data: data)
-            let refresh = Date().addingTimeInterval(6 * 3600)
+            let entries = Self.timelineEntries(data: data, family: context.family, from: now)
+            let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
             WidgetArchiveLog.append(kind: "WeekGridWidgetV19", family: context.family.description, result: "success")
-            completion(Timeline(entries: [entry], policy: .after(refresh)))
+            completion(Timeline(entries: entries, policy: .after(refresh)))
         }
+    }
+
+    static func timelineEntries(data: WeekData, family: WidgetFamily, from date: Date) -> [WeekGridWidgetEntry] {
+        let current = WeekGridWidgetEntry(date: date, data: data)
+        let today = current.minimumTodayEntry.data
+        guard family == .systemSmall, today.hasTable, today.isToday,
+              today.semesterStatus == .inRange else { return [current] }
+        let refresh = WidgetBoundaryScheduler.nextRefresh(after: date)
+        let boundaries = WidgetWindows.boundaryDates(courses: today.courses, timeJson: today.timeJson, from: date)
+            .filter { $0 < refresh }
+        return [current] + boundaries.map { WeekGridWidgetEntry(date: $0, data: data) }
     }
 }
 
@@ -54,7 +72,7 @@ struct WeekGridWidgetEntryView: View {
             // issue#26: SMALL 档 — 仅渲染今日紧凑面(复用 Today compact face;
             // TodayWidgetEntryView 自身再探测 glass, 嵌套探测无害)
             if (galleryFamily ?? widgetFamily) == .systemSmall {
-                WeekGridMinimumTodayFace(data: entry.data)
+                WeekGridMinimumTodayFace(entry: entry)
             } else {
                 gridBody(renderingMode: mode)
             }
@@ -1076,19 +1094,10 @@ enum VerticalNameTokenizer {
 /// (数据侧 weekGridMinimumTodayData: WeekData → 今日 WidgetData, 纯函数;
 ///  原版本 今日·小已删纯文本脸改走常规渲染器 → iOS 直接复用 TodayWidgetEntryView)
 private struct WeekGridMinimumTodayFace: View {
-    let data: WeekData
+    let entry: WeekGridWidgetEntry
 
     var body: some View {
-        let todayData = Self.minimumTodayData(data)
-        TodayWidgetEntryView(entry: TodayWidgetEntry(date: Date(), data: todayData,
-                                                     nowMin: WidgetWindows.nowMinutes()))
-    }
-
-    // ← weekGridMinimumTodayData 逐行: 今日 DayData → WidgetData。
-    // v1.0.60 单一事实源已迁至 WidgetCompactHelpers.weekGridMinimumTodayData
-    // (← WidgetBitmapRenderers.kt 同名函数, NEAREST_BUSY_DAY 时 targetDate = 最早有课日)。
-    static func minimumTodayData(_ data: WeekData) -> WidgetData {
-        WidgetCompactHelpers.weekGridMinimumTodayData(data, today: Date())
+        TodayWidgetEntryView(entry: entry.minimumTodayEntry)
     }
 }
 

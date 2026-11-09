@@ -25,6 +25,14 @@ enum WidgetBoundaryFamily: String, CaseIterable {
 
 enum WidgetBoundaryScheduler {
 
+    /// Keep the periodic fallback, but reload date/week-dependent data at the next civil midnight.
+    static func nextRefresh(after date: Date, calendar: Calendar = .current) -> Date {
+        let periodic = date.addingTimeInterval(6 * 3600)
+        guard let midnight = calendar.date(byAdding: .day, value: 1,
+                                           to: calendar.startOfDay(for: date)) else { return periodic }
+        return min(periodic, midnight)
+    }
+
     /// 纯函数: 下一边界分钟 = min(end+1) 且 > nowMin; 无未来边界 → nil。
     /// ← nextBoundaryMin
     static func nextBoundaryMin(_ endMins: [Int], nowMin: Int) -> Int? {

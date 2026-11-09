@@ -514,6 +514,85 @@ final class WidgetSemanticsTests: XCTestCase {
         XCTAssertEqual(mins, [581, 701, 941], "边界 = 行 end + 1, 严格未来且升序")
     }
 
+    func testWeekWidgetRefreshStopsAtTheNextLocalMidnightAcrossAWeekBoundary() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let formatter = ISO8601DateFormatter()
+        let sunday = try XCTUnwrap(formatter.date(from: "2026-11-08T23:00:00+08:00"))
+        let monday = try XCTUnwrap(formatter.date(from: "2026-11-09T00:00:00+08:00"))
+        XCTAssertEqual(WidgetBoundaryScheduler.nextRefresh(after: sunday, calendar: calendar), monday)
+    }
+
+    func testWeekWidgetRefreshKeepsItsSixHourCeilingAndAdvancesFromMidnight() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let midnight = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-09T00:00:00+08:00"))
+        XCTAssertEqual(WidgetBoundaryScheduler.nextRefresh(after: midnight, calendar: calendar),
+                       midnight.addingTimeInterval(6 * 3600))
+    }
+
+    func testWeekWidgetRefreshUsesCivilMidnightOnDaylightSavingTransitionDays() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        let formatter = ISO8601DateFormatter()
+        for (evening, midnight) in [
+            ("2026-03-08T18:30:00-04:00", "2026-03-09T00:00:00-04:00"),
+            ("2026-11-01T18:30:00-05:00", "2026-11-02T00:00:00-05:00")
+        ] {
+            XCTAssertEqual(WidgetBoundaryScheduler.nextRefresh(
+                after: try XCTUnwrap(formatter.date(from: evening)), calendar: calendar),
+                try XCTUnwrap(formatter.date(from: midnight)))
+        }
+    }
+
+    func testSmallWeekGridTimelineAdvancesTheCapturedTodayWindowAtCourseBoundaries() throws {
+        let calendar = DateUtils.isoCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 8)))
+        let day = DayData(date: calendar.startOfDay(for: now), dayOfWeek: DateUtils.todayDayOfWeek(today: now),
+                          courses: [course(1, start: "08:00", end: "08:45"),
+                                    course(2, startNode: 3, start: "10:00", end: "10:45")], timeJson: "")
+        let data = WeekData(days: [day], hasTable: true)
+        let timeline = WeekGridWidgetProvider.timelineEntries(data: data, family: .systemSmall, from: now)
+        XCTAssertEqual(timeline.map { $0.minimumTodayEntry.nowMin }, [480, 526, 646])
+        XCTAssertEqual(timeline.map(\.date), [now, now.addingTimeInterval(46 * 60),
+                                               now.addingTimeInterval(166 * 60)])
+        let windows = timeline.map { entry -> WidgetWindowCore.WindowResult? in
+            let today = entry.minimumTodayEntry
+            XCTAssertEqual(today.date, entry.date)
+            XCTAssertTrue(today.data.isToday)
+            return TodayWidgetEntryView.window(data: today.data, heightDp: 158, tier: .small,
+                                               nowMin: today.nowMin)
+        }
+        XCTAssertEqual(windows[0]?.visible.first?.row.courses.first?.id, 1)
+        XCTAssertEqual(windows[1]?.visible.first?.row.courses.first?.id, 2)
+        XCTAssertEqual(windows[2]?.status, .allDone)
+    }
+
+    func testWeekGridTimelineDoesNotApplyTodayBoundariesToRegularOrFutureFaces() throws {
+        let calendar = DateUtils.isoCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 8)))
+        let future = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
+        let day = DayData(date: calendar.startOfDay(for: future), dayOfWeek: DateUtils.todayDayOfWeek(today: future),
+                          courses: [course(1, start: "08:00", end: "08:45")], timeJson: "")
+        let data = WeekData(days: [day], hasTable: true, weekDisplayStatus: .nearestBusyDay,
+                            nearestBusyTargetDate: day.date)
+        XCTAssertEqual(WeekGridWidgetProvider.timelineEntries(data: data, family: .systemLarge, from: now).count, 1)
+        let compact = WeekGridWidgetProvider.timelineEntries(data: data, family: .systemSmall, from: now)
+        XCTAssertEqual(compact.count, 1)
+        XCTAssertFalse(compact[0].minimumTodayEntry.data.isToday)
+        XCTAssertEqual(compact[0].minimumTodayEntry.data.date, day.date)
+    }
+
+    func testSmallWeekGridDoesNotCarryYesterdayDataIntoAMidnightBoundaryEntry() throws {
+        let calendar = DateUtils.isoCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 23)))
+        let day = DayData(date: calendar.startOfDay(for: now), dayOfWeek: DateUtils.todayDayOfWeek(today: now),
+                          courses: [course(1, start: "23:00", end: "23:59")], timeJson: "")
+        let timeline = WeekGridWidgetProvider.timelineEntries(data: WeekData(days: [day], hasTable: true),
+                                                              family: .systemSmall, from: now)
+        XCTAssertEqual(timeline.map(\.date), [now], "午夜必须重新装载日期/周次，不能复用昨天的数据")
+    }
+
     // MARK: - timeJson 分簇 (← 25c943f0 非标准时间被误判冲突)
 
     func testTimeJsonSplitsCoursesThatSharePlaceholderNodes() {
