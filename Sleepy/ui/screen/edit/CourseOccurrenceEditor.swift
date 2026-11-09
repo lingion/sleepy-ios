@@ -60,8 +60,19 @@ struct CourseOccurrenceEditor: View {
                         .environment(\.timeZone, CourseOccurrences.calendar.timeZone)
                         .accessibilityIdentifier("occurrence_date")
                     Toggle(L10n.format("occurrence_fixed_date"), isOn: $fixed)
+                        .accessibilityIdentifier("occurrence_fixed_date")
                 }
                 Section(L10n.format("occurrence_time")) {
+                    if hasStandardRange {
+                        let shown = IntSliderRange(start: node, end: node + max(step, 1) - 1,
+                                                   minimum: 1, maximum: maximumStandardNode)
+                        IntRangeSlider(summary: AddCourseScreen.nodeRangeSummary(shown),
+                            minValue: 1, maxValue: maximumStandardNode, startValue: shown.start, endValue: shown.end,
+                            onValueChange: { node = $0; step = $1 - $0 + 1 },
+                            initialStart: occurrence.course.startNode,
+                            initialEnd: occurrence.course.startNode + occurrence.course.step - 1,
+                            identifier: "occurrence_nodes")
+                    }
                     NumberStepperField(label: L10n.format("start_node"), value: $node,
                                        minV: minimumNode, maxV: maximumNode)
                     NumberStepperField(label: L10n.format("occurrence_end_node"), value: Binding(
@@ -70,12 +81,23 @@ struct CourseOccurrenceEditor: View {
                     Text(L10n.format("occurrence_original_nodes", occurrence.course.startNode, occurrence.course.startNode + occurrence.course.step - 1))
                         .font(.caption).foregroundStyle(.secondary)
                     Toggle(L10n.format("occurrence_custom_time"), isOn: $custom)
+                        .accessibilityIdentifier("occurrence_custom_time")
                     if custom {
-                        TextField(L10n.format("occurrence_start_time"), text: $start).keyboardType(.numbersAndPunctuation)
-                        TextField(L10n.format("occurrence_end_time"), text: $end).keyboardType(.numbersAndPunctuation)
+                        TextField(L10n.format("occurrence_start_time"), text: $start)
+                            .keyboardType(.numbersAndPunctuation)
+                            .accessibilityIdentifier("occurrence_start_time")
+                        TextField(L10n.format("occurrence_end_time"), text: $end)
+                            .keyboardType(.numbersAndPunctuation)
+                            .accessibilityIdentifier("occurrence_end_time")
                     }
                 }
-                if let error { Section { Text(error).foregroundColor(.red) } }
+                if let error {
+                    Section {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .accessibilityIdentifier("occurrence_error")
+                    }
+                }
                 Section {
                     Button(L10n.format("occurrence_save")) { prepare(delete: false) }
                         .accessibilityIdentifier("occurrence_save")
@@ -86,16 +108,26 @@ struct CourseOccurrenceEditor: View {
             .disabled(busy)
             .navigationTitle(L10n.format("occurrence_title"))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button(L10n.format("cancel"), action: onDismiss) } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L10n.format("cancel"), action: onDismiss)
+                        .accessibilityIdentifier("occurrence_cancel")
+                }
+            }
             .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
                 promptButtons
             } message: { Text(promptMessage) }
         }
+        .navigationViewStyle(.stack)
         .accessibilityIdentifier("occurrence_editor")
     }
 
     private var minimumNode: Int { TimeTableUtils.parseTimeSlotRows(table.timeJson).map { $0.node }.min() ?? 1 }
     private var maximumNode: Int { TimeTableUtils.parseTimeSlotRows(table.timeJson).map { $0.node }.max() ?? 1 }
+    private var maximumStandardNode: Int { TimeTableUtils.maxStandardNode(table.timeJson) }
+    private var hasStandardRange: Bool {
+        (1...max(1, maximumStandardNode)).contains(occurrence.course.startNode) && !occurrence.course.isIrregularNode
+    }
     private var promptTitle: String {
         switch prompt {
         case .destination: return L10n.format("occurrence_destination_title")
@@ -131,9 +163,11 @@ struct CourseOccurrenceEditor: View {
             Button(L10n.format("conflict_detail_save_anyway"), role: .destructive) { commit() }
         case .delete:
             Button(L10n.format("occurrence_delete"), role: .destructive) { commit() }
+                .accessibilityIdentifier("occurrence_delete_confirm")
         case nil: EmptyView()
         }
         Button(L10n.format("cancel"), role: .cancel) { pending = nil; prompt = nil }
+            .accessibilityIdentifier("occurrence_prompt_cancel")
     }
 
     private func prepare(delete: Bool) {

@@ -59,6 +59,7 @@
 		0DAD4E04D2C6C8A448349C53 /* NativeCourseDrag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E3A127E5A807424565EB70 /* NativeCourseDrag.swift */; };
 		0DF86B83C7DAA37A8C106AB8 /* CourseListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6A1018CDA12035558C1A35 /* CourseListScreen.swift */; };
 		0E1AB74C4329D8FDCF0E95E2 /* ScheduleParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7DC9AA7E9C052C705251AA6 /* ScheduleParser.swift */; };
+		0E6BD8FBC461CB284D94BA2E /* IntRangeSliderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97A7E008A9BDEEFCC777683F /* IntRangeSliderTests.swift */; };
 		0E6C9D79016315C4906A6DF3 /* SystemColorScheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AADC4D523663B1B42026758 /* SystemColorScheme.swift */; };
 		0EAEE70F55B2C84145D48A12 /* WidgetWindowCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1362E01134FB72031611514 /* WidgetWindowCore.swift */; };
 		0EE02D858071CD9AB9808F4F /* JwScauParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B656ACC8D6742A461FE663F7 /* JwScauParserTests.swift */; };
@@ -256,6 +257,7 @@
 		434B96F7B5B0B84E66E751F9 /* HolidayReminderPolicyAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8586C130A8636DBE2C68C55 /* HolidayReminderPolicyAdapter.swift */; };
 		43944B5632697D4438ECEF4C /* WeekListWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CB5E397A61641128360FA3 /* WeekListWidgetView.swift */; };
 		43957CBA52635ADCBBC23B06 /* SleepyNativeParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24CB83AF9B32FF2BC4921DB0 /* SleepyNativeParser.swift */; };
+		439C831701E3575274373F5D /* IntRangeSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FACA59D1864026CB372D576 /* IntRangeSlider.swift */; };
 		43C0F07B4289C14C9A853761 /* JwSgAssetParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1BAF18FCDF8AFA664D4D37 /* JwSgAssetParserTests.swift */; };
 		4420E4767B9C50B2D7DBE242 /* WeekRangeOverlap.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8C75554581BE8C26C81B68 /* WeekRangeOverlap.swift */; };
 		442FCED3B9D4F3245E587DF3 /* SleepyMaterialTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1EF1B2C5CAED6827418503 /* SleepyMaterialTransition.swift */; };
@@ -1108,6 +1110,7 @@
 		1EC9DB82F5933D70A97ED0DE /* SchoolCityLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolCityLocator.swift; sourceTree = "<group>"; };
 		1EE8A20C3E335D801B6BB4FE /* WakeUpV6170CryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeUpV6170CryptoTests.swift; sourceTree = "<group>"; };
 		1F623ECECCA2E2A91223E72C /* SmartPeriodConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPeriodConfig.swift; sourceTree = "<group>"; };
+		1FACA59D1864026CB372D576 /* IntRangeSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntRangeSlider.swift; sourceTree = "<group>"; };
 		1FEB37F6ED53F4F90389D3E4 /* ExitDraftState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExitDraftState.swift; sourceTree = "<group>"; };
 		21110C5EC7715F2104013B70 /* CourseOccurrences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseOccurrences.swift; sourceTree = "<group>"; };
 		2140942FC998369FA6029236 /* PeriodHeaderCellContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeriodHeaderCellContent.swift; sourceTree = "<group>"; };
@@ -1362,6 +1365,7 @@
 		9610BD61FF13088540D20D20 /* JwImportDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportDraft.swift; sourceTree = "<group>"; };
 		968EC7FD4519EAB1C6DC3E17 /* ExternalDocumentRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalDocumentRoutingTests.swift; sourceTree = "<group>"; };
 		977FCB4CFE0B6F7FFAD20A22 /* JwEcuplSuperParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwEcuplSuperParser.swift; sourceTree = "<group>"; };
+		97A7E008A9BDEEFCC777683F /* IntRangeSliderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntRangeSliderTests.swift; sourceTree = "<group>"; };
 		984F3C8B5FC81B912AD5527B /* ConflictDetailReporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictDetailReporterTests.swift; sourceTree = "<group>"; };
 		989DD79C335C4640D40750EF /* ReminderCapabilityFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCapabilityFlowTests.swift; sourceTree = "<group>"; };
 		9903ECA15FF00B8E5DFA5657 /* ColorStyleSheetConsistencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorStyleSheetConsistencyTests.swift; sourceTree = "<group>"; };
@@ -1775,6 +1779,7 @@
 				B26C1FC7457815C7A78F9026 /* DateTimePickers.swift */,
 				15B8ACC849EE7144AB42B848 /* DialogActionButtons.swift */,
 				C7A86A7B1F5695195EC6093B /* HueSlider.swift */,
+				1FACA59D1864026CB372D576 /* IntRangeSlider.swift */,
 				82FFCD708C68F726D87F6B54 /* NativeBaselineSlider.swift */,
 				9103FA65945B83156A93E926 /* NativeColorPicker.swift */,
 				52E3A127E5A807424565EB70 /* NativeCourseDrag.swift */,
@@ -2161,6 +2166,7 @@
 				5DDC90F60E5366C55756996B /* ImportReceiverActivityTests.swift */,
 				79E0C397C35B589BA063FC4D /* ImportRosterTests.swift */,
 				1274843FE9312E87CD5807D5 /* Info.plist */,
+				97A7E008A9BDEEFCC777683F /* IntRangeSliderTests.swift */,
 				0ECF5F48FE99625564C23CA6 /* IrregularOverflowTests.swift */,
 				1C60FAC5447AB59ECB3F3CCF /* Issue55CsvHtmlTextOwnTimeTests.swift */,
 				C2CFC9A64BF20B8F84CA0642 /* Issue55OwnTimeTests.swift */,
@@ -3016,6 +3022,7 @@
 				E45669AE2B48407355873D12 /* ImportRoster.swift in Sources */,
 				CD777F7A41318DA863A267CD /* ImportSheet.swift in Sources */,
 				EC1990CA66FF7EB5434C9B22 /* ImportedPeriodTableDraft.swift in Sources */,
+				439C831701E3575274373F5D /* IntRangeSlider.swift in Sources */,
 				14E0C6206AB3224219245BAE /* JwBjtuParser.swift in Sources */,
 				7F1490E343E8BC376334AC9F /* JwBnuzParser.swift in Sources */,
 				9BEEC5940AC82BDA1B6A1107 /* JwBoyaPpParser.swift in Sources */,
@@ -3517,6 +3524,7 @@
 				F909579116E3DAFE633B692D /* ImportReceiverActivityTests.swift in Sources */,
 				84FC6D0B5696C1AF3C7ED675 /* ImportRosterTests.swift in Sources */,
 				6D7127C3E45D3CDA0EF21222 /* ImportedPeriodTableDraftTests.swift in Sources */,
+				0E6BD8FBC461CB284D94BA2E /* IntRangeSliderTests.swift in Sources */,
 				48AA36E34A07C60AC998DCA9 /* IrregularOverflowTests.swift in Sources */,
 				7C6FAB02E18707E0143035CA /* Issue55CsvHtmlTextOwnTimeTests.swift in Sources */,
 				899CBC808AD7165366D9D0BA /* Issue55OwnTimeTests.swift in Sources */,

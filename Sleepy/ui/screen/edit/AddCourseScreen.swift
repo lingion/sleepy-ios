@@ -34,6 +34,11 @@ struct MeetingBlockDraft: Identifiable {
     var durationText: String = ""
     var clamped: Bool = false
     var fixedDate: String? = nil
+    /// Opening values stay fixed while editing; new blocks have no ghost baseline.
+    private(set) var initialStartNode: Int? = nil
+    private(set) var initialStep: Int? = nil
+    private(set) var initialStartWeek: Int? = nil
+    private(set) var initialEndWeek: Int? = nil
 
     /// ← 原 `irregularOptionsExpanded by mutableStateOf(isIrregularNode || isIrregularTime)`:
     /// 非常规选项折叠栏 — 编辑已启用任一非常规项的卡时自动展开, 否则默认收起
@@ -133,6 +138,8 @@ struct AddCourseScreen: View {
         groupLoaded && !courseName.trimmingCharacters(in: .whitespaces).isEmpty && !meetingBlocks.isEmpty
     }
 
+    private var maxWeek: Int { min(30, max(1, editorContext?.table.maxWeek ?? 30)) }
+
     // ← 原 conflict AlertDialog 正文: "• " 前缀行, 最多 6 条, 多余折叠提示
     private var conflictDetailMessage: String {
         var lines = pendingConflictDetails.prefix(6).map { "• \($0)" }
@@ -197,6 +204,7 @@ struct AddCourseScreen: View {
                             title: L10n.format("slot_n", index + 1),
                             block: bindingForBlock(withId: block.id),
                             maxStd: TimeTableUtils.maxStandardNode(effectiveTimeJson),
+                            maxWeek: maxWeek,
                             timeJson: effectiveTimeJson,
                             canRemove: meetingBlocks.count > 1,
                             issues: validationIssues.filter { $0.blockId == block.id }.map { $0.message },
@@ -417,6 +425,14 @@ struct AddCourseScreen: View {
     private var weekRangeCard: some View {
         CardSection(title: L10n.format("week_range"),
                     subtitle: L10n.format("week_range_sub")) {
+            let shown = IntSliderRange(start: startWeek, end: endWeek, minimum: 1, maximum: maxWeek)
+            IntRangeSlider(summary: Self.weekRangeSummary(shown), minValue: 1, maxValue: maxWeek,
+                startValue: shown.start, endValue: shown.end,
+                onValueChange: { startWeek = $0; endWeek = $1 },
+                initialStart: editorContext?.editingCourse?.startWeek,
+                initialEnd: editorContext?.editingCourse?.endWeek,
+                startLabel: L10n.format("start_week"), endLabel: L10n.format("end_week"),
+                identifier: "course_week_range")
             HStack(spacing: 12) {
                 NumberStepperField(label: L10n.format("start_week"), value: $startWeek, minV: 1, maxV: 30)
                     .frame(maxWidth: .infinity)
@@ -553,7 +569,9 @@ struct AddCourseScreen: View {
                     isIrregularNode: isEdge,
                     selectedEdgeNode: isEdge ? first.startNode : 0,
                     isIrregularTime: first.ownTime,
-                    fixedDate: first.fixedDate)
+                    fixedDate: first.fixedDate,
+                    initialStartNode: first.startNode, initialStep: first.step,
+                    initialStartWeek: first.startWeek, initialEndWeek: first.endWeek)
                 // §2.4: 覆盖时间的卡补派生时长文本
                 if b.isIrregularTime {
                     b.durationText = String(Self.minutesBetween(b.startTime, b.endTime) ?? 0)
@@ -735,7 +753,20 @@ struct AddCourseScreen: View {
                                  note: course.note, color: course.color,
                                  colorMode: course.colorMode,
                                  isIrregularTime: course.ownTime,
-                                 fixedDate: course.fixedDate)
+                                 fixedDate: course.fixedDate,
+                                 initialStartNode: course.startNode, initialStep: course.step,
+                                 initialStartWeek: course.startWeek, initialEndWeek: course.endWeek)
+    }
+
+    static func weekRangeSummary(_ range: IntSliderRange) -> String {
+        range.start == range.end ? L10n.format("slot_summary_week_single", range.start)
+            : L10n.format("slot_summary_week_range", range.start, range.end)
+    }
+
+    static func nodeRangeSummary(_ range: IntSliderRange) -> String {
+        let count = range.end - range.start + 1
+        return count == 1 ? L10n.format("slot_summary_period_single", range.start)
+            : L10n.format("slot_summary_period_range", range.start, range.end, count)
     }
 
     // ← buildCourseEntity (issue#26 alias 参数; 用户报障 2026-09-10: ownTime 落库前反算真实节点)
@@ -1079,6 +1110,7 @@ private struct MeetingBlockEditor: View {
     let title: String
     @Binding var block: MeetingBlockDraft
     let maxStd: Int
+    let maxWeek: Int
     let timeJson: String
     let canRemove: Bool
     let issues: [String]
@@ -1148,6 +1180,14 @@ private struct MeetingBlockEditor: View {
 
             if !block.isIrregularNode {
                 // 标准卡: startNode/step, 1..maxStd
+                let shown = IntSliderRange(start: block.startNode, end: block.startNode + block.step - 1,
+                                           minimum: 1, maximum: maxStd)
+                IntRangeSlider(summary: AddCourseScreen.nodeRangeSummary(shown), minValue: 1, maxValue: maxStd,
+                    startValue: shown.start, endValue: shown.end,
+                    onValueChange: { block.startNode = $0; block.step = $1 - $0 + 1 },
+                    initialStart: block.initialStartNode,
+                    initialEnd: block.initialStartNode.flatMap { start in block.initialStep.map { start + $0 - 1 } },
+                    identifier: "course_slot_\(block.id)_nodes")
                 HStack(spacing: 12) {
                     NumberStepperField(label: L10n.format("start_node"), value: Binding(
                         get: { block.startNode }, set: {
@@ -1169,6 +1209,13 @@ private struct MeetingBlockEditor: View {
                 }
             }
 
+            let shownWeeks = IntSliderRange(start: block.startWeek, end: block.endWeek, minimum: 1, maximum: maxWeek)
+            IntRangeSlider(summary: AddCourseScreen.weekRangeSummary(shownWeeks), minValue: 1, maxValue: maxWeek,
+                startValue: shownWeeks.start, endValue: shownWeeks.end,
+                onValueChange: { block.startWeek = $0; block.endWeek = $1 },
+                initialStart: block.initialStartWeek, initialEnd: block.initialEndWeek,
+                startLabel: L10n.format("start_week"), endLabel: L10n.format("end_week"),
+                identifier: "course_slot_\(block.id)_weeks")
             HStack(spacing: 12) {
                 NumberStepperField(label: L10n.format("slot_week_range") + " " + L10n.format("start_week"), value: $block.startWeek, minV: 1, maxV: 30)
                     .frame(maxWidth: .infinity)
