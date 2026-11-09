@@ -99,7 +99,6 @@ private struct WeekGridBody: View {
                                     increasedContrast: widgetContrast == .increased)
         let colorless = AppPrefs.shared.isWidgetColorless()
         let referenceDate = galleryDate ?? Date()
-        let todayDow = DateUtils.todayDayOfWeek(today: referenceDate)
         // issue#22: 同名课程多地点 — 跨天汇总 course 全集, 传取色入口做 AUTO/CUSTOM 按行判
         let allCourses = data.days.flatMap { $0.courses }
         // issue#26: widget 全局一档别名开关 — 字号预算与绘制用同一个名字
@@ -125,26 +124,24 @@ private struct WeekGridBody: View {
             // ★ 空状态: 无课表时占位提示, 不渲染空白网格
             // ★ 学期后课程被清空 → 落到这分支; 学期状态文案优先于"去创建课表"
             if !data.hasTable || data.days.isEmpty || data.days.allSatisfy({ $0.courses.isEmpty }) {
-                VStack(spacing: 4) {
-                    if data.semesterStatus != .inRange {
-                        Text(data.semesterStatus == .beforeStart
-                             ? L10n.format("semester_not_started")
-                             : L10n.format("semester_ended"))
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(s.onSurface)
-                        Text(L10n.format("today_semester_out_hint"))
-                            .font(.system(size: 11))
-                            .foregroundColor(s.onSurfaceVariant)
-                    } else {
-                        Text(L10n.format("widget_create_schedule"))
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(s.onSurface)
-                        Text(L10n.format("widget_open_sleepy"))
-                            .font(.system(size: 11))
-                            .foregroundColor(s.onSurfaceVariant)
+                GeometryReader { geometry in
+                    let title = data.semesterStatus == .inRange
+                        ? L10n.format("widget_create_schedule")
+                        : L10n.format(data.semesterStatus == .beforeStart
+                                      ? "semester_not_started" : "semester_ended")
+                    let hint = L10n.format(data.semesterStatus == .inRange
+                                           ? "widget_open_sleepy" : "today_semester_out_hint")
+                    ZStack(alignment: .topLeading) {
+                        WidgetBaselineText(text: Text(title)
+                            .font(.system(size: 15, weight: .bold)).foregroundColor(s.onSurface),
+                            width: geometry.size.width, height: geometry.size.height,
+                            baseline: geometry.size.height / 2 - 8)
+                        WidgetBaselineText(text: Text(hint)
+                            .font(.system(size: 11)).foregroundColor(s.onSurfaceVariant),
+                            width: geometry.size.width, height: geometry.size.height,
+                            baseline: geometry.size.height / 2 + 12)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 GeometryReader { geo in
                     let ctx = Self.makeContext(
@@ -170,18 +167,16 @@ private struct WeekGridBody: View {
                                     .fill(s.surface)
                                 // ★ 学期前(课照常显示供预习): 角落画学期状态, 用户知道现在学期没开始
                                 if data.semesterStatus == .beforeStart {
-                                    Text(L10n.format("semester_not_started"))
-                                        .font(.system(size: min(headH * 0.16, 9), weight: .regular))
-                                        .foregroundColor(s.onSurfaceVariant)
-                                        .minimumScaleFactor(0.6)
-                                        .lineLimit(1)
-                                        .padding(.horizontal, 2)
+                                    WidgetBaselineText(text: Text(L10n.format("semester_not_started"))
+                                        .font(.system(size: min(max(headH * 0.16, 6), 9)))
+                                        .foregroundColor(s.onSurfaceVariant),
+                                        width: timeW, height: headH, baseline: headH * 0.6)
                                 }
                             }
                             .frame(width: timeW, height: headH)
                             ForEach(Array(sortedDays.enumerated()), id: \.element) { idx, dow in
-                                let isToday = dow == todayDow
                                 let dayData = data.days.first { $0.dayOfWeek == dow }
+                                let isToday = WidgetFaceGeometry.isToday(dayData, referenceDate: referenceDate)
                                 let count = dayData?.courses.count ?? 0
                                 // showDate → 短日期; 否则课程数 / —
                                 let sub: String = {
@@ -189,17 +184,15 @@ private struct WeekGridBody: View {
                                     return count > 0 ? "\(count)" : "—"
                                 }()
 
-                                VStack(spacing: 2) {
-                                    // day name 字号 = headH * 0.24 cap 13 floor 9
-                                    Text(DateUtils.localizedDay(dow))
+                                ZStack(alignment: .topLeading) {
+                                    WidgetBaselineText(text: Text(DateUtils.localizedDay(dow))
                                         .font(.system(size: min(max(headH * 0.24, 9), 13), weight: .bold))
-                                        .foregroundColor(isToday ? s.primary : s.onSurface)
-                                        .minimumScaleFactor(0.7)
-                                    // date or count 字号 = headH * 0.18 cap 10 floor 7
-                                    Text(sub)
+                                        .foregroundColor(isToday ? s.primary : s.onSurface),
+                                        width: dayW, height: headH, baseline: headH * 0.4)
+                                    WidgetBaselineText(text: Text(sub)
                                         .font(.system(size: min(max(headH * 0.18, 7), 10)))
-                                        .foregroundColor(s.onSurfaceVariant)
-                                        .minimumScaleFactor(0.7)
+                                        .foregroundColor(s.onSurfaceVariant),
+                                        width: dayW, height: headH, baseline: headH * 0.72)
                                 }
                                 .frame(width: dayW, height: headH)
                                 .background(isToday ? s.primaryContainer : s.surface)
@@ -770,23 +763,24 @@ private struct WeekGridCourseCard: View {
         // ← WidgetBitmapRenderers drawCourse :741: 灰显 × 「删除线」样式 → 删线
         let strike = isGrey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
 
-        VStack(spacing: 1) {
-            // ★ v21: token 化课名竖排 (灰显列文字 alpha 153/255 ← :740)
+        ZStack(alignment: .topLeading) {
+            // Android resets Paint.alpha to 255 before the token draw loop.
+            // Center the name in the area above the reserved bottom room label.
             VerticalNameView(name: displayName, charSize: unifiedCharSize,
                              nameAvailH: nameAvailH, textColor: textColor,
-                             textOpacity: isGrey ? 153.0 / 255.0 : 1,
                              strike: strike)
+                .frame(width: max(cardW - 8, 0), height: nameAvailH, alignment: .center)
+                .offset(x: 4, y: 4)
             // ★ 教室: 底部横排小字角标, 0.62× 字号, 半透明, 按卡片宽截断省略
-            if hasRoom {
-                Text(roomVisible)
+            if hasRoom && roomSize > 0 {
+                WidgetBaselineText(text: Text(roomVisible)
                     .font(.system(size: roomSize))
                     .strikethrough(strike)
-                    .foregroundColor(textColor.opacity(160.0 / 255.0))
-                    .lineLimit(1)
+                    .foregroundColor(textColor.opacity(160.0 / 255.0)),
+                    width: cardW, height: cardH, baseline: roomLayout.baseline)
             }
         }
-        .padding(4)  // unifiedPad — 可用高预算 (cardH−8) 与实际留白同源
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(width: cardW, height: cardH, alignment: .topLeading)
         .background(
             // 卡底 alpha ← 原版本 :723: 灰显列 120, 正常 200;
             // 玻璃档 = secondaryContainer (白 30%, 文字白 100% 对比足够)
@@ -827,7 +821,13 @@ private struct WeekGridCourseCard: View {
     /// 挤占防御压到 roomReserveH/1.1 (极矮卡不压进课名区)
     private var roomSize: CGFloat {
         let requested = min(max(unifiedCharSize * 0.62, 5), 8)
-        return max(min(requested, roomReserveH / 1.1), 0)
+        return WidgetFaceGeometry.gridRoomLabel(cardHeight: cardH, reserveHeight: roomReserveH,
+                                                requestedSize: requested).size
+    }
+
+    private var roomLayout: (size: CGFloat, baseline: CGFloat) {
+        WidgetFaceGeometry.gridRoomLabel(cardHeight: cardH, reserveHeight: roomReserveH,
+                                         requestedSize: min(max(unifiedCharSize * 0.62, 5), 8))
     }
 
     // 按卡片可用宽算能放几个字符, 超了截断 + … (中文≈0.55em宽) ← :877-882

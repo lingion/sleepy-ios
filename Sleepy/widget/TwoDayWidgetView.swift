@@ -284,12 +284,10 @@ private struct TwoDayColumn: View {
             }
             Spacer(minLength: 0)
             // ← 8c0fcbea / ab27230c: 每列「+N」恒画 (含「+0」), 各列独立计数, 不可点
-            // 定稿: 宽度上限 46 (原 pillW coerceAtMost(colW) 语义的 iOS 固定上界近似;
-            //   胶囊本体圆角 = 高/2 = 9、字号 11 bold 见 WidgetCourseCard.WidgetCapsulePill)
+            // 原 pillW = min(textWidth+16, colW), 居中在各列真实宽度内。
             WidgetFooterCapsule(
                 text: window.map { WidgetWindowCore.capsuleText(hidden: $0.hiddenAheadCourses) },
                 scheme: s)
-                .frame(maxWidth: 46)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // 列间竖直分隔线 ← 原版本 :1448-50 — 全高 listTop→listBottom (列组件本身

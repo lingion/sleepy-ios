@@ -5,6 +5,43 @@
 import SwiftUI
 import UIKit
 
+/// Canvas text is positioned by baseline; keep that geometry when using SwiftUI Text.
+struct WidgetBaselineText: View {
+    let text: Text
+    let width: CGFloat
+    let height: CGFloat
+    let baseline: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color.clear
+            text
+                .lineLimit(1)
+                .frame(width: width, alignment: .center)
+                .alignmentGuide(.top) { $0[.firstTextBaseline] - baseline }
+        }
+        .frame(width: width, height: height, alignment: .topLeading)
+    }
+}
+
+enum WidgetFaceGeometry {
+    /// renderTwoDayRegular: text width + 8dp on each side, capped to the real column.
+    static func footerWidth(textWidth: CGFloat, columnWidth: CGFloat) -> CGFloat {
+        min(max(textWidth, 0) + 16, max(columnWidth, 0))
+    }
+
+    static func isToday(_ day: DayData?, referenceDate: Date) -> Bool {
+        day.map { DateUtils.isDateToday($0.date, referenceDate) } ?? false
+    }
+
+    /// weekGridRoomLabelLayout: constrain the room to its reserve and pin its baseline.
+    static func gridRoomLabel(cardHeight: CGFloat, reserveHeight: CGFloat,
+                              requestedSize: CGFloat) -> (size: CGFloat, baseline: CGFloat) {
+        let size = max(min(requestedSize, max(reserveHeight / 1.1, 0)), 0)
+        return (size, cardHeight - 4 - size * 0.3)
+    }
+}
+
 /// meta 行「时间 · 地点」 ← 原 courseMetaLines (WidgetBitmapRenderers.kt:1060) 四分支:
 /// 任一侧空白 → 只画另一侧(整宽截断, = 原版本 单侧 listOf 后 ellipsize 全宽);
 /// 双侧都有 → 合并单行放得下就**不截断**(原 fits 分支, 不加省略号);
@@ -117,7 +154,7 @@ struct WidgetCourseCard: View {
         }
         .foregroundColor(textColor)
         .padding(.horizontal, 3)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(bgColor)
         .cornerRadius(8)
     }
@@ -202,8 +239,8 @@ struct WidgetMoreCapsule: View {
 }
 
 /// 列底「+N」胶囊 ← renderTwoDayRegular / renderWeekListRegular 页脚:
-/// bitmap 按 18dp 高直接绘制 (无 ImageView 缩放), 整胶囊最小宽 30dp、
-/// 内距 8dp、11sp bold、surfaceVariant 底、列内水平居中、全圆角 9,不可点。
+/// bitmap 按 18dp 高直接绘制 (无 ImageView 缩放), 内距 8dp、11sp bold、
+/// surfaceVariant 底、宽度不超过所在列、列内水平居中、全圆角 9,不可点。
 struct WidgetFooterCapsule: View {
     /// nil = 该列不画页脚 (WeekList 仅在窗口截断时画)
     let text: String?
@@ -216,8 +253,22 @@ struct WidgetFooterCapsule: View {
 
     var body: some View {
         if let text = text {
-            WidgetCapsulePill(text: text, scheme: scheme, height: 18, fontScale: 1,
-                              minTextWidth: nil)
+            GeometryReader { geometry in
+                let textWidth = (text as NSString).size(withAttributes: [
+                    .font: UIFont.boldSystemFont(ofSize: 11)
+                ]).width
+                Text(text)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(scheme.onSurfaceVariant)
+                    .lineLimit(1)
+                    .frame(width: WidgetFaceGeometry.footerWidth(textWidth: textWidth,
+                                                                 columnWidth: geometry.size.width),
+                           height: 18)
+                    .background(scheme.surfaceVariant)
+                    .cornerRadius(9)
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(height: 18)
         }
     }
 }

@@ -141,6 +141,7 @@ struct TodayWidgetEntryView: View {
                     WidgetMoreCapsule(hidden: win?.hiddenAheadCourses ?? 0, scheme: s)
                     Spacer(minLength: 0)
                 }
+                .frame(height: WidgetRowGeometry.navBarH)
             }
             .padding(.horizontal, 10)
             .padding(.top, 10)

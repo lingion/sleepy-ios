@@ -36,7 +36,7 @@ final class WidgetGalleryParityTests: XCTestCase {
         XCTAssertTrue(sample.week.hasTable)
         XCTAssertTrue(sample.twoDay.hasTable)
         XCTAssertEqual(sample.week.days.count, 7)
-        XCTAssertEqual(sample.week.visibleDays, Set(1...5))
+        XCTAssertEqual(sample.week.visibleDays, Set(1...7))
         XCTAssertEqual(sample.week.days.map { $0.courses.count }, [3, 4, 3, 2, 3, 0, 0])
         XCTAssertEqual(DateUtils.todayDayOfWeek(today: sample.today.date), 2)
         XCTAssertEqual(sample.today.courses, sample.week.days[1].courses)
@@ -80,6 +80,10 @@ final class WidgetGalleryParityTests: XCTestCase {
             XCTAssertGreaterThan(png.count, 2_000, "Preview should contain rendered course content")
             let path = out.appendingPathComponent(card.variant.kind + ".png")
             try png.write(to: path)
+            let attachment = XCTAttachment(image: rendered)
+            attachment.name = "widget-gallery-" + card.variant.kind
+            attachment.lifetime = .keepAlways
+            add(attachment)
             NSLog("WIDGET_GALLERY_PREVIEW_WRITTEN %@", path.path)
         }
     }

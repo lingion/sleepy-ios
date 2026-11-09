@@ -55,21 +55,21 @@ struct WidgetGallerySampleData {
         let seminar = "widget_preview_seminar"
         let gym = L10n.t("widget_preview_gym")
         let specifications: [(day: Int, name: String, node: Int, step: Int, room: String, color: String)] = [
-            (1, math, 1, 2, "A305", "#D7C8EA"),
-            (1, english, 3, 2, "B201", "#EBE9C7"),
-            (1, linear, 5, 2, "A305", "#C8EADB"),
-            (2, math, 1, 2, "A305", "#D7C8EA"),
-            (2, english, 3, 2, "B201", "#EBE9C7"),
-            (2, sports, 5, 2, gym, "#C8CFEA"),
-            (2, programming, 7, 2, "C102", "#EAC8DC"),
-            (3, linear, 1, 2, "A305", "#C8EADB"),
-            (3, seminar, 3, 1, "D203", "#EAD9C8"),
-            (3, programming, 4, 2, "C102", "#EAC8DC"),
-            (4, math, 2, 2, "A305", "#D7C8EA"),
-            (4, english, 5, 2, "B201", "#EBE9C7"),
-            (5, linear, 1, 2, "A305", "#C8EADB"),
-            (5, seminar, 3, 1, "D203", "#EAD9C8"),
-            (5, sports, 4, 2, gym, "#C8CFEA")
+            (1, math, 1, 2, "A305", "#D9B7EA"),
+            (1, english, 3, 2, "B201", "#EAEAB7"),
+            (1, linear, 5, 2, "A305", "#B7EAD1"),
+            (2, math, 1, 2, "A305", "#D9B7EA"),
+            (2, english, 3, 2, "B201", "#EAEAB7"),
+            (2, sports, 5, 2, gym, "#B7C4EA"),
+            (2, programming, 7, 2, "C102", "#EAB7D9"),
+            (3, linear, 1, 2, "A305", "#B7EAD1"),
+            (3, seminar, 3, 1, "D203", "#EAD1B7"),
+            (3, programming, 4, 2, "C102", "#EAB7D9"),
+            (4, math, 2, 2, "A305", "#D9B7EA"),
+            (4, english, 5, 2, "B201", "#EAEAB7"),
+            (5, linear, 1, 2, "A305", "#B7EAD1"),
+            (5, seminar, 3, 1, "D203", "#EAD1B7"),
+            (5, sports, 4, 2, gym, "#B7C4EA")
         ]
         let courses = specifications.enumerated().map { index, spec in
             CourseEntity(groupId: "widget-gallery-\(spec.name)", tableId: -1,
@@ -85,7 +85,7 @@ struct WidgetGallerySampleData {
             timeJson: TimeTableUtils.DEFAULT_TIME_JSON, hasTable: true,
             themeMode: "system", isToday: true)
         let week = WeekData(days: days, hasTable: true, themeMode: "system", showDate: true,
-            visibleDays: Set(1...5))
+            visibleDays: Set(1...7))
         let twoDay = TwoDayData(days: Array(days[1...2]), hasTable: true, themeMode: "system")
         return WidgetGallerySampleData(today: today, week: week, twoDay: twoDay)
     }
