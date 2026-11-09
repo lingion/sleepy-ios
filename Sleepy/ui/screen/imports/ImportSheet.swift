@@ -68,10 +68,18 @@ struct ImportPreviewSession {
 // 外部打开 json → 主壳 pendingImportText(← MainActivity companion, iOS 为全局)
 enum PendingImportText {
     static let changedNotification = Notification.Name("sleepy.import.pending.changed")
+    private(set) static var deliveryID: UUID?
     static var value: String? = nil {
         didSet {
+            deliveryID = value == nil ? nil : UUID()
             NotificationCenter.default.post(name: changedNotification, object: nil)
         }
+    }
+
+    static func take() -> String? {
+        guard let text = value else { return nil }
+        value = nil
+        return text
     }
 }
 

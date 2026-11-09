@@ -3,6 +3,32 @@ import XCTest
 
 final class PendingImportDeliveryTests: XCTestCase {
     @MainActor
+    func testRepeatedIdenticalPayloadsHaveDistinctDeliveryIdentities() throws {
+        let previous = PendingImportText.value
+        defer { PendingImportText.value = previous }
+        PendingImportText.value = "same document"
+        let first = try XCTUnwrap(PendingImportText.deliveryID)
+        PendingImportText.value = "same document"
+        let second = try XCTUnwrap(PendingImportText.deliveryID)
+        XCTAssertNotEqual(first, second)
+        PendingImportText.value = nil
+        XCTAssertNil(PendingImportText.deliveryID)
+    }
+
+    @MainActor
+    func testTakingPresentationPayloadDoesNotConsumeTheNextDelivery() {
+        let previous = PendingImportText.value
+        defer { PendingImportText.value = previous }
+        PendingImportText.value = "first document"
+        let captured = PendingImportText.take()
+        PendingImportText.value = "second document"
+        XCTAssertEqual(captured, "first document")
+        XCTAssertEqual(PendingImportText.value, "second document")
+        XCTAssertEqual(PendingImportText.take(), "second document")
+        XCTAssertNil(PendingImportText.take())
+    }
+
+    @MainActor
     func testExistingObserverConsumesTwoFileOpensAndIgnoresClearing() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
