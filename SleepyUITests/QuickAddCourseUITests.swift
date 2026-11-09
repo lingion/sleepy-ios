@@ -30,7 +30,51 @@ final class QuickAddCourseUITests: XCTestCase {
     }
 
     private func coordinate(_ point: CGPoint) -> XCUICoordinate {
-        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y))
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: point.x - app.frame.minX, dy: point.y - app.frame.minY))
+    }
+
+    private func gridViewport(in scroll: XCUIElement) -> CGRect {
+        var viewport = app.frame.intersection(pager.frame).intersection(scroll.frame)
+        let nativeBars = app.tabBars.allElementsBoundByIndex.filter(\.isHittable).map(\.frame)
+        let pillItems = ["schedule", "today", "manage", "mine"].compactMap { tab -> CGRect? in
+            let item = app.descendants(matching: .any)["pill_\(tab)"].firstMatch
+            return item.exists && item.isHittable ? item.frame : nil
+        }
+        // The floating bar overlays the scroll view; its full-height tab seats
+        // provide the actual top edge that a handle must remain above.
+        for bar in nativeBars + pillItems where viewport.intersects(bar) {
+            viewport.size.height = max(0, min(viewport.maxY, bar.minY) - viewport.minY)
+        }
+        return viewport.insetBy(dx: 8, dy: 8)
+    }
+
+    private func revealPlacementRange(file: StaticString = #filePath, line: UInt = #line) throws {
+        XCTAssertFalse(capsule.exists, "Scroll before opening the quick-add capsule", file: file, line: line)
+        let scroll = try XCTUnwrap(pager.scrollViews.allElementsBoundByIndex.first {
+            $0.exists && $0.buttons["add-course-7-5"].exists
+        }, "The current week's grid must expose its vertical scroll view", file: file, line: line)
+        for _ in 0..<8 {
+            let first = cell(6, 4).frame
+            let last = cell(6, 6).frame
+            let viewport = gridViewport(in: scroll)
+            if viewport.contains(first) && viewport.contains(last) { return }
+            _ = try XCTUnwrap(!viewport.isEmpty && viewport.height > first.union(last).height ? viewport : nil,
+                             "Periods 4–6 must fit together in the grid viewport", file: file, line: line)
+            let moveDown = first.minY < viewport.minY
+            let clipped = moveDown ? viewport.minY - first.minY : last.maxY - viewport.maxY
+            let distance = min(100, viewport.height * 0.35, max(32, clipped + 8))
+            // Sunday stays empty even after Saturday's course is saved. Ordinary
+            // short drags scroll it without starting a course drag or a handle resize.
+            let x = cell(7, 5).frame.midX
+            let startY = viewport.midY + (moveDown ? -distance / 2 : distance / 2)
+            let endY = viewport.midY + (moveDown ? distance / 2 : -distance / 2)
+            coordinate(CGPoint(x: x, y: startY)).press(forDuration: 0.05,
+                thenDragTo: coordinate(CGPoint(x: x, y: endY)))
+        }
+        let viewport = gridViewport(in: scroll)
+        XCTAssertTrue(viewport.contains(cell(6, 4).frame) && viewport.contains(cell(6, 6).frame),
+                      "Both resize destinations must be fully visible above the navigation bar", file: file, line: line)
     }
 
     func testOutsidePressCancelsWithoutOpeningCourseOrReselectingCell() {
@@ -66,11 +110,12 @@ final class QuickAddCourseUITests: XCTestCase {
         }
     }
 
-    func testBothHandlesPrefillSingleWeekAndSavePersistsExactPlacement() {
+    func testBothHandlesPrefillSingleWeekAndSavePersistsExactPlacement() throws {
         app.buttons["week_next"].tap()
         waitForWeek(2)
         app.buttons["week_next"].tap()
         waitForWeek(3)
+        try revealPlacementRange()
         let first = cell(6, 4).frame
         let last = cell(6, 6).frame
         cell(6, 5).tap()
@@ -83,6 +128,8 @@ final class QuickAddCourseUITests: XCTestCase {
             thenDragTo: coordinate(CGPoint(x: first.midX, y: first.minY + 7)))
         bottom.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.1,
             thenDragTo: coordinate(CGPoint(x: last.midX, y: last.maxY - 7)))
+        XCTAssertEqual(top.value as? String, "4")
+        XCTAssertEqual(bottom.value as? String, "6")
         XCTAssertEqual(capsule.frame.minY, first.minY, accuracy: 2)
         XCTAssertEqual(capsule.frame.maxY, last.maxY, accuracy: 2)
         XCTAssertEqual(capsule.frame.midX, first.midX, accuracy: 2)
@@ -105,7 +152,7 @@ final class QuickAddCourseUITests: XCTestCase {
         XCTAssertTrue(save.isEnabled)
         save.tap()
         waitForWeek(3)
-        assertSavedPlacement()
+        try assertSavedPlacement()
 
         app.terminate()
         app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
@@ -117,7 +164,7 @@ final class QuickAddCourseUITests: XCTestCase {
         XCTAssertEqual(savedCards().count, 0)
         app.buttons["week_next"].tap()
         waitForWeek(3)
-        assertSavedPlacement()
+        try assertSavedPlacement()
         app.buttons["week_next"].tap()
         waitForWeek(4)
         XCTAssertEqual(savedCards().count, 0, "快速加课只预填指定单周")
@@ -128,7 +175,8 @@ final class QuickAddCourseUITests: XCTestCase {
             "gridcell_", "Quick Add CI")).allElementsBoundByIndex.filter(\.isHittable)
     }
 
-    private func assertSavedPlacement() {
+    private func assertSavedPlacement() throws {
+        try revealPlacementRange()
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in savedCards().count == 1 }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
         let card = savedCards()[0]
