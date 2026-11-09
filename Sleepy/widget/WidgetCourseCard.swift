@@ -49,7 +49,7 @@ enum WidgetFaceGeometry {
 /// (原版本 ellipsizeBy:1070)。旧实现合并串整串尾部截断 → 窄列地点整段消失。
 /// ★ 测量口径差异 [B]: 原版本 paint.measureText / iOS NSAttributedString.size,
 ///   同字号下宽度近似但不逐位相等; 仅影响截断点 ±1 字, 不影响布局几何。
-private struct WidgetMetaLine: View {
+struct WidgetMetaLine: View {
     let time: String
     let room: String
     let fontSize: CGFloat
@@ -58,7 +58,7 @@ private struct WidgetMetaLine: View {
     private var uiFont: UIFont { UIFont.systemFont(ofSize: fontSize) }
 
     var body: some View {
-        let combined = time.isEmpty ? room : (time + Self.sep + room)
+        let combined = room.isEmpty ? time : (time.isEmpty ? room : time + Self.sep + room)
         if time.isEmpty || room.isEmpty {
             // 单侧: 占满整行, 超宽 SwiftUI 尾部省略 ≈ 原 ellipsize 全宽
             Text(combined)

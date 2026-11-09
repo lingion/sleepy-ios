@@ -82,6 +82,33 @@ final class WidgetFaceGeometryTests: XCTestCase {
 
     @available(iOS 16.0, *)
     @MainActor
+    func testCourseMetaProductionRendererOmitsSeparatorForASingleValue() throws {
+        let size = CGSize(width: 180, height: 24)
+        for (time, room, expected) in [("08:00-09:40", "", "08:00-09:40"),
+                                       ("", "A305", "A305")] {
+            let actual = try render(WidgetMetaLine(time: time, room: room, fontSize: 12)
+                .foregroundColor(.black), size: size)
+            let singleValue = try render(Text(expected).font(.system(size: 12))
+                .lineLimit(1).foregroundColor(.black), size: size)
+            let actualPixels = try pixels(actual)
+            XCTAssertTrue(stride(from: 3, to: actualPixels.count, by: 4).contains { actualPixels[$0] > 16 },
+                          "The metadata renderer must produce visible text")
+            XCTAssertTrue(try actualPixels.elementsEqual(pixels(singleValue)),
+                          "Single-value metadata must contain no separator")
+        }
+
+        let sample = WidgetGallerySampleData.make()
+        var course = try XCTUnwrap(sample.today.courses.first)
+        course.room = ""
+        let scheme = resolveWidgetScheme(themeKey: sample.today.themeKey, isDark: false)
+        let card = try render(WidgetCourseCard(course: course, timeJson: sample.today.timeJson,
+            scheme: scheme, colorless: false, fontSizeSp: 11, displayMode: "time", groupRows: [course]),
+            size: CGSize(width: 200, height: 36))
+        try attach(card, name: "WidgetCourseCard-no-room")
+    }
+
+    @available(iOS 16.0, *)
+    @MainActor
     private func render<Content: View>(_ content: Content, size: CGSize) throws -> UIImage {
         let renderer = ImageRenderer(content: content.frame(width: size.width, height: size.height)
             .environment(\.colorScheme, .light))
