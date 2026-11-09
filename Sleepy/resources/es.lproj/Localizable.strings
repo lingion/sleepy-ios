@@ -1208,6 +1208,7 @@
 "live_activity_open_to_refresh" = "Abre Sleepy para actualizar";
 "live_activity_next" = "Siguiente: %1$@";
 
+"timeslot_reorder_standard_only" = "Los períodos especiales permanecen fijos. Arrastra los períodos normales para reordenarlos.";
 // Readable static examples in the widget gallery.
 "widget_preview_calculus" = "Cálculo";
 "widget_preview_english" = "Lectura en inglés";

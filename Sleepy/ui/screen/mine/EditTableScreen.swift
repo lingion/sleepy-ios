@@ -42,6 +42,7 @@ struct EditTableScreen: View {
     @State private var showDeleteConfirm = false
     @State private var slotRows: [TimeTableUtils.TimeSlotRow] = []
     @State private var smartConfig = SmartPeriodConfig()
+    @State private var reorderCourses: [CourseEntity]? = nil
 
     // issue#40: 换绑选择(§5.3) — 初始 = table.periodTableId; 确认时才写 periodTableId。
     // pendingBind != table.periodTableId 时保存流程走换绑分支。
@@ -230,6 +231,8 @@ struct EditTableScreen: View {
                                     editState?.updateDraft(draft)
                                     syncPendingPolicy()
                                 },
+                                reorderEnabled: reorderCourses != nil,
+                                courses: reorderCourses ?? [],
                                 periodTableOptions: allPeriodTables.map {
                                     PeriodTableOption(id: $0.id, name: $0.name, nodesPerDay: $0.nodesPerDay)
                                 },
@@ -248,6 +251,7 @@ struct EditTableScreen: View {
                         Text(error)
                             .font(.system(size: 14))
                             .foregroundColor(colors.error)
+                            .accessibilityIdentifier("edit_table_save_error")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
@@ -277,6 +281,7 @@ struct EditTableScreen: View {
                         .cornerRadius(SleepyShapes.large)
                     }
                     .buttonStyle(SleepyButtonStyle())
+                    .disabled(editState == nil)
                     .accessibilityIdentifier("edit_table_save")
 
                     // 删除(新建未保存的表不显示)
@@ -372,7 +377,19 @@ struct EditTableScreen: View {
 
     /// 进入/切换课表时重建整套会话状态(remember(table.id) + startEditSession)。
     private func enterSession(table: TimeTableEntity) {
+        // Explicit table editing need not select that table in the main timetable.
+        // Read its courses directly; a failed read must never enable an unprotected move.
+        reorderCourses = try? viewModel.getCoursesForEditing(table.id)
         guard loadedTableId != table.id || editState == nil else { return }
+        let session: ScheduleEditPolicyState
+        do {
+            session = try viewModel.startEditSessionForEditing(tableId: table.id)
+        } catch {
+            editState = nil
+            reorderCourses = nil
+            self.error = L10n.format("edit_table_period_loading")
+            return
+        }
         loadedTableId = table.id
         name = table.name
         startDate = table.startDate
@@ -396,11 +413,8 @@ struct EditTableScreen: View {
         // 走 VM 注册(返回对象入 editStates[tableId]), 执行策略的
         // viewModel.executePolicyAndSave 按 tableId 取回同一对象 — 屏外(如撤回页)查
         // hasPendingPolicy 也读到同一会话。original = 进入时刻实际生效作息快照
-        // (绑定 → VM 水合结果; 未绑定 → null)。旧会话残留策略一并作废。
-        editState = viewModel.startEditSession(
-            tableId: table.id,
-            originalEffectiveSchedule: table.periodTableId != nil
-                ? viewModel.state.effectivePeriodTable : nil)
+        // (绑定 → 显式编辑目标的作息表; 未绑定 → null)。旧会话残留策略一并作废。
+        editState = session
         pendingPolicy = .none
         // schedule 域(slotRows/smartConfig)按新键重载 — 有效表与 body 同一解析口径
         loadedScheduleKey = nil
@@ -509,7 +523,8 @@ struct EditTableScreen: View {
                     newTimeJson: newTimeJson,
                     smartConfigJson: smartConfigJson,
                     nodesPerDay: max(slotRows.count, 1),
-                    onFinish: onSaved)
+                    onFinish: onSaved,
+                    onFailure: { error = $0 })
                 return
             }
         }
@@ -518,7 +533,8 @@ struct EditTableScreen: View {
         if bindChanged {
             // 解绑: 元数据+时间域(解绑后兼容列是真值)+periodTableId=null,
             // 单事务原子完成 — 课程行零改动(issue#40 §5.3)
-            viewModel.updateTableMetadataAndBind(table: updated, periodTableId: nil)
+            viewModel.updateTableMetadataAndBind(table: updated, periodTableId: nil,
+                                                 onFinish: onSaved, onFailure: { error = $0 })
         } else if let effective = effective {
             // 未改作息时保留元数据 + 共享作息表的单事务原子双写。
             // 改了作息的路径已在上面的三选项闸门处理; 走到这里的
@@ -527,13 +543,13 @@ struct EditTableScreen: View {
             period.timeJson = newTimeJson
             period.smartConfigJson = smartConfigJson
             period.nodesPerDay = max(slotRows.count, 1)
-            viewModel.updateTableMetadataWithPeriodTable(table: updated, periodTable: period)
+            viewModel.updateTableMetadataWithPeriodTable(table: updated, periodTable: period,
+                                                         onFinish: onSaved, onFailure: { error = $0 })
         } else {
             // issue#28 P3: timeJson 变了课程节次必须自适应(16→12 节后
             // 课程不能再停在 13-16 节)
-            viewModel.updateTableRemappingCourses(updated)
+            viewModel.updateTableRemappingCourses(updated, onFinish: onSaved, onFailure: { error = $0 })
         }
-        onSaved()
     }
 
     /// ← 原版本 viewModel.executePolicyAndSave 对应实现已收敛到 ScheduleViewModel
@@ -554,11 +570,12 @@ struct EditTableScreen: View {
         if let metadata = metadata {
             viewModel.updateTableMetadataAndBind(table: metadata,
                                                  periodTableId: targetId,
-                                                 periodContent: periodContent)
+                                                 periodContent: periodContent,
+                                                 onFinish: onSaved, onFailure: { error = $0 })
         } else {
-            viewModel.bindPeriodTable(timeTableId: table.id, periodTableId: targetId)
+            viewModel.bindPeriodTable(timeTableId: table.id, periodTableId: targetId,
+                                      onFinish: onSaved, onFailure: { error = $0 })
         }
-        onSaved()
     }
 
     /// 甲案 §4.1: 弹窗「另有 N 张课表绑定」提示 — 绑定到指定作息表的课表数。
