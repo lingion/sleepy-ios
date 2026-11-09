@@ -62,13 +62,13 @@ struct ManagementPage: View {
         ScrollView {
             VStack(spacing: 16) {
                 Text(L10n.format("manage_title"))
-                    // ← Material 3 headlineMedium.copy(Medium) = 28sp/medium (ManagementPage.kt L82)
-                    .font(.system(size: 28, weight: .medium))
+                    // ← v1.0.63 ManagementPage: headlineMedium.copy(Bold).
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundColor(colors.onBackground)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("manage_page_title")
 
-                HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .top, spacing: 0) {
                     Button(action: onEditCurrentTable) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(L10n.format("manage_current_table"))
@@ -82,22 +82,27 @@ struct ManagementPage: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(colors.onSurfaceVariant)
                         }
+                        .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                     .disabled(table == nil)
                     .accessibilityIdentifier("manage_edit_current")
                     Button(action: onOpenAllTables) {
                         Text(L10n.format("manage_view_all_tables"))
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(colors.onSurfaceVariant)
-                            .frame(minHeight: 44)
+                            .padding(.horizontal, 12)
+                            .frame(minWidth: 58, minHeight: 48)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SleepyButtonStyle())
                     .accessibilityIdentifier("manage_all_tables")
+                    // Android's TextButton is positioned independently of
+                    // the summary column's sixteen-point content padding.
+                    .padding(.top, 4)
+                    .padding(.trailing, 8)
                 }
-                .padding(16)
                 .background(colors.surfaceContainer)
                 .cornerRadius(SleepyShapes.large)
 
@@ -176,7 +181,7 @@ private struct ManageCard: View {
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(16)
         }
