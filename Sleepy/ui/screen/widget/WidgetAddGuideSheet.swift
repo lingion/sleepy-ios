@@ -52,7 +52,7 @@ struct WidgetAddGuideSheet: View {
                         .font(.headline)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 12)
-                    WidgetGalleryPreview(kind: card.variant.kind)
+                    WidgetGalleryPreview(card: card)
                         .aspectRatio(WidgetGalleryData.aspectRatio(of: card.previewFamily),
                                      contentMode: .fit)
                         .frame(maxWidth: .infinity)

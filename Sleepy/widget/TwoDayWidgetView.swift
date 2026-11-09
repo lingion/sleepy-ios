@@ -141,6 +141,7 @@ struct TwoDayWidgetProvider: TimelineProvider {
 
 struct TwoDayWidgetEntryView: View {
     @Environment(\.widgetFamily) var widgetFamily
+    @Environment(\.sleepyWidgetGalleryFamily) private var galleryFamily
     @Environment(\.colorScheme) private var widgetColorScheme
     @Environment(\.colorSchemeContrast) private var widgetContrast
     let entry: TwoDayWidgetEntry
@@ -165,7 +166,7 @@ struct TwoDayWidgetEntryView: View {
         let showDate = prefs.isShowDate()
         // issue#26: widget 全局一档别名开关
         let useAlias = prefs.isWidgetUseAlias()
-        let tier = WidgetLayoutTier(family: widgetFamily)
+        let tier = WidgetLayoutTier(family: galleryFamily ?? widgetFamily)
         // 时间窗只作用在「今天」列 (WidgetWindows.twoDay 内按 day.isToday 判定)
         let nowMin = entry.nowMin
 
@@ -222,6 +223,7 @@ struct TwoDayWidgetEntryView: View {
 }
 
 private struct TwoDayColumn: View {
+    @Environment(\.sleepyWidgetGalleryDate) private var galleryDate
     let day: DayData
     let scheme: WidgetScheme
     let colorless: Bool
@@ -305,8 +307,15 @@ private struct TwoDayColumn: View {
     private var title: String {
         // ← 原版本 :1373-77: 仅 isToday/明天/星期 三分支, 无跳转态标题
         // (NEAREST_BUSY_DAY 只换日期列内容, 标题保持星期口径)
-        if day.isToday { return L10n.format("today_today") }
-        if day.isTomorrow { return L10n.format("tomorrow") }
+        if let referenceDate = galleryDate {
+            if DateUtils.isDateToday(day.date, referenceDate) { return L10n.format("today_today") }
+            if DateUtils.isDateToday(day.date, Calendar.isoAddDays(referenceDate, 1)) {
+                return L10n.format("tomorrow")
+            }
+        } else {
+            if day.isToday { return L10n.format("today_today") }
+            if day.isTomorrow { return L10n.format("tomorrow") }
+        }
         return day.dayName
     }
 }

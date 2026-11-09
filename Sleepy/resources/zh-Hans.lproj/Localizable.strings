@@ -1208,3 +1208,12 @@
 "live_activity_stale" = "课程状态可能已过期";
 "live_activity_open_to_refresh" = "打开 Sleepy 刷新";
 "live_activity_next" = "下节：%1$@";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "高等数学";
+"widget_preview_english" = "英文阅读";
+"widget_preview_linear_algebra" = "线性代数";
+"widget_preview_sports" = "体育";
+"widget_preview_programming" = "程序设计实践";
+"widget_preview_seminar" = "研讨课";
+"widget_preview_gym" = "体育馆";

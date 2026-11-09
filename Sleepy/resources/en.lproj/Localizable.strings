@@ -1207,3 +1207,12 @@
 "live_activity_stale" = "Schedule may be out of date";
 "live_activity_open_to_refresh" = "Open Sleepy to refresh";
 "live_activity_next" = "Next: %1$@";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "Calculus";
+"widget_preview_english" = "English Reading";
+"widget_preview_linear_algebra" = "Linear Algebra";
+"widget_preview_sports" = "PE";
+"widget_preview_programming" = "Programming Lab";
+"widget_preview_seminar" = "Seminar";
+"widget_preview_gym" = "Gym";

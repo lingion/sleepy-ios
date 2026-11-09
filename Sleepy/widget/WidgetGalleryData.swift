@@ -1,4 +1,4 @@
-// WidgetGalleryData.swift — ← widget/WidgetGalleryData.kt (v1.0.62 B4)
+// WidgetGalleryData.swift — ← widget/WidgetGalleryData.kt (v1.0.63)
 //
 // 画廊卡片 = allWidgetVariants 的 1:1 投影(设计 §4 不变量②)。
 // 数量零硬编码: 注册表新增变体, 画廊自动多一张卡片。
@@ -7,10 +7,9 @@
 // ★ 平台差异(差异表#8 附注):
 //   - 原版本: 13 档 base/small/wide × receiver, 预览 = previewImageRes 静态图,
 //     卡片框比例 = variant 声明尺寸 widthDp/heightDp (S 110×110 / M 300×160 / L 300×250)。
-//   - iOS: StaticConfiguration 不支持同 kind 多档实例 → 保留 5 kind × family
-//     (WidgetVariantInfo.swift 头注), 画廊按 5 kind 出卡; 预览无静态图资源,
-//     用 schematic 占位块(WidgetGalleryScreen.WidgetGalleryPreview), 卡片框比例
-//     = 代表 family 的真实宽高比 — 与 原版本「缩略图与桌面占地等大比例」同一契约。
+//   - iOS: 同 kind 的尺寸由 WidgetFamily 承担，画廊按现有 5 kind 出卡。
+//     固定样例数据复用生产 SwiftUI renderer；同排按代表 family 面积最大者定框，
+//     其他预览按原比例 Fit 居中，不增加外层卡片背景。
 //   - receiverName 等价 = kind: WidgetCenter.getCurrentConfigurations 的 kind
 //     即 iOS 唯一实例标识(WidgetManagementScreen.swift 头注)。
 
@@ -53,19 +52,38 @@ enum WidgetGalleryData {
         #endif
     }
 
-    /// ← 卡片框 = 该 variant 声明尺寸的真实比例(缩略图与桌面占地等大比例)。
-    /// iOS family 真实宽高比: small ≈ 1.0(158×158) / medium ≈ 2.0(329×158) /
-    /// large ≈ 0.95(329×345) — 原版本 M 档 1.875 / L 档 1.2 的 iOS 对位。
-    static func aspectRatio(of family: WidgetFamily) -> CGFloat {
+    /// Canonical iOS preview canvases; the gallery scales each canvas without stretching.
+    static func previewSize(of family: WidgetFamily) -> CGSize {
         #if os(watchOS)
-        return 1.0   // watch 共源编译占位(同上, 画廊页仅 iOS 承载)
+        return CGSize(width: 158, height: 158)
         #else
         switch family {
-        case .systemSmall: return 1.0
-        case .systemMedium: return 2.0
-        case .systemLarge: return 0.95
-        default: return 1.0
+        case .systemSmall: return CGSize(width: 158, height: 158)
+        case .systemMedium: return CGSize(width: 329, height: 158)
+        case .systemLarge: return CGSize(width: 329, height: 345)
+        default: return CGSize(width: 158, height: 158)
         }
         #endif
+    }
+
+    static func aspectRatio(of family: WidgetFamily) -> CGFloat {
+        let size = previewSize(of: family)
+        return size.width / size.height
+    }
+
+    /// Android #231: each row uses the largest declared-area variant as its leader.
+    static func rowBoxAspectRatios(_ cards: [WidgetGalleryCard], columns: Int) -> [CGFloat] {
+        precondition(columns > 0)
+        return cards.indices.map { index in
+            let rowStart = index / columns * columns
+            let rowEnd = min(rowStart + columns, cards.count)
+            var leader = cards[rowStart]
+            for card in cards[rowStart..<rowEnd] {
+                let candidate = previewSize(of: card.previewFamily)
+                let current = previewSize(of: leader.previewFamily)
+                if candidate.width * candidate.height > current.width * current.height { leader = card }
+            }
+            return aspectRatio(of: leader.previewFamily)
+        }
     }
 }

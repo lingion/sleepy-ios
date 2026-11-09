@@ -131,6 +131,8 @@ func shownDays(_ data: WeekData) -> [DayData] {
 
 struct WeekListWidgetEntryView: View {
     @Environment(\.widgetFamily) private var widgetFamily
+    @Environment(\.sleepyWidgetGalleryFamily) private var galleryFamily
+    @Environment(\.sleepyWidgetGalleryDate) private var galleryDate
     @Environment(\.colorScheme) private var widgetColorScheme
     @Environment(\.colorSchemeContrast) private var widgetContrast
     let entry: WeekListWidgetEntry
@@ -152,8 +154,10 @@ struct WeekListWidgetEntryView: View {
         let colorless = AppPrefs.shared.isWidgetColorless()
         // issue#26: widget 全局一档别名开关
         let useAlias = AppPrefs.shared.isWidgetUseAlias()
-        let todayDow = DateUtils.todayDayOfWeek(today: Date())
-        let tier = WidgetLayoutTier(family: widgetFamily)
+        let referenceDate = galleryDate ?? Date()
+        let todayDow = DateUtils.todayDayOfWeek(today: referenceDate)
+        let family = galleryFamily ?? widgetFamily
+        let tier = WidgetLayoutTier(family: family)
         // 状态行占位 16dp — 仅学期外画状态行才占位。
         // ★ 定稿 (PR#14 评审 2026-10-28): 原 statusH 闸门 (WeekListWidget.kt L60-61)
         //   = semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL, 但 原版本 渲染器
@@ -166,10 +170,11 @@ struct WeekListWidgetEntryView: View {
             // ← renderWeekList L786: SMALL 变体 + 容器 <150dp 才走 compact 脸,
             // 容器被拖大 ≥150dp → 内部升档回全量排版 (iPad/大屏手机 systemSmall 实测
             // ≥150pt 时与安卓平板同口径显示全周列)。
-            let isCompact = widgetFamily == .systemSmall && proxy.size.width < 150
+            let isCompact = family == .systemSmall && proxy.size.width < 150
             let days = isCompact
                 ? WidgetCompactHelpers.compactShownDays(data, AppPrefs.shared.getVisibleDays(), todayDow)
-                : shownDays(data)
+                : galleryFamily == nil ? shownDays(data)
+                : data.days.filter { data.visibleDays.contains($0.dayOfWeek) }
             // ← push() L62-64 闸门: hasTable && 列非空 && 任一天有课 (数据层 days 全量口径,
             // 非过滤后 shownDays — 安卓 any 读 data.days)。学期外不在此设闸:
             // BEFORE_START 钳周=1 预习照常叠窗口截断; AFTER_END 课程清空 → any=false 自然不成窗
@@ -201,7 +206,7 @@ struct WeekListWidgetEntryView: View {
                                 WeekListDayColumn(day: day, scheme: s, colorless: colorless,
                                                   // ← renderWeekListRegular L828: 今天高亮按真实日期判
                                                   // (展示周≠自然周 / compactWindow 跨周时按星期会错列)
-                                                  isToday: DateUtils.isDateToday(day.date),
+                                                  isToday: DateUtils.isDateToday(day.date, referenceDate),
                                                   useAlias: useAlias,
                                                   window: colIdx < (wins?.count ?? 0) ? wins?[colIdx] : nil)
                             }

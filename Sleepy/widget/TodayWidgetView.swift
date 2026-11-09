@@ -67,6 +67,7 @@ struct TodayWidgetProvider: TimelineProvider {
 
 struct TodayWidgetEntryView: View {
     @Environment(\.widgetFamily) var widgetFamily
+    @Environment(\.sleepyWidgetGalleryFamily) private var galleryFamily
     @Environment(\.colorScheme) private var widgetColorScheme
     @Environment(\.colorSchemeContrast) private var widgetContrast
     let entry: TodayWidgetEntry
@@ -91,7 +92,7 @@ struct TodayWidgetEntryView: View {
         let displayMode = prefs.getDisplayMode()   // ★ 用户显示设置 (决策 D5-12)
         let showDate = prefs.isShowDate()
         let useAlias = prefs.isWidgetUseAlias()    // issue#26: widget 全局一档别名开关
-        let tier = WidgetLayoutTier(family: widgetFamily)
+        let tier = WidgetLayoutTier(family: galleryFamily ?? widgetFamily)
         // 时间窗只在「今天」生效 (原版本 data.isToday);非今天走 HEAD 从头截断
         let nowMin = Calendar.current.isDate(entry.date, inSameDayAs: data.date) ? entry.nowMin : nil
 

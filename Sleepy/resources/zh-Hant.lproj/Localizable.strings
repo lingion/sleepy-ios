@@ -1207,3 +1207,12 @@
 "live_activity_stale" = "課程狀態可能已過期";
 "live_activity_open_to_refresh" = "開啟 Sleepy 更新";
 "live_activity_next" = "下節：%1$@";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "高等數學";
+"widget_preview_english" = "英文閱讀";
+"widget_preview_linear_algebra" = "線性代數";
+"widget_preview_sports" = "體育";
+"widget_preview_programming" = "程式設計實作";
+"widget_preview_seminar" = "研討課";
+"widget_preview_gym" = "體育館";

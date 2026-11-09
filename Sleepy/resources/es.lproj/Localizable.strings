@@ -1207,3 +1207,12 @@
 "live_activity_stale" = "La información puede estar desactualizada";
 "live_activity_open_to_refresh" = "Abre Sleepy para actualizar";
 "live_activity_next" = "Siguiente: %1$@";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "Cálculo";
+"widget_preview_english" = "Lectura en inglés";
+"widget_preview_linear_algebra" = "Álgebra lineal";
+"widget_preview_sports" = "Educación física";
+"widget_preview_programming" = "Prácticas de programación";
+"widget_preview_seminar" = "Seminario";
+"widget_preview_gym" = "Gimnasio";

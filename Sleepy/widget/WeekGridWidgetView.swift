@@ -44,6 +44,7 @@ struct WeekGridWidgetProvider: TimelineProvider {
 struct WeekGridWidgetEntryView: View {
     let entry: WeekGridWidgetEntry
     @Environment(\.widgetFamily) private var widgetFamily
+    @Environment(\.sleepyWidgetGalleryFamily) private var galleryFamily
     @Environment(\.colorScheme) private var widgetColorScheme
 
     var body: some View {
@@ -52,7 +53,7 @@ struct WeekGridWidgetEntryView: View {
         WidgetGlassModeContent { mode in
             // issue#26: SMALL 档 — 仅渲染今日紧凑面(复用 Today compact face;
             // TodayWidgetEntryView 自身再探测 glass, 嵌套探测无害)
-            if widgetFamily == .systemSmall {
+            if (galleryFamily ?? widgetFamily) == .systemSmall {
                 WeekGridMinimumTodayFace(data: entry.data)
             } else {
                 gridBody(renderingMode: mode)
@@ -73,6 +74,7 @@ struct WeekGridWidgetEntryView: View {
 // MARK: - 网格主体 ← renderBitmap 主体段
 
 private struct WeekGridBody: View {
+    @Environment(\.sleepyWidgetGalleryDate) private var galleryDate
     /// 渲染层常量 (← dp() 同参数)
     struct GridLayout {
         let outerPad: CGFloat = 6
@@ -96,7 +98,8 @@ private struct WeekGridBody: View {
         let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, renderingMode: renderingMode,
                                     increasedContrast: widgetContrast == .increased)
         let colorless = AppPrefs.shared.isWidgetColorless()
-        let todayDow = DateUtils.todayDayOfWeek(today: Date())
+        let referenceDate = galleryDate ?? Date()
+        let todayDow = DateUtils.todayDayOfWeek(today: referenceDate)
         // issue#22: 同名课程多地点 — 跨天汇总 course 全集, 传取色入口做 AUTO/CUSTOM 按行判
         let allCourses = data.days.flatMap { $0.courses }
         // issue#26: widget 全局一档别名开关 — 字号预算与绘制用同一个名字
@@ -211,7 +214,7 @@ private struct WeekGridBody: View {
                             // today 背景铺满整列 ← 原版本 drawRect(colX, bodyTop, colX+dayW, +bodyH) α40
                             ForEach(Array(sortedDays.enumerated()), id: \.element) { idx, dow in
                                 if let dayData = data.days.first(where: { $0.dayOfWeek == dow }),
-                                   DateUtils.isDateToday(dayData.date) {
+                                   DateUtils.isDateToday(dayData.date, referenceDate) {
                                     Rectangle()
                                         .fill(s.primaryContainer.opacity(40.0 / 255.0))
                                         .frame(width: dayW, height: ctx.bodyH)

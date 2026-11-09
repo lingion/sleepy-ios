@@ -53,6 +53,8 @@ struct WeekViewWidgetProvider: TimelineProvider {
 
 struct WeekViewWidgetEntryView: View {
     @Environment(\.widgetFamily) private var widgetFamily
+    @Environment(\.sleepyWidgetGalleryFamily) private var galleryFamily
+    @Environment(\.sleepyWidgetGalleryDate) private var galleryDate
     @Environment(\.colorScheme) private var widgetColorScheme
     @Environment(\.colorSchemeContrast) private var widgetContrast
     let entry: WeekViewWidgetEntry
@@ -72,10 +74,12 @@ struct WeekViewWidgetEntryView: View {
         let s = resolveWidgetScheme(themeKey: data.themeKey, isDark: isDark, renderingMode: renderingMode,
                                     increasedContrast: widgetContrast == .increased)
         let showSeparator = AppPrefs.shared.isWidgetSeparator()
-        let todayDow = DateUtils.todayDayOfWeek(today: Date())
+        let referenceDate = galleryDate ?? Date()
+        let todayDow = DateUtils.todayDayOfWeek(today: referenceDate)
         // issue#26: widget 全局一档别名开关
         let useAlias = AppPrefs.shared.isWidgetUseAlias()
-        let tier = WidgetLayoutTier(family: widgetFamily)
+        let family = galleryFamily ?? widgetFamily
+        let tier = WidgetLayoutTier(family: family)
         // 状态行占位 16dp — 仅学期外画状态行才占位。
         // ★ 定稿 (PR#14 评审 2026-10-28): 原 statusH 闸门 (WeekViewWidget.kt L66-67)
         //   = semesterStatus != IN_RANGE || weekDisplayStatus != NORMAL, 但 原版本 渲染器
@@ -88,10 +92,11 @@ struct WeekViewWidgetEntryView: View {
             // ← renderWeekView L1067: SMALL 变体 + 容器 <150dp 才走 compact 脸
             // (日列 = compactShownDays 单一口径 — compactWindow 优先三天真实日期窗口,
             //  空才回退今天邻域 ≤3 列; §9.1); 容器被拖大 ≥150dp → 内部升档回全量排版。
-            let isCompact = widgetFamily == .systemSmall && proxy.size.width < 150
+            let isCompact = family == .systemSmall && proxy.size.width < 150
             let days = isCompact
                 ? WidgetCompactHelpers.compactShownDays(data, AppPrefs.shared.getVisibleDays(), todayDow)
-                : shownDays(data)
+                : galleryFamily == nil ? shownDays(data)
+                : data.days.filter { data.visibleDays.contains($0.dayOfWeek) }
             // ← push() L68-70 闸门: hasTable && 列非空 && 任一天有课 (数据层 days 全量口径);
             // compactFace 不叠窗口是 原版本 条带先例, iOS 与 WeekList 同规统一叠窗口
             // (无条带可滚, 否则溢出无处报告)。
@@ -125,7 +130,7 @@ struct WeekViewWidgetEntryView: View {
                                                   // ← renderWeekViewRegular L1157: 今天高亮按
                                                   // 真实日期判 (展示周≠自然周/compactWindow 跨周
                                                   // 时按星期会错列, 同 WeekList L828 先例)
-                                                  isToday: DateUtils.isDateToday(day.date),
+                                                  isToday: DateUtils.isDateToday(day.date, referenceDate),
                                                   showSeparator: showSeparator, useAlias: useAlias,
                                                   window: colIdx < (wins?.count ?? 0) ? wins?[colIdx] : nil)
                             }

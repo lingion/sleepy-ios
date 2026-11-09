@@ -11,16 +11,49 @@
 import SwiftUI
 import WidgetKit
 
+private struct WidgetGalleryFamilyKey: EnvironmentKey {
+    static let defaultValue: WidgetFamily? = nil
+}
+
+private struct WidgetGalleryDateKey: EnvironmentKey {
+    static let defaultValue: Date? = nil
+}
+
+extension EnvironmentValues {
+    /// App gallery reuses the production renderer at a fixed representative family.
+    /// A nil value retains the WidgetKit host's family and container background.
+    var sleepyWidgetGalleryFamily: WidgetFamily? {
+        get { self[WidgetGalleryFamilyKey.self] }
+        set { self[WidgetGalleryFamilyKey.self] = newValue }
+    }
+    var sleepyWidgetGalleryDate: Date? {
+        get { self[WidgetGalleryDateKey.self] }
+        set { self[WidgetGalleryDateKey.self] = newValue }
+    }
+}
+
+private struct SleepyWidgetBackgroundModifier<BG: View>: ViewModifier {
+    @Environment(\.sleepyWidgetGalleryFamily) private var galleryFamily
+    let backgroundView: BG
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if galleryFamily != nil {
+            content.background(backgroundView)
+        } else if #available(iOS 17.0, *) {
+            content.containerBackground(for: .widget) { backgroundView }
+        } else {
+            content.background(backgroundView)
+        }
+    }
+}
+
 extension View {
     /// widget 顶层背景: iOS 17+ 用 containerBackground, 更早回退 .background()。
     /// (本文件 App/Extension 双 target 共编, 闸门用 iOS 而非 iOSApplicationExtension)
     @ViewBuilder
     func sleepyWidgetBackground<BG: View>(@ViewBuilder backgroundView: () -> BG) -> some View {
-        if #available(iOS 17.0, *) {
-            containerBackground(for: .widget, content: backgroundView)
-        } else {
-            background(backgroundView())
-        }
+        modifier(SleepyWidgetBackgroundModifier(backgroundView: backgroundView()))
     }
 }
 

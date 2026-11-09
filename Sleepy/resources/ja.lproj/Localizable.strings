@@ -1207,3 +1207,12 @@
 "live_activity_stale" = "授業情報が古い可能性があります";
 "live_activity_open_to_refresh" = "Sleepy を開いて更新";
 "live_activity_next" = "次の授業：%1$@";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "微積分";
+"widget_preview_english" = "英語リーディング";
+"widget_preview_linear_algebra" = "線形代数";
+"widget_preview_sports" = "体育";
+"widget_preview_programming" = "プログラミング演習";
+"widget_preview_seminar" = "ゼミナール";
+"widget_preview_gym" = "体育館";
