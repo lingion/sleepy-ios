@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Integer, inclusive endpoints shared by rendering, dragging and accessibility.
 struct IntSliderRange: Equatable {
@@ -99,19 +100,20 @@ struct IntRangeSlider: View {
                     }
                     .frame(height: 44)
                     .contentShape(Rectangle())
-                    // The slider owns all drag directions; only horizontal displacement edits values.
-                    .highPriorityGesture(DragGesture(minimumDistance: 0)
-                        .onChanged { drag in updateDrag(drag, width: width) }
-                        .onEnded { drag in
-                            if drag.translation == .zero { applyTap(at: drag.location.x, width: width) }
-                            dragOrigin = nil
-                            draggedThumb = nil
-                        })
+                    .overlay(IntRangeSliderTouchSurface(
+                        onDrag: { startX, translation in updateDrag(startX: startX, translation: translation, width: width) },
+                        onEnd: resetDrag,
+                        onTap: { applyTap(at: $0, width: width) }))
                 }
                 .frame(height: 44)
                 .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: ghost)
             }
         }
+    }
+
+    private func resetDrag() {
+        dragOrigin = nil
+        draggedThumb = nil
     }
 
     private func position(_ value: Int, width: CGFloat) -> CGFloat {
@@ -151,15 +153,15 @@ struct IntRangeSlider: View {
                              translation: translation, rightToLeft: layoutDirection == .rightToLeft)
     }
 
-    private func updateDrag(_ drag: DragGesture.Value, width: CGFloat) {
+    private func updateDrag(startX: CGFloat, translation: CGFloat, width: CGFloat) {
         let origin = dragOrigin ?? range
         dragOrigin = origin
-        let selected = draggedThumb ?? nearestThumb(at: drag.startLocation.x, origin: origin,
-                                                     translation: drag.translation.width, width: width)
+        let selected = draggedThumb ?? nearestThumb(at: startX, origin: origin,
+                                                     translation: translation, width: width)
         guard let selected else { return }
         draggedThumb = selected
         let sign: CGFloat = layoutDirection == .rightToLeft ? -1 : 1
-        let delta = Int((sign * drag.translation.width / width * CGFloat(upper - minValue)).rounded())
+        let delta = Int((sign * translation / width * CGFloat(upper - minValue)).rounded())
         let updated = selected == .start
             ? origin.movingStart(to: origin.start + delta, minimum: minValue)
             : origin.movingEnd(to: origin.end + delta, maximum: upper)
@@ -175,5 +177,102 @@ struct IntRangeSlider: View {
         let updated = selected == .start ? range.movingStart(to: value, minimum: minValue)
             : range.movingEnd(to: value, maximum: upper)
         onValueChange(updated.start, updated.end)
+    }
+}
+
+
+/// Reject vertical pans before recognition so the enclosing scroll view owns
+/// them. A zero-distance SwiftUI drag can otherwise win before direction is known.
+private struct IntRangeSliderTouchSurface: UIViewRepresentable {
+    let onDrag: (CGFloat, CGFloat) -> Void
+    let onEnd: () -> Void
+    let onTap: (CGFloat) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isAccessibilityElement = false
+        let pan = IntRangeSliderPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pan(_:)))
+        pan.maximumNumberOfTouches = 1
+        pan.delegate = context.coordinator
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tap(_:)))
+        tap.require(toFail: pan)
+        view.addGestureRecognizer(pan)
+        view.addGestureRecognizer(tap)
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) { context.coordinator.parent = self }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var parent: IntRangeSliderTouchSurface
+        init(_ parent: IntRangeSliderTouchSurface) { self.parent = parent }
+
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = recognizer as? IntRangeSliderPanGestureRecognizer else { return true }
+            let motion = pan.touchDownDisplacement
+            return abs(motion.x) > abs(motion.y)
+        }
+
+        @objc func pan(_ recognizer: UIPanGestureRecognizer) {
+            guard let pan = recognizer as? IntRangeSliderPanGestureRecognizer else { return }
+            let displacement = pan.touchDownDisplacement
+            let startX = pan.touchDownLocation?.x ?? pan.location(in: pan.view).x - displacement.x
+            let translation = displacement.x
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-SLEEPY_UI_TEST_SEED"),
+               recognizer.state == .began || recognizer.state == .ended {
+                let recognized = pan.translation(in: pan.view)
+                NSLog("INT_RANGE_PAN %@ recognized=(%.2f,%.2f) touchDown=(%.2f,%.2f)",
+                      recognizer.state == .began ? "began" : "ended",
+                      Double(recognized.x), Double(recognized.y),
+                      Double(displacement.x), Double(displacement.y))
+            }
+            #endif
+            switch recognizer.state {
+            case .began:
+                parent.onEnd()
+                parent.onDrag(startX, translation)
+            case .changed:
+                parent.onDrag(startX, translation)
+            case .ended:
+                parent.onDrag(startX, translation)
+                parent.onEnd()
+            case .cancelled, .failed:
+                parent.onEnd()
+            default: break
+            }
+        }
+
+        @objc func tap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            parent.onTap(recognizer.location(in: recognizer.view).x)
+        }
+    }
+}
+
+/// Keep the touch-down origin because a pan may recognize after some movement.
+/// Measuring the full displacement also preserves where the finger held a thumb.
+private final class IntRangeSliderPanGestureRecognizer: UIPanGestureRecognizer {
+    private(set) var touchDownLocation: CGPoint?
+
+    var touchDownDisplacement: CGPoint {
+        guard let touchDownLocation else { return translation(in: view) }
+        let current = location(in: view)
+        return CGPoint(x: current.x - touchDownLocation.x, y: current.y - touchDownLocation.y)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        if touchDownLocation == nil, let touch = touches.first {
+            touchDownLocation = touch.location(in: view)
+        }
+        super.touchesBegan(touches, with: event)
+    }
+
+    override func reset() {
+        super.reset()
+        touchDownLocation = nil
     }
 }
