@@ -34,6 +34,9 @@ struct NavigationRailBar: View {
     let selectedTab: AppRootViewModel.Tab
     /// Schedule SF Symbol(胶囊上半图标 ← 原版本 Tab.Schedule.icon)。
     let scheduleIcon: String
+    /// Medium landscape windows use four ordinary tabs and one content pane.
+    /// The combined Schedule + selected-tab item only applies while Schedule is pinned.
+    var scheduleIsPinned: Bool = true
 
     /// M3 NavigationRail 默认宽度
     static let railWidth: CGFloat = 80
@@ -41,7 +44,7 @@ struct NavigationRailBar: View {
     var body: some View {
         VStack(spacing: 8) {
             ForEach(rightTabs) { item in
-                if item.id == tabId(selectedTab) {
+                if scheduleIsPinned && item.id == tabId(selectedTab) {
                     // ← 原版本 when(effectiveRightTab) 分支: 当前槽 = 跑道胶囊
                     CombinedRailItemView(item: item,
                                           scheduleIcon: scheduleIcon,

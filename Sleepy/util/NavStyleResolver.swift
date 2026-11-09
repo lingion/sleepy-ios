@@ -45,6 +45,19 @@ enum NavStyleResolver {
     /// iPhone 恒竖屏(≤430pt)两闸皆不触发。
     static let railWidthThreshold: CGFloat = 600
 
+    /// A rail still fits medium landscape windows, but two content panes do not.
+    /// Account for the rail, pane padding and the existing 44pt gutter before
+    /// offering a timetable pane wide enough to show all seven days.
+    static let minimumPaneWidth: CGFloat = 360
+
+    static func usesSideBySidePanes(windowSize: CGSize? = nil,
+                                    horizontalInsets: CGFloat = 0) -> Bool {
+        guard let size = windowSize ?? connectedKeyWindowSize(),
+              isLandscapeGeometry(width: size.width, height: size.height) else { return false }
+        let contentWidth = size.width - max(horizontalInsets, 0) - 80 - 32 - 44
+        return contentWidth >= minimumPaneWidth * 2
+    }
+
     /// 横屏几何闸(← 原版本 PR#235 `portrait = screenWidthDp < screenHeightDp`
     /// 取反): 逐帧真实几何判横屏, 不用 orientation 枚举(分屏/自由窗口下枚举不可靠)。
     /// 宽 ≥ 高(正方形窗口/分屏)放行双栏 = 原 `!portrait` 同语义;

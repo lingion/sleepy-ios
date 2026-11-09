@@ -2,9 +2,8 @@
 // 6s Plus 真机 = iOS 15.8.8;presentationDetents 是 iOS16+ API,iOS 15 上
 // 硬错误(条件分支内)/静默无效(sheet 闭包上)。此 modifier:
 //   iOS 16+ → 原样转发 presentationDetents(行为与原代码 1:1)
-//   iOS 15  → 回退 .frame 固定高度(iOS15 无 partial detent,全高 sheet
-//             内固定内容高度是官方前推荐做法,视觉接近原意图)
-// Detent 枚举按原代码用到的三档建模(height/medium/large;多档取首档)
+//   iOS 15  → UISheetPresentationController 的 medium/large;
+//             自定义 height 档退到 large，内容仍服从实际可用高度。
 
 import SwiftUI
 
@@ -21,17 +20,7 @@ struct SheetDetentsModifier: ViewModifier {
         if #available(iOS 16.0, *) {
             content.presentationDetents(Self.resolve(detents))
         } else {
-            // iOS 15 真·半屏:UISheetPresentationController 是 iOS 15.0 API
-            // (SwiftUI presentationDetents 才是 16+)。旧回退 .frame 固定高会让
-            // 全高 sheet 里飘一个内容框(全屏滑上+底部大片空白)。medium/large
-            // 直接设 detents;height 档 iOS 15 无自定义 detent,保留 frame 方案。
-            let h = Self.preferredHeight(detents)
-            if let h = h {
-                content.frame(height: h)
-                    .background(IOS15DetentIntrospector(detents: [.large]))
-            } else {
-                content.background(IOS15DetentIntrospector(detents: detents))
-            }
+            content.background(IOS15DetentIntrospector(detents: detents))
         }
     }
 
@@ -48,16 +37,6 @@ struct SheetDetentsModifier: ViewModifier {
         return out
     }
 
-    private static func preferredHeight(_ detents: [SheetDetent]) -> CGFloat? {
-        for d in detents {
-            switch d {
-            case .height(let h): return h
-            case .medium: return 400 // iOS15 无 medium 语义,取近似固定高
-            case .large: return nil
-            }
-        }
-        return nil
-    }
 }
 
 extension View {
@@ -105,7 +84,13 @@ private struct IOS15DetentIntrospector: UIViewControllerRepresentable {
     // iOS 15 只有 medium/large 两档(自定义 detent 是 16+)
     private static func resolve(_ detents: [SheetDetent])
         -> [UISheetPresentationController.Detent] {
-        detents.contains(.large) ? [.large()] : [.medium()]
+        let hasMedium = detents.contains(.medium)
+        let hasLarge = detents.contains { detent in
+            if case .medium = detent { return false }
+            return true
+        }
+        if hasMedium && hasLarge { return [.medium(), .large()] }
+        return hasMedium ? [.medium()] : [.large()]
     }
 }
 

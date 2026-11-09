@@ -9,6 +9,7 @@ import UIKit
 
 struct ShareScheduleSheet: View {
     @Environment(\.localWakeUpColors) private var colors
+    @ScaledMetric(relativeTo: .headline) private var headingSize: CGFloat = 16
     let table: TimeTableEntity
     let courses: [CourseEntity]
     let onDismiss: () -> Void
@@ -16,58 +17,64 @@ struct ShareScheduleSheet: View {
     @State private var shareSheet: SharePayload? = nil
 
     var body: some View {
-        VStack(spacing: 0) {
-            Text(L10n.format("share_sheet_title"))
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(colors.onSurface)
-                .frame(maxWidth: .infinity, alignment: .leading)   // ← 原 Column 默认 start 对齐(VStack 默认 center 会把标题居中)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-
+        ScrollView {
             VStack(spacing: 0) {
-                ShareRow(icon: "curlybraces",
-                         title: L10n.format("export_json_title"),
-                         subtitle: L10n.format("export_json_subtitle")) {
-                    exportFile(ext: "json", mime: "application/json",
-                               content: ScheduleExporter.exportWakeUpJson(table, courses))
-                }
-                ShareRowDivider()
-                ShareRow(icon: "square.and.arrow.up",
-                         title: L10n.format("export_share_title"),
-                         subtitle: L10n.format("export_share_subtitle")) {
-                    // ← 原版本 ShareScheduleSheet.kt:95 — 与第 4 项同为原生分享文本
-                    //   (原版本 v1.0.61 弹层从不提供 WakeUp URL 编码 JSON 这一格式)
-                    shareSheet = SharePayload(
-                        text: SleepyNativeExporter.exportShareText(
-                            tableName: table.name, startDate: table.startDate,
-                            maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
-                            timeJson: table.timeJson, courses: courses),
-                        subject: table.name, url: nil)
-                }
-                ShareRowDivider()
-                ShareRow(icon: "calendar",
-                         title: L10n.format("export_ics_title"),
-                         subtitle: L10n.format("export_ics_subtitle")) {
-                    exportFile(ext: "ics", mime: "text/calendar",
-                               content: ScheduleExporter.exportIcs(table, courses,
-                                   transfers: AppPrefs.shared.getHolidayTransfers(table.id)))
-                }
-                ShareRowDivider()
-                // v7.10.7 第 4 项: Sleepy 原生格式 — marker 包裹 + 无 chk(IM 场景最小体积)
-                ShareRow(icon: "star",
-                         title: L10n.format("export_native_title"),
-                         subtitle: L10n.format("export_native_subtitle")) {
-                    shareSheet = SharePayload(
-                        text: SleepyNativeExporter.exportShareText(
-                            tableName: table.name, startDate: table.startDate,
-                            maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
-                            timeJson: table.timeJson, courses: courses),
-                        subject: table.name, url: nil)
+                Text(L10n.format("share_sheet_title"))
+                    .font(.system(size: headingSize, weight: .semibold))
+                    .foregroundColor(colors.onSurface)
+                    .frame(maxWidth: .infinity, alignment: .leading)   // ← 原 Column 默认 start 对齐(VStack 默认 center 会把标题居中)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
+                VStack(spacing: 0) {
+                    ShareRow(icon: "curlybraces",
+                             title: L10n.format("export_json_title"),
+                             subtitle: L10n.format("export_json_subtitle")) {
+                        exportFile(ext: "json", mime: "application/json",
+                                   content: ScheduleExporter.exportWakeUpJson(table, courses))
+                    }
+                    .accessibilityIdentifier("share_format_json")
+                    ShareRowDivider()
+                    ShareRow(icon: "square.and.arrow.up",
+                             title: L10n.format("export_share_title"),
+                             subtitle: L10n.format("export_share_subtitle")) {
+                        // ← 原版本 ShareScheduleSheet.kt:95 — 与第 4 项同为原生分享文本
+                        //   (原版本 v1.0.61 弹层从不提供 WakeUp URL 编码 JSON 这一格式)
+                        shareSheet = SharePayload(
+                            text: SleepyNativeExporter.exportShareText(
+                                tableName: table.name, startDate: table.startDate,
+                                maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
+                                timeJson: table.timeJson, courses: courses),
+                            subject: table.name, url: nil)
+                    }
+                    .accessibilityIdentifier("share_format_text")
+                    ShareRowDivider()
+                    ShareRow(icon: "calendar",
+                             title: L10n.format("export_ics_title"),
+                             subtitle: L10n.format("export_ics_subtitle")) {
+                        exportFile(ext: "ics", mime: "text/calendar",
+                                   content: ScheduleExporter.exportIcs(table, courses,
+                                       transfers: AppPrefs.shared.getHolidayTransfers(table.id)))
+                    }
+                    .accessibilityIdentifier("share_format_ics")
+                    ShareRowDivider()
+                    // v7.10.7 第 4 项: Sleepy 原生格式 — marker 包裹 + 无 chk(IM 场景最小体积)
+                    ShareRow(icon: "star",
+                             title: L10n.format("export_native_title"),
+                             subtitle: L10n.format("export_native_subtitle")) {
+                        shareSheet = SharePayload(
+                            text: SleepyNativeExporter.exportShareText(
+                                tableName: table.name, startDate: table.startDate,
+                                maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
+                                timeJson: table.timeJson, courses: courses),
+                            subject: table.name, url: nil)
+                    }
+                    .accessibilityIdentifier("share_format_native")
                 }
             }
+            .padding(.bottom, 24)
         }
-        .padding(.bottom, 24)
-        .sheetDetents([.medium])
+        .sheetDetents([.medium, .large])
         // 有意差异: 原 containerColor = colors.surface,iOS 用系统弹层背景;条目图标 Material outlined → SF Symbols
         .sheet(item: $shareSheet) { item in
             SharePayloadSheet(text: item.text, subject: item.subject, url: item.url)
@@ -120,6 +127,8 @@ private struct SharePayloadSheet: UIViewControllerRepresentable {
 // 弹层条目(视觉对齐 ExportScreen ExportItem)
 private struct ShareRow: View {
     @Environment(\.localWakeUpColors) private var colors
+    @ScaledMetric(relativeTo: .subheadline) private var titleSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .caption) private var subtitleSize: CGFloat = 12
     let icon: String
     let title: String
     let subtitle: String
@@ -136,13 +145,14 @@ private struct ShareRow: View {
                     .cornerRadius(SleepyShapes.medium)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: titleSize, weight: .medium))
                         .foregroundColor(colors.onSurface)
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .font(.system(size: subtitleSize))
                         .foregroundColor(colors.onSurfaceVariant)
                         .multilineTextAlignment(.leading)
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 Spacer()
             }
             .padding(.horizontal, 16)

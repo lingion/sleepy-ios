@@ -78,35 +78,40 @@ struct DatePickerField: View {
         .sheet(isPresented: $showPicker) {
             // ← 原版本 DatePickerDialog: 内容列 = DatePicker 本体(无 arrangedBy/Spacer),
             //   确认/取消在框架 confirm/dismiss 槽 → 内容区 spacing:0, 按钮行独立。
-            VStack(spacing: 0) {
-                DatePicker("",
-                           selection: Binding(
-                            get: { pickerDate },
-                            set: { pickerDate = $0; hasSelection = true }
-                           ),
-                           displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .padding()
-                // ← 原版本 色块按钮行 (DatePickerDialog confirm/dismiss = M3 填充按钮:
-                //   确定 primary, 取消 secondaryContainer) — 2026-09-16 用户「裸 TextButton
-                //   无边界无色块 — 色块按钮」修复镜像; DialogActionButtons 同语言同配色。
-                DialogActionButtons(
-                    confirmText: L10n.format("ok"),
-                    onConfirm: {
-                        // ← 原版本 selectedDateMillis?.let: 未点选日期 → 确定不回调
-                        if hasSelection {
-                            onValueChange(formatISO(pickerDate))
-                        }
-                        showPicker = false
-                    },
-                    dismissText: L10n.format("cancel"),
-                    onDismiss: { showPicker = false }
-                )
-                .padding(.horizontal)
-                .padding(.bottom)
+            ScrollView {
+                VStack(spacing: 0) {
+                    DatePicker("",
+                               selection: Binding(
+                                get: { pickerDate },
+                                set: { pickerDate = $0; hasSelection = true }
+                               ),
+                               displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding()
+                    // ← 原版本 色块按钮行 (DatePickerDialog confirm/dismiss = M3 填充按钮:
+                    //   确定 primary, 取消 secondaryContainer) — 2026-09-16 用户「裸 TextButton
+                    //   无边界无色块 — 色块按钮」修复镜像; DialogActionButtons 同语言同配色。
+                    DialogActionButtons(
+                        confirmText: L10n.format("ok"),
+                        onConfirm: {
+                            // ← 原版本 selectedDateMillis?.let: 未点选日期 → 确定不回调
+                            if hasSelection {
+                                onValueChange(formatISO(pickerDate))
+                            }
+                            showPicker = false
+                        },
+                        dismissText: L10n.format("cancel"),
+                        onDismiss: { showPicker = false },
+                        confirmIdentifier: "date_picker_confirm",
+                        dismissIdentifier: "date_picker_cancel"
+                    )
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                }
             }
-            .sheetDetents([.height(420)])
+            .sheetDetents([.height(420), .large])
         }
     }
 
@@ -222,34 +227,38 @@ private struct TimePickerDialog: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text(L10n.format("select_time"))
-                .font(.system(size: 24))
-                .foregroundColor(colors.onSurface)
+        ScrollView {
+            VStack(spacing: 8) {
+                Text(L10n.format("select_time"))
+                    .font(.system(size: 24))
+                    .foregroundColor(colors.onSurface)
+                    .padding(.horizontal)
+                    .padding(.top, 20)
+                    .padding(.bottom, 4)
+                DatePicker("", selection: $pickerTime, displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .environment(\.locale, Locale(identifier: "en_GB"))
+                    .environment(\.calendar, Calendar.current)
+                    .environment(\.timeZone, TimeZone.current)
+                Spacer().frame(height: 12)
+                DialogActionButtons(
+                    confirmText: L10n.format("ok"),
+                    onConfirm: {
+                        let components = Calendar.current.dateComponents([.hour, .minute], from: pickerTime)
+                        onConfirm(String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0))
+                        dismiss()
+                    },
+                    dismissText: L10n.format("cancel"),
+                    onDismiss: { dismiss() },
+                    confirmIdentifier: "time_picker_confirm",
+                    dismissIdentifier: "time_picker_cancel"
+                )
                 .padding(.horizontal)
-                .padding(.top, 20)
-                .padding(.bottom, 4)
-            DatePicker("", selection: $pickerTime, displayedComponents: .hourAndMinute)
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .environment(\.locale, Locale(identifier: "en_GB"))
-                .environment(\.calendar, Calendar.current)
-                .environment(\.timeZone, TimeZone.current)
-            Spacer().frame(height: 12)
-            DialogActionButtons(
-                confirmText: L10n.format("ok"),
-                onConfirm: {
-                    let components = Calendar.current.dateComponents([.hour, .minute], from: pickerTime)
-                    onConfirm(String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0))
-                    dismiss()
-                },
-                dismissText: L10n.format("cancel"),
-                onDismiss: { dismiss() },
-                confirmIdentifier: "time_picker_confirm",
-                dismissIdentifier: "time_picker_cancel"
-            )
-            .padding(.horizontal)
+                .padding(.bottom, 16)
+            }
         }
-        .sheetDetents([.height(400)])
+        .sheetDetents([.height(400), .large])
     }
 }

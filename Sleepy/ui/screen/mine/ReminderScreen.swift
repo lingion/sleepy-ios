@@ -571,42 +571,45 @@ struct ReminderScreen: View {
         let selectedTime = target == .today ? dailyTime : tomorrowTime
         let parts = selectedTime.split(separator: ":").compactMap { Int($0) }
         let defaultHour = target == .today ? 7 : 22   // ← 原 initialHour fallback (默认 07:00/22:00)
-        return VStack(spacing: 0) {
-            Text(L10n.format("reminder_pick_time"))
-                .font(.system(size: 24)) // ← 原 AlertDialog title headlineSmall 24sp Normal
-                .foregroundColor(colors.onSurface)
+        return ScrollView {
+            VStack(spacing: 0) {
+                Text(L10n.format("reminder_pick_time"))
+                    .font(.system(size: 24)) // ← 原 AlertDialog title headlineSmall 24sp Normal
+                    .foregroundColor(colors.onSurface)
+                    .padding()
+                DatePicker("", selection: $pickerTime, displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .fixedSize(horizontal: false, vertical: true)
+                // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
+                DialogActionButtons(
+                    confirmText: L10n.format("action_confirm"),
+                    onConfirm: {
+                        let f = DateFormatter()
+                        f.dateFormat = "HH:mm"
+                        let newTime = f.string(from: pickerTime)
+                        switch target {
+                        case .today:
+                            dailyTime = newTime
+                            prefs.setDailyReminderTime(newTime)
+                        case .tomorrow:
+                            tomorrowTime = newTime
+                            prefs.setTomorrowReminderTime(newTime)
+                        }
+                        ReminderRescheduler.shared.request()
+                        pickerTarget = nil
+                    },
+                    dismissText: L10n.format("action_cancel"),
+                    onDismiss: { pickerTarget = nil },
+                    // ← G5 锚点回归: HEAD 裸 HStack 按钮时代的 identifier
+                    //   (ReminderPermissionUITests test02/03 依赖), 色块重写后随参数穿入
+                    confirmIdentifier: "reminder_time_confirm",
+                    dismissIdentifier: "reminder_time_cancel"
+                )
                 .padding()
-            DatePicker("", selection: $pickerTime, displayedComponents: .hourAndMinute)
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-            // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
-            DialogActionButtons(
-                confirmText: L10n.format("action_confirm"),
-                onConfirm: {
-                    let f = DateFormatter()
-                    f.dateFormat = "HH:mm"
-                    let newTime = f.string(from: pickerTime)
-                    switch target {
-                    case .today:
-                        dailyTime = newTime
-                        prefs.setDailyReminderTime(newTime)
-                    case .tomorrow:
-                        tomorrowTime = newTime
-                        prefs.setTomorrowReminderTime(newTime)
-                    }
-                    ReminderRescheduler.shared.request()
-                    pickerTarget = nil
-                },
-                dismissText: L10n.format("action_cancel"),
-                onDismiss: { pickerTarget = nil },
-                // ← G5 锚点回归: HEAD 裸 HStack 按钮时代的 identifier
-                //   (ReminderPermissionUITests test02/03 依赖), 色块重写后随参数穿入
-                confirmIdentifier: "reminder_time_confirm",
-                dismissIdentifier: "reminder_time_cancel"
-            )
-            .padding()
+            }
         }
-        .sheetDetents([.height(400)])
+        .sheetDetents([.height(400), .large])
         .onAppear {
             var cal = DateUtils.isoCalendar
             pickerTime = cal.date(bySettingHour: parts.first ?? defaultHour,

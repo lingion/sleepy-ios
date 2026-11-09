@@ -102,6 +102,11 @@ struct SettingsCard<Content: View>: View {
 //   (用户 2026-09-03 指令: 整块圆角矩形 + 色块在元素上滑动, 🚫系统 Picker)。
 //   ← 原版本 SettingsCards.kt:109-161 全参: subtitle(标题下 bodySmall 行)、
 //   options 为空 = 单开关卡(由 content 自行露出控件)、content ColumnScope 尾槽。
+private struct SettingsCardWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 struct SettingsFlatCard<Content: View>: View {
     @Environment(\.localWakeUpColors) private var colors
     let title: String
@@ -111,6 +116,7 @@ struct SettingsFlatCard<Content: View>: View {
     /// ← 原 onSelect 默认 {}; nil = 只回写 selectedIndex。
     var onSelect: ((Int) -> Void)?
     let content: () -> Content
+    @State private var measuredWidth: CGFloat = 0
 
     init(title: String,
          subtitle: String? = nil,
@@ -128,32 +134,22 @@ struct SettingsFlatCard<Content: View>: View {
     }
 
     var body: some View {
+        let titleWidth = ceil((title as NSString).size(withAttributes: [
+            .font: UIFont.systemFont(ofSize: 14, weight: .semibold)
+        ]).width)
+        let inline = options.isEmpty || Self.tabWidth(options: options) + titleWidth + 12 <= measuredWidth - 32
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 12) {
-                // ← 原版本 标题 weight(1f) 吃满剩余宽 → tab 永远贴本行最右
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(colors.onSurface)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                // ← 原 if (options.isNotEmpty()): options 为空 = 单开关卡, tab 不渲染
-                if !options.isEmpty {
-                    SegmentedSwitcher(
-                        options: options.enumerated().map { ($0.offset, $0.element) },
-                        selected: selectedIndex,
-                        onSelect: { idx in
-                            selectedIndex = idx
-                            onSelect?(idx)
-                        },
-                        // ← 原 containerColor = colors.surfaceContainerHighest:
-                        //   嵌进 surfaceContainer 卡片时同色隐形, 降一级保持对比
-                        containerColor: colors.surfaceContainerHighest
-                    )
-                    // ← 原版本 Modifier.width(tabWidth).height(36.dp)。
-                    //   SegmentedSwitcher.swift 目前内部固定 42pt 高(共享文件, 本任务禁改),
-                    //   外层压 36 布局槽: 胶囊视觉 42 高上下各溢 3pt, 落进卡片 14pt
-                    //   内边距/4pt 行距, 无碰撞。待共享接线项落地后改为组件 height 参数。
-                    .frame(width: Self.tabWidth(options: options), height: 36)
-                    .accessibilityLabel(Text(title))
+            if inline {
+                HStack(spacing: 12) {
+                    heading
+                    if !options.isEmpty {
+                        segmentedOptions.frame(width: Self.tabWidth(options: options))
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    heading
+                    segmentedOptions
                 }
             }
             // ← 原 if (subtitle != null) bodySmall 行(CalendarImportDialog 用法)
@@ -169,6 +165,30 @@ struct SettingsFlatCard<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyShapes.large)
+        .background(GeometryReader { geometry in
+            Color.clear.preference(key: SettingsCardWidthKey.self, value: geometry.size.width)
+        })
+        .onPreferenceChange(SettingsCardWidthKey.self) { measuredWidth = $0 }
+    }
+
+    private var heading: some View {
+        Text(title)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(colors.onSurface)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var segmentedOptions: some View {
+        SegmentedSwitcher(
+            options: options.enumerated().map { ($0.offset, $0.element) },
+            selected: selectedIndex,
+            onSelect: { idx in
+                selectedIndex = idx
+                onSelect?(idx)
+            },
+            containerColor: colors.surfaceContainerHighest,
+            height: 36)
+            .accessibilityLabel(Text(title))
     }
 
     /// ← 原版本 SettingsCards.kt:136-145: tabWidth = (maxLabel宽 + 16dp×2) × n + 4dp×2
