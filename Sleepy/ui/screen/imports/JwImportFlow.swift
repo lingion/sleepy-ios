@@ -936,7 +936,7 @@ struct JwImportFlow: View {
                                             nodesPerDay: effectiveRows.count,
                                             timeJson: timeJson)
                         : nil
-                    let tableId = try await Task.detached(priority: .userInitiated) { () throws -> Int64 in
+                    _ = try await Task.detached(priority: .userInitiated) { () throws -> Int64 in
                         try JwImportViewModel.importAsNewTable(
                             AppDatabase.getShared(),
                             courses: courses,
@@ -945,15 +945,9 @@ struct JwImportFlow: View {
                             timeJson: timeJson,
                             nodesPerDay: maxNode,
                             smartConfigJson: smartJson,
-                            periodTable: autoPeriodEntity)
+                            periodTable: autoPeriodEntity,
+                            bindPeriodTableId: (bindId ?? 0) > 0 ? bindId : nil)
                     }.value
-                    // v1.0.56 T6: 选了既有作息表 Tab → 导入的课表直接绑定该表(节次以表为准)
-                    if let chosenId = bindId, chosenId > 0 {
-                        await Task.detached(priority: .userInitiated) {
-                            let repo = ScheduleRepository(AppDatabase.getShared())
-                            try? repo.bindPeriodTable(timeTableId: tableId, periodTableId: chosenId)
-                        }.value
-                    }
                     // ← 原 `finishOrReport(school)` (未验证学校 → 报告弹窗, 非静默结束)
                     finishOrReport(school)
                 } else {
