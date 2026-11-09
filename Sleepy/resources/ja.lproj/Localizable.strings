@@ -104,7 +104,7 @@
 "format_csv" = "CSVファイル";
 "format_csv_desc" = "ヘッダー付き.csv、カンマ区切り";
 "format_html" = "HTMLテーブル";
-"format_html_desc" = "&lt;table&gt;形式、ヘッダー検出後に行ごとに解析";
+"format_html_desc" = "<table>形式、ヘッダー検出後に行ごとに解析";
 "format_plain" = "プレーンテキスト";
 "format_plain_desc" = "1行1授業、タブ区切り";
 "import_start_date_required" = "学期開始日を入力してください";
@@ -233,7 +233,7 @@
 "jw_parse_empty" = "解析結果が空です。「個人時間割」ページに移動しているかご確認ください（トップ/ログインページではない）";
 "jw_import_success" = "%1$d 件の授業をインポートしました";
 "jw_parse_failed" = "解析失敗：%1$@";
-"jw_parse_failed_hint" = "\\n\\nヒント：HEUの場合、ブラウザでログイン後「個人時間割」ページに移動してからインポートしてください";
+"jw_parse_failed_hint" = "\n\nヒント：HEUの場合、ブラウザでログイン後「個人時間割」ページに移動してからインポートしてください";
 "jw_webview_not_ready" = "WebViewの準備ができていません";
 "jw_fetching" = "時間割を取得中…";
 "jw_fetch_failed_no_response" = "取得失敗：ページが応答しません（読み込み中かも）";
@@ -259,7 +259,7 @@
 "end_label" = "終了";
 "delete_period" = "この時限を削除";
 "mine_about" = "情報";
-"mine_about_body" = "Sleepy 時間割 v%1$@\\n\\nミニマルでクリーン、ローカルファーストの時間割アプリ。\\nすべてのデータはデバイス内に保存され、サーバーにアップロードされません。\\n\\n· 広告なし\\n· 追跡なし\\n· WakeUp / ICS / CSV / HTML / プレーンテキスト インポート対応";
+"mine_about_body" = "Sleepy 時間割 v%1$@\n\nミニマルでクリーン、ローカルファーストの時間割アプリ。\nすべてのデータはデバイス内に保存され、サーバーにアップロードされません。\n\n· 広告なし\n· 追跡なし\n· WakeUp / ICS / CSV / HTML / プレーンテキスト インポート対応";
 "date_long_format" = "%1$d月%2$d日";
 "notif_title" = "今日の授業 — %1$@ %2$@";
 "notif_text" = "タップして今日の時間割を表示";
@@ -357,7 +357,7 @@
 "jw_pending_input_url" = "URL を手動入力";
 "jw_pending_legacy" = "旧版";
 "jw_pending_manual" = "手動で授業を追加";
-"jw_pending_msg" = "%1$@ の教務システムは Sleepy の対応リストにありません。\\n\\n以下の方法があります：\\n1.「対応をリクエスト」をタップして開発者に送信\\n2.「URL を手動入力」をタップして WebView で開きログイン\\n3. 一時的に HTML / CSV ファイルからインポート、または手動で授業を追加";
+"jw_pending_msg" = "%1$@ の教務システムは Sleepy の対応リストにありません。\n\n以下の方法があります：\n1.「対応をリクエスト」をタップして開発者に送信\n2.「URL を手動入力」をタップして WebView で開きログイン\n3. 一時的に HTML / CSV ファイルからインポート、または手動で授業を追加";
 "jw_pending_pending" = "未対応";
 "jw_pending_supported" = "対応済み";
 "jw_pending_title" = "この学校の教務インポートは未実装です";
@@ -487,7 +487,7 @@
 "semester_not_started" = "学期はまだ始まっていません";
 "today_semester_out_hint" = "学期範囲外のため、授業は参考です";
 "format_wakeup_share_when" = "WakeUp アプリからの乗り換え。WakeUp の「コース共有」で生成されたテキスト全体をそのまま貼り付け。";
-"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"My table\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%5B%7B%22name%22…%5D\"}";
+"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"My table\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%%5B%%7B%%22name%%22…%%5D\"}";
 "format_wakeup_json_when" = "WakeUp がエクスポートした .json ファイルの中身、または同じ構造で自分で書いた JSON。";
 "format_wakeup_json_example" = "{\\n  \"name\": \"My table\",\\n  \"startDate\": \"2026-09-07\",\\n  \"courses\": [\\n    {\"name\":\"Calculus\",\"teacher\":\"John\",\"position\":\"A101\",\"day\":1,\"startNode\":1,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}\\n  ]\\n}";
 "format_ics_when" = "学校システムや WakeUp がエクスポートしたカレンダーファイル（.ics）。「ファイルからインポート」で選ぶか、テキストエディタで開いて全て貼り付け。";

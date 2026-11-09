@@ -54,7 +54,7 @@
 "edit_table_not_found" = "Horario no encontrado";
 "edit_table_validation_error" = "La fecha debe ser yyyy-MM-dd, la hora HH:mm con inicio antes del fin";
 "edit_table_delete_confirm" = "Confirmar eliminación";
-"edit_table_delete_msg" = "¿Eliminar horario \\\"%1$@\\\"? Esta acción no se puede deshacer.";
+"edit_table_delete_msg" = "¿Eliminar horario \"%1$@\"? Esta acción no se puede deshacer.";
 "default_table_name" = "Predeterminado";
 "import_paste" = "Pegar texto";
 "import_paste_hint" = "Pega el texto del horario…";
@@ -104,7 +104,7 @@
 "format_csv" = "Archivo CSV";
 "format_csv_desc" = ".csv con encabezados, separado por comas";
 "format_html" = "Tabla HTML";
-"format_html_desc" = "&lt;table&gt; formato, analizar por fila después de detectar encabezados";
+"format_html_desc" = "<table> formato, analizar por fila después de detectar encabezados";
 "format_plain" = "Texto plano";
 "format_plain_desc" = "Un curso por línea, separado por tabulaciones";
 "import_start_date_required" = "Por favor ingrese la fecha de inicio del semestre";
@@ -143,7 +143,7 @@
 "add_slot" = "Añadir horario";
 "save_course" = "Guardar curso";
 "delete_course" = "Eliminar curso";
-"delete_course_confirm" = "¿Eliminar curso \\\"%1$@\\\"? Esta acción no se puede deshacer.";
+"delete_course_confirm" = "¿Eliminar curso \"%1$@\"? Esta acción no se puede deshacer.";
 "select_at_least_one_day" = "Selecciona al menos un día";
 "delete_slot" = "Eliminar horario";
 "start_node" = "Período inicial";
@@ -194,9 +194,9 @@
 "settings_grid_sub_none" = "Ninguno";
 "settings_grid_sub_none_sub" = "Las tarjetas solo muestran el nombre";
 "settings_display_node" = "Mostrar como períodos";
-"settings_display_node_sub" = "Todos los cursos muestran \\\"Período N\\\"";
+"settings_display_node_sub" = "Todos los cursos muestran \"Período N\"";
 "settings_display_time" = "Mostrar como horas";
-"settings_display_time_sub" = "Todos los cursos muestran \\\"HH:mm–HH:mm\\\"";
+"settings_display_time_sub" = "Todos los cursos muestran \"HH:mm–HH:mm\"";
 "settings_show_date" = "Mostrar fechas en el horario";
 "settings_show_date_sub" = "Mostrar fecha específica (M/D) en cada encabezado";
 "settings_visible_days" = "Días visibles";
@@ -233,7 +233,7 @@
 "jw_parse_empty" = "Resultado de análisis vacío. Asegúrate de estar en la página \"Mi horario\" (no inicio de sesión)";
 "jw_import_success" = "%1$d cursos importados exitosamente";
 "jw_parse_failed" = "Error de análisis: %1$@";
-"jw_parse_failed_hint" = "\\n\\nSugerencia: Para HEU, inicia sesión en el navegador y navega a \"Mi horario\" antes de importar";
+"jw_parse_failed_hint" = "\n\nSugerencia: Para HEU, inicia sesión en el navegador y navega a \"Mi horario\" antes de importar";
 "jw_webview_not_ready" = "WebView no está listo";
 "jw_fetching" = "Obteniendo horario…";
 "jw_fetch_failed_no_response" = "Error: la página no responde (puede estar cargando)";
@@ -259,7 +259,7 @@
 "end_label" = "Fin";
 "delete_period" = "Eliminar este período";
 "mine_about" = "Acerca de";
-"mine_about_body" = "Sleepy Horario v%1$@\\n\\nUna aplicación de horario minimalista, limpia y local.\\nTodos los datos se guardan en tu dispositivo — nada se sube a servidores.\\n\\n· Sin anuncios\\n· Sin rastreo\\n· Compatible con WakeUp / ICS / CSV / HTML / texto plano";
+"mine_about_body" = "Sleepy Horario v%1$@\n\nUna aplicación de horario minimalista, limpia y local.\nTodos los datos se guardan en tu dispositivo — nada se sube a servidores.\n\n· Sin anuncios\n· Sin rastreo\n· Compatible con WakeUp / ICS / CSV / HTML / texto plano";
 "date_long_format" = "%1$d/%2$d";
 "notif_title" = "Clases de hoy — %1$@ %2$@";
 "notif_text" = "Toca para ver el horario de hoy";
@@ -357,7 +357,7 @@
 "jw_pending_input_url" = "Introducir URL manualmente";
 "jw_pending_legacy" = "Versión antigua";
 "jw_pending_manual" = "Añadir curso manualmente";
-"jw_pending_msg" = "El sistema de matrícula de %1$@ aún no es compatible con Sleepy.\\n\\nPuedes:\\n1. Pulsar \\\"Solicitar soporte\\\" para enviarlo al desarrollador\\n2. Pulsar \\\"Introducir URL manualmente\\\" para abrir e iniciar sesión en WebView\\n3. Importar temporalmente vía archivo HTML / CSV, o añadir cursos manualmente";
+"jw_pending_msg" = "El sistema de matrícula de %1$@ aún no es compatible con Sleepy.\n\nPuedes:\n1. Pulsar \"Solicitar soporte\" para enviarlo al desarrollador\n2. Pulsar \"Introducir URL manualmente\" para abrir e iniciar sesión en WebView\n3. Importar temporalmente vía archivo HTML / CSV, o añadir cursos manualmente";
 "jw_pending_pending" = "Pendiente";
 "jw_pending_supported" = "Compatible";
 "jw_pending_title" = "La importación de matrícula de esta escuela aún no está disponible";
@@ -487,7 +487,7 @@
 "semester_not_started" = "El semestre aún no comienza";
 "today_semester_out_hint" = "Fuera del rango del semestre: las clases son solo de referencia";
 "format_wakeup_share_when" = "Migrar todo desde la app WakeUp. Copia el texto completo generado por \"Compartir cursos\" de WakeUp y pégalo tal cual.";
-"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"Mi horario\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%5B%7B%22name%22…%5D\"}";
+"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"Mi horario\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%%5B%%7B%%22name%%22…%%5D\"}";
 "format_wakeup_json_when" = "Contenido de un .json exportado por WakeUp, o JSON escrito por ti con esta estructura.";
 "format_wakeup_json_example" = "{\\n  \"name\": \"Mi horario\",\\n  \"startDate\": \"2026-09-07\",\\n  \"courses\": [\\n    {\"name\":\"Cálculo\",\"teacher\":\"Juan\",\"position\":\"A101\",\"day\":1,\"startNode\":1,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}\\n  ]\\n}";
 "format_ics_when" = "Archivos de calendario (.ics) exportados del sistema escolar o WakeUp. Selecciónalo con \"Importar desde archivo\", o ábrelo en un editor de texto y pega todo.";

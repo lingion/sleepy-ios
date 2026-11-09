@@ -104,7 +104,7 @@
 "format_csv" = "CSV 檔案";
 "format_csv_desc" = "含表頭的 .csv，逗號分隔";
 "format_html" = "HTML 表格";
-"format_html_desc" = "&lt;table&gt; 形式，識別表頭後逐行解析";
+"format_html_desc" = "<table> 形式，識別表頭後逐行解析";
 "format_plain" = "純文字";
 "format_plain_desc" = "一行一課，製表符分隔";
 "import_start_date_required" = "請填寫學期開始日期";
@@ -233,7 +233,7 @@
 "jw_parse_empty" = "解析結果為空，請確認已到達「個人課表」頁（而非首頁/登入頁）";
 "jw_import_success" = "成功匯入 %1$d 門課程";
 "jw_parse_failed" = "解析失敗：%1$@";
-"jw_parse_failed_hint" = "\\n\\n提示：HEU 需在瀏覽器中登入後導航到『個人課表』頁面再點匯入";
+"jw_parse_failed_hint" = "\n\n提示：HEU 需在瀏覽器中登入後導航到『個人課表』頁面再點匯入";
 "jw_webview_not_ready" = "WebView 未就緒";
 "jw_fetching" = "正在抓取課表…";
 "jw_fetch_failed_no_response" = "抓取失敗：網頁無回應（可能還在載入）";
@@ -259,7 +259,7 @@
 "end_label" = "結束";
 "delete_period" = "刪除此節";
 "mine_about" = "關於";
-"mine_about_body" = "Sleepy 課表 v%1$@\\n\\n一個極簡、乾淨、本地優先的課表工具。\\n所有資料均儲存在你的裝置上，不上傳任何伺服器。\\n\\n· 無廣告\\n· 無追蹤\\n· 支援 WakeUp / ICS / CSV / HTML / 純文字 匯入";
+"mine_about_body" = "Sleepy 課表 v%1$@\n\n一個極簡、乾淨、本地優先的課表工具。\n所有資料均儲存在你的裝置上，不上傳任何伺服器。\n\n· 無廣告\n· 無追蹤\n· 支援 WakeUp / ICS / CSV / HTML / 純文字 匯入";
 "date_long_format" = "%1$d月%2$d日";
 "notif_title" = "今日課程 — %1$@ %2$@";
 "notif_text" = "點擊查看今日課程安排";
@@ -357,7 +357,7 @@
 "jw_pending_input_url" = "手動輸入 URL";
 "jw_pending_legacy" = "舊版";
 "jw_pending_manual" = "手動新增課程";
-"jw_pending_msg" = "%1$@ 的教務系統未在 Sleepy 適配列表中。\\n\\n你可以：\\n1. 點擊「申請適配」提交給開發者\\n2. 點擊「手動輸入 URL」在 WebView 開啟並登入\\n3. 暫用 HTML / CSV 檔案匯入，或手動新增課程";
+"jw_pending_msg" = "%1$@ 的教務系統未在 Sleepy 適配列表中。\n\n你可以：\n1. 點擊「申請適配」提交給開發者\n2. 點擊「手動輸入 URL」在 WebView 開啟並登入\n3. 暫用 HTML / CSV 檔案匯入，或手動新增課程";
 "jw_pending_pending" = "待適配";
 "jw_pending_supported" = "已支援";
 "jw_pending_title" = "該學校暫未實現教務匯入";
@@ -487,7 +487,7 @@
 "semester_not_started" = "學期尚未開始";
 "today_semester_out_hint" = "學期範圍外，課程僅供參考";
 "format_wakeup_share_when" = "從 WakeUp 課程表 app 整體搬家。在 WakeUp 裡點「分享課程」生成的整段文字，原樣貼上即可。";
-"format_wakeup_share_example" = "【來自WakeUp課程表】\\n課程分享:\\n{\"name\":\"我的課表\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%5B%7B%22name%22…%5D\"}";
+"format_wakeup_share_example" = "【來自WakeUp課程表】\\n課程分享:\\n{\"name\":\"我的課表\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%%5B%%7B%%22name%%22…%%5D\"}";
 "format_wakeup_json_when" = "WakeUp 匯出的 .json 檔案內容，或按下面的結構自己寫 JSON。";
 "format_wakeup_json_example" = "{\\n  \"name\": \"我的課表\",\\n  \"startDate\": \"2026-09-07\",\\n  \"courses\": [\\n    {\"name\":\"高等數學\",\"teacher\":\"張三\",\"position\":\"A101\",\"day\":1,\"startNode\":1,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}\\n  ]\\n}";
 "format_ics_when" = "學校教務系統或 WakeUp 匯出的日曆檔案（.ics）。用「從檔案匯入」選它，或用文字編輯器開啟後複製全部內容貼上。";
