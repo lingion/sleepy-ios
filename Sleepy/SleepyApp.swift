@@ -13,7 +13,7 @@
 //   - pendingImportText → EXTRA_DRAFT_ID 打开 import   → 外部打开走 URL; 草稿恢复待 data-migrations
 //   - uiMode 监听 (dark 实时重算, configChanges 不重建) → iOS 系统 dark 自动驱动颜色资源, 无需信号
 //   - splash 替换 (installSplashScreen)               → iOS 无公开 splash API, 记录 no-analog
-//   - HighRefreshRate 120Hz 请求                        → 无公开 API (ProMotion 系统调度, 2026-09-10 已审计)
+//   - HighRefreshRate 120Hz 请求                        → 不移植 Android 窗口固定高刷开关；iOS 按需调度，不保证 120Hz
 //   - 权限请求序 (runtime permission)                   → 通知权限在 NotificationScheduler 首次调度时按需请求, 无独立序
 
 import Combine
@@ -138,8 +138,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
         // Game Center 认证：静默，不影响 App 正常使用
         GameCenterManager.shared.authenticate()
-        // 高刷新率:iOS 无公开刷率 API(原 HighRefreshRate 桩已删),ProMotion 上
-        // 系统自动调度 120Hz,无需 app 侧动作(2026-09-10 原生化审计)。
+        // iOS 公开 CADisplayLink.preferredFrameRateRange，但 SwiftUI/CoreAnimation
+        // 由系统按需调度，不保证 120Hz；本 App 不移植 Android 窗口固定高刷开关。
         return true
     }
 }
