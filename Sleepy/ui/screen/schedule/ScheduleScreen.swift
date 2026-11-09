@@ -10,6 +10,15 @@ enum ViewMode: Hashable {
     case cards  // ← ViewMode.Cards (网格)
 }
 
+/// Keep the selected occurrence and its display context together across layout changes.
+struct ScheduleCourseDetailRequest: Identifiable {
+    let id = UUID()
+    let course: CourseEntity
+    let allCourses: [CourseEntity]
+    let displayDate: Date?
+    let table: TimeTableEntity?
+}
+
 struct ScheduleScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     @ObservedObject var viewModel: ScheduleViewModel
@@ -17,6 +26,9 @@ struct ScheduleScreen: View {
     // 顶部手动切换只改会话态, 不回写启动偏好(KEY_START_VIEW 既有分离设计)
     @Binding var viewMode: ViewMode
     var onGoImport: () -> Void = {}
+    var onShareRequested: ((TimeTableEntity, [CourseEntity]) -> Void)? = nil
+    var onCourseDetailRequested: ((ScheduleCourseDetailRequest) -> Void)? = nil
+    var courseDetailPresented = false
     var onManualAdd: () -> Void = {}
     var onCreateTable: () -> Void = {}
     var onEditCourse: (CourseEntity) -> Void = { _ in }
@@ -112,7 +124,12 @@ struct ScheduleScreen: View {
                     },
                     onSwitchTable: { showTableSwitcher = true },
                     onAddCourse: onManualAdd,
-                    onShare: { showShareSheet = true },
+                    onShare: {
+                        quickAdd.dismiss()
+                        if let onShareRequested, let table = state.effectiveCurrentTable {
+                            onShareRequested(table, state.courses)
+                        } else { showShareSheet = true }
+                    },
                     hasUndoSnapshot: undoManager.hasSnapshot,
                     hasRedoSnapshot: undoManager.hasRedoSnapshot,
                     scaleUncommitted: scaleUncommitted,
@@ -148,17 +165,26 @@ struct ScheduleScreen: View {
                           rowHeightScale: rowHeightScale,
                           onRowHeightScaleChange: { rowHeightScale = $0 },
                           pinchZoomEnabled: AppPrefs.shared.isGridPinchZoom(),
-                          dragEnabled: !showWeekJumpMenu && !showTableSwitcher && !showShareSheet && selectedCourse == nil,
+                          dragEnabled: !showWeekJumpMenu && !showTableSwitcher && !showShareSheet
+                            && selectedCourse == nil && !courseDetailPresented,
                           quickAdd: quickAdd, quickAddEnabled: onAddAt != nil,
                           onQuickAdd: { week, day, node, step in
                               guard let table = state.currentTable else { return }
                               onAddAt?(table.id, week, day, node, step)
                            }) { course, page in
-                    selectedCourseWeek = page
-                    selectedCourseDate = state.currentTable.flatMap {
+                    let displayDate = state.currentTable.flatMap {
                         CourseOccurrences.date(startDate: $0.startDate, week: page, day: course.day)
                     }
-                    selectedCourse = course
+                    if let onCourseDetailRequested {
+                        quickAdd.dismiss()
+                        onCourseDetailRequested(ScheduleCourseDetailRequest(
+                            course: course, allCourses: detailCourses(for: page),
+                            displayDate: displayDate, table: state.effectiveCurrentTable))
+                    } else {
+                        selectedCourseWeek = page
+                        selectedCourseDate = displayDate
+                        selectedCourse = course
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -238,26 +264,12 @@ struct ScheduleScreen: View {
         .sheet(item: $selectedCourse) { course in
             // v1.0.62 B5b: 详情页聚簇同域 ← 原 allCourses = 逐日 coursesForDate 投影:
             // 调休周里补班日列的课(投影 day)与放假日空列都按同一渲染域参与聚簇, 幽灵/漏簇同修。
-            let detailAllCourses: [CourseEntity] = state.currentTable.map { table in
-                (1...7).flatMap { day -> [CourseEntity] in
-                    guard let date = CourseOccurrences.date(startDate: table.startDate,
-                                                            week: selectedCourseWeek, day: day) else { return [] }
-                    return HolidayTransferOps.coursesForDate(
-                        date, startDate: table.startDate, maxWeek: table.maxWeek,
-                        courses: state.courses, transfers: state.transfers
-                    ).map { c -> CourseEntity in
-                        var projected = c
-                        projected.day = day
-                        return projected
-                    }
-                }
-            } ?? []
             return CourseDetailSheet(
                 course: course,
                 timeString: course.nodeString(),
                 // v7.10.16q: allCourses 必须与网格同周域 —
                 // 周次不相交同行(如周1-4/周6-13)全量传会被当成同时存在 → 幽灵图层
-                allCourses: detailAllCourses,
+                allCourses: detailCourses(for: selectedCourseWeek),
                 onEdit: { c in
                     selectedCourse = nil
                     // v1.0.62 B5b: 编辑回传库内原始行 ← 原版本 onEditCourse(firstOrNull(id) ?: course) —
@@ -274,6 +286,13 @@ struct ScheduleScreen: View {
                     viewModel.occurrenceSaved()
                 })
         }
+    }
+
+    private func detailCourses(for week: Int) -> [CourseEntity] {
+        let state = viewModel.state
+        guard let table = state.currentTable else { return [] }
+        return renderCoursesForWeek(table, week: week, courses: state.courses,
+                                    transfers: state.transfers, timeJson: nil)
     }
 
     private func showToast(_ message: String) {

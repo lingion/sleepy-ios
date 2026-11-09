@@ -144,6 +144,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
+/// A presentation belongs to the window, so replacing tab/rail layouts cannot dismiss it.
+struct ScheduleShareRequest: Identifiable {
+    let id = UUID()
+    let table: TimeTableEntity
+    let courses: [CourseEntity]
+}
+
 // ← AppRoot 状态机(overlay 导航 + 深链)
 @MainActor
 final class AppRootViewModel: ObservableObject {
@@ -168,6 +175,8 @@ final class AppRootViewModel: ObservableObject {
     }
 
     @Published var currentTab: Tab = .schedule
+    @Published var shareRequest: ScheduleShareRequest? = nil
+    @Published var courseDetailRequest: ScheduleCourseDetailRequest? = nil
     @Published private(set) var overlayNavigationRevision: UInt64 = 0
     private let overlayDismissalState = OverlayDismissalState()
     @Published var overlayScreen: OverlayScreen? = nil {
@@ -498,6 +507,38 @@ struct AppRoot: View {
                 root.currentTab = .manage
             }
         }
+        .sheet(item: $root.shareRequest) { request in
+            ShareScheduleSheet(table: request.table, courses: request.courses,
+                               onDismiss: { root.shareRequest = nil })
+                .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                              customThemeVersion: customThemesJson))
+                .environment(\.systemColorSnapshot, systemColorSnapshot)
+                .preferredColorScheme(schemeOverride)
+        }
+        .sheet(item: $root.courseDetailRequest) { request in
+            CourseDetailSheet(
+                course: request.course,
+                timeString: request.course.nodeString(),
+                allCourses: request.allCourses,
+                onEdit: { course in
+                    root.courseDetailRequest = nil
+                    let stored = root.scheduleViewModel.state.courses.first { $0.id == course.id } ?? course
+                    root.navigator.session.beginEditCourse(stored)
+                    root.navigator.openAddCourse(courseId: stored.id, editing: true)
+                },
+                timeJson: request.table?.timeJson,
+                displayDate: request.displayDate,
+                occurrenceTable: request.table,
+                occurrenceRepository: root.scheduleViewModel.occurrenceRepository,
+                onOccurrenceSaved: {
+                    root.courseDetailRequest = nil
+                    root.scheduleViewModel.occurrenceSaved()
+                })
+                .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                              customThemeVersion: customThemesJson))
+                .environment(\.systemColorSnapshot, systemColorSnapshot)
+                .preferredColorScheme(schemeOverride)
+        }
         // 待恢复草稿 → 带进 JwImportFlow 入参并消费清零(← EXTRA_DRAFT_ID 一次性语义)
         .onChange(of: root.pendingDraftId) { id in
             guard let id = id else { return }
@@ -713,6 +754,11 @@ struct AppRoot: View {
                 root.currentTab = .manage
                 root.createNewTableThenEdit()
             },
+            onShareRequested: { table, courses in
+                root.shareRequest = ScheduleShareRequest(table: table, courses: courses)
+            },
+            onCourseDetailRequested: { root.courseDetailRequest = $0 },
+            courseDetailPresented: root.courseDetailRequest != nil,
             onManualAdd: { root.navigator.openAddCourse() },
             onCreateTable: { root.createNewTableThenEdit() },
             onEditCourse: { course in
@@ -814,6 +860,11 @@ struct AppRoot: View {
                 viewMode: $root.scheduleViewMode,
                 onGoImport: { root.currentTab = .manage },
                 // ← 原版本 MainTabs:328 onManualAdd = navigator.openAddCourse()
+                onShareRequested: { table, courses in
+                    root.shareRequest = ScheduleShareRequest(table: table, courses: courses)
+                },
+                onCourseDetailRequested: { root.courseDetailRequest = $0 },
+                courseDetailPresented: root.courseDetailRequest != nil,
                 onManualAdd: { root.navigator.openAddCourse() },
                 onCreateTable: { root.createNewTableThenEdit() },
                 // ← 原版本 MainTabs:330 onEditCourse = session.beginEditCourse(course)
