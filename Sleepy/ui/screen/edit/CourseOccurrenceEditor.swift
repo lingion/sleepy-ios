@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// 从详情/拖课菜单打开的原生单次编辑器。存储行、源日和展示日必须来自同一次解析。
+/// 从详情/拖课菜单打开的单次编辑器。存储行、源日和展示日必须来自同一次解析。
 struct CourseOccurrenceEditor: View {
+    @Environment(\.localWakeUpColors) private var colors
     let occurrence: CourseOccurrence
     let table: TimeTableEntity
     let repository: ScheduleRepository
@@ -19,6 +20,9 @@ struct CourseOccurrenceEditor: View {
     @State private var busy = false
     @State private var prompt: Prompt?
     @State private var pending: PendingSave?
+    @State private var showDatePicker = false
+    @State private var pickerDate = Date()
+    @FocusState private var focusedTime: String?
 
     private enum Prompt { case destination, hidden, outgoing, conflicts, delete }
     private struct PendingSave {
@@ -50,80 +54,175 @@ struct CourseOccurrenceEditor: View {
 
     var body: some View {
         NavigationView {
-            Form {
-                Section {
-                    Text(occurrence.course.alias.isEmpty ? occurrence.course.courseName : occurrence.course.alias)
-                        .font(.headline)
-                    Text("\(HolidayTransferOps.dayKey(occurrence.displayDate)) · \(occurrence.course.nodeString())")
-                        .foregroundStyle(.secondary)
-                    DatePicker(L10n.format("occurrence_date"), selection: $date, displayedComponents: .date)
-                        .environment(\.timeZone, CourseOccurrences.calendar.timeZone)
-                        .accessibilityIdentifier("occurrence_date")
-                    Toggle(L10n.format("occurrence_fixed_date"), isOn: $fixed)
-                        .accessibilityIdentifier("occurrence_fixed_date")
-                }
-                Section(L10n.format("occurrence_time")) {
-                    if hasStandardRange {
-                        let shown = IntSliderRange(start: node, end: node + max(step, 1) - 1,
-                                                   minimum: 1, maximum: maximumStandardNode)
-                        IntRangeSlider(summary: AddCourseScreen.nodeRangeSummary(shown),
-                            minValue: 1, maxValue: maximumStandardNode, startValue: shown.start, endValue: shown.end,
-                            onValueChange: { node = $0; step = $1 - $0 + 1 },
-                            initialStart: occurrence.course.startNode,
-                            initialEnd: occurrence.course.startNode + occurrence.course.step - 1,
-                            identifier: "occurrence_nodes")
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(occurrence.course.alias.isEmpty ? occurrence.course.courseName : occurrence.course.alias)
+                            .font(.system(size: 22))
+                        Text("\(HolidayTransferOps.dayKey(occurrence.displayDate)) · \(occurrence.course.nodeString())")
+                            .font(.system(size: 16))
+                        dateCard
+                        Toggle(L10n.format("occurrence_fixed_date"), isOn: $fixed)
+                            .toggleStyle(OccurrenceCheckboxStyle(identifier: "occurrence_fixed_date"))
+                        if hasStandardRange {
+                            let shown = IntSliderRange(start: node, end: node + max(step, 1) - 1,
+                                                       minimum: 1, maximum: maximumStandardNode)
+                            IntRangeSlider(summary: AddCourseScreen.nodeRangeSummary(shown),
+                                minValue: 1, maxValue: maximumStandardNode, startValue: shown.start, endValue: shown.end,
+                                onValueChange: { node = $0; step = $1 - $0 + 1 },
+                                initialStart: occurrence.course.startNode,
+                                initialEnd: occurrence.course.startNode + occurrence.course.step - 1,
+                                identifier: "occurrence_nodes")
+                        } else {
+                            HStack(spacing: 12) {
+                                nodeInput("start_node", value: $node, invalidValue: Int.min, identifier: "occurrence_node")
+                                nodeInput("step_count", value: $step, invalidValue: 0, identifier: "occurrence_step")
+                            }
+                        }
+                        Toggle(L10n.format("occurrence_custom_time"), isOn: Binding(
+                            get: { custom }, set: { enabled in
+                                if enabled, let range = TimeTableUtils.effectiveCourseTime(isIrregularTime: false,
+                                    startTime: "", endTime: "", startNode: node, step: step, timeJson: table.timeJson) {
+                                    start = range.0
+                                    end = range.1
+                                }
+                                custom = enabled
+                            }))
+                            .toggleStyle(OccurrenceCheckboxStyle(identifier: "occurrence_custom_time"))
+                        if custom {
+                            HStack(spacing: 12) {
+                                timeInput("occurrence_start_time", text: $start)
+                                timeInput("occurrence_end_time", text: $end)
+                            }
+                        }
+                        if let error {
+                            Text(error).foregroundColor(colors.error).accessibilityIdentifier("occurrence_error")
+                        }
+                        actionButton("occurrence_save", container: colors.primary, content: colors.onPrimary) { prepare(delete: false) }
+                        actionButton("occurrence_delete", container: colors.errorContainer, content: colors.onErrorContainer) { prepare(delete: true) }
+                        Spacer().frame(height: 16)
                     }
-                    NumberStepperField(label: L10n.format("start_node"), value: $node,
-                                       minV: minimumNode, maxV: maximumNode)
-                    NumberStepperField(label: L10n.format("occurrence_end_node"), value: Binding(
-                        get: { node + max(step, 1) - 1 }, set: { step = max(1, $0 - node + 1) }),
-                                       minV: node, maxV: max(node, maximumNode))
-                    Text(L10n.format("occurrence_original_nodes", occurrence.course.startNode, occurrence.course.startNode + occurrence.course.step - 1))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle(L10n.format("occurrence_custom_time"), isOn: $custom)
-                        .accessibilityIdentifier("occurrence_custom_time")
-                    if custom {
-                        TextField(L10n.format("occurrence_start_time"), text: $start)
-                            .keyboardType(.numbersAndPunctuation)
-                            .accessibilityIdentifier("occurrence_start_time")
-                        TextField(L10n.format("occurrence_end_time"), text: $end)
-                            .keyboardType(.numbersAndPunctuation)
-                            .accessibilityIdentifier("occurrence_end_time")
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .foregroundColor(colors.onSurface)
+                .background(colors.surface.ignoresSafeArea())
+                .background(GeometryReader { geometry in
+                    Color.clear.onChange(of: geometry.size) { _ in revealFocusedTime(using: proxy) }
+                })
+                .onChange(of: focusedTime) { _ in revealFocusedTime(using: proxy) }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidChangeFrameNotification)) { _ in
+                    revealFocusedTime(using: proxy)
+                }
+                .disabled(busy)
+                .navigationTitle(L10n.format("occurrence_title"))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(L10n.format("cancel"), action: onDismiss)
+                            .accessibilityIdentifier("occurrence_cancel")
                     }
                 }
-                if let error {
-                    Section {
-                        Text(error)
-                            .foregroundColor(.red)
-                            .accessibilityIdentifier("occurrence_error")
-                    }
-                }
-                Section {
-                    Button(L10n.format("occurrence_save")) { prepare(delete: false) }
-                        .accessibilityIdentifier("occurrence_save")
-                    Button(L10n.format("occurrence_delete"), role: .destructive) { prepare(delete: true) }
-                        .accessibilityIdentifier("occurrence_delete")
-                }
+                .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
+                    promptButtons
+                } message: { Text(promptMessage) }
+                .sheet(isPresented: $showDatePicker) { datePickerSheet }
             }
-            .disabled(busy)
-            .navigationTitle(L10n.format("occurrence_title"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(L10n.format("cancel"), action: onDismiss)
-                        .accessibilityIdentifier("occurrence_cancel")
-                }
-            }
-            .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
-                promptButtons
-            } message: { Text(promptMessage) }
         }
         .navigationViewStyle(.stack)
+        .accentColor(colors.primary)
         .accessibilityIdentifier("occurrence_editor")
     }
+    private func revealFocusedTime(using proxy: ScrollViewProxy) {
+        guard let key = focusedTime else { return }
+        // The keyboard and sheet finish resizing after the focus event. Recenter
+        // the complete outlined field in the updated viewport, including rotation.
+        DispatchQueue.main.async {
+            guard focusedTime == key else { return }
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(key, anchor: .center) }
+        }
+    }
+    private var dateCard: some View {
+        Button { pickerDate = date; showDatePicker = true } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.format("occurrence_date")).font(.system(size: 12)).foregroundColor(colors.onSurfaceVariant)
+                    Text(date, formatter: dateFormatter).font(.system(size: 16)).foregroundColor(colors.onSurface)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "calendar").font(.system(size: 24)).foregroundColor(colors.primary)
+            }
+            .padding(16)
+            .overlay(RoundedRectangle(cornerRadius: SleepyShapes.medium).stroke(colors.outline, lineWidth: 1))
+        }
+        .buttonStyle(SleepyButtonStyle())
+        .accessibilityIdentifier("occurrence_date")
+    }
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = LocaleHelper.locale(for: AppPrefs.shared.getLanguage())
+        formatter.dateStyle = .full
+        formatter.timeZone = CourseOccurrences.calendar.timeZone
+        return formatter
+    }
+    private var datePickerSheet: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                DatePicker(L10n.format("occurrence_date"), selection: $pickerDate,
+                           in: datePickerBounds, displayedComponents: .date)
+                    .datePickerStyle(.graphical).labelsHidden()
+                    .environment(\.timeZone, CourseOccurrences.calendar.timeZone)
+                    .environment(\.locale, LocaleHelper.locale(for: AppPrefs.shared.getLanguage()))
+                DialogActionButtons(confirmText: L10n.format("ok"), onConfirm: {
+                    guard isSelectableOccurrenceDate(pickerDate) else { return }
+                    date = CourseOccurrences.calendar.startOfDay(for: pickerDate)
+                    showDatePicker = false
+                },
+                    dismissText: L10n.format("cancel"), onDismiss: { showDatePicker = false },
+                    confirmEnabled: isSelectableOccurrenceDate(pickerDate),
+                    confirmIdentifier: "date_picker_confirm", dismissIdentifier: "date_picker_cancel")
+            }.padding(20)
+        }.background(colors.surface).sheetDetents([.large])
+    }
+    private var datePickerBounds: ClosedRange<Date> {
+        let original = CourseOccurrences.calendar.startOfDay(for: occurrence.displayDate)
+        guard let first = CourseOccurrences.date(startDate: table.startDate, week: 1, day: 1),
+              let last = CourseOccurrences.date(startDate: table.startDate, week: table.maxWeek, day: 7),
+              first <= last else { return original...original }
+        // Native DatePicker supports one continuous range. If a transferred
+        // occurrence lies outside the semester, retain that original day too;
+        // the confirmation gate excludes every other day in the gap.
+        return min(first, original)...max(last, original)
+    }
+    private func isSelectableOccurrenceDate(_ candidate: Date) -> Bool {
+        let calendar = CourseOccurrences.calendar
+        if calendar.isDate(candidate, inSameDayAs: occurrence.displayDate) { return true }
+        guard let week = CourseOccurrences.week(startDate: table.startDate, date: candidate) else { return false }
+        return week <= table.maxWeek
+    }
+    private func nodeInput(_ key: String, value: Binding<Int>, invalidValue: Int, identifier: String) -> some View {
+        OccurrenceNodeInput(label: L10n.format(key), value: value, invalidValue: invalidValue, identifier: identifier)
+    }
+    private func timeInput(_ key: String, text: Binding<String>) -> some View {
+        TextField("", text: text)
+            .textFieldStyle(.plain).font(.system(size: 16)).keyboardType(.numbersAndPunctuation)
+            .padding(.horizontal, 16).frame(maxWidth: .infinity).frame(height: 56)
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(colors.outline, lineWidth: 1))
+            .overlay(alignment: .topLeading) {
+                Text(L10n.format(key)).font(.system(size: 12)).foregroundColor(colors.onSurfaceVariant)
+                    .padding(.horizontal, 4).background(colors.surface).padding(.leading, 12).offset(y: -7).accessibilityHidden(true)
+            }
+            .focused($focusedTime, equals: key)
+            .accessibilityLabel(L10n.format(key)).accessibilityIdentifier(key).id(key)
+    }
+    private func actionButton(_ key: String, container: Color, content: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(L10n.format(key)).font(.system(size: 14, weight: .medium)).foregroundColor(content)
+                .frame(maxWidth: .infinity).frame(height: 48).background(container).clipShape(Capsule())
+        }.buttonStyle(SleepyButtonStyle()).accessibilityIdentifier(key)
+    }
 
-    private var minimumNode: Int { TimeTableUtils.parseTimeSlotRows(table.timeJson).map { $0.node }.min() ?? 1 }
-    private var maximumNode: Int { TimeTableUtils.parseTimeSlotRows(table.timeJson).map { $0.node }.max() ?? 1 }
     private var maximumStandardNode: Int { TimeTableUtils.maxStandardNode(table.timeJson) }
     private var hasStandardRange: Bool {
         (1...max(1, maximumStandardNode)).contains(occurrence.course.startNode) && !occurrence.course.isIrregularNode
@@ -254,6 +353,74 @@ struct CourseOccurrenceEditor: View {
     private func present(_ next: Prompt) {
         prompt = nil
         DispatchQueue.main.async { prompt = next }
+    }
+}
+
+private struct OccurrenceNodeInput: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let label: String
+    @Binding var value: Int
+    let invalidValue: Int
+    let identifier: String
+    @State private var text: String
+
+    init(label: String, value: Binding<Int>, invalidValue: Int, identifier: String) {
+        self.label = label
+        self._value = value
+        self.invalidValue = invalidValue
+        self.identifier = identifier
+        self._text = State(initialValue: String(value.wrappedValue))
+    }
+
+    private func parsedValue(_ input: String) -> Int {
+        // Android keeps the raw node/step text and validates Int on save.
+        // Preserve invalid input visibly while making the existing save
+        // validation reject it instead of silently saving an older value.
+        Int32(input).map { Int($0) } ?? invalidValue
+    }
+
+    var body: some View {
+        TextField("", text: Binding(get: { text }, set: {
+            text = $0
+            value = parsedValue($0)
+        }))
+        .textFieldStyle(.plain).font(.system(size: 16)).keyboardType(.numbersAndPunctuation)
+        .padding(.horizontal, 16).frame(maxWidth: .infinity).frame(height: 56)
+        .overlay(RoundedRectangle(cornerRadius: 4).stroke(colors.outline, lineWidth: 1))
+        .overlay(alignment: .topLeading) {
+            Text(label).font(.system(size: 12)).foregroundColor(colors.onSurfaceVariant)
+                .padding(.horizontal, 4).background(colors.surface).padding(.leading, 12).offset(y: -7)
+                .accessibilityHidden(true)
+        }
+        .accessibilityLabel(label).accessibilityIdentifier(identifier)
+        .onChange(of: value) { updated in
+            if parsedValue(text) != updated { text = String(updated) }
+        }
+    }
+}
+
+private struct OccurrenceCheckboxStyle: ToggleStyle {
+    @Environment(\.localWakeUpColors) private var colors
+    let identifier: String
+
+    func makeBody(configuration: Configuration) -> some View {
+        Button { configuration.isOn.toggle() } label: {
+            HStack(spacing: 0) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 2).fill(configuration.isOn ? colors.primary : .clear)
+                    if configuration.isOn {
+                        Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundColor(colors.onPrimary)
+                    } else {
+                        RoundedRectangle(cornerRadius: 2).stroke(colors.onSurfaceVariant, lineWidth: 2)
+                    }
+                }.frame(width: 18, height: 18).frame(width: 48, height: 48)
+                configuration.label.font(.system(size: 16)).foregroundColor(colors.onSurface).multilineTextAlignment(.leading)
+            }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+        }
+        .buttonStyle(SleepyButtonStyle())
+        .accessibilityIdentifier(identifier)
+        .accessibilityValue(configuration.isOn ? "1" : "0")
+        .accessibilityAddTraits(configuration.isOn ? .isSelected : [])
     }
 }
 
