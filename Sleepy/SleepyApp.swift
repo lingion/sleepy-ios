@@ -168,11 +168,21 @@ final class AppRootViewModel: ObservableObject {
     }
 
     @Published var currentTab: Tab = .schedule
+    @Published private(set) var overlayNavigationRevision: UInt64 = 0
+    private let overlayDismissalState = OverlayDismissalState()
     @Published var overlayScreen: OverlayScreen? = nil {
-        didSet { if overlayScreen != .addCourse { initialCourseSlot = nil } }
+        didSet {
+            recordOverlayNavigation()
+            if overlayScreen != .addCourse {
+                initialCourseSlot = nil
+            }
+        }
     }
     @Published var editingCourse: CourseEntity? = nil {
-        didSet { if editingCourse != nil { initialCourseSlot = nil } }
+        didSet {
+            recordOverlayNavigation()
+            if editingCourse != nil { initialCourseSlot = nil }
+        }
     }
     @Published var initialCourseSlot: CourseAddSlot? = nil
     // ← 原版本 b96c865b: 课表视图模式(周/网格)会话级真值, 与 currentTab 同级 —
@@ -265,6 +275,20 @@ final class AppRootViewModel: ObservableObject {
         let floating = NavStyleResolver.floating(for: mode)
         if navMode != mode { navMode = mode }
         if navFloating != floating { navFloating = floating }
+    }
+
+    private func recordOverlayNavigation() {
+        // Invalidate synchronously, before SwiftUI observes the new route.
+        overlayDismissalState.navigationChanged()
+        overlayNavigationRevision &+= 1
+    }
+
+    func beginOverlayDismissal() -> OverlayDismissalState.Ticket {
+        overlayDismissalState.beginDismissal()
+    }
+
+    func completeOverlayDismissal(_ ticket: OverlayDismissalState.Ticket, then: () -> Void) {
+        overlayDismissalState.completeDismissal(ticket, then: then)
     }
 
     // ← BackHandler: overlay 返回(pendingNewTable 丢弃链)
@@ -528,6 +552,10 @@ struct AppRoot: View {
                 themeKey: themeKey,
                 customThemeVersion: customThemesJson,
                 overlayScreen: $root.overlayScreen,
+                resolvedScreen: root.overlayScreen ?? (root.editingCourse == nil ? nil : .addCourse),
+                navigationRevision: root.overlayNavigationRevision,
+                beginDismissal: { root.beginOverlayDismissal() },
+                completeDismissal: { ticket, action in root.completeOverlayDismissal(ticket, then: action) },
                 editingCourse: root.editingCourse,
                 initialCourseSlot: root.initialCourseSlot,
                 editTableId: root.editTableId,
@@ -1068,6 +1096,10 @@ private struct PresentOverlay: ViewModifier {
     // ← AppRoot.customThemesJson 同源下发: 浮层页在自定义主题就地编辑后也要重跑 provider
     var customThemeVersion: String = ""
     @Binding var overlayScreen: AppRootViewModel.OverlayScreen?
+    let resolvedScreen: AppRootViewModel.OverlayScreen?
+    let navigationRevision: UInt64
+    let beginDismissal: () -> OverlayDismissalState.Ticket
+    let completeDismissal: (OverlayDismissalState.Ticket, @escaping () -> Void) -> Void
     let editingCourse: CourseEntity?
     let initialCourseSlot: CourseAddSlot?
     let editTableId: Int64?
@@ -1097,15 +1129,17 @@ private struct PresentOverlay: ViewModifier {
     }
 
     // 浮层容器状态: shownScreen 镜像 activeScreen(带转场生命周期),
-    // dragX = 侧滑跟手位移, dismissSeq 防过期定时器串页。
+    // dragX = 侧滑跟手位移; the window owner invalidates stale dismissal tickets.
     @State private var shownScreen: AppRootViewModel.OverlayScreen?
     @State private var dragX: CGFloat = 0
-    @State private var dismissSeq = 0
 
-    // ← 原 fullScreenCover(item:) get 闭包语义: 深链直接置 editingCourse 也能呈现 addCourse
-    private var activeScreen: AppRootViewModel.OverlayScreen? {
-        if overlayScreen != nil { return overlayScreen }
-        return editingCourse == nil ? nil : .addCourse
+    private struct NavigationSnapshot: Equatable {
+        let screen: AppRootViewModel.OverlayScreen?
+        let revision: UInt64
+    }
+
+    private var navigationSnapshot: NavigationSnapshot {
+        NavigationSnapshot(screen: resolvedScreen, revision: navigationRevision)
     }
 
     func body(content: Content) -> some View {
@@ -1131,12 +1165,17 @@ private struct PresentOverlay: ViewModifier {
                     .transition(SleepyMaterialTransition.forwardTransform)
             }
         }
-        .onChange(of: activeScreen) { syncPresentation($0) }
+        // Read route and revision from the same parent-rendered value. Re-reading
+        // the live Binding in a revision callback can combine a cleared route
+        // with the previous editing record and reopen an empty course editor.
+        // One observer also prevents route and revision callbacks from issuing
+        // opposing close/open decisions during the same navigation change.
+        .onChange(of: navigationSnapshot) { syncPresentation($0.screen) }
         .onAppear {
             // 语言切换 → .id(languageReload) 整树重建 → 本修饰器 @State 复位 nil,
             // 但 VM.overlayScreen 仍持页 → 不恢复会把用户弹回根页
             // (原版本 Activity.recreate 保留当前页, 此处对齐)
-            if shownScreen == nil, let active = activeScreen { shownScreen = active }
+            if shownScreen == nil, let screen = resolvedScreen { shownScreen = screen }
         }
     }
 
@@ -1176,13 +1215,13 @@ private struct PresentOverlay: ViewModifier {
     //   滑出 —— 滑出与 forwardExit 叠加 = 页面既滑走又缩放(双演)。dragX 只保留
     //   手势跟手 + 释放后 commit/cancel 的职责, 复位挪到移除完成后(此时已不可见, 无回弹)。
     private func animateOutThen(then: @escaping () -> Void) {
+        let ticket = beginDismissal()
         withAnimation(SleepyMaterialTransition.forwardAnimation) { shownScreen = nil }
-        dismissSeq += 1
-        let seq = dismissSeq
         DispatchQueue.main.asyncAfter(deadline: .now() + SleepyMaterialTransition.forwardDuration) {
-            guard seq == dismissSeq else { return }
-            dragX = 0
-            then()
+            completeDismissal(ticket) {
+                dragX = 0
+                then()
+            }
         }
     }
 
