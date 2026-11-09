@@ -883,7 +883,7 @@
 "possible_schools" = "可能的學校";
 "reminder_before_class_preview_dynamic" = "範例：%@，下節課是「%@」，於 %@ 在 %4$s 上課%5$s";
 "reminder_before_class_preview_dynamic_no_course" = "範例：未來沒有可提醒的課程。";
-"reminder_class_dnd_sub" = "上課時段自動開啟勿擾, 下課自動恢復";
+"reminder_class_dnd_sub" = "僅在 App 前景時，靜音上課時段的本應用程式課前通知；系統專注模式保持不變";
 "reminder_class_dnd_title" = "上課自動勿擾";
 "reminder_daily_preview_dynamic" = "範例：%@，您有 %lld 節課。第一節課是「%@」，於 %4$s 在 %5$s 上課%6$s";
 "reminder_daily_preview_dynamic_no_course" = "範例：%@，暫無課程。";

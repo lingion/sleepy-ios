@@ -883,7 +883,7 @@
 "possible_schools" = "Posibles centros";
 "reminder_before_class_preview_dynamic" = "Ejemplo: %@: próxima clase %@ a las %@ en %4$s%5$s";
 "reminder_before_class_preview_dynamic_no_course" = "Ejemplo: No hay próximas clases que recordar.";
-"reminder_class_dnd_sub" = "Activa No molestar durante las clases y lo restaura al terminar";
+"reminder_class_dnd_sub" = "Silencia los avisos previos de esta app durante las clases mientras está abierta. No cambia el modo de concentración del sistema.";
 "reminder_class_dnd_title" = "No molestar en clase";
 "reminder_daily_preview_dynamic" = "Ejemplo: %@: tienes %lld clases. Primera clase: %@ a las %4$s en %5$s%6$s";
 "reminder_daily_preview_dynamic_no_course" = "Ejemplo: %@: no hay clases.";

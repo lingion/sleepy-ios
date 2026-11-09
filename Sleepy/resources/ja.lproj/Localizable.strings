@@ -883,7 +883,7 @@
 "possible_schools" = "候補の学校";
 "reminder_before_class_preview_dynamic" = "例：%@、次の授業は「%@」、%@、教室%4$s%5$s";
 "reminder_before_class_preview_dynamic_no_course" = "例：通知対象の授業はありません。";
-"reminder_class_dnd_sub" = "授業時間帯におやすみモードを自動で有効にし、終了後に復元します";
+"reminder_class_dnd_sub" = "アプリを開いている間、授業中のこのアプリの授業前通知を消音します。システムの集中モードは変更しません。";
 "reminder_class_dnd_title" = "授業中はおやすみモード";
 "reminder_daily_preview_dynamic" = "例：%@、授業は%lldコマ。最初の授業は「%@」、%4$s、教室%5$s%6$s";
 "reminder_daily_preview_dynamic_no_course" = "例：%@、授業はありません。";

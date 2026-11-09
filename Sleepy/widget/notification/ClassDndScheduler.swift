@@ -6,16 +6,8 @@
 //   - iOS: 无系统级勿扰写入 API(UNNotificationSettings 只读;
 //     Focus 状态 NSSetUnabridged... 需要 Apple 授权的 Screen Time API)
 //   - 等价适配: 上课区间内抑制本 app 自己的课前通知投放 — 投放闸即
-//     shouldSuppressNotification(now:)。到货 delegate 已存在:
-//     NotificationScheduler.swift 的 SleepyNotificationDelegate.willPresent,
-//     其 sleepy_bc_* 分支现只查 beforeClassDeliveryAllowed, 尚未 AND 本闸 —
-//     ⚠ 两处接线归集成者(共享文件, F128 issue#1):
-//     (a) SleepyApp.swift didFinishLaunching:
-//         UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
-//     (b) SleepyNotificationDelegate.willPresent 的 sleepy_bc_ 分支:
-//         allowed = await beforeClassDeliveryAllowed(...) &&
-//                   !(await ClassDndScheduler.shouldSuppressNotification())
-//     接线落地前本闸无调用方 (对齐审计 F128 issue#1 记录此缺口)。
+//     shouldSuppressNotification(now:)。SleepyNotificationDelegate.willPresent
+//     已接此闸，仅影响 App 前台收到的本 App 课前通知，不改变系统 Focus。
 //     (iOS 通知即日历触发器, 无独立闹钟链可断 — 无需"两颗配对闹钟自续",
 //     但保留纯函数边界计算供复用)
 //
@@ -88,11 +80,13 @@ final class ClassDndScheduler {
     static func courseInterval(
         date: Date,
         course: CourseEntity,
-        nodes: [TimeTableUtils.NodeTime]
+        nodes: [TimeTableUtils.NodeTime],
+        calendar: Calendar = DateUtils.isoCalendar
     ) -> (Date, Date)? {
-        let cal = DateUtils.isoCalendar
+        let cal = calendar
+        let usesOwnTime = course.ownTime || course.isIrregularTime
         let startStr: String
-        if course.ownTime && isNotBlank(course.startTime) {
+        if usesOwnTime && isNotBlank(course.startTime) {
             startStr = course.startTime
         } else if let node = nodes.first(where: { $0.node == course.startNode }) {
             startStr = TimeTableUtils.formatTime(node.start)
@@ -101,7 +95,7 @@ final class ClassDndScheduler {
         }
         let endNode = course.startNode + course.step - 1
         let endStr: String
-        if course.ownTime && isNotBlank(course.endTime) {
+        if usesOwnTime && isNotBlank(course.endTime) {
             endStr = course.endTime
         } else if let node = nodes.first(where: { $0.node == endNode }) {
             endStr = TimeTableUtils.formatTime(node.end)
@@ -125,30 +119,31 @@ final class ClassDndScheduler {
 
     // ==================== 区间构建 (异步 — 节假日策略查缓存) ====================
 
+    /// 与今日页、实况活动共用日期取课规则；定日课留在自然日，循环课跟随调休源周。
+    static func intervalsForDate(_ date: Date, table: TimeTableEntity,
+                                 courses: [CourseEntity], transfers: [HolidayTransferEntry]) -> [(Date, Date)] {
+        let nodes = TimeTableUtils.parseNodes(table.timeJson)
+        return CourseOccurrences.coursesForDate(date, startDate: table.startDate, maxWeek: table.maxWeek,
+            courses: courses, transfers: transfers).compactMap {
+                courseInterval(date: date, course: $0, nodes: nodes, calendar: CourseOccurrences.calendar)
+            }
+    }
+
     /// 枚举未来 WINDOW_DAYS 天的课程区间。
     func buildIntervals(table: TimeTableEntity) async -> [(Date, Date)] {
-        let cal = DateUtils.isoCalendar
-        let today = cal.startOfDay(for: Date())
-        let nodes = TimeTableUtils.parseNodes(table.timeJson)
+        let cal = CourseOccurrences.calendar
+        let today = cal.startOfDay(for: AppClock.now)
         var result: [(Date, Date)] = []
         guard let repo = repositoryProvider?() else { return result }
+        let courses = (try? repo.getCourses(table.id)) ?? []
+        let transfers = HolidayTransferHelper.transfers(for: table.id)
         for offset in 0..<Self.WINDOW_DAYS {
             guard let date = cal.date(byAdding: .day, value: offset, to: today) else { continue }
-            if DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: date) != .inRange {
-                continue
-            }
             // 与课前通知同一日期语义 — 节假日策略门控
             if !(await HolidayReminderPolicyAdapter.decide(date: date, tableId: table.id)).allowReminder {
                 continue
             }
-            let week = DateUtils.currentWeek(startDate: table.startDate, today: date)
-            let dow = HolidayTransferHelper.effectiveDayOfWeek(table.id, date)
-            let courses = ((try? repo.getCoursesByDay(table.id, day: dow)) ?? []).filter { $0.inWeek(week) }
-            for course in courses {
-                if let interval = Self.courseInterval(date: date, course: course, nodes: nodes) {
-                    result.append(interval)
-                }
-            }
+            result += Self.intervalsForDate(date, table: table, courses: courses, transfers: transfers)
         }
         return result
     }
