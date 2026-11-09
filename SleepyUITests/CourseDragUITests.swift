@@ -21,34 +21,19 @@ final class CourseDragUITests: XCTestCase {
 
     override func tearDown() { app.terminate() }
 
-    /// 原生拖课"移动类"用例在 CI 模拟器上跳过(环境能力边界, 非落点计算回归)。
-    ///
-    /// 根因(docs/native-drag-integration.md:11, 2026-11-06 同因复现三轮 —
-    /// run 42158125671 / 42202739310 / 42206732078, 断言行与时序一致):
-    /// XCUITest 合成拖动即使 5 秒起拖, 仍未让 CI 模拟器在松手前完成
-    /// destination 握手 → 系统直接取消拖动, 卡片不会被移动。同批
-    /// testMultiPeriodCenterLiftAndDropInPlaceDoesNotMoveOrCreateUndo /
-    /// testDropOutsideGridLeavesOriginalAndWeekUnchanged 本应"不移动"反而稳定绿,
-    /// 说明链路和用例本身没问题, 坏的只是握手时序。
-    ///
-    /// 信号来源: workflow 用 TEST_RUNNER_SLEEPY_CI_DRAG_SKIP 注入
-    /// (xcodebuild 只把 TEST_RUNNER_ 前缀的变量转发给模拟器内的 runner 进程,
-    /// 去掉前缀后可见; GH 自带的 CI=true 只到 xcodebuild 进程, 读不到 —
-    /// 与 76c0a1a 的 TZ 注入同一口径)。
-    /// 非 CI(本地 Xcode / 真机)无该变量 → 照常执行完整断言, 不弱化。
-    private func skipNativeDragMoveOnCI(_ reason: String) throws {
-        try XCTSkipIf(ProcessInfo.processInfo.environment["SLEEPY_CI_DRAG_SKIP"] != nil,
-                      "CI 模拟器松手前不完成 drag destination 握手(环境边界) — " + reason)
-    }
-
+    // UIKit's lift must complete before releasing the synthetic touch. A long
+    // stationary hold can cancel lift; use a normal one-second pickup followed
+    // by a destination hold, retaining every move/undo/persistence assertion.
     private func waitForWeek(_ week: Int) {
         let label = app.buttons["week_label"]
+        if label.exists && label.label == "Week \(week)" { return }
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label == %@", "Week \(week)"), object: label)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
     }
 
     private func waitForHittable(_ element: XCUIElement) {
+        if element.exists && element.isHittable { return }
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == true AND hittable == true"), object: element)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
@@ -93,6 +78,7 @@ final class CourseDragUITests: XCTestCase {
     }
 
     private func assertMathCount(_ count: Int, movedOnly: Bool = false) {
+        if visibleMathCards(movedOnly: movedOnly).count == count { return }
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
             visibleMathCards(movedOnly: movedOnly).count == count
         }, object: nil)
@@ -163,12 +149,10 @@ final class CourseDragUITests: XCTestCase {
     }
 
     func testNativeDragWithinGridPersistsAndUndoRestores() throws {
-        try skipNativeDragMoveOnCI("同页移动 + undo/redo + 冷启动落库依赖真实落点")
-        // 非 CI 执行完整断言; CI 见 helper 说明(握手时序, 非落点回归)。
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         // 周二5–6为空，避免进入既有英语3–4的冲突卡分支。
         let destination = coordinate(at: expectedCenter(day: 2, startNode: 5))
-        source.press(forDuration: 5, thenDragTo: destination)
+        source.press(forDuration: 1, thenDragTo: destination, withVelocity: .slow, thenHoldForDuration: 0.75)
         let moved = movedCard()
         assertMathCount(1)
         XCTAssertFalse(originalCard.exists && originalCard.isHittable)
@@ -197,23 +181,22 @@ final class CourseDragUITests: XCTestCase {
     }
 
     func testNativeDragAcceptsHoveredDestination() throws {
-        try skipNativeDragMoveOnCI("hover 目标落点对照用例")
-        // 非 CI 执行完整断言; CI 见 helper 说明(握手时序, 非落点回归)。
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let destination = coordinate(at: expectedCenter(day: 2, startNode: 5))
-        source.press(forDuration: 5, thenDragTo: destination, withVelocity: .slow, thenHoldForDuration: 0.5)
+        source.press(forDuration: 1, thenDragTo: destination, withVelocity: .slow, thenHoldForDuration: 0.75)
         assertMathCount(1)
         assertOccurrence(movedCard(), week: 1, day: 2, startNode: 5, firstWeek: 1, lastWeek: 1)
         XCTAssertFalse(originalCard.exists && originalCard.isHittable)
     }
 
     func testStationaryRightEdgeContinuesPagingAndMovingOccurrence() throws {
-        try skipNativeDragMoveOnCI("右缘连续翻页后跨周移动")
-        // 非 CI 执行完整断言; CI 见 helper 说明(握手时序, 非落点回归)。
         XCTAssertEqual(app.collectionViews.matching(identifier: "schedule_week_pager").count, 1)
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let target = coordinate(at: CGPoint(x: pager.frame.maxX - 9, y: originalCard.frame.midY))
-        source.press(forDuration: 5, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 1.2)
+        // XCTest includes the release phase in the edge dwell. With the normal
+        // pickup, 1.2s of explicit hold can reach Week 4; budget two 500ms pages
+        // while preserving the exact Week 3/drop/undo/restart assertions below.
+        source.press(forDuration: 1, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 0.85)
         waitForWeek(3)
         // 第3周原有周一课必须保留，并额外出现从第1周移来的周日单次课。
         assertMathCount(2)
@@ -248,14 +231,12 @@ final class CourseDragUITests: XCTestCase {
     }
 
     func testStationaryLeftEdgeContinuesPagingAndMovingOnlySourceOccurrence() throws {
-        try skipNativeDragMoveOnCI("左缘连续翻页后仅移动源 occurrence")
-        // 非 CI 执行完整断言; CI 见 helper 说明(握手时序, 非落点回归)。
         goToWeek(3, from: 1)
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         // 左边缘在时间轴外，落到首个星期列的5–6节，避免与第1周已有高数重叠。
         let target = coordinate(at: CGPoint(x: pager.frame.minX + 9,
                                            y: expectedCenter(day: 1, startNode: 5).y))
-        source.press(forDuration: 5, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 1.2)
+        source.press(forDuration: 1, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 1.2)
         waitForWeek(1)
         assertMathCount(2)
         assertOccurrence(movedCard(), week: 1, day: 1, startNode: 5, firstWeek: 1, lastWeek: 1)
@@ -298,7 +279,7 @@ final class CourseDragUITests: XCTestCase {
     func testMultiPeriodCenterLiftAndDropInPlaceDoesNotMoveOrCreateUndo() {
         let original = originalCard.frame
         let center = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        center.press(forDuration: 5, thenDragTo: center, withVelocity: .slow, thenHoldForDuration: 0.2)
+        center.press(forDuration: 1, thenDragTo: center, withVelocity: .slow, thenHoldForDuration: 0.2)
         assertMathCount(1)
         assertMathCount(0, movedOnly: true)
         XCTAssertEqual(originalCard.frame.minX, original.minX, accuracy: 3)
@@ -308,13 +289,12 @@ final class CourseDragUITests: XCTestCase {
     }
 
     func testMultiPeriodCenterHorizontalDragPreservesPeriods() throws {
-        try skipNativeDragMoveOnCI("多节次横向拖动需保持节次")
-        // 非 CI 执行完整断言; CI 见 helper 说明(握手时序, 非落点回归)。
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let target = expectedCenter(day: 2, startNode: 1)
         // 明确纯横移，Y 固定为源卡中心；不能靠向上补偿掩盖抓取偏移缺陷。
-        source.press(forDuration: 5, thenDragTo: coordinate(at:
-            CGPoint(x: target.x, y: originalCard.frame.midY)))
+        source.press(forDuration: 1, thenDragTo: coordinate(at:
+            CGPoint(x: target.x, y: originalCard.frame.midY)),
+            withVelocity: .slow, thenHoldForDuration: 0.75)
         let moved = movedCard()
         assertMathCount(1)
         XCTAssertFalse(originalCard.exists && originalCard.isHittable)
@@ -330,7 +310,7 @@ final class CourseDragUITests: XCTestCase {
         let original = originalCard.frame
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let target = app.buttons["week_label"].coordinate(withNormalizedOffset: .zero)
-        source.press(forDuration: 5, thenDragTo: target)
+        source.press(forDuration: 1, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.75)
         assertMathCount(1)
         assertMathCount(0, movedOnly: true)
         // 保留屏幕坐标断言：不能将没有抬起课程、实际触发滚动的手势当作取消成功。
