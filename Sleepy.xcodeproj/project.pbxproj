@@ -476,6 +476,7 @@
 		7952DF9FF657ABE6875CD6E2 /* WidgetGalleryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FCF63330F56FEE242126B7 /* WidgetGalleryData.swift */; };
 		799157EED3EEFCA74C65EA68 /* WatchSyncSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10EAB15CF44A3E2DD61E368 /* WatchSyncSnapshot.swift */; };
 		79923A8BEB7A4B2B3500A697 /* CourseDragPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE3CF98D3C3CB258D479CF7 /* CourseDragPolicyTests.swift */; };
+		7A16708A2AD92611649CA84C /* JwImportBindingAtomicityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA89AE8541E71DBAAA63BFA8 /* JwImportBindingAtomicityTests.swift */; };
 		7A2479827C12B873C2E406FC /* SystemAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F250CC5FA013950C3E50E5E /* SystemAppearance.swift */; };
 		7A5B4AD430929E7634FC810B /* EducationalImportModalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2485B45D8DC0E014282ACEB /* EducationalImportModalUITests.swift */; };
 		7A9CAF646E93CD1D95292400 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B945AD465F81AFC535B658B /* NotificationScheduler.swift */; };
@@ -1609,6 +1610,7 @@
 		F91D25B8AFE12E2BF5F3BFF8 /* JwFetchProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwFetchProtocol.swift; sourceTree = "<group>"; };
 		F93B2813DC503FB445168386 /* ScheduleRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleRepository.swift; sourceTree = "<group>"; };
 		FA6FB4EA603D000B36F0CA61 /* JwImportViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportViewModelTests.swift; sourceTree = "<group>"; };
+		FA89AE8541E71DBAAA63BFA8 /* JwImportBindingAtomicityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportBindingAtomicityTests.swift; sourceTree = "<group>"; };
 		FB0DABC28BEA6BE6A4C2179D /* CalendarImportRecordEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarImportRecordEntity.swift; sourceTree = "<group>"; };
 		FB9E1691FBB03CA20DE43A19 /* WatchWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWidgets.swift; sourceTree = "<group>"; };
 		FBB8D57D18781E227F5F568A /* GridSeparatorGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridSeparatorGeometry.swift; sourceTree = "<group>"; };
@@ -2197,6 +2199,7 @@
 				C9A3791BAB2C3DB6208EDB7E /* JwEcuplSuperParserTests.swift */,
 				A2B3205A634D1395324ABDEB /* JwHnustParserTests.swift */,
 				F51B0E65ED107B4FE84019F2 /* JwHomeDispatchRegressionTests.swift */,
+				FA89AE8541E71DBAAA63BFA8 /* JwImportBindingAtomicityTests.swift */,
 				D459BE5930B1DBC7C47F71B0 /* JwImportDiagnosticsTests.swift */,
 				547FA015C2ED83C464E4A228 /* JwImportDraftCodecTests.swift */,
 				49ACC545589A76ED84024036 /* JwImportFlowTests.swift */,
@@ -3561,6 +3564,7 @@
 				6085193D5B1E636E87B64A95 /* JwEcuplSuperParserTests.swift in Sources */,
 				44A1131C0E95B20A67FD5E33 /* JwHnustParserTests.swift in Sources */,
 				05A13EA00BAB0DC46D4B4A63 /* JwHomeDispatchRegressionTests.swift in Sources */,
+				7A16708A2AD92611649CA84C /* JwImportBindingAtomicityTests.swift in Sources */,
 				1FA991BF1C4FA26B51E8A9E7 /* JwImportDiagnosticsTests.swift in Sources */,
 				1838AAC5D3E893EA083F3EF6 /* JwImportDraftCodecTests.swift in Sources */,
 				471B0D0CA625A98108CFBF7F /* JwImportFlowTests.swift in Sources */,
