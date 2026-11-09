@@ -324,6 +324,12 @@ final class AppRootViewModel: ObservableObject {
         }
     }
 
+    func finishPeriodTableSave() {
+        pendingNewPeriodTableId = nil
+        periodEditId = nil
+        overlayScreen = nil
+    }
+
     // ← 新建空表(AllTables / Management 共用)
     func createNewTableThenEdit() {
         let previousId = scheduleViewModel.state.currentTable?.id
@@ -560,6 +566,7 @@ struct AppRoot: View {
                 periodEditId: root.periodEditId,
                 pendingNewPeriodTableId: root.pendingNewPeriodTableId,
                 dailyAgendaDate: root.dailyAgendaDate,
+                onSavedPeriod: { root.finishPeriodTableSave() },
                 onOpenPeriodEdit: { periodId, isNew in
                     root.periodEditId = periodId
                     root.pendingNewPeriodTableId = isNew ? periodId : nil
@@ -1115,6 +1122,7 @@ private struct PresentOverlay: ViewModifier {
     let pendingNewPeriodTableId: Int64?
     // ← v1.0.62 B5: 议程页路由参数(通知点击/深链共用; openDailyAgenda 单一入口落位)
     let dailyAgendaDate: Date?
+    let onSavedPeriod: () -> Void
     let onOpenPeriodEdit: (Int64, _ isNew: Bool) -> Void
     let scheduleViewModel: ScheduleViewModel
     let themeMode: String
@@ -1336,7 +1344,8 @@ private struct PresentOverlay: ViewModifier {
                 viewModel: scheduleViewModel,
                 periodTableId: periodEditId ?? SleepyRoute.NO_ID,
                 isNewUnsaved: pendingNewPeriodTableId != nil,
-                onBack: onBack)
+                onBack: onBack,
+                onSaved: onSavedPeriod)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onBack, onCommit: commitGestureDismiss)

@@ -22,6 +22,7 @@ struct PeriodTableEditScreen: View {
     /// issue#40: 本表是否为"新建后直接进入"的未保存表 — 返回(未保存)时整行丢弃, 管理页不留空壳
     var isNewUnsaved: Bool = false
     let onBack: () -> Void
+    var onSaved: (() -> Void)? = nil
 
     // ← 原 remember 键控三段式:
     //   name/unsavedNew   ← remember(periodTable.id)                (ktl L107/L114)
@@ -421,10 +422,11 @@ struct PeriodTableEditScreen: View {
                 onConfirm: {
                     pendingPreview = nil
                     pendingSave = nil
-                    // issue#40: 已确认保存 — 新建行的丢弃标记解除, 返回不再清行
-                    unsavedNew = false
-                    viewModel.updatePeriodTableContent(toSave)
-                    onBack()
+                    viewModel.updatePeriodTableContent(toSave, onFinish: {
+                        // Only a committed save clears the unsaved-new discard marker.
+                        unsavedNew = false
+                        (onSaved ?? onBack)()
+                    }, onFailure: { error = $0 })
                 },
                 dismissText: L10n.t("cancel"),
                 onDismiss: {
