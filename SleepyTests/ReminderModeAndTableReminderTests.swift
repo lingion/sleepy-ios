@@ -60,7 +60,7 @@ final class BeforeClassModePrefsTests: XCTestCase {
         XCTAssertTrue(prefs.isBeforeClassBannerEnabled())
     }
 
-    func testBannerBridgeTrueWritesModeFalseDoesNotOverrideFluid() {
+    func testBannerSetterDoesNotDisableLiveActivities() {
         // watch 快照恢复侧兼容桥: banner=true ⇔ mode=banner;
         // false 侧无信息量, 不得覆盖既有 mode (AppPrefs.swift 桥注释口径)。
         prefs.setBeforeClassMode(AppPrefs.BEFORE_CLASS_MODE_FLUID)
@@ -69,7 +69,27 @@ final class BeforeClassModePrefsTests: XCTestCase {
                        "false 侧不得把既有 fluid 模式覆盖回 banner")
 
         prefs.setBeforeClassBannerEnabled(true)
-        XCTAssertEqual(AppPrefs.BEFORE_CLASS_MODE_BANNER, prefs.getBeforeClassMode())
+        XCTAssertTrue(prefs.isBeforeClassFluidEnabled())
+        XCTAssertTrue(prefs.isBeforeClassBannerEnabled())
+    }
+
+    func testLegacyFluidSelectionKeepsDefaultNotificationFallback() {
+        defaults.set(AppPrefs.BEFORE_CLASS_MODE_FLUID, forKey: AppPrefs.KEY_BEFORE_CLASS_MODE)
+        XCTAssertTrue(prefs.isBeforeClassFluidEnabled())
+        XCTAssertTrue(prefs.isBeforeClassBannerEnabled())
+        defaults.set(false, forKey: AppPrefs.KEY_BEFORE_CLASS_BANNER)
+        XCTAssertFalse(prefs.isBeforeClassBannerEnabled())
+    }
+
+    func testIndependentSwitchesRoundTripIncludingBothOff() {
+        prefs.setBeforeClassFluidEnabled(true)
+        XCTAssertTrue(prefs.isBeforeClassBannerEnabled())
+        prefs.setBeforeClassBannerEnabled(false)
+        XCTAssertTrue(prefs.isBeforeClassFluidEnabled())
+        prefs.setBeforeClassFluidEnabled(false)
+        let reloaded = AppPrefs(defaults: defaults)
+        XCTAssertFalse(reloaded.isBeforeClassBannerEnabled())
+        XCTAssertFalse(reloaded.isBeforeClassFluidEnabled())
     }
 
     func testFluidSetterMapsToMode() {
