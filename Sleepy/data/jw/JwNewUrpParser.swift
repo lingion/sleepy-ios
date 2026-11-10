@@ -35,6 +35,7 @@
 // 形如 `var kbxx_json = {...};`。需要从 HTML 里把它抠出来再 JSONSerialization。
 
 import Foundation
+import SwiftSoup
 
 final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
 
@@ -63,32 +64,18 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
         }
         if dateList.isEmpty { return result }
 
-        // ← 原版本 dateList.getJSONObject(0): 元素非对象时抛异常(不静默吞)
-        // 注: 原版本 的 optJSONArray 无字符串强制转换(instanceof 检查而已), 故此处 as? 即对齐
-        let firstDate = try Self.jsonObject(in: dateList, at: 0, path: "dateList")
-        guard let courseList = firstDate["selectCourseList"] as? [Any] else { return result }
-
-        for i in 0..<courseList.count {
-            // ← 原版本 courseList.getJSONObject(i)
-            let course = try Self.jsonObject(in: courseList, at: i, path: "selectCourseList")
-            let name = (course["courseName"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let teacher = (course["attendClassTeacher"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            // ← 原版本 course.optJSONArray("timeAndPlaceList"): instanceof 检查, 无字符串强制转换
+        let courseList = dateList.compactMap { $0 as? [String: Any] }.flatMap { $0["selectCourseList"] as? [Any] ?? [] }
+        for element in courseList {
+            guard let course = element as? [String: Any] else { continue }
+            let courseName = jw1064String(course, "courseName")
+            let teacher = jw1064String(course, "attendClassTeacher")
             guard let timeAndPlaceList = course["timeAndPlaceList"] as? [Any] else { continue }
-
-            for j in 0..<timeAndPlaceList.count {
-                // ← 原版本 timeAndPlaceList.getJSONObject(j)
-                let tp = try Self.jsonObject(in: timeAndPlaceList, at: j, path: "timeAndPlaceList")
-                func optInt(_ k: String, _ d: Int) -> Int {
-                    if let v = tp[k] as? Int { return v }
-                    // ← org.json optInt: Integer.parseInt(value.toString().trim())
-                    if let v = tp[k] as? String, let i = Int(v.trimmingCharacters(in: .whitespacesAndNewlines)) { return i }
-                    return d
-                }
-                let day = optInt("classDay", 1)
-                let startNode = optInt("classSessions", 1)
-                let continuing = optInt("continuingSession", 1)
-                let endNode = startNode + continuing - 1
+            for element in timeAndPlaceList {
+                guard let tp = element as? [String: Any] else { continue }
+                let name = courseName.isEmpty ? jw1064String(tp, "coureName") : courseName
+                guard !name.isEmpty, let day = jw1064Integer(tp["classDay"]), (1...7).contains(day),
+                      let startNode = jw1064Integer(tp["classSessions"]), let continuing = jw1064Integer(tp["continuingSession"]),
+                      let endNode = explicitScheduleEnd(startNode, continuing) else { continue }
                 let classWeek = tp["classWeek"] as? String ?? ""
                 let campus = tp["campusName"] as? String ?? ""
                 let building = tp["teachingBuildingName"] as? String ?? ""
@@ -130,8 +117,20 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
     ///   3. window.xxx = {...};
     /// 启发式:找 `dateList` 关键字,截取最大合法 JSON
     private static func extractJsonFromHtml(_ html: String) -> String? {
+        if let data = html.data(using: .utf8), let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any], root["dateList"] is [Any] {
+            return html.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if html.range(of: "<script", options: .caseInsensitive) != nil, let doc = try? SwiftSoup.parse(html) {
+            for script in jw1064Elements(doc, "script") {
+                if let json = extractScriptJson((try? script.data()) ?? "") { return json }
+            }
+        }
+        return extractScriptJson(html)
+    }
+
+    private static func extractScriptJson(_ html: String) -> String? {
         // 找包含 "dateList" 那一段
-        let marker = "dateList"
+        let marker = "\"dateList\""
         guard let idxRange = html.range(of: marker) else { return nil }
         let idx = html.distance(from: html.startIndex, to: idxRange.lowerBound)
 
@@ -176,7 +175,7 @@ final class JwNewUrpParser: JwParser, JwParserConfidenceReporting {
 
     private static func parseWeekBits(_ s: String) -> [Int] {
         // v1.0.62: 位图护栏 — 空/超长/含非 0-1 字符一律空 (防脏数据伪周次)
-        if s.isEmpty || s.count > 60 || s.contains(where: { $0 != "0" && $0 != "1" }) {
+        if s.isEmpty || s.count > EXPLICIT_SCHEDULE_RESOURCE_BOUND || s.contains(where: { $0 != "0" && $0 != "1" }) {
             return []
         }
         var out: [Int] = []

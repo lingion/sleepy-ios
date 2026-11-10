@@ -42,8 +42,7 @@ final class JwNewUrpSuperParser: JwParser, JwParserConfidenceReporting {
         }
         if arr.isEmpty { return result }
 
-        for element in arr {
-            guard let item = element as? [String: Any] else { continue }
+        for item in Self.courseRows(arr) {
             let name = (item["kcm"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if name.isEmpty { continue }
 
@@ -53,16 +52,9 @@ final class JwNewUrpSuperParser: JwParser, JwParserConfidenceReporting {
             let fullRoom = (building + room).trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard let id = item["id"] as? [String: Any] else { continue }
-            // ← org.json optInt: Number 或数字串都接受
-            let day = Self.optInt(id["skxq"]) ?? 0
-            guard (1...7).contains(day) else { continue }
-
-            let startNode = Self.optInt(id["skjc"]) ?? 0
-            guard (1...30).contains(startNode) else { continue }
-
-            let continuing = Self.optInt(item["cxjc"]) ?? 1
-            guard (1...30).contains(continuing), startNode <= 30 - continuing + 1 else { continue }
-            let realEndNode = startNode + continuing - 1
+            guard let day = jw1064Integer(id["skxq"]), (1...7).contains(day),
+                  let startNode = jw1064Integer(id["skjc"]), let continuing = jw1064Integer(item["cxjc"]),
+                  let realEndNode = explicitScheduleEnd(startNode, continuing) else { continue }
 
             let skzc = (id["skzc"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if skzc.isEmpty { continue }
@@ -86,6 +78,13 @@ final class JwNewUrpSuperParser: JwParser, JwParserConfidenceReporting {
             }
         }
         return result
+    }
+
+    private static func courseRows(_ rows: [Any]) -> [[String: Any]] {
+        rows.flatMap { element -> [[String: Any]] in
+            if let row = element as? [String: Any] { return [row] }
+            return (element as? [Any] ?? []).compactMap { $0 as? [String: Any] }
+        }
     }
 
     // MARK: - 测试/判型辅助
@@ -153,6 +152,7 @@ final class JwNewUrpSuperParser: JwParser, JwParserConfidenceReporting {
             idCount[i + 1] = idCount[i] + (startsWith(idW, at: i) ? 1 : 0)
         }
         var starts: [Int] = []
+        var maxDepth = 0
         var parsedChars = 0
         var inString = false
         var escaped = false
@@ -168,11 +168,13 @@ final class JwNewUrpSuperParser: JwParser, JwParserConfidenceReporting {
             case "\"":
                 inString = true
             case "[":
-                if starts.isEmpty { parsedChars = 0 }
+                if starts.isEmpty { parsedChars = 0; maxDepth = 0 }
                 starts.append(end)
+                maxDepth = max(maxDepth, starts.count)
             case "]":
                 if !starts.isEmpty {
                     let start = starts.removeLast()
+                    if !starts.isEmpty || maxDepth > 64 { continue }
                     // 括号段内不含任何目标关键字 → 不可能是课表, 跳过 (免 JSON 解析)
                     if kcmCount[end + 1] == kcmCount[start] || skzcCount[end + 1] == skzcCount[start]
                         || idCount[end + 1] == idCount[start] { continue }
@@ -183,8 +185,8 @@ final class JwNewUrpSuperParser: JwParser, JwParserConfidenceReporting {
                     let candidate = String(chars[start...(end)])
                     guard let data = candidate.data(using: .utf8),
                           let array = (try? JSONSerialization.jsonObject(with: data)) as? [Any] else { continue }
-                    let valid = array.contains { element in
-                        guard let item = element as? [String: Any],
+                    let valid = courseRows(array).contains { item in
+                        guard
                               let idObj = item["id"] as? [String: Any] else { return false }
                         return item["kcm"] != nil && idObj["skzc"] != nil
                     }
@@ -201,7 +203,7 @@ final class JwNewUrpSuperParser: JwParser, JwParserConfidenceReporting {
 
     /// '0'/'1' 串 → 上课周列表 (1-based); 非位图字符或长度 > 60 → 空。
     static func parseWeekBits(_ s: String) -> [Int] {
-        if s.isEmpty || s.count > 60 { return [] }
+        if s.isEmpty || s.count > EXPLICIT_SCHEDULE_RESOURCE_BOUND { return [] }
         var out: [Int] = []
         var index = 0
         for c in s {
