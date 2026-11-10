@@ -1204,7 +1204,6 @@
 "import_period_missing" = "所選作息表已不存在，請重新選擇。";
 
 "live_activity_title" = "即時動態（動態島）";
-"live_activity_limits" = "依課前提前時間和各課表提醒設定顯示課程。Sleepy 在前景時會更新、切換課程和結束卡片。進入背景後已有倒數可繼續，但不保證新增卡片、切換課程或下課後自動移除；再次開啟應用程式即可更新。需要 iOS 16.1+，即時動態權限與通知權限獨立。";
 "live_activity_permission" = "系統已關閉即時動態，點此開啟設定。";
 "live_activity_starts" = "距離上課";
 "live_activity_ends" = "距離下課";
@@ -1242,3 +1241,9 @@
 "import_append_conflicts_option" = "追加衝突課程";
 "import_append_conflicts_option_sub" = "關閉後放棄與現有課程衝突的課程";
 "import_backup_name" = "%1$@-備份";
+"live_activity_limits" = "通知與即時動態可分別開啟。iOS 26 起可預約近期課程，由系統到時提醒；數量有限，再次開啟 Sleepy 會補充。舊系統需在前景啟動。卡片顯示固定課程時間，下課後可能保留過期卡片，開啟應用程式可清理。背景更新不保證執行，無法涵蓋整個學期。 兩者同時開啟時，背景可能出現兩次提示。";
+"live_activity_scheduled_count" = "已預約 %d 次課前即時動態";
+"live_activity_scheduled_through" = "目前最遠預約：%@";
+"live_activity_schedule_fallback" = "部分即時動態無法預約，已開啟的通知提醒會保留。";
+"live_activity_schedule_enable_notifications" = "部分即時動態無法預約；建議同時開啟通知提醒。";
+"live_activity_summary" = "在動態島與鎖定畫面顯示課程，可同時開啟通知。";

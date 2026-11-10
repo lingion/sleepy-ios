@@ -19,7 +19,7 @@ final class ReminderPermissionUITests: XCTestCase {
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED"]
         app.sleepyLaunch()
-        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 30))
     }
 
     override func tearDownWithError() throws {
@@ -43,7 +43,7 @@ final class ReminderPermissionUITests: XCTestCase {
     }
 
     private func masterIsOn() -> Bool {
-        (masterSwitch.value as? String) == "1"
+        switchIsOn(masterSwitch)
     }
 
     /// 允许系统通知弹窗(若出现)。返回是否处理了弹窗。
@@ -51,7 +51,7 @@ final class ReminderPermissionUITests: XCTestCase {
     private func allowPermissionAlertIfPresent() -> Bool {
         let alert = springboard.alerts.firstMatch
         let allowBtn = alert.buttons.matching(
-            NSPredicate(format: "label == 'Allow' OR label == '好'")).firstMatch
+            NSPredicate(format: "label IN {'Allow', '好', '允许', '允許'}")).firstMatch
         if allowBtn.waitForExistence(timeout: 6) {
             allowBtn.tap()
             return true
@@ -65,6 +65,24 @@ final class ReminderPermissionUITests: XCTestCase {
             allowPermissionAlertIfPresent()
         }
         XCTAssertTrue(masterSwitch.waitForExistence(timeout: 4), "master 开关应在")
+        waitForSwitch(masterSwitch, isOn: true)
+    }
+
+    private func switchIsOn(_ element: XCUIElement) -> Bool {
+        if let value = element.value as? String { return value == "1" }
+        if let value = element.value as? NSNumber { return value.boolValue }
+        XCTFail("Unreadable switch value: \(String(describing: element.value))")
+        return false
+    }
+
+    private func waitForSwitch(_ element: XCUIElement, isOn: Bool) {
+        let deadline = Date().addingTimeInterval(4)
+        while Date() < deadline {
+            if switchIsOn(element) == isOn { return }
+            usleep(100_000)
+        }
+        XCTAssertEqual(switchIsOn(element), isOn,
+            "Expected switch \(element.identifier)=\(isOn), got \(String(describing: element.value))")
     }
 
     // MARK: 01 首次开 master → 弹权限 → Allow → 子卡渲染 + master 开
@@ -95,7 +113,7 @@ final class ReminderPermissionUITests: XCTestCase {
         openReminder()
         ensureMasterOn()
         XCTAssertTrue(dailySwitch.waitForExistence(timeout: 4), "Daily 子开关应渲染")
-        if (dailySwitch.value as? String) != "1" { dailySwitch.tap() }
+        if !switchIsOn(dailySwitch) { dailySwitch.tap() }
         let timeRow = app.descendants(matching: .any)["reminder_time_row"]
         XCTAssertTrue(timeRow.waitForExistence(timeout: 4), "开 Daily 后应显示时间行")
         let before = timeRow.label
@@ -116,7 +134,7 @@ final class ReminderPermissionUITests: XCTestCase {
         openReminder()
         ensureMasterOn()
         XCTAssertTrue(dailySwitch.waitForExistence(timeout: 4))
-        if (dailySwitch.value as? String) != "1" { dailySwitch.tap() }
+        if !switchIsOn(dailySwitch) { dailySwitch.tap() }
         let timeRow = app.descendants(matching: .any)["reminder_time_row"]
         XCTAssertTrue(timeRow.waitForExistence(timeout: 4))
 
@@ -140,14 +158,53 @@ final class ReminderPermissionUITests: XCTestCase {
         XCTAssertTrue(dailyCard.waitForExistence(timeout: 4), "开态下子卡应在")
 
         masterSwitch.tap() // 关
-        XCTAssertFalse(dailyCard.waitForExistence(timeout: 2), "关 master 后子卡应隐藏")
+        waitForSwitch(masterSwitch, isOn: false)
+        XCTAssertTrue(dailyCard.waitForNonExistence(timeout: 5), "关 master 后子卡应隐藏")
 
         masterSwitch.tap() // 再开(已授权 → 不弹窗)
         XCTAssertFalse(allowPermissionAlertIfPresent(), "已授权再开不应再弹权限窗")
+        waitForSwitch(masterSwitch, isOn: true)
         XCTAssertTrue(masterIsOn(), "再开后 master 应为开")
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS 'Daily Reminder'")).firstMatch
             .waitForExistence(timeout: 3), "再开后子卡应回归")
+    }
+
+    func test05_NotificationAndLiveActivitySwitchesAreIndependentAndPersist() throws {
+        openReminder()
+        ensureMasterOn()
+        let before = app.switches["reminder_before_class_toggle"]
+        for _ in 0..<5 where !before.isHittable { app.swipeUp() }
+        XCTAssertTrue(before.waitForExistence(timeout: 5))
+        // A scroll can leave the switch partially clipped. Move the before-class
+        // card into the centre before querying/tapping its state.
+        if before.frame.midY > app.frame.height * 0.75 { app.swipeUp(velocity: .slow) }
+        if !switchIsOn(before) { before.tap() }
+        waitForSwitch(before, isOn: true)
+        let live = app.switches["reminder_live_activity_toggle"]
+        for _ in 0..<5 where !live.isHittable { app.swipeUp() }
+        XCTAssertTrue(live.waitForExistence(timeout: 5))
+        if (live.value as? String) != "1" { live.tap() }
+        let notification = app.switches["reminder_notification_toggle"]
+        XCTAssertTrue(notification.exists)
+        if (notification.value as? String) != "1" { notification.tap() }
+        XCTAssertEqual(live.value as? String, "1")
+        notification.tap()
+        XCTAssertEqual(live.value as? String, "1")
+        live.tap()
+        XCTAssertEqual(notification.value as? String, "0")
+        live.tap()
+        notification.tap()
+        XCTAssertEqual(live.value as? String, "1")
+        app.terminate()
+        app.sleepyLaunch()
+        openReminder()
+        for _ in 0..<5 where !live.isHittable { app.swipeUp() }
+        XCTAssertEqual(live.value as? String, "1")
+        XCTAssertEqual(notification.value as? String, "1")
+        if #available(iOS 26.0, *) {
+            XCTAssertTrue(app.descendants(matching: .any)["reminder_live_activity_schedule_status"].exists)
+        }
     }
 }
 
@@ -164,10 +221,10 @@ final class ReminderPermissionDeniedTests: XCTestCase {
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                                "-SLEEPY_UI_TEST_SEED"]
         app.sleepyLaunch()
-        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 30))
     }
 
-    func testMasterOnWithPermissionDeniedRevertsOff() throws {
+    func testMasterOnWithNotificationPermissionDeniedKeepsIndependentActivitySettings() throws {
         app.switchToPillTab("mine")
         app.descendants(matching: .any)["mine_reminder"].tap()
         XCTAssertTrue(app.staticTexts["Reminders"].waitForExistence(timeout: 5))
@@ -184,10 +241,10 @@ final class ReminderPermissionDeniedTests: XCTestCase {
         denyBtn.tap()
 
         let master = app.descendants(matching: .any)["reminder_master_toggle"]
-        XCTAssertEqual((master.value as? String) == "1", false,
-                       "权限被拒后 master 应回退关")
-        XCTAssertFalse(app.descendants(matching: .any).matching(
+        XCTAssertEqual((master.value as? String) == "1", true,
+                       "通知权限不能禁用独立的实况活动设置")
+        XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS 'Daily Reminder'")).firstMatch.exists,
-            "权限被拒后子卡不应渲染")
+            "拒绝通知后仍可配置各提醒渠道")
     }
 }

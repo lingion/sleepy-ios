@@ -44,8 +44,8 @@ final class ParityInterfaceCompatibilityTests: XCTestCase {
         XCTAssertEqual("fluid", prefs.getBeforeClassMode())
         prefs.setBeforeClassBannerEnabled(true)
         let reloaded = AppPrefs(defaults: defaults)
-        XCTAssertEqual("banner", reloaded.getBeforeClassMode())
-        XCTAssertFalse(reloaded.isBeforeClassFluidEnabled())
+        XCTAssertEqual("fluid", reloaded.getBeforeClassMode())
+        XCTAssertTrue(reloaded.isBeforeClassFluidEnabled())
         XCTAssertTrue(reloaded.isBeforeClassBannerEnabled())
     }
 

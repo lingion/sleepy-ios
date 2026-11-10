@@ -1204,7 +1204,6 @@
 "import_period_missing" = "La tabla de periodos seleccionada ya no existe. Selecciónala de nuevo.";
 
 "live_activity_title" = "Actividades en directo";
-"live_activity_limits" = "Respeta la antelación y los horarios con recordatorios activados. Sleepy actualiza, cambia y finaliza las tarjetas mientras está en primer plano. En segundo plano continúa el temporizador existente, pero no se garantizan nuevas tarjetas, cambios de clase ni retirada automática. Abre Sleepy para actualizar. Requiere iOS 16.1+; su permiso es independiente del de notificaciones.";
 "live_activity_permission" = "Las actividades en directo están desactivadas. Toca para abrir Ajustes.";
 "live_activity_starts" = "Empieza en";
 "live_activity_ends" = "Termina en";
@@ -1242,3 +1241,9 @@
 "import_append_conflicts_option" = "Añadir cursos en conflicto";
 "import_append_conflicts_option_sub" = "Desactivado: se omiten los cursos que entren en conflicto";
 "import_backup_name" = "%1$@ - Copia";
+"live_activity_limits" = "Las notificaciones y las actividades en directo se activan por separado. iOS 26 permite programar un número limitado de próximas clases; abre Sleepy para reponerlas. Los sistemas anteriores requieren iniciar la actividad en primer plano. Las tarjetas muestran horarios fijos y pueden permanecer tras la clase hasta volver a abrir Sleepy. La actualización en segundo plano no garantiza cobertura de todo el semestre. Con ambos canales activados, los avisos en segundo plano pueden aparecer dos veces.";
+"live_activity_scheduled_count" = "%d actividades en directo programadas";
+"live_activity_scheduled_through" = "Última clase programada: %@";
+"live_activity_schedule_fallback" = "No se pudieron programar algunas actividades. Se conservan los avisos de notificación activados.";
+"live_activity_schedule_enable_notifications" = "No se pudieron programar algunas actividades. Activa también los avisos de notificación.";
+"live_activity_summary" = "Muestra las clases en la Dynamic Island y la pantalla bloqueada junto con las notificaciones.";

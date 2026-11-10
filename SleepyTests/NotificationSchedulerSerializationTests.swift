@@ -121,10 +121,11 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
             events.append("finish:\(id)")
         }
 
-        func setExact(id: String, epochMs: Int64, extras: [String: Any?]) async {
+        func setExact(id: String, epochMs: Int64, extras: [String: Any?]) async -> Bool {
             begin(id)
             await exactPause?.pauseOnce()
             finish(id)
+            return true
         }
 
         func write(_ request: UNNotificationRequest) async {
@@ -138,6 +139,8 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
             pending.remove(id)
             events.append("cancel:\(id)")
         }
+
+        func pendingIdentifiers() async -> Set<String> { pendingIDs() }
 
         func pendingIDs() -> Set<String> { lock.lock(); defer { lock.unlock() }; return pending }
         func recordedEvents() -> [String] { lock.lock(); defer { lock.unlock() }; return events }
@@ -164,7 +167,7 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
         await first.value
         await second.value
         XCTAssertFalse(source.observedOverlap())
-        XCTAssertEqual(port.pendingIDs(), [NotificationScheduler.NOTIFY_BEFORE_CLASS_PREFIX + "7"])
+        XCTAssertEqual(port.pendingIDs(), [NotificationScheduler.NOTIFY_BEFORE_CLASS_PREFIX + "1_7_" + String(Int64(env.today.addingTimeInterval(8 * 3600).timeIntervalSince1970))])
         XCTAssertEqual(env.loadArmedIds(), port.pendingIDs())
     }
 
@@ -192,7 +195,7 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
         await cancel.value
         XCTAssertTrue(port.pendingIDs().isEmpty)
         XCTAssertTrue(env.loadArmedIds().isEmpty)
-        let id = NotificationScheduler.NOTIFY_BEFORE_CLASS_PREFIX + "7"
+        let id = NotificationScheduler.NOTIFY_BEFORE_CLASS_PREFIX + "1_7_" + String(Int64(env.today.addingTimeInterval(8 * 3600).timeIntervalSince1970))
         let events = port.recordedEvents()
         let finished = events.firstIndex(of: "finish:\(id)")
         let cancelled = events.firstIndex(of: "cancel:\(id)")

@@ -70,6 +70,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         super.init()
         // ← onCreate: 通知调度器接 repo;数据变更 → 刷 widget + 重排通知
         notificationScheduler.repositoryProvider = { [weak self] in self?.repository }
+        notificationScheduler.foregroundActivityIDs = {
+            await MainActor.run {
+                if #available(iOS 16.1, *) { return ClassDayActivityManager.notificationReplacements() }
+                return []
+            }
+        }
         repository.onDataChangedHook = { [weak self] in
             guard let self = self else { return }
             WidgetCenter.shared.reloadAllTimelines()
@@ -113,9 +119,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             guard self != nil else { return }
             // 原版本 侧此处 reconcileActiveFluidCloud(厂商 SDK 不可移植);
             // iOS 对应物 = ActivityKit 实况活动/灵动岛(v1.0.64 已实现, 能力上限见 SPEC 差异表#3)
-            Task { @MainActor in
-                if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
-            }
+            ReminderRescheduler.shared.request()
             ClassDndScheduler.shared.syncFromPrefs()
             // watch 伴侣 App: 回前台兜底重推 (离线期间 onDataChanged 攒的改动追平)
             WatchSyncCoordinator.shared.syncNow()

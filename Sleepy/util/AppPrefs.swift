@@ -19,6 +19,7 @@ final class AppPrefs {
     static let KEY_BEFORE_CLASS_MINUTES = "before_class_minutes"       // int default 10
     static let KEY_BEFORE_CLASS_BANNER = "before_class_banner"         // bool default true
     static let KEY_BEFORE_CLASS_FLUID = "before_class_fluid"            // bool default false
+    static let KEY_BEFORE_CLASS_LIVE_ACTIVITY = "before_class_live_activity"
     static let KEY_BEFORE_CLASS_MODE = "before_class_mode"
     static let BEFORE_CLASS_MODE_BANNER = "banner"
     static let BEFORE_CLASS_MODE_FLUID = "fluid"
@@ -241,30 +242,35 @@ final class AppPrefs {
 
     /// 未写过模式时，从旧 fluid 键推导；读取不改写存量偏好。
     func getBeforeClassMode() -> String {
-        if let mode = sp().string(forKey: Self.KEY_BEFORE_CLASS_MODE) { return mode }
-        return sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID)
-            ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER
+        isBeforeClassFluidEnabled() ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER
     }
 
     func setBeforeClassMode(_ mode: String) {
         sp().set(mode, forKey: Self.KEY_BEFORE_CLASS_MODE)
+        // Compatibility for old importers that explicitly select one mode.
+        // The settings screen uses the independent setters below.
+        sp().set(mode == Self.BEFORE_CLASS_MODE_FLUID, forKey: Self.KEY_BEFORE_CLASS_LIVE_ACTIVITY)
+        sp().set(mode != Self.BEFORE_CLASS_MODE_FLUID, forKey: Self.KEY_BEFORE_CLASS_BANNER)
     }
 
     func isBeforeClassBannerEnabled() -> Bool {
         // 保留独立投递闸，兼容旧版显式关闭及手表快照。
-        getBeforeClassMode() == Self.BEFORE_CLASS_MODE_BANNER
-            && (sp().object(forKey: Self.KEY_BEFORE_CLASS_BANNER) as? Bool ?? true)
+        // Selecting fluid in an older version did not explicitly disable this
+        // preference. Keep the safe default, but honor an explicit false.
+        sp().object(forKey: Self.KEY_BEFORE_CLASS_BANNER) as? Bool ?? true
     }
     func setBeforeClassBannerEnabled(_ v: Bool) {
         sp().set(v, forKey: Self.KEY_BEFORE_CLASS_BANNER)
-        // false 仅关闭投递，不能将既有 fluid 模式覆盖为 banner。
-        if v { setBeforeClassMode(Self.BEFORE_CLASS_MODE_BANNER) }
     }
 
     // fluid 是历史存储值，iOS 使用它选择 ActivityKit 实况活动。
-    func isBeforeClassFluidEnabled() -> Bool { getBeforeClassMode() == Self.BEFORE_CLASS_MODE_FLUID }
+    func isBeforeClassFluidEnabled() -> Bool {
+        if let value = sp().object(forKey: Self.KEY_BEFORE_CLASS_LIVE_ACTIVITY) as? Bool { return value }
+        if let mode = sp().string(forKey: Self.KEY_BEFORE_CLASS_MODE) { return mode == Self.BEFORE_CLASS_MODE_FLUID }
+        return sp().bool(forKey: Self.KEY_BEFORE_CLASS_FLUID)
+    }
     func setBeforeClassFluidEnabled(_ v: Bool) {
-        setBeforeClassMode(v ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER)
+        sp().set(v, forKey: Self.KEY_BEFORE_CLASS_LIVE_ACTIVITY)
     }
 
     /// legacy multi-select 读取(死写路径已删 — setBeforeClassFluidFields 全库零调用,读取仅通知组件用旧数据)
