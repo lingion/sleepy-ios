@@ -1,15 +1,7 @@
 import Foundation
 
 enum ClassDayActivityCore {
-    struct Course: Equatable {
-        let tableId: Int64
-        let courseId: Int64
-        let tableName: String
-        let name: String
-        let room: String
-        let start: Date
-        let end: Date
-    }
+    typealias Course = CourseReminderOccurrence
 
     enum Phase: String, Codable { case upcoming, ongoing }
 
@@ -22,7 +14,7 @@ enum ClassDayActivityCore {
 
     static func isEnabled(prefs: AppPrefs) -> Bool {
         prefs.isReminderEnabled() && prefs.isBeforeClassEnabled()
-            && prefs.getBeforeClassMode() == AppPrefs.BEFORE_CLASS_MODE_FLUID
+            && prefs.isBeforeClassFluidEnabled()
     }
 
     static func selection(from courses: [Course], now: Date, leadMinutes: Int) -> Selection? {
@@ -40,6 +32,24 @@ enum ClassDayActivityCore {
         let lead = Double(min(999, max(0, leadMinutes))) * 60
         return validCourses(courses).flatMap { [$0.start.addingTimeInterval(-lead), $0.start, $0.end] }
             .filter { $0 > now }.min()
+    }
+
+    /// Three is our conservative app budget, not a published system limit.
+    /// Older systems can only start the current course from the foreground.
+    static func activityPlan(from courses: [Course], now: Date, leadMinutes: Int,
+                             supportsScheduling: Bool, budget: Int = 3) -> [Course] {
+        guard budget > 0 else { return [] }
+        let sorted = CourseReminderOccurrence.ordered(courses).filter {
+            $0.end > now && $0.end.timeIntervalSince(max(now, $0.reminderDate(leadMinutes: leadMinutes))) <= 8 * 3600
+        }
+        let current = selection(from: sorted, now: now, leadMinutes: leadMinutes)?.current
+        var result = current.map { [$0] } ?? []
+        if supportsScheduling {
+            result += sorted.filter {
+                $0.identifier != current?.identifier && $0.reminderDate(leadMinutes: leadMinutes) > now
+            }.prefix(max(0, budget - result.count))
+        }
+        return result
     }
 
     private static func validCourses(_ courses: [Course]) -> [Course] {

@@ -214,6 +214,7 @@
 		35FFDF589B5449B7BFC58681 /* JwQzCrazyParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D445F86E00820411E38285 /* JwQzCrazyParser.swift */; };
 		367C6023F98069A7D9F72A05 /* CourseImportBackupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F73A8B31916FC384CC57B3B6 /* CourseImportBackupTests.swift */; };
 		36BA9BE151E32CB11CDD5072 /* WidgetCompactWindowParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B8CED7D99053497F027E7A /* WidgetCompactWindowParityTests.swift */; };
+		36D8FFAD11A6DA939C1EC52F /* CourseReminderPlanningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3CF772F9C5E9E9F2A0857CB /* CourseReminderPlanningTests.swift */; };
 		37003BC702E69DE12D1447AE /* CourseColorDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B5BC8D8EB2555CCEC70675 /* CourseColorDao.swift */; };
 		3743820ECD9DEA1E5B26EDD6 /* JwFetchJs2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181CB1537E2A755C1003C417 /* JwFetchJs2.swift */; };
 		37865A10EE0433586AF21683 /* schools.json in Resources */ = {isa = PBXBuildFile; fileRef = 40B0375B042F64DCB87DBE3F /* schools.json */; };
@@ -226,6 +227,7 @@
 		391A6A963C54E3206D3DA02A /* WidgetGalleryParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6E2CACF90523B6C85277004 /* WidgetGalleryParityTests.swift */; };
 		39528768165F38372C693951 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8D929FCEF4A32DF472275A70 /* Assets.xcassets */; };
 		395C795A7BE5F71F7D49E632 /* RepositoryMutationFailureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20556FCE612453ACD0014B9 /* RepositoryMutationFailureTests.swift */; };
+		3A286A9B9BB78B4D392AF6A1 /* CourseReminderOccurrence.swift in Sources */ = {isa = PBXBuildFile; fileRef = C24017430C8F45522822653B /* CourseReminderOccurrence.swift */; };
 		3A64AA5D792F584642FB7EEE /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 49A964FB8D50A5C8458C305A /* SwiftSoup */; };
 		3A92584C16FFA7E99C2FF391 /* TodayWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4025E8D10A574C8F59C29E21 /* TodayWidgetView.swift */; };
 		3AB4C44180BDC68B2F73E12C /* ImportedPeriodTableDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88F90810A74D8BE44117CCA /* ImportedPeriodTableDraft.swift */; };
@@ -528,6 +530,7 @@
 		848B5EA16FBB66EBFEF879F0 /* AddCoursesImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC4834B041CD8B0721548D4 /* AddCoursesImport.swift */; };
 		84DB1225A1B92ACD725D994C /* SystemColorProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE3AC9450211B1691131AA2 /* SystemColorProbe.swift */; };
 		84FC6D0B5696C1AF3C7ED675 /* ImportRosterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E0C397C35B589BA063FC4D /* ImportRosterTests.swift */; };
+		8501269001D2A2ACE2D12280 /* CourseReminderOccurrence.swift in Sources */ = {isa = PBXBuildFile; fileRef = C24017430C8F45522822653B /* CourseReminderOccurrence.swift */; };
 		855F5BB386D6E4CD46BD4544 /* XiaoaiPresetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68536393477E84721CF8AE2C /* XiaoaiPresetData.swift */; };
 		8576D141BBF77009F22F0D93 /* NotificationSchedulerSerializationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F4C75E5725D7BAF0FAB23E /* NotificationSchedulerSerializationTests.swift */; };
 		857D502CBB7F65B3266E11D1 /* CourseDragViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA40C3996D971B76BB4C1C7 /* CourseDragViewModelTests.swift */; };
@@ -593,6 +596,7 @@
 		957652CBC786AA65FDF15CCD /* JwQzVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A552952CA5208B8A961BF4 /* JwQzVariants.swift */; };
 		965E03ACE06D588509AFF851 /* third_party in Resources */ = {isa = PBXBuildFile; fileRef = 447EE8D009783D60CBF37144 /* third_party */; };
 		96C7E7A2A3B52C08C63DCBE3 /* ClassDayActivityCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A03100D7B4127079A00D7A /* ClassDayActivityCoreTests.swift */; };
+		978FCE4A27422569E5B19443 /* CourseReminderOccurrence.swift in Sources */ = {isa = PBXBuildFile; fileRef = C24017430C8F45522822653B /* CourseReminderOccurrence.swift */; };
 		97E3455EE96D795BD6B9E811 /* JwChaoxingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A0C2BDE5E35B78392B4C54 /* JwChaoxingParser.swift */; };
 		981E448A8906E8D0718C4F4C /* MigrationExecutorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6CB586F190F0EA3694BDFB /* MigrationExecutorTests.swift */; };
 		983A92D57326DF756BC6ED07 /* CourseDraftAtomicSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B90C7F7B88017B3B95ECD1 /* CourseDraftAtomicSaveTests.swift */; };
@@ -668,6 +672,7 @@
 		A8B387A7F0EC36880A5B1A52 /* PlatformParityNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0425392AD82917108D3BB908 /* PlatformParityNotes.swift */; };
 		A8CF5AF01135E80130904DDC /* XiaoaiPresetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68536393477E84721CF8AE2C /* XiaoaiPresetData.swift */; };
 		A9647DE1C848F2D453209DD5 /* SleepyRoutes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C278B59F722968BA27789DDB /* SleepyRoutes.swift */; };
+		A9CC3C8587D8984013197120 /* CourseReminderOccurrence.swift in Sources */ = {isa = PBXBuildFile; fileRef = C24017430C8F45522822653B /* CourseReminderOccurrence.swift */; };
 		AA919DE20BBBAC4C597823F7 /* JwDiagnosticJs.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52425C86328D20E90B769E6 /* JwDiagnosticJs.swift */; };
 		AABE583125C3699FA2DD273A /* GridPinchAttachmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF312CEED47850FE3DAC81F4 /* GridPinchAttachmentTests.swift */; };
 		AB087B175F0BDE929B2486F2 /* JwClassicEamsFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100AA35EB3BAC880E74249AB /* JwClassicEamsFetch.swift */; };
@@ -835,6 +840,7 @@
 		D7E202547F9B95BCF6FD2A56 /* CourseColorWriteGlue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2562F5AD2181F6C28A3205CC /* CourseColorWriteGlue.swift */; };
 		D7FEDBA885B825B893C17A74 /* JwImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B413E30FAD9261068960FC5F /* JwImportViewModel.swift */; };
 		D8309150A0A16826825FAABB /* MigrationBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D592A336E4B87069FB2952A3 /* MigrationBackup.swift */; };
+		D84F356E4181004F28AA7F35 /* ScheduledActivitySystemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95D9BC59DD1B4F03A5CF8B0D /* ScheduledActivitySystemTests.swift */; };
 		D850C9512A65FE07DDC9556F /* AppPrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB174180E779B7796964E378 /* AppPrefs.swift */; };
 		D88057BB6141BE7FE151401A /* CourseDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71FC5D5AEF8AC95542F912DF /* CourseDetailView.swift */; };
 		D911A052D7EDDB447BFE63DC /* JwUrpParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461D4FA2DB17915ACF3D0063 /* JwUrpParser.swift */; };
@@ -1394,6 +1400,7 @@
 		945AE1E7D6D417CE3FBD4C89 /* WidgetCompactHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCompactHelpers.swift; sourceTree = "<group>"; };
 		94B6495A761202081C7C1888 /* WidgetResizeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetResizeCore.swift; sourceTree = "<group>"; };
 		94F5F152011B05D7D4679807 /* WidgetWeekSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetWeekSource.swift; sourceTree = "<group>"; };
+		95D9BC59DD1B4F03A5CF8B0D /* ScheduledActivitySystemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledActivitySystemTests.swift; sourceTree = "<group>"; };
 		95FC3092F0599DF4E35D564E /* WidgetVendorActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetVendorActions.swift; sourceTree = "<group>"; };
 		9610BD61FF13088540D20D20 /* JwImportDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportDraft.swift; sourceTree = "<group>"; };
 		968EC7FD4519EAB1C6DC3E17 /* ExternalDocumentRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalDocumentRoutingTests.swift; sourceTree = "<group>"; };
@@ -1505,6 +1512,7 @@
 		C1B62174F45F96231028C77D /* FixedDateCourseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixedDateCourseTests.swift; sourceTree = "<group>"; };
 		C1D6582A2AEB68F8E97C20FD /* JwThuparser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwThuparser.swift; sourceTree = "<group>"; };
 		C221BBAE2EEB506EF4E1D090 /* ScheduleDisplayScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleDisplayScreen.swift; sourceTree = "<group>"; };
+		C24017430C8F45522822653B /* CourseReminderOccurrence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseReminderOccurrence.swift; sourceTree = "<group>"; };
 		C2521BF901963D8A628CE921 /* Eams5PathPrefix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Eams5PathPrefix.swift; sourceTree = "<group>"; };
 		C278B59F722968BA27789DDB /* SleepyRoutes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyRoutes.swift; sourceTree = "<group>"; };
 		C280149FF5701E57DD8E3418 /* HolidayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayManager.swift; sourceTree = "<group>"; };
@@ -1552,6 +1560,7 @@
 		D31FA03F7AF7A6E296C6B4BD /* ConflictDetailReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictDetailReporter.swift; sourceTree = "<group>"; };
 		D36B398B2EF97B30660D8039 /* ScheduleEditSessionTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditSessionTargetTests.swift; sourceTree = "<group>"; };
 		D3997ACEE9626F6C1DD522A5 /* ReminderCapabilityFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCapabilityFlow.swift; sourceTree = "<group>"; };
+		D3CF772F9C5E9E9F2A0857CB /* CourseReminderPlanningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseReminderPlanningTests.swift; sourceTree = "<group>"; };
 		D3D445F86E00820411E38285 /* JwQzCrazyParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzCrazyParser.swift; sourceTree = "<group>"; };
 		D4045004893D9AB9C079A3CF /* ConflictLayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictLayoutEngine.swift; sourceTree = "<group>"; };
 		D44F2A183A78AAFC46585839 /* GridPinchRowHeightUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridPinchRowHeightUITests.swift; sourceTree = "<group>"; };
@@ -2194,6 +2203,7 @@
 				C3D5DF561527924EA3250B0F /* CourseOccurrenceEditTests.swift */,
 				37E3F7011F4D6678E7D58B78 /* CourseOccurrenceIdentityTests.swift */,
 				3781A5F1053195DD5EC353BF /* CourseOccurrenceMoveTests.swift */,
+				D3CF772F9C5E9E9F2A0857CB /* CourseReminderPlanningTests.swift */,
 				4335B0682DC846901B8C28B4 /* CustomThemeTests.swift */,
 				15AF7FB34120128873D5A25C /* DateUtilsTests.swift */,
 				53AF3563BDB09DC9C5D951A1 /* DiagDumpProgressTests.swift */,
@@ -2304,6 +2314,7 @@
 				F84E511E00AFD8247D4D4B07 /* resources */,
 				FEFE0F382E2D42F640D9689F /* RowKeyDifferTests.swift */,
 				3224C9C706C196B3A841B1A0 /* ScheduleEditAtomicSaveTests.swift */,
+				95D9BC59DD1B4F03A5CF8B0D /* ScheduledActivitySystemTests.swift */,
 				6E90E5E329FD653EB6867546 /* ScheduleEditPolicyStateTests.swift */,
 				D36B398B2EF97B30660D8039 /* ScheduleEditSessionTargetTests.swift */,
 				5CD0851531D7F71E0ED03D36 /* ScheduleParserLosslessTests.swift */,
@@ -2381,6 +2392,7 @@
 				A490795AC781095315441167 /* BatteryOptimizationIntents.swift */,
 				24163A93B330AEF69D6F5DE5 /* BatterySettingsLauncher.swift */,
 				62CB68DB9B653E572BD941AC /* ClassDndScheduler.swift */,
+				C24017430C8F45522822653B /* CourseReminderOccurrence.swift */,
 				00FB175FBA39DA589A632600 /* DailyAgenda.swift */,
 				6B57447FD00F186468439771 /* DailyAgendaLoader.swift */,
 				0F12C8D2FC6223843AFE28CE /* DailyScheduleSummary.swift */,
@@ -2915,6 +2927,7 @@
 				C5ACBF2B67F634F4EC5DEF11 /* CourseOccurrenceDestination.swift in Sources */,
 				3B2D244B78EAE423E480F02C /* CourseOccurrenceIdentity.swift in Sources */,
 				2EC1EEDF49423175D8177B5A /* CourseOccurrences.swift in Sources */,
+				978FCE4A27422569E5B19443 /* CourseReminderOccurrence.swift in Sources */,
 				8F75D32B8EFC4E5730F75A2F /* CustomSchemeDeriver.swift in Sources */,
 				5D7AD99DB7D760FB83A621E2 /* CustomThemeStore.swift in Sources */,
 				6B12EA98967857C773D406A7 /* DailyAgenda.swift in Sources */,
@@ -3054,6 +3067,7 @@
 				1E5075DB94213CF4E28AD41D /* CourseOccurrenceIdentity.swift in Sources */,
 				043A0666D4BA9B5735080C34 /* CourseOccurrences.swift in Sources */,
 				40DB9A0F170EE94649E0E59C /* CourseSelectionSheet.swift in Sources */,
+				A9CC3C8587D8984013197120 /* CourseReminderOccurrence.swift in Sources */,
 				ED1304B67D86E2778FC7A12F /* CourseTableView.swift in Sources */,
 				124C150E7516307A12A3F02F /* CustomSchemeDeriver.swift in Sources */,
 				142F0F71A6D0A380C5DB0A39 /* CustomThemeEditorScreen.swift in Sources */,
@@ -3372,6 +3386,7 @@
 				4C0D73B8EB004BA320146C50 /* CourseOccurrenceDestination.swift in Sources */,
 				636EDAFFD8D6248CF6411FB7 /* CourseOccurrenceIdentity.swift in Sources */,
 				9A76AFB9856857FA425DA1FA /* CourseOccurrences.swift in Sources */,
+				3A286A9B9BB78B4D392AF6A1 /* CourseReminderOccurrence.swift in Sources */,
 				4ADBE56C6B4087A04783AC85 /* CustomSchemeDeriver.swift in Sources */,
 				8AE862E0121B6911D9598A4A /* CustomThemeStore.swift in Sources */,
 				66FCD01448D5B9CAA36DFA42 /* DailyAgenda.swift in Sources */,
@@ -3580,6 +3595,7 @@
 				9F61A2294CDA838C413C45F3 /* CourseOccurrenceEditTests.swift in Sources */,
 				DF5F0E800EB3F6C034DF7229 /* CourseOccurrenceIdentityTests.swift in Sources */,
 				7016A682A009D85C1E9A3364 /* CourseOccurrenceMoveTests.swift in Sources */,
+				36D8FFAD11A6DA939C1EC52F /* CourseReminderPlanningTests.swift in Sources */,
 				72450AD7A9EBD75DDDB64B35 /* CustomThemeTests.swift in Sources */,
 				FB98667FC708E0C9DC47DDFE /* DateUtilsTests.swift in Sources */,
 				2C818AFA2C7B39B09A099FE4 /* DiagDumpProgressTests.swift in Sources */,
@@ -3695,6 +3711,7 @@
 				9C55A2E2A2B71AB09622B8F6 /* SchedulePolicyEffectiveTimeTests.swift in Sources */,
 				E6836C70B55F4AB5AE2A4BF2 /* SchedulePolicyPrivateRetentionTests.swift in Sources */,
 				FFC43A2C3EFA9EBBDCAA4E63 /* ScheduleRenderingB5Tests.swift in Sources */,
+				D84F356E4181004F28AA7F35 /* ScheduledActivitySystemTests.swift in Sources */,
 				FEB6503599B8FA2E9DB79203 /* SchoolCityIndexTests.swift in Sources */,
 				B618F0EA7C5E645958A78CF6 /* SchoolLocationLookupTests.swift in Sources */,
 				929B66661B3FDFDA3483E563 /* SchoolLocationPolicyTests.swift in Sources */,
@@ -3776,6 +3793,7 @@
 				A3A68DF6B4E1F4C6C6BD9CB6 /* CourseOccurrenceDestination.swift in Sources */,
 				C1DAFBDABF2F8E067742E379 /* CourseOccurrenceIdentity.swift in Sources */,
 				D11443C66DB054A9553992A6 /* CourseOccurrences.swift in Sources */,
+				8501269001D2A2ACE2D12280 /* CourseReminderOccurrence.swift in Sources */,
 				493CAC2EAAFAC9013C62D538 /* CourseRowView.swift in Sources */,
 				7D4E808CFE7DA03C186C197D /* CustomSchemeDeriver.swift in Sources */,
 				012784C39C250845AF6D59CF /* CustomThemeStore.swift in Sources */,

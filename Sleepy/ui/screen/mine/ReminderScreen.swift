@@ -5,7 +5,7 @@
 // 权限申请政策(2026-10): 全 app 唯一弹窗点 = master 开关 onMasterToggle(.notDetermined);
 // NotificationScheduler.createChannels 的隐式申请已摘除。denied 后系统不再弹框
 // (一次性弹窗语义), UI 显示手动设置引导行(NotifDeniedRow → 系统设置)。
-// 实况活动与普通横幅沿用互斥模式；实况权限由系统独立控制，不等同通知授权。
+// 实况活动与普通横幅独立开启；实况权限由系统独立控制，不等同通知授权。
 // 可靠性诊断 5 行 → iOS 快照仅 3 个可观测事实(通知权限/时效性/低电量),
 // widget/vendor/promoted 为 no-analog(见 BackgroundReliabilitySnapshot.swift 头部映射表),
 // 对应行不渲染(不是 silent skip: 映射决策已记录)。
@@ -56,7 +56,8 @@ struct ReminderScreen: View {
     @State private var beforeClassEnabled = AppPrefs.shared.isBeforeClassEnabled()
     @State private var minutesInput = "\(AppPrefs.shared.getBeforeClassMinutes())"
     @State private var bannerEnabled = AppPrefs.shared.isBeforeClassBannerEnabled()
-    @State private var liveActivityEnabled = AppPrefs.shared.getBeforeClassMode() == AppPrefs.BEFORE_CLASS_MODE_FLUID
+    @State private var liveActivityEnabled = AppPrefs.shared.isBeforeClassFluidEnabled()
+    @ObservedObject private var activityScheduleStatus = ClassDayActivityStatus.shared
     @State private var liveActivitiesAllowed = true
     @State private var classDndEnabled = AppPrefs.shared.isClassDndEnabled()
     @State private var pickerTarget: DailyReminderTimeTarget? = nil
@@ -418,28 +419,45 @@ struct ReminderScreen: View {
                 SubDivider()
                 ReminderToggleRow(title: L10n.format("reminder_mode_banner"),
                                   subtitle: L10n.format("reminder_mode_banner_sub"),
+                                  identifier: "reminder_notification_toggle",
                                   checked: $bannerEnabled) {
                     bannerEnabled = $0
                     prefs.setBeforeClassBannerEnabled($0)
-                    liveActivityEnabled = prefs.getBeforeClassMode() == AppPrefs.BEFORE_CLASS_MODE_FLUID
                     ReminderRescheduler.shared.request()
                 }
                 if #available(iOS 16.1, *) {
                     SubDivider()
                     ReminderToggleRow(title: L10n.t("live_activity_title"),
-                                      subtitle: L10n.t("live_activity_limits"),
+                                      subtitle: L10n.t("live_activity_summary"),
+                                      identifier: "reminder_live_activity_toggle",
                                       checked: $liveActivityEnabled) { enabled in
                         liveActivityEnabled = enabled
-                        if enabled {
-                            prefs.setBeforeClassMode(AppPrefs.BEFORE_CLASS_MODE_FLUID)
-                        } else {
-                            prefs.setBeforeClassBannerEnabled(true)
-                        }
-                        bannerEnabled = prefs.isBeforeClassBannerEnabled()
+                        prefs.setBeforeClassFluidEnabled(enabled)
                         ClassDayActivityManager.refresh()
                         ReminderRescheduler.shared.request()
                     }
-                    .accessibilityIdentifier("reminder_live_activity_toggle")
+                    Text(L10n.t("live_activity_limits"))
+                        .font(.caption)
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .padding(.horizontal, 4)
+                        .padding(.bottom, 8)
+                    if #available(iOS 26.0, *), liveActivityEnabled {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L10n.format("live_activity_scheduled_count", activityScheduleStatus.scheduledCount))
+                            if let through = activityScheduleStatus.coveredThrough {
+                                Text(L10n.format("live_activity_scheduled_through",
+                                    DateFormatter.localizedString(from: through, dateStyle: .short, timeStyle: .short)))
+                            }
+                            if activityScheduleStatus.hadFailure {
+                                Text(L10n.t(bannerEnabled && reliabilitySnapshot?.notificationPermissionGranted == true
+                                    ? "live_activity_schedule_fallback" : "live_activity_schedule_enable_notifications"))
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .padding(.horizontal, 16)
+                        .accessibilityIdentifier("reminder_live_activity_schedule_status")
+                    }
                     if !liveActivitiesAllowed {
                         Button(L10n.t("live_activity_permission")) { openNotificationSettings() }
                             .font(.caption)
@@ -645,18 +663,22 @@ struct ReminderScreen: View {
                                     // 成就：开启提醒
                                     AchievementTracker.shared.checkNotificationOn()
                                 } else {
-                                    // Permission denied → revert to off + 手动设置引导
+                                    // Notification permission does not control
+                                    // ActivityKit permission. Keep both channels
+                                    // available for independent configuration.
                                     notifDenied = true
-                                    masterEnabled = false
-                                    prefs.setReminderEnabled(false)
+                                    masterEnabled = true
+                                    prefs.setReminderEnabled(true)
+                                    ReminderRescheduler.shared.request()
                                 }
                             }
                         }
                     default:
-                        // denied: requestAuthorization 静默 false 不弹框 → 引导去系统设置;先回退 off
+                        // Permission is a channel capability, not the app's master preference.
                         notifDenied = true
-                        masterEnabled = false
-                        prefs.setReminderEnabled(false)
+                        masterEnabled = true
+                        prefs.setReminderEnabled(true)
+                        ReminderRescheduler.shared.request()
                     }
                 }
             }
@@ -666,6 +688,7 @@ struct ReminderScreen: View {
             notifDenied = false
             masterEnabled = false
             prefs.setReminderEnabled(false)
+            if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
             // cancelAll 为 suspend, 后台执行避免主线程阻塞(IO 协程)
             Task.detached(priority: .background) {
                 await NotificationScheduler.shared.cancelAll()
@@ -1037,6 +1060,7 @@ private struct ReminderToggleRow: View {
     let title: String
     let subtitle: String
     var tag: String? = nil
+    var identifier: String? = nil
     @Binding var checked: Bool
     let onCheckedChange: (Bool) -> Void
 
@@ -1063,16 +1087,21 @@ private struct ReminderToggleRow: View {
                     .foregroundColor(colors.onSurfaceVariant)
             }
             Spacer()
-            Toggle("", isOn: Binding(
-                get: { checked },
-                set: { onCheckedChange($0) }
-            ))
-            .toggleStyle(.switch)
-            .tint(colors.primary)
-            .labelsHidden()
+            if let identifier {
+                toggle.accessibilityIdentifier(identifier)
+            } else {
+                toggle
+            }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
+    }
+
+    private var toggle: some View {
+        Toggle(title, isOn: Binding(get: { checked }, set: { onCheckedChange($0) }))
+            .toggleStyle(.switch)
+            .tint(colors.primary)
+            .labelsHidden()
     }
 }
 

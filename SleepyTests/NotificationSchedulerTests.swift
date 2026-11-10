@@ -4,7 +4,7 @@
 // 7 天课前闹钟预排纯逻辑单测 — 走注入端口
 // (NotificationSchedulerBeforeClassAlarmPort/Env/DataSource), 不依赖真实通知中心/数据库。
 // 核心不变量:
-//  ① 窗口内未来的课 → 一节课一颗精确通知 (courseId 稳定 id);
+//  ① 窗口内未来的课 → 一节课一颗精确通知 (课表/课程/开课时间稳定 id);
 //  ② 重复调用不产生重复槽位, 仍需要的槽位不经历"先撤后排"的空窗;
 //  ③ 学期范围外/已过触发点/开关关闭 → 零通知;
 //  ④ 上次排过、这次不再需要的 id(换表/删课/关开关)按持久化账本撤销。
@@ -41,12 +41,18 @@ final class NotificationSchedulerTests: XCTestCase {
         var cancels: [String] = []
         var lastExtras: [String: [String: Any?]] = [:]
         var setCount = 0
-        func setExact(id: String, epochMs: Int64, extras: [String: Any?]) {
+        var rejected = Set<String>()
+        var capacity = 60
+        func setExact(id: String, epochMs: Int64, extras: [String: Any?]) async -> Bool {
             setCount += 1
+            guard !rejected.contains(id) else { return false }
             if armed[id] == nil { armedOrder.append(id) }
             armed[id] = epochMs
             lastExtras[id] = extras
+            return true
         }
+        func pendingIdentifiers() async -> Set<String> { Set(armed.keys) }
+        func availableSlots() async -> Int { capacity }
         func cancel(id: String) {
             cancels.append(id)
             if armed[id] != nil {
@@ -89,6 +95,8 @@ final class NotificationSchedulerTests: XCTestCase {
         var courseIds: () -> [Int64]
         var dayMapping: (Date) -> Int
         var holidayDates: Set<String>
+        var failLoad = false
+        var sourceDateOverride: ((Date) -> Date?)?
         init(table: TimeTableEntity?, byDay: [Int: [CourseEntity]] = [:],
              courseIds: @escaping () -> [Int64] = { [] },
              dayMapping: @escaping (Date) -> Int = { date in
@@ -104,8 +112,9 @@ final class NotificationSchedulerTests: XCTestCase {
         }
         func resolveCurrentTable() -> TimeTableEntity? { table }
         // 未 override reminderTables → 协议默认实现 (旧替身兼容)
-        func resolveReminderTables() -> [TimeTableEntity] {
-            reminderTables?() ?? {
+        func resolveReminderTables() throws -> [TimeTableEntity] {
+            if failLoad { throw CourseReminderLoadError.unavailable }
+            return reminderTables?() ?? {
                 guard let t = table else { return [] }
                 return t.reminderEnabled ? [t] : []
             }()
@@ -119,6 +128,7 @@ final class NotificationSchedulerTests: XCTestCase {
             return byDay.values.flatMap { $0 }.map { $0.id }
         }
         func courseDateForDate(tableId: Int64?, date: Date) -> Date? {
+            if let sourceDateOverride { return sourceDateOverride(date) }
             let weekday = DateUtils.isoCalendar.component(.weekday, from: date)
             let currentDay = weekday == 1 ? 7 : weekday - 1
             // 既有 fixture 映射的是同周星期；新接口需要保留完整来源日期。
@@ -147,11 +157,15 @@ final class NotificationSchedulerTests: XCTestCase {
         c.id = id
         c.ownTime = ownTime
         c.startTime = startTime
-        c.endTime = ""
+        c.endTime = ownTime ? "16:30" : ""
         return c
     }
 
     private let bc = NotificationScheduler.NOTIFY_BEFORE_CLASS_PREFIX  // "sleepy_bc_2000_"
+
+    private func id(_ course: Int64, _ start: String = "2026-10-09 08:00", table: Int64 = 1) -> String {
+        bc + "\(table)_\(course)_\(epoch(start) / 1000)"
+    }
 
     private func env(now: Int64) -> FakeEnv {
         let e = FakeEnv(today: fixedToday)
@@ -168,7 +182,7 @@ final class NotificationSchedulerTests: XCTestCase {
         let s = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
         await s.scheduleNext7DaysExactAlarms()
 
-        XCTAssertEqual([bc + "7": epoch("2026-10-09 07:50")], port.armed)
+        XCTAssertEqual([id(7): epoch("2026-10-09 07:50")], port.armed)
     }
 
     func testRepeatedCallIsIdempotentNoCancelWindow() async {
@@ -185,7 +199,7 @@ final class NotificationSchedulerTests: XCTestCase {
                       "仍需要的 id 不能先撤再排, 中间窗口会丢通知")
         XCTAssertEqual(firstArmed, port.armed)
         XCTAssertEqual(1, port.setCount)
-        XCTAssertEqual([bc + "7"], e.ledger)
+        XCTAssertEqual([id(7)], e.ledger)
     }
 
     func testSwitchTableCancelsOldTableAlarmsByLedger() async {
@@ -196,12 +210,12 @@ final class NotificationSchedulerTests: XCTestCase {
         await s.scheduleNext7DaysExactAlarms()
 
         src.table = makeTable(id: 2)
-        src.byDay = [4: [makeCourse(id: 8, day: 4, startNode: 1)]]
+        src.byDay = [4: [makeCourse(id: 8, day: 4, startNode: 1, tableId: 2)]]
         await s.scheduleNext7DaysExactAlarms()
 
-        XCTAssertEqual([bc + "8"], port.armedOrder)
-        XCTAssertTrue(port.cancels.contains(bc + "7"))
-        XCTAssertEqual([bc + "8"], e.ledger)
+        XCTAssertEqual([id(8, "2026-10-08 08:00", table: 2)], port.armedOrder)
+        XCTAssertTrue(port.cancels.contains(id(7)))
+        XCTAssertEqual([id(8, "2026-10-08 08:00", table: 2)], e.ledger)
     }
 
     func testDeletedCourseAlarmCancelledByLedger() async {
@@ -213,12 +227,12 @@ final class NotificationSchedulerTests: XCTestCase {
         let e = env(now: epoch("2026-10-07 09:00"))
         let s = NotificationScheduler(env: e, dataSource: src, alarmPort: port)
         await s.scheduleNext7DaysExactAlarms()
-        XCTAssertEqual(Set([bc + "5", bc + "7"]), Set(port.armedOrder))
+        XCTAssertEqual(Set([id(5, "2026-10-08 08:00"), id(7)]), Set(port.armedOrder))
 
         src.byDay = [5: [makeCourse(id: 7, day: 5, startNode: 1)]]
         await s.scheduleNext7DaysExactAlarms()
-        XCTAssertEqual([bc + "7"], port.armedOrder)
-        XCTAssertEqual([bc + "5"], port.cancels)
+        XCTAssertEqual([id(7)], port.armedOrder)
+        XCTAssertEqual([id(5, "2026-10-08 08:00")], port.cancels)
     }
 
     func testDisableBeforeClassCancelsAllLedgerAlarms() async {
@@ -248,8 +262,8 @@ final class NotificationSchedulerTests: XCTestCase {
         XCTAssertTrue(e.ledger.isEmpty)
     }
 
-    func testTransferMappingSameCourseTwiceOnlyEarliest() async {
-        // 周六(10-10)补周五的课 → 课 7 在 10-09 与 10-10 各出现一次, 只排最早
+    func testTransferMappingSameCourseTwicePreservesBothOccurrences() async {
+        // 周六(10-10)补周五的课 → 课 7 在 10-09 与 10-10 各出现一次，必须分别预排
         let src = FakeDataSource(table: makeTable(), byDay: [5: [makeCourse(id: 7, day: 5, startNode: 1)]],
                                  dayMapping: { [weak self] date in
                                      guard let self = self else { return 1 }
@@ -260,7 +274,7 @@ final class NotificationSchedulerTests: XCTestCase {
         let port = FakeAlarmPort()
         let s = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
         await s.scheduleNext7DaysExactAlarms()
-        XCTAssertEqual([bc + "7": epoch("2026-10-09 07:50")], port.armed)
+        XCTAssertEqual([id(7): epoch("2026-10-09 07:50"), id(7, "2026-10-10 08:00"): epoch("2026-10-10 07:50")], port.armed)
     }
 
     func testOutsideSemesterZeroAlarms() async {
@@ -282,7 +296,7 @@ final class NotificationSchedulerTests: XCTestCase {
         let port = FakeAlarmPort()
         let s = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
         await s.scheduleNext7DaysExactAlarms()
-        XCTAssertEqual([bc + "5"], port.armedOrder)
+        XCTAssertEqual([id(5)], port.armedOrder)
     }
 
     func testSwitchOffZeroAlarms() async {
@@ -306,7 +320,7 @@ final class NotificationSchedulerTests: XCTestCase {
         let port = FakeAlarmPort()
         let s = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
         await s.scheduleNext7DaysExactAlarms()
-        XCTAssertEqual([bc + "8": epoch("2026-10-10 07:50")], port.armed)
+        XCTAssertEqual([id(8, "2026-10-10 08:00"): epoch("2026-10-10 07:50")], port.armed)
     }
 
     func testOwnTimeCourseUsesCustomStartTime() async {
@@ -315,7 +329,7 @@ final class NotificationSchedulerTests: XCTestCase {
         let port = FakeAlarmPort()
         let s = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
         await s.scheduleNext7DaysExactAlarms()
-        XCTAssertEqual(epoch("2026-10-09 15:20"), port.armed[bc + "9"])
+        XCTAssertEqual(epoch("2026-10-09 15:20"), port.armed[id(9, "2026-10-09 15:30")])
     }
 
     func testBrokenTimeSkippedNoCrash() async {
@@ -345,7 +359,7 @@ final class NotificationSchedulerTests: XCTestCase {
         let port = FakeAlarmPort()
         let s = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
         await s.scheduleNext7DaysExactAlarms()
-        XCTAssertEqual(Set([bc + "7", bc + "8"]), Set(port.armedOrder))
+        XCTAssertEqual(Set([id(7), id(8, "2026-10-10 08:00", table: 2)]), Set(port.armedOrder))
     }
 
     func testTableWithReminderDisabledGetsNoAlarmsButOthersKeepTheirs() async {
@@ -364,7 +378,7 @@ final class NotificationSchedulerTests: XCTestCase {
         e.ledger = [bc + "7"]  // 旧版本(A 表当权时)排下的课
         let s = NotificationScheduler(env: e, dataSource: src, alarmPort: port)
         await s.scheduleNext7DaysExactAlarms()
-        XCTAssertEqual([bc + "8"], port.armedOrder)
+        XCTAssertEqual([id(8, table: 2)], port.armedOrder)
         XCTAssertTrue(port.cancels.contains(bc + "7"), "A 表关提醒后其旧闹钟按账本精确撤销")
     }
 
@@ -373,12 +387,12 @@ final class NotificationSchedulerTests: XCTestCase {
         // (BeforeClassDataSource 接口默认方法: 当前表且 reminderEnabled 才返回)
         let enabled: NotificationSchedulerBeforeClassDataSource =
             LegacyMinimalDataSource(table: makeTable(reminderEnabled: true))
-        XCTAssertEqual(1, enabled.resolveReminderTables().count)
+        XCTAssertEqual(1, try enabled.resolveReminderTables().count)
         let disabled: NotificationSchedulerBeforeClassDataSource =
             LegacyMinimalDataSource(table: makeTable(reminderEnabled: false))
-        XCTAssertTrue(disabled.resolveReminderTables().isEmpty)
+        XCTAssertTrue(try disabled.resolveReminderTables().isEmpty)
         let gone: NotificationSchedulerBeforeClassDataSource = LegacyMinimalDataSource(table: nil)
-        XCTAssertTrue(gone.resolveReminderTables().isEmpty)
+        XCTAssertTrue(try gone.resolveReminderTables().isEmpty)
     }
 
     func testSummaryIdentifierFanOutNumberingMatchesOriginal() {
@@ -399,7 +413,7 @@ final class NotificationSchedulerTests: XCTestCase {
         XCTAssertTrue(NotificationScheduler.isTodaySummaryIdentifier("sleepy_summary_5002"))
         XCTAssertFalse(NotificationScheduler.isTodaySummaryIdentifier("sleepy_summary_5003"))
         XCTAssertFalse(NotificationScheduler.isTodaySummaryIdentifier(NotificationScheduler.NOTIFY_TOMORROW_DAILY))
-        XCTAssertFalse(NotificationScheduler.isTomorrowSummaryIdentifier(bc + "7"))
+        XCTAssertFalse(NotificationScheduler.isTomorrowSummaryIdentifier(id(7)))
         XCTAssertFalse(NotificationScheduler.isTodaySummaryIdentifier(NotificationScheduler.NOTIFY_RESYNC))
     }
 
@@ -410,10 +424,117 @@ final class NotificationSchedulerTests: XCTestCase {
         let port = FakeAlarmPort()
         let s = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
         await s.scheduleNext7DaysExactAlarms()
-        let extras = port.lastExtras[bc + "7"]
+        let extras = port.lastExtras[id(7, table: 42)]
         XCTAssertEqual(42, extras?["tableId"] as? Int64)
         XCTAssertEqual("2026-10-09", extras?["reminderDate"] as? String)
     }
+    func testRejectedRequestNeverEntersLedgerAndCanBeRetried() async {
+        let src = FakeDataSource(table: makeTable(), byDay: [5: [makeCourse(id: 7, day: 5, startNode: 1)]])
+        let port = FakeAlarmPort()
+        port.rejected = [id(7)]
+        let e = env(now: epoch("2026-10-07 09:00"))
+        let scheduler = NotificationScheduler(env: e, dataSource: src, alarmPort: port)
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertTrue(e.ledger.isEmpty)
+        XCTAssertTrue(port.armed.isEmpty)
+        port.rejected = []
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertEqual(e.ledger, [id(7)])
+    }
+
+    func testCapacityKeepsNearestOccurrencesAcrossTables() async {
+        let src = FakeDataSource(table: makeTable(), byDay: [
+            6: [makeCourse(id: 8, day: 6, startNode: 1)],
+            4: [makeCourse(id: 5, day: 4, startNode: 1)]])
+        let port = FakeAlarmPort()
+        port.capacity = 1
+        let scheduler = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertEqual(port.armedOrder, [id(5, "2026-10-08 08:00")])
+    }
+
+    func testTemporaryDatabaseFailurePreservesAcceptedReminders() async {
+        let src = FakeDataSource(table: makeTable(), byDay: [5: [makeCourse(id: 7, day: 5, startNode: 1)]])
+        let port = FakeAlarmPort()
+        let e = env(now: epoch("2026-10-07 09:00"))
+        let scheduler = NotificationScheduler(env: e, dataSource: src, alarmPort: port)
+        await scheduler.scheduleNext7DaysExactAlarms()
+        src.failLoad = true
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertEqual(e.ledger, [id(7)])
+        XCTAssertNotNil(port.armed[id(7)])
+        XCTAssertTrue(port.cancels.isEmpty)
+    }
+
+    func testActivityPresentationNeverRemovesConfiguredNotificationFallback() async {
+        let src = FakeDataSource(table: makeTable(), byDay: [5: [makeCourse(id: 7, day: 5, startNode: 1)]])
+        let port = FakeAlarmPort()
+        let scheduler = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
+        await scheduler.scheduleNext7DaysExactAlarms()
+        scheduler.foregroundActivityIDs = { [self] in [id(7)] }
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertNotNil(port.armed[id(7)])
+        scheduler.foregroundActivityIDs = { [] }
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertNotNil(port.armed[id(7)])
+    }
+
+    func testFixedDateCourseSurvivesMissingRecurringSource() async throws {
+        var fixed = makeCourse(id: 9, day: 5, startNode: 1)
+        fixed.fixedDate = "2026-10-09"
+        let src = FakeDataSource(table: makeTable(startDate: "2027-01-01"), byDay: [5: [fixed]])
+        src.sourceDateOverride = { _ in nil }
+        let port = FakeAlarmPort()
+        let scheduler = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertEqual(port.armedOrder, [id(9)])
+    }
+
+    func testCustomSecondsArePreservedInNotificationTime() async {
+        var item = makeCourse(id: 9, day: 5, startNode: 1, ownTime: true, startTime: "15:30:30")
+        item.endTime = "16:30:30"
+        let src = FakeDataSource(table: makeTable(), byDay: [5: [item]])
+        let port = FakeAlarmPort()
+        let scheduler = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertEqual(Array(port.armed.values), [epoch("2026-10-09 15:20") + 30_000])
+    }
+
+    func testSameDatabaseCourseIDInDifferentTablesNeverCollides() async {
+        let src = FakeDataSource(table: nil)
+        src.reminderTables = { [self] in [makeTable(id: 1), makeTable(id: 2)] }
+        src.coursesProvider = { [self] table, dow in
+            dow == 5 ? [makeCourse(id: 7, day: 5, startNode: 1, tableId: table)] : []
+        }
+        let port = FakeAlarmPort()
+        let scheduler = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertEqual(Set(port.armed.keys), [id(7), id(7, table: 2)])
+    }
+
+    func testOddEvenWeekAndTransferUseSourceWeek() async {
+        var item = makeCourse(id: 7, day: 5, startNode: 1)
+        item.type = 1 // odd weeks only; natural Oct 9 is week 2.
+        let src = FakeDataSource(table: makeTable(), byDay: [5: [item]])
+        src.sourceDateOverride = { [self] date in date == day("2026-10-09") ? day("2026-10-02") : nil }
+        let port = FakeAlarmPort()
+        let scheduler = NotificationScheduler(env: env(now: epoch("2026-10-07 09:00")), dataSource: src, alarmPort: port)
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertEqual(port.armedOrder, [id(7)])
+    }
+
+    func testFailedReplacementRetainsAlreadyAcceptedMatchingRequest() async {
+        let src = FakeDataSource(table: makeTable(), byDay: [5: [makeCourse(id: 7, day: 5, startNode: 1)]])
+        let port = FakeAlarmPort()
+        let e = env(now: epoch("2026-10-07 09:00"))
+        let scheduler = NotificationScheduler(env: e, dataSource: src, alarmPort: port)
+        await scheduler.scheduleNext7DaysExactAlarms()
+        port.rejected = [id(7)]
+        await scheduler.scheduleNext7DaysExactAlarms()
+        XCTAssertEqual(e.ledger, [id(7)])
+        XCTAssertNotNil(port.armed[id(7)])
+    }
+
 }
 
 /// 最小 conformer — 刻意不实现 resolveReminderTables, 验证协议默认实现的旧替身兼容路径。

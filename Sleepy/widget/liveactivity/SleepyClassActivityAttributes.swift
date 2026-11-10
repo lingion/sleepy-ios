@@ -24,6 +24,7 @@ public struct SleepyClassActivityAttributes: ActivityAttributes {
         public var phase: String?
         public var tableId: Int64?
         public var courseId: Int64?
+        public var reminderStart: Date?
 
         public init(tableName: String, entries: [Entry]) {
             self.tableName = tableName
@@ -39,6 +40,25 @@ public struct SleepyClassActivityAttributes: ActivityAttributes {
             tableId = selection.current.tableId
             courseId = selection.current.courseId
         }
+
+        init(course: CourseReminderOccurrence, reminderStart: Date, scheduled: Bool) {
+            tableName = Self.bounded(course.tableName)
+            entries = [Entry(name: Self.bounded(course.name), room: Self.bounded(course.room),
+                             start: course.start, end: course.end)]
+            tableId = course.tableId
+            courseId = course.courseId
+            self.reminderStart = reminderStart
+            // Keep the scheduled marker after activation so notification dedup
+            // never mistakes a foreground start for an accepted system alert.
+            phase = scheduled ? "scheduled" : "course"
+        }
+
+        var occurrenceIdentifier: String? {
+            guard let tableId, let courseId, let entry = entries.first else { return nil }
+            return "\(tableId)_\(courseId)_\(Int64(entry.start.timeIntervalSince1970))"
+        }
+
+        var usesFixedCourseTimes: Bool { phase == "scheduled" || phase == "course" }
 
         // Combined attributes and state must fit ActivityKit's 4 KB limit, including local requests.
         private static func bounded(_ value: String) -> String {
