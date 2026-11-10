@@ -45,7 +45,7 @@ final class JwSgAssetBridgeTests: XCTestCase {
 
     func testCompletionWithoutSubmissionAndVendorExceptionFailExplicitly() throws {
         for script in ["shiguangBridge.notifyTaskCompletion();", "throw new Error('vendor failed');",
-                       "AndroidBridgePromise.saveComboSchedule('{}');"] {
+                       "AndroidBridgePromise.saveComboSchedule('{}'); shiguangBridge.notifyTaskCompletion();"] {
             let context = try runtime()
             context.evaluateScript(JwSgAssetBridge.assemble(vendorJs: script))
             XCTAssertNil(context.exception)
@@ -56,27 +56,25 @@ final class JwSgAssetBridgeTests: XCTestCase {
         }
     }
 
-    func testTimeoutAndRepeatedAttemptsUseFreshStateAndSingleCompletion() throws {
+    func testRepeatedAttemptRequiresReloadAndLateCompletionCannotChangeSession() throws {
         let context = try runtime()
-        context.evaluateScript(JwSgAssetBridge.assemble(vendorJs: "const declaration = 1;"))
-        context.evaluateScript(JwSgAssetBridge.assemble(vendorJs: "const declaration = 1;"))
-        XCTAssertNil(context.exception, "Repeated vendor const declarations must remain scoped")
-        XCTAssertEqual(context.evaluateScript("timers[0].active")?.toBool(), false)
-        XCTAssertEqual(context.evaluateScript("timers[1].delay")?.toInt32(), 120_000)
-        context.evaluateScript("timers[1].fn(); AndroidBridgePromise.saveImportedCourses('[]');")
-        XCTAssertEqual(try messages(context).count, 1)
-        XCTAssertEqual(try messages(context).first?["ok"] as? Bool, false)
-        context.evaluateScript(JwSgAssetBridge.assemble(vendorJs: "AndroidBridgePromise.saveImportedCourses('[]'); AndroidBridge.notifyTaskCompletion();"))
-        XCTAssertEqual(try messages(context).count, 2)
-        XCTAssertEqual(try messages(context).last?["ok"] as? Bool, true)
+        context.evaluateScript(JwSgAssetBridge.assemble(vendorJs: "", sessionId: "first"))
+        context.evaluateScript("SleepySgShim.cancelSession('first');")
+        context.evaluateScript("shiguangBridge.notifyTaskCompletion();")
+        XCTAssertTrue(try messages(context).isEmpty)
+        context.evaluateScript(JwSgAssetBridge.assemble(vendorJs: "", sessionId: "second"))
+        XCTAssertNotNil(context.exception)
     }
 
-    func testManifestUsesExactNormalizedSchoolNameAndFirstAdapter() throws {
-        let manifest = Data(#"{"schools":[{"sgName":"测试大学（校区）","adapters":[{"jsPath":"third_party/shiguang/js/A/first.js","importUrl":"https://jw.example.edu"},{"jsPath":"third_party/shiguang/js/A/second.js","importUrl":"https://jw.example.edu/2"}]}]}"#.utf8)
-        let entry = try JwSgAssetBridge.entry(schoolName: " 测试大学(校区) ", manifest: manifest)
-        XCTAssertEqual(entry.jsPath, "third_party/shiguang/js/A/first.js")
+    func testManifestPreservesEveryAdapterAndRequiresAnExplicitChoice() throws {
+        let manifest = Data(#"{"schools":[{"sgName":"测试大学（校区）","adapters":[{"adapterId":"first","jsPath":"third_party/shiguang/js/A/first.js","importUrl":"https://jw.example.edu"},{"adapterId":"second","jsPath":"third_party/shiguang/js/A/second.js","importUrl":"https://jw.example.edu/2"}]}]}"#.utf8)
+        let entries = try JwSgAssetBridge.entries(schoolName: " 测试大学(校区) ", manifest: manifest)
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertNil(JwSgAssetBridge.restoreChoice(entries, savedId: ""))
+        XCTAssertNil(JwSgAssetBridge.restoreChoice(entries, savedId: "obsolete"))
+        XCTAssertEqual(try JwSgAssetBridge.entry(schoolName: "测试大学(校区)", manifest: manifest, selectedAdapterId: "second").importUrl, "https://jw.example.edu/2")
+        XCTAssertThrowsError(try JwSgAssetBridge.entry(schoolName: "测试大学(校区)", manifest: manifest))
         XCTAssertThrowsError(try JwSgAssetBridge.entry(schoolName: "测试大学", manifest: manifest))
-        XCTAssertThrowsError(try JwSgAssetBridge.entry(schoolName: "测试大学", manifest: Data("{}".utf8)))
     }
 
     func testAllNineVendorBridgeMethodsAndAndroidAliasesAreInstalled() throws {
