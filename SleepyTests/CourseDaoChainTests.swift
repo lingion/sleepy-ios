@@ -156,13 +156,10 @@ final class CourseDaoChainTests: XCTestCase {
                         "isIrregularNode","isIrregularTime","ownTime",
                         "startTime","endTime","alias","credit","level","fixedDate"], courseCols)
         let tableCols = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "PRAGMA table_info(time_tables)").map { (r: Row) -> String in r["name"] } })
-        // 原 schema v11 全列集: v1 基础 10 列 + periodTableId(v8) + preBindSnapshotJson(v9)
-        // + reminderEnabled(v10→v11)。真源: app/schemas/com.lingion.sleepy.data.AppDatabase/11.json
-        //   `reminderEnabled INTEGER NOT NULL DEFAULT 1`;RoomSchemaContractTest.kt:47 与
-        //   TableReminderMigrationTest.kt 同向锁定。iOS 侧对应 AppDatabase.swift v11.addReminderEnabled。
+        // v14 adds nullable reminderOverride; v15 retains opaque import source metadata.
         XCTAssertEqual(["id","name","startDate","maxWeek","nodesPerDay","timeJson","color",
                         "isDefault","smartConfigJson","createdAt",
-                        "periodTableId","preBindSnapshotJson","reminderEnabled"], tableCols)
+                        "periodTableId","preBindSnapshotJson","reminderEnabled","reminderOverride","importSourceJson"], tableCols)
         // v10 新表: period_tables / import_drafts / calendar_import_records 存在且列集对齐 Room
         let tables = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "SELECT name FROM sqlite_master WHERE type='table'").map { (r: Row) -> String in r["name"] } })
         XCTAssertTrue(tables.contains("period_tables"))

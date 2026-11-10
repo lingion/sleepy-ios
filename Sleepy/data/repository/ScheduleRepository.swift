@@ -157,7 +157,7 @@ final class ScheduleRepository {
     /// 表配置、课程与新组 ID 一次提交；任一插入失败不留下空副本，也不消费撤回历史。
     /// 保留原表绑定与兼容列，不改变当前默认表。
     @discardableResult
-    func duplicateTable(_ id: Int64) throws -> Int64 {
+    func duplicateTable(_ id: Int64, newName: String? = nil) throws -> Int64 {
         let (newID, copiedCourses) = try writeWithUndo { db in
             guard let source = try TimeTableEntity.fetchOne(db, key: id) else {
                 throw TableEditSaveError.missingTable
@@ -172,8 +172,14 @@ final class ScheduleRepository {
             }
             var copy = source
             copy.id = 0
+            if let newName {
+                let requested = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !requested.isEmpty, !names.contains(requested) else { throw TableEditSaveError.invalidCourseDraft }
+                name = requested
+            }
             copy.name = name
             copy.isDefault = false
+            copy.reminderOverride = nil
             copy.createdAt = Int64(Date().timeIntervalSince1970 * 1000)
             let newID = try tableDao.insertInDb(db, copy)
             var groupMap: [String: String] = [:]
@@ -225,15 +231,84 @@ final class ScheduleRepository {
         onDataChanged()
     }
 
-    /// v1.0.62 每课表提醒开关 — ← 原版本 ScheduleRepository.setTableReminderEnabled:
-    /// 提醒设置独占 reminderEnabled 字段, 永不覆盖课表元数据;「读现值→相同即 no-op
-    /// (不抓 undo)→不同才 UPDATE」, 提交后记录 undo, 有变化才 onDataChanged。
+    func getReminderTables() throws -> [TimeTableEntity] {
+        let tables = try getAllTables()
+        return resolveReminderTableScope(tables: tables, selectedTableId: tables.first { $0.isDefault }?.id)
+    }
+
+    /// The first manual toggle freezes the complete effective selection atomically.
     func setTableReminderEnabled(id: Int64, enabled: Bool) throws {
-        let changed = try writeWithUndo { db -> Int in
-            guard let current = try TimeTableEntity.fetchOne(db, key: id), current.reminderEnabled != enabled else { return 0 }
-            return try tableDao.setReminderEnabledInDb(db, id, enabled)
+        let changed = try writeWithUndo { db -> Bool in
+            let tables = try TimeTableEntity.fetchAll(db)
+            let resolved = resolveReminderTableScope(tables: tables, selectedTableId: tables.first { $0.isDefault }?.id)
+            guard let current = resolved.first(where: { $0.id == id }), current.reminderEnabled != enabled else { return false }
+            if !tables.contains(where: { $0.reminderOverride != nil }) {
+                for table in resolved {
+                    try db.execute(sql: "UPDATE time_tables SET reminderEnabled = ?, reminderOverride = ? WHERE id = ?",
+                        arguments: [table.id == id ? enabled : table.reminderEnabled, table.id == id ? enabled : table.reminderEnabled, table.id])
+                }
+                return true
+            }
+            guard tables.first(where: { $0.id == id })?.reminderOverride != enabled else { return false }
+            try db.execute(sql: "UPDATE time_tables SET reminderEnabled = ?, reminderOverride = ? WHERE id = ?", arguments: [enabled, enabled, id])
+            return true
         }
-        if changed > 0 { onDataChanged() }
+        if changed { onDataChanged() }
+    }
+
+    /// Apply a reviewed school refresh without replacing timetable preferences or local customizations.
+    func updateImportedCourses(tableId: Int64, courses: [CourseEntity], incomingTimeJson: String = "",
+                               expectedCourses: [CourseEntity]? = nil) throws {
+        try writeWithUndo { db in
+            guard var table = try TimeTableEntity.fetchOne(db, key: tableId) else { throw TableEditSaveError.missingTable }
+            let existing = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ? ORDER BY id", arguments: [tableId])
+            if let expectedCourses, existing != expectedCourses.sorted(by: { $0.id < $1.id }) {
+                throw TableEditSaveError.staleTimeTable
+            }
+            let ids = courses.filter { $0.id > 0 }.map(\.id)
+            guard Set(ids).count == ids.count, Set(ids).isSubset(of: Set(existing.map(\.id))) else {
+                throw TableEditSaveError.invalidCourseDraft
+            }
+            var period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
+            if table.periodTableId != nil && period == nil { throw TableEditSaveError.missingPeriodTable }
+            let effective = table.hydratedWith(period)
+            let reach = try courses.map { row -> Int in
+                guard row.step > 0 else { throw TableEditSaveError.invalidCourseDraft }
+                let (end, overflow) = row.startNode.addingReportingOverflow(row.step - 1)
+                guard !overflow else { throw TableEditSaveError.invalidCourseDraft }
+                return end
+            }.max() ?? 0
+            let extended = CourseImportPolicy.mergeTimeJson(current: effective.timeJson, incoming: incomingTimeJson,
+                                                            requiredNodes: max(effective.nodesPerDay, reach))
+            var groups: [String: String] = [:]
+            var rows = courses
+            for index in rows.indices {
+                rows[index].id = max(0, rows[index].id)
+                rows[index].tableId = tableId
+                if rows[index].groupId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let key = rows[index].courseName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    let group = groups[key] ?? UUID().uuidString
+                    groups[key] = group; rows[index].groupId = group
+                }
+            }
+            let retained = Set(ids)
+            for old in existing where !retained.contains(old.id) { try old.delete(db) }
+            for var row in rows where row.id > 0 { try row.update(db) }
+            let inserts = rows.filter { $0.id == 0 }
+            _ = try courseDao.insertAllInDb(db, inserts)
+            _ = CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: db, dao: courseColorDao, entities: inserts)
+            let maxNode = TimeTableUtils.parseTimeSlotRows(extended).map(\.node).max() ?? effective.nodesPerDay
+            if var bound = period {
+                if bound.timeJson != extended || bound.nodesPerDay != maxNode {
+                    bound.timeJson = extended; bound.nodesPerDay = maxNode
+                    bound.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
+                    try bound.update(db)
+                }
+            } else { table.timeJson = extended; table.nodesPerDay = maxNode }
+            table.maxWeek = max(table.maxWeek, rows.map(\.endWeek).max() ?? table.maxWeek)
+            try table.update(db)
+        }
+        onDataChanged()
     }
 
     /// 2026-09-23 症状3修复: 编辑课表保存 — 只写课程表自身元数据(name/startDate/maxWeek),
@@ -1178,6 +1253,7 @@ final class ScheduleRepository {
                     courseTableNames: names, periodTableNames: periodNames)
                 backup.isDefault = false
                 backup.reminderEnabled = false
+                backup.reminderOverride = nil
                 backup.periodTableId = nil
                 backup.preBindSnapshotJson = ""
                 backup.createdAt = Int64(Date().timeIntervalSince1970 * 1000)

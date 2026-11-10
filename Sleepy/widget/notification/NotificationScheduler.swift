@@ -156,7 +156,7 @@ final class NotificationScheduler {
         /// 独立参与课前重排(含作息 hydrate), 不再只看当前表。
         func resolveReminderTables() -> [TimeTableEntity] {
             guard let repo = NotificationScheduler.shared.repositoryProvider?() else { return [] }
-            let tables = (try? repo.getAllTables()) ?? []
+            let tables = (try? repo.getReminderTables()) ?? []
             return tables.filter { $0.reminderEnabled }.map { t in
                 var pt: PeriodTableEntity? = nil
                 if let pid = t.periodTableId { pt = (try? repo.getPeriodTable(pid)) ?? nil }
@@ -208,7 +208,7 @@ final class NotificationScheduler {
             //   中的标注 (notificationSourceLabels; 单表/无标注 → 空表 → 无〔…〕后缀)。
             if let tableId = extras["tableId"] as? Int64,
                let repo = NotificationScheduler.shared.repositoryProvider?() {
-                let enabled = ((try? repo.getAllTables()) ?? []).filter { $0.reminderEnabled }
+                let enabled = ((try? repo.getReminderTables()) ?? []).filter { $0.reminderEnabled }
                 if let source = notificationSourceLabels(enabled, L10n.t("agenda_table_unknown"))[tableId] {
                     body += "\u{3014}\(source)\u{3015}"
                 }
@@ -764,7 +764,7 @@ final class NotificationScheduler {
             resolvedTableId = repo.flatMap { WidgetTableResolver.resolveCurrentTable($0) }?.id
         }
         guard let tid = resolvedTableId, let repo = repo else { return false }
-        let owner = ((try? repo.getAllTables()) ?? []).first { $0.id == tid }
+        let owner = ((try? repo.getReminderTables()) ?? []).first { $0.id == tid }
         guard let owner = owner, owner.reminderEnabled else { return false }
         // reminderDate: "yyyy-MM-dd" (排期时写入); 解析失败回退今天 (原 runCatching 语义)
         let date = (userInfo["reminderDate"] as? String).flatMap { DateUtils.parseDate($0) } ?? Date()

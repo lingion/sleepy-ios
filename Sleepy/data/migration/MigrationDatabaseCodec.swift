@@ -65,6 +65,9 @@ enum MigrationDatabaseCodec {
         var createdAt: Int64
         var periodTableId: Int64? = nil
         var preBindSnapshotJson: String = ""
+        var reminderEnabled: Bool = true
+        var reminderOverride: Bool? = nil
+        var importSourceJson: String = ""
     }
 
     struct PeriodTableRow: Codable, Equatable {
@@ -131,7 +134,9 @@ enum MigrationDatabaseCodec {
             nodesPerDay: e.nodesPerDay, timeJson: e.timeJson, color: e.color,
             isDefault: e.isDefault, smartConfigJson: e.smartConfigJson,
             createdAt: e.createdAt, periodTableId: e.periodTableId,
-            preBindSnapshotJson: e.preBindSnapshotJson
+            preBindSnapshotJson: e.preBindSnapshotJson,
+            reminderEnabled: e.reminderEnabled, reminderOverride: e.reminderOverride,
+            importSourceJson: e.importSourceJson
         )
     }
 
@@ -170,6 +175,8 @@ enum MigrationDatabaseCodec {
             isDefault: r.isDefault, smartConfigJson: r.smartConfigJson,
             createdAt: r.createdAt, periodTableId: r.periodTableId,
             preBindSnapshotJson: r.preBindSnapshotJson,
+            reminderEnabled: r.reminderEnabled, reminderOverride: r.reminderOverride,
+            importSourceJson: r.importSourceJson,
             id: r.id
         )
     }
@@ -248,6 +255,7 @@ enum MigrationDatabaseCodec {
         dbQueue: DatabaseQueue
     ) throws {
         try dbQueue.write { db in
+            let hasLocalTables = try TimeTableEntity.fetchCount(db) > 0
             var periodIdMap: [Int64: Int64] = [:]
             for row in snapshot.periodTables {
                 let newId = try periodTableDao.insertInDb(db, toEntity(row).withId(0))
@@ -256,7 +264,13 @@ enum MigrationDatabaseCodec {
             var tableIdMap: [Int64: Int64] = [:]
             for row in snapshot.timeTables {
                 let mappedPeriod = row.periodTableId.flatMap { periodIdMap[$0] }
-                let newId = try timeTableDao.insertInDb(db, toEntity(row).withPeriodId(mappedPeriod).withId(0))
+                var imported = toEntity(row).withPeriodId(mappedPeriod).withId(0)
+                if hasLocalTables {
+                    imported.isDefault = false
+                    imported.reminderEnabled = false
+                    imported.reminderOverride = nil
+                }
+                let newId = try timeTableDao.insertInDb(db, imported)
                 tableIdMap[row.id] = newId
             }
             for row in snapshot.courses {
@@ -310,6 +324,8 @@ private extension TimeTableEntity {
             isDefault: isDefault, smartConfigJson: smartConfigJson,
             createdAt: createdAt, periodTableId: periodTableId,
             preBindSnapshotJson: preBindSnapshotJson,
+            reminderEnabled: reminderEnabled, reminderOverride: reminderOverride,
+            importSourceJson: importSourceJson,
             id: newId
         )
     }
@@ -320,6 +336,8 @@ private extension TimeTableEntity {
             isDefault: isDefault, smartConfigJson: smartConfigJson,
             createdAt: createdAt, periodTableId: pid,
             preBindSnapshotJson: preBindSnapshotJson,
+            reminderEnabled: reminderEnabled, reminderOverride: reminderOverride,
+            importSourceJson: importSourceJson,
             id: id
         )
     }
@@ -383,7 +401,7 @@ extension MigrationDatabaseCodec.TimeTableRow {
     enum CodingKeys: String, CodingKey {
         case id, name, startDate, maxWeek, nodesPerDay, timeJson, color,
              isDefault, smartConfigJson, createdAt, periodTableId,
-             preBindSnapshotJson
+             preBindSnapshotJson, reminderEnabled, reminderOverride, importSourceJson
     }
     init(from decoder: Decoder) throws {
         let k = try decoder.container(keyedBy: CodingKeys.self)
@@ -399,6 +417,9 @@ extension MigrationDatabaseCodec.TimeTableRow {
         createdAt = try k.decode(Int64.self, forKey: .createdAt)
         periodTableId = try k.decodeIfPresent(Int64.self, forKey: .periodTableId) ?? nil
         preBindSnapshotJson = try k.decodeIfPresent(String.self, forKey: .preBindSnapshotJson) ?? ""
+        reminderEnabled = try k.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? true
+        reminderOverride = try k.decodeIfPresent(Bool.self, forKey: .reminderOverride)
+        importSourceJson = try k.decodeIfPresent(String.self, forKey: .importSourceJson) ?? ""
     }
 }
 

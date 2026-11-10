@@ -127,3 +127,55 @@ enum RowKeyDiffer {
         return false
     }
 }
+
+/// Manual refresh first matches complete arrangements, then only unique name/day pairs.
+struct CourseUpdateDiff {
+    let added: [CourseEntity]
+    let changed: [(CourseEntity, CourseEntity)]
+    let removed: [CourseEntity]
+    let merged: [CourseEntity]
+}
+
+func diffImportedCourses(existing: [CourseEntity], incoming: [CourseEntity]) -> CourseUpdateDiff {
+    func name(_ row: CourseEntity) -> String { row.courseName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+    func identity(_ row: CourseEntity) -> String {
+        [name(row), String(row.day), String(row.startNode), String(row.step), String(row.startWeek), String(row.endWeek), String(row.type)].joined(separator: "|")
+    }
+    func fallback(_ row: CourseEntity) -> String { name(row) + "|" + String(row.day) }
+    var remaining = existing
+    var matches: [Int: CourseEntity] = [:]
+    for (index, fresh) in incoming.enumerated() {
+        if let found = remaining.firstIndex(where: { identity($0) == identity(fresh) }) {
+            matches[index] = remaining.remove(at: found)
+        }
+    }
+    let unmatched = Dictionary(grouping: incoming.indices.filter { matches[$0] == nil }) { fallback(incoming[$0]) }
+    for (key, indices) in unmatched where indices.count == 1 {
+        let candidates = remaining.indices.filter { fallback(remaining[$0]) == key }
+        if candidates.count == 1 { matches[indices[0]] = remaining.remove(at: candidates[0]) }
+    }
+    let groups = Dictionary(grouping: existing, by: name)
+    var added: [CourseEntity] = [], changed: [(CourseEntity, CourseEntity)] = [], merged: [CourseEntity] = []
+    for (index, fresh) in incoming.enumerated() {
+        var row = fresh
+        if let old = matches[index] {
+            row.id = old.id; row.groupId = old.groupId
+            row.alias = old.alias; row.note = old.note
+            row.color = old.color; row.colorMode = old.colorMode
+            row.ownTime = old.ownTime; row.isIrregularNode = old.isIrregularNode; row.isIrregularTime = old.isIrregularTime
+            row.startTime = old.startTime; row.endTime = old.endTime
+            row.credit = old.credit; row.level = old.level; row.fixedDate = old.fixedDate
+            if old != row { changed.append((old, row)) }
+        } else {
+            row.id = 0
+            if let group = groups[name(fresh)], Set(group.map(\.groupId)).count == 1,
+               let first = group.first, !first.groupId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                row.groupId = first.groupId; row.alias = first.alias
+                row.color = group.first { $0.colorMode == CourseColorMode.GROUP }?.color ?? fresh.color
+            }
+            added.append(row)
+        }
+        merged.append(row)
+    }
+    return CourseUpdateDiff(added: added, changed: changed, removed: remaining, merged: merged)
+}

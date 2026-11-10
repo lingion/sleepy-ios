@@ -137,7 +137,7 @@ enum ClassDayActivityManager {
         let calendar = CourseOccurrences.calendar
         let day = calendar.startOfDay(for: now)
         var result: [ClassDayActivityCore.Course] = []
-        for raw in try repository.getAllTables() where raw.reminderEnabled {
+        for raw in try repository.getReminderTables() where raw.reminderEnabled {
             let period = try raw.periodTableId.flatMap { try repository.getPeriodTable($0) }
             let table = raw.hydratedWith(period)
             guard await HolidayReminderPolicyAdapter.decide(date: now, tableId: table.id).allowReminder else { continue }

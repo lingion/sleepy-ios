@@ -36,6 +36,10 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
     var preBindSnapshotJson: String = ""
     /// v11 (2026-10-08 用户诉求): 每表独立提醒开关。旧行默认 1 = 所有表继续参与提醒。
     var reminderEnabled: Bool = true
+    /// Nil follows the selected timetable until the first manual scope choice.
+    var reminderOverride: Bool? = nil
+    /// Source suggestions remain separate from confirmed timetable fields.
+    var importSourceJson: String = ""
     /// 主键 autoGenerate
     var id: Int64 = 0
 
@@ -60,6 +64,8 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
         container["periodTableId"] = periodTableId
         container["preBindSnapshotJson"] = preBindSnapshotJson
         container["reminderEnabled"] = reminderEnabled
+        container["reminderOverride"] = reminderOverride
+        container["importSourceJson"] = importSourceJson
     }
 
     /// issue#40 有效时间表水合(设计 §5.1): 绑定存在 → 节次时间/智慧节次/节次数
@@ -89,5 +95,43 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
     /// C2: 解绑(非 nil → nil)时的新实体 — 见 PeriodTableEntity.restoredForUnbind
     static func restoredForUnbind(table: TimeTableEntity) -> TimeTableEntity {
         PeriodTableEntity.restoredForUnbind(table)
+    }
+}
+
+
+extension TimeTableEntity {
+    enum CodingKeys: String, CodingKey {
+        case name, startDate, maxWeek, nodesPerDay, timeJson, color, isDefault,
+             smartConfigJson, createdAt, periodTableId, preBindSnapshotJson,
+             reminderEnabled, reminderOverride, importSourceJson, id
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        startDate = try c.decode(String.self, forKey: .startDate)
+        maxWeek = try c.decodeIfPresent(Int.self, forKey: .maxWeek) ?? 20
+        nodesPerDay = try c.decodeIfPresent(Int.self, forKey: .nodesPerDay) ?? 12
+        timeJson = try c.decodeIfPresent(String.self, forKey: .timeJson) ?? TimeTableUtils.DEFAULT_TIME_JSON
+        color = try c.decodeIfPresent(String.self, forKey: .color) ?? "#FF6750A4"
+        isDefault = try c.decodeIfPresent(Bool.self, forKey: .isDefault) ?? false
+        smartConfigJson = try c.decodeIfPresent(String.self, forKey: .smartConfigJson) ?? ""
+        createdAt = try c.decodeIfPresent(Int64.self, forKey: .createdAt) ?? 0
+        periodTableId = try c.decodeIfPresent(Int64.self, forKey: .periodTableId)
+        preBindSnapshotJson = try c.decodeIfPresent(String.self, forKey: .preBindSnapshotJson) ?? ""
+        reminderEnabled = try c.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? true
+        reminderOverride = try c.decodeIfPresent(Bool.self, forKey: .reminderOverride)
+        importSourceJson = try c.decodeIfPresent(String.self, forKey: .importSourceJson) ?? ""
+        id = try c.decodeIfPresent(Int64.self, forKey: .id) ?? 0
+    }
+}
+
+func resolveReminderTableScope(tables: [TimeTableEntity], selectedTableId: Int64?) -> [TimeTableEntity] {
+    let manual = tables.contains { $0.reminderOverride != nil }
+    let selected = tables.first { $0.id == selectedTableId } ?? tables.first { $0.isDefault } ?? tables.first
+    return tables.map { source in
+        var table = source
+        table.reminderEnabled = manual ? source.reminderOverride == true
+            : source.id == selected?.id && source.reminderEnabled
+        return table
     }
 }
