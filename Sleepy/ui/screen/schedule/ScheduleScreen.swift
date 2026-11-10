@@ -19,6 +19,44 @@ struct ScheduleCourseDetailRequest: Identifiable {
     let table: TimeTableEntity?
 }
 
+private struct WeekLabelSurface: ViewModifier {
+    @Environment(\.sleepyUIStyle) private var style
+    let grouped: Bool
+    let color: Color
+    @ViewBuilder func body(content: Content) -> some View {
+        if grouped || style == .liquidGlass { content } else { content.sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: color) }
+    }
+}
+private struct ScheduleWeekLabelButtonStyle: PrimitiveButtonStyle {
+    let grouped: Bool
+    @ViewBuilder func makeBody(configuration: Configuration) -> some View {
+        if grouped {
+            Button(role: configuration.role, action: configuration.trigger) { configuration.label }
+                .buttonStyle(SleepyButtonStyle())
+        } else {
+            Button(role: configuration.role, action: configuration.trigger) { configuration.label }
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: SleepyShapes.medium, compact: true))
+        }
+    }
+}
+
+private struct WeekGroupSurface: ViewModifier {
+    @Environment(\.sleepyUIStyle) private var style
+    let grouped: Bool
+    let color: Color
+    @ViewBuilder func body(content: Content) -> some View {
+        if grouped {
+            if style == .liquidGlass {
+                content.sleepyNativeGlassSurface(cornerRadius: 16, tint: color, interactive: true)
+                    .accessibilityElement(children: .contain).accessibilityIdentifier("week_group")
+            } else {
+                content.sleepyControlSurface(cornerRadius: 16, tint: color)
+                    .accessibilityElement(children: .contain).accessibilityIdentifier("week_group")
+            }
+        } else { content }
+    }
+}
+
 struct ScheduleScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     @ObservedObject var viewModel: ScheduleViewModel
@@ -108,7 +146,9 @@ struct ScheduleScreen: View {
                     // 表头不再与 VM 判定分叉(issue F106-8)
                     displayContext: state.weekDisplayContext,
                     onPrevWeek: { viewModel.changeWeek(state.selectedWeek - 1) },
-                    onNextWeek: { viewModel.changeWeek(state.selectedWeek + 1) },
+                    onNextWeek: {
+                        viewModel.changeWeek(state.selectedWeek + 1)
+                    },
                     onJumpToActual: {
                         guard let start = state.currentTable?.startDate else { return }
                         viewModel.changeWeek(DateUtils.currentWeek(startDate: start))
@@ -151,6 +191,12 @@ struct ScheduleScreen: View {
                         onSelect: { viewMode = $0 })
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
+                }
+
+                if state.hasPeriodConflict {
+                    PeriodConflictBanner(message: L10n.format("period_conflict_detected_banner", state.periodValidation.errorMessage))
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
                 }
 
                 // 主体视图 — 左右滑动切换周次(TabView pager)
@@ -277,7 +323,7 @@ struct ScheduleScreen: View {
                     onEditCourse(state.courses.first { $0.id == c.id } ?? c)
                 },
                 // issue#40: 详情页时间域与网格同源 = 水合表 effectiveCurrentTable
-                timeJson: state.effectiveCurrentTable?.timeJson,
+                timeJson: state.effectiveRenderTimeJson,
                 displayDate: selectedCourseDate,
                 occurrenceTable: state.effectiveCurrentTable,
                 occurrenceRepository: viewModel.occurrenceRepository,
@@ -306,16 +352,12 @@ private struct TopBarWidthKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
-private struct WeekControlsWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
 /// 2026-09-21 用户令: 撤回/取消撤回一体胶囊 ← UndoRedoCapsule — 体育场形状(左右半圆+中间矩形),
 /// 撤回左半·取消撤回右半, 中间一条淡淡竖线。两半由 popup 宿主按 hasUndo||hasRedo 同现同隐,
 /// 各半按有无快照 enabled/禁用(alpha 0.38 占位保形)。scale=动态挤压系数(周三件套逼近时缩)。
 private struct UndoRedoCapsule: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let showUndo: Bool
     let showRedo: Bool
     let scale: CGFloat
@@ -325,42 +367,55 @@ private struct UndoRedoCapsule: View {
     var body: some View {
         // 几何 ← 原版本: halfSize=32*scale / dividerHeight=14*scale / icon=20*scale
         let halfSize = 32 * scale
-        let dividerHeight = 14 * scale
-        return HStack(spacing: 0) {
+        return Group {
+            if style == .liquidGlass {
+                buttons(halfSize: halfSize)
+                    .sleepyNativeGlassSurface(cornerRadius: halfSize / 2, interactive: true)
+            } else {
+                buttons(halfSize: halfSize)
+                    .sleepyControlSurface(cornerRadius: halfSize / 2, tint: colors.surfaceContainerHigh)
+            }
+        }
+        .frame(height: style == .classic ? halfSize : nil)
+    }
+
+    private func buttons(halfSize: CGFloat) -> some View {
+        HStack(spacing: 0) {
             // 左半: 撤回 — 无可撤回时半透明禁用(占位保形, 双侧共存才像一体胶囊)
             Button(action: onUndo) {
-                Image(systemName: "arrow.uturn.backward")
-                    .font(.system(size: 20 * scale))
+                AndroidMaterialIcon(name: .undo, size: 20 * scale)
                     .foregroundColor(colors.onSurfaceVariant.opacity(showUndo ? 1 : 0.38))
                     .frame(width: halfSize, height: halfSize)
                     .contentShape(Rectangle())
             }
             .buttonStyle(SleepyButtonStyle())
+            .frame(width: style == .classic ? halfSize : nil, height: style == .classic ? halfSize : nil)
             .disabled(!showUndo)
             .accessibilityLabel(L10n.format("schedule_undo"))
             .accessibilityIdentifier("undo_button")
 
             // 中缝: 淡淡竖线 — 与图标同色调降透明度, 视觉上"一体两半"
-            Rectangle()
-                .fill(colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive))
-                .frame(width: 1, height: dividerHeight)
+            if style == .classic {
+                Rectangle()
+                    .fill(colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive))
+                    .frame(width: scale, height: 14 * scale)
+            } else {
+                Color.clear.frame(width: scale, height: 14 * scale)
+            }
 
             // 右半: 取消撤回 — 无可重做时半透明禁用
             Button(action: onRedo) {
-                Image(systemName: "arrow.uturn.forward")
-                    .font(.system(size: 20 * scale))
+                AndroidMaterialIcon(name: .redo, size: 20 * scale)
                     .foregroundColor(colors.onSurfaceVariant.opacity(showRedo ? 1 : 0.38))
                     .frame(width: halfSize, height: halfSize)
                     .contentShape(Rectangle())
             }
             .buttonStyle(SleepyButtonStyle())
+            .frame(width: style == .classic ? halfSize : nil, height: style == .classic ? halfSize : nil)
             .disabled(!showRedo)
             .accessibilityLabel(L10n.format("schedule_redo"))
             .accessibilityIdentifier("redo_button")
         }
-        .frame(height: halfSize)
-        .background(colors.surfaceContainerHigh)
-        .clipShape(Capsule())
     }
 }
 
@@ -368,9 +423,9 @@ private struct UndoRedoCapsule: View {
 // Cards 网格的 TimeSlot: 每节一行(node/nodeStart 单节, 原版本 同为逐节行)
 // ← 原版本 TimeTableUtils.timeSlotsFor(state.effectiveCurrentTable): 时间域真源=水合表,
 //   表为 nil → 空表(禁 DEFAULT_TIME_JSON 兜底 — 有表无课才进得本页, 语义与 原版本 对齐)
-private func cardTimeSlots(table: TimeTableEntity?) -> [TimeSlot] {
-    guard let table else { return [] }
-    return TimeTableUtils.renderSlots(timeJson: table.timeJson)
+private func cardTimeSlots(timeJson: String?) -> [TimeSlot] {
+    guard let timeJson else { return [] }
+    return TimeTableUtils.renderSlots(timeJson: timeJson)
 }
 
 // v1.0.62 B5b: 调休渲染改逐日投影 ← ScheduleScreen.kt L290-300 (coursesForDate 版):
@@ -406,6 +461,8 @@ private struct WeekPager: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var drag = CourseDragContext()
     @State private var dragError = false
+    @State private var dragHostWeek: Int?
+    @State private var pagerEpoch: UInt = 0
     let viewMode: ViewMode
     let pagerMaxWeek: Int
     let displayMode: String
@@ -433,6 +490,18 @@ private struct WeekPager: View {
 
     var body: some View {
         dragPager
+            .onReceive(drag.$source.map { $0?.displayWeek }.removeDuplicates()) { sourceWeek in
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    if let hostWeek = dragHostWeek, sourceWeek == nil,
+                       hostWeek != viewModel.state.selectedWeek {
+                        // Start at the final week; the old pinned pager can report intermediate pages.
+                        pagerEpoch &+= 1
+                    }
+                    dragHostWeek = sourceWeek
+                }
+            }
             .onChange(of: viewModel.state.selectedTableId) { _ in drag.end() }
             .onChange(of: viewMode) { _ in drag.end() }
             .onChange(of: dragEnabled) { if !$0 { drag.end(); quickAdd.dismiss() } }
@@ -451,18 +520,58 @@ private struct WeekPager: View {
 
     private var pages: some View {
         let state = viewModel.state
-        // VM 变化(TopBar 点击) → 同步 pager(直写 selection); 手势滑动 → changeWeek 回写 VM
+        let epoch = pagerEpoch
+        // Keep TabView's source subtree alive, including its scroll and expanded rows.
+        // Target pages are measured alongside it instead of waiting for lazy page hosts.
         return TabView(selection: Binding(
-            get: { min(max(state.selectedWeek, 1), pagerMaxWeek) },
-            set: { newWeek in viewModel.changeWeek(newWeek) }   // 手势滑动 → VM
+            get: { min(max(dragHostWeek ?? state.selectedWeek, 1), pagerMaxWeek) },
+            set: { newWeek in
+                guard epoch == pagerEpoch, dragHostWeek == nil else { return }
+                viewModel.changeWeek(newWeek)
+            }
         )) {
             ForEach(1...pagerMaxWeek, id: \.self) { page in
+                ZStack {
+                    weekPage(page, renderSelectedWeek: dragHostWeek ?? state.selectedWeek,
+                             publishesDropGrid: dragHostWeek == nil || page == dragHostWeek)
+                        .opacity(dragHostWeek == nil || page == state.selectedWeek ? 1 : 0)
+                    if dragHostWeek == page {
+                        dragTargetPages
+                    }
+                }
+                .tag(page)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .id(epoch)
+    }
+
+    private var dragTargetPages: some View {
+        let state = viewModel.state
+        return ForEach(1...pagerMaxWeek, id: \.self) { page in
+            if page != dragHostWeek,
+               TimetableViewportPolicy.shouldRenderWeek(page, selectedWeek: state.selectedWeek,
+                                                         dragHostWeek: nil) {
+                weekPage(page, renderSelectedWeek: state.selectedWeek, publishesDropGrid: true)
+                    .opacity(page == state.selectedWeek ? 1 : 0)
+                    .allowsHitTesting(page == state.selectedWeek)
+            }
+        }
+    }
+
+    private func weekPage(_ page: Int, renderSelectedWeek: Int, publishesDropGrid: Bool) -> some View {
+        let state = viewModel.state
+        return Group {
+            if (dragHostWeek == nil || publishesDropGrid),
+               TimetableViewportPolicy.shouldRenderWeek(page, selectedWeek: renderSelectedWeek,
+                                                         dragHostWeek: dragHostWeek) {
                 // page 是 1-based 周索引,独立于 state.currentWeek 过滤课程
                 let weekCourses: [CourseEntity] = {
                     let list = state.courses.filter { $0.inWeek(page) }
                     // issue#40: normalizeNode 时间域真源 = 水合表 effectiveCurrentTable
                     // (绑定作息表编辑后立即生效), 不得再读 currentTable.timeJson 旧兼容列
-                    guard let tj = state.effectiveCurrentTable?.timeJson else { return list }
+                    guard let tj = state.effectiveRenderTimeJson else { return list }
                     return list.map { $0.normalizeNode(timeJson: tj) }
                 }()
                 // v1.0.62 B5b: 调休渲染改 coursesForDate 逐日投影 ← ScheduleScreen.kt L290-300
@@ -470,7 +579,7 @@ private struct WeekPager: View {
                 let renderCourses = state.currentTable.map {
                     renderCoursesForWeek($0, week: page, courses: state.courses,
                                          transfers: state.transfers,
-                                         timeJson: state.effectiveCurrentTable?.timeJson)
+                                         timeJson: state.effectiveRenderTimeJson)
                 } ?? weekCourses
                 Group {
                     switch viewMode {
@@ -479,7 +588,7 @@ private struct WeekPager: View {
                                      visibleDays: visibleDays,
                                      displayMode: displayMode,
                                      // issue#40: 时间域读水合表 ← 原版本 effectiveCurrentTable?.timeJson ?: ""
-                                     timeJson: state.effectiveCurrentTable?.timeJson ?? "",
+                                     timeJson: state.effectiveRenderTimeJson ?? "",
                                      startDate: state.currentTable?.startDate ?? "",
                                      currentWeek: page,
                                        onCourseClick: { onCourseClick($0, page) },
@@ -488,9 +597,9 @@ private struct WeekPager: View {
                                      showDate: showDate)
                     case .cards:
                         CardsGridView(courses: renderCourses,
-                                      timeSlots: cardTimeSlots(table: state.effectiveCurrentTable),
+                                      timeSlots: cardTimeSlots(timeJson: state.effectiveRenderTimeJson),
                                       // issue#40 §5: 时间域(含非常规课占位合成)同样以水合表为准
-                                      timeJson: state.effectiveCurrentTable?.timeJson ?? "",
+                                      timeJson: state.effectiveRenderTimeJson ?? "",
                                       visibleDays: visibleDays,
                                       showDate: showDate,
                                       startDate: state.currentTable?.startDate ?? "",
@@ -512,18 +621,19 @@ private struct WeekPager: View {
                                       dragTransfers: state.transfers,
                                       quickAddState: quickAdd,
                                       quickAddEnabled: quickAddEnabled && dragEnabled && page == state.selectedWeek,
-                                      onQuickAdd: { day, node, step in onQuickAdd(page, day, node, step) })
+                                      onQuickAdd: { day, node, step in onQuickAdd(page, day, node, step) },
+                                      publishesDropGrid: publishesDropGrid)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .environment(\.courseDragContext, viewMode == .cards ? drag : nil)
-                .environment(\.courseDragWeek, page)
-                .accessibilityHidden(page != state.selectedWeek)
-                .tag(page)
+            } else {
+                Color.clear
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .tabViewStyle(.page(indexDisplayMode: .never))
+        .environment(\.courseDragContext, viewMode == .cards && publishesDropGrid ? drag : nil)
+        .environment(\.courseDragWeek, page)
+        .accessibilityHidden(page != state.selectedWeek)
+        .tag(page)
     }
 
     private var dragPager: some View {
@@ -580,9 +690,17 @@ private struct WeekPager: View {
     }
 }
 
+private struct NativeToolbarMetricsKey: PreferenceKey {
+    static var defaultValue: [Int: CGSize] = [:]
+    static func reduce(value: inout [Int: CGSize], nextValue: () -> [Int: CGSize]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
 // ← TopBar
 private struct ScheduleTopBar: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let currentWeek: Int
     let maxWeek: Int
     let startDate: String
@@ -606,125 +724,169 @@ private struct ScheduleTopBar: View {
     // ← 原版本 menuOpen=true: 打开跳周 DropdownMenu(浮层由 ScheduleScreen 呈现)
     var onOpenWeekJump: () -> Void = {}
 
+    @Environment(\.layoutDirection) private var direction
     @State private var barWidth: CGFloat = 0
-    @State private var weekControlsWidth: CGFloat = 0
+    @State private var nativeSizes: [Int: CGSize] = [:]
 
     var body: some View {
-        // ← 原版本: actualWeek = displayContext?.actualWeek ?: currentWeek(startDate);
-        //   semesterStatus = displayContext?.semesterStatus ?: semesterStatus(startDate, maxWeek)
         let actualWeek = displayContext?.actualWeek
             ?? (startDate.isEmpty ? 1 : DateUtils.currentWeek(startDate: startDate))
         let isOnActual = currentWeek == actualWeek
-        let semesterStatus = displayContext?.semesterStatus
-            ?? DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek)
-        let leadingWidth: CGFloat = 32
-            + ((hasUndoSnapshot || hasRedoSnapshot) ? 6 + 65 : 0)
-            + (scaleUncommitted ? 38 : 0)
-        // Compare widths in one local layout space. A global origin includes
-        // the window/column inset and can incorrectly admit overlapping buttons.
-        let sideSpace = (barWidth - weekControlsWidth) / 2
-        let separateActions = barWidth <= 0 || weekControlsWidth <= 0
-            || sideSpace < max(leadingWidth, 70) + 8
-        let weekControls = pagerTriple(isOnActual: isOnActual, semesterStatus: semesterStatus)
-            .background(GeometryReader { proxy in
-                Color.clear.preference(key: WeekControlsWidthKey.self, value: proxy.size.width)
-            })
-            .frame(maxWidth: .infinity)
+        let status = displayContext?.semesterStatus ?? DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek)
+        let label = L10n.format("schedule_current_week", currentWeek)
+        let description = status == .inRange ? label
+            : L10n.format(status == .beforeStart ? "semester_not_started" : "semester_ended") + " · " + label
+        let font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        let textWidth = ceil((label as NSString).size(withAttributes: [.font: font]).width)
+        let numberWidth = max(32, ceil((String(currentWeek) as NSString).size(withAttributes: [.font: font]).width) + 8)
+        let layout = ScheduleToolbarGeometry.resolve(width: max(0, barWidth),
+            fullCenterWidth: 140 + textWidth, groupedCenterWidth: 66 + numberWidth,
+            history: hasUndoSnapshot || hasRedoSnapshot, confirm: scaleUncommitted)
         Group {
-            if separateActions {
-                VStack(spacing: 8) {
-                    weekControls
-                    HStack {
-                        leadingActions(capsuleScale: 1)
-                        Spacer(minLength: 8)
-                        trailingActions
-                    }
-                }
+            if style == .liquidGlass {
+                nativeToolbar(isOnActual: isOnActual, label: label, description: description,
+                              numberWidth: numberWidth, fallbackCenterWidth: 140 + textWidth)
             } else {
-                ZStack {
-                    weekControls
-                    leadingActions(capsuleScale: 1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    trailingActions
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                GeometryReader { proxy in
+                    let fit = layout.fitScale
+                    let leadingX = layout.inset + layout.startWidth * fit / 2
+                    let trailingX = proxy.size.width - layout.inset - layout.endWidth * fit / 2
+                    ZStack {
+                        leadingActions(scale: layout.sideScale, gap: layout.sideGap)
+                            .frame(width: layout.startWidth)
+                            .scaleEffect(fit)
+                            .position(x: direction == .leftToRight ? leadingX : proxy.size.width - leadingX, y: proxy.size.height / 2)
+                        pagerTriple(isOnActual: isOnActual, grouped: layout.grouped, label: label,
+                                    description: description, numberWidth: numberWidth)
+                            .frame(width: layout.centerWidth)
+                            .scaleEffect(fit)
+                            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                        trailingActions(scale: layout.sideScale, gap: layout.sideGap)
+                            .frame(width: layout.endWidth)
+                            .scaleEffect(fit)
+                            .position(x: direction == .leftToRight ? trailingX : proxy.size.width - trailingX, y: proxy.size.height / 2)
+                    }
+                    .preference(key: TopBarWidthKey.self, value: proxy.size.width)
                 }
+                .frame(height: barWidth > 0 ? layout.height : 48)
             }
         }
-        .frame(maxWidth: .infinity)
-        .background(GeometryReader { proxy in
-            Color.clear.preference(key: TopBarWidthKey.self, value: proxy.size.width)
-        })
         .onPreferenceChange(TopBarWidthKey.self) { barWidth = $0 }
-        .onPreferenceChange(WeekControlsWidthKey.self) { weekControlsWidth = $0 }
-        .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(colors.surface)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("schedule_toolbar")
     }
 
-    private func leadingActions(capsuleScale: CGFloat) -> some View {
+    /// System buttons add their own content insets. Measure their actual groups
+    /// before fitting so native chrome cannot overflow the Material slot widths.
+    private func nativeToolbar(isOnActual: Bool, label: String, description: String,
+                               numberWidth: CGFloat, fallbackCenterWidth: CGFloat) -> some View {
+        let start = nativeSizes[0] ?? CGSize(width: hasUndoSnapshot || hasRedoSnapshot ? 173 : 68, height: 58)
+        let end = nativeSizes[2] ?? CGSize(width: 144, height: 58)
+        let fullCenter = nativeSizes[1]?.width ?? fallbackCenterWidth
+        let grouped = fullCenter + 2 * max(start.width, end.width) + 32 > barWidth
+        let centerID = grouped ? 3 : 1
+        let center = nativeSizes[centerID] ?? CGSize(width: grouped ? 66 + numberWidth : fullCenter, height: 58)
+        let required = center.width + 2 * max(start.width, end.width) + 16
+        let fit = min(1, max(0, barWidth - 16) / max(required, 1))
+        let height = max(start.height, end.height, center.height) * fit
+        return GeometryReader { proxy in
+            ZStack {
+                nativeMeasured(leadingActions(scale: 1, gap: 4), id: 0)
+                    .scaleEffect(fit)
+                    .position(x: direction == .leftToRight ? 8 + start.width * fit / 2 : proxy.size.width - 8 - start.width * fit / 2,
+                              y: proxy.size.height / 2)
+                nativeMeasured(pagerTriple(isOnActual: isOnActual, grouped: grouped, label: label,
+                                           description: description, numberWidth: numberWidth), id: centerID)
+                    .scaleEffect(fit)
+                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                nativeMeasured(trailingActions(scale: 1, gap: 8), id: 2)
+                    .scaleEffect(fit)
+                    .position(x: direction == .leftToRight ? proxy.size.width - 8 - end.width * fit / 2 : 8 + end.width * fit / 2,
+                              y: proxy.size.height / 2)
+            }
+            .preference(key: TopBarWidthKey.self, value: proxy.size.width)
+        }
+        .frame(height: barWidth > 0 ? height : 58)
+        .onPreferenceChange(NativeToolbarMetricsKey.self) { sizes in
+            nativeSizes.merge(sizes, uniquingKeysWith: { _, new in new })
+        }
+    }
+
+    private func nativeMeasured<Content: View>(_ content: Content, id: Int) -> some View {
+        content.fixedSize()
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: NativeToolbarMetricsKey.self, value: [id: proxy.size])
+            })
+    }
+
+    private func leadingActions(scale: CGFloat, gap: CGFloat) -> some View {
         HStack(spacing: 0) {
-            WeekNavButton(icon: "calendar", a11yLabel: L10n.format("schedule_switch_table"), onClick: onSwitchTable)
+            WeekNavButton(icon: .calendarMonth, a11yLabel: L10n.format("schedule_switch_table"), scale: scale, onClick: onSwitchTable)
                 .accessibilityIdentifier("switch_table")
-            SleepyPopup(visible: hasUndoSnapshot || hasRedoSnapshot) {
+            if hasUndoSnapshot || hasRedoSnapshot {
                 UndoRedoCapsule(showUndo: hasUndoSnapshot, showRedo: hasRedoSnapshot,
-                                scale: capsuleScale, onUndo: onUndo, onRedo: onRedo)
-                    .padding(.leading, 6)
+                                scale: scale, onUndo: onUndo, onRedo: onRedo)
+                    .padding(.leading, gap * scale)
             }
             if scaleUncommitted {
-                WeekNavButton(icon: "checkmark", a11yLabel: L10n.format("schedule_scale_keep"), onClick: onScaleCommit)
+                WeekNavButton(icon: .check, a11yLabel: L10n.format("schedule_scale_keep"), scale: scale, onClick: onScaleCommit)
                     .accessibilityIdentifier("scale_keep")
-                    .padding(.leading, 6)
+                    .padding(.leading, gap * scale)
             }
         }
     }
 
-    private var trailingActions: some View {
-        HStack(spacing: 6) {
-            WeekNavButton(icon: "plus", a11yLabel: L10n.format("schedule_add_course"), onClick: onAddCourse)
+    private func trailingActions(scale: CGFloat, gap: CGFloat) -> some View {
+        HStack(spacing: gap * scale) {
+            WeekNavButton(icon: .add, a11yLabel: L10n.format("schedule_add_course"), scale: scale, onClick: onAddCourse)
                 .accessibilityIdentifier("topbar_add")
-            WeekNavButton(icon: "square.and.arrow.up", a11yLabel: L10n.format("schedule_share_table"), onClick: onShare)
+            WeekNavButton(icon: .iosShare, a11yLabel: L10n.format("schedule_share_table"), scale: scale, onClick: onShare)
                 .accessibilityIdentifier("topbar_share")
         }
     }
 
-    // 翻页三件套(箭头+胶囊+箭头); 胶囊点击 = 跳周菜单/一键跳回
-    // isOnActual/semesterStatus 由 body 统一算(优先 displayContext)传入 —
-    // ← 原版本 TopBar 单点计算, 三件套与表头点击行为共用同一真值
-    private func pagerTriple(isOnActual: Bool, semesterStatus: DateUtils.SemesterStatus) -> some View {
-        return HStack(spacing: 8) {
-            WeekNavButton(icon: "chevron.left", onClick: onPrevWeek)
-
-            // 第 N 周 标签 — 点击行为根据是否在当前实际周而不同
-            // ★ 跳周弹层走 ScheduleScreen 顶层 ZStack 浮层(WeekJumpMenu),
-            //   ← 原版本 DropdownMenu 280dp FlowRow chip 弹层逐项对齐。
+    private func pagerTriple(isOnActual: Bool, grouped: Bool, label: String, description: String, numberWidth: CGFloat) -> some View {
+        HStack(spacing: grouped ? 0 : 8) {
+            if grouped { groupedArrow(.chevronLeft, action: onPrevWeek); groupDivider }
+            else { WeekNavButton(icon: .chevronLeft, onClick: onPrevWeek) }
             Button {
-                if isOnActual {
-                    onOpenWeekJump()
-                } else {
-                    onJumpToActual()   // 不在实际周 → 一键跳回(原 simultaneousGesture 语义)
-                }
+                if isOnActual { onOpenWeekJump() } else { onJumpToActual() }
             } label: {
-                // ★ 学期外: 标签带上周数(学期未开始 · 第 3 周), 翻周时数字跟着变, 用户才知道自己看到第几周
-                Text(semesterStatus == .inRange
-                     ? L10n.format("schedule_current_week", currentWeek)
-                     : "\(L10n.format(semesterStatus == .beforeStart ? "semester_not_started" : "semester_ended")) · \(L10n.format("schedule_week_prefix", currentWeek))")
+                Text(grouped ? String(currentWeek) : label)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(isOnActual ? colors.onPrimaryContainer : colors.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .allowsTightening(true)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 4)
-                    .background(isOnActual ? colors.primaryContainer
-                                           : colors.primaryContainer.opacity(SleepyTheme.Alpha.inactive))
-                    .cornerRadius(SleepyShapes.medium)
+                    .foregroundColor(isOnActual && !grouped ? colors.onPrimaryContainer : colors.primary)
+                    .lineLimit(1).fixedSize()
+                    .padding(.horizontal, grouped ? 0 : 14)
+                    .padding(.vertical, grouped ? 0 : 4)
+                    .frame(width: grouped ? numberWidth : nil, height: grouped ? 32 : nil)
+                    .modifier(WeekLabelSurface(grouped: grouped, color: isOnActual ? colors.primaryContainer : colors.primaryContainer.opacity(SleepyTheme.Alpha.inactive)))
             }
-            .buttonStyle(SleepyButtonStyle())
-            .accessibilityIdentifier("week_label")   // ← G5: 跳周菜单锚点
-
-            WeekNavButton(icon: "chevron.right", onClick: onNextWeek)
+            .buttonStyle(ScheduleWeekLabelButtonStyle(grouped: grouped))
+            .tint(isOnActual ? colors.primaryContainer : colors.primaryContainer.opacity(SleepyTheme.Alpha.inactive))
+            .accessibilityLabel(description)
+            .accessibilityIdentifier("week_label")
+            if grouped { groupDivider; groupedArrow(.chevronRight, action: onNextWeek) }
+            else { WeekNavButton(icon: .chevronRight, onClick: onNextWeek) }
         }
+        .modifier(WeekGroupSurface(grouped: grouped, color: colors.surfaceContainerHigh))
     }
+
+    private var groupDivider: some View {
+        Rectangle().fill(style == .liquidGlass ? Color.clear : colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive)).frame(width: 1, height: 14)
+    }
+    private func groupedArrow(_ icon: AndroidMaterialIcon.Name, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            AndroidMaterialIcon(name: icon, size: 20).foregroundColor(colors.onSurfaceVariant)
+                .frame(width: 32, height: 32).contentShape(Rectangle())
+        }
+        .buttonStyle(SleepyButtonStyle())
+        .frame(width: 32, height: 32)
+        .accessibilityIdentifier(icon == .chevronLeft ? "week_prev" : "week_next")
+        .accessibilityLabel(L10n.t(icon == .chevronLeft ? "schedule_previous_week" : "schedule_next_week"))
+    }
+
 }
 
 // v7.10.14 顶栏 logo 点击弹出的课表切换弹层 —
@@ -756,8 +918,7 @@ private struct TableSwitcherSheet: View {
                                     .lineLimit(2)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 if isCurrent {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 18))
+                                    AndroidMaterialIcon(name: .check, size: 18)
                                         .foregroundColor(colors.primary)
                                 }
                             }
@@ -782,9 +943,11 @@ private struct TableSwitcherSheet: View {
 // ← WeekNavButton
 private struct WeekNavButton: View {
     @Environment(\.localWakeUpColors) private var colors
-    let icon: String
-    // ← 原版本 contentDescriptionRes: 传了才挂 a11y 标签, 箭头按钮不传
+    @Environment(\.sleepyUIStyle) private var style
+    let icon: AndroidMaterialIcon.Name
+    // Non-arrow actions can override the default week-navigation accessibility label.
     var a11yLabel: String? = nil
+    var scale: CGFloat = 1
     let onClick: () -> Void
 
     var body: some View {
@@ -796,21 +959,24 @@ private struct WeekNavButton: View {
     }
 
     private var button: some View {
-        // ← 原版本: Box.size(32.dp).clip.background.clickable.padding(6.dp) — padding 在框内
-        //   (只缩图标槽 32−2×6=20), 占位恒 32。旧 iOS 把 padding 挂在 frame 外 → 占位 44,
-        //   比 capsuleScale 公式(按 32+6+38+6 预留)每钮多挤 12pt,
-        //   撤回胶囊/tick 会压到居中翻页三件套(issue: 顶栏重叠/与安卓不一致)。
-        //   图标由 frame 32 居中渲染, 不受 padding 位置影响; 热区 32×32 ← SleepyButtonStyle。
+        // v1.0.64: 32pt visual circle inside the 48pt action slot; both
+        // follow the toolbar side scale before the final narrow-window fit.
         Button(action: onClick) {
-            Image(systemName: icon)
+            AndroidMaterialIcon(name: icon, size: 20 * scale)
                 .foregroundColor(colors.onSurfaceVariant)
-                .frame(width: 32, height: 32)
-                .background(colors.surfaceContainerHigh)
-                .clipShape(Circle())
+                .frame(width: style == .classic ? 32 * scale : nil,
+                       height: style == .classic ? 32 * scale : nil)
+                .sleepyControlSurface(cornerRadius: 16 * scale, tint: colors.surfaceContainerHigh)
+                .frame(width: style == .classic ? 48 * scale : nil,
+                       height: style == .classic ? 48 * scale : nil)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 16 * scale, compact: true, shape: .circle))
+        .frame(width: 48 * scale, height: 48 * scale)
+        .tint(colors.surfaceContainerHigh)
         // ← G5: 周导航箭头锚点(chevron.left → week_prev / chevron.right → week_next)
-        .accessibilityIdentifier(icon.contains("left") ? "week_prev" : "week_next")
+        .accessibilityIdentifier(icon == .chevronLeft ? "week_prev" : "week_next")
+        .accessibilityLabel(L10n.t(icon == .chevronLeft ? "schedule_previous_week" : "schedule_next_week"))
     }
 }
 
@@ -821,17 +987,21 @@ private struct WeekNavButton: View {
 //   点击即选即关; 点面板外任意处关闭(自绘 ZStack 浮层, 与仓库浮层容器模式一致)。
 private struct WeekJumpMenu: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let currentWeek: Int
     let maxWeek: Int
     let onSelect: (Int) -> Void
     let onDismiss: () -> Void
 
+    private var chipDiameter: CGFloat { style == .liquidGlass ? 44 : 40 }
+
     var body: some View {
         GeometryReader { geometry in
             let panelWidth = min(280, max(geometry.size.width - 24, 0))
-            let columns = max(Int((panelWidth - 24 + 8) / 48), 1)
+            let stride = chipDiameter + 8
+            let columns = max(Int((panelWidth - 24 + 8) / stride), 1)
             let rows = (max(maxWeek, 1) - 1) / columns + 1
-            let gridHeight = CGFloat(rows) * 48 - 8
+            let gridHeight = CGFloat(rows) * stride - 8
             ZStack(alignment: .top) {
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
@@ -868,7 +1038,7 @@ private struct WeekJumpMenu: View {
     // Keep the familiar five-column menu, allowing fewer columns in narrow panes.
     private var chipGrid: some View {
         let clampedMax = max(maxWeek, 1)
-        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 40, maximum: 40), spacing: 8)],
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: chipDiameter, maximum: chipDiameter), spacing: 8)],
                          alignment: .leading, spacing: 8) {
             ForEach(1...clampedMax, id: \.self) { week in
                 weekChip(week).id(week)
@@ -878,9 +1048,29 @@ private struct WeekJumpMenu: View {
     }
 
     // 40dp Circle chip: 选中 primary/Bold/onPrimary,未选中 surfaceContainerHigh/Regular/onSurface
+    @ViewBuilder
     private func weekChip(_ w: Int) -> some View {
         let isCurrent = w == currentWeek
-        return Button {
+        if style == .liquidGlass {
+            Button { onSelect(w) } label: {
+                Text("\(w)")
+                    .font(.system(size: 14, weight: isCurrent ? .bold : .regular))
+                    .foregroundColor(isCurrent ? colors.onPrimary : colors.onSurface)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: isCurrent,
+                                                   cornerRadius: 20, compact: true, shape: .circle))
+            .tint(colors.primary)
+            .frame(width: chipDiameter, height: chipDiameter)
+            .accessibilityIdentifier("week_num_\(w)")
+            .accessibilityAddTraits(isCurrent ? .isSelected : [])
+        } else {
+            classicWeekChip(w, isCurrent: isCurrent)
+        }
+    }
+
+    private func classicWeekChip(_ w: Int, isCurrent: Bool) -> some View {
+        Button {
             onSelect(w)   // ← onSelectWeek(w) + menuOpen=false: 点击即选即关
         } label: {
             Text("\(w)")
@@ -899,6 +1089,7 @@ private struct WeekJumpMenu: View {
 // ← NoCourseState
 private struct NoCourseState: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let tableName: String
     let onAddCourse: () -> Void
     let onImport: () -> Void
@@ -916,21 +1107,23 @@ private struct NoCourseState: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onPrimary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(colors.primary)
-                    .cornerRadius(SleepyShapes.large)
+                    .frame(height: style == .classic ? 56 : nil)
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
             }
-            .buttonStyle(SleepyButtonStyle())
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .frame(minHeight: 56)
+            .tint(colors.primary)
             Button(action: onImport) {
                 Text(L10n.format("schedule_go_manage"))
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSecondaryContainer)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(colors.secondaryContainer)
-                    .cornerRadius(SleepyShapes.large)
+                    .frame(height: style == .classic ? 56 : nil)
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
             }
-            .buttonStyle(SleepyButtonStyle())
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .frame(minHeight: 56)
+            .tint(colors.secondaryContainer)
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 24)
@@ -942,6 +1135,7 @@ private struct NoCourseState: View {
 // ← EmptyState — 主按钮=导入第一张课表, 副按钮=建表流(无表载体时"加课"无从谈起, ← 原版本)
 private struct EmptyState: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let onGoImport: () -> Void
     var onCreateTable: () -> Void = {}
 
@@ -958,21 +1152,23 @@ private struct EmptyState: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onPrimary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(colors.primary)
-                    .cornerRadius(SleepyShapes.large)
+                    .frame(height: style == .classic ? 56 : nil)
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
             }
-            .buttonStyle(SleepyButtonStyle())
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .frame(minHeight: 56)
+            .tint(colors.primary)
             Button(action: onCreateTable) {
                 Text(L10n.format("schedule_empty_create_table"))
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSecondaryContainer)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(colors.secondaryContainer)
-                    .cornerRadius(SleepyShapes.large)
+                    .frame(height: style == .classic ? 56 : nil)
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
             }
-            .buttonStyle(SleepyButtonStyle())
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .frame(minHeight: 56)
+            .tint(colors.secondaryContainer)
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 24)

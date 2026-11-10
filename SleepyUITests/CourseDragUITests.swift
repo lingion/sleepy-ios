@@ -44,7 +44,17 @@ final class CourseDragUITests: XCTestCase {
         waitForHittable(button)
         XCTAssertTrue(button.exists, "\(identifier) 必须存在")
         XCTAssertTrue(button.isEnabled, "\(identifier) 应可用")
-        button.tap()
+        var previousFrame = button.frame
+        var stableSince = Date()
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard button.exists && button.isHittable else { return false }
+            let frame = button.frame
+            if frame != previousFrame { stableSince = Date() }
+            previousFrame = frame
+            return self.app.frame.contains(frame) && Date().timeIntervalSince(stableSince) >= 0.3
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
+        button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
     private func assertNoUndoOrRedo(file: StaticString = #filePath, line: UInt = #line) {
@@ -193,10 +203,10 @@ final class CourseDragUITests: XCTestCase {
         XCTAssertEqual(app.collectionViews.matching(identifier: "schedule_week_pager").count, 1)
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let target = coordinate(at: CGPoint(x: pager.frame.maxX - 9, y: originalCard.frame.midY))
-        // XCTest includes the release phase in the edge dwell. With the normal
-        // pickup, 1.2s of explicit hold can reach Week 4; budget two 500ms pages
-        // while preserving the exact Week 3/drop/undo/restart assertions below.
-        source.press(forDuration: 1, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 0.85)
+        // The recorded 0.85s hold left 0.472s from the first native edge sample
+        // to performDrop. Budget two 500ms pages plus that measured native tail;
+        // retain the exact Week 3/drop/undo/restart assertions below.
+        source.press(forDuration: 1, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 1.5)
         waitForWeek(3)
         // 第3周原有周一课必须保留，并额外出现从第1周移来的周日单次课。
         assertMathCount(2)
@@ -236,7 +246,9 @@ final class CourseDragUITests: XCTestCase {
         // 左边缘在时间轴外，落到首个星期列的5–6节，避免与第1周已有高数重叠。
         let target = coordinate(at: CGPoint(x: pager.frame.minX + 9,
                                            y: expectedCenter(day: 1, startNode: 5).y))
-        source.press(forDuration: 1, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 1.2)
+        // The recorded 1.2s destination hold leaves only 0.887s after UIKit's lift
+        // enters the drop session. Allow two full 500ms pages; Week 1 is the boundary.
+        source.press(forDuration: 1, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 1.7)
         waitForWeek(1)
         assertMathCount(2)
         assertOccurrence(movedCard(), week: 1, day: 1, startNode: 5, firstWeek: 1, lastWeek: 1)

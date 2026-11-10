@@ -19,9 +19,17 @@ enum SleepyUITestSeeder {
         // grid 用例起步即在 Week 模式。逐 key 复位到出厂默认(= AppPrefs 各 getter
         // 的 ?? 兜底值), 每个带种子用例拿到的都是干净出厂态。
         let d = AppPrefs.shared.sharedBackedStore
+        // A seeded scenario starts in Classic unless NSArgumentDomain explicitly
+        // requests native glass. Restarts without the seed retain the saved style.
+        d.removeObject(forKey: AppPrefs.KEY_UI_STYLE)
+        d.removeObject(forKey: AppPrefs.KEY_DOCK_THEME)
+        AppPrefs.shared.setUiStyle(AppPrefs.shared.getUiStyle())
         d.removeObject(forKey: AppPrefs.KEY_VISIBLE_DAYS)   // 出厂 1..7 全显
         d.removeObject(forKey: AppPrefs.KEY_SHOW_DATE)      // 出厂 true
         d.removeObject(forKey: AppPrefs.KEY_START_VIEW)     // 出厂 "cards"("cards")
+        // Pinch commits persist across app launches; each seeded scenario starts at 52pt rows.
+        // A restart without the seed flag still verifies the committed scale unchanged.
+        d.removeObject(forKey: AppPrefs.KEY_GRID_ROW_SCALE)  // 出厂 1.0
         d.removeObject(forKey: AppPrefs.KEY_NAV_DOCK)       // 出厂 false(贴底)
         d.removeObject(forKey: "settings_expanded_sections") // 折叠卡展开集(GeneralSettings 持久化)
         // 竖排标点替换开关(方案B): testGeneralToggles 真实点按 → 持久化; UI 测试

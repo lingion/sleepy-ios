@@ -252,6 +252,9 @@ final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
     var baseRowHeightDp: CGFloat = 52
     var currentRowHeightDp: CGFloat = 52
     var contentScale: CGFloat = 1
+    var rowWeights: [CGFloat] = []
+    var mealBreakRows: [Int] = []
+    var mealGapExtra: CGFloat = 0
     var onScaleChange: (CGFloat) -> Void = { _ in }
 
     private var pinch: UIPinchGestureRecognizer?
@@ -262,6 +265,9 @@ final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
     private var startRowHeightDp: CGFloat = 0
     private var locked = false
     private var suppressedScrolling = false
+    private var anchor: TimetableViewportPolicy.PinchAnchor?
+    private var pendingScrollTarget: CGFloat?
+    private var scrollApplyScheduled = false
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -311,6 +317,49 @@ final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
         pinch = nil; attachedTo = nil; hostScroll = nil
         startVerticalSpan = nil
         locked = false
+        anchor = nil
+        pendingScrollTarget = nil
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        applyPendingAnchorScroll()
+    }
+
+    /// Reapply the absolute target after SwiftUI publishes the new content size.
+    /// A target clipped by the preceding frame's scroll limit must not accumulate drift.
+    func scheduleAnchorScroll() {
+        guard pendingScrollTarget != nil, !scrollApplyScheduled else { return }
+        scrollApplyScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.scrollApplyScheduled = false
+            self.applyPendingAnchorScroll()
+        }
+    }
+
+    private func applyPendingAnchorScroll() {
+        guard let target = pendingScrollTarget, let hostScroll else { return }
+        let minimum = -hostScroll.adjustedContentInset.top
+        let maximum = max(minimum, hostScroll.contentSize.height - hostScroll.bounds.height + hostScroll.adjustedContentInset.bottom)
+        let y = min(max(target + minimum, minimum), maximum)
+        if abs(hostScroll.contentOffset.y - y) >= 0.5 {
+            hostScroll.setContentOffset(CGPoint(x: hostScroll.contentOffset.x, y: y), animated: false)
+        }
+    }
+
+    private func finishPinch() {
+        startVerticalSpan = nil
+        locked = false
+        anchor = nil
+        restoreScroll()
+        // Let the final layout consume the final target, then release it before unrelated scrolling.
+        scheduleAnchorScroll()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.startVerticalSpan == nil else { return }
+            self.applyPendingAnchorScroll()
+            self.pendingScrollTarget = nil
+        }
     }
 
     /// 纵向意图锁定后接管滚动(← 原 consume 屏蔽 pager 的 iOS 等价物):
@@ -333,9 +382,7 @@ final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
 
     @objc private func handlePinch(_ g: UIPinchGestureRecognizer) {
         guard enabled, g.state == .began || g.state == .changed, g.numberOfTouches >= 2 else {
-            startVerticalSpan = nil
-            locked = false
-            restoreScroll()
+            finishPinch()
             return
         }
         let p0 = g.location(ofTouch: 0, in: self)
@@ -346,6 +393,19 @@ final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
             startVerticalSpan = max(verticalSpan, 1)
             startHorizontalSpan = horizontalSpan
             startRowHeightDp = currentRowHeightDp
+            pendingScrollTarget = nil
+            if let hostScroll {
+                let first = g.location(ofTouch: 0, in: hostScroll)
+                let second = g.location(ofTouch: 1, in: hostScroll)
+                let topInset = hostScroll.adjustedContentInset.top
+                let centerViewport = (first.y + second.y) / 2 - hostScroll.contentOffset.y
+                let bodyTop = convert(.zero, to: hostScroll).y
+                anchor = TimetableViewportPolicy.capturePinchAnchor(
+                    scrollPx: hostScroll.contentOffset.y + topInset,
+                    centerYPx: centerViewport, headerPx: bodyTop + topInset,
+                    rowPx: currentRowHeightDp, mealGapExtraPx: mealGapExtra,
+                    breakRows: mealBreakRows, weights: rowWeights)
+            }
         }
         guard let sv0 = startVerticalSpan else { return }
         if !locked,
@@ -365,6 +425,12 @@ final class GridPinchResizeUIView: UIView, UIGestureRecognizerDelegate {
                 minRowHeightDp: TimetableViewportPolicy.MIN_ROW_DP * clampedScale,
                 maxRowHeightDp: TimetableViewportPolicy.MAX_ROW_DP * clampedScale)
             onScaleChange(next / max(baseRowHeightDp, 1))
+            if let anchor {
+                pendingScrollTarget = TimetableViewportPolicy.pinchTargetScrollPx(anchor,
+                    rowPx0: startRowHeightDp, rowPx1: next)
+                applyPendingAnchorScroll()
+                scheduleAnchorScroll()
+            }
         }
         // 未锁定且横向明确展开/合拢 → 不改变高度也不接管(原 consume 屏蔽 pager;
         // iOS 靠 Pager 自身手势竞争, 纵向意图未锁定前本识别器不输出)。
@@ -376,6 +442,9 @@ private struct GridPinchResizer: UIViewRepresentable {
     var baseRowHeightDp: CGFloat
     var currentRowHeightDp: CGFloat
     var contentScale: CGFloat
+    var rowWeights: [CGFloat]
+    var mealBreakRows: [Int]
+    var mealGapExtra: CGFloat
     var onScaleChange: (CGFloat) -> Void
 
     func makeUIView(context: Context) -> GridPinchResizeUIView {
@@ -386,6 +455,9 @@ private struct GridPinchResizer: UIViewRepresentable {
         v.baseRowHeightDp = baseRowHeightDp
         v.currentRowHeightDp = currentRowHeightDp
         v.contentScale = contentScale
+        v.rowWeights = rowWeights
+        v.mealBreakRows = mealBreakRows
+        v.mealGapExtra = mealGapExtra
         v.onScaleChange = onScaleChange
         return v
     }
@@ -399,7 +471,11 @@ private struct GridPinchResizer: UIViewRepresentable {
         v.baseRowHeightDp = baseRowHeightDp
         v.currentRowHeightDp = currentRowHeightDp
         v.contentScale = contentScale
+        v.rowWeights = rowWeights
+        v.mealBreakRows = mealBreakRows
+        v.mealGapExtra = mealGapExtra
         v.onScaleChange = onScaleChange
+        v.scheduleAnchorScroll()
     }
 }
 
@@ -518,6 +594,7 @@ struct CardsGridView: View {
     var quickAddState: QuickAddCourseState? = nil
     var quickAddEnabled = false
     var onQuickAdd: ((Int, Int, Int) -> Void)? = nil
+    var publishesDropGrid = true
 
     // 用户反馈 2026-09-16: 占位行展开态(会话级, 键=时间串, 周内多天共享同一空隙 → 同键联动)。
     // ← 原版本 remember(mutableStateOf) — 翻周/离开页面复位由持有方视图生命周期承担。
@@ -735,7 +812,7 @@ struct CardsGridView: View {
                     }
                     .frame(width: availableW, height: gridH, alignment: .topLeading)
                     .background(GeometryReader { gridGeometry in
-                        Color.clear.preference(key: CourseDropGridKey.self, value: [
+                        Color.clear.preference(key: CourseDropGridKey.self, value: publishesDropGrid ? [
                             currentWeek: CourseDropGrid(
                                 frame: gridGeometry.frame(in: .global), days: sortedDays,
                                 timeWidth: timeW, columnWidth: colW, gap: gapW,
@@ -757,7 +834,7 @@ struct CardsGridView: View {
                                     timeSlots: timeSlots, visibleDays: visibleDays,
                                     autoHideEmptyEvening: autoHideEmptyEvening,
                                     eveningStartMinutes: eveningStart))
-                        ])
+                        ] : [:])
                     })
                     // 双指纵向缩放行高(实验室开关默认关 = 手势不挂) ← verticalResizeGesture
                     .background(GridPinchResizer(
@@ -765,6 +842,9 @@ struct CardsGridView: View {
                         baseRowHeightDp: baseRowHeight,
                         currentRowHeightDp: rowHeightDp,
                         contentScale: scale,
+                        rowWeights: ws,
+                        mealBreakRows: mealBreakAfterRows.sorted(),
+                        mealGapExtra: rowLayout.mealGapExtra,
                         onScaleChange: onRowHeightScaleChange)
                         .allowsHitTesting(false))
 
@@ -1023,6 +1103,7 @@ private struct TapExpandModifier: ViewModifier {
 
 private struct CourseOverlayCard: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.courseDragContext) private var drag
     let course: CourseEntity
     var cardHeight: CGFloat = 0   // 0 = 调用方未提供, 回退旧行为
     let isDark: Bool
@@ -1061,7 +1142,10 @@ private struct CourseOverlayCard: View {
             }
         }()
 
-        Button(action: onClick) {
+        Button {
+            guard drag?.permitsCourseTap ?? true else { return }
+            onClick()
+        } label: {
             Group {
                 if subText.isEmpty {
                     // 无副信息: 课程名整体居中(原行为)
@@ -1093,6 +1177,10 @@ private struct CourseOverlayCard: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .buttonStyle(SleepyButtonStyle(dragSource: true))
+        .accessibilityAction {
+            guard drag?.permitsCourseActivation ?? true else { return }
+            onClick()
+        }
         .accessibilityIdentifier("gridcell_\(course.id)")
         .padding(4 * scale)
         .background(effectiveBg)

@@ -3,6 +3,53 @@ import XCTest
 
 final class CourseDragPolicyTests: XCTestCase {
     @MainActor
+    func testLongPressSessionBeginsImmediatelyEndsAndRenewsIdentity() throws {
+        let context = CourseDragContext()
+        let table = TimeTableEntity(name: "拖动", startDate: "2026-09-07", id: 1)
+        let course = CourseEntity(groupId: "lift", tableId: 1, courseName: "课程", day: 1,
+            startNode: 1, step: 2, startWeek: 1, endWeek: 20, color: "#123456", id: 42)
+        let frame = CGRect(x: 44, y: 100, width: 100, height: 100)
+        let oldToken = try XCTUnwrap(context.begin(course, week: 1, frame: frame, touch: CGPoint(x: 70, y: 125),
+            table: table, allCourses: [course], transfers: []))
+        XCTAssertTrue(context.sessionToken === oldToken)
+        XCTAssertEqual(context.source?.origin, CGPoint(x: 70, y: 125))
+        XCTAssertEqual(context.source?.grabOffsetY, 25)
+        XCTAssertEqual(context.source?.cardCenterX, 94)
+        XCTAssertFalse(context.permitsCourseActivation)
+        context.projection = frame
+        context.end()
+        XCTAssertNil(context.source)
+        XCTAssertNil(context.projection)
+        XCTAssertNil(context.sessionToken)
+        context.end()
+        XCTAssertNil(context.source)
+        XCTAssertNil(context.projection)
+        XCTAssertNil(context.sessionToken)
+        XCTAssertTrue(context.permitsCourseActivation)
+        let currentToken = try XCTUnwrap(context.begin(course, week: 1, frame: frame, touch: CGPoint(x: 90, y: 160),
+            table: table, allCourses: [course], transfers: []))
+        XCTAssertTrue(context.sessionToken === currentToken)
+        XCTAssertFalse(currentToken === oldToken)
+        XCTAssertEqual(context.source?.origin, CGPoint(x: 90, y: 160))
+        XCTAssertEqual(context.source?.grabOffsetY, 60)
+        XCTAssertEqual(context.source?.cardCenterX, 94)
+    }
+
+    @MainActor
+    func testStationaryLongHoldReleaseIsConsumedAndNextTapRemainsEligible() {
+        let context = CourseDragContext()
+        context.recordCourseTouchDuration(0.05)
+        XCTAssertTrue(context.permitsCourseTap)
+        context.recordCourseTouchDuration(1.2)
+        XCTAssertFalse(context.permitsCourseTap)
+        XCTAssertTrue(context.permitsCourseActivation, "Keyboard and accessibility activation do not inherit touch duration")
+        context.recordCourseTouchDuration(nil)
+        XCTAssertTrue(context.permitsCourseTap)
+        context.recordCourseTouchDuration(0.05)
+        XCTAssertTrue(context.permitsCourseTap)
+    }
+
+    @MainActor
     func testOwnTimeLiftKeepsFractionalStartOnSameRow() throws {
         let context = CourseDragContext()
         let grid = CourseDropGrid(frame: CGRect(x: 0, y: 100, width: 300, height: 104),
@@ -52,7 +99,6 @@ final class CourseDragPolicyTests: XCTestCase {
         XCTAssertEqual(context.source?.occurrence, captured.occurrence)
         context.end()
         XCTAssertNil(context.source)
-        XCTAssertNil(context.provider)
         XCTAssertNil(context.sessionToken)
         XCTAssertNil(context.begin(projection, week: 6, frame: .zero, touch: nil,
             table: table, allCourses: [original], transfers: []))
@@ -119,6 +165,23 @@ final class CourseDragPolicyTests: XCTestCase {
         XCTAssertEqual(paging.update(direction: 1, now: 2.5, week: 3, maxWeek: 20), 4)
     }
 
+    func testUnmeasuredDestinationWaitsWithoutConsumingTheDwell() {
+        var paging = CourseDragEdgePaging()
+        XCTAssertNil(paging.update(direction: -1, now: 0, week: 3, maxWeek: 20,
+                                   destinationReady: false))
+        XCTAssertNil(paging.update(direction: -1, now: 0.5, week: 3, maxWeek: 20,
+                                   destinationReady: false))
+        XCTAssertNil(paging.update(direction: -1, now: 0.8, week: 3, maxWeek: 20,
+                                   destinationReady: false))
+        XCTAssertEqual(paging.update(direction: -1, now: 0.9, week: 3, maxWeek: 20,
+                                    destinationReady: true), 2)
+        // A delayed measurement permits one page, never a burst of queued pages.
+        XCTAssertNil(paging.update(direction: -1, now: 0.9, week: 2, maxWeek: 20))
+        XCTAssertNil(paging.update(direction: -1, now: 1.399, week: 2, maxWeek: 20))
+        XCTAssertEqual(paging.update(direction: -1, now: 1.401, week: 2, maxWeek: 20), 1)
+        XCTAssertNil(paging.update(direction: -1, now: 2.4, week: 1, maxWeek: 20))
+    }
+
     func testChangingEdgeRestartsDwellAndSemesterBoundsHold() {
         var paging = CourseDragEdgePaging()
         XCTAssertNil(paging.update(direction: 1, now: 0, week: 2, maxWeek: 3))
@@ -136,5 +199,18 @@ final class CourseDragPolicyTests: XCTestCase {
         XCTAssertEqual(CourseDragEdgePaging.direction(at: CGPoint(x: 5, y: 40), origin: CGPoint(x: 200, y: 40), bounds: bounds), -1)
         XCTAssertEqual(CourseDragEdgePaging.direction(at: CGPoint(x: 395, y: 40), origin: CGPoint(x: 200, y: 40), bounds: bounds), 1)
         XCTAssertEqual(CourseDragEdgePaging.direction(at: CGPoint(x: 395, y: -1), origin: CGPoint(x: 200, y: 40), bounds: bounds), 0)
+    }
+
+    func testEdgeUsesOutwardFingerOrCenterWithoutUsingCardBounds() {
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: 30, fingerX: 5, originX: 200, width: 400), -1)
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: 5, fingerX: 30, originX: 200, width: 400), -1)
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: 370, fingerX: 395, originX: 200, width: 400), 1)
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: 395, fingerX: 370, originX: 200, width: 400), 1)
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: 200, fingerX: 395, originX: 200, width: 400), 0)
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: 384, fingerX: nil, originX: 200, width: 400), 0)
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: 395, fingerX: nil, originX: 200, width: 400), 1)
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: -5, fingerX: -15, originX: 200, width: 400), -1)
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: 60, fingerX: 55, originX: 250,
+                                                     width: 400, minimumX: 50), -1)
     }
 }
