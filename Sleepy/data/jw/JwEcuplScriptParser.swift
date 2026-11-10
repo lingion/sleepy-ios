@@ -3,14 +3,13 @@
 // ECUPL script 子协议解析器 — wakeup-parity-ecupl-super-2026-10-06 SOP v1.11。
 //
 // OpenWakeUp EcuplParser.kt @ 9c2d0436 证实八参 newActivity 携带教师/课名/教室/
-// 起始日期与十进制周次位图; addActivityByTime(activity, day, startMin, endMin)
-// 由 CourseTable 把分钟映射回节次。本文件是已观察协议事实的独立实现。
+// 起始日期与十进制周次位图; addActivityByTime(activity, day, startHHmm, endHHmm)
+// 由 CourseTable 把 HHmm 时钟映射回节次。本文件是已观察协议事实的独立实现。
 //
 // 与 原版本 的实现差异(等价翻译, 详见各函数注释):
 //   a. java.time.LocalDate.parse(严格 ISO) → 手写 ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
 //      正则 + 月/日合法域校验 (DateFormatter 宽松解析会把 2026-02-30 顺延)。
-//   b. ChronoUnit.WEEKS.between(a, b) = (b.toEpochDay() - a.toEpochDay()) / 7
-//      (Java 整除向零截断) → Howard Hinnant days_from_civil 纯算术 epochDay,
+//   b. 相差天数向下整除 7 → Howard Hinnant days_from_civil 纯算术 epochDay,
 //      不经 Date/Calendar 避免 DST 与时区歧义。
 //   c. Kotlin Regex \d 默认 ASCII → 一律 [0-9] 字符类 (PR #22 教训:
 //      iOS 26 ICU 的 \d 会吞全角数字)。
@@ -48,9 +47,9 @@ final class JwEcuplScriptParser: JwParser, JwParserConfidenceReporting {
     /// addActivityByTime(activity, day, startMin, endMin); day 为单个数字。
     private static let reSlot = try! NSRegularExpression(
         pattern: "addActivityByTime\\(\\s*activity\\s*,\\s*([0-9])\\s*,\\s*([0-9]+)\\s*,\\s*([0-9]+)\\s*\\);")
-    /// `<script language="JavaScript">` 块体抽取 (IGNORE_CASE)。
+    /// 完整 script 块体；language 属性并非协议必需字段。
     private static let reScript = try! NSRegularExpression(
-        pattern: "<script[^>]*language\\s*=\\s*\"?JavaScript\"?[^>]*>([\\s\\S]*?)</script>",
+        pattern: "<script\\b[^>]*>([\\s\\S]*?)</script\\s*>",
         options: [.caseInsensitive])
     /// newActivity 段起点。
     private static let reActivityStart = try! NSRegularExpression(
@@ -69,20 +68,16 @@ final class JwEcuplScriptParser: JwParser, JwParserConfidenceReporting {
         guard let table = Self.firstMatch(Self.reCourseTable, src) else { return out }
         guard let semester = Self.parseIsoDate(table.group(1) ?? "") else { return out }
         let matrix = table.group(2) ?? ""
+        guard let data = ("[" + matrix + "]").data(using: .utf8),
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [[Any]], !rows.isEmpty else { return out }
         var periods: [(Int, Int)?] = []
-        for m in Self.allMatches(Self.reTimePair, matrix) {
-            let ns = matrix as NSString
-            let start = Int(ns.substring(with: m.range(at: 1)))
-            let end = Int(ns.substring(with: m.range(at: 2)))
-            if let s = start, let e = end, s < e, e <= 1440 {
-                periods.append((s, e))
-            } else {
-                periods.append(nil)
-            }
+        for row in rows {
+            guard row.count == 2, let start = jw1064Integer(row[0]), let end = jw1064Integer(row[1]),
+                  start < end, Self.hhmm(start) != nil, Self.hhmm(end) != nil else { return out }
+            periods.append((start, end))
         }
-        if periods.isEmpty || periods.contains(where: { $0 == nil }) { return out }
 
-        // 含 CourseTable 调用的 JavaScript script 块 (通知页路径)
+        // 含 CourseTable 调用的 script 块 (通知页路径)
         let tableValue = table.group(0) ?? ""
         let script = Self.allMatches(Self.reScript, src)
             .map { (src as NSString).substring(with: $0.range(at: 1)) }
@@ -90,6 +85,7 @@ final class JwEcuplScriptParser: JwParser, JwParserConfidenceReporting {
         guard let script = script else { return out }
 
         // 逐 newActivity 段: 段 = 本起点到下一起点 (末段到 script 结尾)
+        let details = ecuplDetails(source)
         let scriptNs = script as NSString
         let starts = Self.allMatches(Self.reActivityStart, script).map { $0.range.location }
         for (i, start) in starts.enumerated() {
@@ -100,17 +96,24 @@ final class JwEcuplScriptParser: JwParser, JwParserConfidenceReporting {
             guard let m = Self.firstMatch(Self.reNewActivity8, segment), m.range.location == 0 else { continue }
             guard let date = Self.parseIsoDate(m.group(4) ?? "") else { continue }
             guard let bitmap = Int64(m.group(5) ?? "") else { continue }
-            // ChronoUnit.WEEKS.between(semester, date): epochDay 差 / 7 (向零截断)
-            let offset = (Self.epochDay(date) - Self.epochDay(semester)) / 7
+            let days = Self.epochDay(date) - Self.epochDay(semester)
+            let offset = Int(floor(Double(days) / 7))
             var weeks: [Int] = []
-            for bit in 0..<64 where (bitmap & (Int64(1) << bit)) != 0 {
-                weeks.append(bit + offset + 1)
-            }
+            for bit in 0..<64 where (bitmap & (Int64(1) << bit)) != 0 { weeks.append(bit + offset) }
             if weeks.isEmpty || weeks.contains(where: { !(1...64).contains($0) }) { continue }
-            let name = Self.replaceMatches(Self.reTrailingIndex, m.group(2) ?? "", with: "")
-                .trimmingCharacters(in: .whitespaces)
-            let teacher = (m.group(1) ?? "").trimmingCharacters(in: .whitespaces)
-            let room = (m.group(3) ?? "").trimmingCharacters(in: .whitespaces)
+            let rawName = (m.group(2) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let code = rawName.range(of: "(", options: .backwards).map { String(rawName[$0.upperBound...]).replacingOccurrences(of: #"\)$"#, with: "", options: .regularExpression) } ?? ""
+            let detail = details[code]
+            let stripped = rawName.hasSuffix(")") && code.range(of: #"^[A-Za-z0-9_.-]*[0-9][A-Za-z0-9_.-]*$"#, options: .regularExpression) != nil
+                ? String(rawName[..<(rawName.range(of: "(", options: .backwards)!.lowerBound)]).trimmingCharacters(in: .whitespacesAndNewlines) : rawName
+            let name = detail?.name ?? stripped
+            let rawTeacher = (m.group(1) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let teacher: String
+            if let detail, !detail.teacher.isEmpty, rawTeacher != detail.teacher {
+                teacher = rawTeacher.isEmpty ? detail.teacher : "\(rawTeacher) (\(detail.teacher))"
+            } else { teacher = rawTeacher }
+            let locationNote = detail?.note.contains("地点") == true ? detail?.note : nil
+            let room = (m.group(3) ?? "").trimmingCharacters(in: .whitespacesAndNewlines) + (locationNote.map { " (\($0))" } ?? "")
             if name.isEmpty { continue }
 
             // 段内 newActivity 匹配结束之后的 addActivityByTime 调用串
@@ -128,11 +131,32 @@ final class JwEcuplScriptParser: JwParser, JwParserConfidenceReporting {
                     out.append(JwCourse(
                         name: name, room: room, teacher: teacher,
                         day: day, startNode: startNode, endNode: endNode,
-                        startWeek: range.0, endWeek: range.1, type: range.2))
+                        startWeek: range.0, endWeek: range.1, type: range.2,
+                        startTime: Self.hhmm(startMinute) ?? "", endTime: Self.hhmm(endMinute) ?? "",
+                        credit: detail?.credit ?? 0, note: locationNote == nil ? detail?.note ?? "" : ""))
                 }
             }
         }
         return out
+    }
+
+    static func hhmm(_ value: Int) -> String? {
+        guard value >= 0, (0...23).contains(value / 100), (0...59).contains(value % 100) else { return nil }
+        return String(format: "%02d:%02d", value / 100, value % 100)
+    }
+
+    static func sourcePeriods(_ source: String) -> [(Int, String, String)] {
+        guard let table = firstMatch(reCourseTable, source), parseIsoDate(table.group(1) ?? "") != nil,
+              let data = ("[" + (table.group(2) ?? "") + "]").data(using: .utf8),
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [[Any]], !rows.isEmpty,
+              allMatches(reScript, source).contains(where: { (source as NSString).substring(with: $0.range(at: 1)).contains(table.group(0) ?? "") }) else { return [] }
+        var periods: [(Int, String, String)] = []
+        for (index, row) in rows.enumerated() {
+            guard row.count == 2, let start = jw1064Integer(row[0]), let end = jw1064Integer(row[1]), start < end,
+                  let from = hhmm(start), let to = hhmm(end) else { return [] }
+            periods.append((index + 1, from, to))
+        }
+        return periods
     }
 
     // MARK: - 测试辅助 (← internal fun parseWeekBitmap)

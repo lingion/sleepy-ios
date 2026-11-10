@@ -30,7 +30,8 @@ final class JwClassicEamsRegressionTests: XCTestCase {
         let html = try fixture("nankai-course-table-action")
         let result = JwParseDispatch.parse(html, JwProtocol.TYPE_CLASSIC_EAMS)
         XCTAssertNil(result.error)
-        XCTAssertEqual(result.courses.count, 23)
+        // Twelve weeks have both Monday and Thursday meetings, plus ten and one weeks.
+        XCTAssertEqual(result.courses.count, 35)
         XCTAssertEqual(result.courses.first?.name, "数学分析A(100101G1)")
         XCTAssertEqual(result.courses.first?.teacher, "李老师/王老师")
         let policy = try XCTUnwrap(result.courses.first { $0.name == "形势与政策(100303G3)" })

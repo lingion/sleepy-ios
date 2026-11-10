@@ -31,11 +31,10 @@ final class JwEcuplSuperParserTests: XCTestCase {
 
     // MARK: - A. POSITIVE: super fixture 同时命中主表 + script
 
-    // ← 原 JwEcuplSuperParserTest.kt: `super fixture yields 6 courses via merged dispatcher`
-    func testSuperFixtureYields6CoursesViaMergedDispatcher() throws {
+    // ← Android v1.0.64: first successful parser owns the result.
+    func testSuperFixtureUsesScriptFallbackForThreeObservedCourses() throws {
         let courses = try JwEcuplSuperParser(superSample()).generateCourseList()
-        // 主表 3 + script 3, 但同 name+teacher 视为重复 → 至少 3 课程
-        XCTAssertTrue(courses.count >= 3, "≥ 3 课程 (合并去重后), 实际 \(courses.count)")
+        XCTAssertEqual(3, courses.count)
     }
 
     // ← 原 JwEcuplSuperParserTest.kt: `super parser yields max confidence from main or script`

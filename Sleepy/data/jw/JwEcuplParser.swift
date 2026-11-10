@@ -52,17 +52,36 @@ final class JwEcuplParser: JwParser, JwParserConfidenceReporting {
     // MARK: - JwParser
 
     func generateCourseList() throws -> [JwCourse] {
-        // Kotlin: 三重护栏 — 缺任一条都不是 ECUPL
-        guard source.contains("new TaskActivity("),
-              source.contains("table0.marshalTable"),
-              matches(JwEcuplParser.reListTable) else { return [] }
-        guard let parsed = try? JwClassicEamsParser(source).generateCourseList() else { return [] }
-        return parsed
+        guard source.contains("new TaskActivity("), source.contains("table0.marshalTable"), matches(Self.reListTable) else {
+            return try JwEcuplScriptParser(source).generateCourseList()
+        }
+        guard let marshal = jw1064Matches(#"table0\.marshalTable\s*\(\s*(\d+)\s*,\s*\d+\s*,\s*(\d+)\s*\)"#, source).first,
+              let origin = jw1064Integer(marshal[1]), (2...54).contains(origin),
+              let count = jw1064Integer(marshal[2]), (1...64).contains(count),
+              let yearText = jw1064Matches(#"new CourseTable\(\s*(\d{4})\s*,\s*\d+\s*\)"#, source).first?[1], let year = Int(yearText) else { return [] }
+        let december31 = JwEcuplScriptParser.epochDay((year, 12, 31))
+        let yearOffset = ((december31 + 3) % 7 + 7) % 7 + 1 == 6 ? 55 : 54
+        let courses = try JwClassicEamsParser(source, transformWeekBitmap: { bitmap in
+            guard bitmap.allSatisfy({ $0 == "0" || $0 == "1" }), bitmap.count >= origin - 1 else { return "" }
+            if !bitmap.prefix(origin - 1).contains("1") { return String(bitmap.dropFirst(origin - 2).prefix(count + 1)) }
+            return String((String(repeating: "0", count: yearOffset - origin) + bitmap).prefix(count + 1))
+        }).generateCourseList()
+        let details = ecuplDetails(source)
+        return courses.map { course in
+            let code = course.name.range(of: "(", options: .backwards).map { String(course.name[$0.upperBound...]).replacingOccurrences(of: #"\)$"#, with: "", options: .regularExpression) } ?? ""
+            guard let detail = details[code] else { return course }
+            return JwCourse(name: detail.name, room: course.room, teacher: detail.teacher, day: course.day,
+                            startNode: course.startNode, endNode: course.endNode, startWeek: course.startWeek,
+                            endWeek: course.endWeek, type: course.type, startTime: course.startTime, endTime: course.endTime,
+                            credit: detail.credit, note: detail.note)
+        }
     }
 
     // MARK: - JwParserConfidenceReporting
 
     var confidenceValue: Int {
+        if matches(Self.reListTable), source.contains("table0.marshalTable"), source.contains("new TaskActivity("),
+           !jw1064Matches(#"new CourseTable\(\s*\d{4}\s*,\s*\d+\s*\)"#, source).isEmpty { return 100 }
         var hits = 0
         if matches(JwEcuplParser.reListTable) { hits += 3 }
         if matches(JwEcuplParser.reCourseName) { hits += 2 }
@@ -79,6 +98,7 @@ final class JwEcuplParser: JwParser, JwParserConfidenceReporting {
 
     var matchedFeatureList: [String] {
         var out: [String] = []
+        if source.contains("table0.marshalTable") && source.contains("new TaskActivity(") { out.append("ecupl:annual-week-origin") }
         if matches(JwEcuplParser.reListTable) { out.append("ecupl:r1-listTable") }
         if matches(JwEcuplParser.reCourseName) { out.append("ecupl:r3-courseName") }
         if matches(JwEcuplParser.reTeacher) { out.append("ecupl:r4-teacher") }

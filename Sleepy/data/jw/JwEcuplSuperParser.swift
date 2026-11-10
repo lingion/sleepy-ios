@@ -16,8 +16,8 @@ final class JwEcuplSuperParser: JwParser, JwParserConfidenceReporting {
 
     let source: String
 
-    private let mainParserImpl: JwEcuplParser
-    private let scriptParserImpl: JwEcuplScriptParser
+    private let mainParserImpl: any JwParser
+    private let scriptParserImpl: any JwParser
 
     init(_ source: String) {
         self.source = source
@@ -25,38 +25,34 @@ final class JwEcuplSuperParser: JwParser, JwParserConfidenceReporting {
         self.scriptParserImpl = JwEcuplScriptParser(source)
     }
 
-    /// Super 调度:
-    ///  - 主 parser 优先 (HTML 是首校路径)
-    ///  - Script parser 补齐 (script 子协议, 教务通知页路径)
-    ///  - 合并去重: 仅完全相同的排课记录视为重复
+    init(_ source: String, mainParser: any JwParser, scriptParser: any JwParser) {
+        self.source = source; self.mainParserImpl = mainParser; self.scriptParserImpl = scriptParser
+    }
+
     func generateCourseList() throws -> [JwCourse] {
-        let mainCourses = (try? mainParserImpl.generateCourseList()) ?? []
-        let scriptCourses = (try? scriptParserImpl.generateCourseList()) ?? []
-
-        var merged: [JwCourse] = []
-        var seen = Set<JwCourse>()
-
-        // 主 parser 优先 (HTML 是首校路径)
-        for c in mainCourses where seen.insert(c).inserted {
-            merged.append(c)
+        var errors: [String] = []
+        for (name, parser) in [("ECUPLParser", mainParserImpl), ("ECUPLScriptParser", scriptParserImpl)] {
+            do {
+                let courses = try parser.generateCourseList()
+                if !courses.isEmpty { return courses }
+            } catch is CancellationError { throw CancellationError() }
+            catch { errors.append("\(name): \(error.localizedDescription)") }
         }
-        // Script parser 补齐 (通知页路径)
-        for c in scriptCourses where seen.insert(c).inserted {
-            merged.append(c)
-        }
-        return merged
+        if !errors.isEmpty { throw JwParseError(message: errors.joined(separator: "\n")) }
+        return []
     }
 
     // MARK: - JwParserConfidenceReporting
 
     var confidenceValue: Int {
         // 取 max (双 parser 联合判别)
-        max(mainParserImpl.confidenceValue, scriptParserImpl.confidenceValue)
+        max((mainParserImpl as? JwParserConfidenceReporting)?.confidenceValue ?? 0,
+            (scriptParserImpl as? JwParserConfidenceReporting)?.confidenceValue ?? 0)
     }
 
     var matchedFeatureList: [String] {
-        var out = mainParserImpl.matchedFeatureList
-        out.append(contentsOf: scriptParserImpl.matchedFeatureList)
+        var out = (mainParserImpl as? JwParserConfidenceReporting)?.matchedFeatureList ?? []
+        out.append(contentsOf: (scriptParserImpl as? JwParserConfidenceReporting)?.matchedFeatureList ?? [])
         if out.isEmpty { out.append("guard:no-ecupl-super-markers") }
         return out
     }
