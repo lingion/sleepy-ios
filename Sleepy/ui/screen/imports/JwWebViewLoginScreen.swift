@@ -140,10 +140,13 @@ struct JwWebViewLoginScreen: View {
                 }) {
                     AndroidSettingsIcon(name: .arrowBack, size: 24)   // ← 原 ArrowBack 默认 24dp regular
                         .foregroundColor(colors.onBackground)
+                        .frame(width: style == .classic ? 48 : nil,
+                               height: style == .classic ? 48 : nil)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
-                .frame(width: style == .liquidGlass ? 48 : nil,
-                       height: style == .liquidGlass ? 48 : nil)
+                .frame(width: 48, height: 48)
+                .contentShape(Circle())
                 .accessibilityLabel(L10n.format("back"))   // ← contentDescription = R.string.back
                 // ← title: editingUrl ? OutlinedTextField(urlDraft) : Column(name, currentUrl)
                 if editingUrl {
@@ -193,15 +196,16 @@ struct JwWebViewLoginScreen: View {
                             AndroidSettingsIcon(name: .edit, size: 24)
                         }
                     }   // ← M3 Icon 24dp
-                        .frame(width: style == .liquidGlass ? nil : 40,
-                               height: style == .liquidGlass ? nil : 40)
+                        .frame(width: style == .liquidGlass ? nil : 48,
+                               height: style == .liquidGlass ? nil : 48)
+                        .contentShape(Circle())
                         .foregroundColor(webViewCoordinator == nil
                             ? colors.onSurface.opacity(0.38)
                             : colors.onBackground)
                 }
                 .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
-                .frame(width: style == .liquidGlass ? 48 : nil,
-                       height: style == .liquidGlass ? 48 : nil)
+                .frame(width: 48, height: 48)
+                .contentShape(Circle())
                 .disabled(webViewCoordinator == nil)
                 .accessibilityLabel(L10n.format(editingUrl ? "jw_url_submit" : "jw_edit_url"))
                 .accessibilityIdentifier("jw_edit_url")
@@ -211,15 +215,16 @@ struct JwWebViewLoginScreen: View {
                     // (点了回手机); enabled = webViewRef != null
                     Button(action: toggleDesktopUa) {
                         AndroidSettingsIcon(name: desktopUa ? .phoneAndroid : .computer, size: 24)   // ← M3 Icon 24dp
-                            .frame(width: style == .liquidGlass ? nil : 40,
-                                   height: style == .liquidGlass ? nil : 40)
+                            .frame(width: style == .liquidGlass ? nil : 48,
+                                   height: style == .liquidGlass ? nil : 48)
+                            .contentShape(Circle())
                             .foregroundColor(webViewCoordinator == nil
                                 ? colors.onSurface.opacity(0.38)   // ← disabled: onSurface 38%
                                 : colors.onBackground)   // ← actionIconContentColor
                     }
                     .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
-                    .frame(width: style == .liquidGlass ? 48 : nil,
-                           height: style == .liquidGlass ? 48 : nil)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
                     .disabled(webViewCoordinator == nil)
                     // ← contentDescription: jw_toggle_mobile_ua / jw_toggle_desktop_ua
                     .accessibilityLabel(L10n.format(desktopUa ? "jw_toggle_mobile_ua"
@@ -229,15 +234,16 @@ struct JwWebViewLoginScreen: View {
                     // estimatedProgress KVO 驱动上方进度条(原 progress 1..99 同判)
                     Button(action: { webViewCoordinator?.reload() }) {
                         AndroidSettingsIcon(name: .refresh, size: 24)   // ← Icons.Outlined.Refresh
-                            .frame(width: style == .liquidGlass ? nil : 40,
-                                   height: style == .liquidGlass ? nil : 40)
+                            .frame(width: style == .liquidGlass ? nil : 48,
+                                   height: style == .liquidGlass ? nil : 48)
+                            .contentShape(Circle())
                             .foregroundColor(webViewCoordinator == nil
                                 ? colors.onSurface.opacity(0.38)
                                 : colors.onBackground)
                     }
                     .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
-                    .frame(width: style == .liquidGlass ? 48 : nil,
-                           height: style == .liquidGlass ? 48 : nil)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
                     .disabled(webViewCoordinator == nil)
                     .accessibilityLabel(L10n.format("jw_refresh"))   // ← contentDescription
                     .accessibilityIdentifier("jw_refresh")
