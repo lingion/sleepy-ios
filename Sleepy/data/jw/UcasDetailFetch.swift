@@ -7,7 +7,7 @@
 // 也因此被迫走 tab 导航)。但详情页**免登录** (issue #18 v1.2 采集包实测:
 // 无 cookie 直连 200 + 完整周次数据), 所以原生 HTTP 直抓即可, 无须会话凭证。
 //
-// 用法: 网格 HTML 进, 组合源出。任何失败降级返回原 HTML (parser 回退 1-16 占位)。
+// 用法: 网格 HTML 进, 组合源出。任一详情失败均停止导入，避免缺失课程。
 
 import Foundation
 
@@ -49,20 +49,21 @@ enum UcasDetailFetch {
     }
 
     /// 主入口: 网格 HTML → 逐课抓详情 → 拼组合源。
-    /// 全部成功才拼详情; 任一失败只拼成功的部分; 全失败返回原网格 HTML。
-    /// 不抛出 —— 任何异常都在此吞掉并降级, 调用方无须 try。
-    static func enrich(_ gridHtml: String) async -> String {
+    /// Every detail must decode before returning the combined source.
+    static func enrich(_ gridHtml: String) async throws -> String {
+        try await enrichWith(gridHtml, fetch: fetchOne)
+    }
+
+    static func enrichWith(_ gridHtml: String, fetch: (String) async throws -> String) async throws -> String {
         let urls = extractDetailUrlsSafe(gridHtml)
         if urls.isEmpty { return gridHtml }
-
+        guard urls.count <= MAX_DETAILS else { throw JwParseError(message: "课程详情数量超过单次导入上限，无法完整导入") }
         var details: [Detail] = []
-        for url in urls.prefix(MAX_DETAILS) {
-            // 单页失败跳过, 其余页照常 enrich; 该课落 1-16 占位
-            if let html = try? await fetchOne(url) {
-                details.append(Detail(url: url, html: html))
-            }
+        for url in urls {
+            let html = try await fetch(url)
+            guard !JwUcasParser.parseDetailPages(html).isEmpty else { throw JwParseError(message: "课程详情未提供完整上课安排，请重新进入课表页后重试") }
+            details.append(Detail(url: url, html: html))
         }
-        if details.isEmpty { return gridHtml }
         return combine(gridHtml, details)
     }
 
@@ -82,7 +83,7 @@ enum UcasDetailFetch {
         return out
     }
 
-    /// 抓单个详情页; 非 200 / 网络异常抛出, 由调用方按页吞掉
+    /// 抓单个详情页; 非 200 / 网络异常抛出, 由调用方整体处理
     static func fetchOne(_ url: String) async throws -> String {
         guard let u = URL(string: url) else { throw FetchError.badURL }
         var request = URLRequest(url: u)

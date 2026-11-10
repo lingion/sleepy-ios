@@ -1,3 +1,4 @@
+import SwiftSoup
 // JwWebViewFrameCapture.swift — ← JwWebViewFrameCapture.kt (500 行)
 //
 // T7 — WebView 抓取结果的 frame 级分析与决策。纯 Foundation, 不 import UIKit/WebKit。
@@ -112,6 +113,7 @@ struct FrameSnapshotList {
 
 // MARK: - 树遍历与锚点判定
 enum FrameTraversalTree {
+    private static let declaredHtmlTypes = Set("pku huat seu_2017 shu2024 tju hqu changzhou sicnu nuist sit sysu jz_1 jz_x wist xmu swjtu_post kg_zx hbut hnjm lz nau nju cqupt xhtd xytc cidp sdpei shu jmpt lngd vatuu yzzy cqu hit jz gxic gxnu jxnu nnutc shcc hbmzu nua gdei aic hust gliet cnu cdut gzhuyjs dhu ecjtu zptc ctgu nyist jxau hniu uic cityu stu nfu jmucy nuaajc qmu javtc hitsz bjtu scau jnu swust xjtu_post uestc_post bfa_post gdbyxy cupl_post ysu_post whu_post hrbeu_post shtu_post ustc_post xauat_post shuwei_old urp".split(separator: " ").map(String.init))
 
     // ← 原版本 JwWebViewFrameCapture.kt:125 (v1.0.62): 14 锚点。
     // 后 5 个 (pageRpt/mytable/reportArea/xkinfo/sample-table-1) 是 Kingosoft 正选报表
@@ -120,7 +122,7 @@ enum FrameTraversalTree {
     static let ANCHORS: [String] = [
         "Table1", "blacktab", "kbtable", "kbgrid_table_0", "kblist_table",
         "kbList", "kbxx", "timetable", "_dgdata", "pageRpt", "mytable",
-        "reportArea", "xkinfo", "sample-table-1"
+        "reportArea", "xkinfo", "sample-table-1", "manualArrangeCourseTable", "Table6", "table_tb", "kbgrid_table"
     ]
 
     private static func anchorNeedle(_ anchor: String) -> [String] {
@@ -150,8 +152,11 @@ enum FrameTraversalTree {
     static func findAnchors(_ html: String) -> [String] {
         if html.isEmpty { return [] }
         let lower = html.lowercased()
-        let anchors = ANCHORS.filter { anchor in
+        var anchors = ANCHORS.filter { anchor in
             anchorNeedle(anchor).contains { lower.contains($0.lowercased()) }
+        }
+        if lower.contains("qz-tooltipcontent") || lower.contains("el-table__body"), let doc = try? SwiftSoup.parse(html) {
+            anchors += JwQzModernHtml.features(doc)
         }
         // ← 原版本 :153-156: 老青岛教务 (id="kb" 或 id="1-2-2" 式单元格) 且结构解析出课 → 命中。
         let oldQzAnchors: [String]
@@ -307,7 +312,7 @@ enum FrameTraversalTree {
     ///  ④ 全部可达 frame 均无锚点: 登录指纹 > 跨域 > WRONG_PAGE。
     ///  ⑤ 全部 frame 不可达(顶层都跨域): blocked 非空 → CROSS_DOMAIN_IFRAME_BLOCKED, 否则 WRONG_PAGE。
     ///
-    static func selectBestFrame(_ snapshots: FrameSnapshotList, maxDepth: Int = 8) -> FrameCaptureResult {
+    static func selectBestFrame(_ snapshots: FrameSnapshotList, maxDepth: Int = 8, declaredType: String? = nil) -> FrameCaptureResult {
         let blocked = findBlockedFrames(snapshots)
         let reachable = snapshots.frames.filter { $0.outerHTML != nil && $0.depth <= maxDepth }
         let maxDepthReached = snapshots.frames.map { $0.depth }.max() ?? 0
@@ -328,6 +333,16 @@ enum FrameTraversalTree {
                 diagnosticHint: "检测到登录页/会话过期特征(\(logoutFrame.frameName ?? "(top)") 含 logout.aspx 跳转脚本)，请重新登录后再点「导入此页」",
                 allFrames: allFrames
             )
+        }
+        if let declaredType, declaredHtmlTypes.contains(declaredType),
+           !reachable.contains(where: { looksLikeLoginPage($0.outerHTML ?? "") }),
+           let frame = reachable.sorted(by: { $0.depth > $1.depth }).first(where: { frame in
+               guard let parser = try? JwParserRegistry.parserFor(declaredType, frame.outerHTML ?? "") else { return false }
+               return ((try? parser.generateCourseList().isEmpty) == false)
+           }) {
+            return FrameCaptureResult(selectedFramePath: frame.parentPath + [frame.frameName ?? ""],
+                                      html: frame.outerHTML ?? "", matchedAnchors: ["declared-" + declaredType], status: .ok,
+                                      blockedFrames: blocked, maxDepthReached: maxDepthReached, allFrames: allFrames)
         }
         // ②③ 候选
         let candidates = rankedCandidates(snapshots, maxDepth: maxDepth)
@@ -488,7 +503,7 @@ enum FrameTraversalTree {
 enum RenderReadinessChecker {
     /// 延迟渲染容器 — 新正方 grid/list 视图 + 老正方 Table1Wrap
     static let DELAYED_CONTAINER_ANCHORS: [String] =
-        ["Table1Wrap", "kbgrid_table_0", "kblist_table", "kbcontent", "timetable_con"]
+        ["Table1Wrap", "kbgrid_table_0", "kblist_table", "kbcontent", "timetable_con", "el-table__body", "kbDataTd"]
 
     enum Readiness {
         case ready
