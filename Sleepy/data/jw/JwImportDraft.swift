@@ -17,6 +17,11 @@ struct JwImportDraftSnapshot: Equatable {
     /// 节次行是否被默认作息补齐过 — 恢复草稿后仍需提示用户核对。
     /// 可选字段: 旧快照缺失 = false (schemaVersion 保持 1, 未知键双向忽略)。
     var usedDefaultTimes: Bool = false
+    var termWeekCount: Int = 0
+    var datedCourseOrigin: String = ""
+    var importSourceJson: String = ""
+    var selectedSgAdapterId: String = ""
+    var termWeekText: String? = nil
     var phase: JwImportDraftPhase = .configureConfirm
 
     init(school: JwSchoolInfo,
@@ -26,7 +31,12 @@ struct JwImportDraftSnapshot: Equatable {
          tableName: String = "",
          smartConfigJson: String = "",
          usedDefaultTimes: Bool = false,
-         phase: JwImportDraftPhase = .configureConfirm) {
+         phase: JwImportDraftPhase = .configureConfirm,
+         termWeekCount: Int = 0,
+         datedCourseOrigin: String = "",
+         importSourceJson: String = "",
+         selectedSgAdapterId: String = "",
+         termWeekText: String? = nil) {
         self.school = school
         self.courses = courses
         self.periods = periods
@@ -35,6 +45,11 @@ struct JwImportDraftSnapshot: Equatable {
         self.smartConfigJson = smartConfigJson
         self.usedDefaultTimes = usedDefaultTimes
         self.phase = phase
+        self.termWeekCount = termWeekCount
+        self.datedCourseOrigin = datedCourseOrigin
+        self.importSourceJson = importSourceJson
+        self.selectedSgAdapterId = selectedSgAdapterId
+        self.termWeekText = termWeekText
     }
 
     /// 恢复登录阶段草稿时, 该草稿的选校准入确认不能被跳过。
@@ -79,9 +94,14 @@ enum JwImportDraftCodec {
             "termStartDate": snapshot.termStartDate,
             "tableName": snapshot.tableName,
             "smartConfigJson": snapshot.smartConfigJson,
+            "termWeekCount": snapshot.termWeekCount,
+            "datedCourseOrigin": snapshot.datedCourseOrigin,
+            "importSourceJson": snapshot.importSourceJson,
+            "selectedSgAdapterId": snapshot.selectedSgAdapterId,
         ]
         // 仅 true 时写出(旧 payload 缺键 = false, 与 optString 默认语义一致)
         if snapshot.usedDefaultTimes { root["usedDefaultTimes"] = true }
+        if let text = snapshot.termWeekText { root["termWeekText"] = text }
         root["courses"] = snapshot.courses.map(courseToJson)
         root["periods"] = snapshot.periods.map(periodToJson)
         guard let data = try? JSONSerialization.data(withJSONObject: root),
@@ -124,6 +144,20 @@ enum JwImportDraftCodec {
             periods.append(p)
         }
 
+        let termWeekCount: Int
+        if let raw = root["termWeekCount"] {
+            guard !(raw is NSNull), let count = Int(String(describing: raw)), (0...366).contains(count) else { return nil }
+            termWeekCount = count
+        } else { termWeekCount = 0 }
+        let termWeekText: String?
+        if let raw = root["termWeekText"] {
+            guard let text = raw as? String else { return nil }
+            termWeekText = text
+        } else { termWeekText = nil }
+        let origin = root["datedCourseOrigin"] as? String ?? ""
+        if !origin.isEmpty && JwSourceCalendar.monday(origin) != origin { return nil }
+        let metadata = root["importSourceJson"] as? String ?? ""
+        if !metadata.isEmpty && JwSgSourceMetadata.read(metadata) == nil { return nil }
         return JwImportDraftSnapshot(
             school: school,
             courses: courses,
@@ -133,7 +167,12 @@ enum JwImportDraftCodec {
             smartConfigJson: (root["smartConfigJson"] as? String) ?? "",
             // 旧快照缺键 = false; 非布尔脏值同样按 false 兜底(optString 语义)
             usedDefaultTimes: (root["usedDefaultTimes"] as? Bool) ?? false,
-            phase: phase
+            phase: phase,
+            termWeekCount: termWeekCount,
+            datedCourseOrigin: origin,
+            importSourceJson: metadata,
+            selectedSgAdapterId: root["selectedSgAdapterId"] as? String ?? "",
+            termWeekText: termWeekText
         )
     }
 
@@ -197,6 +236,10 @@ enum JwImportDraftCodec {
             "startWeek": course.startWeek,
             "endWeek": course.endWeek,
             "type": course.type,
+            "startTime": course.startTime,
+            "endTime": course.endTime,
+            "credit": course.credit,
+            "note": course.note,
         ]
     }
 
@@ -210,14 +253,20 @@ enum JwImportDraftCodec {
             endNode: (json["endNode"] as? Int) ?? 0,
             startWeek: (json["startWeek"] as? Int) ?? 0,
             endWeek: (json["endWeek"] as? Int) ?? 0,
-            type: (json["type"] as? Int) ?? 0
+            type: (json["type"] as? Int) ?? 0,
+            startTime: json["startTime"] as? String ?? "",
+            endTime: json["endTime"] as? String ?? "",
+            credit: (json["credit"] as? NSNumber)?.floatValue ?? Float(json["credit"] as? String ?? "") ?? 0,
+            note: json["note"] as? String ?? ""
         )
         // Kotlin: JwCourse(...).takeIf { ... } — Swift 无内置 takeIf, 等价为 valid ? course : nil
         let validName = !jwIsBlank(course.name)
         let validDay = (1...7).contains(course.day)
         let validNode = course.startNode >= 1 && course.endNode >= course.startNode
         let validWeek = course.startWeek >= 1 && course.endWeek >= course.startWeek
-        let valid = validName && validDay && validNode && validWeek && course.type >= 0
+        let valid = validName && validDay && validNode && validWeek && (0...2).contains(course.type) && course.credit.isFinite
+            && ((course.startTime.isEmpty && course.endTime.isEmpty)
+                || JwCourse.isValidTimeRange(course.startTime, course.endTime))
         return valid ? course : nil
     }
 
