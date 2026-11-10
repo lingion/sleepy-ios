@@ -1,241 +1,190 @@
-// JwProtocol.swift — ← JwProtocol.kt
-// 教务系统协议类型常量表(42 个, 与 原版本 1:1)。
-//
-// 基于 dIT8Zv/WakeupSchedule_BUPT (Apache-2.0) 的 Common.kt 协议类型常量
-// 简化而来,保留 sleepy v1.0.8 实际用到的子集:
-//   - QZ 强智 5 变体(HEU 用 QZ_CRAZY)
-//   - ZF 正方 3 变体
-//   - URP 2 变体
-//   - PKU 北大 / CF 青果 / BNUZ 北师珠
-//   - HELP / LOGIN / MAINTAIN 标记
-//
-// 完整 17 类 + 强智变体的语义见 https://github.com/dIT8Zv/WakeupSchedule_BUPT
-// 中 `app/src/main/java/com/suda/yzune/wakeupschedule/schedule_import/Common.kt`。
-
+// Android v1.0.64 protocol catalog.
 enum JwProtocol {
+    static let TYPE_SHUWEI_M = "shuwei_m"
+    static let TYPE_XATU_SHUWEI = "xatu_shuwei"
+    static let TYPE_SIAS_SHUWEI = "sias_shuwei"
+    static let TYPE_SNUT_SHUWEI = "snut_shuwei"
+    static let TYPE_UESTC_SHUWEI = "uestc_shuwei"
+    static let TYPE_HUNNU_SHUWEI = "hunnu_shuwei"
+    static let TYPE_XSYU_SHUWEI = "xsyu_shuwei"
+    static let TYPE_NWPU = "nwpu"
+    static let TYPE_JMU = "jmu"
+    static let TYPE_SHUWEI_NEW = "shuwei_new"
+    static let TYPE_AHNU = "ahnu"
+    static let TYPE_HFU = "hfu"
     static let TYPE_HELP = "help"
     static let TYPE_ZF = "zf"
     static let TYPE_ZF_1 = "zf_1"
     static let TYPE_ZF_NEW = "zf_new"
     static let TYPE_URP = "urp"
     static let TYPE_URP_NEW = "urp_new"
+    static let TYPE_URP_NEW_AJAX = "urp_new_ajax"
     static let TYPE_QZ = "qz"
     static let TYPE_QZ_OLD = "qz_old"
     static let TYPE_QZ_CRAZY = "qz_crazy"
     static let TYPE_QZ_BR = "qz_br"
     static let TYPE_QZ_WITH_NODE = "qz_with_node"
+    static let TYPE_QZ_SINGLE_NODE = "qz_single_node"
+    static let TYPE_QZ_NJUST = "qz_njust"
+    static let TYPE_QZ_WIT = "qz_wit"
+    static let TYPE_QZ_ECUST = "qz_ecust"
+    static let TYPE_QZ_AHUT = "qz_ahut"
+    static let TYPE_QZ_BJFU = "qz_bjfu"
+    static let TYPE_SIMC = "simc"
+    static let TYPE_SHTU_POST_2024 = "shtu_post_2024"
+    static let TYPE_RUC = "ruc"
+    static let TYPE_BFA = "bfa"
+    static let TYPE_HUST = "hust"
+    static let TYPE_AIC = "aic"
+    static let TYPE_HBMZU = "hbmzu"
+    static let TYPE_NUA = "nua"
+    static let TYPE_STUM = "stum"
+    static let TYPE_AHMU = "ahmu"
+    static let TYPE_GDEI = "gdei"
+    static let TYPE_JLU_POST = "jlu_post"
+    static let TYPE_CCIBE = "ccibe"
+    static let TYPE_CPPU = "cppu"
+    static let TYPE_SHCC = "shcc"
+    static let TYPE_FSTVC = "fstvc"
+    static let TYPE_GDBH = "gdbh"
+    static let TYPE_GLIET = "gliet"
+    static let TYPE_CNU = "cnu"
+    static let TYPE_XBELLSOFT = "login_xbellsoft"
+    static let TYPE_CDUT = "cdut"
+    static let TYPE_GZHUYJS = "gzhuyjs"
+    static let TYPE_DHU = "dhu"
+    static let TYPE_ECJTU = "ecjtu"
+    static let TYPE_ZPTC = "zptc"
+    static let TYPE_CTGU = "ctgu"
+    static let TYPE_NYIST = "nyist"
+    static let TYPE_JXAU = "jxau"
+    static let TYPE_FDU = "fdu"
+    static let TYPE_ZTVTIT = "ztvtit"
+    static let TYPE_SDU = "sdu"
+    static let TYPE_SEIG = "seig"
+    static let TYPE_KINGOSOFT = "kingosoft"
+    static let TYPE_JLICT_QZ_OLD = "jlict_qz_old"
+    static let TYPE_CCUT_QZ_OLD = "ccut_qz_old"
+    static let TYPE_CCSU_QZ_OLD = "ccsu_qz_old"
+    static let TYPE_CHAOXING_SHARE = "chaoxing_share"
     static let TYPE_CF = "cf"
-
-    /// 新青果 NTSS (青果/乘方新版, FullCalendar 形态, /new/student/xsgrkb/week.page)。
-    /// 页面 DOM 无课表数据, 课程行由 POST /new/student/xsgrkb/getCalendarWeekDatas
-    /// 按周返回; 节次时间在页面 businessHours JSON; 开学日 /new/xlxx/getDatesOfWeek。
-    /// WebView 内逐周并行抓取 (CF_NEW_FETCH_JS) 合并, JwCfNewParser 解析。
-    /// 首校: 江西中医药大学 (jiaowu.jxutcm.edu.cn, 2026-09 采集包实锤)。
     static let TYPE_CF_NEW = "cf_new"
-
     static let TYPE_PKU = "pku"
     static let TYPE_BNUZ = "bnuz"
     static let TYPE_LOGIN = "login"
     static let TYPE_MAINTAIN = "maintain"
-
-    /// 金智 Wisedu jwapp 微应用平台(JSON API 直连,非 HTML 解析)。如:哈尔滨工程大学 jwgl.hrbeu.edu.cn
     static let TYPE_WISEDU = "wisedu"
-
-    /// WakeUp Kingosoft 新协议,覆盖新青果/金智门户系列。
     static let TYPE_KINGO_NEW = "kingo_new"
-
-    /// WakeUp 金智课程表回退族。
-    static let TYPE_JZ = "jz"
-
-    /// WakeUp 南软/研究生课表 HTML 变体。
-    static let TYPE_SOUTH_SOFT = "south_soft"
-
-    /// WakeUp 超星旧 JSON/分享变体。
-    static let TYPE_CHAOXING_LEGACY = "login_chaoxing"
-
-    /// WakeUp 数维共享课表变体。
-    static let TYPE_SHUWEI = "shuwei_json"
-
-    /// WakeUp 苏大 POST/HTML 变体。
-    static let TYPE_SUDA_POST = "suda_post"
-
-    /// WakeUp EAMS5 中国矿业大学北京变体。
-    static let TYPE_CUMTB = "cumtb"
-
-    /// WakeUp 西交/新疆大学 POST 课表变体。
-    static let TYPE_XJU_POST = "xju_post"
-
-    // ── v1.0.62 对齐新增的 9 个协议族(安卓 JwProtocol.kt 同名常量) ──
-    // 说明:displayName/category 已 1:1 搬齐;解析器按 B2/B7 批次分批落地。
-    //   已落地解析器: umooc / yl / scau / ecupl (B2)
-    //   待落地解析器: kingo_zx / nwpu_post / new_urp_super / ecupl_script / ecupl_super (B7)
-
-    /// WakeUp 青果 ZX 子变体(kingosoft ZX 分支)。
-    static let TYPE_KINGO_ZX = "kingo_zx"
-
-    /// UMOOC 教务(中国海洋大学慕课平台, /academic/common/security/login.jsp + .timetable)。
-    static let TYPE_UMOOC = "umooc"
-
-    /// 奕联教务(/lyuapServer/login + .app-components-CourseTimeTable-styles-timeTable)。
-    static let TYPE_YL = "yl"
-
-    /// 西北工业大学研究生教务(NWPU POST 变体)。
-    static let TYPE_NWPU_POST = "nwpu_post"
-
-    /// 新 URP 教务(数组变体)。
-    static let TYPE_NEW_URP_SUPER = "new_urp_super"
-
-    /// 华东政法大学 (ECUPL) 经典 EAMS 变体。
-    static let TYPE_ECUPL = "ecupl"
-
-    /// 华东政法大学 (ECUPL Script) 脚本导出变体。
-    static let TYPE_ECUPL_SCRIPT = "ecupl_script"
-
-    /// 华东政法大学 (ECUPL 调度器) 调度变体。
-    static let TYPE_ECUPL_SUPER = "ecupl_super"
-
-    /// 华南农业大学 (SCAU) 老式 border=1 课表变体。
-    static let TYPE_SCAU = "scau"
-
-    /// 重庆大学自建统一门户 my.cqu.edu.cn(REST API + Bearer token,非 HTML 解析)。
-    /// WebView 登录统一身份认证后从 localStorage 取 cqu_edu_ACCESS_TOKEN,fetch 四个接口。
-    /// 外部佐证:时光课程表 cqu.js 适配器(茵符草)、321CQU/pymycqu。
-    static let TYPE_CQU = "cqu"
-
-    /// T3: 湖南科大 HNUST 老正方变体(kdjw/xxjw.hnust.edu.cn)。
-    /// 使 displayName/category 不落入 else 分支。
-    static let TYPE_HNUST = "hnust"
-
-    /// T8 新加：upstream Common.kt 历史常量；HNIU 湖南信息职业技术学院。
-    static let TYPE_HNIU = "hniu"
-
-    /// 强智 iEAS 网络版 (`/ieas2.1/...`) — ASP.NET MVC 框架, 课表 endpoint = `/ieas2.1/kbcx/queryGrkb` 返回 HTML (非 JSON)。
-    /// 学校样本: 北京航空航天大学 jwxt.buaa.edu.cn:7001/ieas2.1。
-    /// 与 TYPE_QZ (`/jsxsd/` 强智 jxb) 同源, 但 URL 路径不同, 需独立锚点。
-    static let TYPE_QZ_IEAS = "qz_ieas"
-
-    /// 强智移动教务 SPA（qzdatasoft 移动端，`/dist/#/login` 单页应用 + `/njwhd` JSON API）。
-    /// 首校: 河北资源环境职业技术学院 (jwpt.hebzyhj.edu.cn:1233, schoolCode 50139,
-    /// 2026-09-09 学生回传采集包实锤)。登录态 = sessionStorage.Token (JWT)，请求头
-    /// `token: <JWT>`；课表 POST /njwhd/student/curriculum?week=&kbjcmsid= 一次性返回
-    /// 全学期 courses[]: classTime = 星期+起止节 (WDDSS EE, 如 "10304"=周一3-4节)、
-    /// classWeek "1-4,6-19" 区间串、classWeekDetails 逗号位图串、ktmc 班级名。
-    /// API 前缀 (/njwhd) 各校部署可不同 → fetch JS 先 GET /dist/serverconfig.json
-    /// (免鉴权) 发现 ApiUrl，禁止硬编码。同 host 常并存经典强智 /jsxsd/ (serverconfig
-    /// SelectUrl)，但移动端账号体系独立，不走经典 HTML 网格。
-    /// 上游协议形态: 时光课程表 qz 移动端适配器形态（仅字段形态参考，算法自写）。
-    static let TYPE_QZ_APP = "qz_app"
-
-    /// 中国科学院大学选课系统：personSchedule 服务端 HTML 课表网格。
-    static let TYPE_UCAS = "ucas"
-
-    /// 北京交通大学教学支撑平台 (AA, aa.bjtu.edu.cn) — 自研 Django 系, CAS(cas.bjtu.edu.cn
-    /// 算式验证码) + MIS 门户(mis.bjtu.edu.cn module 桥) 后的教务主数据源。
-    /// 课表 = HTML 表格 (table.table, 节次行 x 星期列, 行首格含 [HH:MM-HH:MM]),
-    /// 周次文法: 第A-B周 / 第2,4,6周 / 第X周 + (单/双) 奇偶后缀 (分隔符 -~—–－至到)。
-    /// WebView 会话内同源 fetch 双端点:
-    ///   GET /course_selection/courseselect/stuschedule/        本学期课表
-    ///   GET /course_selection/courseselecttask/schedule/       选课任务课表 (全学期)
-    /// 协议证据: docs/bjtu-cross-verify-2026-09-09/ (24 仓 POSITIVE 12, issue #19)。
-    /// 上游协议形态: HFDLYS/BJTUselfService (MIT) + wan300/bjtu_mis_原版本 (MIT) — 算法自写。
-    static let TYPE_BJTU = "bjtu"
-
-    /// 西南交通大学本部 yhxt.swjtu.edu.cn(YETHAN/以专 逐专平台,自建 JSON API,非 HTML 解析)。
-    /// WebView 登录 CAS 后从 localStorage 取 `ytoken`(JWT,同时落 .swjtu.edu.cn cookie),
-    /// 请求头 `ytoken: <JWT>`,fetch 接口:
-    ///   GET /yethan/common/course-schedule/student-course-schedule(零参数,纯 JSON 无 SM2)
-    ///   GET /yethan/public/sys/config/web(TermStart + TermLessonStr 节次时间)
-    /// 包络 {"code":"00000","data":[…]};失效码 401/A0230/A0422(Arex 跨仓验证)。
-    /// classTime{N} "7、10-12、14-15周 星期三 5节"(顿号枚举只作用于周次列表,共享一个
-    /// 「星期X 节」后缀);classTime{N}/classPlace{N} 成对槽位 1..40。
-    /// SM2 `_j` 加密只在 /register/…、/sport/…(选课),课表接口无 SM2,Sleepy 不需要。
-    /// 协议证据:docs/swjtu-cross-verify-2026-09-15/(11 仓,2026-09-15 采集包实锤)。
-    /// 外部佐证:AmaneSuzuha000/SWJTU_Login、1-nuo/swjtu-course-grabber、
-    /// Arex-lbb/auto-course-grabber(失效码)。
-    static let TYPE_YETHAN = "yethan"
-
-    /// 合肥工业大学教务(金智 EAMS5, eams5-student 系列, jxglstu.hfut.edu.cn)。
-    /// 上游协议形态: Chiu-xaH/HFUT-Schedule (MIT) 全链路参考。
-    static let TYPE_EAMS5 = "eams5"
-
-    /// 东南大学教务(正方 URP 系, newxk.urp.seu.edu.cn, 用户粘 JSON)。
-    /// 字段集 {KCM,SKJS,JASMC,SKXQ,KSJC,JSJC,ZCMC,KCH,JXBQH}。
-    /// 上游协议形态: sakimidare/SEUTimetable (Apache-2.0) parseWeekRange 算法参考。
-    static let TYPE_SEU = "seu"
-
-    /// 浙江大学教务(正方新版 zf_new, zdbk.zju.edu.cn)。
-    /// 字段集 {xkkh, xqj, dsz, djj, skcd, kcb, xxq} — kcb 含 \n 分隔的课名/周次串/老师/教室。
-    /// 上游协议形态: Xecades/zju-ical-py (LGPL-2.1) 字段映射参考, kcb 解析代码自写。
-    static let TYPE_ZJU = "zju"
-
-    /// 中国科学技术大学教务(自研新版, jw.ustc.edu.cn)。
-    /// JSON 路径: x.studentTableVm.activities[]。
-    /// 上游协议形态: 1970633640/USTC-timetable-to-ics (无 license) — 算法参考。
-    static let TYPE_USTC = "ustc"
-
-    /// 四川大学教务(scu.edu.cn 自建门户, 强智框架但走 mobile JSON 接口)。
-    /// JSON 路径: x.dateList[0].selectCourseList[].timeAndPlaceList[]。
-    /// 单/双信息 upstream 协议丢失 → 本 parser 强制 type=0 (上游限制)。
-    /// 上游协议形态: Z-P-J/ScuTimetable (无 license) TimetableHelper.java — 算法自写。
-    static let TYPE_SCU = "scu"
-
-    /// 东北大学教务(jwxt.neu.edu.cn 强智新版 mobile JSON)。
-    /// JSON 路径: x.datas.arrangedList[]。单/双周 upstream 协议层丢失, 强制 type=0。
-    /// 上游协议形态: CreamPig233/neu_wisedu2wakeup (无 license) extract_schedule.js — 算法自写。
-    static let TYPE_NEU = "neu"
-
-    /// 清华大学 zhjwxk.cic.tsinghua.edu.cn (THU 选课系统)。<br>
-    /// 协议：setInitValue('strHTML'+...)、getElementById('a'+big+'_'+day).innerHTML += strHTML。
-    /// 4 仓 POSITIVE 共识 (WakeUp + Starrah + AdoreCN + BistuSchedule)。
     static let TYPE_THU = "thu"
-
-    /// 超星学习通「综合教务管理系统」(Powered by ChaoXing)。
-    /// 自建 REST: GET /pkgl/xskb/queryKbGrdb (个人课表, 无参按会话) +
-    /// GET /admin/api/getZclistByXnxq (节次时间/学期)。
-    /// 字段: kcmc/xjc/xingqi/rqxl/zcstr/tmc/croommc, 单节粒度行。
-    /// 首校: 吉林工商学院 (jwxt.jlbtc.edu.cn, 2026-09-05 采集包实锤)。
+    static let TYPE_NEW_URP_SUPER = "new_urp_super"
+    static let TYPE_JMUCY = "jmucy"
+    static let TYPE_NUAAJC = "nuaajc"
+    static let TYPE_QMU = "qmu"
+    static let TYPE_JAVTC = "javtc"
+    static let TYPE_XHTD = "xhtd"
+    static let TYPE_XYTC = "xytc"
+    static let TYPE_CIDP = "cidp"
+    static let TYPE_SDPEI = "sdpei"
+    static let TYPE_SHU = "shu"
+    static let TYPE_JMPT = "jmpt"
+    static let TYPE_LNGD = "lngd"
+    static let TYPE_VATUU = "vatuu"
+    static let TYPE_YZZY = "yzzy"
+    static let TYPE_JZ_1 = "jz_1"
+    static let TYPE_JZ_X = "jz_x"
+    static let TYPE_WIST = "wist"
+    static let TYPE_XMU = "xmu"
+    static let TYPE_SWJTU_POST = "swjtu_post"
+    static let TYPE_KG_ZX = "kg_zx"
+    static let TYPE_HUAT = "huat"
+    static let TYPE_SEU_2017 = "seu_2017"
+    static let TYPE_SHU2024 = "shu2024"
+    static let TYPE_TJU = "tju"
+    static let TYPE_HQU = "hqu"
+    static let TYPE_CHANGZHOU = "changzhou"
+    static let TYPE_SICNU = "sicnu"
+    static let TYPE_NUIST = "nuist"
+    static let TYPE_SIT = "sit"
+    static let TYPE_SYSU = "sysu"
+    static let TYPE_SUES = "sues"
+    static let TYPE_HBUT = "hbut"
+    static let TYPE_HNJM = "hnjm"
+    static let TYPE_LZ = "lz"
+    static let TYPE_NAU = "nau"
+    static let TYPE_NJU = "nju"
+    static let TYPE_CQUPT = "cqupt"
+    static let TYPE_HITSZ = "hitsz"
+    static let TYPE_QZ_2017 = "qz_2017"
+    static let TYPE_QZ_2024 = "qz_2024"
+    static let TYPE_QZ_FSPT = "qz_fspt"
+    static let TYPE_QZ_USTB = "qz_ustb"
+    static let TYPE_ZF_CLS = "zf_cls"
+    static let TYPE_JNU = "jnu"
+    static let TYPE_SWUST = "swust"
+    static let TYPE_XJTU_POST = "xjtu_post"
+    static let TYPE_UESTC_POST = "uestc_post"
+    static let TYPE_BFA_POST = "bfa_post"
+    static let TYPE_GDBYXY = "gdbyxy"
+    static let TYPE_CUPL_POST = "cupl_post"
+    static let TYPE_YSU_POST = "ysu_post"
+    static let TYPE_WHU_POST = "whu_post"
+    static let TYPE_HRBEU_POST = "hrbeu_post"
+    static let TYPE_SHTU_POST = "shtu_post"
+    static let TYPE_USTC_POST = "ustc_post"
+    static let TYPE_XAUAT_POST = "xauat_post"
+    static let TYPE_ZJU_POST = "zju_post"
+    static let TYPE_CSV = "csv"
+    static let TYPE_SHUWEI_OLD = "shuwei_old"
+    static let TYPE_HIT = "hit"
+    static let TYPE_BUAA = "buaa"
+    static let TYPE_GXIC = "gxic"
+    static let TYPE_GXNU = "gxnu"
+    static let TYPE_JXNU = "jxnu"
+    static let TYPE_NNUTC = "nnutc"
+    static let TYPE_SHSMU = "shsmu"
+    static let TYPE_YGU = "ygu"
+    static let TYPE_SUSTECH = "sustech"
+    static let TYPE_UIC = "uic"
+    static let TYPE_CITYU = "cityu"
+    static let TYPE_STU = "stu"
+    static let TYPE_NFU = "nfu"
+    static let TYPE_KINGO_ZX = "kingo_zx"
+    static let TYPE_JZ = "jz"
+    static let TYPE_SOUTH_SOFT = "south_soft"
+    static let TYPE_CHAOXING_LEGACY = "login_chaoxing"
+    static let TYPE_SHUWEI = "shuwei_json"
+    static let TYPE_UMOOC = "umooc"
+    static let TYPE_YL = "yl"
+    static let TYPE_SUDA_POST = "suda_post"
+    static let TYPE_CUMTB = "cumtb"
+    static let TYPE_XJU_POST = "xju_post"
+    static let TYPE_SCAU = "scau"
+    static let TYPE_NWPU_POST = "nwpu_post"
+    static let TYPE_CQU = "cqu"
+    static let TYPE_HNUST = "hnust"
+    static let TYPE_HNIU = "hniu"
+    static let TYPE_QZ_IEAS = "qz_ieas"
+    static let TYPE_QZ_APP = "qz_app"
+    static let TYPE_UCAS = "ucas"
+    static let TYPE_BJTU = "bjtu"
+    static let TYPE_YETHAN = "yethan"
+    static let TYPE_ECUPL = "ecupl"
+    static let TYPE_ECUPL_SCRIPT = "ecupl_script"
+    static let TYPE_ECUPL_SUPER = "ecupl_super"
+    static let TYPE_EAMS5 = "eams5"
+    static let TYPE_SEU = "seu"
+    static let TYPE_ZJU = "zju"
+    static let TYPE_USTC = "ustc"
+    static let TYPE_SCU = "scu"
+    static let TYPE_NEU = "neu"
     static let TYPE_CHAOXING = "chaoxing"
-
-    /// 博雅研究生平台 (超星 chaoxingbook 旗下"博雅研究生", 前端挂 /pp/ 路径)。
-    /// 自建 REST: GET /api/microForm/term (学期含 termBeginTime/weekEnd) +
-    /// GET /api/schedule/class/setting/current (lessonConfig 节次时间) +
-    /// GET /api/schedule/table/byStudent?whichWeek=N&yearTerm=… (排课行, 每行自带
-    /// whichWeek/week/lessonNumber; 实测不带 whichWeek 返回不完整子集, 须逐周抓)。
-    /// 认证: cookie `token` / 同名请求头, 响应信封 {code:200,data}。
-    /// 多校 SaaS (代码内含 YANSHANDAXUE/DALIANJIAOTONG fid 常量)。
-    /// 首校: 燕山大学研究生 (yjsxt.ysu.edu.cn/pp, fid=41571,
-    /// 2026-09-06 采集包 + 接口实采 390 行实锤)。
     static let TYPE_BOYA_PP = "boya_pp"
-
-    /// 武汉理工大学教务 (jwxt.whut.edu.cn, 金智 jwapp 变体)。
-    /// 课表走 kcbcxby 微应用 cxxskcb.do (响应 datas.cxxskcb.rows[], 字段与 HEU
-    /// xskcb 同名同义); 解析内核复用 JwWiseduParser。WHUT 特有: 节次 DM ≠
-    /// 物理节次 (6/7/13 缺位), JwWhutParser.SECTION_DM_TO_NODE 映射兜底。
-    /// 上游协议形态: shiguang_warehouse (MIT) whut_01.js + iwut (AGPL, 仅引形态)。
     static let TYPE_WHUT = "whut"
-
-    /// 经典金智/树维 EAMS (courseTableForStd!courseTable.action 系列, HTML+内嵌 JS)。
-    /// 课表数据在页面内嵌脚本块: new TaskActivity(教师,课名,...,周次位图) + index=D*unitCount+P;
-    /// HTML 表格 #manualArrangeCourseTable 是空壳 (JS 端 fillTable 渲染), 禁走 DOM。
-    /// 周次位图下标 0 占位, 下标 i=1 即第 i 周; unitCount 每校不一 (12/13/11), 禁写死。
-    /// 适配 (2026-09 211 批量收录): 电子科大 / 上财 / 湖南师大 / 南航 (南航入口是
-    /// courseTableStudent!* 但脚本块同构)。
-    /// 上游协议形态: shiguang_warehouse (MIT) hunnu/uestc/hpu.js + WakeupSchedule_Kotlin
-    /// (Apache-2.0); 代码自写。
+    static let TYPE_SG_ASSET = "sg_asset"
+    static let TYPE_JW_HOME = "jw_home"
     static let TYPE_CLASSIC_EAMS = "classic_eams"
     static let TYPE_KUST = "kust"
     static let TYPE_NUIT = "nuit"
-    /// 教务入口登记，不代表已验证的协议；解析时按自动识别处理。
-    static let TYPE_JW_HOME = "jw_home"
-    /// 内置拾光适配脚本的课程 JSON 桥。
-    static let TYPE_SG_ASSET = "sg_asset"
-
-    /// 协议展示列表；实际兜底候选由 Registry.TYPE_PRIORITY 决定（排除 jw_home 登记器）。
-    /// 顺序按 TYPE_PRIORITY 优先级：wisedu > cqu > chaoxing > boya_pp > eams5 > classic_eams >
-    ///                            pku > bnuz > cf > hnust > hniu >
-    ///                            seu > zju > ustc > scu > neu > whut > bjtu >
-    ///                            zf > zf_1 > urp > urp_new > zf_new >
-    ///                            qz > qz_crazy > qz_br > qz_with_node > qz_ieas > qz_app > ucas > qz_old
     static let ALL_TYPES: [String] = [
         TYPE_WISEDU, TYPE_CQU, TYPE_CHAOXING, TYPE_BOYA_PP, TYPE_EAMS5, TYPE_CLASSIC_EAMS, TYPE_KUST, TYPE_NUIT, TYPE_PKU, TYPE_BNUZ,
         TYPE_CF, TYPE_CF_NEW, TYPE_HNUST, TYPE_HNIU,
@@ -243,172 +192,239 @@ enum JwProtocol {
         TYPE_BJTU, TYPE_YETHAN,
         TYPE_ZF, TYPE_ZF_1, TYPE_URP, TYPE_URP_NEW, TYPE_ZF_NEW,
         TYPE_QZ, TYPE_QZ_CRAZY, TYPE_QZ_BR, TYPE_QZ_WITH_NODE, TYPE_QZ_IEAS, TYPE_QZ_APP, TYPE_UCAS, TYPE_QZ_OLD,
-        TYPE_JW_HOME, TYPE_SG_ASSET,
+        TYPE_SG_ASSET,
     ]
-
-    /// WakeUp 兼容层路由的协议族;与旧 UI 排序分开保存 ← WAKEUP_COMPAT_TYPES
     static let WAKEUP_COMPAT_TYPES: [String] = [
+        TYPE_SHUWEI_M, TYPE_XATU_SHUWEI, TYPE_SIAS_SHUWEI, TYPE_SNUT_SHUWEI, TYPE_UESTC_SHUWEI, TYPE_HUNNU_SHUWEI, TYPE_XSYU_SHUWEI, TYPE_NWPU, TYPE_JMU, TYPE_SHUWEI_NEW, TYPE_AHNU, TYPE_HFU,
+        TYPE_HUAT, TYPE_SEU_2017, TYPE_SHU2024, TYPE_TJU, TYPE_HQU, TYPE_CHANGZHOU, TYPE_SICNU, TYPE_NUIST, TYPE_SIT, TYPE_SYSU, TYPE_SUES,
+        TYPE_JZ_1, TYPE_JZ_X, TYPE_WIST, TYPE_XMU, TYPE_SWJTU_POST, TYPE_KG_ZX,
+        TYPE_HBUT, TYPE_HNJM, TYPE_LZ, TYPE_NAU, TYPE_NJU, TYPE_CQUPT,
+        TYPE_XHTD, TYPE_XYTC, TYPE_CIDP, TYPE_SDPEI, TYPE_SHU, TYPE_JMPT, TYPE_LNGD, TYPE_VATUU, TYPE_YZZY,
+        TYPE_HIT, TYPE_BUAA,
+        TYPE_GXIC, TYPE_GXNU, TYPE_JXNU, TYPE_NNUTC,
+        TYPE_SHSMU, TYPE_YGU,
+        TYPE_XJTU_POST, TYPE_UESTC_POST, TYPE_BFA_POST, TYPE_GDBYXY, TYPE_CUPL_POST, TYPE_YSU_POST, TYPE_WHU_POST, TYPE_HRBEU_POST, TYPE_SHTU_POST, TYPE_USTC_POST, TYPE_XAUAT_POST, TYPE_ZJU_POST, TYPE_CSV, TYPE_SHUWEI_OLD,
+        TYPE_JNU, TYPE_SWUST,
+        TYPE_QZ_2017, TYPE_QZ_2024, TYPE_QZ_FSPT, TYPE_QZ_USTB, TYPE_ZF_CLS,
+        TYPE_JMUCY, TYPE_NUAAJC, TYPE_QMU, TYPE_JAVTC, TYPE_HITSZ,
+        TYPE_SUSTECH, TYPE_UIC, TYPE_CITYU, TYPE_STU, TYPE_NFU,
+        TYPE_FSTVC, TYPE_GDBH, TYPE_GLIET, TYPE_CNU, TYPE_XBELLSOFT,
+        TYPE_CDUT, TYPE_GZHUYJS, TYPE_DHU, TYPE_ECJTU, TYPE_ZPTC, TYPE_CTGU, TYPE_NYIST, TYPE_JXAU,
+        TYPE_CCIBE, TYPE_CPPU, TYPE_SHCC,
+        TYPE_AHMU, TYPE_GDEI, TYPE_JLU_POST,
+        TYPE_HBMZU, TYPE_NUA, TYPE_STUM,
+        TYPE_HUST, TYPE_AIC,
+        TYPE_BFA, TYPE_FDU, TYPE_ZTVTIT,
+        TYPE_RUC, TYPE_SDU, TYPE_SEIG,
+        TYPE_SIMC, TYPE_CHAOXING_SHARE, TYPE_SHTU_POST_2024, TYPE_KINGOSOFT,
+        TYPE_JLICT_QZ_OLD, TYPE_CCUT_QZ_OLD, TYPE_CCSU_QZ_OLD, TYPE_URP_NEW_AJAX,
+        TYPE_QZ_SINGLE_NODE, TYPE_QZ_NJUST, TYPE_QZ_WIT, TYPE_QZ_ECUST, TYPE_QZ_AHUT, TYPE_QZ_BJFU,
         TYPE_KINGO_NEW, TYPE_KINGO_ZX, TYPE_JZ, TYPE_SOUTH_SOFT, TYPE_CHAOXING_LEGACY,
-        TYPE_SHUWEI, TYPE_UMOOC, TYPE_YL, TYPE_SUDA_POST, TYPE_CUMTB, TYPE_XJU_POST,
-        TYPE_THU, TYPE_NWPU_POST, TYPE_NEW_URP_SUPER, TYPE_ECUPL,
-        TYPE_ECUPL_SCRIPT, TYPE_ECUPL_SUPER, TYPE_SCAU,
+        TYPE_SHUWEI, TYPE_UMOOC, TYPE_YL, TYPE_SUDA_POST, TYPE_CUMTB, TYPE_XJU_POST, TYPE_THU, TYPE_NWPU_POST, TYPE_NEW_URP_SUPER,
+        TYPE_ECUPL, TYPE_ECUPL_SCRIPT, TYPE_ECUPL_SUPER, TYPE_SCAU,
     ]
-
-    /// 协议显示名(用于 UI 提示) ← displayName
     static func displayName(_ type: String?) -> String {
         switch type {
-        case TYPE_JW_HOME:
-            return "教务入口（自动识别）"
-        case TYPE_SG_ASSET:
-            return "拾光适配脚本"
-        case TYPE_QZ, TYPE_QZ_OLD, TYPE_QZ_CRAZY, TYPE_QZ_BR, TYPE_QZ_WITH_NODE:
-            return "强智教务"
-        case TYPE_QZ_APP:
-            return "强智移动教务"
-        case TYPE_QZ_IEAS:
-            return "强智教务(iEAS 网络版)"
-        case TYPE_UCAS:
-            return "国科大选课系统"
-        case TYPE_BJTU:
-            return "北京交通大学"
-        case TYPE_YETHAN:
-            return "西南交通大学 (逐专平台)"
-        case TYPE_ZF, TYPE_ZF_1, TYPE_ZF_NEW:
-            return "正方教务"
-        case TYPE_URP, TYPE_URP_NEW:
-            return "URP 教务"
-        case TYPE_CF:
-            return "青果教务"
-        case TYPE_CF_NEW:
-            return "青果教务(新版)"
-        case TYPE_KINGO_NEW:
-            return "新青果/金智教务"
-        case TYPE_JZ:
-            return "金智教务(WakeUp 兼容)"
-        case TYPE_SOUTH_SOFT:
-            return "南软研究生教务"
-        case TYPE_CHAOXING_LEGACY:
-            return "超星教务(旧版)"
-        case TYPE_SHUWEI:
-            return "数维教务"
-        case TYPE_SUDA_POST:
-            return "苏大教务"
-        case TYPE_CUMTB:
-            return "矿大 EAMS5"
-        case TYPE_XJU_POST:
-            return "西交/新疆大学教务"
-        case TYPE_THU:
-            return "清华大学 (THU 教务)"
-        case TYPE_KINGO_ZX:
-            return "青果教务 (ZX 子变体)"
-        case TYPE_UMOOC:
-            return "UMOOC 教务"
-        case TYPE_YL:
-            return "奕联教务"
-        case TYPE_NWPU_POST:
-            return "西北工业大学研究生教务"
-        case TYPE_NEW_URP_SUPER:
-            return "新 URP 教务 (数组变体)"
-        case TYPE_ECUPL:
-            return "华东政法大学 (ECUPL)"
-        case TYPE_ECUPL_SCRIPT:
-            return "华东政法大学 (ECUPL Script)"
-        case TYPE_ECUPL_SUPER:
-            return "华东政法大学 (ECUPL 调度器)"
-        case TYPE_SCAU:
-            return "华南农业大学 (SCAU)"
-        case TYPE_PKU:
-            return "北京大学"
-        case TYPE_BNUZ:
-            return "北师珠"
-        case TYPE_WISEDU:
-            return "金智教务(直连)"
-        case TYPE_CQU:
-            return "重庆大学门户"
-        case TYPE_CHAOXING:
-            return "超星综合教务"
-        case TYPE_BOYA_PP:
-            return "博雅研究生平台"
-        case TYPE_HNUST:
-            return "湖南科大教务"
-        case TYPE_HNIU:
-            return "湖南信息职业技术学院"
-        case TYPE_EAMS5:
-            return "合工大教务 (EAMS5)"
-        case TYPE_CLASSIC_EAMS:
-            return "金智教务(经典 EAMS)"
-        case TYPE_KUST:
-            return "昆明理工大学门户"
-        case TYPE_NUIT:
-            return "广东东软学院教务"
-        case TYPE_SEU:
-            return "东南大学"
-        case TYPE_ZJU:
-            return "浙江大学"
-        case TYPE_USTC:
-            return "中国科学技术大学"
-        case TYPE_SCU:
-            return "四川大学"
-        case TYPE_NEU:
-            return "东北大学"
-        case TYPE_WHUT:
-            return "武汉理工大学"
-        case TYPE_LOGIN:
-            return "特殊登录(v1 暂不支持)"
-        case TYPE_HELP:
-            return "如何选择教务类型"
-        case TYPE_MAINTAIN:
-            return "维护中"
-        default:
-            return type ?? ""
+        case TYPE_SHUWEI_M: return "树维教务（shuwei_m）"
+        case TYPE_XATU_SHUWEI: return "树维教务（xatu_shuwei）"
+        case TYPE_SIAS_SHUWEI: return "树维教务（sias_shuwei）"
+        case TYPE_SNUT_SHUWEI: return "树维教务（snut_shuwei）"
+        case TYPE_UESTC_SHUWEI: return "树维教务（uestc_shuwei）"
+        case TYPE_HUNNU_SHUWEI: return "树维教务（hunnu_shuwei）"
+        case TYPE_XSYU_SHUWEI: return "树维教务（xsyu_shuwei）"
+        case TYPE_NWPU: return "西北工业大学教务"
+        case TYPE_JMU: return "集美大学教务"
+        case TYPE_SHUWEI_NEW: return "树维新版教务"
+        case TYPE_AHNU: return "安徽师范大学教务"
+        case TYPE_HFU: return "HFU教务"
+        case TYPE_HUAT: return "湖北汽车工业学院教务"
+        case TYPE_SEU_2017: return "东南大学2017教务"
+        case TYPE_SHU2024: return "上海大学2024教务"
+        case TYPE_TJU: return "同济大学教务"
+        case TYPE_HQU: return "华侨大学教务"
+        case TYPE_CHANGZHOU: return "常州模板教务"
+        case TYPE_SICNU: return "四川师范大学教务"
+        case TYPE_NUIST: return "NUIST模板教务"
+        case TYPE_SIT: return "上海应用技术大学教务"
+        case TYPE_SYSU: return "中山大学教务"
+        case TYPE_SUES: return "上海工程技术大学教务"
+        case TYPE_JZ_1: return "金智课程表"
+        case TYPE_JZ_X: return "金智扩展课程表"
+        case TYPE_WIST: return "武汉船舶课程表"
+        case TYPE_XMU: return "厦门大学教务"
+        case TYPE_SWJTU_POST: return "西南交通大学研究生教务"
+        case TYPE_KG_ZX: return "青果正选课程表"
+        case TYPE_HBUT: return "湖北工业大学教务"
+        case TYPE_HNJM: return "河南经贸职业学院教务"
+        case TYPE_LZ: return "LZ模板教务"
+        case TYPE_NAU: return "南京审计大学教务"
+        case TYPE_NJU: return "南京大学教务"
+        case TYPE_CQUPT: return "重庆邮电大学教务"
+        case TYPE_XHTD: return "西华通达教务"
+        case TYPE_XYTC: return "襄阳模板教务"
+        case TYPE_CIDP: return "防灾科技学院教务"
+        case TYPE_SDPEI: return "山东体育学院教务"
+        case TYPE_SHU: return "上海大学旧版教务"
+        case TYPE_JMPT: return "江门职业技术学院教务"
+        case TYPE_LNGD: return "轨道装备教务"
+        case TYPE_VATUU: return "Vatuu教务"
+        case TYPE_YZZY: return "永州职业技术学院教务"
+        case TYPE_HIT: return "哈尔滨工业大学教务"
+        case TYPE_BUAA: return "北京航空航天大学教务"
+        case TYPE_GXIC: return "广西工业职业技术学院教务"
+        case TYPE_GXNU: return "广西师范大学教务"
+        case TYPE_JXNU: return "江西师范大学教务"
+        case TYPE_NNUTC: return "南京师范大学泰州学院教务"
+        case TYPE_SHSMU: return "上海交通大学医学院教务"
+        case TYPE_YGU: return "阳光学院教务"
+        case TYPE_XJTU_POST: return "西安交通大学研究生教务"
+        case TYPE_UESTC_POST: return "电子科技大学研究生教务"
+        case TYPE_BFA_POST: return "北京电影学院研究生教务"
+        case TYPE_GDBYXY: return "广东白云学院教务"
+        case TYPE_CUPL_POST: return "中国政法大学研究生教务"
+        case TYPE_YSU_POST: return "燕山大学研究生教务"
+        case TYPE_WHU_POST: return "武汉大学研究生教务"
+        case TYPE_HRBEU_POST: return "哈尔滨工程大学研究生教务"
+        case TYPE_SHTU_POST: return "上海科技大学旧版研究生教务"
+        case TYPE_USTC_POST: return "中国科学技术大学研究生教务"
+        case TYPE_XAUAT_POST: return "西安建筑科技大学研究生教务"
+        case TYPE_ZJU_POST: return "浙江大学研究生教务"
+        case TYPE_CSV: return "CSV 课程表"
+        case TYPE_SHUWEI_OLD: return "树维旧版教务"
+        case TYPE_JNU: return "JNU 旧版教务"
+        case TYPE_SWUST: return "西南科技大学教务"
+        case TYPE_QZ_2017: return "强智 2017 课表"
+        case TYPE_QZ_2024: return "强智 2024 课表"
+        case TYPE_QZ_FSPT: return "佛山职业技术学院强智教务"
+        case TYPE_QZ_USTB: return "北京科技大学强智教务"
+        case TYPE_ZF_CLS: return "正方班级课表"
+        case TYPE_JMUCY: return "集美大学诚毅学院教务"
+        case TYPE_NUAAJC: return "南航金城学院教务"
+        case TYPE_QMU: return "齐齐哈尔医学院教务"
+        case TYPE_JAVTC: return "江西航空职业技术学院教务"
+        case TYPE_HITSZ: return "哈工大深圳教务"
+        case TYPE_SUSTECH: return "南方科技大学教务"
+        case TYPE_UIC: return "UIC 旧版教务"
+        case TYPE_CITYU: return "CityU 课表"
+        case TYPE_STU: return "汕头大学旧版教务"
+        case TYPE_NFU: return "南方学院教务"
+        case TYPE_BFA: return "北京电影学院教务"
+        case TYPE_HUST: return "华中科技大学教务"
+        case TYPE_AIC: return "AIC 智能校园教务"
+        case TYPE_HBMZU: return "湖北民族大学教务"
+        case TYPE_NUA: return "南京艺术学院教务"
+        case TYPE_STUM: return "STUM 移动教务"
+        case TYPE_AHMU: return "AHMU 教务"
+        case TYPE_GDEI: return "广东第二师范学院教务"
+        case TYPE_JLU_POST: return "吉林大学研究生教务"
+        case TYPE_CCIBE: return "CCIBE 教务"
+        case TYPE_CPPU: return "CPPU 教务"
+        case TYPE_SHCC: return "SHCC 教务"
+        case TYPE_FSTVC: return "FSTVC 教务"
+        case TYPE_GDBH: return "桂电北海教务"
+        case TYPE_GLIET: return "桂电教务"
+        case TYPE_CNU: return "CNU 教务"
+        case TYPE_XBELLSOFT: return "Xbellsoft 教务"
+        case TYPE_CDUT: return "成都理工旧版教务"
+        case TYPE_GZHUYJS: return "广州大学研究生教务"
+        case TYPE_DHU: return "东华大学旧版教务"
+        case TYPE_ECJTU: return "华东交通旧版教务"
+        case TYPE_ZPTC: return "浙江邮电教务"
+        case TYPE_CTGU: return "CTGU 旧版教务"
+        case TYPE_NYIST: return "南阳理工学院旧版教务"
+        case TYPE_JXAU: return "江西农业大学旧版教务"
+        case TYPE_FDU: return "复旦大学教务"
+        case TYPE_ZTVTIT: return "浙江交通职业技术学院教务"
+        case TYPE_RUC: return "中国人民大学教务"
+        case TYPE_SDU: return "山东大学教务"
+        case TYPE_SEIG: return "广州软件学院教务"
+        case TYPE_SHTU_POST_2024: return "上海科技大学研究生教务"
+        case TYPE_KINGOSOFT: return "Kingosoft 周课表"
+        case TYPE_JLICT_QZ_OLD, TYPE_CCUT_QZ_OLD, TYPE_CCSU_QZ_OLD: return "旧版强智教务"
+        case TYPE_URP_NEW_AJAX: return "新版 URP 教务"
+        case TYPE_SIMC: return "上海工程技术大学高职教务"
+        case TYPE_CHAOXING_SHARE: return "超星分享课表"
+        case TYPE_QZ_SINGLE_NODE, TYPE_QZ_NJUST, TYPE_QZ_WIT, TYPE_QZ_ECUST, TYPE_QZ_AHUT, TYPE_QZ_BJFU: return "强智教务"
+        case TYPE_QZ, TYPE_QZ_OLD, TYPE_QZ_CRAZY, TYPE_QZ_BR, TYPE_QZ_WITH_NODE: return "强智教务"
+        case TYPE_QZ_APP: return "强智移动教务"
+        case TYPE_QZ_IEAS: return "强智教务（iEAS 网络版）"
+        case TYPE_UCAS: return "国科大选课系统"
+        case TYPE_BJTU: return "北京交通大学"
+        case TYPE_YETHAN: return "西南交通大学 (逐专平台)"
+        case TYPE_ZF, TYPE_ZF_1, TYPE_ZF_NEW: return "正方教务"
+        case TYPE_URP, TYPE_URP_NEW: return "URP 教务"
+        case TYPE_CF: return "青果教务"
+        case TYPE_CF_NEW: return "青果教务（新版）"
+        case TYPE_PKU: return "北京大学"
+        case TYPE_BNUZ: return "北师珠"
+        case TYPE_KINGO_NEW: return "新青果/金智教务"
+        case TYPE_KINGO_ZX: return "青果教务 (ZX 子变体)"
+        case TYPE_JZ: return "金智教务（WakeUp 兼容）"
+        case TYPE_SOUTH_SOFT: return "南软研究生教务"
+        case TYPE_CHAOXING_LEGACY: return "超星教务（旧版）"
+        case TYPE_SHUWEI: return "数维教务"
+        case TYPE_UMOOC: return "UMOOC 教务"
+        case TYPE_YL: return "奕联教务"
+        case TYPE_SUDA_POST: return "苏大教务"
+        case TYPE_CUMTB: return "矿大 EAMS5"
+        case TYPE_XJU_POST: return "西交/新疆大学教务"
+        case TYPE_ECUPL: return "华东政法大学 (ECUPL)"
+        case TYPE_ECUPL_SCRIPT: return "华东政法大学 (ECUPL Script)"
+        case TYPE_ECUPL_SUPER: return "华东政法大学 (ECUPL 调度器)"
+        case TYPE_THU: return "清华大学 (THU 教务)"
+        case TYPE_NWPU_POST: return "西北工业大学研究生教务"
+        case TYPE_SCAU: return "华南农业大学 (SCAU)"
+        case TYPE_NEW_URP_SUPER: return "新 URP 教务 (数组变体)"
+        case TYPE_WISEDU: return "金智教务（直连）"
+        case TYPE_CQU: return "重庆大学门户"
+        case TYPE_CHAOXING: return "超星综合教务"
+        case TYPE_BOYA_PP: return "博雅研究生平台"
+        case TYPE_HNUST: return "湖南科大教务"
+        case TYPE_HNIU: return "湖南信息职业技术学院"
+        case TYPE_EAMS5: return "合工大教务 (EAMS5)"
+        case TYPE_CLASSIC_EAMS: return "金智教务（经典 EAMS）"
+        case TYPE_KUST: return "昆明理工大学门户"
+        case TYPE_NUIT: return "广东东软学院教务"
+        case TYPE_SEU: return "东南大学"
+        case TYPE_ZJU: return "浙江大学"
+        case TYPE_USTC: return "中国科学技术大学"
+        case TYPE_SCU: return "四川大学"
+        case TYPE_NEU: return "东北大学"
+        case TYPE_WHUT: return "武汉理工大学"
+        case TYPE_SG_ASSET: return "拾光适配脚本"
+        case TYPE_JW_HOME: return "教务主页"
+        case TYPE_LOGIN: return "特殊登录（v1 暂不支持）"
+        case TYPE_HELP: return "如何选择教务类型"
+        case TYPE_MAINTAIN: return "维护中"
+        default: return type ?? ""
         }
     }
-
-    /// 协议大类,用于 WebViewLogin UI 上的提示文案分类 ← category
     static func category(_ type: String?) -> String {
         switch type {
-        case TYPE_QZ, TYPE_QZ_OLD, TYPE_QZ_CRAZY, TYPE_QZ_BR, TYPE_QZ_WITH_NODE, TYPE_QZ_APP:
-            return "qz"
-        case TYPE_QZ_IEAS:
-            return "qz"
-        case TYPE_UCAS:
-            return "other"
-        case TYPE_ZF, TYPE_ZF_1, TYPE_ZF_NEW:
-            return "zf"
-        case TYPE_URP, TYPE_URP_NEW:
-            return "urp"
-        case TYPE_KINGO_NEW, TYPE_JZ, TYPE_SOUTH_SOFT, TYPE_CHAOXING_LEGACY,
-             TYPE_SHUWEI, TYPE_SUDA_POST, TYPE_CUMTB, TYPE_XJU_POST, TYPE_THU:
-            return "other"
-        case TYPE_KINGO_ZX, TYPE_UMOOC, TYPE_YL, TYPE_NWPU_POST, TYPE_NEW_URP_SUPER,
-             TYPE_ECUPL, TYPE_ECUPL_SCRIPT, TYPE_ECUPL_SUPER, TYPE_SCAU:
-            return "other"
-        case TYPE_WISEDU:
-            return "wisedu"
-        case TYPE_CQU:
-            return "cqu"
-        case TYPE_CHAOXING:
-            return "chaoxing"
-        case TYPE_BOYA_PP:
-            return "other"
-        case TYPE_EAMS5:
-            return "eams5"
-        case TYPE_CLASSIC_EAMS, TYPE_KUST, TYPE_NUIT:
-            return "other"
-        case TYPE_SEU, TYPE_ZJU, TYPE_USTC, TYPE_SCU, TYPE_NEU, TYPE_WHUT:
-            return "other"
-        case TYPE_BJTU:
-            return "other"
-        case TYPE_YETHAN:
-            return "other"
-        case TYPE_HNUST, TYPE_HNIU:
-            return "hnust"
-        case TYPE_CF, TYPE_CF_NEW:
-            return "cf"
-        case TYPE_PKU, TYPE_BNUZ:
-            return "other"
-        default:
-            return "other"
+        case TYPE_QZ_2017, TYPE_QZ_2024, TYPE_QZ_FSPT, TYPE_QZ_USTB: return "qz"
+        case TYPE_ZF_CLS: return "zf"
+        case TYPE_SIMC: return "other"
+        case TYPE_QZ_SINGLE_NODE, TYPE_QZ_NJUST, TYPE_QZ_WIT, TYPE_QZ_ECUST, TYPE_QZ_AHUT, TYPE_QZ_BJFU: return "qz"
+        case TYPE_QZ, TYPE_QZ_OLD, TYPE_QZ_CRAZY, TYPE_QZ_BR, TYPE_QZ_WITH_NODE, TYPE_QZ_APP: return "qz"
+        case TYPE_QZ_IEAS: return "qz"
+        case TYPE_UCAS: return "other"
+        case TYPE_ZF, TYPE_ZF_1, TYPE_ZF_NEW: return "zf"
+        case TYPE_URP, TYPE_URP_NEW: return "urp"
+        case TYPE_KINGO_NEW, TYPE_KINGO_ZX, TYPE_JZ, TYPE_SOUTH_SOFT, TYPE_CHAOXING_LEGACY, TYPE_SHUWEI, TYPE_UMOOC, TYPE_YL, TYPE_SUDA_POST, TYPE_CUMTB, TYPE_XJU_POST, TYPE_THU, TYPE_NWPU_POST, TYPE_NEW_URP_SUPER, TYPE_ECUPL, TYPE_ECUPL_SCRIPT, TYPE_ECUPL_SUPER, TYPE_SCAU: return "other"
+        case TYPE_WISEDU: return "wisedu"
+        case TYPE_CQU: return "cqu"
+        case TYPE_CHAOXING: return "chaoxing"
+        case TYPE_BOYA_PP: return "other"
+        case TYPE_EAMS5: return "eams5"
+        case TYPE_CLASSIC_EAMS, TYPE_KUST, TYPE_NUIT: return "other"
+        case TYPE_SEU, TYPE_ZJU, TYPE_USTC, TYPE_SCU, TYPE_NEU, TYPE_WHUT: return "other"
+        case TYPE_SG_ASSET: return "other"
+        case TYPE_BJTU: return "other"
+        case TYPE_YETHAN: return "other"
+        case TYPE_HNUST, TYPE_HNIU: return "hnust"
+        case TYPE_CF, TYPE_CF_NEW: return "cf"
+        case TYPE_PKU, TYPE_BNUZ: return "other"
+        default: return "other"
         }
     }
 }
