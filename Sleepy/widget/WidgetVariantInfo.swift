@@ -23,6 +23,7 @@ struct WidgetVariantInfo {
 
 let allWidgetVariants: [WidgetVariantInfo] = [
     WidgetVariantInfo(kind: "WeekGridWidgetV19", displayNameKey: "widget_week_grid_label"),
+    WidgetVariantInfo(kind: "WeekGridWideWidget", displayNameKey: "widget_week_grid_wide_label"),
     WidgetVariantInfo(kind: "TodayWidgetRV", displayNameKey: "widget_today_label"),
     WidgetVariantInfo(kind: "WeekListWidgetRV", displayNameKey: "widget_week_list_label"),
     WidgetVariantInfo(kind: "WeekViewWidgetRV", displayNameKey: "widget_week_view_label"),

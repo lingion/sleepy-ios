@@ -14,6 +14,7 @@ import WidgetKit
 
 struct WidgetGalleryScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var uiStyle
     let onDismiss: () -> Void
 
     // ← v1.0.64: 点卡片 → 该 widget 的添加引导 sheet(平台差异, 文件头注)
@@ -21,23 +22,28 @@ struct WidgetGalleryScreen: View {
     // ← 每张卡 pin 后的冷却(防连点): receiverName → 冷却中
     @State private var cooling: Set<String> = []
     // ← cards = WidgetGalleryData.buildCards()(数量随注册表走)
-    private let cards = WidgetGalleryData.buildCards()
+    private let groups = WidgetGalleryData.buildGroups()
+    @State private var expandedGroupKey: String?
 
     var body: some View {
-        let boxAspectRatios = WidgetGalleryData.rowBoxAspectRatios(cards, columns: 2)
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("widget_gallery_title"), onBack: onDismiss)
             ScrollView {
-                // ← LazyVerticalGrid(columns = Fixed(2), contentPadding 16,
-                //    horizontal/vertical spacing 12)
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12, alignment: .top),
-                                    GridItem(.flexible(), spacing: 12, alignment: .top)],
-                          spacing: 12) {
-                    ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
-                        GalleryCard(card: card,
-                                    boxAspectRatio: boxAspectRatios[index],
-                                    enabled: !cooling.contains(card.receiverName)) {
-                            tap(card)
+                LazyVStack(spacing: 12) {
+                    ForEach(WidgetGalleryData.rows(groups, expandedKey: expandedGroupKey)) { row in
+                        if row.expanded, let group = row.groups.first {
+                            expanded(group)
+                        } else {
+                            let ratios = WidgetGalleryData.rowBoxAspectRatios(row.groups.map(\.primary), columns: 2)
+                            HStack(alignment: .top, spacing: 12) {
+                                ForEach(Array(row.groups.enumerated()), id: \.element.id) { index, group in
+                                    GalleryCard(card: group.primary, boxAspectRatio: ratios[index],
+                                        enabled: true, title: groupTitle(group)) {
+                                        withAnimation { expandedGroupKey = group.id }
+                                    }
+                                }
+                                if row.groups.count == 1 { Color.clear.frame(maxWidth: .infinity) }
+                            }
                         }
                     }
                 }
@@ -50,6 +56,49 @@ struct WidgetGalleryScreen: View {
         .sheet(item: $guideCard) { card in
             WidgetAddGuideSheet(card: card, onDismiss: { guideCard = nil })
         }
+    }
+
+    private func groupTitle(_ group: WidgetGalleryGroup) -> String {
+        let name = L10n.format(group.primary.variant.displayNameKey)
+        return group.isMultiSize ? name + L10n.format("widget_gallery_multisize") : name
+    }
+
+    private func expanded(_ group: WidgetGalleryGroup) -> some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text(groupTitle(group)).font(SleepyTypography.titleSmall)
+                Spacer()
+                Button {
+                    withAnimation { expandedGroupKey = nil }
+                } label: {
+                    AndroidSettingsIcon(name: .expandLess, size: 24)
+                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                }
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 22, compact: true, shape: .circle))
+                .frame(width: 48, height: 48)
+                .accessibilityLabel(L10n.format("widget_gallery_collapse"))
+                .accessibilityIdentifier("widget_gallery_collapse_\(group.id)")
+            }
+            .foregroundColor(colors.onSurface)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .onTapGesture { withAnimation { expandedGroupKey = nil } }
+            let ratios = WidgetGalleryData.rowBoxAspectRatios(group.cards, columns: 2)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                ForEach(Array(group.cards.enumerated()), id: \.element.id) { index, card in
+                    GalleryCard(card: card, boxAspectRatio: ratios[index],
+                        enabled: !cooling.contains(card.receiverName), title: sizeTitle(card)) { tap(card) }
+                }
+            }
+        }
+        .accessibilityIdentifier("widget_gallery_expanded_\(group.id)")
+    }
+
+    private func sizeTitle(_ card: WidgetGalleryCard) -> String {
+        if card.variant.kind == WeekGridWideSettings.kind { return L10n.format(card.variant.displayNameKey) }
+        let key = card.previewFamily == .systemSmall ? "widget_size_small"
+            : card.previewFamily == .systemMedium ? "widget_size_medium" : "widget_size_large"
+        return L10n.format(key)
     }
 
     /// ← onClick: 冷却置位 → WidgetPinRequest.request → 2s 后解除。
@@ -72,6 +121,7 @@ private struct GalleryCard: View {
     let card: WidgetGalleryCard
     let boxAspectRatio: CGFloat
     let enabled: Bool
+    var title: String? = nil
     let onClick: () -> Void
 
     var body: some View {
@@ -82,7 +132,7 @@ private struct GalleryCard: View {
                     .frame(maxWidth: .infinity)
                     .opacity(enabled ? 1 : 0.5)
                     .accessibilityHidden(true)
-                Text(L10n.format(card.variant.displayNameKey))
+                Text(title ?? L10n.format(card.variant.displayNameKey))
                     .font(SleepyTypography.titleSmall)
                     .foregroundColor(enabled ? colors.onSurface : colors.onSurfaceVariant)
                     .multilineTextAlignment(.center)

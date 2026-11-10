@@ -30,6 +30,8 @@ struct WidgetEditScope {
     // ← 最小档三天窗口 — 本 kind 一档 (仅系统小 family 显示); true = 今日居第一位
     var compactTodayFirst: Bool = true
     var onCompactTodayFirstChange: (Bool) -> Void = { _ in }
+    var wideGridSettings: WeekGridWideSettings = WeekGridWideSettings()
+    var onWideGridSettingsChange: (WeekGridWideSettings) -> Void = { _ in }
 }
 
 // ← WidgetEditSection.kt 的协议扩展点在 SwiftUI 下不成立(existential View 不能做
@@ -48,7 +50,8 @@ func makeWidgetEditScope(kind: String,
                          onSelect: @escaping (Int64?) -> Void,
                          onUseAliasChange: @escaping (Bool) -> Void = { _ in },
                          onScrollEnabledChange: @escaping (Bool) -> Void = { _ in },
-                         onCompactTodayFirstChange: @escaping (Bool) -> Void = { _ in }) -> WidgetEditScope {
+                         onCompactTodayFirstChange: @escaping (Bool) -> Void = { _ in },
+                         onWideGridSettingsChange: @escaping (WeekGridWideSettings) -> Void = { _ in }) -> WidgetEditScope {
     let repo = WidgetLoader.makeRepo()
     let all = repo.map { (try? $0.getAllTables()) ?? [] } ?? []
     var available: [TimeTableEntity] = []
@@ -73,7 +76,9 @@ func makeWidgetEditScope(kind: String,
         scrollEnabled: WidgetScrollStore.isScrollEnabled(kind: kind),
         onScrollEnabledChange: onScrollEnabledChange,
         compactTodayFirst: WidgetCompactWindowStore.isTodayFirst(kind),
-        onCompactTodayFirstChange: onCompactTodayFirstChange
+        onCompactTodayFirstChange: onCompactTodayFirstChange,
+        wideGridSettings: WeekGridWideSettingsStore.read(kind: kind),
+        onWideGridSettingsChange: onWideGridSettingsChange
     )
 }
 
@@ -108,6 +113,7 @@ struct WidgetEditScreen: View {
                         WidgetEditScheduleSection(scope: s)
                         WidgetEditAliasSection(scope: s)
                         WidgetEditCompactWindowSection(scope: s)
+                        WidgetEditWideGridSection(scope: s)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -146,6 +152,11 @@ struct WidgetEditScreen: View {
                 WidgetCompactWindowStore.setTodayFirst(kind, v)
                 WidgetCenter.shared.reloadAllTimelines()
                 reloadScope()
+            },
+            onWideGridSettingsChange: { settings in
+                WeekGridWideSettingsStore.write(settings, kind: kind)
+                WidgetCenter.shared.reloadTimelines(ofKind: kind)
+                reloadScope()
             }
         )
     }
@@ -156,6 +167,7 @@ struct WidgetEditScreen: View {
 //   空表已被过滤 — 永不给用户绑到会渲染"请先创建课表"的表。
 private struct WidgetEditScheduleSection: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let scope: WidgetEditScope
 
     var body: some View {
@@ -166,19 +178,37 @@ private struct WidgetEditScheduleSection: View {
             Spacer().frame(height: 8)
             // ← Surface(shape 16dp, surfaceContainer): 纵向 padding 4dp + 行列
             VStack(spacing: 0) {
-                sectionRow(
-                    label: L10n.format("widget_edit_default_label"),
-                    selected: scope.currentBinding == nil,
-                    checkSpacer: false // ← 原 DefaultRow 无 Spacer(8), 仅 TableRow 有
-                ) {
-                    scope.onSelectTable(nil)
-                }
-                ForEach(scope.availableTables) { table in
+                if style == .liquidGlass {
+                    Picker(L10n.format("widget_edit_section_schedule"), selection: Binding<Int64?>(
+                        get: { scope.availableTables.contains { $0.id == scope.currentBinding } ? scope.currentBinding : nil },
+                        set: scope.onSelectTable
+                    )) {
+                        Text(L10n.format("widget_edit_default_label")).tag(Optional<Int64>.none)
+                        ForEach(scope.availableTables) { table in
+                            Text(table.name).tag(Optional(table.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .tint(colors.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .accessibilityIdentifier("widget_schedule_picker")
+                } else {
                     sectionRow(
-                        label: table.name,
-                        selected: scope.currentBinding == table.id
+                        label: L10n.format("widget_edit_default_label"),
+                        selected: scope.currentBinding == nil,
+                        checkSpacer: false // ← 原 DefaultRow 无 Spacer(8), 仅 TableRow 有
                     ) {
-                        scope.onSelectTable(table.id)
+                        scope.onSelectTable(nil)
+                    }
+                    ForEach(scope.availableTables) { table in
+                        sectionRow(
+                            label: table.name,
+                            selected: scope.currentBinding == table.id
+                        ) {
+                            scope.onSelectTable(table.id)
+                        }
                     }
                 }
             }
@@ -202,11 +232,10 @@ private struct WidgetEditScheduleSection: View {
                     if checkSpacer {
                         Spacer().frame(width: 8)
                     }
-                    Image(systemName: "checkmark")
-                        // ← 原版本 Check 无 size 修饰符 = 默认 24dp (ScheduleSection L91/L121, AliasSection L91)
-                        .font(.system(size: 24))
+                    AndroidMaterialIcon(name: .check, size: 24)
                         .foregroundColor(colors.primary)
                         .accessibilityLabel(L10n.format("selected"))
+                        .accessibilityHidden(false)
                 }
             }
             .padding(.horizontal, 16)
@@ -223,6 +252,7 @@ private struct WidgetEditScheduleSection: View {
 //   与 WidgetEditScheduleSection.sectionRow 同模式。
 private struct WidgetEditAliasSection: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let scope: WidgetEditScope
 
     var body: some View {
@@ -233,17 +263,32 @@ private struct WidgetEditAliasSection: View {
             Spacer().frame(height: 8)
             // ← Surface(shape 16dp, surfaceContainer): 纵向 padding 4dp + 两行 optionRow
             VStack(spacing: 0) {
-                optionRow(
-                    label: L10n.format("settings_name_original"),
-                    selected: !scope.useAlias
-                ) {
-                    scope.onUseAliasChange(false)
-                }
-                optionRow(
-                    label: L10n.format("settings_name_alias"),
-                    selected: scope.useAlias
-                ) {
-                    scope.onUseAliasChange(true)
+                if style == .liquidGlass {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle(L10n.format("settings_name_alias"), isOn: Binding(
+                            get: { scope.useAlias }, set: scope.onUseAliasChange
+                        ))
+                        .toggleStyle(.switch)
+                        .tint(colors.primary)
+                        .accessibilityIdentifier("widget_use_alias")
+                        Text(L10n.format(scope.useAlias ? "settings_name_alias" : "settings_name_original"))
+                            .font(.footnote)
+                            .foregroundColor(colors.onSurfaceVariant)
+                    }
+                    .padding(16)
+                } else {
+                    optionRow(
+                        label: L10n.format("settings_name_original"),
+                        selected: !scope.useAlias
+                    ) {
+                        scope.onUseAliasChange(false)
+                    }
+                    optionRow(
+                        label: L10n.format("settings_name_alias"),
+                        selected: scope.useAlias
+                    ) {
+                        scope.onUseAliasChange(true)
+                    }
                 }
             }
             .padding(.vertical, 4)
@@ -262,10 +307,10 @@ private struct WidgetEditAliasSection: View {
                     .foregroundColor(colors.onSurface)
                 Spacer()
                 if selected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 24))
+                    AndroidMaterialIcon(name: .check, size: 24)
                         .foregroundColor(colors.primary)
                         .accessibilityLabel(L10n.format("selected"))
+                        .accessibilityHidden(false)
                 }
             }
             .padding(.horizontal, 16)
@@ -283,6 +328,7 @@ private struct WidgetEditAliasSection: View {
 //   non-private: 门控纯函数供 SleepyTests 锁死 (object 可被单测引用)。
 struct WidgetEditCompactWindowSection: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let scope: WidgetEditScope
 
     /// 纯函数门控 — 单测锁死, 防止族名漂移。
@@ -302,17 +348,33 @@ struct WidgetEditCompactWindowSection: View {
                     .foregroundColor(colors.onSurface)
                 Spacer().frame(height: 8)
                 VStack(spacing: 0) {
-                    optionRow(
-                        label: L10n.format("widget_edit_compact_today_first"),
-                        selected: scope.compactTodayFirst
-                    ) {
-                        scope.onCompactTodayFirstChange(true)
-                    }
-                    optionRow(
-                        label: L10n.format("widget_edit_compact_today_second"),
-                        selected: !scope.compactTodayFirst
-                    ) {
-                        scope.onCompactTodayFirstChange(false)
+                    if style == .liquidGlass {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle(L10n.format("widget_edit_compact_today_first"), isOn: Binding(
+                                get: { scope.compactTodayFirst }, set: scope.onCompactTodayFirstChange
+                            ))
+                            .toggleStyle(.switch)
+                            .tint(colors.primary)
+                            .accessibilityIdentifier("widget_compact_today_first")
+                            Text(L10n.format(scope.compactTodayFirst
+                                ? "widget_edit_compact_today_first" : "widget_edit_compact_today_second"))
+                                .font(.footnote)
+                                .foregroundColor(colors.onSurfaceVariant)
+                        }
+                        .padding(16)
+                    } else {
+                        optionRow(
+                            label: L10n.format("widget_edit_compact_today_first"),
+                            selected: scope.compactTodayFirst
+                        ) {
+                            scope.onCompactTodayFirstChange(true)
+                        }
+                        optionRow(
+                            label: L10n.format("widget_edit_compact_today_second"),
+                            selected: !scope.compactTodayFirst
+                        ) {
+                            scope.onCompactTodayFirstChange(false)
+                        }
                     }
                 }
                 .background(colors.surfaceContainer)
@@ -322,13 +384,12 @@ struct WidgetEditCompactWindowSection: View {
     }
 
     // ← OptionRow: RadioButton + bodyLarge 16, padding horizontal 16 vertical 4
-    //   (RadioButton 原生保留 — 原版本 此节原样用 M3 RadioButton, 非色块选中态规则场景)
+    //   Android uses the standard M3 RadioButton here.
     private func optionRow(label: String, selected: Bool, onSelect: @escaping () -> Void) -> some View {
         Button(action: onSelect) {
             HStack(spacing: 0) {
-                Image(systemName: selected ? "circle.inset.filled" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundColor(selected ? colors.primary : colors.onSurfaceVariant)
+                MaterialSelectionIndicator(kind: .radio, selected: selected)
+                    .frame(width: 48, height: 48)
                 Text(label)
                     .font(.system(size: 16))
                     .foregroundColor(colors.onSurface)
@@ -337,7 +398,9 @@ struct WidgetEditCompactWindowSection: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
         .buttonStyle(SleepyButtonStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

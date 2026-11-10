@@ -40,6 +40,7 @@ final class WidgetArchivingUITests: XCTestCase {
             "WeekListWidgetRV",
             "WeekViewWidgetRV",
             "WeekGridWidgetV19",
+            "WeekGridWideWidget",
         ]
 
         // kind×family 组合(supportedFamilies 总计 11):
@@ -55,7 +56,8 @@ final class WidgetArchivingUITests: XCTestCase {
              ("WeekViewWidgetRV", "systemMedium"),
              ("WeekViewWidgetRV", "systemLarge"),
              ("WeekGridWidgetV19", "systemMedium"),
-             ("WeekGridWidgetV19", "systemLarge")]
+             ("WeekGridWidgetV19", "systemLarge"),
+             ("WeekGridWideWidget", "systemMedium")]
 
         // 归档批次在 app 安装/启动后 1-3 秒内跑完; 轮询 Mine 页日志钩子最多 60s
         let logEl = app.descendants(matching: .any)["widget_archive_log"]
