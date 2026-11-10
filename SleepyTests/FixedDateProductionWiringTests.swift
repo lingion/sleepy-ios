@@ -125,9 +125,13 @@ final class FixedDateProductionWiringTests: XCTestCase {
         let scheduler = NotificationScheduler(env: env, dataSource: source, alarmPort: port)
         await scheduler.scheduleNext7DaysExactAlarms()
         let prefix = NotificationScheduler.NOTIFY_BEFORE_CLASS_PREFIX
-        XCTAssertEqual(Set(port.armed.keys), Set([prefix + "7", prefix + "8"]))
-        let fixedExtras = port.lastExtras[prefix + "8"] ?? [:]
-        let recurringExtras = port.lastExtras[prefix + "7"] ?? [:]
+        let fixedStart = date("2026-09-07").addingTimeInterval(8 * 60 * 60)
+        let recurringStart = date("2026-09-13").addingTimeInterval(8 * 60 * 60)
+        let fixedID = prefix + "\(table.id)_8_\(Int64(fixedStart.timeIntervalSince1970))"
+        let recurringID = prefix + "\(table.id)_7_\(Int64(recurringStart.timeIntervalSince1970))"
+        XCTAssertEqual(Set(port.armed.keys), Set([fixedID, recurringID]))
+        let fixedExtras = port.lastExtras[fixedID] ?? [:]
+        let recurringExtras = port.lastExtras[recurringID] ?? [:]
         XCTAssertEqual((fixedExtras["reminderDate"] ?? nil) as? String, "2026-09-07")
         XCTAssertEqual((recurringExtras["reminderDate"] ?? nil) as? String, "2026-09-13")
         source.allowed = false

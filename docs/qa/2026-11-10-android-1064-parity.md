@@ -23,6 +23,8 @@ Native source metadata preserves escaped pipes, full-width identifiers and U+008
 
 ## Verification
 
+The local results below precede integration of master reminder-reliability changes at `b726dab2a6dacdee005691a27c5bc3b80ee601a5`. The conflict-resolved integration was not rebuilt or retested. The source31 full phone run passed its first five cases, then `testNativeDragWithinGridPersistsAndUndoRestores` failed waiting for the course-detail close control; the remaining run was stopped. This failure has not been diagnosed. PR acceptance was not used as a merge gate.
+
 The all-target simulator test build after the overlay-isolation repair (`build31-overlay-isolation-1064.log`, Xcode 27.2 / iOS 26.5 Simulator) succeeded. Its unit/integration run (`unit31-ipad-1064.xcresult`) executed 2,477 tests: all passed, zero skipped, and zero failed. This includes the foreground key-window lifecycle check.
 
 Control checks cover all eight Classic switch combinations of on/off, left-to-right/right-to-left, and enabled/disabled, including the 52 × 32pt track, thumb geometry and colors. They also check real UISwitch hierarchies in both layout directions and enabled/disabled states, a real UISegmentedControl hierarchy, resolved native button-style environment propagation, and rendered pixels proving a circular native icon button with clear bounding-box corners and a real 44pt touch target.

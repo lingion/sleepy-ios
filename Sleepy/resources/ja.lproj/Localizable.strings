@@ -1196,7 +1196,6 @@
 "import_period_missing" = "選択した時限設定が見つかりません。選び直してください。";
 
 "live_activity_title" = "ライブアクティビティ";
-"live_activity_limits" = "授業前の通知時刻と各時間割の設定に従います。Sleepy が前面にある間は授業の切り替え・更新・終了が反映されます。バックグラウンドでも既存のタイマーは動きますが、新規表示や授業切り替え、自動削除は保証されません。再度アプリを開くと更新されます。iOS 16.1 以降が必要で、ライブアクティビティの許可は通知とは別です。";
 "live_activity_permission" = "設定でライブアクティビティが無効です。タップして設定を開きます。";
 "live_activity_starts" = "開始まで";
 "live_activity_ends" = "終了まで";
@@ -1354,3 +1353,10 @@
 
 "schedule_previous_week" = "前の週";
 "schedule_next_week" = "次の週";
+
+"live_activity_limits" = "通知とライブアクティビティは個別に設定できます。iOS 26 以降では直近の授業を予約でき、時刻になるとシステムが通知します。予約数には制限があるため、Sleepy を開いて補充してください。旧システムでは前面での開始が必要です。授業時刻は固定表示され、終了後のカードは再度アプリを開くと削除されます。バックグラウンド更新や学期全体の自動表示は保証されません。 両方を有効にすると、バックグラウンドで通知が重複する場合があります。";
+"live_activity_scheduled_count" = "授業前のライブアクティビティを %d 件予約済み";
+"live_activity_scheduled_through" = "予約済みの最終授業：%@";
+"live_activity_schedule_fallback" = "一部の予約に失敗しました。有効な通知リマインダーは維持されます。";
+"live_activity_schedule_enable_notifications" = "一部の予約に失敗しました。通知リマインダーも有効にしてください。";
+"live_activity_summary" = "通知と併用して、Dynamic Island とロック画面に授業を表示します。";

@@ -1196,7 +1196,6 @@
 "import_period_missing" = "The selected period table no longer exists. Choose it again.";
 
 "live_activity_title" = "Live Activities (Dynamic Island)";
-"live_activity_limits" = "Uses the configured lead time and enabled timetables. Sleepy refreshes, switches and ends cards while active. In the background, existing timers continue but new cards, course changes and automatic removal are not guaranteed. Reopen Sleepy to refresh. Requires iOS 16.1+; Live Activities have a separate system permission.";
 "live_activity_permission" = "Live Activities are disabled. Tap to open Settings.";
 "live_activity_starts" = "Starts in";
 "live_activity_ends" = "Ends in";
@@ -1354,3 +1353,10 @@
 
 "schedule_previous_week" = "Previous week";
 "schedule_next_week" = "Next week";
+
+"live_activity_limits" = "Notifications and Live Activities can be enabled separately. iOS 26 can schedule a limited number of upcoming classes; reopen Sleepy to replenish them. Older systems require a foreground start. Cards show fixed class times and may remain after class until Sleepy can clean them up. Background refresh is opportunistic; semester-long coverage is not guaranteed. With both channels enabled, background alerts may appear twice.";
+"live_activity_scheduled_count" = "%d upcoming Live Activities scheduled";
+"live_activity_scheduled_through" = "Latest scheduled class: %@";
+"live_activity_schedule_fallback" = "Some activities could not be scheduled. Enabled notification reminders are retained.";
+"live_activity_schedule_enable_notifications" = "Some activities could not be scheduled. Enable notification reminders as a fallback.";
+"live_activity_summary" = "Show classes on the Dynamic Island and Lock Screen, alongside notification reminders.";
