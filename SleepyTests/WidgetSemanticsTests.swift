@@ -602,12 +602,26 @@ final class WidgetSemanticsTests: XCTestCase {
         let day = DayData(date: calendar.startOfDay(for: now), dayOfWeek: DateUtils.todayDayOfWeek(today: now),
                           courses: [course(1, start: "08:00", end: "08:45")], timeJson: "")
         let data = WeekData(days: [day], hasTable: true)
-        let sizes: [(WidgetFamily, CGFloat)] = [(.systemSmall, 150), (.systemSmall, 158),
-                                                (.systemMedium, 149), (.systemLarge, 149)]
+        let sizes: [(WidgetFamily, CGFloat)] = [(.systemMedium, 149), (.systemLarge, 149),
+                                                (.systemMedium, 329), (.systemLarge, 329)]
         for (family, width) in sizes {
             let entries = WeekGridWidgetProvider.timelineEntries(data: data, family: family,
                                                                  width: width, from: now)
             XCTAssertEqual(entries.map(\.date), [now], "\(family), \(width)pt is a full grid")
+        }
+    }
+
+    func testSmallGridTimelineKeepsTodayBoundariesAtPhoneAndTabletWidths() throws {
+        let calendar = DateUtils.isoCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 8)))
+        let day = DayData(date: calendar.startOfDay(for: now), dayOfWeek: DateUtils.todayDayOfWeek(today: now),
+                          courses: [course(1, start: "08:00", end: "08:45")], timeJson: "")
+        let data = WeekData(days: [day], hasTable: true)
+        for width: CGFloat in [150, 158, 170, 180, 200] {
+            let entries = WeekGridWidgetProvider.timelineEntries(data: data, family: .systemSmall,
+                                                                 width: width, from: now)
+            XCTAssertEqual(entries.map(\.date), [now, now.addingTimeInterval(46 * 60)],
+                           "The smallest family must refresh its Today face after class at \(width)pt")
         }
     }
 

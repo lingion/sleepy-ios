@@ -45,38 +45,95 @@ final class WidgetFaceGeometryTests: XCTestCase {
 
     @available(iOS 16.0, *)
     @MainActor
-    func testSmallGridProductionFaceUsesTodayOnlyBelow150Points() throws {
+    func testSmallGridProductionFaceUsesTodayAtEverySmallFamilyWidth() throws {
         let sample = WidgetGallerySampleData.make()
         let entry = WeekGridWidgetEntry(date: sample.today.date, data: sample.week)
         func grid(width: CGFloat, family: WidgetFamily) throws -> UIImage {
             try render(WeekGridWidgetEntryView(entry: entry)
                 .environment(\.sleepyWidgetGalleryFamily, family)
                 .environment(\.sleepyWidgetGalleryDate, sample.today.date),
-                size: CGSize(width: width, height: 158))
+                size: CGSize(width: width, height: width))
         }
         func today(width: CGFloat) throws -> UIImage {
             try render(TodayWidgetEntryView(entry: entry.minimumTodayEntry)
                 .environment(\.sleepyWidgetGalleryFamily, .systemSmall)
                 .environment(\.sleepyWidgetGalleryDate, sample.today.date),
-                size: CGSize(width: width, height: 158))
+                size: CGSize(width: width, height: width))
         }
 
-        let narrow = try grid(width: 149, family: .systemSmall)
-        XCTAssertTrue(try pixels(narrow).elementsEqual(pixels(today(width: 149))),
-                      "A narrow small widget must render the real Today face")
-        XCTAssertFalse(try pixels(narrow).elementsEqual(pixels(grid(width: 149, family: .systemMedium))),
-                       "A medium widget must retain its grid even below 150pt")
-        try attach(narrow, name: "WeekGridWidgetV19-small-149-today")
-        for width: CGFloat in [150, 158] {
+        // Android's 150dp upgrade belongs to its resizeable SMALL receiver.
+        // WidgetKit's smallest family must keep the default Android small face,
+        // including the 158pt gallery canvas and wider phone/tablet small sizes.
+        for width: CGFloat in [110, 141, 149, 150, 158, 170, 180, 200] {
             let small = try grid(width: width, family: .systemSmall)
             let regular = try grid(width: width, family: .systemMedium)
-            XCTAssertTrue(try pixels(small).elementsEqual(pixels(regular)),
-                          "At \(width)pt the small widget must render the real grid face")
-            XCTAssertFalse(try pixels(small).elementsEqual(pixels(today(width: width))),
-                           "The wide small widget must stop rendering Today content")
+            XCTAssertTrue(try pixels(small).elementsEqual(pixels(today(width: width))),
+                          "The smallest family must render Today at \(width)pt")
+            XCTAssertFalse(try pixels(small).elementsEqual(pixels(regular)),
+                           "The smallest family must not squeeze in the whole grid")
             XCTAssertTrue(try pixels(regular).elementsEqual(pixels(grid(width: width, family: .systemLarge))),
-                          "Medium and large families must retain their grid")
-            try attach(small, name: "WeekGridWidgetV19-small-\(Int(width))-grid")
+                          "Medium and large must keep their grid, even below 150pt")
+            try attach(small, name: "WeekGridWidgetV19-small-\(Int(width))-today")
+        }
+    }
+
+    @available(iOS 16.0, *)
+    @MainActor
+    func testSmallWeekListAndWeekViewRenderThreeDateColumnsAtEverySmallFamilyWidth() throws {
+        let sample = WidgetGallerySampleData.make()
+        let oldVisibleDays = AppPrefs.shared.getVisibleDays()
+        AppPrefs.shared.setVisibleDays(Set(1...7))
+        defer { AppPrefs.shared.setVisibleDays(oldVisibleDays) }
+        var full = sample.week
+        // An explicit date window is deliberately different from the nearest
+        // three weekdays fallback. This verifies the real production selector.
+        full.compactWindow = Array(sample.week.days[1...3])
+        var expected = full
+        expected.days = full.compactWindow
+        expected.compactWindow = []
+        XCTAssertEqual(expected.days.map(\.dayOfWeek), [2, 3, 4])
+
+        for kind in ["WeekListWidgetRV", "WeekViewWidgetRV"] {
+            func face(_ data: WeekData, family: WidgetFamily, width: CGFloat) throws -> UIImage {
+                let size = CGSize(width: width, height: width)
+                if kind == "WeekListWidgetRV" {
+                    return try render(WeekListWidgetEntryView(entry: WeekListWidgetEntry(
+                        date: sample.today.date, data: data))
+                        .environment(\.sleepyWidgetGalleryFamily, family)
+                        .environment(\.sleepyWidgetGalleryDate, sample.today.date), size: size)
+                }
+                return try render(WeekViewWidgetEntryView(entry: WeekViewWidgetEntry(
+                    date: sample.today.date, data: data))
+                    .environment(\.sleepyWidgetGalleryFamily, family)
+                    .environment(\.sleepyWidgetGalleryDate, sample.today.date), size: size)
+            }
+            for width: CGFloat in [110, 141, 149, 150, 158, 170, 180, 200] {
+                let small = try face(full, family: .systemSmall, width: width)
+                let threeColumns = try face(expected, family: .systemMedium, width: width)
+                let wholeWeek = try face(full, family: .systemMedium, width: width)
+                XCTAssertTrue(try pixels(small).elementsEqual(pixels(threeColumns)),
+                              "\(kind) smallest family must show the three-date window at \(width)pt")
+                XCTAssertFalse(try pixels(small).elementsEqual(pixels(wholeWeek)),
+                               "\(kind) smallest family must not render seven squeezed columns")
+                XCTAssertTrue(try pixels(wholeWeek).elementsEqual(pixels(face(full, family: .systemLarge, width: width))),
+                              "Larger families must keep the complete week")
+                try attach(small, name: "\(kind)-small-\(Int(width))-three-days")
+            }
+        }
+    }
+
+    @available(iOS 16.0, *)
+    @MainActor
+    func testFiveProductionWidgetsRenderSmallMediumAndLargeFaces() throws {
+        for variant in allWidgetVariants {
+            for family: WidgetFamily in [.systemSmall, .systemMedium, .systemLarge] {
+                let size = WidgetGalleryData.previewSize(of: family)
+                let card = WidgetGalleryCard(variant: variant, previewFamily: family)
+                let image = try render(WidgetGalleryPreview(card: card), size: size)
+                XCTAssertGreaterThan(try XCTUnwrap(image.pngData()).count, 2_000,
+                                     "\(variant.kind) / \(family) must contain real course content")
+                try attach(image, name: "\(variant.kind)-\(family)")
+            }
         }
     }
 
