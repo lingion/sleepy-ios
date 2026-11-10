@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import Sleepy
 
 final class IntRangeSliderTests: XCTestCase {
@@ -34,6 +35,55 @@ final class IntRangeSliderTests: XCTestCase {
         XCTAssertEqual(range.start, 1)
         XCTAssertEqual(range.end, 1)
         XCTAssertNil(IntSliderRange.ghost(current: range, initialStart: 2, initialEnd: 4, minimum: 1, maximum: 1))
+    }
+
+    @MainActor
+    func testNativeEndpointStopsAtItsPeerWithoutRescalingItsTrack() {
+        let slider = BaselineInputSlider(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+        slider.minimumValue = 1
+        slider.maximumValue = 12
+        slider.allowedRange = 1...6
+        slider.step = 1
+        XCTAssertEqual(slider.constrainedValue(5.6), 6)
+        XCTAssertEqual(slider.constrainedValue(9), 6)
+        XCTAssertEqual(slider.constrainedValue(-5), 1)
+        slider.value = 6
+        slider.accessibilityIncrement()
+        XCTAssertEqual(slider.value, 6)
+        XCTAssertEqual(slider.minimumValue, 1)
+        XCTAssertEqual(slider.maximumValue, 12)
+        XCTAssertNil(slider.thumbImage(for: .normal))
+        XCTAssertNil(slider.thumbImage(for: .highlighted))
+
+        slider.allowedRange = 6...12
+        slider.accessibilityDecrement()
+        XCTAssertEqual(slider.value, 6)
+        XCTAssertEqual(slider.constrainedValue(1), 6)
+        XCTAssertEqual(slider.constrainedValue(11.6), 12)
+        XCTAssertEqual(slider.minimumValue, 1)
+        XCTAssertEqual(slider.maximumValue, 12)
+    }
+
+    @MainActor
+    func testNativeEndpointAccessibilityUsesSingleInclusiveStepsAndHonorsDisabledState() {
+        let slider = BaselineInputSlider()
+        slider.minimumValue = 1
+        slider.maximumValue = 30
+        slider.allowedRange = 4...8
+        slider.step = 1
+        slider.value = 4
+        slider.accessibilityIncrement()
+        XCTAssertEqual(slider.value, 5)
+        slider.accessibilityDecrement()
+        XCTAssertEqual(slider.value, 4)
+        slider.accessibilityDecrement()
+        XCTAssertEqual(slider.value, 4)
+        for _ in 0..<10 { slider.accessibilityIncrement() }
+        XCTAssertEqual(slider.value, 8)
+        slider.isEnabled = false
+        slider.accessibilityDecrement()
+        XCTAssertEqual(slider.value, 8)
+        XCTAssertEqual(slider.constrainedValue(.nan), 4)
     }
 
     func testCoincidentThumbsWaitForDirectionEvenWhenTouchStartsOffCenter() {
@@ -73,4 +123,58 @@ final class IntRangeSliderTests: XCTestCase {
         XCTAssertNil(quick.initialStartWeek)
         XCTAssertNil(quick.initialEndWeek)
     }
+    func testContinuousSliderEndpointsAndFilledRangeUsePhysicalCoordinatesInRTL() {
+        for rtl in [false, true] {
+            let track = SliderTrackGeometry(range: 0...100, containerWidth: 200, inset: 14,
+                                            rightToLeft: rtl)
+            XCTAssertEqual(track.position(0), rtl ? 186 : 14)
+            XCTAssertEqual(track.position(50), 100)
+            XCTAssertEqual(track.position(100), rtl ? 14 : 186)
+            let active = track.activeRange(to: 25)
+            XCTAssertEqual(active.lowerBound, rtl ? 143 : 14)
+            XCTAssertEqual(active.upperBound, rtl ? 186 : 57)
+            XCTAssertEqual(active.upperBound - active.lowerBound, 43)
+            XCTAssertEqual(track.value(at: track.position(25)), 25, accuracy: 0.0001)
+        }
+    }
+
+    func testHueThumbAndBaselineKeepTheSamePhysicalValueMapping() {
+        for rtl in [false, true] {
+            let track = SliderTrackGeometry(range: 0...360, containerWidth: 200,
+                                            rightToLeft: rtl)
+            XCTAssertEqual(track.position(0), rtl ? 200 : 0)
+            XCTAssertEqual(track.position(180), 100)
+            XCTAssertEqual(track.position(360), rtl ? 0 : 200)
+            XCTAssertEqual(track.value(at: track.position(120)), 120, accuracy: 0.0001)
+            XCTAssertEqual(track.position(480), track.position(360))
+            XCTAssertEqual(track.position(-120), track.position(0))
+        }
+    }
+
+    func testContinuousSliderCoordinatesStayInsideNarrowAndNormalTracks() {
+        for width: CGFloat in [0, 20, 28, 44, 110, 328] {
+            for inset: CGFloat in [0, 14] {
+                for rtl in [false, true] {
+                    for range in [(-12.0)...12, 0.0...360, 0.5...2] {
+                        let track = SliderTrackGeometry(range: range, containerWidth: width,
+                                                        inset: inset, rightToLeft: rtl)
+                        for value in [range.lowerBound, range.lowerBound +
+                                      (range.upperBound - range.lowerBound) * 0.25,
+                                      (range.lowerBound + range.upperBound) / 2, range.upperBound] {
+                            let x = track.position(value)
+                            XCTAssertGreaterThanOrEqual(x, 0)
+                            XCTAssertLessThanOrEqual(x, width)
+                            let fill = track.activeRange(to: value)
+                            XCTAssertGreaterThanOrEqual(fill.lowerBound, track.lowerX)
+                            XCTAssertLessThanOrEqual(fill.upperBound, track.upperX)
+                            if track.width > 0 {
+                                XCTAssertEqual(track.value(at: x), value, accuracy: 0.0001)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 }

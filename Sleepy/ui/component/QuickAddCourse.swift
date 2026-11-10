@@ -122,6 +122,7 @@ struct QuickAddCourseLayer: View {
 
 private struct QuickAddCourseCapsule: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @ObservedObject var state: QuickAddCourseState
     let selection: QuickAddRange
     let rows: [QuickAddRow]
@@ -131,14 +132,13 @@ private struct QuickAddCourseCapsule: View {
 
     var body: some View {
         ZStack {
-            Button { state.confirm(onConfirm) } label: {
-                Text("+").font(.system(size: 24))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(Rectangle())
+            if style == .liquidGlass {
+                confirmButton
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: 14, compact: true))
+                    .tint(colors.primaryContainer)
+            } else {
+                confirmButton.buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(L10n.t("schedule_add_course")), \(L10n.format("course_period_range", selection.startNode, selection.endNode))")
-            .accessibilityIdentifier("quick-add-capsule")
             VStack(spacing: 0) {
                 handle(top: true)
                 Spacer(minLength: 0).allowsHitTesting(false)
@@ -146,14 +146,24 @@ private struct QuickAddCourseCapsule: View {
             }
         }
         .foregroundColor(colors.onPrimaryContainer)
-        .background(RoundedRectangle(cornerRadius: 14).fill(colors.primaryContainer))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(colors.primary, lineWidth: 1).allowsHitTesting(false))
+        .background(RoundedRectangle(cornerRadius: 14).fill(style == .classic ? colors.primaryContainer : .clear))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(style == .classic ? colors.primary : .clear, lineWidth: 1).allowsHitTesting(false))
         .background(GeometryReader { geometry in
             Color.clear
                 .onAppear { state.capsuleBounds = geometry.frame(in: .global) }
                 .onChange(of: geometry.frame(in: .global)) { state.capsuleBounds = $0 }
         })
         .accessibilityAction(named: Text(L10n.t("cancel"))) { state.dismiss() }
+    }
+
+    private var confirmButton: some View {
+        Button { state.confirm(onConfirm) } label: {
+            Text("+").font(.system(size: 24))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("\(L10n.t("schedule_add_course")), \(L10n.format("course_period_range", selection.startNode, selection.endNode))")
+        .accessibilityIdentifier("quick-add-capsule")
     }
 
     private func handle(top: Bool) -> some View {

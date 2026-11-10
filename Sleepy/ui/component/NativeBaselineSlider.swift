@@ -1,8 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// 两个同配置的原生滑杆共用几何：底层仅显示半透明基线拇指，方向和轨道随系统变化。
-struct NativeBaselineSlider: UIViewRepresentable {
+struct NativeBaselineSlider: View {
     let value: Double
     let range: ClosedRange<Double>
     let baseline: Double?
@@ -10,6 +9,36 @@ struct NativeBaselineSlider: UIViewRepresentable {
     let valueText: String
     let onValueChange: (Double) -> Void
     let onFinished: () -> Void
+    var allowedRange: ClosedRange<Double>? = nil
+    var step: Double? = nil
+    var baselineTolerance: Double? = nil
+    var onValueCommit: (Double) -> Void = { _ in }
+    var identifier: String? = nil
+
+    var body: some View {
+        NativeBaselineSliderTrack(value: value, range: range, baseline: baseline, label: label,
+            valueText: valueText, onValueChange: onValueChange, onFinished: onFinished,
+            allowedRange: allowedRange, step: step, baselineTolerance: baselineTolerance,
+            onValueCommit: onValueCommit, identifier: identifier)
+            .frame(minHeight: 44)
+    }
+}
+
+/// 两个同配置的原生滑杆共用几何：底层仅显示半透明基线拇指，方向和轨道随系统变化。
+private struct NativeBaselineSliderTrack: UIViewRepresentable {
+    let value: Double
+    let range: ClosedRange<Double>
+    let baseline: Double?
+    let label: String
+    let valueText: String
+    let onValueChange: (Double) -> Void
+    let onFinished: () -> Void
+    let allowedRange: ClosedRange<Double>?
+    let step: Double?
+    let baselineTolerance: Double?
+    let onValueCommit: (Double) -> Void
+    let identifier: String?
+    @Environment(\.isEnabled) private var isEnabled
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -18,7 +47,7 @@ struct NativeBaselineSlider: UIViewRepresentable {
     func makeUIView(context: Context) -> BaselineSliderView {
         let view = BaselineSliderView()
         view.slider.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .valueChanged)
-        view.slider.addTarget(context.coordinator, action: #selector(Coordinator.finished),
+        view.slider.addTarget(context.coordinator, action: #selector(Coordinator.finished(_:)),
                               for: [.touchUpInside, .touchUpOutside, .touchCancel])
         return view
     }
@@ -33,30 +62,40 @@ struct NativeBaselineSlider: UIViewRepresentable {
             slider.semanticContentAttribute = direction
             slider.tintColor = UIColor(Color.accentColor)
         }
+        view.slider.allowedRange = allowedRange.map { Float($0.lowerBound)...Float($0.upperBound) }
+        view.slider.step = step.flatMap { $0.isFinite && $0 > 0 ? Float($0) : nil }
+        view.slider.isEnabled = isEnabled
         view.slider.value = Float(value)
         view.slider.accessibilityLabel = label
         view.slider.accessibilityValue = valueText
+        view.slider.accessibilityIdentifier = identifier
         view.ghost.thumbTintColor = UIColor(Color.accentColor)
-        let visible = baseline.map { abs(value - $0) > (range.upperBound - range.lowerBound) * 0.025 } ?? false
+        let tolerance = baselineTolerance ?? (range.upperBound - range.lowerBound) * 0.025
+        let visible = baseline.map { abs(value - $0) > tolerance } ?? false
         view.updateGhost(baseline: baseline.map { Float($0) }, visible: visible, reduceMotion: reduceMotion)
     }
 
     final class Coordinator: NSObject {
-        var parent: NativeBaselineSlider
-        init(_ parent: NativeBaselineSlider) { self.parent = parent }
-        @objc func changed(_ slider: UISlider) {
+        var parent: NativeBaselineSliderTrack
+        init(_ parent: NativeBaselineSliderTrack) { self.parent = parent }
+        @objc func changed(_ slider: BaselineInputSlider) {
+            slider.value = slider.constrainedValue(slider.value)
             // 去掉 Float 桥接噪声，避免 0.70 被父层 5% 量化误截成 0.65。
             let value = (Double(slider.value) * 1_000_000).rounded() / 1_000_000
             parent.onValueChange(min(parent.range.upperBound, max(parent.range.lowerBound, value)))
             // VoiceOver/键盘调整没有 touchUp，同样需要落盘。
-            if !slider.isTracking { parent.onFinished() }
+            if !slider.isTracking { commit(slider) }
         }
-        @objc func finished() { parent.onFinished() }
+        @objc func finished(_ slider: BaselineInputSlider) { commit(slider) }
+        private func commit(_ slider: BaselineInputSlider) {
+            parent.onValueCommit(Double(slider.constrainedValue(slider.value)))
+            parent.onFinished()
+        }
     }
 }
 
 final class BaselineSliderView: UIView {
-    let slider = UISlider()
+    let slider = BaselineInputSlider()
     let ghost = UISlider()
     private(set) var ghostVisible = false
     private var ghostGeneration = 0
@@ -126,5 +165,35 @@ final class BaselineSliderView: UIView {
         slider.frame = bounds
         ghost.bounds = CGRect(origin: .zero, size: bounds.size)
         ghost.center = CGPoint(x: bounds.midX, y: bounds.midY)
+    }
+}
+
+/// Preserve native drawing and tracking while discrete endpoints constrain input.
+final class BaselineInputSlider: UISlider {
+    var allowedRange: ClosedRange<Float>?
+    var step: Float?
+
+    func constrainedValue(_ proposed: Float) -> Float {
+        let lower = min(maximumValue, max(minimumValue, allowedRange?.lowerBound ?? minimumValue))
+        let upper = max(lower, min(maximumValue, allowedRange?.upperBound ?? maximumValue))
+        var candidate = proposed.isFinite ? proposed : lower
+        if let step, step.isFinite, step > 0 {
+            candidate = minimumValue + ((candidate - minimumValue) / step).rounded() * step
+        }
+        return min(upper, max(lower, candidate))
+    }
+
+    override func accessibilityIncrement() {
+        guard isEnabled else { return }
+        guard let step else { super.accessibilityIncrement(); return }
+        value = constrainedValue(value + step)
+        sendActions(for: .valueChanged)
+    }
+
+    override func accessibilityDecrement() {
+        guard isEnabled else { return }
+        guard let step else { super.accessibilityDecrement(); return }
+        value = constrainedValue(value - step)
+        sendActions(for: .valueChanged)
     }
 }

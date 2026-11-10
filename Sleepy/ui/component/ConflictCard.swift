@@ -612,6 +612,7 @@ private struct ConflictBadge: View {
 /// N 徽标点选弹窗(← AlertDialog → iOS sheet) — 列簇内全部课课名点选
 private struct ConflictCoursePickerSheet: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let courses: [CourseEntity]
     // ← 原版本 ConflictCoursePickerDialog(layerRepIdOfCourse, topRepId): 顶层行
     //   primaryContainer/onPrimaryContainer + 层代表 Check;仅视觉高亮用
@@ -645,17 +646,19 @@ private struct ConflictCoursePickerSheet: View {
                                     .lineLimit(2)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 if repId == course.id && isTopLayer {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 18))
+                                    AndroidMaterialIcon(name: .check, size: 18)
                                         .foregroundColor(colors.primary)
                                 }
                             }
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 8)
-                            .background(isTopLayer ? colors.primaryContainer : colors.surfaceContainer)
-                            .cornerRadius(SleepyShapes.small)
+                            .padding(.vertical, style == .liquidGlass ? 0 : 10)
+                            .padding(.horizontal, style == .liquidGlass ? 0 : 8)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.small,
+                                                  tint: isTopLayer ? colors.primaryContainer : colors.surfaceContainer)
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(prominent: (layerRepIdOfCourse[course.id] ?? course.id) == topRepId,
+                                                               cornerRadius: SleepyShapes.small))
+                        .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
+                        .tint((layerRepIdOfCourse[course.id] ?? course.id) == topRepId ? colors.primaryContainer : colors.surfaceContainer)
                         .accessibilityLabel(course.courseName)
                     }
                 }

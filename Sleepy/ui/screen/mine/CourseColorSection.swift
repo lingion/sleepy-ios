@@ -15,6 +15,7 @@
 import SwiftUI
 
 struct CourseColorSection: View {
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
 
@@ -80,7 +81,7 @@ struct CourseColorSection: View {
                           onHueCommit: onSeedCommit,
                           initialHue: initialHue)
                     .padding(.horizontal, 8)
-                    .frame(height: 36)
+                    .frame(height: style == .liquidGlass ? 44 : 36)
                     .clipShape(RoundedRectangle(cornerRadius: SleepyShapes.large))
             }
 
@@ -112,19 +113,22 @@ struct CourseColorSection: View {
                 }
             }
 
-            Spacer().frame(height: 8)
+            if !colorless {
+                Spacer().frame(height: 8)
 
-            Button(action: onRecalc) {
-                Text(L10n.format("course_color_recalc"))
-                    .font(SleepyTypography.labelLarge)
-                    .foregroundColor(colors.onSecondaryContainer)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(colors.secondaryContainer)
-                    .cornerRadius(SleepyShapes.large)
+                Button(action: onRecalc) {
+                    Text(L10n.format("course_color_recalc"))
+                        .font(SleepyTypography.labelLarge)
+                        .foregroundColor(colors.onSecondaryContainer)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: style == .liquidGlass ? nil : 48)
+                        .sleepyControlSurface(cornerRadius: 24, tint: colors.secondaryContainer)
+                }
+                .buttonStyle(SleepyPlatformButtonStyle(shape: .capsule))
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .tint(colors.secondaryContainer)
+                .accessibilityIdentifier("course_color_recalc")
             }
-            .buttonStyle(SleepyButtonStyle())
-            .accessibilityIdentifier("course_color_recalc")
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

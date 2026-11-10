@@ -557,17 +557,17 @@ private struct TimeSlotRowItem: View {
                 Button(action: onDelete) {
                     AndroidSettingsIcon(name: .removeCircleOutline, size: 20)
                         .foregroundColor(colors.error)
-                        .frame(width: style == .liquidGlass ? 20 : 44,
-                               height: style == .liquidGlass ? 20 : 44)
-                        .contentShape(Rectangle())
+                        .frame(width: style == .liquidGlass ? 20 : 48,
+                               height: style == .liquidGlass ? 20 : 48)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 22, compact: true, shape: .circle))
                 .tint(colors.error)
-                .frame(width: style == .liquidGlass ? 48 : 44,
-                       height: style == .liquidGlass ? 48 : 44)
+                .frame(width: 48, height: 48)
+                .contentShape(Circle())
                 .accessibilityIdentifier("slot_row_delete_\(row.node)")
                 .accessibilityLabel(L10n.format("delete_period"))
-            } else { Spacer().frame(width: style == .liquidGlass ? 48 : 44) }
+            } else { Spacer().frame(width: 48) }
         }
         .padding(.horizontal, compact ? 4 : 10)
         .padding(.vertical, 8)
