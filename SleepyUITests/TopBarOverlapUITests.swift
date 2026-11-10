@@ -30,16 +30,34 @@ extension XCUIApplication {
 
         let del = descendants(matching: .any)["course_delete"].firstMatch
         XCTAssertTrue(del.waitForExistence(timeout: 5))
-        del.tap()
-        let enConfirm = buttons["Delete"].firstMatch
-        let zhConfirm = buttons["删除"].firstMatch
-        let confirm = enConfirm.exists ? enConfirm : zhConfirm
-        if confirm.waitForExistence(timeout: 4) { confirm.tap() }
-        let undo = descendants(matching: .any)["undo_button"].firstMatch
-        if !undo.waitForExistence(timeout: 5) {
-            navigationBars.firstMatch.buttons.firstMatch.tap()
-            XCTAssertTrue(undo.waitForExistence(timeout: 6), "删除后顶栏应出现撤回胶囊")
+        // XCTest's implicit scroll-to-tap can release while the editor is still
+        // moving. Reveal the complete button before sending the actual action.
+        let viewport = frame.insetBy(dx: 4, dy: 8)
+        for _ in 0..<8 {
+            if del.isHittable && viewport.contains(del.frame) { break }
+            let foreground = scrollViews.allElementsBoundByIndex.reversed().first { $0.isHittable }
+            XCTAssertNotNil(foreground, "The course editor must expose its scroll container")
+            foreground?.swipeUp()
         }
+        XCTAssertTrue(del.isHittable && viewport.contains(del.frame), "The complete delete action must be visible")
+        var previousFrame = del.frame
+        var stableSince = Date()
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let current = del.frame
+            if current != previousFrame { stableSince = Date() }
+            previousFrame = current
+            return Date().timeIntervalSince(stableSince) >= 0.3
+                && del.isHittable && viewport.contains(current)
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
+        del.tap()
+        let alert = alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "Deleting must present its confirmation")
+        let confirm = alert.buttons.matching(NSPredicate(format: "label IN %@", ["Delete", "删除"])).firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3))
+        confirm.tap()
+        let undo = descendants(matching: .any)["undo_button"].firstMatch
+        XCTAssertTrue(undo.waitForExistence(timeout: 8), "Confirmed deletion must expose undo on the schedule")
 
         let ids = ["switch_table", "undo_button", "redo_button",
                    "week_prev", "week_label", "week_next", "topbar_add", "topbar_share"]
@@ -47,6 +65,19 @@ extension XCUIApplication {
         for id in ids {
             if let f = frameOf(id) { frames[id] = f }
             print("TOPBAR[\(id)]: \(String(describing: frames[id]))")
+        }
+        for id in ["switch_table", "topbar_add", "topbar_share"] {
+            guard let frame = frames[id] else { XCTFail("Missing icon action: \(id)"); continue }
+            XCTAssertEqual(frame.width, frame.height, accuracy: 1,
+                           "Independent icon actions keep square slots for circular controls: \(id)")
+            XCTAssertLessThanOrEqual(frame.width, 48.5,
+                                    "Native padding must not grow an icon beyond the toolbar slot: \(id)")
+        }
+        XCTContext.runActivity(named: "Schedule toolbar after undo appears") { activity in
+            let attachment = XCTAttachment(screenshot: screenshot())
+            attachment.name = "schedule-toolbar-with-undo"
+            attachment.lifetime = .keepAlways
+            activity.add(attachment)
         }
 
         func assertDisjoint(_ a: String, _ b: String) {
@@ -64,6 +95,14 @@ extension XCUIApplication {
         assertDisjoint("switch_table", "week_prev")
         if frames["redo_button"] != nil { assertDisjoint("redo_button", "week_prev") }
         assertDisjoint("week_next", "topbar_add")
+        if let previous = frames["week_prev"], let next = frames["week_next"] {
+            XCTAssertEqual((previous.minX + next.maxX) / 2, descendants(matching: .any)["schedule_toolbar"].firstMatch.frame.midX, accuracy: 1,
+                           "Week navigation remains centered on the full toolbar")
+            for id in ids {
+                guard let frame = frames[id] else { continue }
+                XCTAssertEqual(frame.midY, previous.midY, accuracy: 1, "All toolbar controls remain on one row: \(id)")
+            }
+        }
     }
 }
 
@@ -94,4 +133,18 @@ final class TopBarOverlapZhUITests: XCTestCase {
     }
     override func tearDown() { app.terminate(); super.tearDown() }
     func testTopBarNoOverlapChineseLongLabel() throws { app.probeTopBarGeometry() }
+}
+
+final class TopBarOverlapGlassUITests: XCTestCase {
+    private var app: XCUIApplication!
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["-SLEEPY_UI_TEST_SEED", "1", "-ui_style", "liquid_glass",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.sleepyLaunch()
+    }
+    override func tearDown() { app.terminate(); super.tearDown() }
+    func testNativeGlassTopBarKeepsOneCenteredRow() { app.probeTopBarGeometry() }
 }

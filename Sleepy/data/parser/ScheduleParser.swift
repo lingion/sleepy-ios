@@ -39,6 +39,7 @@ enum ScheduleParser {
         /// issue#40 §6 / v1.0.56 T10: 独立时间节次表。
         /// null = 旧格式/未携带 — 导入流程须为每张课表各建一张(不误共享)。
         var periodTable: ParsedPeriodTable? = nil
+        var importSourceJson: String = ""
     }
 
     /// P 区块 / tableInfo 收割产物: sourceId = 导出时的 period_tables.id(恢复共享关系的键; 0 = 无既有表可指)
@@ -114,7 +115,9 @@ enum ScheduleParser {
                 throw ParseError("文件由新版 Sleepy 导出(v\(SleepyNativeFormat.detectVersion(trimmed))),请升级 Sleepy 后导入")
             }
             if SleepyNativeFormat.detectVersion(trimmed) == 1 {
-                return try SleepyNativeParser.parse(trimmed, defaultTableId: defaultTableId, defaultColor: defaultColor)
+                var result = try SleepyNativeParser.parse(trimmed, defaultTableId: defaultTableId, defaultColor: defaultColor)
+                if let source = originalNativeImportSource(raw) { result.importSourceJson = source }
+                return result
             }
             // Excel "另存为网页" 的 Frameset HTML (issue #6): 顶层只有 <frame> 引用,
             // 真课表在 xxx.files/sheet001.html 附属文件里, OpenDocument 拿不到 → 给出明确指引
@@ -122,10 +125,14 @@ enum ScheduleParser {
                 throw ParseError(excelFramesetError(trimmed))
             }
             if body.contains("\"courseDetailJson\"") {
-                return try parseWakeUpShareText(body, defaultTableId)
+                var result = try parseWakeUpShareText(body, defaultTableId)
+                result.importSourceJson = originalImportSource(raw)
+                return result
             }
             if body.hasPrefix("{") && (body.contains("\"courses\"") || body.contains("\"tableInfo\"")) {
-                return try parseWakeUpJson(body, defaultTableId, defaultColor)
+                var result = try parseWakeUpJson(body, defaultTableId, defaultColor)
+                result.importSourceJson = originalImportSource(raw)
+                return result
             }
             if body.hasPrefix("BEGIN:VCALENDAR") || body.hasPrefix("BEGIN:VEVENT") {
                 return try parseIcs(body, defaultTableId, defaultColor)
@@ -140,6 +147,36 @@ enum ScheduleParser {
             }
             return try parseSimpleText(trimmed, defaultTableId, defaultColor)
         }
+    }
+
+    private static func originalImportSource(_ raw: String) -> String {
+        let text = extractMarkedBody(raw)
+        guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start <= end,
+              let data = String(text[start...end]).data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return "" }
+        return (object["tableInfo"] as? [String: Any])?["importSourceJson"] as? String ?? ""
+    }
+
+    /// Match the accepted header while keeping opaque provenance outside course-text normalization.
+    private static func originalNativeImportSource(_ raw: String) -> String? {
+        var foundMagic = false
+        for rawLine in SleepyNativeFormat.linesJava(extractMarkedBody(raw)) {
+            let original = String(rawLine.drop { normalizeFullWidth(String($0)).allSatisfy(\.isWhitespace) })
+            let line = normalizeFullWidth(original).trimmingCharacters(in: .whitespaces)
+            if !foundMagic {
+                if SleepyNativeFormat.isMagicLine(line) { foundMagic = true }
+                continue
+            }
+            guard line.uppercased().hasPrefix("T"), !line.uppercased().hasPrefix("ND") else { continue }
+            let fields = SleepyNativeParser.splitRespectingEscape(String(original.dropFirst()))
+            for field in fields.dropFirst(4) {
+                guard let equal = field.firstIndex(of: "="),
+                      normalizeFullWidth(String(field[..<equal])).trimmingCharacters(in: .whitespaces) == "source" else { continue }
+                return SleepyNativeFormat.unescape(String(field[field.index(after: equal)...]))
+            }
+            return ""
+        }
+        return nil
     }
 
     private static func startsWithAnyTag(_ s: String, tags: [String]) -> Bool {

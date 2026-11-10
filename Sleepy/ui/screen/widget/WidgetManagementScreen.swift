@@ -22,14 +22,7 @@ struct PlacedWidgetItem: Identifiable {
     var id: String { kind + "|" + family.description }
     // ← variant.displayNameRes — kind → 既有 widget 标签键 (WidgetVariantInfo.kt 顺序)
     var displayName: String {
-        switch kind {
-        case "WeekGridWidgetV19": return L10n.format("widget_week_grid_label")
-        case "TodayWidgetRV": return L10n.format("widget_today_label")
-        case "WeekListWidgetRV": return L10n.format("widget_week_list_label")
-        case "WeekViewWidgetRV": return L10n.format("widget_week_view_label")
-        case "TwoDayWidgetRV": return L10n.format("widget_twoday_label")
-        default: return kind
-        }
+        allWidgetVariants.first { $0.kind == kind }.map { L10n.format($0.displayNameKey) } ?? kind
     }
 }
 
@@ -58,6 +51,7 @@ func loadPlacedWidgets() async -> [PlacedWidgetItem] {
 
 struct WidgetManagementScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var uiStyle
     let onDismiss: () -> Void
 
     // ← vm.state (WidgetManagementViewModel)
@@ -69,16 +63,16 @@ struct WidgetManagementScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ← TopAppBar + actions{ IconButton(Add) }: ＋ 悬在顶栏右缘(40×40 同 IconButton 槽)
+            // ← TopAppBar + actions{ IconButton(Add) }: 48pt触控槽与 Android 同源。
             SettingsTopBar(title: L10n.format("widget_manage_title"), onBack: onDismiss)
                 .overlay(alignment: .trailing) {
                     Button(action: { showGallery = true }) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 24))   // ← 原 Icon 默认 24dp
-                            .frame(width: 40, height: 40)   // ← M3 IconButton 40×40
+                        AndroidMaterialIcon(name: .add, size: 24)   // ← 原 Icon 默认 24dp
+                            .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                             .foregroundColor(colors.onBackground)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+                    .frame(width: 48, height: 48)
                     .accessibilityIdentifier("widget_gallery_add")
                     .accessibilityLabel(L10n.format("widget_gallery_title"))
                     .padding(.trailing, 4)   // ← TopAppBarHorizontalPadding 4dp

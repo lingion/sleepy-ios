@@ -212,6 +212,9 @@ private struct DurationGroupSection: View {
 /// 卡片布局、分钟数字段、删除按钮全部共用，调用方只传 label 渲染器和业务事件。
 private struct AssignmentGroupSection: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
+    @ScaledMetric(relativeTo: .caption) private var scaledCellWidth: CGFloat = 32
+    @State private var positionGridWidth: CGFloat = 0
     let headerText: String
     let groupColor: Color
     let slotCount: Int
@@ -242,37 +245,22 @@ private struct AssignmentGroupSection: View {
                             value: minuteValue, onValueChange: onMinuteChange)
                     .frame(width: 110)
                 Button(action: onDelete) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 18))
+                    AndroidSettingsIcon(name: .close, size: 18)
                         .foregroundColor(colors.onSurfaceVariant)
+                        .frame(width: style == .classic ? 48 : nil,
+                               height: style == .classic ? 48 : nil)
+                        .contentShape(Circle())
                 }
-                .buttonStyle(SleepyButtonStyle())
-                .frame(width: 28, height: 28)   // ← 原 IconButton 28dp 方形
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 14, shape: .circle))
+                .frame(width: 48, height: 48)
+                .contentShape(Circle())
                 // ← 原 contentDescription = delete
                 .accessibilityLabel(L10n.format("delete"))
             }
 
-            // 位置卡片网格(每行 8 个)
+            // Match Android: at least 48pt cells with 8pt gaps, up to eight per row.
             if slotCount > 0 {
-                let cardsPerRow = 8
-                let rows = Array(Array(0..<slotCount).chunked(into: cardsPerRow))
-                VStack(spacing: 6) {
-                    ForEach(Array(rows.enumerated()), id: \.offset) { _, rowIndices in
-                        HStack(spacing: 6) {
-                            ForEach(rowIndices, id: \.self) { posIdx in
-                                PositionCard(label: labelFor(posIdx),
-                                             selected: assigns.indices.contains(posIdx) && assigns[posIdx] == groupIdx,
-                                             groupColor: groupColor) {
-                                    onToggle(posIdx)
-                                }
-                            }
-                            // 填满空位
-                            ForEach(0..<(cardsPerRow - rowIndices.count), id: \.self) { _ in
-                                Spacer()
-                            }
-                        }
-                    }
-                }
+                positionGrid
             } else {
                 Text(L10n.format(emptyHintKey))
                     .font(.system(size: 12))
@@ -285,25 +273,74 @@ private struct AssignmentGroupSection: View {
         .cornerRadius(SleepyShapes.medium)
         .padding(.vertical, 6)
     }
+
+    private var positionGrid: some View {
+        let gap: CGFloat = 8
+        let minimumCell = max(48, scaledCellWidth)
+        let cardsPerRow = min(8, max(1, Int((positionGridWidth + gap) / (minimumCell + gap))))
+        let rows = Array(Array(0..<slotCount).chunked(into: cardsPerRow))
+        return VStack(spacing: gap) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, rowIndices in
+                HStack(spacing: gap) {
+                    ForEach(rowIndices, id: \.self) { posIdx in
+                        PositionCard(label: labelFor(posIdx),
+                                     selected: assigns.indices.contains(posIdx) && assigns[posIdx] == groupIdx,
+                                     groupColor: groupColor) { onToggle(posIdx) }
+                    }
+                    ForEach(0..<(cardsPerRow - rowIndices.count), id: \.self) { _ in
+                        Color.clear.frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                }
+            }
+        }
+        .background(GeometryReader { geometry in
+            Color.clear
+                .onAppear { positionGridWidth = geometry.size.width }
+                .onChange(of: geometry.size.width) { positionGridWidth = $0 }
+        })
+    }
 }
 
 // ← PositionCard
 private struct PositionCard: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let label: String
     let selected: Bool
     let groupColor: Color
     let onClick: () -> Void
 
+    @ViewBuilder
     var body: some View {
+        if style == .liquidGlass {
+            Button(action: onClick) {
+                Text(label)
+                    .font(.system(size: 12, weight: selected ? .bold : .regular))
+                    .foregroundColor(selected
+                        ? (groupColor == colors.tertiary ? colors.onTertiary : colors.onPrimary)
+                        : colors.onSurfaceVariant)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: selected,
+                                                   cornerRadius: SleepyShapes.small, compact: true))
+            .tint(groupColor)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+        } else {
+            classicButton
+        }
+    }
+
+    private var classicButton: some View {
         let bg = selected ? groupColor : colors.surfaceContainerHigh
         let fg = selected ? colors.onPrimary : colors.onSurfaceVariant
 
-        Button(action: onClick) {
+        return Button(action: onClick) {
             Text(label)
                 .font(.system(size: 12, weight: selected ? .bold : .regular))
                 .foregroundColor(fg)
-                .frame(maxWidth: .infinity, minHeight: 36)
+                .frame(maxWidth: .infinity, minHeight: 48)
         }
         .buttonStyle(SleepyButtonStyle())
         .background(bg)
@@ -427,6 +464,7 @@ private struct NumberField: View {
 
 // ← AddBreakChip
 private struct AddBreakChip: View {
+    @Environment(\.sleepyUIStyle) private var style
     let id: String
     let label: String
     let color: Color
@@ -435,20 +473,20 @@ private struct AddBreakChip: View {
     var body: some View {
         Button(action: onAdd) {
             HStack(spacing: 4) {
-                Image(systemName: "plus")
-                    .font(.system(size: 16))
+                AndroidMaterialIcon(name: .add, size: 16)
                     .foregroundColor(color)
                 Text(L10n.format("add_label", label))
                     .font(.system(size: 14, weight: .medium))   // ← FilterChip labelLarge 14sp
                     .foregroundColor(color)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(minHeight: 32)   // ← M3 FilterChip 标准高 32dp
-            .background(color.opacity(SleepyTheme.Alpha.tinted))
-            .cornerRadius(8)
+            .padding(.horizontal, style == .liquidGlass ? 0 : 10)
+            .padding(.vertical, style == .liquidGlass ? 0 : 6)
+            .frame(minHeight: style == .liquidGlass ? nil : 32)   // ← M3 FilterChip 标准高 32dp
+            .sleepyControlSurface(cornerRadius: 8, tint: color.opacity(SleepyTheme.Alpha.tinted))
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 8))
+        .frame(minHeight: style == .liquidGlass ? 44 : nil)
+        .tint(color.opacity(SleepyTheme.Alpha.tinted))
         .accessibilityIdentifier(id)
         .frame(maxWidth: .infinity)
     }

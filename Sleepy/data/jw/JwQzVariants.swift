@@ -40,66 +40,6 @@ private func qzNormalizeBrTags(_ html: String) -> String {
 /// qz_with_node 覆写 generateCourseList 走此通路; 缺 #kbtable 的 JwParseError
 /// 快照字段与基类逐字一致(parserName 固定 "JwQzParser" —— 原版本 继承基类抛出
 /// 的同源行为; confidence/matchedFeatures 动态取子类覆写值)。
-private func qzCourseList(from parser: JwQzParser) throws -> [JwCourse] {
-    var courseList: [JwCourse] = []
-    guard let doc = try? SwiftSoup.parse(parser.source) else { return courseList }
-    guard let kbTable = (try? doc.getElementById("kbtable")) ?? nil else {
-        throw JwParseError(
-            message: "页面缺少 #kbtable，可能未到达课表页/选错教务类型",
-            attempts: [ParserAttemptSnapshot(
-                parserName: "JwQzParser",
-                type: JwProtocol.TYPE_QZ,
-                courseCount: 0,
-                confidence: (parser as? JwParserConfidenceReporting)?.confidenceValue ?? 0,
-                matchedFeatures: (parser as? JwParserConfidenceReporting)?.matchedFeatureList ?? [],
-                exception: JwParseError.NO_TABLE_CONTAINER_MARKER)])
-    }
-    let trs = (try? kbTable.getElementsByTag("tr")) ?? Elements()
-
-    var nodeCount = 0
-    for tr in trs {
-        let tds = (try? tr.getElementsByTag("td")) ?? Elements()
-        if tds.isEmpty() {
-            continue
-        }
-        nodeCount += 1
-
-        var day = 0
-        for td in tds {
-            day += 1
-            let divs = (try? td.getElementsByTag("div")) ?? Elements()
-            for div in divs {
-                let courseElements = (try? div.getElementsByClass(parser.tableName)) ?? Elements()
-                let text = (try? courseElements.text()) ?? ""
-                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
-                let courseHtml = qzNormalizeBrTags((try? courseElements.html()) ?? "")
-                var startIndex = courseHtml.startIndex
-                var splitIndex = courseHtml.range(of: "-----")?.lowerBound
-                while let si = splitIndex {
-                    let sub = String(courseHtml[startIndex..<si])
-                    parser.convert(day: day, nodeCount: nodeCount, infoStr: sub, courseList: &courseList)
-                    // ← startIndex = courseHtml.indexOf("<br>", splitIndex) + 4
-                    // (upperBound 即 '>' 后一位 = Kotlin +4; 基类 index(after:) 多跳一字符,
-                    // 此处按 原版本 语义取 upperBound, 差异仅一个前导空白, 消费点均 trim)
-                    if let brRange = courseHtml.range(of: "<br>", range: si..<courseHtml.endIndex) {
-                        startIndex = brRange.upperBound  // "<br>" 长 4
-                    } else {
-                        startIndex = courseHtml.endIndex
-                    }
-                    splitIndex = courseHtml.range(of: "-----", range: startIndex..<courseHtml.endIndex)?.lowerBound
-                }
-                parser.convert(
-                    day: day,
-                    nodeCount: nodeCount,
-                    infoStr: String(courseHtml[startIndex..<courseHtml.endIndex]),
-                    courseList: &courseList
-                )
-            }
-        }
-    }
-    return courseList
-}
-
 /// 强智 qz_br 变体解析器。
 ///
 /// 与 JwQzParser 的唯一差异：单元格内课名行后跟 `<br>` 而非 `<font>`，
@@ -122,15 +62,7 @@ final class JwQzBrParser: JwQzParser {
     /// 把整段 HTML 当课名；我们保留上游忠实行为，依赖 `generateCourseList`
     /// 入口处的 `courseElements.html()` 必然含 `<br>`（强智单元格结构）。
     override func parseCourseName(_ infoStr: String) -> String {
-        (infoStr.components(separatedBy: "<br>").first ?? infoStr)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// 覆写基类入口: 单元格遍历走 `qzCourseList`(html() 先归一 `<br />`→`<br>`),
-    /// 否则 SwiftSoup 序列化下 parseCourseName 的 "<br>" 探针与基类分隔符步进全落空。
-    /// 缺 #kbtable 抛出的 JwParseError 快照与基类逐字一致。
-    override func generateCourseList() throws -> [JwCourse] {
-        try qzCourseList(from: self)
+        Jw64.plain(infoStr.replacingOccurrences(of: #"(?i)<br\s*/?>"#, with: "\n", options: .regularExpression).components(separatedBy: "\n").first ?? infoStr)
     }
 
     /// T8 §2.5: 继承 kbtable 锚点 + br-not-font 特征
@@ -153,128 +85,7 @@ final class JwQzBrParser: JwQzParser {
 /// 上游源码：dIT8Zv/WakeupSchedule_BUPT QzWithNodeParser.kt (Apache-2.0)
 final class JwQzWithNodeParser: JwQzParser {
 
-    /// ← Kotlin `String.toInt()` 的 NumberFormatException: 原版本 侧坏数字段
-    /// (weeks[0].toInt() / nodeList.first().substringBefore('节').toInt()) 直接
-    /// 中断整次解析 → 0 课 + 异常上抛, Registry 记 attempt 后回退其它 parser。
-    /// convert 签名继承自基类(非 throws), 无法就地抛错, 因此首个坏值记入本字段,
-    /// 循环继续(默认值兜底), 由下方 generateCourseList 覆写统一抛出 —— 课程整份
-    /// 丢弃, 最终状态与原实现一致(异常 + 0 课计入 Registry)。
-    /// 有意保留的宽容差: 先 trim 再 Int —— Kotlin " 17".toInt() 也抛, 这里与
-    /// 兄弟 iOS 基类 JwQzParser 的 trim 惯例保持一致; 非数字仍按 原版本 失败。
-    private var pendingNumericFailure: String?
-
-    /// Int(s) 失败时登记首次异常描述并返回 nil(调用点用原默认值继续)。
-    private func kToInt(_ raw: String, _ context: String) -> Int? {
-        if let v = Int(raw.trimmingCharacters(in: .whitespaces)) { return v }
-        if pendingNumericFailure == nil {
-            pendingNumericFailure = "NumberFormatException: For input string: \"\(raw)\" (\(context))"
-        }
-        return nil
-    }
-
-    /// 覆写基类入口: 缺 #kbtable 的 JwParseError 由 `qzCourseList` 先行抛出(与原实现
-    /// getElementById 检查在 convert 之前的顺序一致); 数值失败在解析完成后抛出,
-    /// 丢弃全部课程 —— 等价 原版本 中途抛 NumberFormatException 的效果。
-    /// 单元格遍历走 `qzCourseList`(html() 归一 `<br />`→`<br>`), 否则 SwiftSoup 下
-    /// convert 的 "<font"/"<span>" 与分隔符 "<br>" 探针全落空。
-    override func generateCourseList() throws -> [JwCourse] {
-        pendingNumericFailure = nil
-        let courses = try qzCourseList(from: self)
-        if let failure = pendingNumericFailure {
-            throw JwParseError(
-                message: "课表格周次/节次数值格式异常: \(failure)",
-                attempts: [ParserAttemptSnapshot(
-                    parserName: "JwQzWithNodeParser",
-                    type: JwProtocol.TYPE_QZ,
-                    courseCount: 0,
-                    confidence: confidenceValue,
-                    matchedFeatures: matchedFeatureList,
-                    exception: failure)])
-        }
-        return courses
-    }
-
-    override func convert(day: Int, nodeCount: Int, infoStr: String, courseList: inout [JwCourse]) {
-        let courseHtml = try! SwiftSoup.parse(infoStr)
-        // 课名提取：上游 substringBefore("<font").substringBefore("<span>")
-        // 第二段 needle 是 "<span>"（带尖括号），对 "<span title=..>" 永不命中，
-        // 因此 with_node 页面必须用 <font title=..> 结构（实测 BUPT/JSNU 适配器一致）
-        var namePart = infoStr.components(separatedBy: "<font").first ?? infoStr
-        namePart = namePart.components(separatedBy: "<span>").first ?? namePart
-        let courseName = ((try? SwiftSoup.parse(namePart.trimmingCharacters(in: .whitespaces)).text()) ?? "")
-        let teacher = ((try? courseHtml.getElementsByAttributeValue("title", "老师").text()) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let room = (((try? courseHtml.getElementsByAttributeValue("title", "教室").text()) ?? "")
-            + ((try? courseHtml.getElementsByAttributeValue("title", "分组").text()) ?? ""))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let tempStr = ((try? courseHtml.getElementsByAttributeValue("title", "周次(节次)").text()) ?? "")
-
-        // 三分支周次/节次提取(严格复刻 Kotlin substringAfter / removeSurrounding 语义)
-        let weekStr: String
-        let nodeList: [String]
-        if tempStr.contains(" ") {
-            let parts = tempStr.components(separatedBy: " ")
-            weekStr = parts.first ?? ""
-            let nodePart = parts.count > 1 ? parts[1] : ""
-            nodeList = qzRemoveSurrounding(nodePart, "[", "]")
-                .components(separatedBy: "-")
-        } else if tempStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            weekStr = ((try? courseHtml.getElementsByAttributeValue("title", "周次").text()) ?? "")
-            let nodeRaw = ((try? courseHtml.getElementsByAttributeValue("title", "节次").text()) ?? "")
-            // ← .substringAfter(')') — 无 ')' 时 Kotlin 返回原串("3-4节" 裸形态靠此可拆)
-            nodeList = qzRemoveSurrounding(qzSubstringAfter(nodeRaw, ")"), "[", "]")
-                .components(separatedBy: "-")
-        } else {
-            // ← text.substringBefore(')'):剥掉 ')' 之后不再补回
-            weekStr = tempStr.components(separatedBy: ")").first ?? tempStr
-            nodeList = qzRemoveSurrounding(qzSubstringAfter(tempStr, ")"), "[", "]")
-                .components(separatedBy: "-")
-        }
-
-        let weekList = weekStr.components(separatedBy: ",")
-        var startWeek = 0
-        var endWeek = 0
-        var type = 0
-
-        for item in weekList {
-            if item.contains("-") {
-                let weeks = item.components(separatedBy: "-")
-                if !weeks.isEmpty { startWeek = kToInt(weeks[0], "weeks[0]") ?? startWeek }
-                if weeks.count > 1 {
-                    type = {
-                        if weeks[1].contains("单") { return 1 }
-                        if weeks[1].contains("双") { return 2 }
-                        return 0
-                    }()
-                    // ← weeks[1].substringBefore('(').toInt()
-                    let before = weeks[1].components(separatedBy: "(").first ?? weeks[1]
-                    endWeek = kToInt(before, "weeks[1].substringBefore('(')") ?? endWeek
-                }
-            } else {
-                // ← item.substringBefore('(').toInt()
-                let before = item.components(separatedBy: "(").first ?? item
-                let v = kToInt(before, "weekItem") ?? startWeek
-                startWeek = v
-                endWeek = v
-            }
-            // ← nodeList.first().substringBefore('节').toInt()
-            let startNode = kToInt((nodeList.first ?? "1").components(separatedBy: "节").first ?? "1",
-                                   "nodeList.first") ?? 1
-            // ← nodeList.last().substringBefore('节').toInt()
-            let endNode = kToInt((nodeList.last ?? "1").components(separatedBy: "节").first ?? "1",
-                                 "nodeList.last") ?? startNode
-            courseList.append(JwCourse(
-                name: courseName,
-                room: room,
-                teacher: teacher,
-                day: day,
-                startNode: startNode,
-                endNode: endNode,
-                startWeek: startWeek,
-                endWeek: endWeek,
-                type: type))
-        }
-    }
+    // Explicit sections share the base decoder.
 
     /// T8 §2.5: 继承 + title=周次(节次) 含空格 / 独立 title=周次+节次 特征
     override var matchedFeatureList: [String] {

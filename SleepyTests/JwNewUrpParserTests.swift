@@ -1,6 +1,6 @@
 // JwNewUrpParserTests.swift — ← JwNewUrpParser.kt (v1.0.61)
 // 覆盖三处对齐点: weekBitsToRanges stride-2 段行为、optString+trim 语义、
-// org.json getJSONObject 异常冒泡 + optJSONArray 字符串强制转换。
+// Android v1.0.64 跳过非对象元素、显式整数坐标和 optJSONArray 类型检查。
 
 import XCTest
 @testable import Sleepy
@@ -97,22 +97,22 @@ final class JwNewUrpParserTests: XCTestCase {
         XCTAssertFalse(courses[0].room.contains("\n"))
     }
 
-    // MARK: - getJSONObject 异常冒泡
+    // MARK: - 非对象元素不会隐藏后续有效课程
 
-    func test_nonObjectElementInCourseList_throwsNotSilentlyDropped() {
+    func test_nonObjectElementInCourseList_isSkipped() throws {
         let src = html(withDateList: "[{\"selectCourseList\":[\"notAnObject\"]}]")
-        XCTAssertThrowsError(try JwNewUrpParser(src).generateCourseList())
+        XCTAssertTrue(try JwNewUrpParser(src).generateCourseList().isEmpty)
     }
 
-    func test_nonObjectElementInTimeAndPlaceList_throws() {
+    func test_nonObjectElementInTimeAndPlaceList_isSkipped() throws {
         let src = html(withDateList: "[{\"selectCourseList\":[" +
             "{\"courseName\":\"X\",\"attendClassTeacher\":\"Y\",\"timeAndPlaceList\":[42]}]}]")
-        XCTAssertThrowsError(try JwNewUrpParser(src).generateCourseList())
+        XCTAssertTrue(try JwNewUrpParser(src).generateCourseList().isEmpty)
     }
 
-    func test_nonObjectFirstDateElement_throws() {
+    func test_nonObjectFirstDateElement_isSkipped() throws {
         let src = html(withDateList: "[\"oops\"]")
-        XCTAssertThrowsError(try JwNewUrpParser(src).generateCourseList())
+        XCTAssertTrue(try JwNewUrpParser(src).generateCourseList().isEmpty)
     }
 
     // MARK: - optJSONArray 语义 (instanceof 检查, 无字符串强制转换)
@@ -134,16 +134,13 @@ final class JwNewUrpParserTests: XCTestCase {
         XCTAssertTrue(courses.isEmpty)
     }
 
-    func test_optInt_stringValues_areCoercedLikeOrgJson() throws {
-        // org.json optInt: 字符串值走 Integer.parseInt(trim()) → " 3 " → 3
+    func test_paddedExplicitIntegerCoordinates_areRejected() throws {
+        // Android64 uses toIntOrNull on the raw coordinate: whitespace is malformed.
         let tp = "{\"classDay\":\"1\",\"classSessions\":\" 3 \",\"continuingSession\":\"2\"," +
                  "\"classWeek\":\"11000000000000000000\",\"campusName\":\"校区\",\"teachingBuildingName\":\"\",\"classroomName\":\"\"}"
         let src = html(withDateList: "[{\"selectCourseList\":[{\"courseName\":\"课\",\"attendClassTeacher\":\"师\",\"timeAndPlaceList\":[" + tp + "]}]}]")
         let courses = try JwNewUrpParser(src).generateCourseList()
-        XCTAssertEqual(1, courses.count)
-        XCTAssertEqual(1, courses[0].day)
-        XCTAssertEqual(3, courses[0].startNode)
-        XCTAssertEqual(4, courses[0].endNode)
+        XCTAssertTrue(courses.isEmpty)
     }
 
     // MARK: - T8 置信度

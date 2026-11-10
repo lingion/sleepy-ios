@@ -34,12 +34,13 @@ final class MineSettingsUITests: XCTestCase {
     /// 自适应下滑直到元素在视口内(元素全量物化, exists≠可见; 不可见时 tap
     /// 落点出屏丢失 — 2026-09 基线腐化根因; 页面高度随版本变, 固定次数不可靠)
     @discardableResult
-    private func scrollUntil(_ element: XCUIElement, maxSwipes: Int = 6) -> Bool {
+    private func scrollUntil(_ element: XCUIElement, maxSwipes: Int = 6,
+                             reservedBottomInset: CGFloat = 110) -> Bool {
         let screenH = app.windows.firstMatch.frame.height
         // 底部再排除 110pt = 悬浮/贴底药丸导航栏占位区(capsule 64 + float 12 + 缓冲):
         // 元素"在屏"但落进 bar 区时, tap 会被 bar 拦截(2026-10-24 testGeneralToggles
         // 实证: switch hit y=790 ∈ bar 区 y742-806, 连点不翻转)。
-        let usableBottom = screenH - 110
+        let usableBottom = screenH - reservedBottomInset
         func visible() -> Bool {
             guard element.exists else { return false }
             let f = element.frame
@@ -64,15 +65,38 @@ final class MineSettingsUITests: XCTestCase {
         return condition()
     }
 
-    /// 语言选项收在折叠卡 card_language 内(v1.0.56 T4, 与原实现一致), expanded
-    /// 是页面 @State(不落盘)→ 每次切语言整树重建后回到收起态 → 选项前先展开卡。
-    /// 卡头 label=当前语言: 若与目标同名(如 en→English)则 buttons[label] 双匹配,
-    /// 用 y>卡头中线 锁定头部下方的选项行。锚点全用 identifier/label(与 locale 无关)。
-    private func tapLanguageOption(_ label: String) {
+    private func retainScreenshot(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// Native language choices live in the system menu; Classic choices expand
+    /// beneath the card header. Scope each path to its actual option container.
+    private func tapLanguageOption(_ label: String, nativeMenu: Bool = false) {
         let head = app.buttons["card_language"].firstMatch
         XCTAssertTrue(head.waitForExistence(timeout: 5), "语言卡 card_language 应存在")
-        XCTAssertTrue(scrollUntil(head, maxSwipes: 8), "语言卡应能滚入视口")
-        head.tap()   // 展开折叠卡
+        XCTAssertTrue(scrollUntil(head, maxSwipes: 8, reservedBottomInset: 0), "语言卡应能滚入视口")
+        head.tap()
+        if nativeMenu {
+            // iOS exposes a Picker menu as a collection of option cells.
+            // Scope to that real native surface, which contains all five languages.
+            let menu = app.collectionViews.containing(.button, identifier: "Español").firstMatch
+            guard menu.waitForExistence(timeout: 5) else {
+                retainHierarchy("language-native-menu-missing")
+                XCTFail("语言卡应打开系统菜单")
+                return
+            }
+            let option = menu.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
+            guard option.waitForExistence(timeout: 5) else {
+                retainHierarchy("language-native-option-missing")
+                XCTFail("系统语言菜单应有 \(label)")
+                return
+            }
+            option.tap()
+            return
+        }
         let headMidY = head.frame.midY
         // ★ 修复: Xcode 14.3.1 模拟器拒绝 NSPredicate 中 `y` 键路径(XCTElementQueryInvalidPredicate),
         //   改用 allElementsBoundByIndex + Swift 过滤(与 TableSwitchUITests.courseElement 同源模式)。
@@ -84,6 +108,44 @@ final class MineSettingsUITests: XCTestCase {
             return
         }
         opt.tap()
+    }
+
+    private func retainHierarchy(_ name: String) {
+        let attachment = XCTAttachment(string: app.debugDescription)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        retainScreenshot(name)
+    }
+
+    private func relaunchWithNativeControls() {
+        app.terminate()
+        app.launchArguments += ["-ui_style", "liquid_glass"]
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        let entrance = app.buttons["mine_all_tables"].firstMatch
+        XCTAssertTrue(entrance.waitForExistence(timeout: 8))
+        // Capture the settled page rather than the schedule-to-Mine crossfade.
+        var stableSince = Date()
+        var previous = entrance.frame
+        XCTAssertTrue(pollUntil {
+            let current = entrance.frame
+            if current != previous { stableSince = Date() }
+            previous = current
+            return entrance.isHittable && Date().timeIntervalSince(stableSince) >= 0.5
+        })
+    }
+
+    private func openScheduleDisplay() {
+        let appearance = app.descendants(matching: .any)["mine_appearance"].firstMatch
+        XCTAssertTrue(scrollUntil(appearance))
+        appearance.tap()
+        let display = app.descendants(matching: .any)["appearance_schedule_display"].firstMatch
+        // Appearance is a full-screen overlay; its final row has no tab bar above it.
+        XCTAssertTrue(scrollUntil(display, maxSwipes: 12, reservedBottomInset: 0),
+                      "外观页应可进入课表显示")
+        display.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["settings_display_preview"].waitForExistence(timeout: 5))
     }
 
     // MARK: 小组件设置独立页 + 画廊(v1.0.62 B4)
@@ -123,12 +185,25 @@ final class MineSettingsUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5), "点「＋」应打开添加小组件画廊页")
 
-        // v1.0.64: 点卡片 → 添加引导 sheet(取代原「不支持」snackbar 死胡同)
+        // v1.0.64: 先展开组件组，再点具体尺寸进入添加引导。
         card.tap()
+        // The group identifier also reaches its title and collapse action. Select
+        // the grid container that actually owns the concrete size buttons.
+        let expanded = app.otherElements
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'widget_gallery_expanded_'"))
+            .firstMatch
+        XCTAssertTrue(expanded.waitForExistence(timeout: 5), "点组件组应展开全部尺寸")
+        let sizeCard = expanded.descendants(matching: .button)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'widget_gallery_card_'"))
+            .firstMatch
+        XCTAssertTrue(sizeCard.waitForExistence(timeout: 5), "展开组应有可添加的尺寸卡片")
+        retainScreenshot("widget-gallery-expanded-sizes")
+        sizeCard.tap()
         let guideTitle = app.descendants(matching: .any)["widget_guide_title"]
         XCTAssertTrue(guideTitle.waitForExistence(timeout: 5), "点卡片应弹出小组件添加引导页")
         let guideCopy = app.descendants(matching: .any)["widget_guide_copy"]
         XCTAssertTrue(guideCopy.exists, "引导页应有复制组件名按钮")
+        retainScreenshot("widget-gallery-add-guide")
         let close = app.descendants(matching: .any)["topbar_close"]
         XCTAssertTrue(close.waitForExistence(timeout: 3), "引导页应有 ✕ 关闭按钮")
         close.tap()
@@ -155,7 +230,7 @@ final class MineSettingsUITests: XCTestCase {
         let row = app.descendants(matching: .any)["mine_period_tables"]
         XCTAssertTrue(row.waitForExistence(timeout: 3))
         row.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
-        XCTAssertTrue(app.buttons["topbar_back"].firstMatch.waitForExistence(timeout: 5),
+        XCTAssertTrue(app.buttons["period_tables_back"].firstMatch.waitForExistence(timeout: 5),
                       "点作息表行右端空白区应进入管理页")
         XCTAssertTrue(app.staticTexts["New bell schedule"].firstMatch.exists)
     }
@@ -181,43 +256,91 @@ final class MineSettingsUITests: XCTestCase {
                       "新建应进表编辑页")
     }
 
+    func testAllTablesSchoolUpdateOpensImportForTheSelectedRow() {
+        app.descendants(matching: .any)["mine_all_tables"].tap()
+        XCTAssertTrue(app.staticTexts["All Schedules"].waitForExistence(timeout: 5))
+        let refresh = app.buttons.matching(NSPredicate(format:
+            "identifier BEGINSWITH %@", "table_update_from_school_")).firstMatch
+        XCTAssertTrue(refresh.waitForExistence(timeout: 5))
+        refresh.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["Select School"].waitForExistence(timeout: 10))
+        let close = app.buttons["topbar_close"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        close.tap()
+        XCTAssertTrue(app.staticTexts["All Schedules"].waitForExistence(timeout: 5))
+    }
+
+    func testNativeAllTablesActionsKeepIndependentTargets() {
+        relaunchWithNativeControls()
+        retainScreenshot("native-mine-material-icons")
+        app.descendants(matching: .any)["mine_all_tables"].tap()
+        XCTAssertTrue(app.staticTexts["All Schedules"].waitForExistence(timeout: 5))
+        let identity = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_select_'" )).firstMatch
+        let actions = ["table_duplicate_", "table_update_from_school_", "table_edit_"].map { prefix in
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).firstMatch
+        }
+        XCTAssertTrue(identity.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(identity.frame.width, 56, "The title must keep its reading width beside native actions")
+        for action in actions {
+            XCTAssertTrue(action.exists && action.isHittable)
+            XCTAssertTrue(app.frame.contains(action.frame), "The complete native action must remain inside the window")
+            XCTAssertGreaterThanOrEqual(action.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(action.frame.height, 44)
+            XCTAssertLessThanOrEqual(action.frame.width, 48.5,
+                                     "Native insets must fit inside the original icon slot")
+            XCTAssertEqual(action.frame.width, action.frame.height, accuracy: 1,
+                           "Independent native icon actions must remain circular")
+            let overlap = identity.frame.intersection(action.frame)
+            XCTAssertTrue(overlap.isNull || overlap.width < 1 || overlap.height < 1)
+        }
+        for index in 0..<actions.count - 1 {
+            XCTAssertLessThanOrEqual(actions[index].frame.maxX, actions[index + 1].frame.minX + 1)
+        }
+        retainScreenshot("native-all-tables-actions")
+        actions[1].coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["Select School"].waitForExistence(timeout: 10))
+    }
+
     // MARK: Appearance — 3 态模式分段切换
 
     func testAppearanceModeSegmented() {
         app.descendants(matching: .any)["mine_appearance"].tap()
-        XCTAssertTrue(app.staticTexts["Appearance"].waitForExistence(timeout: 5))
+        let title = app.staticTexts["Appearance & display"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
 
-        let light = app.descendants(matching: .any)["theme_mode_light"]
-        let dark = app.descendants(matching: .any)["theme_mode_dark"]
-        let auto = app.descendants(matching: .any)["theme_mode_system"]
-        XCTAssertTrue(light.waitForExistence(timeout: 3), "Light 模式按钮应存在")
+        let light = app.buttons.matching(NSPredicate(format: "label == 'Light'")).firstMatch
+        let dark = app.buttons.matching(NSPredicate(format: "label == 'Dark'")).firstMatch
+        let auto = app.buttons.matching(NSPredicate(format: "label == 'Auto (light/dark)'")).firstMatch
+        XCTAssertTrue(scrollUntil(light, maxSwipes: 12), "Light 模式按钮应可达")
         XCTAssertTrue(dark.exists, "Dark 模式按钮应存在")
         XCTAssertTrue(auto.exists, "Auto 模式按钮应存在")
 
         // 切 Dark → 立即生效不崩
         dark.tap()
-        XCTAssertTrue(app.staticTexts["Appearance"].waitForExistence(timeout: 3), "切深色不应崩")
+        XCTAssertTrue(pollUntil { dark.isSelected })
+        XCTAssertTrue(title.waitForExistence(timeout: 3), "切深色不应崩")
         // 切回 Light
         light.tap()
+        XCTAssertTrue(pollUntil { light.isSelected })
         // 切 Auto
         auto.tap()
-        XCTAssertTrue(app.staticTexts["Appearance"].exists)
+        XCTAssertTrue(pollUntil { auto.isSelected })
+        XCTAssertTrue(title.exists)
     }
 
     // MARK: Appearance — 预设主题网格(至少一个预设可点)
 
     func testAppearancePresetGrid() {
         app.descendants(matching: .any)["mine_appearance"].tap()
-        XCTAssertTrue(app.staticTexts["Appearance"].waitForExistence(timeout: 5))
-        app.swipeUp()
+        let title = app.staticTexts["Appearance & display"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
         // 预设网格(2 列 N 个)— 任一预设按钮可点不崩
-        let presets = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'theme' OR label CONTAINS 'Wake'")).firstMatch
-        if presets.exists {
-            presets.tap()
-            XCTAssertTrue(app.staticTexts["Appearance"].waitForExistence(timeout: 3))
-        }
-        // 无论预设如何, 页面不崩
-        XCTAssertTrue(app.staticTexts["Appearance"].exists)
+        let preset = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'theme_preset_'")).firstMatch
+        XCTAssertTrue(preset.waitForExistence(timeout: 5), "预设主题应存在")
+        XCTAssertTrue(scrollUntil(preset, reservedBottomInset: 0), "预设主题应可点")
+        preset.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        XCTAssertTrue(title.exists)
     }
 
     // MARK: General — 设置卡交互(平卡选项即时点选; 卡已原生化: Time Display/
@@ -226,8 +349,7 @@ final class MineSettingsUITests: XCTestCase {
     //       按标签查 buttons["Show as periods"] 失效 → 锚点用 seg_<渲染标签> identifier)
 
     func testGeneralCardsExpandCollapse() {
-        app.descendants(matching: .any)["mine_general"].tap()
-        XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
+        openScheduleDisplay()
 
         // Time Display 卡: 分段控件两选项(ScheduleFlowUITests 同款 seg_ 锚点)
         let periods = app.descendants(matching: .any)["seg_Show as periods"]
@@ -254,8 +376,7 @@ final class MineSettingsUITests: XCTestCase {
     // MARK: General — Visible Days 7 行开关
 
     func testGeneralVisibleDaysToggles() {
-        app.descendants(matching: .any)["mine_general"].tap()
-        XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
+        openScheduleDisplay()
         // Visible Days = SettingsCard 折叠卡(SettingsCards.swift:95): 可点单元 =
         // 带 card_\(title) identifier + isButton trait 的容器; staticTexts["Visible Days"]
         // 命中的是无操作文本叶子(tap 落空)。expandedSections 跨启动持久化
@@ -310,22 +431,22 @@ final class MineSettingsUITests: XCTestCase {
     // MARK: General — Show dates / colorless 开关
 
     func testGeneralToggles() {
-        app.descendants(matching: .any)["mine_general"].tap()
-        XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
+        assertShowDatesSwitchToggles()
+    }
 
-        // "Show dates on schedule" 行在 Home display 折叠卡内(pillCard, key=gridScale;
-        // expandedSections 跨启动持久化 → 初始态不可假设)。锚点用卡 identifier
-        // card_Home display(SettingsCards.swift:95), 点标题区驱动 onToggle;
-        // 以行是否可见判当前态, 需要时翻转 → 确定性展开。
-        let pillCard = app.descendants(matching: .any)["card_Home display"].firstMatch
-        XCTAssertTrue(scrollUntil(pillCard, maxSwipes: 8), "Home display 卡应可达")
-        // ★ 修复: 用 descendants 锚点(与 SettingToggleRow label 对齐), 避免 staticTexts 在合并后不可达
+    func testLiquidGlassSwitchPressKeepsItsLabelAndTogglesOnce() {
+        app.terminate()
+        app.launchArguments += ["-ui_style", "liquid_glass"]
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        assertShowDatesSwitchToggles(pressDuration: 0.25)
+    }
+
+    private func assertShowDatesSwitchToggles(pressDuration: TimeInterval = 0) {
+        openScheduleDisplay()
+
         let showDateRow = app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS 'Show dates'")).firstMatch
-        if !showDateRow.waitForExistence(timeout: 1) {
-            pillCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
-            XCTAssertTrue(pollUntil(4) { showDateRow.exists }, "展开后应有 'Show dates on schedule' 行")
-        }
         XCTAssertTrue(scrollUntil(showDateRow, maxSwipes: 8), "行应滚入视口")
         // SettingToggleRow 只有右侧 Toggle 可切换(点标签文本无效)。2026-10-25 tprobe
         // 实证两层结构: 外层容器(继承卡 identifier + 卡 onToggle — tap 它收起整卡)
@@ -343,9 +464,11 @@ final class MineSettingsUITests: XCTestCase {
             return
         }
         let before = sw0.value as? String
-        sw0.tap()
+        if pressDuration > 0 { sw0.press(forDuration: pressDuration) }
+        else { sw0.tap() }
         XCTAssertTrue(pollUntil(4) { showDateSwitch()?.value as? String != before },
                       "点 switch 应翻转")
+        if pressDuration > 0 { retainScreenshot("native-switch-after-press") }
         // 不再二次 tap 还原: 首翻触发 refreshWidgets + 卡内重排, 二次 tap 在
         // 模拟器上 6 轮取证均未落位(verify4-6: 单向/双向找回 + 坐标 tap 全空),
         // 属 XCUITest×SwiftUI 重排交互 quirk, 开关本体行为已被首翻断言证明。
@@ -362,21 +485,48 @@ final class MineSettingsUITests: XCTestCase {
 
     // MARK: General — Widget 设置组(widgetcolorless/separator/vertPunct)
 
-    func testGeneralWidgetSection() {
+    func testGeneralKeepsLanguageAndEditingSettings() {
         app.descendants(matching: .any)["mine_general"].tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
-        app.swipeUp()
-        app.swipeUp()
-        app.swipeUp()
-        let widgetCard = app.staticTexts["Widget settings"].firstMatch
-        if widgetCard.waitForExistence(timeout: 3) {
-            widgetCard.tap()
-            XCTAssertTrue(app.staticTexts["Uniform widget course colors"].waitForExistence(timeout: 3))
-            XCTAssertTrue(app.staticTexts["Week view separator"].exists)
-            // 展开状态点第一个选项卡的 switch
-            let sw = app.switches.firstMatch
-            if sw.exists { sw.tap() }
+        XCTAssertTrue(app.buttons["card_language"].firstMatch.exists)
+        XCTAssertTrue(scrollUntil(app.textFields["general_undo_depth_field"].firstMatch))
+        XCTAssertFalse(app.descendants(matching: .any)["appearance_navigation_shape"].exists)
+    }
+
+    func testMineBackupEntryKeepsMigrationActions() {
+        let backup = app.descendants(matching: .any)["mine_backup"].firstMatch
+        XCTAssertTrue(scrollUntil(backup))
+        backup.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["settings_migration_export_row"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["settings_migration_import_row"].exists)
+    }
+
+    func testInterfaceStyleKeepsNavigationSelection() {
+        let appearance = app.descendants(matching: .any)["mine_appearance"].firstMatch
+        XCTAssertTrue(scrollUntil(appearance))
+        appearance.tap()
+        // Native segments expose their option labels; enclosing card identifiers
+        // can replace a segment's SwiftUI identifier in the accessibility tree.
+        func option(_ label: String) -> XCUIElement {
+            app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@",
+                                             "seg_\(label)", label)).firstMatch
         }
+        let classic = option("Classic")
+        XCTAssertTrue(scrollUntil(classic, reservedBottomInset: 0))
+        classic.tap()
+        XCTAssertTrue(pollUntil { classic.isSelected })
+        let docked = option("Docked")
+        XCTAssertTrue(scrollUntil(docked))
+        docked.tap()
+        XCTAssertTrue(docked.isSelected)
+        let glass = option("Liquid Glass")
+        XCTAssertTrue(glass.exists)
+        glass.tap()
+        XCTAssertTrue(pollUntil { glass.isSelected })
+        XCTAssertTrue(docked.isSelected, "界面材质不能改导航形态")
+        retainScreenshot("native-glass-docked-selection")
+        option("Classic").tap()
+        XCTAssertTrue(docked.isSelected)
     }
 
     // MARK: General — 语言 5 项切换(切 en → ja → 切回 en)
@@ -384,15 +534,16 @@ final class MineSettingsUITests: XCTestCase {
     //   先展卡再点选项; 切语言=整树重建 → expanded 复位, 每项前都要重展。
 
     func testGeneralLanguageSwitch() {
+        relaunchWithNativeControls()
         app.descendants(matching: .any)["mine_general"].tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
-        tapLanguageOption("English")
+        tapLanguageOption("English", nativeMenu: true)
         // 切日语验证多语切换(标题随之变 "一般")
-        tapLanguageOption("日本語")
+        tapLanguageOption("日本語", nativeMenu: true)
         XCTAssertTrue(pollUntil(6) { app.staticTexts["一般"].exists }, "切日语后标题应为 一般")
         // ★ 收尾必须切回 en: applyLanguage 持久化 AppPrefs 且优先于 -AppleLanguages
         //   启动参数 → 留 ja 会污染后续所有用例(TableSwitch 等英文断言全挂)
-        tapLanguageOption("English")
+        tapLanguageOption("English", nativeMenu: true)
         XCTAssertTrue(pollUntil(6) { app.staticTexts["General"].exists }, "切回 English 应恢复 General 标题")
     }
 
@@ -402,23 +553,23 @@ final class MineSettingsUITests: XCTestCase {
     //   "General"→"通用" 即时变化;语言项标签是硬编码原生名, 不随语言变可再定位。
     //   选项在折叠卡 card_language 内 → 重建后回到收起态, 每项经 tapLanguageOption。
     func testLanguageSwitchAppliesImmediately() {
+        relaunchWithNativeControls()
         app.descendants(matching: .any)["mine_general"].tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
-        tapLanguageOption("简体中文")
+        tapLanguageOption("简体中文", nativeMenu: true)
 
         // 整树重建后仍在 General overlay — 标题应立即是 "通用"(即时生效, 无需重启)
         XCTAssertTrue(pollUntil(6) { app.staticTexts["通用"].exists },
                       "切简体中文后 General 页标题应立即变 通用(即时生效)")
         // 恢复英文环境(与其他用例的英文断言隔离)
-        tapLanguageOption("English")
+        tapLanguageOption("English", nativeMenu: true)
         XCTAssertTrue(pollUntil(6) { app.staticTexts["General"].exists },
                       "切回 English 后应立即变回 General")
     }
 
     // ★ 节假日入口(General 页 holiday 入口卡): 点击进二级页, 返回回 General
     func testHolidayEntryOpensHolidayScreen() {
-        app.descendants(matching: .any)["mine_general"].tap()
-        XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
+        openScheduleDisplay()
         let entry = app.descendants(matching: .any)["settings_holiday_entry"].firstMatch
         XCTAssertTrue(entry.waitForExistence(timeout: 5), "General 页应有节假日入口卡")
         // issue#26 别名开关折叠进 pill 卡后 General 页整体变矮, 固定 swipeUp 会把入口
@@ -500,7 +651,14 @@ final class MineSettingsUITests: XCTestCase {
                 NSPredicate(format: "label == 'Allow' OR label == '好'")).firstMatch
             if allowBtn.waitForExistence(timeout: 4) { allowBtn.tap() }
         }
-        XCTAssertTrue((masterSwitch.value as? String) == "1", "master 应为开")
+        let denied = app.descendants(matching: .any)["reminder_notif_denied_row"].firstMatch
+        XCTAssertTrue(pollUntil(6) { (masterSwitch.value as? String) == "1" || denied.exists },
+                      "授权后应开启；系统已拒绝权限时应展示设置引导")
+        if denied.exists {
+            XCTAssertEqual(masterSwitch.value as? String, "0", "拒绝权限时总开关必须回退")
+        } else {
+            XCTAssertEqual(masterSwitch.value as? String, "1", "授权后总开关必须开启")
+        }
         XCTAssertTrue(app.staticTexts["Reminders"].exists, "提醒页操作后不崩")
     }
 

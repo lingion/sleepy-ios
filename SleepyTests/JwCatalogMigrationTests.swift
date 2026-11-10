@@ -16,7 +16,7 @@ final class JwCatalogMigrationTests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
     }
 
-    func testAllCandidateIdentitiesAndExactMetadataRemainUnverified() throws {
+    func testCandidateIdentitiesAndPinnedV1064Metadata() throws {
         let rows = try catalog()
         XCTAssertEqual(rows.count, 4140)
         let ids = rows.compactMap { $0["catalogId"] as? String }
@@ -26,37 +26,33 @@ final class JwCatalogMigrationTests: XCTestCase {
         let digest = SHA256.hash(data: identityBytes).map { String(format: "%02x", $0) }.joined()
         XCTAssertEqual(digest, "655c88d589bbebd3ab86456605585f07befba578393e8f82c0fea76230843876")
         let lookup = Dictionary(uniqueKeysWithValues: rows.map { ($0["catalogId"] as! String, $0) })
-        let data = try Data(contentsOf: resource("catalog-v1063-candidates"))
+        let data = try Data(contentsOf: resource("catalog-v1064-candidates"))
         let ledger = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
         XCTAssertEqual(ledger.count, 1402)
-        XCTAssertEqual(ledger.filter { $0["type"] as? String == "jw_home" }.count, 810)
-        XCTAssertEqual(ledger.filter { $0["type"] as? String == "sg_asset" }.count, 43)
+        XCTAssertEqual(ledger.filter { $0["type"] as? String == "jw_home" }.count, 700)
+        XCTAssertEqual(ledger.filter { $0["type"] as? String == "sg_asset" }.count, 42)
         XCTAssertEqual(ledger.filter { $0["status"] as? String == "grad_unverified" }.count, 48)
         for expected in ledger {
             let id = try XCTUnwrap(expected["catalogId"] as? String)
             let actual = try XCTUnwrap(lookup[id], id)
             for field in ["name", "type", "status", "url"] {
-                XCTAssertEqual(actual[field] as? String, expected[field] as? String, "\(id): \(field)")
+                XCTAssertEqual(field == "status" ? JwSchoolInfo.normalizeStatus(actual[field] as? String) : actual[field] as? String, expected[field] as? String, "\(id): \(field)")
             }
-            XCTAssertEqual(actual["enableFetch"] as? Bool, false, id)
-            XCTAssertTrue(["unverified", "grad_unverified"].contains(actual["status"] as? String ?? ""), id)
+            XCTAssertEqual(actual["enableFetch"] as? Bool ?? false, expected["enableFetch"] as? Bool ?? false, id)
             XCTAssertTrue(JwParserRegistry.supports(actual["type"] as? String), id)
         }
-        XCTAssertEqual(rows.filter { ["pending", "grad_pending"].contains($0["status"] as? String ?? "") }.count, 1260)
+        XCTAssertEqual(rows.filter { ["pending", "grad_pending"].contains($0["status"] as? String ?? "") }.count, 1259)
     }
 
-    func testThreeSchoolDecisionsDoNotBorrowAndroidAuthenticationClaims() throws {
+    func testPinnedSchoolMetadataUsesV1064Declarations() throws {
+        // These are shipped source declarations, not iOS authentication evidence.
         let rows = try catalog()
-        for id in ["moe:4133012645", "moe:4123010222"] {
+        for id in ["moe:4133012645", "moe:4123010222", "N_南开大学"] {
             let row = try XCTUnwrap(rows.first { $0["catalogId"] as? String == id })
-            XCTAssertEqual(row["status"] as? String, "unverified")
-            XCTAssertEqual(row["enableFetch"] as? Bool, false)
-            XCTAssertEqual(row["type"] as? String, id == "moe:4133012645" ? "classic_eams" : "kingo_new")
+            XCTAssertEqual(JwSchoolInfo.normalizeStatus(row["status"] as? String), "supported")
+            XCTAssertEqual(row["enableFetch"] as? Bool ?? false, id != "moe:4123010222")
+            XCTAssertEqual(row["type"] as? String, id == "moe:4123010222" ? "kingo_new" : "classic_eams")
         }
-        let nankai = try XCTUnwrap(rows.first { $0["catalogId"] as? String == "N_南开大学" })
-        XCTAssertEqual(nankai["status"] as? String, "supported")
-        XCTAssertEqual(nankai["enableFetch"] as? Bool, false)
-        XCTAssertEqual(JwSchoolInfo.normalizeStatus(nil), "supported")
     }
 
     func testEverySgSchoolLoadsItsRealBundledAdapterAndLicense() throws {
@@ -72,11 +68,19 @@ final class JwCatalogMigrationTests: XCTestCase {
         XCTAssertEqual(schools.count, 43)
         for school in schools {
             let name = try XCTUnwrap(school["name"] as? String)
-            let entry = try JwSgAssetBridge.entry(schoolName: name, manifest: manifest)
-            let original = try String(contentsOf: root.appendingPathComponent(entry.jsPath), encoding: .utf8)
-            let bridge = try JwSgAssetBridge.bridgeJs(schoolName: name, resourceRoot: root)
-            XCTAssertTrue(bridge.contains(original), name)
-            XCTAssertTrue(bridge.contains("window.webkit.messageHandlers.__sleepyBridge"), name)
+            let choices = try JwSgAssetBridge.entries(schoolName: name, manifest: manifest)
+            XCTAssertFalse(choices.isEmpty, name)
+            if choices.count > 1 {
+                XCTAssertThrowsError(try JwSgAssetBridge.entry(schoolName: name, manifest: manifest))
+            }
+            for choice in choices {
+                let entry = try JwSgAssetBridge.entry(schoolName: name, manifest: manifest, selectedAdapterId: choice.id)
+                XCTAssertEqual(entry, choice)
+                let original = try String(contentsOf: root.appendingPathComponent(entry.jsPath), encoding: .utf8)
+                let bridge = try JwSgAssetBridge.bridgeJs(schoolName: name, resourceRoot: root, selectedAdapterId: choice.id)
+                XCTAssertTrue(bridge.contains(original), name)
+                XCTAssertTrue(bridge.contains("window.webkit.messageHandlers.__sleepyBridge"), name)
+            }
         }
     }
 }

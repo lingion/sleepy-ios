@@ -27,6 +27,7 @@ private enum DailyReminderTimeTarget: Identifiable {
 
 @MainActor
 struct ReminderScreen: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.localWakeUpColors) private var colors
     let onDismiss: () -> Void
     /// ← 原版本 onOpenHoliday: 打开节假日高级设置。宿主接了导航就交出去;
@@ -110,8 +111,7 @@ struct ReminderScreen: View {
                                     .foregroundColor(colors.onSurfaceVariant)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 20))
+                            AndroidMaterialIcon(name: .chevronRight, size: 20)
                                 .foregroundColor(colors.onSurfaceVariant)
                         }
                         .padding(.horizontal, 16)
@@ -208,7 +208,7 @@ struct ReminderScreen: View {
                             ReminderRescheduler.shared.request()
                         }
                     ))
-                    .toggleStyle(.switch)
+                    .toggleStyle(SleepyToggleStyle(disabledUncheckedBorderOpacity: 0.12))
                     .tint(colors.primary)
                     .labelsHidden()
                     .accessibilityIdentifier("reminder_date_rules_toggle")
@@ -257,11 +257,12 @@ struct ReminderScreen: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onSecondaryContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)   // ← iOS FilledTonalButton 惯例(AllTablesScreen 同语言)
-                            .background(colors.secondaryContainer)
-                            .cornerRadius(SleepyShapes.large)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 48)   // ← iOS FilledTonalButton 惯例(AllTablesScreen 同语言)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .tint(colors.secondaryContainer)
                     .padding(.top, 4)
                     .accessibilityIdentifier("reminder_date_rules_advanced_button")
                 }
@@ -282,7 +283,7 @@ struct ReminderScreen: View {
 
     private var dailyCard: some View {
         ReminderCard {
-            SubToggleRow(icon: "clock",
+            SubToggleRow(icon: .accessTime,
                          title: L10n.format("reminder_daily_title"),
                          subtitle: L10n.format("reminder_daily_sub"),
                          checked: $dailyEnabled,
@@ -362,7 +363,7 @@ struct ReminderScreen: View {
 
     private var beforeClassCard: some View {
         ReminderCard {
-            SubToggleRow(icon: "graduationcap",
+            SubToggleRow(icon: .school,
                          title: L10n.format("reminder_before_class_title"),
                          subtitle: L10n.format("reminder_before_class_sub"),
                          checked: $beforeClassEnabled,
@@ -954,7 +955,7 @@ private struct MasterToggleRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            IconBox(icon: "bell")
+            IconBox(icon: .notifications)
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.format("reminder_master_title"))
                     .font(.system(size: 16, weight: .semibold))
@@ -968,7 +969,7 @@ private struct MasterToggleRow: View {
                 get: { masterEnabled },
                 set: { onToggle($0) }
             ))
-            .toggleStyle(.switch)
+            .toggleStyle(SleepyToggleStyle(disabledUncheckedBorderOpacity: 0.12))
             .tint(colors.primary)
             .labelsHidden()
             .accessibilityIdentifier("reminder_master_toggle")
@@ -981,7 +982,7 @@ private struct MasterToggleRow: View {
 // ← SubToggleRow(带图标子开关)
 private struct SubToggleRow: View {
     @Environment(\.localWakeUpColors) private var colors
-    let icon: String
+    let icon: AndroidSettingsIcon.Name
     let title: String
     let subtitle: String
     @Binding var checked: Bool
@@ -1004,7 +1005,7 @@ private struct SubToggleRow: View {
                 get: { checked },
                 set: { onCheckedChange($0) }
             ))
-            .toggleStyle(.switch)
+            .toggleStyle(SleepyToggleStyle(disabledUncheckedBorderOpacity: 0.12))
             .tint(colors.primary)
             .labelsHidden()
             .modifier(OptionalToggleId(id: toggleId))
@@ -1099,7 +1100,7 @@ private struct ReminderToggleRow: View {
 
     private var toggle: some View {
         Toggle(title, isOn: Binding(get: { checked }, set: { onCheckedChange($0) }))
-            .toggleStyle(.switch)
+            .toggleStyle(SleepyToggleStyle(disabledUncheckedBorderOpacity: 0.12))
             .tint(colors.primary)
             .labelsHidden()
     }
@@ -1143,11 +1144,10 @@ private struct NotifDeniedRow: View {
 // ← IconBox
 private struct IconBox: View {
     @Environment(\.localWakeUpColors) private var colors
-    let icon: String
+    let icon: AndroidSettingsIcon.Name
 
     var body: some View {
-        Image(systemName: icon)
-            .font(.system(size: 20))
+        AndroidSettingsIcon(name: icon, size: 20)
             .foregroundColor(colors.onPrimaryContainer)
             .frame(width: 36, height: 36)
             .background(colors.primaryContainer)

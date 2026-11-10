@@ -82,6 +82,7 @@ final class JwNwpuPostParser: JwParser, JwParserConfidenceReporting {
             var courseName = ""
             var className = ""
             var teacher = ""
+            var credit: Float = 0
             var classNote = ""
             var timeRoomRaw = ""
 
@@ -90,8 +91,8 @@ final class JwNwpuPostParser: JwParser, JwParserConfidenceReporting {
                 let rawHtml = (try? td.html()) ?? ""
                 let withBreaks = rawHtml.replacingOccurrences(
                     of: #"<br\s*/?\s*>"#, with: "\n", options: .regularExpression)
-                let d = (try? SwiftSoup.parse(withBreaks)) ?? Document("")
-                let tdText = ((try? d.text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let tdText = withBreaks.components(separatedBy: "\n").map { Jw64.plain($0) }.joined(separator: "\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
                 let thText = colIdx < thHeaders.count ? thHeaders[colIdx] : ""
 
                 if thText.contains("院系") { department = tdText }
@@ -99,7 +100,10 @@ final class JwNwpuPostParser: JwParser, JwParserConfidenceReporting {
                 else if thText.contains("课程名称") { courseName = tdText }
                 else if thText.contains("班级名称") { className = tdText }
                 else if thText.contains("主讲教师") { teacher = tdText }
-                else if thText.contains("学分") { _ = Float(tdText) }  // credit 仅解析不使用 (Sleepy 无学分字段)
+                else if thText.contains("学分") {
+                    let value = Float(tdText) ?? 0
+                    credit = value.isFinite && value >= 0 ? value : 0
+                }
                 else if thText.contains("班级说明") { classNote = tdText }
                 else if thText.contains("上课时间") { timeRoomRaw = tdText }
             }
@@ -108,7 +112,6 @@ final class JwNwpuPostParser: JwParser, JwParserConfidenceReporting {
 
             let combinedName = className.isEmpty ? courseName : "\(courseName)(\(className))"
             let note = [department, courseCode, classNote].filter { !$0.isEmpty }.joined(separator: " ")
-            _ = note  // ← Kotlin note 变量保留形态 (Sleepy 无 note 字段, 不落 JwCourse)
 
             // 每行一个时段地点
             let lines = timeRoomRaw
@@ -205,7 +208,8 @@ final class JwNwpuPostParser: JwParser, JwParserConfidenceReporting {
                         courses.append(JwCourse(
                             name: combinedName, room: room, teacher: teacher,
                             day: day, startNode: curStart, endNode: curEnd,
-                            startWeek: startWeek, endWeek: endWeek, type: weekType))
+                            startWeek: startWeek, endWeek: endWeek, type: weekType,
+                            credit: credit, note: note))
                     }
                     for i in 1..<orderedNodes.count {
                         if orderedNodes[i] == curEnd + 1 {

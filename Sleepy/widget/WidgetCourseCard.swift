@@ -299,8 +299,11 @@ struct WidgetCourseRowView: View {
 
     var body: some View {
         if row.laneCount <= 1 {
-            card(row.courses[0], fontSize: fontSizeSp)
-                .frame(height: rowHeight)
+            VStack(spacing: stackGap) {
+                ForEach(row.courses) { course in
+                    card(course, fontSize: fontSizeSp).frame(height: rowHeight)
+                }
+            }
         } else {
             HStack(alignment: .top, spacing: 0) {
                 ForEach(0..<row.laneCount, id: \.self) { lane in

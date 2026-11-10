@@ -17,7 +17,9 @@ import WidgetKit
 
 struct WidgetSettingsScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.localNavExtraBottomPadding) private var navExtra
+    @Environment(\.scenePhase) private var scenePhase
     // ★ v7.10.18 原生化: onDismiss(由 MineScreen fullScreenCover 关闭)
     let onDismiss: () -> Void
 
@@ -26,7 +28,8 @@ struct WidgetSettingsScreen: View {
     // ← AppPrefs.isWidgetColorless / isWidgetSeparator / isNearestBusyDay
     @State private var widgetColorless = AppPrefs.shared.isWidgetColorless()
     @State private var widgetSeparator = AppPrefs.shared.isWidgetSeparator()
-    @State private var nearestBusyDay = AppPrefs.shared.isNearestBusyDay()
+    @State private var vertPunct = AppPrefs.shared.isVertPunctReplace()
+    @State private var showSharedDisplay = false
     @State private var watchTimeStripTomorrow = AppPrefs.shared.isWatchTimeStripTomorrow()
 
     // ← 已放置实例 = 页尾刷新按钮的存在条件(单一真源, 同「添加或管理」页)
@@ -54,9 +57,9 @@ struct WidgetSettingsScreen: View {
             SettingsTopBar(title: L10n.format("mine_widget"), onBack: onDismiss)
             ScrollView {
                 VStack(spacing: 16) {
-                    SectionHeader(title: L10n.format("appearance_section_widget"))
+                    manageEntry
 
-                    SettingsCard(title: L10n.format("settings_widget"),
+                    SettingsCard(title: L10n.format("settings_widget_global_appearance"),
                                  expanded: expanded,
                                  onToggle: { expanded.toggle() }) {
                         SettingToggleRow(label: L10n.format("settings_widget_colorless"),
@@ -74,20 +77,21 @@ struct WidgetSettingsScreen: View {
                             prefs.setWidgetSeparator($0)
                             refreshWidgets()
                         }
-                        SubDivider()
-                        SettingToggleRow(label: L10n.format("settings_nearest_busy_day"),
-                                         subtitle: L10n.format("settings_nearest_busy_day_sub"),
-                                         checked: nearestBusyDay) {
-                            nearestBusyDay = $0
-                            // 原 setNearestBusyDay + refreshWidgets; iOS setter 内部已
-                            // reloadAllTimelines(AppPrefs.swift), 再显式刷一次与 原版本 同构无害
-                            prefs.setNearestBusyDay($0)
+                    }
+
+                    sharedDisplayEntry
+                    SectionHeader(title: L10n.format("settings_widget_advanced"))
+                    VStack(spacing: 0) {
+                        SettingToggleRow(label: L10n.format("settings_widget_vert_punct_experimental"),
+                            subtitle: L10n.format("settings_vert_punct_sub"), checked: vertPunct) {
+                            vertPunct = $0
+                            prefs.setVertPunctReplace($0)
                             refreshWidgets()
                         }
                     }
-
-                    // 添加或管理桌面小组件: 跳「添加或管理」页(右上 ＋ 进画廊)
-                    manageEntry
+                    .padding(8)
+                    .background(colors.surfaceContainer)
+                    .cornerRadius(SleepyShapes.large)
 
                     // 独立于桌面小组件和最近有课日选项; 不改变现有开关语义。
                     SectionHeader(title: L10n.format("settings_watch_time_strip_section"))
@@ -130,6 +134,12 @@ struct WidgetSettingsScreen: View {
         }
         // ← 首次进入取已放置实例(等价 原版本 首帧 collect)
         .task { reloadPlaced() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { reloadPlaced() }
+        }
+        .sheet(isPresented: $showSharedDisplay) {
+            ScheduleDisplayScreen(onDismiss: { showSharedDisplay = false })
+        }
         .fullScreenCover(isPresented: $showManage) {
             WidgetManagementScreen(onDismiss: {
                 showManage = false
@@ -138,6 +148,26 @@ struct WidgetSettingsScreen: View {
                 reloadPlaced()
             })
         }
+    }
+
+    private var sharedDisplayEntry: some View {
+        Button { showSharedDisplay = true } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.format("settings_widget_shared_display"))
+                        .font(.system(size: 14, weight: .medium)).foregroundColor(colors.onSurface)
+                    Text(L10n.format("settings_widget_shared_display_sub"))
+                        .font(.footnote).foregroundColor(colors.onSurfaceVariant)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                AndroidMaterialIcon(name: .chevronRight, size: 20).foregroundColor(colors.onSurfaceVariant)
+            }
+            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
+        }
+        .buttonStyle(SleepyButtonStyle())
+        .accessibilityIdentifier("settings_widget_shared_display")
     }
 
     private var watchTimeStripCard: some View {
@@ -155,7 +185,7 @@ struct WidgetSettingsScreen: View {
                     .foregroundColor(colors.onSurface)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .toggleStyle(.switch)
+            .toggleStyle(SleepyToggleStyle(showsLabel: true))
             .tint(colors.primary)
             .accessibilityLabel(Text(L10n.format("settings_watch_time_strip_tomorrow")))
             .accessibilityHint(Text(L10n.format("settings_watch_time_strip_tomorrow_hint")))
@@ -184,8 +214,7 @@ struct WidgetSettingsScreen: View {
                     .font(.system(size: 14, weight: .medium)) // ← 原 titleSmall 14sp Medium
                     .foregroundColor(colors.onSurface)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 20))
+                AndroidMaterialIcon(name: .chevronRight, size: 20)
                     .foregroundColor(colors.onSurfaceVariant)
             }
             .padding(.horizontal, 16)
@@ -205,18 +234,18 @@ struct WidgetSettingsScreen: View {
             snackMessage = L10n.format("mine_refresh_widgets_done")
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 24))   // ← 原 Icon 默认 24dp
+                AndroidSettingsIcon(name: .refresh, size: 24)   // ← 原 Icon 默认 24dp
                 Text(L10n.format("mine_refresh_widgets"))
                     .font(.system(size: 14, weight: .medium))   // ← labelLarge 14 Medium
             }
             .foregroundColor(colors.onSecondaryContainer)
             .frame(maxWidth: .infinity)
-            .frame(height: 48)   // ← SleepyTheme.Buttons.regularHeight
-            .background(colors.secondaryContainer)
-            .cornerRadius(SleepyShapes.large)
+            .frame(height: style == .liquidGlass ? nil : 48)   // ← SleepyTheme.Buttons.regularHeight
+            .sleepyControlSurface(cornerRadius: 24, tint: colors.secondaryContainer)
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(shape: .capsule))
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .tint(colors.secondaryContainer)
         .accessibilityIdentifier("widget_settings_refresh")
     }
 }

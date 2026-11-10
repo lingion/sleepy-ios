@@ -310,6 +310,9 @@ struct SleepyThemeProvider: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.systemColorSnapshot) private var systemSnapshot
     @Environment(\.colorSchemeContrast) private var contrast
+    #if os(iOS) && !WIDGET_EXT && !WATCH_APP
+    @State private var uiStyle = SleepyUIStyle(preference: AppPrefs.shared.getUiStyle())
+    #endif
     let darkTheme: Bool
     let themeKey: String
     /// Invalidation token for same-id edits of the selected custom theme. The body intentionally
@@ -330,6 +333,9 @@ struct SleepyThemeProvider: ViewModifier {
             .modifier(InterpolatedThemeColors(vector: vector, reduceMotion: reduceMotion))
             .animation(reduceMotion ? nil : SleepyMotionPolicy(reduceMotion: false).defaultEffects, value: vector)
             .environment(\.localCoursePalette, palette)
+            .environment(\.sleepyUIStyle, uiStyle)
+            .toggleStyle(SleepyToggleStyle())
+            .onReceive(AppPrefs.shared.uiStylePublisher) { uiStyle = SleepyUIStyle(preference: $0) }
         #else
         return content
             .environment(\.localWakeUpColors, wakeColors)

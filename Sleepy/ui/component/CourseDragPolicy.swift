@@ -6,7 +6,8 @@ struct CourseDragEdgePaging {
     private var heldDirection = 0
     private var startedAt: TimeInterval = 0
 
-    mutating func update(direction: Int, now: TimeInterval, week: Int, maxWeek: Int) -> Int? {
+    mutating func update(direction: Int, now: TimeInterval, week: Int, maxWeek: Int,
+                         destinationReady: Bool = true) -> Int? {
         guard direction != 0, (1...max(1, maxWeek)).contains(week + direction) else {
             heldDirection = 0
             return nil
@@ -16,15 +17,25 @@ struct CourseDragEdgePaging {
             startedAt = now
             return nil
         }
-        guard now - startedAt >= 0.5 else { return nil }
+        // Missing layout must not consume a page or reset the stationary dwell.
+        guard now - startedAt >= 0.5, destinationReady else { return nil }
         startedAt = now
         return week + direction
     }
 
     static func direction(at point: CGPoint, origin: CGPoint, bounds: CGRect) -> Int {
-        guard bounds.contains(point), abs(point.x - origin.x) >= 16 else { return 0 }
-        if point.x < bounds.minX + 10 { return -1 }
-        if point.x > bounds.maxX - 10 { return 1 }
+        guard bounds.contains(point) else { return 0 }
+        return direction(centerX: point.x, fingerX: point.x, originX: origin.x,
+                         width: bounds.width, minimumX: bounds.minX)
+    }
+
+    /// The farther-out pointer or card center activates paging; card boundaries do not.
+    static func direction(centerX: CGFloat, fingerX: CGFloat?, originX: CGFloat,
+                          width: CGFloat, minimumX: CGFloat = 0) -> Int {
+        guard abs(centerX - originX) >= 16 else { return 0 }
+        let pointer = fingerX ?? centerX
+        if min(pointer, centerX) < minimumX + 10 { return -1 }
+        if max(pointer, centerX) > minimumX + width - 10 { return 1 }
         return 0
     }
 }

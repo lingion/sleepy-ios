@@ -370,7 +370,7 @@ final class AddCourseEditTests: XCTestCase {
     func testSection_struct_exists_with_expand_collapse_affordance() throws {
         let body = structBody(try editorSource(), "IrregularOptionsSection")
         XCTAssertFalse(body.isEmpty)
-        XCTAssertTrue(body.contains("chevron.down"), "折叠栏必须有 chevron (ExpandMore 等价)")
+        XCTAssertTrue(body.contains("AndroidSettingsIcon(name: .expandMore"), "折叠栏必须使用 Android 同源 ExpandMore 图标")
         XCTAssertTrue(body.contains("rotationEffect") && body.contains("180"),
                       "chevron 必须随展开旋转 180° (仓库既有模式)")
         XCTAssertTrue(body.contains("if expanded"), "折叠栏内容必须随 expanded 条件展开/收起")

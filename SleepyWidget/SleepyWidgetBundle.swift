@@ -15,6 +15,7 @@ struct SleepyWidgetBundle: WidgetBundle {
         WeekListWidget()
         WeekViewWidget()
         WeekGridWidget()
+        WeekGridWideWidget()
         // v1.0.64 课程实况活动(灵动岛/锁屏) — ActivityConfiguration 属 WidgetKit,
         // 与主屏小组件同扩展并列注册; iOS 16.1+ 门控(BundleBuilder 支持 #available)
         if #available(iOS 16.1, *) {

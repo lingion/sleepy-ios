@@ -49,6 +49,7 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
         var room: String?
         var startNode: Int
         let cDay: Int
+        var span: Int = 1
     }
 
     func generateCourseList() throws -> [JwCourse] {
@@ -60,45 +61,49 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
         doc.outputSettings().prettyPrint(pretty: false)
         // T1 G5: #Table1 → table.blacktab → 文本含"星期一"的第一个 table
         let table1 = (try? doc.getElementById("Table1")) ?? nil
+            ?? Jw64.first(doc, "#kbgrid_table") ?? Jw64.first(doc, "#table1")
             ?? ((try? doc.select("table.blacktab").first()) ?? nil)
             ?? pickTableByMonday(doc)
         guard let table = table1 else { return [] }
-        let trs = (try? table.getElementsByTag("tr")) ?? Elements()
+        let trs = Jw64.rows(table)
         var importBeanList: [ImportBean] = []
         var node = -1
-        for tr in trs {
-            let tds = (try? tr.getElementsByTag("td")) ?? Elements()
+        var occupiedThrough = Array(repeating: -1, count: 8)
+        for (rowIndex, tr) in trs.enumerated() {
+            let tds = Jw64.children(tr).filter { $0.tagNameNormal() == "td" }
             var countFlag = false
             var countDay = 0
             for td in tds {
                 let courseSource = ((try? td.text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                if courseSource.count <= 1 {
-                    if countFlag {
-                        countDay += 1
-                    }
-                    continue
-                }
                 if Self.OTHER_HEADER.contains(courseSource) {
                     // 表头行（"时间" "星期一" "中午" 等组头）
                     continue
                 }
-                let result = Self.parseHeaderNodeString(courseSource)
+                let festival = Jw64.first(td, ".festival").flatMap { jw1064Integer(Jw64.text($0)) }
+                let result = festival.flatMap { courseSource == String($0) ? $0 : nil } ?? Self.parseHeaderNodeString(courseSource)
                 if result != -1 {
                     // T1 G6: 合并行头"第N-M节"也在此返回首段 N, 不落入下方 countDay++
                     node = result
                     countFlag = true
                     continue
                 }
-                countDay += 1
+                if courseSource.count <= 1 && !countFlag && node <= 0 { continue }
+                if let explicit = Jw64.full("([1-7])-[0-9]+", Jw64.attr(td, "id")), let day = Int(explicit[1]) { countDay = day }
+                else { countDay += 1; while countDay <= 7 && occupiedThrough[countDay] >= rowIndex { countDay += 1 } }
+                guard (1...7).contains(countDay) else { continue }
+                let span = jw1064Integer(Jw64.attr(td, "rowspan")).flatMap { $0 > 0 ? $0 : nil } ?? 1
+                occupiedThrough[countDay] = rowIndex + span - 1
+                if courseSource.count <= 1 { continue }
                 switch oldType {
                 case 0:
-                    importBeanList.append(contentsOf: parseImportBean(countDay, (try? td.html()) ?? "", node))
+                    importBeanList.append(contentsOf: parseImportBean(countDay, (try? td.html()) ?? "", node).map { var bean = $0; bean.span = span; return bean })
                 default:
-                    importBeanList.append(contentsOf: parseImportBean1(countDay, courseSource, node))
+                    importBeanList.append(contentsOf: parseImportBean1(countDay, courseSource, node).map { var bean = $0; bean.span = span; return bean })
                 }
             }
         }
-        return importList2CourseList(importBeanList, source)
+        let result = importList2CourseList(importBeanList, source)
+        return result.isEmpty && oldType == 0 ? try JwOldZfParser(source, oldType: 1).generateCourseList() : result
     }
 
     /// type=0：标准老正方单元格，<a>课程名<br>周次<br>[老师<br>教室] </a>，多门课 <br><br> 分隔（未改动）
@@ -138,7 +143,7 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
                 .map { Self.stripAnchorTag($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
             if split.isEmpty || split.count < 3 { continue }
             var temp: ImportBean
-            if Self.COURSE_PROPERTY.contains(split[1]) {
+            if Self.isCourseProperty(split[1]) {
                 if split.count == 4 {
                     temp = ImportBean(name: split[0], timeInfo: split[2], teacher: "", room: split[3], startNode: node, cDay: cDay)
                 } else {
@@ -178,7 +183,7 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
                         preIndex = i
                         continue
                     }
-                    if Self.COURSE_PROPERTY.contains(split[preIndex - 1]) {
+                    if Self.isCourseProperty(split[preIndex - 1]) {
                         hasTypeFlag = true
                     }
                     var temp = ImportBean(name: (hasTypeFlag && preIndex >= 2) ? split[preIndex - 2] : split[preIndex - 1],
@@ -200,7 +205,7 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
             }
             if i == split.count - 1 {
                 if preIndex < 1 { continue }
-                if Self.COURSE_PROPERTY.contains(split[preIndex - 1]) {
+                if Self.isCourseProperty(split[preIndex - 1]) {
                     hasTypeFlag = true
                 }
                 var temp = ImportBean(name: (hasTypeFlag && preIndex >= 2) ? split[preIndex - 2] : split[preIndex - 1],
@@ -305,7 +310,7 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
                 }
             }
         }
-        if step == 0 { step = 1 }
+        if step == 0 { step = bean.span }
         // T1 G12: 补移植漏行(上游 L214 result[1] = step) — 缺此行 endNode 恒 = startNode-1
         result[1] = step
 
@@ -321,6 +326,7 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
             if !weeks.isEmpty, let v = Int(weeks[0].trimmingCharacters(in: .whitespaces)) {
                 startWeek = v
                 result[2] = v
+                result[3] = v
             }
             if weeks.count > 1, let v = Int(weeks[1].trimmingCharacters(in: .whitespaces)) {
                 endWeek = v
@@ -343,6 +349,10 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
     }
 
     // MARK: - companion object ← static
+
+    private static func isCourseProperty(_ value: String) -> Bool {
+        COURSE_PROPERTY.contains(value) || (1...2).contains(value.count) && value.allSatisfy { $0.isASCII && $0.isLetter }
+    }
 
     /// 正则与上游 Common.kt 逐字符一致, 勿改
     private static let NODE_PATTERN = #"\(\d{1,2}[-]*\d*节"#
@@ -411,7 +421,7 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
     private func pickTableByMonday(_ doc: Document) -> Element? {
         guard let tables = try? doc.select("table") else { return nil }
         for t in tables {
-            if let text = try? t.text(), text.contains("星期一") { return t }
+            if let text = try? t.text(), text.contains("星期一"), !["kbtable", "timetable"].contains(Jw64.attr(t, "id")), Jw64.select(t, ".kbcontent,.kbcontent1").isEmpty { return t }
         }
         return nil
     }

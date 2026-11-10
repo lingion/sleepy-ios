@@ -26,6 +26,7 @@ private let MIN_YEAR = 2005
 private let MAX_YEAR = 2049
 
 struct HolidaySettingsScreen: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.localWakeUpColors) private var colors
     let onDismiss: () -> Void
     /// 进入本页时全局选中的课表 id ← 原版本 tableId: Long? = null;
@@ -194,11 +195,12 @@ struct HolidaySettingsScreen: View {
             Button {
                 if year > MIN_YEAR { year -= 1 }
             } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 20, weight: .medium))
+                AndroidMaterialIcon(name: .chevronLeft, size: 24)
+                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                     .foregroundColor(year > MIN_YEAR ? colors.onSurface : colors.onSurfaceVariant.opacity(0.4))
             }
-            .buttonStyle(SleepyButtonStyle())
+            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .frame(width: 48, height: 48)
             .accessibilityLabel(L10n.format("holiday_year_prev"))
             .disabled(year <= MIN_YEAR)
 
@@ -210,11 +212,12 @@ struct HolidaySettingsScreen: View {
             Button {
                 if year < MAX_YEAR { year += 1 }
             } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 20, weight: .medium))
+                AndroidMaterialIcon(name: .chevronRight, size: 24)
+                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                     .foregroundColor(year < MAX_YEAR ? colors.onSurface : colors.onSurfaceVariant.opacity(0.4))
             }
-            .buttonStyle(SleepyButtonStyle())
+            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .frame(width: 48, height: 48)
             .accessibilityLabel(L10n.format("holiday_year_next"))
             .disabled(year >= MAX_YEAR)
         }
@@ -243,18 +246,18 @@ struct HolidaySettingsScreen: View {
                     ProgressView()
                         .tint(colors.primary)
                         .controlSize(.small)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 48, height: 48)
                 } else {
                     // 刷新=图标(与 原版本 Icons.Outlined.Refresh 同位): failed/empty/loaded 均可点
                     Button {
                         load(year, force: true)
                     } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 20))
+                        AndroidSettingsIcon(name: .refresh, size: 20)
                             .foregroundColor(colors.onSurfaceVariant)
-                            .frame(width: 36, height: 36)
+                            .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 18, compact: true, shape: .circle))
+                    .frame(width: 48, height: 48)
                     .accessibilityIdentifier("holiday_refresh")
                     .accessibilityLabel(L10n.format("holiday_data_refresh"))
                 }
@@ -427,11 +430,12 @@ struct HolidaySettingsScreen: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(colors.onSecondaryContainer)
                 .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(colors.secondaryContainer)
-                .cornerRadius(SleepyShapes.large)
+                .frame(height: uiStyle == .liquidGlass ? nil : 48)
+                .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .tint(colors.secondaryContainer)
         .accessibilityIdentifier("holiday_add_entry")
     }
 
@@ -520,6 +524,7 @@ private func isSameDay(_ a: Date, _ b: Date) -> Bool {
  */
 private struct HolidayTransferCard: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var uiStyle
     let segment: HolidayRange
     let transfers: [HolidayTransferEntry]
     let workdayDates: [Date]
@@ -542,13 +547,13 @@ private struct HolidayTransferCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 // 标题行最右编辑按钮 — 底部"+"按钮才是新增自定义段入口
                 Button(action: onEditSegment) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 16))
+                    AndroidSettingsIcon(name: .edit, size: 24)
                         .foregroundColor(colors.onSurfaceVariant)
-                        .frame(width: 36, height: 36)
+                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(SleepyButtonStyle())
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+                .frame(width: 48, height: 48)
                 .accessibilityLabel(L10n.format("holiday_transfer_edit_segment"))
             }
             ForEach(dates, id: \.self) { date in
@@ -575,6 +580,7 @@ private struct HolidayTransferCard: View {
  * ← HolidayOrphanCard
  */
 private struct HolidayOrphanCard: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.localWakeUpColors) private var colors
     let entries: [HolidayTransferEntry]
     let onClear: (Date) -> Void
@@ -600,13 +606,14 @@ private struct HolidayOrphanCard: View {
                         Text(L10n.format("holiday_transfer_clear"))
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onSecondaryContainer)
-                            .padding(.horizontal, 14)
-                            .frame(height: 48)
-                            .background(colors.secondaryContainer)
-                            .cornerRadius(SleepyShapes.large)
+                            .padding(.horizontal, uiStyle == .liquidGlass ? 0 : 14)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 48)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(minHeight: 48)
+                    .tint(colors.secondaryContainer)
                 }
                 .padding(.vertical, 4)
             }
@@ -627,6 +634,7 @@ private struct HolidayOrphanCard: View {
  * ← HolidayTransferRow
  */
 private struct HolidayTransferRow: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.localWakeUpColors) private var colors
     let date: Date
     let targetDate: Date?
@@ -650,8 +658,7 @@ private struct HolidayTransferRow: View {
                 .font(.system(size: 16))
                 .foregroundColor(colors.onSurface)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "arrow.right")
-                .font(.system(size: 14, weight: .regular))
+            AndroidSettingsIcon(name: .arrowForward, size: 18)
                 .foregroundColor(colors.onSurfaceVariant)
                 .frame(width: 18, height: 18)
             Spacer().frame(width: 10)
@@ -727,12 +734,13 @@ private struct HolidayTransferRow: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onSecondaryContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(colors.secondaryContainer)
-                            .cornerRadius(SleepyShapes.medium)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 40)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.secondaryContainer, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                    .frame(maxWidth: .infinity, minHeight: uiStyle == .liquidGlass ? 44 : 40)
+                    .tint(colors.secondaryContainer)
                     Button {
                         showDatePicker = false
                         onPick(pickedOther)
@@ -741,12 +749,13 @@ private struct HolidayTransferRow: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onPrimary)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(colors.primary)
-                            .cornerRadius(SleepyShapes.medium)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 40)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.primary, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                    .frame(maxWidth: .infinity, minHeight: uiStyle == .liquidGlass ? 44 : 40)
+                    .tint(colors.primary)
                     .accessibilityIdentifier("holiday_date_confirm")
                 }
                 .padding(.horizontal, 16)
@@ -763,6 +772,7 @@ private struct HolidayTransferRow: View {
 
 // ← HolidayRemovedCard: 被用户删除的网络段, 行尾"恢复"移除覆盖使网络段回来
 private struct HolidayRemovedCard: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.localWakeUpColors) private var colors
     let segments: [HolidayRange]
     let onRestore: (HolidayRange) -> Void
@@ -786,13 +796,14 @@ private struct HolidayRemovedCard: View {
                         Text(L10n.format("holiday_restore"))
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onSecondaryContainer)
-                            .padding(.horizontal, 14)
-                            .frame(height: 48)
-                            .background(colors.secondaryContainer)
-                            .cornerRadius(SleepyShapes.large)
+                            .padding(.horizontal, uiStyle == .liquidGlass ? 0 : 14)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 48)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(minHeight: 48)
+                    .tint(colors.secondaryContainer)
                 }
                 .padding(.vertical, 6)
                 // ← 原版本 HorizontalDivider: outlineVariant @ hairline
@@ -826,6 +837,7 @@ private struct HolidayRemovedCard: View {
  *   - 删除/取消/保存 → 自制色块按钮(与全 app 统一)
  */
 private struct HolidayRangeEditDialog: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.localWakeUpColors) private var colors
     let target: HolidayRange
     let isNew: Bool
@@ -926,12 +938,13 @@ private struct HolidayRangeEditDialog: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onErrorContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .background(colors.errorContainer)
-                            .cornerRadius(SleepyShapes.large)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 48)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .tint(colors.errorContainer)
                 }
 
                 HStack(spacing: 8) {
@@ -940,10 +953,11 @@ private struct HolidayRangeEditDialog: View {
                             .font(.system(size: 14, weight: .medium)) // ← 原 TextButton labelLarge 14sp Medium
                             .foregroundColor(colors.onSurfaceVariant)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 40)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+                    .frame(maxWidth: .infinity, minHeight: uiStyle == .liquidGlass ? 44 : 40)
                     Button {
                         onSave(HolidayRange(id: target.id,
                                             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -954,12 +968,13 @@ private struct HolidayRangeEditDialog: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(datesValid ? colors.onPrimary : colors.onPrimary.opacity(0.4))
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(datesValid ? colors.primary : colors.primary.opacity(0.3))
-                            .cornerRadius(SleepyShapes.medium)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 40)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: datesValid ? colors.primary : colors.primary.opacity(0.3), prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                    .frame(maxWidth: .infinity, minHeight: uiStyle == .liquidGlass ? 44 : 40)
+                    .tint(datesValid ? colors.primary : colors.primary.opacity(0.3))
                     .disabled(!datesValid)
                     .accessibilityIdentifier("holiday_save")
                 }

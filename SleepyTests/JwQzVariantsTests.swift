@@ -143,34 +143,9 @@ final class JwQzVariantsTests: XCTestCase {
         XCTAssertEqual(courses.count, 0)
     }
 
-    /// ← 原 `toInt()` 对坏数字段抛 NumberFormatException 中断整次解析
-    /// (旧 iOS 静默吞成默认值)。现在 iOS 解析完统一抛 JwParseError, 整份课表
-    /// 丢弃, Registry 记 0 课 + exception, 最终状态与原实现一致。
-    func testWithNodeMalformedWeekThrowsInsteadOfSilentDefault() throws {
-        let html = """
-        <html><body>
-        <table id="kbtable">
-          <tr>
-            <th>第1-2节</th>
-            <td>
-              <div class="kbcontent">坏周次课<br>
-                <font title="老师">x</font><br>
-                <font title="教室">y</font><br>
-                <font title="周次(节次)">a-b(周) 1-2节</font>
-              </div>
-            </td>
-          </tr>
-        </table>
-        </body></html>
-        """
-        do {
-            let courses = try JwQzWithNodeParser(html).generateCourseList()
-            XCTFail("应抛 JwParseError, 实际返回 \(courses.count) 课(静默默认值)")
-        } catch let e as JwParseError {
-            XCTAssertEqual(e.attempts.first?.courseCount, 0)
-            XCTAssertTrue(e.attempts.first?.exception?.contains("NumberFormatException") ?? false,
-                          "attempt 应带数值格式异常描述, 实际 \(e.attempts.first?.exception ?? "nil")")
-        }
+    func testWithNodeMalformedWeekDoesNotInventDefaultWeeks() throws {
+        let html = "<table id='kbtable'><tr><td><div class='kbcontent'>坏周次课<br><font title='老师'>x</font><br><font title='教室'>y</font><br><font title='周次(节次)'>a-b(周) 1-2节</font></div></td></tr></table>"
+        XCTAssertTrue(try JwQzWithNodeParser(html).generateCourseList().isEmpty)
     }
 
     /// else 分支 (format-3) 周次文本无 ')' 时 substringAfter 返回原串、

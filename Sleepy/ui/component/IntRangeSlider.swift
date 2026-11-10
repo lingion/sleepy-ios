@@ -40,8 +40,10 @@ struct IntSliderRange: Equatable {
 
 /// Two independently adjustable thumbs. The original range is decoration only.
 struct IntRangeSlider: View {
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let summary: String
     let minValue: Int
@@ -75,40 +77,81 @@ struct IntRangeSlider: View {
                 .foregroundColor(colors.onSurface)
                 .accessibilityIdentifier(identifier + "_summary")
             if upper > minValue {
-                GeometryReader { geometry in
-                    let width = max(1, geometry.size.width - 44)
-                    let first = position(range.start, width: width)
-                    let last = position(range.end, width: width)
-                    ZStack {
-                        Capsule().fill(colors.surfaceContainerHighest).frame(width: width, height: 6)
-                            .position(x: 22 + width / 2, y: 22)
-                        segment(from: first, to: last, color: colors.primary, height: 6)
-                        if let ghost {
-                            let oldStart = position(ghost.start, width: width)
-                            let oldEnd = position(ghost.end, width: width)
-                            ZStack {
-                                segment(from: oldStart, to: oldEnd, color: colors.primary.opacity(0.25), height: 12)
-                                marker(at: oldStart)
-                                marker(at: oldEnd)
-                            }
-                            .frame(width: geometry.size.width, height: 44)
-                            .allowsHitTesting(false).accessibilityHidden(true)
-                            .transition(.opacity)
-                        }
-                        thumb(.start, at: first)
-                        thumb(.end, at: last)
+                if style == .liquidGlass {
+                    VStack(alignment: .leading, spacing: 8) {
+                        nativeEndpoint(.start)
+                        nativeEndpoint(.end)
                     }
-                    .frame(height: 44)
-                    .contentShape(Rectangle())
-                    .overlay(IntRangeSliderTouchSurface(
-                        onDrag: { startX, translation in updateDrag(startX: startX, translation: translation, width: width) },
-                        onEnd: resetDrag,
-                        onTap: { applyTap(at: $0, width: width) }))
+                } else {
+                    classicSlider
                 }
-                .frame(height: 44)
-                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: ghost)
             }
         }
+        .opacity(isEnabled ? 1 : 0.45)
+        .onChange(of: isEnabled) { enabled in if !enabled { resetDrag() } }
+        .onDisappear(perform: resetDrag)
+    }
+
+    private func nativeEndpoint(_ thumb: Thumb) -> some View {
+        let start = thumb == .start
+        let value = start ? range.start : range.end
+        let label = start ? startLabel : endLabel
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("\(label)  \(value)")
+                .font(.system(size: 14))
+                .foregroundColor(colors.onSurfaceVariant)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityHidden(true)
+            NativeBaselineSlider(value: Double(value), range: Double(minValue)...Double(upper),
+                baseline: ghost.map { Double(start ? $0.start : $0.end) },
+                label: label, valueText: String(value),
+                onValueChange: { proposed in
+                    let updated = start
+                        ? range.movingStart(to: Int(proposed.rounded()), minimum: minValue)
+                        : range.movingEnd(to: Int(proposed.rounded()), maximum: upper)
+                    onValueChange(updated.start, updated.end)
+                }, onFinished: {},
+                allowedRange: start ? Double(minValue)...Double(range.end) : Double(range.start)...Double(upper),
+                step: 1, baselineTolerance: 0,
+                identifier: identifier + (start ? "_start" : "_end"))
+                .frame(height: 44)
+        }
+    }
+
+    private var classicSlider: some View {
+        GeometryReader { geometry in
+            let width = max(1, geometry.size.width - 44)
+            let first = position(range.start, width: width)
+            let last = position(range.end, width: width)
+            ZStack {
+                Capsule().fill(colors.surfaceContainerHighest).frame(width: width, height: 6)
+                    .position(x: 22 + width / 2, y: 22)
+                segment(from: first, to: last, color: colors.primary, height: 6)
+                if let ghost {
+                    let oldStart = position(ghost.start, width: width)
+                    let oldEnd = position(ghost.end, width: width)
+                    ZStack {
+                        segment(from: oldStart, to: oldEnd, color: colors.primary.opacity(0.25), height: 12)
+                        marker(at: oldStart)
+                        marker(at: oldEnd)
+                    }
+                    .frame(width: geometry.size.width, height: 44)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+                    .transition(.opacity)
+                }
+                thumb(.start, at: first)
+                thumb(.end, at: last)
+            }
+            .frame(height: 44)
+            .contentShape(Rectangle())
+            .overlay(IntRangeSliderTouchSurface(
+                onDrag: { startX, translation in updateDrag(startX: startX, translation: translation, width: width) },
+                onEnd: resetDrag,
+                onTap: { applyTap(at: $0, width: width) }).allowsHitTesting(isEnabled))
+            .background(SleepyControlScrollLock(locked: dragOrigin != nil))
+        }
+        .frame(height: 44)
+        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: ghost)
     }
 
     private func resetDrag() {
@@ -131,13 +174,14 @@ struct IntRangeSlider: View {
     }
 
     private func thumb(_ thumb: Thumb, at x: CGFloat) -> some View {
-        Circle().fill(colors.primary).frame(width: 22, height: 22)
+        Circle().fill(colors.primary).frame(width: 22, height: 22).allowsHitTesting(false)
             .frame(width: 44, height: 44)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(thumb == .start ? startLabel : endLabel)
             .accessibilityValue(String(thumb == .start ? range.start : range.end))
             .accessibilityIdentifier(identifier + (thumb == .start ? "_start" : "_end"))
             .accessibilityAdjustableAction { direction in
+                guard isEnabled else { return }
                 let delta: Int
                 switch direction { case .increment: delta = 1; case .decrement: delta = -1; @unknown default: return }
                 let updated = thumb == .start
@@ -154,6 +198,7 @@ struct IntRangeSlider: View {
     }
 
     private func updateDrag(startX: CGFloat, translation: CGFloat, width: CGFloat) {
+        guard isEnabled else { return }
         let origin = dragOrigin ?? range
         dragOrigin = origin
         let selected = draggedThumb ?? nearestThumb(at: startX, origin: origin,
@@ -169,6 +214,7 @@ struct IntRangeSlider: View {
     }
 
     private func applyTap(at x: CGFloat, width: CGFloat) {
+        guard isEnabled else { return }
         let fraction = min(1, max(0, (x - 22) / width))
         let logical = layoutDirection == .rightToLeft ? 1 - fraction : fraction
         let value = minValue + Int((logical * CGFloat(upper - minValue)).rounded())

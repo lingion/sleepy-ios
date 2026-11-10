@@ -73,7 +73,8 @@ final class TimeSlotReorderParityTests: XCTestCase {
                         row(1, "24:00", "25:00"), row(1, "08:00", "08:00"), row(1, "09:00", "08:00")] {
             XCTAssertFalse(TimeTableUtils.isTimeSlotOrderValid([invalid]))
         }
-        XCTAssertTrue(TimeTableUtils.isTimeSlotOrderValid([row(1), row(2, "08:00", "08:45"), row(3, "08:00", "09:00")]))
+        XCTAssertFalse(TimeTableUtils.isTimeSlotOrderValid([row(1), row(2, "08:00", "08:45"), row(3, "08:00", "09:00")]))
+        XCTAssertTrue(TimeTableUtils.isTimeSlotOrderValid([row(1), row(2, "08:00", "08:45"), row(3, "08:45", "09:00")]))
     }
 
     func testForwardMoveRejectsSplitCourseUsingCorrectInversePermutation() {

@@ -79,6 +79,7 @@ struct SleepyNavigationUnderlay: ViewModifier {
             .opacity(covered ? 0 : 1)
             .animation(motion.defaultEffects, value: covered)
             .allowsHitTesting(!covered)
+            .disabled(covered)
             .accessibilityHidden(covered)
     }
 }

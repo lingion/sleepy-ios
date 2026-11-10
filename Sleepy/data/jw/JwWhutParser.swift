@@ -23,8 +23,43 @@
 // 取数 JS (登录态 WebView fetch): 见 JwWebViewLoginScreen WHUT_FETCH_JS。
 
 import Foundation
+import SwiftSoup
 
 final class JwWhutParser: JwWiseduParser {
+    private lazy var legacyTable = Jw64.first(Jw64.doc(source), "#xqkb .table-class-even")
+    private lazy var dynamicSections: [Int: Int] = {
+        guard let root = Jw64.json(source) as? [String: Any], let values = root["sleepyWhutSectionMap"] as? [String: Any] else { return [:] }
+        var result: [Int: Int] = [:]
+        for (key, value) in values {
+            guard let dm = jw1064Integer(key), dm > 0, let node = jw1064Integer(value), (1...EXPLICIT_SCHEDULE_RESOURCE_BOUND).contains(node) else { continue }
+            result[dm] = node
+        }
+        return result
+    }()
+
+    override func generateCourseList() throws -> [JwCourse] {
+        guard let table = legacyTable else { return try super.generateCourseList() }
+        var result: [JwCourse] = []
+        for row in Jw64.rows(table) {
+            let cells = Jw64.children(row).filter { $0.tagNameNormal() == "td" }.drop(while: { !$0.hasAttr("style") })
+            for (index, cell) in cells.enumerated() where (1...7).contains(index + 1) {
+                for item in Jw64.select(cell, "a") {
+                    let name = ((try? item.ownText()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let children = Jw64.children(item)
+                    guard !name.isEmpty, children.count >= 2 else { continue }
+                    let timing = Jw64.text(children[1]).replacingOccurrences(of: "（", with: "(").replacingOccurrences(of: "）", with: ")")
+                    guard let match = Jw64.full(#"(.+)\(([^()]*)节\)"#, timing) else { continue }
+                    let rawRoom = Jw64.text(children[0]), room = rawRoom.hasPrefix("@") ? String(rawRoom.dropFirst()) : rawRoom
+                    for (first, last) in schoolNodeRanges(match[2]) {
+                        for (from, to, type) in schoolWeekRanges(match[1]) {
+                            result.append(JwCourse(name: name, room: room, day: index + 1, startNode: first, endNode: last, startWeek: from, endWeek: to, type: type))
+                        }
+                    }
+                }
+            }
+        }
+        return Jw64.distinct(result)
+    }
 
     /// WHUT 节次 DM → 物理节次 (1..13)。
     /// DM 序列 = 1,2,3,4,5, 8,9,10,11,12, 14,15,16 (6/7/13 缺位)。
@@ -41,9 +76,10 @@ final class JwWhutParser: JwWiseduParser {
 
     override var moduleNames: [String] { ["cxxszhxqkb", "cxxskcb", "xskcb"] }
 
-    override func mapSection(_ dm: Int) -> Int { Self.mapSectionDm(dm) }
+    override func mapSection(_ dm: Int) -> Int { dynamicSections[dm] ?? Self.mapSectionDm(dm) }
 
     override var confidenceValue: Int {
+        if legacyTable != nil { return 100 }
         // 2026-09 采集包实锤: 学生课表主通道 wdkbby/cxxszhxqkb.do
         if source.contains("cxxszhxqkb") { return 96 }
         if source.contains("cxxskcb.do") { return 95 }
@@ -58,6 +94,7 @@ final class JwWhutParser: JwWiseduParser {
 
     override var matchedFeatureList: [String] {
         var out = super.matchedFeatureList
+        if legacyTable != nil { out.append("xqkb/table-class-even") }
         if source.contains("cxxszhxqkb") { out.append("wdkbby/cxxszhxqkb.do") }
         if source.contains("cxxskcb.do") { out.append("kcbcxby/cxxskcb.do") }
         if source.contains("cxxskcb") { out.append("datas.cxxskcb.rows") }

@@ -3,6 +3,7 @@ import SwiftUI
 /// 从详情/拖课菜单打开的单次编辑器。存储行、源日和展示日必须来自同一次解析。
 struct CourseOccurrenceEditor: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let occurrence: CourseOccurrence
     let table: TimeTableEntity
     let repository: ScheduleRepository
@@ -15,6 +16,7 @@ struct CourseOccurrenceEditor: View {
     @State private var custom: Bool
     @State private var start: String
     @State private var end: String
+    @State private var room: String
     @State private var fixed: Bool
     @State private var error: String?
     @State private var busy = false
@@ -49,6 +51,7 @@ struct CourseOccurrenceEditor: View {
         _custom = State(initialValue: row.ownTime || row.isIrregularTime)
         _start = State(initialValue: range?.0 ?? "08:00")
         _end = State(initialValue: range?.1 ?? "09:40")
+        _room = State(initialValue: row.room)
         _fixed = State(initialValue: row.fixedDate != nil)
     }
 
@@ -95,6 +98,10 @@ struct CourseOccurrenceEditor: View {
                                 timeInput("occurrence_end_time", text: $end)
                             }
                         }
+                        FieldTextField(text: $room, label: L10n.format("course_room"))
+                            .focused($focusedTime, equals: "occurrence_room")
+                            .id("occurrence_room")
+                            .accessibilityIdentifier("occurrence_room")
                         if let error {
                             Text(error).foregroundColor(colors.error).accessibilityIdentifier("occurrence_error")
                         }
@@ -143,7 +150,33 @@ struct CourseOccurrenceEditor: View {
             withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(key, anchor: .center) }
         }
     }
-    private var dateCard: some View {
+    @ViewBuilder private var dateCard: some View {
+        if style == .liquidGlass {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.format("occurrence_date"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    pickerDate = date
+                    showDatePicker = true
+                } label: {
+                    Label {
+                        Text(date, formatter: dateFormatter)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        AndroidMaterialIcon(name: .calendarMonth, size: 24)
+                    }
+                }
+                .buttonStyle(SleepyPlatformButtonStyle())
+                .controlSize(.large)
+                .tint(colors.primary)
+                .accessibilityIdentifier("occurrence_date")
+            }
+        } else {
+            classicDateCard
+        }
+    }
+    private var classicDateCard: some View {
         Button { pickerDate = date; showDatePicker = true } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -151,12 +184,12 @@ struct CourseOccurrenceEditor: View {
                     Text(date, formatter: dateFormatter).font(.system(size: 16)).foregroundColor(colors.onSurface)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "calendar").font(.system(size: 24)).foregroundColor(colors.primary)
+                AndroidMaterialIcon(name: .calendarMonth, size: 24).foregroundColor(colors.primary)
             }
             .padding(16)
             .overlay(RoundedRectangle(cornerRadius: SleepyShapes.medium).stroke(colors.outline, lineWidth: 1))
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle())
         .accessibilityIdentifier("occurrence_date")
     }
     private var dateFormatter: DateFormatter {
@@ -216,11 +249,22 @@ struct CourseOccurrenceEditor: View {
             .focused($focusedTime, equals: key)
             .accessibilityLabel(L10n.format(key)).accessibilityIdentifier(key).id(key)
     }
+    @ViewBuilder
     private func actionButton(_ key: String, container: Color, content: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(L10n.format(key)).font(.system(size: 14, weight: .medium)).foregroundColor(content)
-                .frame(maxWidth: .infinity).frame(height: 48).background(container).clipShape(Capsule())
-        }.buttonStyle(SleepyButtonStyle()).accessibilityIdentifier(key)
+        if style == .liquidGlass {
+            Button(role: key == "occurrence_delete" ? .destructive : nil, action: action) {
+                Text(L10n.format(key)).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: key == "occurrence_save"))
+            .controlSize(.large)
+            .tint(key == "occurrence_delete" ? colors.error : colors.primary)
+            .accessibilityIdentifier(key)
+        } else {
+            Button(action: action) {
+                Text(L10n.format(key)).font(.system(size: 14, weight: .medium)).foregroundColor(content)
+                    .frame(maxWidth: .infinity).frame(height: 48).background(container).clipShape(Capsule())
+            }.buttonStyle(SleepyButtonStyle()).accessibilityIdentifier(key)
+        }
     }
 
     private var maximumStandardNode: Int { TimeTableUtils.maxStandardNode(table.timeJson) }
@@ -288,6 +332,7 @@ struct CourseOccurrenceEditor: View {
                 var edited = occurrence.course
                 edited.startNode = node
                 edited.step = step
+                edited.room = room == occurrence.course.room ? room : room.trimmingCharacters(in: .whitespacesAndNewlines)
                 edited.ownTime = custom
                 edited.isIrregularTime = custom
                 edited.isIrregularNode = TimeTableUtils.parseTimeSlotRows(effective.timeJson).contains { $0.node == node && $0.edgeClass != nil }
@@ -401,19 +446,26 @@ private struct OccurrenceNodeInput: View {
 
 private struct OccurrenceCheckboxStyle: ToggleStyle {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let identifier: String
 
+    @ViewBuilder
     func makeBody(configuration: Configuration) -> some View {
+        if style == .liquidGlass {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+                .toggleStyle(.switch)
+                .tint(colors.primary)
+                .accessibilityIdentifier(identifier)
+        } else {
+            classicCheckbox(configuration: configuration)
+        }
+    }
+
+    private func classicCheckbox(configuration: Configuration) -> some View {
         Button { configuration.isOn.toggle() } label: {
             HStack(spacing: 0) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 2).fill(configuration.isOn ? colors.primary : .clear)
-                    if configuration.isOn {
-                        Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundColor(colors.onPrimary)
-                    } else {
-                        RoundedRectangle(cornerRadius: 2).stroke(colors.onSurfaceVariant, lineWidth: 2)
-                    }
-                }.frame(width: 18, height: 18).frame(width: 48, height: 48)
+                MaterialSelectionIndicator(kind: .checkbox, selected: configuration.isOn)
+                    .frame(width: 48, height: 48)
                 configuration.label.font(.system(size: 16)).foregroundColor(colors.onSurface).multilineTextAlignment(.leading)
             }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
         }

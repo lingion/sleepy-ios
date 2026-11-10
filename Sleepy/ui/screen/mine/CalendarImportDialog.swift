@@ -5,6 +5,7 @@ import SwiftUI
 
 struct CalendarImportDialog: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let table: TimeTableEntity
     let courses: [CourseEntity]
     let onDismiss: () -> Void
@@ -73,9 +74,7 @@ struct CalendarImportDialog: View {
         .confirmationDialog(L10n.t("calendar_choose_target"), isPresented: $calendarMenu, titleVisibility: .visible) {
             ForEach(calendars) { cal in
                 Button("\(cal.displayName) · \(cal.accountName)") {
-                    selectedCalendarId = cal.id
-                    prefs.setCalendarTargetId(cal.id)
-                    preview = nil
+                    selectCalendar(cal.id)
                 }
             }
         }
@@ -107,22 +106,38 @@ struct CalendarImportDialog: View {
             options: [],
             selectedIndex: .constant(0)
         ) {
-            Button {
-                calendarMenu = true
-            } label: {
-                HStack {
-                    Text(calendars.first(where: { $0.id == selectedCalendarId })
-                        .map { "\($0.displayName) · \($0.accountName)" }
-                        ?? L10n.t("calendar_choose_target"))
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.caption)
-                        .foregroundColor(colors.onSurfaceVariant)
+            if style == .liquidGlass {
+                Picker(L10n.t("calendar_choose_target"), selection: Binding(
+                    get: { selectedCalendarId }, set: selectCalendar
+                )) {
+                    ForEach(calendars) { calendar in
+                        Text("\(calendar.displayName) · \(calendar.accountName)")
+                            .tag(calendar.id)
+                    }
                 }
-                .contentShape(Rectangle())
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .tint(colors.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("calendar_target_picker")
+            } else {
+                Button {
+                    calendarMenu = true
+                } label: {
+                    HStack {
+                        Text(calendars.first(where: { $0.id == selectedCalendarId })
+                            .map { "\($0.displayName) · \($0.accountName)" }
+                            ?? L10n.t("calendar_choose_target"))
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(colors.onSurfaceVariant)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -130,25 +145,46 @@ struct CalendarImportDialog: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(L10n.t("calendar_range_label"))
                 .font(.subheadline.weight(.semibold))
-            ForEach([CalendarImportRange.NEXT_WEEK, .NEXT_MONTH, .SEMESTER], id: \.self) { candidate in
-                Button {
-                    range = candidate
-                    prefs.setCalendarImportRange(candidate.rawValue)
-                    preview = nil
-                } label: {
-                    HStack {
-                        Image(systemName: range == candidate ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(range == candidate ? .accentColor : .secondary)
-                        Text(rangeLabel(candidate))
-                            .foregroundColor(.primary)
-                        Spacer()
+            if style == .liquidGlass {
+                Picker(L10n.t("calendar_range_label"), selection: Binding(
+                    get: { range }, set: selectRange
+                )) {
+                    ForEach([CalendarImportRange.NEXT_WEEK, .NEXT_MONTH, .SEMESTER], id: \.self) { candidate in
+                        Text(rangeLabel(candidate)).tag(candidate)
                     }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .tint(colors.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("calendar_range_picker")
+            } else {
+                ForEach([CalendarImportRange.NEXT_WEEK, .NEXT_MONTH, .SEMESTER], id: \.self) { candidate in
+                    Button { selectRange(candidate) } label: {
+                        HStack(spacing: 0) {
+                            MaterialSelectionIndicator(kind: .radio, selected: range == candidate)
+                                .frame(width: 48, height: 48)
+                            Text(rangeLabel(candidate))
+                                .foregroundColor(colors.onSurface)
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SleepyButtonStyle())
+                    .accessibilityIdentifier("calendar_range_\(candidate.rawValue)")
+                    .accessibilityAddTraits(range == candidate ? .isSelected : [])
                 }
             }
         }
         .padding(12)
         .background(colors.surfaceContainer)
         .cornerRadius(12)
+    }
+
+    private func selectRange(_ candidate: CalendarImportRange) {
+        range = candidate
+        prefs.setCalendarImportRange(candidate.rawValue)
+        preview = nil
     }
 
     private func rangeLabel(_ r: CalendarImportRange) -> String {
@@ -161,6 +197,8 @@ struct CalendarImportDialog: View {
 
     private var transferToggle: some View {
         Toggle(L10n.t("calendar_apply_transfers"), isOn: $transfersEnabled)
+            .toggleStyle(SleepyToggleStyle(showsLabel: true))
+            .tint(colors.primary)
             .onChange(of: transfersEnabled) { v in
                 prefs.setCalendarApplyTransfers(v)
                 preview = nil
@@ -172,6 +210,8 @@ struct CalendarImportDialog: View {
 
     private var reminderToggle: some View {
         Toggle(L10n.t("calendar_normal_reminder"), isOn: $reminderEnabled)
+            .toggleStyle(SleepyToggleStyle(showsLabel: true))
+            .tint(colors.primary)
             .onChange(of: reminderEnabled) { v in
                 prefs.setCalendarReminderMinutes(v ? (Int(reminderMinutes) ?? 15) : nil)
                 preview = nil
@@ -202,6 +242,8 @@ struct CalendarImportDialog: View {
 
     private var alarmToggle: some View {
         Toggle(L10n.t("calendar_first_period_alarm"), isOn: $alarmEnabled)
+            .toggleStyle(SleepyToggleStyle(showsLabel: true))
+            .tint(colors.primary)
             .onChange(of: alarmEnabled) { v in
                 prefs.setCalendarFirstAlarmEnabled(v)
                 preview = nil
@@ -242,16 +284,22 @@ struct CalendarImportDialog: View {
             .foregroundColor(colors.error)
     }
 
+    @ViewBuilder
     private var previewButton: some View {
-        Button {
+        let button = Button {
             runPreview()
         } label: {
             Text(L10n.t("calendar_preview_action"))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .padding(.vertical, style == .liquidGlass ? 0 : 10)
         }
-        .buttonStyle(.borderedProminent)
         .disabled(busy || selectedCalendarId.isEmpty)
+        if style == .liquidGlass {
+            button.buttonStyle(SleepyPlatformButtonStyle(prominent: true))
+                .frame(maxWidth: .infinity, minHeight: 44)
+        } else {
+            button.buttonStyle(.borderedProminent)
+        }
     }
 
     private static let previewDateFormatter: DateFormatter = {
@@ -270,6 +318,14 @@ struct CalendarImportDialog: View {
     @ViewBuilder
     private var previewSection: some View {
         if let p = preview {
+            let confirmButton = Button {
+                showFinalConfirm = true
+            } label: {
+                Text(L10n.t("calendar_confirm_import"))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, style == .liquidGlass ? 0 : 8)
+            }
+            .disabled(p.rows.isEmpty || busy)
             VStack(alignment: .leading, spacing: 5) {
                 Text(L10n.format("calendar_preview_count", p.rows.count))
                     .font(.subheadline.weight(.semibold))
@@ -293,15 +349,12 @@ struct CalendarImportDialog: View {
                 Text(L10n.t("calendar_second_confirm_warning"))
                     .font(.caption)
                     .foregroundColor(colors.error)
-                Button {
-                    showFinalConfirm = true
-                } label: {
-                    Text(L10n.t("calendar_confirm_import"))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                if style == .liquidGlass {
+                    confirmButton.buttonStyle(SleepyPlatformButtonStyle(prominent: true))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                } else {
+                    confirmButton.buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
-                .disabled(p.rows.isEmpty || busy)
             }
             .padding(12)
             .background(colors.surfaceContainer)
@@ -329,13 +382,18 @@ struct CalendarImportDialog: View {
     @ViewBuilder
     private var deleteManagedButton: some View {
         if managedCount > 0 {
-            Button {
+            let button = Button {
                 showDeleteConfirm = true
             } label: {
                 Text(L10n.format("calendar_delete_managed", managedCount))
                     .foregroundColor(colors.error)
             }
             .disabled(busy)
+            if style == .liquidGlass {
+                button.buttonStyle(SleepyPlatformButtonStyle())
+            } else {
+                button
+            }
         }
     }
 
@@ -351,6 +409,12 @@ struct CalendarImportDialog: View {
     }
 
     // MARK: - 动作
+
+    private func selectCalendar(_ id: String) {
+        selectedCalendarId = id
+        prefs.setCalendarTargetId(id)
+        preview = nil
+    }
 
     private func currentOptions() -> CalendarImportOptions {
         return CalendarImportOptions(

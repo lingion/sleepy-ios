@@ -42,9 +42,9 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
     static let selectTdValignTop = "td[valign=top]"
 
     /// 节次行标签: "1-2节" / "3节"。
-    private static let reRowLabel = try! NSRegularExpression(pattern: "^([0-9]{1,2})(?: *[-－~至] *([0-9]{1,2}))?节$")
+    private static let reRowLabel = try! NSRegularExpression(pattern: "^([0-9]+)(?: *[-－~至] *([0-9]+))?节$")
     /// 节次文本前缀截断后的同一形状。
-    private static let reSectionLabel = try! NSRegularExpression(pattern: "^([0-9]{1,2})(?: *[-－~至] *([0-9]{1,2}))?节$")
+    private static let reSectionLabel = try! NSRegularExpression(pattern: "^([0-9]+)(?: *[-－~至] *([0-9]+))?节$")
     /// 周次片段: 纯数字/逗号/横线。
     private static let reWeekSegment = try! NSRegularExpression(pattern: "[\\d,\\-]+")
     /// 括号内文本(周次)。
@@ -53,7 +53,7 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
     private static let rePositionRelative = try! NSRegularExpression(
         pattern: "(?:^|;) *position *: *relative *(?:;|$)", options: [.caseInsensitive])
     /// 周次区间的完整匹配。
-    private static let reWeekRange = try! NSRegularExpression(pattern: "^ *([0-9]{1,2})(?: *[-－—~至] *([0-9]{1,2}))? *$")
+    private static let reWeekRange = try! NSRegularExpression(pattern: "^ *([0-9]+)(?: *[-－—~至] *([0-9]+))? *$")
 
     let source: String
 
@@ -66,8 +66,86 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
     func generateCourseList() throws -> [JwCourse] {
         let elementUi = parseElementUiStrategy()
         if !elementUi.isEmpty { return elementUi }
+        let explicit = parseExplicitSectionStrategy()
+        if !explicit.isEmpty { return explicit }
         let primary = parsePrimaryStrategy()
-        return primary.isEmpty ? parseFallbackStrategy() : primary
+        if !primary.isEmpty { return primary }
+        let paired = parseFallbackStrategy()
+        return paired.isEmpty ? parseIndexedFallbackStrategy() : paired
+    }
+
+    private func parseExplicitSectionStrategy() -> [JwCourse] {
+        guard let doc = Jw64.doc(source) else { return [] }
+        var output: [JwCourse] = []
+        for table in Jw64.select(doc, Self.selectPrimaryTable) {
+            for row in Jw64.select(table, "tr") {
+                for (dayIndex, cell) in Jw64.select(row, Self.selectTdValignTop).enumerated() where dayIndex < 7 {
+                    let lines = Self.cellLines(cell)
+                    for (index, line) in lines.enumerated() {
+                        guard let section = Jw64.matches(#"\(([^()]+)节\)"#, line).first else { continue }
+                        let packed = Jw64.trim(section[1])
+                        let sections: [(Int, Int)]
+                        if packed.contains("-") { sections = schoolNodeRanges(packed) }
+                        else {
+                            let pair: (String, String)
+                            switch packed.count {
+                            case 1: pair = (packed, packed)
+                            case 2: pair = (String(packed.prefix(1)), String(packed.suffix(1)))
+                            case 3: pair = (String(packed.prefix(1)), String(packed.suffix(2)))
+                            case 4: pair = (String(packed.prefix(2)), String(packed.suffix(2)))
+                            default: continue
+                            }
+                            sections = schoolNodeRanges(pair.0 + "-" + pair.1)
+                        }
+                        let first = index == 0
+                        let nameIndex = first ? index : index - 1
+                        let roomIndex = index + (first ? 1 : 2)
+                        guard lines.indices.contains(nameIndex), !lines[nameIndex].isEmpty,
+                              lines.indices.contains(roomIndex), lines.indices.contains(index + 3), first || lines.indices.contains(index + 1) else { continue }
+                        let parity = line.contains("(单)") || line.contains("（单）") ? 1 : (line.contains("(双)") || line.contains("（双）") ? 2 : 0)
+                        for (sw, ew, type) in parseWeekRuns(lines[index + 3], parity: parity, globalParity: true) {
+                            for (start, end) in sections {
+                                output.append(JwCourse(name: lines[nameIndex], room: lines[roomIndex], teacher: first ? "" : lines[index + 1],
+                                                       day: dayIndex + 1, startNode: start, endNode: end, startWeek: sw, endWeek: ew, type: type))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return output
+    }
+
+    private func parseIndexedFallbackStrategy() -> [JwCourse] {
+        guard let doc = Jw64.doc(source) else { return [] }
+        var output: [JwCourse] = []
+        for table in Jw64.select(doc, Self.selectFallbackTable) {
+            let rows = Jw64.rows(table)
+            if rows.contains(where: { row in Jw64.select(row, "td").contains { Self.reSectionProbe.firstMatch(in: Jw64.text($0), range: NSRange(Jw64.text($0).startIndex..., in: Jw64.text($0))) != nil } }) { continue }
+            for (index, row) in rows.dropFirst(2).enumerated() {
+                guard let nodes = explicitSchedulePair(index + 1) else { continue }
+                for (dayIndex, cell) in Jw64.select(row, Self.selectTdValignTop).enumerated() where dayIndex < 7 {
+                    let fields = Self.cellLines(cell)
+                    guard fields.count >= 3 else { continue }
+                    var name = Jw64.trim(fields[0].components(separatedBy: "：").first ?? "")
+                    let teacher = fields[0].contains("：") ? Jw64.trim(fields[0].components(separatedBy: "：").dropFirst().joined(separator: "：")) : ""
+                    let suffix = name.contains(" ") ? String(name.split(separator: " ", omittingEmptySubsequences: false).last ?? "") : ""
+                    let suffixRange = NSRange(suffix.startIndex..., in: suffix)
+                    let weekText: String
+                    if let match = Self.reWeekSegment.firstMatch(in: suffix, range: suffixRange), match.range == suffixRange {
+                        name = name.components(separatedBy: " ").dropLast().joined().replacingOccurrences(of: " ", with: "")
+                        weekText = suffix
+                    } else { weekText = fields[2].components(separatedBy: "周").first ?? "" }
+                    guard !name.isEmpty, !(fields[2].contains("单") && fields[2].contains("双")) else { continue }
+                    let parity = fields[2].contains("单") ? 1 : (fields[2].contains("双") ? 2 : 0)
+                    for (sw, ew, type) in parseWeekRuns(weekText, parity: parity, globalParity: true) {
+                        output.append(JwCourse(name: name, room: fields[1], teacher: teacher, day: dayIndex + 1,
+                                               startNode: nodes.lowerBound, endNode: nodes.upperBound, startWeek: sw, endWeek: ew, type: type))
+                    }
+                }
+            }
+        }
+        return output
     }
 
     // MARK: - 策略一: Element UI
@@ -87,9 +165,10 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
                 let rowNodes: (Int, Int)?
                 if let m = JwScauParser.reRowLabel.firstMatch(
                     in: firstText, range: NSRange(firstText.startIndex..., in: firstText)),
-                    let s = Int(JwScauParser.group(1, m, in: firstText)) {
-                    let e = Int(JwScauParser.group(2, m, in: firstText)) ?? s
-                    rowNodes = (s, e)
+                    let s = jw1064Integer(JwScauParser.group(1, m, in: firstText)) {
+                    let rawEnd = JwScauParser.group(2, m, in: firstText)
+                    let e = rawEnd.isEmpty ? s : jw1064Integer(rawEnd) ?? 0
+                    rowNodes = (1...366).contains(s) && e >= s && e <= 366 ? (s, e) : nil
                 } else if firstText.isEmpty, rowIndex < defaults.count {
                     rowNodes = defaults[rowIndex]
                 } else {
@@ -121,8 +200,9 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
                         let nodes: (Int, Int)
                         if let m = JwScauParser.reSectionLabel.firstMatch(
                             in: head, range: NSRange(head.startIndex..., in: head)),
-                            let s = Int(JwScauParser.group(1, m, in: head)) {
-                            let e = Int(JwScauParser.group(2, m, in: head)) ?? s
+                            let s = jw1064Integer(JwScauParser.group(1, m, in: head)) {
+                            let rawEnd = JwScauParser.group(2, m, in: head)
+                            let e = rawEnd.isEmpty ? s : jw1064Integer(rawEnd) ?? 0
                             nodes = (s, e)
                         } else if timing.contains("节") {
                             continue
@@ -131,7 +211,7 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
                         } else {
                             continue
                         }
-                        if nodes.0 < 1 || nodes.0 > 30 || nodes.1 < nodes.0 || nodes.1 > 30 { continue }
+                        if nodes.0 < 1 || nodes.0 > 366 || nodes.1 < nodes.0 || nodes.1 > 366 { continue }
                         for (sw, ew, type) in parseWeekRuns(weekText, parity: parity) {
                             out.append(JwCourse(name: name, room: room, teacher: teacher, day: day,
                                                 startNode: nodes.0, endNode: nodes.1,
@@ -254,11 +334,11 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
                     let sectionText = (try? tdSection.text()) ?? ""
                     guard let m = JwScauParser.reSectionProbe.firstMatch(
                         in: sectionText, range: NSRange(sectionText.startIndex..., in: sectionText)),
-                        let sectionNum = Int(JwScauParser.group(1, m, in: sectionText)) else { continue }
-                    if !(1...30).contains(sectionNum) { continue }
+                        let sectionNum = jw1064Integer(JwScauParser.group(1, m, in: sectionText)),
+                          let sectionNodes = explicitSchedulePair(sectionNum) else { continue }
                     for (sw, ew, parity) in runs {
                         out.append(JwCourse(name: name, room: room, teacher: teacher, day: day,
-                                            startNode: sectionNum * 2 - 1, endNode: sectionNum * 2,
+                                            startNode: sectionNodes.lowerBound, endNode: sectionNodes.upperBound,
                                             startWeek: sw, endWeek: ew, type: parity))
                     }
                 }
@@ -279,21 +359,23 @@ final class JwScauParser: JwParser, JwParserConfidenceReporting {
     /// 稀疏周次保持为独立区间(与 原 parseWeekRuns 一致)。
     ///
     /// 返回三元组 (起始周, 结束周, 单双标记)。
-    func parseWeekRuns(_ text: String, parity: Int = 0) -> [(Int, Int, Int)] {
+    func parseWeekRuns(_ text: String, parity: Int = 0, globalParity: Bool = false) -> [(Int, Int, Int)] {
         var runs: [(Int, Int, Int)] = []
         let tokens = JwScauParser.splitTokens(text)
         for token in tokens {
             let explicit = token.contains("单") ? 1 : (token.contains("双") ? 2 : 0)
-            let tokenParity = explicit != 0 ? explicit : (tokens.count == 1 ? parity : 0)
+            if globalParity && parity != 0 && explicit != 0 && parity != explicit { return [] }
+            let tokenParity = explicit != 0 ? explicit : (globalParity || tokens.count == 1 ? parity : 0)
             var clean = token
             for token2 in ["（单）", "（双）", "(单)", "(双)", "单周", "双周", "周"] {
                 clean = clean.replacingOccurrences(of: token2, with: "")
             }
             guard let m = JwScauParser.reWeekRange.firstMatch(
-                in: clean, range: NSRange(clean.startIndex..., in: clean)) else { continue }
-            guard let start = Int(JwScauParser.group(1, m, in: clean)) else { continue }
-            let end = Int(JwScauParser.group(2, m, in: clean)) ?? start
-            if !(1...30).contains(start) || end < start || end > 30 { continue }
+                in: clean, range: NSRange(clean.startIndex..., in: clean)) else { return [] }
+            guard let start = jw1064Integer(JwScauParser.group(1, m, in: clean)) else { return [] }
+            let rawEnd = JwScauParser.group(2, m, in: clean)
+            guard let end = rawEnd.isEmpty ? start : jw1064Integer(rawEnd),
+                  (1...366).contains(start), end >= start, end <= 366 else { return [] }
             var weeks: [Int] = []
             for w in start...end where tokenParity == 0 || w % 2 == tokenParity % 2 {
                 weeks.append(w)

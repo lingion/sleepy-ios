@@ -35,6 +35,61 @@ final class WidgetCompactWindowParityTests: XCTestCase {
 
     private func date(_ key: String) -> Date { DateUtils.parseDate(key)! }
 
+    func testDedicatedWideGridLoadsEachRealDateAcrossSundayFromTheSameSource() async throws {
+        let database = try AppDatabase.inMemory()
+        let table = TimeTableEntity(name: "Bound wide timetable", startDate: startDate, maxWeek: 3,
+                                    timeJson: TimeTableUtils.DEFAULT_TIME_JSON, id: tableId)
+        try database.timeTableDao.insert(table)
+        let courses = [row(701, day: 7, first: 1, last: 1), row(702, day: 1, first: 2, last: 2),
+                       row(703, day: 2, first: 2, last: 2), row(704, day: 1, first: 1, last: 1)]
+        for course in courses { try database.courseDao.insert(course) }
+        let repository = ScheduleRepository(database)
+        let persisted = try repository.getCourses(tableId)
+        let now = date("2426-09-13").addingTimeInterval(23 * 3600)
+        let display = WeekDisplayResolver.resolve(startDate: startDate, maxWeek: 3, now: now,
+            courses: persisted, timeJson: table.timeJson, enabled: true)
+        XCTAssertEqual(display.status, .nearestBusyDay)
+        let source = WidgetWeekSource(table: table, courses: persisted, display: display, transfers: [])
+        let data = await WeekGridWideDataLoader.dataForSource(source, mode: .horizontal, now: now)
+        XCTAssertEqual(data.days.map { HolidayTransferOps.dayKey($0.date) }, ["2426-09-13", "2426-09-14", "2426-09-15"])
+        XCTAssertEqual(data.days.map { $0.courses.map(\.id) }, [[701], [702], [703]])
+        XCTAssertEqual(Set(data.days.flatMap(\.courses).map(\.tableId)), [tableId])
+        let full = await WeekGridWideDataLoader.dataForSource(source, mode: .original, now: now)
+        let vertical = await WeekGridWideDataLoader.dataForSource(source, mode: .vertical, now: now)
+        XCTAssertEqual(full.days.map(\.date), vertical.days.map(\.date))
+        XCTAssertEqual(full.days.map { $0.courses.map(\.id) }, vertical.days.map { $0.courses.map(\.id) })
+    }
+
+    func testDedicatedWideGridRespectsMakeupDatesOutsideTheSemester() async throws {
+        let courses = [row(711, day: 1, first: 1, last: 1), row(712, day: 2)]
+        let table = TimeTableEntity(name: "Makeup timetable", startDate: startDate, maxWeek: 3,
+                                    timeJson: TimeTableUtils.DEFAULT_TIME_JSON, id: tableId)
+        let transfers = [HolidayTransferEntry(sourceDate: date(startDate), targetDate: date("2426-10-04"), segmentId: "wide")]
+        let now = date("2426-10-04")
+        let display = WeekDisplayResolver.resolve(startDate: startDate, maxWeek: 3, now: now,
+            courses: courses, timeJson: table.timeJson, enabled: true, transfers: transfers)
+        let source = WidgetWeekSource(table: table, courses: courses, display: display, transfers: transfers)
+        let data = await WeekGridWideDataLoader.dataForSource(source, mode: .horizontal, now: now)
+        XCTAssertEqual(data.days.first?.courses.map(\.id), [711])
+        XCTAssertEqual(data.semesterStatus, .inRange)
+        XCTAssertTrue(data.days.dropFirst().allSatisfy { $0.courses.isEmpty })
+    }
+
+    func testWideGridBeforeStartPreviewsRecurringCoursesWithoutMovingFixedDates() {
+        let courses = [row(721, day: 1), row(722, day: 1, first: 1, last: 1, fixed: startDate)]
+        let table = TimeTableEntity(name: "Preview", startDate: startDate, maxWeek: 3, id: tableId)
+        let before = date("2426-08-31")
+        let display = WeekDisplayResolver.resolve(startDate: startDate, maxWeek: 3, now: before,
+            courses: courses, timeJson: table.timeJson, enabled: false)
+        let source = WidgetWeekSource(table: table, courses: courses, display: display, transfers: [])
+        XCTAssertEqual(WeekGridWideDataLoader.coursesForDate(source, date: before).map(\.id), [721])
+        XCTAssertEqual(Set(WeekGridWideDataLoader.coursesForDate(source, date: date(startDate)).map(\.id)), [721, 722])
+        let moved = WidgetWeekSource(table: table, courses: courses, display: display, transfers: [
+            HolidayTransferEntry(sourceDate: date(startDate), targetDate: before, segmentId: "preview")])
+        XCTAssertEqual(WeekGridWideDataLoader.coursesForDate(moved, date: before).map(\.id), [721])
+        XCTAssertEqual(WeekGridWideDataLoader.coursesForDate(moved, date: date(startDate)).map(\.id), [722])
+    }
+
     private func row(_ id: Int64, day: Int, first: Int = 1, last: Int = 3,
                      type: Int = 0, node: Int = 1, fixed: String? = nil) -> CourseEntity {
         CourseEntity(groupId: "compact-\(id)", tableId: tableId, courseName: "Course \(id)",

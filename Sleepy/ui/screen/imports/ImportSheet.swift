@@ -142,6 +142,7 @@ enum ImportFormatKey: String, Identifiable, CaseIterable {
 
 struct ImportSheet: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.localCoursePalette) private var palette
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
@@ -208,10 +209,13 @@ struct ImportSheet: View {
                         Image(systemName: "shippingbox")
                             .font(.system(size: 22))
                             .foregroundColor(colors.onPrimaryContainer)
-                            .frame(width: 48, height: 48)   // ← M3 IconButton 48×48
-                            .background(Circle().fill(colors.primaryContainer))
+                            .frame(width: style == .liquidGlass ? nil : 48,
+                                   height: style == .liquidGlass ? nil : 48)
+                            .sleepyControlSurface(cornerRadius: 24, tint: colors.primaryContainer)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, shape: .circle))
+                    .tint(colors.primaryContainer)
+                    .frame(width: 48, height: 48)
                     .accessibilityLabel(L10n.format("import_drafts"))
                     .accessibilityIdentifier("import_drafts_btn")
                 }
@@ -285,11 +289,12 @@ struct ImportSheet: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(colors.onPrimary)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 48)
-                                .background(colors.primary)
-                                .cornerRadius(SleepyShapes.large)
+                                .frame(height: style == .liquidGlass ? nil : 48)
+                                .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
+                        .tint(colors.primary)
                         .accessibilityIdentifier("import_preview_btn")
                         .disabled(!canImport || inputText.isEmpty)
                     }
@@ -690,6 +695,7 @@ struct ImportSheet: View {
             startDate: previewSession.confirmedStartDate,
             tableName: previewSession.confirmedTableName,
             timeJson: previewSession.confirmedTimeJson,
+            courses: previewSession.confirmedPreview?.parseResult.courses ?? [],
             // 仅"创建新课表"或"追加为新课表"需要命名; 覆盖课表不强制重命名
             showTableName: previewSession.pendingMode == .importAsNew || previewSession.pendingMode == .appendAsNew,
             onTableNameChange: { previewSession.confirmedTableName = $0 },
@@ -903,8 +909,21 @@ private struct ImportMethodRow: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
+                Group {
+                    if id == "import_manual" {
+                        AndroidMaterialIcon(name: .add, size: 20)
+                    } else if id == "import_existing" {
+                        AndroidSettingsIcon(name: .contentCopy, size: 20)
+                    } else if id == "import_jw" {
+                        AndroidSettingsIcon(name: .qrCode2, size: 20)
+                    } else if id == "import_text" {
+                        AndroidSettingsIcon(name: .description, size: 20)
+                    } else if id == "import_file" {
+                        AndroidSettingsIcon(name: .fileUpload, size: 20)
+                    } else {
+                        Image(systemName: icon).font(.system(size: 20))
+                    }
+                }
                     .foregroundColor(colors.onPrimaryContainer)
                     .frame(width: 40, height: 40)
                     .background(colors.primaryContainer)
@@ -914,8 +933,13 @@ private struct ImportMethodRow: View {
                     .foregroundColor(colors.onSurface)
                 Spacer()
                 if let trailing = trailing {
-                    Image(systemName: trailing)
-                        .font(.system(size: 24))   // ← 原 无显式 size = 默认 24dp
+                    Group {
+                        if trailing == "chevron.up" || trailing == "chevron.down" {
+                            AndroidSettingsIcon(name: trailing == "chevron.up" ? .expandLess : .expandMore, size: 24)
+                        } else {
+                            Image(systemName: trailing).font(.system(size: 24))
+                        }
+                    }   // ← 原 无显式 size = 默认 24dp
                         .foregroundColor(colors.onSurfaceVariant)
                 }
             }
@@ -931,6 +955,7 @@ private struct ImportMethodRow: View {
 // ← FormatRow(每行带 ⓘ 详情入口)
 private struct FormatRow: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let id: String
     let name: String
     let desc: String
@@ -953,12 +978,13 @@ private struct FormatRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)   // ← 原 weight(1f)
             if let onDetail {
                 Button(action: onDetail) {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 16))   // ← 原 Info 16dp
-                        .foregroundColor(colors.onSurfaceVariant)   // ← 原 tint onSurfaceVariant
-                        .padding(.top, 2)   // ← 原 icon padding(top = 2.dp)
+                    AndroidSettingsIcon(name: .info, size: 20)   // ← Android 1.0.64 Info 20dp
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .frame(width: style == .classic ? 48 : nil,
+                               height: style == .classic ? 48 : nil)
                 }
-                .buttonStyle(SleepyButtonStyle())
+                .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+                .frame(width: 48, height: 48)
                 .padding(.leading, 6)   // ← 原 icon padding(start = 6.dp)
                 .accessibilityLabel(L10n.format("format_detail_content_desc"))
                 .accessibilityIdentifier(id)
@@ -972,6 +998,7 @@ private struct FormatRow: View {
 //   iOS 原生化: List + Section 替代裸 VStack — 自动 inset/grouped 视觉, 系统原生分隔线
 private struct FormatDetailDialog: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.dismiss) private var dismiss
     let format: ImportFormatKey
     @State private var copiedPrompt = false
@@ -1032,18 +1059,19 @@ private struct FormatDetailDialog: View {
                                 copiedPrompt = true
                             } label: {
                                 HStack(spacing: 6) {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 16))   // ← 原 ContentCopy 16dp
+                                    AndroidSettingsIcon(name: .contentCopy, size: 16)   // ← 原 ContentCopy 16dp
                                     Text(copiedPrompt ? L10n.format("copied") : L10n.format("copy_prompt"))
                                         .font(.system(size: 14, weight: .medium))   // ← labelLarge 14sp Medium
                                 }
                                 .foregroundColor(colors.onPrimaryContainer)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 48)
-                                .background(colors.primaryContainer)
-                                .cornerRadius(SleepyShapes.large)
+                                .frame(height: style == .classic ? 48 : nil)
+                                .sleepyControlSurface(cornerRadius: 24, tint: colors.primaryContainer)
                             }
-                            .buttonStyle(SleepyButtonStyle())
+                            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: 24))
+                            .tint(colors.primaryContainer)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .accessibilityIdentifier("import_copy_prompt")
                         }
                         .listRowBackground(colors.primaryContainer)
                     }
@@ -1074,6 +1102,7 @@ private struct FormatDetailDialog: View {
 //   系统原生分隔线 + 系统原生 inset 分组, 安全区适配自动处理。底部按钮组保留纯色块(危险动作风格统一)
 struct ImportPreviewDialog: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let preview: ImportPreview
     var courseDecision = false
     var onCourseApply: (CourseImportDecision) -> Void = { _ in }
@@ -1243,13 +1272,19 @@ struct ImportPreviewDialog: View {
                                 Text(L10n.format("import_backup_original")).font(.system(size: 14, weight: .medium))
                                 Text(L10n.format("import_backup_original_sub")).font(.system(size: 11)).foregroundColor(colors.onSurfaceVariant)
                             }
-                        }.accessibilityIdentifier("import_preview_backup")
+                        }
+                        .toggleStyle(SleepyToggleStyle(showsLabel: true))
+                        .tint(colors.primary)
+                        .accessibilityIdentifier("import_preview_backup")
                         Toggle(isOn: $decision.appendConflicts) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(L10n.format("import_append_conflicts_option")).font(.system(size: 14, weight: .medium))
                                 Text(L10n.format("import_append_conflicts_option_sub")).font(.system(size: 11)).foregroundColor(colors.onSurfaceVariant)
                             }
-                        }.accessibilityIdentifier("import_preview_append")
+                        }
+                        .toggleStyle(SleepyToggleStyle(showsLabel: true))
+                        .tint(colors.primary)
+                        .accessibilityIdentifier("import_preview_append")
                         PrimaryDialogButton(L10n.format("import_confirm"), identifier: "import_preview_apply") {
                             onCourseApply(decision)
                         }
@@ -1278,11 +1313,12 @@ struct ImportPreviewDialog: View {
                                     .lineLimit(1)   // ← 原 maxLines = 1
                                     .foregroundColor(colors.onErrorContainer)
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 40)
-                                    .background(colors.errorContainer)
-                                    .cornerRadius(SleepyShapes.medium)
+                                    .frame(height: style == .liquidGlass ? nil : 40)
+                                    .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.errorContainer, prominent: true)
                             }
-                            .buttonStyle(SleepyButtonStyle())
+                            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                            .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
+                            .tint(colors.errorContainer)
                             .accessibilityIdentifier("import_mode_append_conflict")
                             PrimaryDialogButton(L10n.format("import_append_as_new"), identifier: "import_mode_append_as_new") {
                                 onApply(.appendAsNew)
@@ -1295,11 +1331,12 @@ struct ImportPreviewDialog: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(colors.onErrorContainer)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 40)
-                                .background(colors.errorContainer)
-                                .cornerRadius(SleepyShapes.medium)
+                                .frame(height: style == .liquidGlass ? nil : 40)
+                                .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.errorContainer, prominent: true)
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                        .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
+                        .tint(colors.errorContainer)
                         .accessibilityIdentifier("import_mode_overwrite")
                     }
                     }
@@ -1309,9 +1346,10 @@ struct ImportPreviewDialog: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onSurfaceVariant)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
+                            .frame(height: style == .liquidGlass ? nil : 40)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: SleepyShapes.medium))
+                    .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
                     .accessibilityIdentifier("import_preview_cancel")
                 }
                 .padding(.horizontal, 16)
@@ -1368,6 +1406,7 @@ extension CourseConflict: Identifiable {
 
 private struct PrimaryDialogButton: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let title: String
     var identifier: String? = nil
     let action: () -> Void
@@ -1385,11 +1424,12 @@ private struct PrimaryDialogButton: View {
                 .foregroundColor(colors.onPrimary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
-                .frame(height: 40)
-                .background(colors.primary)
-                .cornerRadius(SleepyShapes.medium)
+                .frame(height: style == .liquidGlass ? nil : 40)
+                .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.primary, prominent: true)
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+        .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
+        .tint(colors.primary)
         // 稳定标识: 预览底部按钮浮在 List 之上, XCUITest 按 label 找元素时偶发拿到
         // 无效 frame({inf, inf}/{0.0,0.0}) → "Failed to compute hit point"。给显式
         // identifier 后 UI 测试可按 id 精确定位, 不依赖本地化文案。
@@ -1458,6 +1498,7 @@ private struct ImportConfirmDialog: View {
     @State var startDate: String
     @State var tableName: String
     @State var timeJson: String
+    var courses: [CourseEntity] = []
     var showTableName: Bool = true
     let onTableNameChange: (String) -> Void
     let onStartDateChange: (String) -> Void
@@ -1575,27 +1616,35 @@ private struct ImportConfirmDialog: View {
             return
         }
         let dateRegex = "^\\d{4}-\\d{2}-\\d{2}$"
-        if startDate.range(of: dateRegex, options: .regularExpression) == nil {
+        if startDate.range(of: dateRegex, options: .regularExpression) == nil ||
+            DateUtils.parseDate(startDate).map({ DateUtils.fullDate($0) != startDate }) != false {
             localError = L10n.format("start_date_format")
             return
         }
         // v1.0.56 T6 修正: 绑了作息表(id>0)时以表的 timeJson 为真源;
         // 旧代码无条件校验手动 rows, 解析源没回节次时间 → 误报「第 X 节时间不能为空」(用户反馈 2026-09-20)
+        if let id = selectedPeriodTableId, id > 0,
+           let boundJson = periodTableTimeJsonById[id] {
+            let validation = TimeTableUtils.validateTimeJson(boundJson)
+            if validation != .valid {
+                localError = validation.errorMessage
+                return
+            }
+        }
         let effectiveRows = Self.effectiveRowsForConfirm(
             manualRows: rows, bindId: selectedPeriodTableId, tables: periodTableTimeJsonById)
-        let emptyRows = effectiveRows.filter { $0.start.isEmpty || $0.end.isEmpty }
+        if let missing = TimeTableUtils.firstMissingCourseNode(courses: courses, rows: effectiveRows) {
+            localError = L10n.format("slot_time_required", missing)
+            return
+        }
+        let emptyRows = effectiveRows.filter { $0.start.isBlank || $0.end.isBlank }
         if let first = emptyRows.first {
             localError = L10n.format("slot_time_required", first.node)
             return
         }
-        let timeRegex = "^\\d{2}:\\d{2}$"
-        let invalidRows = effectiveRows.filter {
-            $0.start.range(of: timeRegex, options: .regularExpression) == nil ||
-            $0.end.range(of: timeRegex, options: .regularExpression) == nil ||
-            $0.start >= $0.end
-        }
-        if let first = invalidRows.first {
-            localError = L10n.format("slot_time_invalid", first.node)
+        let validation = TimeTableUtils.validatePeriodRows(effectiveRows)
+        if validation != .valid {
+            localError = validation.errorMessage
             return
         }
         localError = nil
@@ -1821,7 +1870,7 @@ extension ImportSheet {
                     nodesPerDay: max(TimeTableUtils.parseTimeSlotRows(confirmedTimeJson).count, 1),
                     timeJson: confirmedTimeJson,
                     color: base?.color ?? "#FF6750A4",
-                    isDefault: false),
+                    isDefault: false, importSourceJson: preview.parseResult.importSourceJson),
                 courses: preview.parseResult.courses,
                 periodTable: importedPeriod,
                 bindPeriodTableId: bindPeriodTableId,
@@ -1927,7 +1976,7 @@ extension ImportSheet {
                     nodesPerDay: max(mergedRows.count, 1),
                     timeJson: mergedTimeJson,
                     color: base?.color ?? "#FF6750A4",
-                    isDefault: false),
+                    isDefault: false, importSourceJson: incoming.importSourceJson),
                 courses: oldCourses + cleanIncoming,
                 periodTable: mergedPeriod,
                 keepGroups: preview.parseResult.groupIdsAuthoritative)

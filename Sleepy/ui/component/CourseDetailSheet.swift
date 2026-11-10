@@ -16,6 +16,7 @@ private func orBlank(_ text: String, _ fallback: String) -> String {
 
 struct CourseDetailSheet: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.dismiss) private var dismiss
     let course: CourseEntity?
     var timeString: String? = nil
@@ -57,7 +58,9 @@ struct CourseDetailSheet: View {
                             Image(systemName: "xmark")
                                 .foregroundColor(colors.onSurfaceVariant)
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+                        .frame(width: style == .liquidGlass ? 48 : nil,
+                               height: style == .liquidGlass ? 48 : nil)
                         .accessibilityIdentifier("detail_close")
                     }
                     .padding(.horizontal, 20)
@@ -103,11 +106,12 @@ struct CourseDetailSheet: View {
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(colors.onPrimary)
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 40)
-                                    .background(colors.primary)
-                                    .cornerRadius(SleepyShapes.large)
+                                    .frame(height: style == .liquidGlass ? nil : 40)
+                                    .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
                             }
-                            .buttonStyle(SleepyButtonStyle())
+                            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                            .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
+                            .tint(colors.primary)
                             .accessibilityIdentifier("detail_edit")
                         }
                         if let displayDate, let table = occurrenceTable, let repository = occurrenceRepository {
@@ -146,6 +150,7 @@ struct CourseDetailSheet: View {
 // 默认无勾选(系统按 primaryComparator 自动);选中 → 写 AppPrefs(持久化);再点同一项 = 取消。
 private struct DefaultTopPickerSection: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @ObservedObject private var defaultTopStore = ConflictDefaultTopStore.shared
     let cluster: ConflictCluster
     let selectedCourseId: Int64
@@ -167,29 +172,45 @@ private struct DefaultTopPickerSection: View {
                         .padding(.top, 4)
                         .padding(.bottom, 4)
 
-                    ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
-                        let layerRepId = layer.first!.id
-                        // ← 原版本 kt:192 `it.courseName.ifBlank { "—" }` — 纯空白名同样兜底 "—"
-                        let label = layer.map { orBlank($0.courseName, "—") }.joined(separator: "、")
-                        let selected = savedRepId == layerRepId
-                        Button {
-                            AppPrefs.shared.putConflictDefaultTop(clusterKey, selected ? nil : layerRepId)
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(selected ? colors.primary : colors.onSurfaceVariant)
-                                Text(label)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(colors.onSurface)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if style == .liquidGlass {
+                        Picker(L10n.format("conflict_default_top_title"), selection: Binding<Int64?>(
+                            get: { layers.contains { $0.first?.id == savedRepId } ? savedRepId : nil },
+                            set: { AppPrefs.shared.putConflictDefaultTop(clusterKey, $0) }
+                        )) {
+                            Text(L10n.format("color_auto")).tag(Optional<Int64>.none)
+                            ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
+                                Text(layer.map { orBlank($0.courseName, "—") }.joined(separator: "、"))
+                                    .tag(Optional(layer.first!.id))
                             }
-                            .padding(.vertical, 4)
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .tint(colors.primary)
+                        .accessibilityIdentifier("conflict_default_top_picker")
+                    } else {
+                        ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
+                            let layerRepId = layer.first!.id
+                            // ← 原版本 kt:192 `it.courseName.ifBlank { "—" }` — 纯空白名同样兜底 "—"
+                            let label = layer.map { orBlank($0.courseName, "—") }.joined(separator: "、")
+                            let selected = savedRepId == layerRepId
+                            Button {
+                                AppPrefs.shared.putConflictDefaultTop(clusterKey, selected ? nil : layerRepId)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    MaterialSelectionIndicator(kind: .radio, selected: selected)
+                                    Text(label)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(colors.onSurface)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(SleepyButtonStyle())
+                            .accessibilityAddTraits(selected ? .isSelected : [])
+                        }
                     }
                 }
             }

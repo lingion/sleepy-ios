@@ -86,10 +86,9 @@ enum WidgetRowGeometry {
     static func rowHeightDp(_ row: ConflictLayoutEngine.WeekLaneRow,
                             rowH: CGFloat = WidgetRowGeometry.rowH,
                             stackGap: CGFloat = WidgetRowGeometry.stackGap) -> CGFloat {
-        guard row.laneCount > 1 else { return rowH }
         var byLane: [Int: Int] = [:]
         for course in row.courses {
-            let lane = row.laneOf[course.id] ?? 0
+            let lane = row.laneCount <= 1 ? 0 : (row.laneOf[course.id] ?? 0)
             byLane[lane, default: 0] += 1
         }
         let maxStack = byLane.values.max() ?? 1

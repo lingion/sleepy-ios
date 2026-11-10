@@ -9,6 +9,8 @@
 
 // Hashable: Kotlin data class 自带 hashCode/equals — Super 调度器去重
 // (JwEcuplSuperParser/KingoZx/QzTimetable/OldQzSuper 的 Set<JwCourse>) 依赖它。
+import Foundation
+
 struct JwCourse: Hashable {
     let name: String
     var room: String = ""
@@ -19,4 +21,16 @@ struct JwCourse: Hashable {
     let startWeek: Int
     let endWeek: Int
     var type: Int = 0  // 0=每周 1=单周 2=双周
+    var startTime: String = ""
+    var endTime: String = ""
+    var credit: Float = 0
+    var note: String = ""
+
+    var hasActualTime: Bool { !startTime.isEmpty && !endTime.isEmpty }
+
+    static func isValidTimeRange(_ start: String, _ end: String) -> Bool {
+        let pattern = #"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"#
+        return start.range(of: pattern, options: .regularExpression) != nil
+            && end.range(of: pattern, options: .regularExpression) != nil && start < end
+    }
 }

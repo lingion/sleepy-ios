@@ -204,6 +204,9 @@ struct SchoolSelectScreen: View {
         }
         return letter
     }
+    private var recentSchools: [JwSchoolInfo] {
+        RecentJwSchools.resolve(AppPrefs.shared.recentJwSchoolKeys, schools: viewModel.schools)
+    }
     private var recommendedSchools: [JwSchoolInfo] {
         guard case .ready(let city) = viewModel.schoolLocation else { return [] }
         return SchoolCityIndex.schoolsInCity(viewModel.schools, city: city)
@@ -334,6 +337,16 @@ struct SchoolSelectScreen: View {
                         // 学校列表
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 2) {
+                                if showRecommendations && !recentSchools.isEmpty {
+                                    Text(L10n.t("jw_recent_schools"))
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(colors.onSurfaceVariant)
+                                        .padding(.top, 12)
+                                    ForEach(recentSchools, id: \.stableKey) { school in
+                                        SchoolRow(school: school) { onSchoolSelected(school) }
+                                    }
+                                    DividerRow()
+                                }
                                 if showRecommendations {
                                     PossibleSchoolsCard(
                                         state: viewModel.schoolLocation,
@@ -485,7 +498,7 @@ private struct PossibleSchoolsCard: View {
                     Button(action: onLocate) {
                         Text(actionLabel)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
                 }
             }
 
@@ -524,12 +537,12 @@ private struct PossibleSchoolsCard: View {
                             Text(isExpanded ? L10n.t("school_location_collapse")
                                             : L10n.t("school_location_show_all"))
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
                     }
                     Button(action: onPermissionSettings) {
                         Text(L10n.t("school_location_permission_settings"))
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
                 }
             }
         }
@@ -675,8 +688,7 @@ private struct SchoolRow: View {
 
     private var rowContent: some View {
         HStack(spacing: 12) {
-            Image(systemName: "graduationcap")   // ← 原 Icons.Outlined.School
-                .font(.system(size: 20))
+            AndroidSettingsIcon(name: .school, size: 20)   // ← 原 Icons.Outlined.School
                 .foregroundColor(colors.onPrimaryContainer)
                 .frame(width: 36, height: 36)
                 .background(colors.primaryContainer)
@@ -756,8 +768,7 @@ private struct CustomUrlEntryRow: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 12) {
-                Image(systemName: "link")
-                    .font(.system(size: 20))
+                AndroidSettingsIcon(name: .link, size: 20)
                     .foregroundColor(colors.onPrimary)
                     .frame(width: 36, height: 36)
                     .background(colors.primary)
@@ -793,8 +804,7 @@ private struct UrlDirectRow: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 12) {
-                Image(systemName: "link")
-                    .font(.system(size: 20))
+                AndroidSettingsIcon(name: .link, size: 20)
                     .foregroundColor(colors.onPrimary)
                     .frame(width: 36, height: 36)
                     .background(colors.primary)

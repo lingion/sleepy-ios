@@ -49,11 +49,21 @@ struct ScheduleState {
         currentTable.map { $0.hydratedWith(effectivePeriodTable) }
     }
 
+    var effectiveRenderTimeJson: String? {
+        effectiveCurrentTable.map { TimeTableUtils.sanitizeTimeJsonForDisplay($0.timeJson) }
+    }
+
+    var periodValidation: TimeTableUtils.PeriodValidationResult {
+        effectiveCurrentTable.map { TimeTableUtils.validateTimeJson($0.timeJson) } ?? .valid
+    }
+
+    var hasPeriodConflict: Bool { periodValidation != .valid }
+
     var currentWeekCourses: [CourseEntity] {
         let list = courses.filter { $0.inWeek(selectedWeek) }
         // issue#40: 节次→时间 的解释真源 = 水合后的 effectiveCurrentTable,
         // 绑定作息表被编辑后立即生效(设计 §5.2 立即全部同步)。
-        guard let tj = effectiveCurrentTable?.timeJson else { return list }
+        guard let tj = effectiveRenderTimeJson else { return list }
         return list.map { $0.normalizeNode(timeJson: tj) }
     }
 
@@ -399,8 +409,8 @@ final class ScheduleViewModel: ObservableObject {
     /// v7.10.15 创建课表副本 — 全量复制表配置+课程, 新副本不接管默认表也不切选中,
     /// 命名沿用导入路径的去重规则(原名+"2"/"3"...)。
     @discardableResult
-    func duplicateTable(_ id: Int64, onFailure: (String) -> Void = { _ in }) -> Bool {
-        performTableSave({ _ = try repo.duplicateTable(id) },
+    func duplicateTable(_ id: Int64, newName: String? = nil, onFailure: (String) -> Void = { _ in }) -> Bool {
+        performTableSave({ _ = try repo.duplicateTable(id, newName: newName) },
                          onFinish: onWidgetsNeedReload, onFailure: onFailure)
     }
 

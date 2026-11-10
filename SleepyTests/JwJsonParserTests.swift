@@ -233,9 +233,11 @@ final class JwJsonParserTests: XCTestCase {
         XCTAssertEqual(math.teacher, "王教授")
         XCTAssertEqual(math.room, "教二楼301")
         XCTAssertEqual(math.day, 1)
-        // lessonCode "0102" → start=1, end=2
+        // v1.0.64 clock-only rows retain their own time and use placeholder coordinates.
         XCTAssertEqual(math.startNode, 1)
-        XCTAssertEqual(math.endNode, 2)
+        XCTAssertEqual(math.endNode, 1)
+        XCTAssertEqual(math.startTime, "08:00")
+        XCTAssertEqual(math.endTime, "09:40")
         XCTAssertEqual(math.startWeek, 1)
         XCTAssertEqual(math.endWeek, 16)
         XCTAssertEqual(math.type, 0)  // weeksStr "1-16" 无单双 → type 0
@@ -245,8 +247,10 @@ final class JwJsonParserTests: XCTestCase {
         let courses = try JwUstcParser(try loadFixture("ustc_courses")).generateCourseList()
         let phys = try XCTUnwrap(courses.first { $0.name == "大学物理B" })
         XCTAssertEqual(phys.day, 3)
-        XCTAssertEqual(phys.startNode, 5)
-        XCTAssertEqual(phys.endNode, 6)
+        XCTAssertEqual(phys.startNode, 1)
+        XCTAssertEqual(phys.endNode, 1)
+        XCTAssertEqual(phys.startTime, "13:30")
+        XCTAssertEqual(phys.endTime, "15:10")
         // 2-15单: 单周=奇数, 2 偶 → 校正为 3, 终点 15
         XCTAssertEqual(phys.startWeek, 3)
         XCTAssertEqual(phys.endWeek, 15)
@@ -258,8 +262,10 @@ final class JwJsonParserTests: XCTestCase {
         let lab = courses.filter { $0.name == "数据结构实验" }
         XCTAssertEqual(lab.count, 8)
         XCTAssertEqual(lab.first?.day, 5)
-        XCTAssertEqual(lab.first?.startNode, 7)
-        XCTAssertEqual(lab.first?.endNode, 8)
+        XCTAssertEqual(lab.first?.startNode, 1)
+        XCTAssertEqual(lab.first?.endNode, 1)
+        XCTAssertEqual(lab.first?.startTime, "15:20")
+        XCTAssertEqual(lab.first?.endTime, "16:50")
         let weeks = lab.map { $0.startWeek }.sorted()
         XCTAssertEqual(weeks, [2, 4, 6, 8, 10, 12, 14, 16])
     }
@@ -268,8 +274,10 @@ final class JwJsonParserTests: XCTestCase {
         let courses = try JwUstcParser(try loadFixture("ustc_courses")).generateCourseList()
         let eng = try XCTUnwrap(courses.first { $0.name == "英语口语" })
         XCTAssertEqual(eng.day, 2)
-        XCTAssertEqual(eng.startNode, 9)
-        XCTAssertEqual(eng.endNode, 10)
+        XCTAssertEqual(eng.startNode, 1)
+        XCTAssertEqual(eng.endNode, 1)
+        XCTAssertEqual(eng.startTime, "18:00")
+        XCTAssertEqual(eng.endTime, "19:40")
         // 1-16双: 双周=偶数, 1 奇 → 校正为 2, 终点 16
         XCTAssertEqual(eng.startWeek, 2)
         XCTAssertEqual(eng.endWeek, 16)
@@ -287,17 +295,15 @@ final class JwJsonParserTests: XCTestCase {
         let json = """
         {"studentTableVm": {"activities": [
           {"courseName": "组合数学", "teachers": ["李四", "王五"], "room": "教室1",
-           "weeksStr": "1-10", "weekday": "2", "lessonCode": "0304"}
+           "weeksStr": "1-10", "weekday": "2", "lessonCode": "0304", "startUnit": 3, "endUnit": 4}
         ]}}
         """
-        let courses = try try JwUstcParser(json).generateCourseList()
+        let courses = try JwUstcParser(json).generateCourseList()
         XCTAssertEqual(courses.first?.teacher, "李四 王五")
     }
 
-    func testUstcMalformedLessonCodeFallsBackToTimeInference() throws {  // ← malformed lessonCode falls back to start end time inference
-        // lessonCode 并非协议契约 (上游 json_version.py 只把它拼进 description,
-        // 节次实际从 startDate/endDate HH:mm 推) — 不合式时不得整行丢弃。
-        // 08:00 → node 1 (slot ±10min 吸附); 09:40 不吸附任何 slot → startNode+1=2
+    func testUstcMalformedLessonCodeRetainsActualTime() throws {
+        // lessonCode is course metadata; it never supplies or infers periods.
         let json = """
         {"studentTableVm": {"activities": [
           {"courseName": "机器学习", "campus": "高新园区", "customPlace": null,
@@ -305,13 +311,16 @@ final class JwJsonParserTests: XCTestCase {
            "weekday": 2, "startDate": "08:00", "endDate": "09:40", "lessonCode": "X-77"}
         ]}}
         """
-        let courses = try try JwUstcParser(json).generateCourseList()
+        let courses = try JwUstcParser(json).generateCourseList()
         XCTAssertEqual(courses.count, 1)
         XCTAssertEqual(courses.first?.startNode, 1)
-        XCTAssertEqual(courses.first?.endNode, 2)
+        XCTAssertEqual(courses.first?.endNode, 1)
+        XCTAssertEqual(courses.first?.startTime, "08:00")
+        XCTAssertEqual(courses.first?.endTime, "09:40")
+        XCTAssertEqual(courses.first?.note, "X-77")
     }
 
-    func testUstcLessonCodeAbsentStillParsesViaTimeInference() throws {  // ← lessonCode absent entirely still parses via time inference
+    func testUstcLessonCodeAbsentStillRetainsActualTime() throws {
         let json = """
         {"studentTableVm": {"activities": [
           {"courseName": "学术道德", "campus": null, "customPlace": "线上",
@@ -319,10 +328,12 @@ final class JwJsonParserTests: XCTestCase {
            "weekday": 5, "startDate": "19:00", "endDate": "20:50"}
         ]}}
         """
-        let courses = try try JwUstcParser(json).generateCourseList()
+        let courses = try JwUstcParser(json).generateCourseList()
         XCTAssertEqual(courses.count, 1)
-        XCTAssertEqual(courses.first?.startNode, 9)   // 19:00 → slot 9
-        XCTAssertEqual(courses.first?.endNode, 10)    // 20:50 = 19:00+110, 不吸附 → 9+1
+        XCTAssertEqual(courses.first?.startNode, 1)
+        XCTAssertEqual(courses.first?.endNode, 1)
+        XCTAssertEqual(courses.first?.startTime, "19:00")
+        XCTAssertEqual(courses.first?.endTime, "20:50")
         XCTAssertEqual(courses.first?.room, "线上")
     }
 

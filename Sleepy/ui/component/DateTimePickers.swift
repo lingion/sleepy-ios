@@ -8,6 +8,7 @@ import SwiftUI
 // ← DatePickerField
 struct DatePickerField: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let value: String                  // yyyy-MM-dd
     let onValueChange: (String) -> Void
     let label: String
@@ -23,6 +24,49 @@ struct DatePickerField: View {
     @State private var hasSelection = false
 
     var body: some View {
+        Group {
+            if style == .liquidGlass {
+                if let selectedDate = parseISO(value) {
+                    DatePicker(label, selection: Binding(
+                        get: { selectedDate },
+                        set: { onValueChange(formatISO($0)) }
+                    ), displayedComponents: .date)
+                    .datePickerStyle(.compact)
+                    .environment(\.timeZone, shanghaiTZ)
+                    .tint(isError ? colors.error : colors.primary)
+                    .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
+                    .accessibilityIdentifier("field_\(label)")
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(label).font(.caption).foregroundStyle(.secondary)
+                        Button(action: openPicker) {
+                            Label {
+                                Text(value.isEmpty ? L10n.format("select_date") : value)
+                            } icon: {
+                                AndroidMaterialIcon(name: .calendarMonth, size: 24)
+                            }
+                        }
+                        .buttonStyle(SleepyPlatformButtonStyle())
+                        .controlSize(.large)
+                        .tint(isError ? colors.error : colors.primary)
+                        .accessibilityIdentifier("field_\(label)")
+                    }
+                    .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
+                }
+            } else {
+                classicField
+            }
+        }
+        .sheet(isPresented: $showPicker) { pickerDialog }
+    }
+
+    private func openPicker() {
+        pickerDate = parseISO(value) ?? Date()
+        hasSelection = false
+        showPicker = true
+    }
+
+    private var classicField: some View {
         HStack(alignment: .center, spacing: 4) {
             // ← 原版本 M3 TextField 浮动 label: 空值 = label 占位; 有值 = label 浮到值上方
             //   与 TimePickerField 同一处理 (修 P3: 同文件两套 label 表现)
@@ -49,8 +93,7 @@ struct DatePickerField: View {
             .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(colors.surfaceContainer)
-            .cornerRadius(SleepyTheme.fieldShape)
+            .sleepyControlSurface(cornerRadius: SleepyTheme.fieldShape, tint: colors.surfaceContainer)
             // ← 原 filled TextField 默认无描边; isError 时底边 error 指示线 (M3 active indicator)
             .overlay(alignment: .bottom) {
                 if isError {
@@ -61,58 +104,58 @@ struct DatePickerField: View {
                 }
             }
             .accessibilityLabel(label)
-            Button {
-                // 初始值 = 当前输入日期(解析失败回退今天); 每次打开重置选中标记
-                pickerDate = parseISO(value) ?? Date()
-                hasSelection = false
-                showPicker = true
-            } label: {
-                Image(systemName: "calendar")
-                    .font(.system(size: 24))
+            Button(action: openPicker) {
+                AndroidMaterialIcon(name: .calendarMonth, size: 24)
                     .foregroundColor(colors.primary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
+                    .sleepyControlSurface(cornerRadius: 24, tint: Color.clear)
             }
-            .buttonStyle(SleepyButtonStyle())
+            .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+            .frame(width: 48, height: 48)
+            .contentShape(Circle())
             // ← 原版本 Icon contentDescription = select_date
             .accessibilityLabel(L10n.format("select_date"))
         }
-        .sheet(isPresented: $showPicker) {
-            // ← 原版本 DatePickerDialog: 内容列 = DatePicker 本体(无 arrangedBy/Spacer),
-            //   确认/取消在框架 confirm/dismiss 槽 → 内容区 spacing:0, 按钮行独立。
-            ScrollView {
-                VStack(spacing: 0) {
-                    DatePicker("",
-                               selection: Binding(
-                                get: { pickerDate },
-                                set: { pickerDate = $0; hasSelection = true }
-                               ),
-                               displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .labelsHidden()
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding()
-                    // ← 原版本 色块按钮行 (DatePickerDialog confirm/dismiss = M3 填充按钮:
-                    //   确定 primary, 取消 secondaryContainer) — 2026-09-16 用户「裸 TextButton
-                    //   无边界无色块 — 色块按钮」修复镜像; DialogActionButtons 同语言同配色。
-                    DialogActionButtons(
-                        confirmText: L10n.format("ok"),
-                        onConfirm: {
-                            // ← 原版本 selectedDateMillis?.let: 未点选日期 → 确定不回调
-                            if hasSelection {
-                                onValueChange(formatISO(pickerDate))
-                            }
-                            showPicker = false
-                        },
-                        dismissText: L10n.format("cancel"),
-                        onDismiss: { showPicker = false },
-                        confirmIdentifier: "date_picker_confirm",
-                        dismissIdentifier: "date_picker_cancel"
-                    )
-                    .padding(.horizontal)
-                    .padding(.bottom)
-                }
+    }
+
+    private var pickerDialog: some View {
+        // ← 原版本 DatePickerDialog: 内容列 = DatePicker 本体(无 arrangedBy/Spacer),
+        //   确认/取消在框架 confirm/dismiss 槽 → 内容区 spacing:0, 按钮行独立。
+        ScrollView {
+            VStack(spacing: 0) {
+                DatePicker("",
+                           selection: Binding(
+                            get: { pickerDate },
+                            set: { pickerDate = $0; hasSelection = true }
+                           ),
+                           displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding()
+                // ← 原版本 色块按钮行 (DatePickerDialog confirm/dismiss = M3 填充按钮:
+                //   确定 primary, 取消 secondaryContainer) — 2026-09-16 用户「裸 TextButton
+                //   无边界无色块 — 色块按钮」修复镜像; DialogActionButtons 同语言同配色。
+                DialogActionButtons(
+                    confirmText: L10n.format("ok"),
+                    onConfirm: {
+                        // ← 原版本 selectedDateMillis?.let: 未点选日期 → 确定不回调
+                        if hasSelection {
+                            onValueChange(formatISO(pickerDate))
+                        }
+                        showPicker = false
+                    },
+                    dismissText: L10n.format("cancel"),
+                    onDismiss: { showPicker = false },
+                    confirmIdentifier: "date_picker_confirm",
+                    dismissIdentifier: "date_picker_cancel"
+                )
+                .padding(.horizontal)
+                .padding(.bottom)
             }
-            .sheetDetents([.height(420), .large])
         }
+        .sheetDetents([.height(420), .large])
     }
 
     // 原版本: Instant.atZone(ZoneId.of("Asia/Shanghai")) — iOS 用同目标时区格式化
@@ -140,6 +183,7 @@ struct DatePickerField: View {
 // ← TimePickerField: 点击弹时间选择器, 输入框只读
 struct TimePickerField: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let value: String                  // HH:mm
     let onValueChange: (String) -> Void
     let label: String
@@ -154,12 +198,56 @@ struct TimePickerField: View {
     @State private var selection: TimePickerSession?
 
     var body: some View {
-        Button {
-            // The name/date field may still be first responder when this is tapped.
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
-                                            to: nil, from: nil, for: nil)
-            selection = TimePickerSession(value: value)
-        } label: {
+        Group {
+            if style == .liquidGlass && TimePickerSession(value: value).isValid {
+                VStack(alignment: .leading, spacing: 2) {
+                    DatePicker(label, selection: Binding(
+                        get: { TimePickerSession(value: value).time },
+                        set: { date in
+                            let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                            onValueChange(String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0))
+                        }
+                    ), displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.compact)
+                    .environment(\.locale, Locale(identifier: "en_GB"))
+                    .tint(colors.primary)
+                    .accessibilityIdentifier("time_picker_\(label)")
+                }
+                .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
+            } else if style == .liquidGlass {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(label).font(.caption).foregroundStyle(.secondary)
+                    Button(action: openPicker) {
+                        Label(value.isEmpty
+                              ? (showsPendingHint ? L10n.format("slot_pending") : L10n.format("select_time")) : value,
+                              systemImage: "clock")
+                    }
+                    .buttonStyle(SleepyPlatformButtonStyle())
+                    .controlSize(.large)
+                    .tint(colors.primary)
+                    .accessibilityIdentifier("time_picker_\(label)")
+                }
+                .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
+            } else {
+                classicField
+            }
+        }
+        .sheet(item: $selection) { session in
+            TimePickerDialog(initialTime: session.time) { newValue in
+                onValueChange(newValue)
+            }
+            .id(session.id)
+        }
+    }
+
+    private func openPicker() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
+        selection = TimePickerSession(value: value)
+    }
+
+    private var classicField: some View {
+        Button(action: openPicker) {
             // ← 原 readOnly TextField 形态: 空值 = label 占位; 有值 = label 浮到值上方
             VStack(alignment: .leading, spacing: 2) {
                 if value.isEmpty {
@@ -182,24 +270,18 @@ struct TimePickerField: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(colors.surfaceContainer)
-            .cornerRadius(SleepyTheme.fieldShape)
+            .sleepyControlSurface(cornerRadius: SleepyTheme.fieldShape, tint: colors.surfaceContainer)
             // ← 原 filled TextField, 无描边
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle())
         .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
-        .sheet(item: $selection) { session in
-            TimePickerDialog(initialTime: session.time) { newValue in
-                onValueChange(newValue)
-            }
-            .id(session.id)
-        }
     }
 }
 
 private struct TimePickerSession: Identifiable {
     let id = UUID()
     let time: Date
+    let isValid: Bool
 
     init(value: String) {
         let parts = value.split(separator: ":")
@@ -207,6 +289,7 @@ private struct TimePickerSession: Identifiable {
         let minute = parts.count == 2 ? Int(parts[1]) : nil
         let valid = hour.map { (0...23).contains($0) } == true
             && minute.map { (0...59).contains($0) } == true
+        isValid = valid
         time = Calendar.current.date(bySettingHour: valid ? hour! : 8,
                                      minute: valid ? minute! : 0, second: 0,
                                      of: Date()) ?? Date()

@@ -33,14 +33,17 @@ final class JwEcuplParserTests: XCTestCase {
     // Metadata tables have course titles and week notes, but no actual weekday/period.
     func testMetadataFixturesNeverInventScheduleCoordinates() throws {
         XCTAssertTrue(try JwEcuplParser(metadataOnly()).generateCourseList().isEmpty)
-        XCTAssertTrue(try JwEcuplParser(superSample()).generateCourseList().isEmpty)
+        let metadata = try superSample().replacingOccurrences(of: #"(?is)<script\b[^>]*>.*?</script\s*>"#, with: "", options: .regularExpression)
+        XCTAssertTrue(try JwEcuplParser(metadata).generateCourseList().isEmpty)
     }
 
     // ← 原 JwEcuplParserTest.kt: taskActivityIndexProducesObservedSchedule
     func testTaskActivityIndexProducesObservedSchedule() throws {
         let courses = try JwEcuplParser(mainSample()).generateCourseList()
         XCTAssertFalse(courses.isEmpty)
-        XCTAssertEqual("民法(总则)(001)", courses.first?.name)
+        XCTAssertEqual("民法(总则)", courses.first?.name)
+        XCTAssertEqual(3, courses.first?.credit)
+        XCTAssertEqual("1-16每周", courses.first?.note)
         XCTAssertEqual(1, courses.first?.day)
         XCTAssertEqual(1, courses.first?.startNode)
     }

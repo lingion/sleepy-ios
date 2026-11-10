@@ -23,6 +23,7 @@ import SwiftUI
 import UIKit
 
 struct CustomThemeEditorScreen: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.localWakeUpColors) private var colors
 
     let editing: CustomTheme?
@@ -106,19 +107,19 @@ struct CustomThemeEditorScreen: View {
                     // ── 三动作区(原版本 Column spacedBy(8.dp),整体是外层 12 间距网格的一个 item)──
                     VStack(alignment: .leading, spacing: 8) {
                         EditorActionEntry(
-                            icon: "wand.and.stars",
-                            title: L10n.format("theme_editor_random"),
-                            desc: L10n.format("theme_editor_random_desc"),
-                            onClick: { draft = Self.randomDraft(draft) }
-                        )
-                        EditorActionEntry(
-                            icon: "paintpalette",
+                            icon: .palette,
                             title: L10n.format("theme_editor_from_seed"),
                             desc: L10n.format("theme_editor_from_seed_desc"),
                             onClick: { pickingRole = .seedPrimary }
                         )
                         EditorActionEntry(
-                            icon: "slider.horizontal.3",
+                            icon: .autoAwesome,
+                            title: L10n.format("theme_editor_random"),
+                            desc: L10n.format("theme_editor_random_desc"),
+                            onClick: { draft = Self.randomDraft(draft) }
+                        )
+                        EditorActionEntry(
+                            icon: .tune,
                             title: L10n.format("theme_editor_manual"),
                             desc: L10n.format("theme_editor_manual_desc"),
                             onClick: { withAnimation(.easeInOut(duration: 0.15)) { manualExpanded.toggle() } }
@@ -138,7 +139,8 @@ struct CustomThemeEditorScreen: View {
                                         .foregroundColor(colors.onSurfaceVariant)
                                 }
                             }
-                            .toggleStyle(SwitchToggleStyle(tint: colors.primary))
+                            .toggleStyle(SleepyToggleStyle(showsLabel: true))
+                            .tint(colors.primary)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -196,12 +198,14 @@ struct CustomThemeEditorScreen: View {
                         Text(L10n.format("save"))
                             .font(.system(size: 16, weight: .medium))   // ← titleMedium 16sp Medium (Theme.kt:274)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 56)   // ← SleepyTheme.Buttons.ctaHeight
+                            .frame(height: uiStyle == .liquidGlass ? nil : 56)   // ← SleepyTheme.Buttons.ctaHeight
                             .foregroundColor(isValid ? colors.onPrimary : colors.onSurfaceVariant)
-                            .background(isValid ? colors.primary : colors.surfaceVariant)
-                            .cornerRadius(SleepyShapes.large)   // ← SleepyTheme.Buttons.shape = shapes.large
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large,
+                                                  tint: isValid ? colors.primary : colors.surfaceVariant, prominent: true)   // ← SleepyTheme.Buttons.shape = shapes.large
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .tint(isValid ? colors.primary : colors.surfaceVariant)
                     .disabled(!isValid)
                     .accessibilityIdentifier("theme_editor_save")
 
@@ -209,16 +213,17 @@ struct CustomThemeEditorScreen: View {
                     if editing != nil {
                         Button(action: { showDeleteConfirm = true }) {
                             HStack(spacing: 8) {
-                                Image(systemName: "trash").font(.system(size: 18))   // ← Icons.Outlined.Delete 18.dp
+                                AndroidSettingsIcon(name: .delete, size: 18)   // ← Icons.Outlined.Delete 18.dp
                                 Text(L10n.format("delete")).font(.system(size: 14, weight: .medium))   // ← Button 默认 labelLarge 14sp Medium
                             }
                             .foregroundColor(colors.onErrorContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)   // ← SleepyTheme.Buttons.regularHeight
-                            .background(colors.errorContainer)
-                            .cornerRadius(SleepyShapes.large)   // ← SleepyTheme.Buttons.shape = shapes.large
+                            .frame(height: uiStyle == .liquidGlass ? nil : 48)   // ← SleepyTheme.Buttons.regularHeight
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)   // ← SleepyTheme.Buttons.shape = shapes.large
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .tint(colors.errorContainer)
                         .accessibilityIdentifier("theme_editor_delete")
                     }
                 }
@@ -368,7 +373,7 @@ private typealias Role = ThemeEditorRole
 /// 动作入口卡 — 图标 + 标题 + 说明,整卡可点 ← ActionEntry
 private struct EditorActionEntry: View {
     @Environment(\.localWakeUpColors) private var colors
-    let icon: String
+    let icon: AndroidSettingsIcon.Name
     let title: String
     let desc: String
     let onClick: () -> Void
@@ -376,8 +381,7 @@ private struct EditorActionEntry: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 24))
+                AndroidSettingsIcon(name: icon, size: 24)
                     .foregroundColor(colors.primary)
                     .frame(width: 40, height: 40)
                 VStack(alignment: .leading, spacing: 2) {

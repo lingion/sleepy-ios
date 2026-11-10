@@ -62,15 +62,17 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
         }
 
         // AHU 形态优先匹配 (5 仓 cross-verified 共识):
-        //   1) studentTableVms[0].activities[] (print-data) — 真正课表数据 (weekday/startUnit/...)
+        //   1) studentTableVms[].activities[] (print-data) — 真正课表数据 (weekday/startUnit/...)
         //   2) data.lessons[] (get-data) — metadata-only, 含 courseCode/examMode 但缺节次
         // 逐元素容错 (对齐 原版本 runCatching{el.jsonObject}.getOrNull()?:continue):
         // 数组含脏元素只跳过该行, 不整体作废。
-        if let stVms = root["studentTableVms"] as? [Any], !stVms.isEmpty {
-            let firstTable = stVms.first as? [String: Any]
-            if let activities = firstTable?["activities"] as? [Any], !activities.isEmpty {
+        if root["studentTableVms"] is [Any] || root["studentTableVm"] is [String: Any] {
+            let tables = (root["studentTableVms"] as? [Any] ?? []) + (root["studentTableVm"].map { [$0] } ?? [])
+            var seen = Set<JwCourse>()
+            return tables.flatMap { table -> [JwCourse] in
+                guard let table = table as? [String: Any], let activities = table["activities"] as? [Any] else { return [] }
                 return parseAhuPrintDataActivities(activities)
-            }
+            }.filter { seen.insert($0).inserted }
         }
         if let ahuLessons = (root["data"] as? [String: Any])?["lessons"] as? [Any], !ahuLessons.isEmpty {
             return parseAhuLessons(ahuLessons)
@@ -134,6 +136,7 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
             let startTime = intContent(o["startTime"]) ?? 0
             let endTime = intContent(o["endTime"]) ?? 0
             let periods = intContent(o["periods"]) ?? 1
+            guard (1...7).contains(day), weekIndex > 0, JwCourse.isValidTimeRange(Self.clockTime(startTime), Self.clockTime(endTime)) else { continue }
 
             // issue #46: 布局查表优先 — schedule.startTime 精确等于 unit.startTime (采集包 122/122);
             // endUnit = endTime >= unit.endTime 的最大 indexNo (11 仓实测零失败)。
@@ -158,7 +161,7 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
                 endNode: max(inferred.1, inferred.0),
                 startWeek: weekIndex,
                 endWeek: weekIndex,
-                type: 0))
+                type: 0, startTime: Self.clockTime(startTime), endTime: Self.clockTime(endTime)))
         }
         return out
     }
@@ -187,7 +190,8 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
             let endTime = content(o["endTime"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) ?? 0
             let periods = content(o["periods"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) ?? 1
 
-            guard let inferred = Self.inferNodes(startTime, endTime, periods) else { continue }
+            guard (1...7).contains(day), weekIndex > 0, JwCourse.isValidTimeRange(Self.clockTime(startTime), Self.clockTime(endTime)),
+                  let inferred = Self.inferNodes(startTime, endTime, periods) else { continue }
 
             out.append(JwCourse(
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -198,12 +202,12 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
                 endNode: max(inferred.1, inferred.0),
                 startWeek: weekIndex,
                 endWeek: weekIndex,
-                type: 0))
+                type: 0, startTime: Self.clockTime(startTime), endTime: Self.clockTime(endTime)))
         }
         return out
     }
 
-    /// AHU print-data 形态解析: `studentTableVms[0].activities[]`
+    /// AHU print-data 形态解析: `studentTableVms[].activities[]`
     /// (5 仓 cross-verified 共识: MoeclubM + abydym + Landon-3314 + Zeraora-807 + qiqqqqq517)
     private func parseAhuPrintDataActivities(_ activities: [Any]) -> [JwCourse] {
         var out: [JwCourse] = []
@@ -230,6 +234,9 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
                 }
             }
             if teacher.isEmpty {
+                teacher = (o["teacherDeepVms"] as? [[String: Any]] ?? []).compactMap { ($0["person"] as? [String: Any]).flatMap { content($0["nameZh"]) }?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.joined(separator: "/")
+            }
+            if teacher.isEmpty {
                 teacher = (content(o["teacher"]) ?? content(o["personName"]) ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -237,17 +244,24 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
             // room: campus + building + room 三段拼接 (Landon-3314 实锤)
             let campus = (content(o["campus"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let building = (content(o["building"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let roomNum = (content(o["room"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let directRoom = (content(o["room"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let roomNum = directRoom.isEmpty ? (content(o["customPlace"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines) : directRoom
             let room = [campus, building, roomNum].filter { !$0.isEmpty }.joined(separator: " ")
 
             guard let day = content(o["weekday"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) else { continue }
             guard let startNode = content(o["startUnit"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) else { continue }
             guard let endNode = content(o["endUnit"]).flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) else { continue }
 
-            // weekIndexes bitmap 完整 RLE 解析 — emit 多 JwCourse (单/双周/区间/离散)
-            // 5 仓 cross-validated 2026-09-06: parseWeekRanges 复用 JwParity 端点修正
-            let weekIndexesStr = content(o["weekIndexes"]) ?? ""
-            let weekRanges = Self.parseWeekRanges(weekIndexesStr)
+            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, (1...7).contains(day), startNode > 0, endNode >= startNode else { continue }
+            let sourceStart = (content(o["startDate"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let sourceEnd = (content(o["endDate"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasClock = JwCourse.isValidTimeRange(sourceStart, sourceEnd)
+            let credit = Float(content(o["credits"]) ?? "") ?? 0
+            let weekRanges: [(Int, Int, Int)]
+            if let array = o["weekIndexes"] as? [Any] {
+                let values = array.compactMap { jw1064Integer($0) }
+                weekRanges = values.count == array.count && values.allSatisfy({ $0 > 0 }) ? Set(values).sorted().map { ($0, $0, 0) } : []
+            } else { weekRanges = Self.parseWeekRanges(content(o["weekIndexes"]) ?? "") }
             for (startWeek, endWeek, weekType) in weekRanges {
                 out.append(JwCourse(
                     name: name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -258,80 +272,32 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
                     endNode: max(endNode, startNode),
                     startWeek: startWeek,
                     endWeek: endWeek,
-                    type: weekType))
+                    type: weekType, startTime: hasClock ? sourceStart : "", endTime: hasClock ? sourceEnd : "",
+                    credit: credit.isFinite && credit >= 0 ? credit : 0,
+                    note: (content(o["lessonCode"]) ?? "") + (content(o["lessonRemark"]) ?? "")))
             }
         }
         return out
     }
 
-    /// AHU weekIndexes bitmap 完整 RLE 解析 — emit 多 JwCourse
-    ///
-    /// 真实形态 (5 仓 cross-validated 2026-09-06):
-    ///   "1-16"        → [(1,16,0)]         (全周)
-    ///   "1-16单"      → [(1,15,1)]         (单周; JwParity 端点修正)
-    ///   "1-16双"      → [(2,16,2)]         (双周)
-    ///   "1-8,10-16"   → [(1,8,0), (10,16,0)]   (区间组合)
-    ///   "8,10,12,14"  → [(8,8,0), (10,10,0), (12,12,0), (14,14,0)]  (离散)
-    ///   "5周" / "5"   → [(5,5,0)]          (单值)
-    ///   ""            → [(1,1,0)]          (兜底)
-    ///
-    /// 算法 (借 JwSeuParser.parseWeekRanges 同型, 复用 JwParity.adjustedRange)。
-    /// Sleepy type 语义 (JwParity 共识): 0=每周 1=单周 2=双周
-    static func parseWeekRanges(_ weekIndexes: String) -> [(Int, Int, Int)] {
-        if weekIndexes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [(1, 1, 0)] }
-        // 剥 "周" / 括号形态; 处理 "1-16周" / "1-16(单)" / "1-16 odd" 等
-        let clean = weekIndexes
-            .replacingOccurrences(of: "周", with: "")
-            .replacingOccurrences(of: "（", with: "(")
-            .replacingOccurrences(of: "）", with: ")")
-            .replacingOccurrences(of: "(", with: "(")
-            .replacingOccurrences(of: ")", with: ")")
-        let segments = clean.components(separatedBy: CharacterSet(charactersIn: ",，"))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        if segments.isEmpty { return [(1, 1, 0)] }
-
+    static func parseWeekRanges(_ text: String) -> [(Int, Int, Int)] {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "（", with: "(").replacingOccurrences(of: "）", with: ")")
+        guard !text.isEmpty else { return [] }
         var out: [(Int, Int, Int)] = []
-        for seg in segments {
-            // 段内 parity 检测: "单" / "双" / "odd" / "even" (不区分大小写)
-            let parity: Int
-            if seg.contains("单") || seg.range(of: #"\bodd\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
-                parity = 1
-            } else if seg.contains("双") || seg.range(of: #"\beven\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
-                parity = 2
-            } else {
-                parity = 0
-            }
-            var bare = seg
-                .replacingOccurrences(of: "(单)", with: "")
-                .replacingOccurrences(of: "(双)", with: "")
-                .replacingOccurrences(of: "(单", with: "")
-                .replacingOccurrences(of: "(双", with: "")
-                .replacingOccurrences(of: "单", with: "")
-                .replacingOccurrences(of: "双", with: "")
-            bare = bare.replacingOccurrences(of: "odd", with: "", options: .caseInsensitive)
-            bare = bare.replacingOccurrences(of: "even", with: "", options: .caseInsensitive)
-            bare = bare.trimmingCharacters(in: .whitespacesAndNewlines)
-            if bare.isEmpty { continue }
-            if bare.contains("-") {
-                // 范围: "1-16" 或 "1- 16"
-                // 对齐 原版本 bare.split("-", limit = 2): 只按首个横杠拆两段, 剩余部分保留 —
-                // 畸形 "5-12-16" → a=5, b="12-16" 整串转 Int 失败 → b 回退 a → (5,5,parity)。
-                let dash = bare.firstIndex(of: "-")!
-                let aStr = String(bare[..<dash]).trimmingCharacters(in: .whitespaces)
-                let bStr = String(bare[bare.index(after: dash)...]).trimmingCharacters(in: .whitespaces)
-                guard let a = Int(aStr) else { continue }
-                let b = Int(bStr) ?? a
-                let r = JwParity.adjustedRange(a, b, parity: parity)
-                out.append((r.start, r.end, parity))
-            } else {
-                // 单值: "5" 或 "5周"
-                guard let v = Int(bare) else { continue }
-                let r = JwParity.adjustedRange(v, v, parity: parity)
-                out.append((r.start, r.end, parity))
-            }
+        for part in text.replacingOccurrences(of: "，", with: ",").components(separatedBy: ",") {
+            guard let m = jw1064Matches(#"(?i)^第?([0-9]+)(?:\s*-\s*([0-9]+))?\s*(?:([单双]|odd|even)周?|周(?:\(([单双]|odd|even)周?\))?|\(([单双]|odd|even)周?\))?$"#, part.trimmingCharacters(in: .whitespacesAndNewlines)).first,
+                  let first = jw1064Integer(m[1]), let last = jw1064Integer(m[2].isEmpty ? m[1] : m[2]), first > 0, last >= first else { return [] }
+            let marker = m.dropFirst(3).first { !$0.isEmpty }?.lowercased() ?? ""
+            let parity = marker == "单" || marker == "odd" ? 1 : marker == "双" || marker == "even" ? 2 : 0
+            let start = first + (parity != 0 && first % 2 != parity % 2 ? 1 : 0)
+            if start <= last, !out.contains(where: { $0 == (start, last, parity) }) { out.append((start, last, parity)) }
         }
-        return out.isEmpty ? [(1, 1, 0)] : out
+        return out
+    }
+    private static func clockTime(_ value: Int) -> String {
+        guard value != 0 else { return "" }
+        let text = String(format: "%04d", value)
+        return String(text.prefix(2)) + ":" + String(text.dropFirst(2))
     }
 
     /// 由 startTime/endTime (HHmm) 推断 (startNode, endNode)。
@@ -383,7 +349,7 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
         return nil
     }
 
-    /// AHU print-data studentTableVms[0].activities[] = 100 (含 weekday+节次权威);
+    /// AHU print-data studentTableVms[].activities[] = 100 (含 weekday+节次权威);
     /// AHU get-data data.lessons[] = 85 (metadata-only);
     /// HFUT 双层 = 95; schedule-table/datum = 80
     var confidenceValue: Int {
@@ -396,7 +362,7 @@ final class JwEams5Parser: JwParser, JwParserConfidenceReporting {
 
     var matchedFeatureList: [String] {
         var out: [String] = []
-        if source.contains("studentTableVms") { out.append("studentTableVms[0].activities (AHU print-data)") }
+        if source.contains("studentTableVms") { out.append("studentTableVms[].activities (AHU print-data)") }
         if source.contains("data") && source.contains("\"lessons\"") { out.append("data.lessons (AHU get-data metadata)") }
         if source.contains("scheduleList") { out.append("result.scheduleList") }
         if source.contains("lessonList") { out.append("result.lessonList") }

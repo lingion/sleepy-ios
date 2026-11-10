@@ -22,6 +22,69 @@ private extension Array {
 
 final class WidgetSemanticsTests: XCTestCase {
 
+    func testWideGridWindowUsesPhysicalSlotsAndUnknownEndBlocksAdvance() {
+        let periods = (0..<8).map { WidePeriod(node: 2 * $0 + 1, startMinute: 480 + 50 * $0, endMinute: 525 + 50 * $0) }
+        XCTAssertEqual(WeekGridWideWindowCore.visiblePeriods(periods, nowMinute: 525, capacity: 4),
+                       WidePeriodWindow(startIndex: 1, count: 4))
+        XCTAssertEqual(WeekGridWideWindowCore.visiblePeriods(periods, nowMinute: 1440, capacity: 1),
+                       WidePeriodWindow(startIndex: 4, count: 4))
+        var unknown = periods
+        unknown[1] = WidePeriod(node: 3, startMinute: 530, endMinute: nil)
+        XCTAssertEqual(WeekGridWideWindowCore.visiblePeriods(unknown, nowMinute: 1440, capacity: 4).startIndex, 1)
+        XCTAssertEqual(WeekGridWideWindowCore.visiblePeriods([], nowMinute: 600, capacity: 4).count, 0)
+        XCTAssertEqual(WeekGridWideWindowCore.intersectPeriodSpan(start: 0, end: 6,
+            window: WidePeriodWindow(startIndex: 4, count: 4)), 0..<2)
+        XCTAssertNil(WeekGridWideWindowCore.intersectPeriodSpan(start: 0, end: 4,
+            window: WidePeriodWindow(startIndex: 4, count: 4)))
+    }
+
+    func testWideGridClockParsingMatchesISOLocalTimeBoundaries() {
+        for value in ["09:00", "09:00:30", "09:00:30.", "09:00:30.1", "09:00:30.123456789", " 09:00 "] {
+            XCTAssertEqual(WeekGridWideWindowCore.minute(value), 540, value)
+        }
+        for value in ["9:00", "09:0", "09:00:0", "09::00", "09:00:", "09:00.1",
+                      "09:00:30.1234567890", "09:00:60", "24:00", "09:00:30,1", "09:00:30.１２"] {
+            XCTAssertNil(WeekGridWideWindowCore.minute(value), value)
+        }
+    }
+
+    func testWideGridMalformedEndsStayUnknownInsteadOfAdvancingTheWindow() throws {
+        for malformed in ["9:00", "09:0", "09:00:0", "09::00", "09:00:"] {
+            let rows = (1...6).map { ["node": $0, "start": "08:00", "end": $0 == 1 ? malformed : "09:00"] as [String: Any] }
+            let json = try XCTUnwrap(String(data: JSONSerialization.data(withJSONObject: rows), encoding: .utf8))
+            let periods = WeekGridWideWindowCore.periods(timeJson: json)
+            XCTAssertNil(periods.first?.endMinute, malformed)
+            XCTAssertEqual(WeekGridWideWindowCore.visiblePeriods(periods, nowMinute: 1440, capacity: 4),
+                           WidePeriodWindow(startIndex: 0, count: 4), malformed)
+        }
+    }
+
+    func testWideGridDatesCrossSundayAndDoNotUseNearestBusyDay() throws {
+        let sunday = try XCTUnwrap(DateUtils.parseDate("2026-11-15"))
+        XCTAssertEqual(WeekGridWideWindowCore.visibleDates(today: sunday, mode: .horizontal).map(HolidayTransferOps.dayKey),
+                       ["2026-11-15", "2026-11-16", "2026-11-17"])
+        XCTAssertEqual(WeekGridWideWindowCore.visibleDates(today: sunday, mode: .vertical).map(HolidayTransferOps.dayKey),
+                       (9...15).map { "2026-11-\(String(format: "%02d", $0))" })
+        XCTAssertEqual(WeekGridWideWindowCore.visibleDates(today: sunday, mode: .original).count, 7)
+    }
+
+    func testWideGridStoreHasIndependentDefaultsAndRetainsValidFields() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertEqual(WeekGridWideSettingsStore.read(url: url), WeekGridWideSettings())
+        WeekGridWideSettingsStore.write(WeekGridWideSettings(mode: .horizontal, labelSide: .right), url: url)
+        XCTAssertEqual(WeekGridWideSettingsStore.read(url: url), WeekGridWideSettings(mode: .horizontal, labelSide: .right))
+        XCTAssertEqual(WeekGridWideSettingsStore.read(kind: "other", url: url), WeekGridWideSettings())
+        try Data("{\"WeekGridWideWidget\":{\"mode\":\"future\",\"labelSide\":\"right\"}}".utf8).write(to: url)
+        XCTAssertEqual(WeekGridWideSettingsStore.read(url: url), WeekGridWideSettings(mode: .vertical, labelSide: .right))
+    }
+
+    func testSingleLaneStackKeepsEveryCourseInItsRowHeight() {
+        let courses = [nodeCourse(1, startNode: 1), nodeCourse(2, startNode: 2), nodeCourse(3, startNode: 3)]
+        let row = ConflictLayoutEngine.WeekLaneRow(courses: courses, laneOf: [:], laneCount: 1)
+        XCTAssertEqual(WidgetRowGeometry.rowHeightDp(row), 3 * WidgetRowGeometry.rowH + 2 * WidgetRowGeometry.stackGap)
+    }
+
     // MARK: - fixtures (测试同名构造器)
 
     /// ownTime 课: effectiveCourseTime 直读 startTime/endTime, 分钟完全受控

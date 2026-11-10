@@ -254,6 +254,12 @@ final class AppDatabase {
             try db.execute(sql: "ALTER TABLE courses ADD COLUMN fixedDate TEXT DEFAULT NULL")
         }
 
+        m.registerMigration("v14.addReminderOverride") { db in
+            try db.execute(sql: "ALTER TABLE time_tables ADD COLUMN reminderOverride INTEGER DEFAULT NULL")
+        }
+        m.registerMigration("v15.addImportSource") { db in
+            try db.execute(sql: "ALTER TABLE time_tables ADD COLUMN importSourceJson TEXT NOT NULL DEFAULT ''")
+        }
         return m
     }
 }

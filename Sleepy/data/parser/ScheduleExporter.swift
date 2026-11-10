@@ -86,7 +86,8 @@ enum ScheduleExporter {
                 ("startDate", .string(table.startDate)),
                 ("maxWeek", .int(table.maxWeek)),
                 ("nodesPerDay", .int(table.nodesPerDay)),
-                ("time", .string(table.timeJson))
+                ("time", .string(table.timeJson)),
+                ("importSourceJson", .string(table.importSourceJson))
             ])),
             ("courses", courseArray(courses))
         ])

@@ -10,20 +10,20 @@ enum SleepyNativeExporter {
     /// 文件形态: 末尾追加 z|chk=crc32:xxxxxxxx(文件导出默认写)
     static func exportFile(tableName: String, startDate: String, maxWeek: Int,
                            nodesPerDay: Int, timeJson: String, courses: [CourseEntity],
-                           periodTable: PeriodTableExport? = nil) -> String {
+                           periodTable: PeriodTableExport? = nil, importSourceJson: String = "") -> String {
         let body = buildBody(tableName: tableName, startDate: startDate, maxWeek: maxWeek,
                              nodesPerDay: nodesPerDay, timeJson: timeJson, courses: courses,
-                             periodTable: periodTable)
+                             periodTable: periodTable, importSourceJson: importSourceJson)
         return body + "\nz|chk=crc32:" + SleepyNativeFormat.crc32(body.data(using: .utf8)!)
     }
 
     /// 分享文本形态: 【来自Sleepy】+ 包裹 marker + 无 chk(规范 §1.1)
     static func exportShareText(tableName: String, startDate: String, maxWeek: Int,
                                 nodesPerDay: Int, timeJson: String, courses: [CourseEntity],
-                                periodTable: PeriodTableExport? = nil) -> String {
+                                periodTable: PeriodTableExport? = nil, importSourceJson: String = "") -> String {
         let body = buildBody(tableName: tableName, startDate: startDate, maxWeek: maxWeek,
                              nodesPerDay: nodesPerDay, timeJson: timeJson, courses: courses,
-                             periodTable: periodTable)
+                             periodTable: periodTable, importSourceJson: importSourceJson)
         return "【来自Sleepy】\n课程分享：\n\n<<<SLEEPY-BEGIN>>>\n\(body)\n<<<SLEEPY-END>>>"
     }
 
@@ -39,7 +39,7 @@ enum SleepyNativeExporter {
 
     private static func buildBody(tableName: String, startDate: String, maxWeek: Int,
                                   nodesPerDay: Int, timeJson: String, courses: [CourseEntity],
-                                  periodTable: PeriodTableExport? = nil) -> String {
+                                  periodTable: PeriodTableExport? = nil, importSourceJson: String = "") -> String {
         var sb = ""
         sb += "#sleepy-v1\n"
 
@@ -53,7 +53,9 @@ enum SleepyNativeExporter {
         let hasSameNameMultiGroup = hasSameNameMultipleGroups(courses)
         // n= 计数行(§8.3); 散周 partition 可能拆行, 数字会变; 导出端用 partition 后 C 行数
         let partitionedCount = countAfterPartition(courses)
-        sb += "|n=\(partitionedCount)\n"
+        sb += "|n=\(partitionedCount)"
+        if !importSourceJson.isEmpty { sb += "|source=" + SleepyNativeFormat.escape(importSourceJson) }
+        sb += "\n"
 
         // ---- issue#40: P 行(独立时间节次表, §6 新格式可选区块) ----
         // 携带绑定关系(periodTable 非空)时输出; 旧版本读到 P 行走"未知行类型→dropped+warning"通道, 不硬拒。

@@ -37,7 +37,7 @@ enum SleepyNativeFormat {
 
     /// Kotlin lineSequence() 等价: 只按 \n / \r\n / \r 断行;
     /// U+0085/U+2028/U+2029 **不**断行(Swift .newlines 会断 → 两端切行不一致的根因。issue#F051-2)
-    private static func linesJava(_ s: String) -> [String] {
+    static func linesJava(_ s: String) -> [String] {
         var lines: [String] = []
         var cur = ""
         let scalars = Array(s.unicodeScalars)

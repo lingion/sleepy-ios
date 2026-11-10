@@ -13,9 +13,7 @@ enum SleepyNativeParser {
 
     /// 两遍解析: 先扫 T 行(表级), 再解析其余行
     static func parse(_ trimmed: String, defaultTableId: Int64, defaultColor: String) throws -> ScheduleParser.ParseResult {
-        let lines = trimmed.components(separatedBy: .newlines).map {
-            $0.trimmingCharacters(in: CharacterSet(charactersIn: "\r"))
-        }
+        let lines = SleepyNativeFormat.linesJava(trimmed)
         var dropped: [String] = []
         var warnings: [String] = []
 
@@ -26,6 +24,7 @@ enum SleepyNativeParser {
         var maxWeekRaw: Int?
         var nodesPerDayRaw: Int?
         var declaredCount: Int?
+        var importSourceJson = ""
         var bodyStart = 0
         var foundMagic = false
 
@@ -54,6 +53,7 @@ enum SleepyNativeParser {
                             let k = String(kv[..<eq]).trimmingCharacters(in: .whitespaces)
                             let v = String(kv[kv.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
                             if k == "n" { declaredCount = javaInt(v) }
+                            if k == "source" { importSourceJson = SleepyNativeFormat.unescape(v) }
                             // 未知键静默忽略(v2 契约)
                         }
                     }
@@ -265,7 +265,7 @@ enum SleepyNativeParser {
             warnings: warnings,
             maxWeek: maxWeekClamped ?? 20,
             groupIdsAuthoritative: true,
-            periodTable: periodTable)
+            periodTable: periodTable, importSourceJson: importSourceJson)
     }
 
     /// 本地 isMagicLine — 恒等移植自原版本 SleepyNativeParser.kt:266-267
@@ -522,7 +522,7 @@ enum SleepyNativeParser {
     }
 
     /// 反斜杠感知的竖线切分: \| 不是分隔符
-    private static func splitRespectingEscape(_ body: String) -> [String] {
+    static func splitRespectingEscape(_ body: String) -> [String] {
         var cols: [String] = []
         var sb = ""
         let chars = Array(body)

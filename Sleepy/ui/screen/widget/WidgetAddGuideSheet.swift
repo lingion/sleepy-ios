@@ -41,7 +41,7 @@ struct WidgetAddGuideSheet: View {
                             }
                             .foregroundColor(colors.primary)
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: SleepyShapes.medium))
                         .accessibilityIdentifier("widget_guide_copy")
                     }
                     .padding(.horizontal, 16)

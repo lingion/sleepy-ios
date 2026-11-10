@@ -41,6 +41,7 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
 
     /// ← confidence(): JSON 命中 95 / HTML 命中 90 (iOS 检测层不消费, 保留供对齐)
     var confidenceValue: Int {
+        if !Self.parseDetailPages(source).isEmpty { return 100 }
         if source.contains("\"courseTimeList\"") && source.contains("\"selectedCourse\"") { return 95 }
         if source.contains("个人课表") && source.contains("/course/coursetime/") { return 90 }
         return 0
@@ -48,6 +49,7 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
 
     var matchedFeatureList: [String] {
         var f: [String] = []
+        if !Self.parseDetailPages(source).isEmpty { f.append("ucas:explicit-detail") }
         if source.contains("\"courseTimeList\"") { f.append("json:courseTimeList") }
         if source.contains("\"selectedCourse\"") { f.append("json:selectedCourse") }
         if source.contains("个人课表") { f.append("title:个人课表") }
@@ -69,13 +71,14 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
 
             let weeks = JwUcasParser.decodeWeeks(weekInt)
             if weeks.isEmpty { continue }
-            guard let (day, startNode, endNode) = JwUcasParser.decodeTime(timeInt) else { continue }
-            // 位图周次集合 → 可表示周次段; 带洞集合拆多段, 禁 first..last 有损合并
+            guard let (day, nodes) = Self.decodeTimeNodes(timeInt) else { continue }
+            for (startNode, endNode) in Self.nodeSegments(nodes) {
             for run in JwUcasParser.splitWeekRuns(weeks) {
                 result.append(JwCourse(name: name, room: place, day: day,
                                        startNode: startNode, endNode: endNode,
                                        startWeek: run.startWeek, endWeek: run.endWeek,
                                        type: run.type))
+            }
             }
         }
         return result
@@ -83,17 +86,13 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
 
     /// 兼容两种 JSON 形态: A. 顶层 courseTimeList (拼合文档) B. 嵌套 data 字段 / 顶层数组
     static func extractCourseTimeList(_ raw: String) -> [Any]? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let uncommented = htmlCommentRe.stringByReplacingMatches(in: raw, range: NSRange(raw.startIndex..., in: raw), withTemplate: "")
+        let trimmed = uncommented.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return nil }
-        // 跳过前导 HTML 注释/空白, 找首个 '{' 或 '[' 真正 JSON 起点(优先 '{', 避开注释里 [2:] 误命中)
-        let objStart = trimmed.firstIndex(of: "{")
-        let arrStart = trimmed.firstIndex(of: "[")
-        // ← Kotlin: 有 '{' 就用 '{', 顶层对象更常见, 避开注释里 `[2:]` 这类方括号误命中
-        let jsonStart: String.Index
-        if let o = objStart { jsonStart = o }
-        else if let a = arrStart { jsonStart = a }
+        let jsonBody: String
+        if trimmed.hasPrefix("[") { jsonBody = trimmed }
+        else if let start = trimmed.firstIndex(of: "{") ?? trimmed.firstIndex(of: "[") { jsonBody = String(trimmed[start...]) }
         else { return nil }
-        let jsonBody = String(trimmed[jsonStart...])
         guard let obj = try? JSONSerialization.jsonObject(with: Data(jsonBody.utf8)) else { return nil }
         if let dict = obj as? [String: Any] {
             return (dict["courseTimeList"] as? [Any])
@@ -119,16 +118,26 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
 
     /// courseTime 整数 -> (day, startNode, endNode)。dayBits 不在 DAY_BITS 内 = 数据异常, 返回 nil。
     static func decodeTime(_ timeInt: Int) -> (Int, Int, Int)? {
-        if timeInt <= 0 { return nil }
+        guard let (day, nodes) = decodeTimeNodes(timeInt), let first = nodes.first, let last = nodes.last else { return nil }
+        return (day, first, last)
+    }
+
+    private static func decodeTimeNodes(_ timeInt: Int) -> (Int, [Int])? {
+        guard timeInt > 0 else { return nil }
         let binary = String(timeInt, radix: 2)
-        if binary.count <= 12 { return nil }
-        let dayBits = String(binary.prefix(binary.count - 12))
-        guard let day = JwUcasParser.DAY_BITS[dayBits] else { return nil }
-        let nodeBits = String(String(binary.suffix(12)).reversed())
-        var nodes: [Int] = []
-        for (idx, c) in nodeBits.enumerated() where c == "1" { nodes.append(idx + 1) }
-        if nodes.isEmpty { return nil }
-        return (day, nodes.first!, nodes.last!)
+        guard binary.count > 12, let day = DAY_BITS[String(binary.dropLast(12))] else { return nil }
+        let nodes = binary.suffix(12).reversed().enumerated().compactMap { $0.element == "1" ? $0.offset + 1 : nil }
+        return nodes.isEmpty ? nil : (day, nodes)
+    }
+
+    private static func nodeSegments(_ nodes: [Int]) -> [(Int, Int)] {
+        guard !nodes.isEmpty, nodes.allSatisfy({ (1...EXPLICIT_SCHEDULE_RESOURCE_BOUND).contains($0) }) else { return [] }
+        var result: [(Int, Int)] = []
+        for node in Set(nodes).sorted() {
+            if let last = result.last, node == last.1 + 1 { result[result.count - 1] = (last.0, node) }
+            else { result.append((node, node)) }
+        }
+        return result
     }
 
     /// weeks 列表归类 type: 全单周=1, 全双周=2, 混合=0
@@ -168,16 +177,20 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
     /// "2、3、4、5、7、8" → [2,3,4,5,7,8]。顿号枚举是实测唯一形态, 范围/逗号/全角逗号是宽容超集。
     static func parseNumberList(_ text: String) -> [Int] {
         var out: [Int] = []
-        for m in matches(numToken, text) {
-            guard let aStr = group(m, 1, text), let a = Int(aStr) else { continue }
-            let bStr = group(m, 2, text)
-            if let bStr = bStr, let b = Int(bStr) {
-                if a <= b { out.append(contentsOf: Array(a...b)) }
-            } else {
-                out.append(a)
-            }
+        for token in text.components(separatedBy: CharacterSet(charactersIn: "、，,")) {
+            let clean = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let m = firstMatch(numToken, clean), m.range == NSRange(clean.startIndex..., in: clean),
+                  let a = jw1064Integer(group(m, 1, clean)), let b = jw1064Integer(group(m, 2, clean) ?? group(m, 1, clean)),
+                  (1...366).contains(a), (a...366).contains(b) else { return [] }
+            out.append(contentsOf: a...b)
         }
-        return out
+        return Set(out).sorted()
+    }
+
+    static func parseDetailPages(_ html: String) -> [DetailPage] {
+        guard let doc = try? SwiftSoup.parse(html) else { return [] }
+        let panels = (try? doc.select(".mc-body").array()) ?? []
+        return panels.isEmpty ? [parseDetailPage(html)].compactMap { $0 } : panels.compactMap { parseDetailPage((try? $0.outerHtml()) ?? "") }
     }
 
     /// 任意周次集合 → 可表示周次段。步长 1 → 每周段; 步长 2 → 单/双周段;
@@ -248,7 +261,7 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
     ]
 
     private static let detailTimeRe = try! NSRegularExpression(
-        pattern: #"星期\s*([一二三四五六日天])\s*[：:]\s*第?\s*([\d、，,\s\-–—~至]+?)\s*节"#)
+        pattern: #"^星期\s*([一二三四五六日天])\s*[：:]\s*第?\s*([\d、，,\s\-–—~至]+?)\s*节[。.]?$"#)
     private static let detailNameRe = try! NSRegularExpression(pattern: #"课程名称\s*[：:]\s*([^<\r\n]+?)\s*<"#)
     private static let htmlCommentRe = try! NSRegularExpression(
         pattern: #"<!--.*?-->"#, options: [.dotMatchesLineSeparators])
@@ -258,16 +271,14 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
     /// nil = 页面没有 课程名称 或一个完整块都没有 (非详情页/异常页)。
     static func parseDetailPage(_ html: String) -> DetailPage? {
         let doc = try? SwiftSoup.parse(html)
-        // 课程名称两种形态: ① 真实页 <p>课程名称：X</p> (标签+名同一文本节点);
-        // ② 宽容兼容 th/td 分离行 (课程名称 | X)
-        let stripped = htmlCommentRe.stringByReplacingMatches(
-            in: html, range: NSRange(html.startIndex..., in: html), withTemplate: "")
-        var name = firstGroup(detailNameRe, stripped, 1)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var name: String?
+        for paragraph in (try? doc?.select("p").array()) ?? [] {
+            let text = (try? paragraph.text())?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if let match = Jw64.full(#"课程名称\s*[：:]\s*(.+)"#, text) { name = Jw64.trim(match[1]); break }
+        }
         if name?.isEmpty ?? true {
             name = nil
-            let rows = ((try? doc?.select("tr")) ?? nil)?.array() ?? []
-            for tr in rows {
-                guard cellText(tr, "th") == LABEL_NAME else { continue }
+            for tr in (try? doc?.select("tr").array()) ?? [] where cellText(tr, "th") == LABEL_NAME {
                 if let td = cellText(tr, "td"), !td.isEmpty { name = td; break }
             }
         }
@@ -296,10 +307,10 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
                 if pendingValid {
                     let weeks = parseNumberList(td).filter { $0 > 0 }
                     if !weeks.isEmpty && !pendingNodes.isEmpty {
-                        blocks.append(DetailBlock(day: pendingDay,
-                                                  startNode: pendingNodes.first!,
-                                                  endNode: pendingNodes.last!,
-                                                  room: pendingRoom, weeks: weeks))
+                        for (first, last) in nodeSegments(pendingNodes) {
+                            blocks.append(DetailBlock(day: pendingDay, startNode: first, endNode: last,
+                                                      room: pendingRoom, weeks: weeks))
+                        }
                     }
                 }
                 pendingValid = false
@@ -344,107 +355,66 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
         return String(s[rng])
     }
 
-    /// 网格格子 (课程名 × 星期 × 节次)
-    private struct GridEntry {
+    private struct GridEntry: Hashable {
         let name: String
+        let id: String
         let day: Int
         let node: Int
     }
-
-    /// 详情块 + 其所属课程名 (网格链接文本与详情页 课程名称 同源)
     private struct DetailRef {
         let name: String
-        let block: JwUcasParser.DetailBlock
+        let id: String
+        let block: DetailBlock
     }
+    private static let detailIdPattern = #"/course/coursetime/([0-9]+)"#
 
-    /// HTML 路径: 服务端课表网格 + (可选) 组合源里的详情页段。
-    ///
-    /// 网格定位 (课程名 × 星期 × 节次) 是权威; 详情块仅 enrich 周次/教室,
-    /// 不会凭详情造网格里没有的课。没有详情段时整体回退 1-16 占位。
     private func parseHtml() -> [JwCourse] {
         guard let doc = try? SwiftSoup.parse(source) else { return [] }
-        guard let table = findScheduleTable(doc) else { return [] }
-
-        // 平铺网格格子 → (name, day, node); 同格同名去重
+        guard let table = findScheduleTable(doc) else {
+            return Jw64.distinct(Self.parseDetailPages(source).flatMap { page in page.blocks.flatMap { block in
+                Self.splitWeekRuns(block.weeks).map { run in
+                    JwCourse(name: page.courseName, room: block.room, day: block.day, startNode: block.startNode,
+                             endNode: block.endNode, startWeek: run.startWeek, endWeek: run.endWeek, type: run.type)
+                }
+            } })
+        }
         var entries: [GridEntry] = []
-        let gridRows = ((try? table.getElementsByTag("tr")) ?? nil)?.array() ?? []
-        for row in gridRows {
-            guard let th = (try? row.getElementsByTag("th").first()) ?? nil else { continue }
-            let nodeText = ((try? th.text()) ?? "").trimmingCharacters(in: .whitespaces)
-            guard let node = Int(nodeText) else { continue }
-            let tds = ((try? row.getElementsByTag("td")) ?? nil)?.array() ?? []
-            for (index, cell) in tds.enumerated() {
-                let day = index + 1
-                let links = ((try? cell.select("a[href*=/course/coursetime/]")) ?? nil)?.array() ?? []
-                var names: [String] = []
-                for link in links {
-                    let n = ((try? link.text()) ?? "").trimmingCharacters(in: .whitespaces)
-                    if n.isEmpty || names.contains(n) { continue }
-                    names.append(n)
+        for row in Jw64.select(table, "tbody tr") {
+            guard let node = jw1064Integer(Jw64.text(Jw64.first(row, "th"))), (1...EXPLICIT_SCHEDULE_RESOURCE_BOUND).contains(node) else { continue }
+            for (index, cell) in Jw64.children(row).filter({ $0.tagNameNormal() == "td" }).enumerated() where index < 7 {
+                for link in Jw64.select(cell, "a[href*=/course/coursetime/]") {
+                    let name = Jw64.text(link)
+                    guard !name.isEmpty, let id = Jw64.matches(Self.detailIdPattern, Jw64.attr(link, "href")).first?[1] else { continue }
+                    let entry = GridEntry(name: name, id: id, day: index + 1, node: node)
+                    if !entries.contains(entry) { entries.append(entry) }
                 }
-                for n in names { entries.append(GridEntry(name: n, day: day, node: node)) }
             }
         }
-
-        // 详情段 → 页面模型, 平铺成 (课程名, 块) 列表
-        let allBlocks: [DetailRef] = JwUcasParser.detailSections(source)
-            .compactMap { JwUcasParser.parseDetailPage($0) }
-            .flatMap { page in page.blocks.map { DetailRef(name: page.courseName, block: $0) } }
-
-        // 每个 (name, day, node) 找第一个 (同名 + 同日 + 节次落块区间) 的详情块
-        func blockIndexFor(_ name: String, _ day: Int, _ node: Int) -> Int? {
-            for (i, ref) in allBlocks.enumerated()
-            where ref.name == name && ref.block.day == day
-                && node >= ref.block.startNode && node <= ref.block.endNode {
-                return i
-            }
-            return nil
+        let marker = NSRegularExpression.escapedPattern(for: Self.DETAIL_MARKER_OPEN) + "(.*?)-->(.*?)" + NSRegularExpression.escapedPattern(for: Self.DETAIL_MARKER_CLOSE)
+        let allBlocks: [DetailRef] = Jw64.matches(marker, source).flatMap { section in
+            let id = Jw64.matches(Self.detailIdPattern, section[1]).first?[1] ?? ""
+            return Self.parseDetailPages(section[2]).flatMap { page in page.blocks.map { DetailRef(name: page.courseName, id: id, block: $0) } }
         }
-
-        // 分组键带块身份 → 同一块命中的相邻格子自然共享周次 (Dictionary 无序, 另记插入序)
-        var groupOrder: [String] = []
-        var grouped: [String: (name: String, day: Int, blockIdx: Int?, nodes: [Int])] = [:]
-        for e in entries {
-            let blockIdx = blockIndexFor(e.name, e.day, e.node)
-            let key = "\(e.name)|\(e.day)|\(blockIdx.map(String.init) ?? "nil")"
-            if grouped[key] == nil {
-                groupOrder.append(key)
-                grouped[key] = (e.name, e.day, blockIdx, [])
+        struct Group: Hashable { let name: String; let day: Int; let block: Int }
+        var order: [Group] = [], grouped: [Group: [Int]] = [:]
+        for entry in entries {
+            for (index, ref) in allBlocks.enumerated() where ref.id == entry.id && ref.name == entry.name && ref.block.day == entry.day && (ref.block.startNode...ref.block.endNode).contains(entry.node) {
+                let key = Group(name: entry.name, day: entry.day, block: index)
+                if grouped[key] == nil { order.append(key) }
+                grouped[key, default: []].append(entry.node)
             }
-            grouped[key]!.nodes.append(e.node)
         }
-
         var result: [JwCourse] = []
-        for key in groupOrder {
-            guard let g = grouped[key] else { continue }
-            let room = g.blockIdx.map { allBlocks[$0].block.room } ?? ""
-            let runs: [JwUcasParser.WeekRun]
-            if let idx = g.blockIdx {
-                runs = JwUcasParser.splitWeekRuns(allBlocks[idx].block.weeks)
-            } else {
-                runs = [JwUcasParser.WeekRun(startWeek: JwUcasParser.PROVISIONAL_START_WEEK,
-                                             endWeek: JwUcasParser.PROVISIONAL_END_WEEK,
-                                             type: JwUcasParser.TYPE_DEFAULT)]
-            }
-            // 同组内相邻节次合并 (10,11 → 10-11)
-            var segments: [(Int, Int)] = []
-            for n in g.nodes.sorted() {
-                if let last = segments.last, n == last.1 + 1 {
-                    segments[segments.count - 1] = (last.0, n)
-                } else {
-                    segments.append((n, n))
-                }
-            }
-            for seg in segments {
-                for run in runs {
-                    result.append(JwCourse(name: g.name, room: room, day: g.day,
-                                           startNode: seg.0, endNode: seg.1,
-                                           startWeek: run.startWeek, endWeek: run.endWeek,
-                                           type: run.type))
+        for key in order {
+            let block = allBlocks[key.block].block
+            for (first, last) in Self.nodeSegments(grouped[key] ?? []) {
+                for run in Self.splitWeekRuns(block.weeks) {
+                    result.append(JwCourse(name: key.name, room: block.room, day: key.day, startNode: first, endNode: last,
+                                           startWeek: run.startWeek, endWeek: run.endWeek, type: run.type))
                 }
             }
         }
-        return result
+        return Jw64.distinct(result)
     }
 
     private func findScheduleTable(_ doc: Document) -> Element? {
@@ -468,7 +438,7 @@ final class JwUcasParser: JwParser, JwParserConfidenceReporting {
     }
 
     private func optInt(_ d: [String: Any], _ k: String) -> Int? {
-        guard let v = d[k], !(v is NSNull) else { return nil }
-        return v as? Int ?? (v as? String).flatMap(Int.init)
+        guard let value = d[k], !(value is NSNull) else { return nil }
+        return jw1064Integer(Jw64.text(d, k))
     }
 }

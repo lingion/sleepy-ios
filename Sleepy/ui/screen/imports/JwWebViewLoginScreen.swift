@@ -74,6 +74,7 @@ struct JwWebViewLoginScreen: View {
     // (WISEDU_FETCH_JS 定义在文件尾 WiseduFetchJs enum; 前置引用走 static)
 
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let school: JwSchoolInfo
     // termStartDate ← 原版本 JwWebViewLoginScreen 第 4 回调参数: JSON 直连协议
     // (boya_pp 等) 从接口拿到的第一周周一, 供确认页开学日期预填; 无则空串
@@ -89,12 +90,18 @@ struct JwWebViewLoginScreen: View {
     // 接线对话框归集成者(JwImportFlow 侧), 见 needs_shared_wiring。
     var onCaptureError: ((FrameCaptureResult, String) -> Void)? = nil
 
+    var selectedSgAdapterId: String = ""
+    var onSgAdapterSelected: ((String) -> Void)? = nil
+    @State private var chosenSgAdapterId = ""
+    @State private var sgAdapterChoices: [JwSgAssetBridge.Manifest.Adapter] = []
+    @State private var showSgAdapterChoices = false
     @State private var progress: Double = 0
     @State private var webViewCoordinator: WebViewCoordinator? = nil
     @State private var snackMessage: String? = nil
     // ← desktopUa = remember { mutableStateOf(false) } — 默认手机 UA。
     // 原版本 本屏无持久化(纯会话态, 离开页面即重置), iOS @State 等价
     @State private var desktopUa = false
+    @State private var thuCaptureToken = UUID()
     // ← currentUrl = remember { mutableStateOf(school.url) } — 导航回调回写的实时 URL,
     // 顶栏副标题显示(title Column 第二行 Text(currentUrl))
     @State private var currentUrl: String = ""
@@ -108,13 +115,18 @@ struct JwWebViewLoginScreen: View {
          onBack: (() -> Void)? = nil,
          onDismiss: @escaping () -> Void,
          onWebViewReady: ((WebViewCoordinator) -> Void)? = nil,
-         onCaptureError: ((FrameCaptureResult, String) -> Void)? = nil) {
+         onCaptureError: ((FrameCaptureResult, String) -> Void)? = nil,
+         selectedSgAdapterId: String = "",
+         onSgAdapterSelected: ((String) -> Void)? = nil) {
         self.school = school
         self.onHtmlCaptured = onHtmlCaptured
         self.onBack = onBack
         self.onDismiss = onDismiss
         self.onWebViewReady = onWebViewReady
         self.onCaptureError = onCaptureError
+        self.selectedSgAdapterId = selectedSgAdapterId
+        self.onSgAdapterSelected = onSgAdapterSelected
+        _chosenSgAdapterId = State(initialValue: selectedSgAdapterId)
         _desktopUa = State(initialValue: JwClassicEamsFetch.initialDesktopUa(school))
     }
 
@@ -126,11 +138,15 @@ struct JwWebViewLoginScreen: View {
                 Button(action: {
                     if editingUrl { editingUrl = false } else { backOrDismiss() }
                 }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 24))   // ← 原 ArrowBack 默认 24dp regular
+                    AndroidSettingsIcon(name: .arrowBack, size: 24)   // ← 原 ArrowBack 默认 24dp regular
                         .foregroundColor(colors.onBackground)
+                        .frame(width: style == .classic ? 48 : nil,
+                               height: style == .classic ? 48 : nil)
+                        .contentShape(Circle())
                 }
-                .buttonStyle(SleepyButtonStyle())
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                .frame(width: 48, height: 48)
+                .contentShape(Circle())
                 .accessibilityLabel(L10n.format("back"))   // ← contentDescription = R.string.back
                 // ← title: editingUrl ? OutlinedTextField(urlDraft) : Column(name, currentUrl)
                 if editingUrl {
@@ -173,14 +189,23 @@ struct JwWebViewLoginScreen: View {
                         editingUrl = true
                     }
                 }) {
-                    Image(systemName: editingUrl ? "checkmark" : "square.and.pencil")
-                        .font(.system(size: 24))   // ← M3 Icon 24dp
-                        .frame(width: 40, height: 40)
+                    Group {
+                        if editingUrl {
+                            AndroidMaterialIcon(name: .check, size: 24)
+                        } else {
+                            AndroidSettingsIcon(name: .edit, size: 24)
+                        }
+                    }   // ← M3 Icon 24dp
+                        .frame(width: style == .liquidGlass ? nil : 48,
+                               height: style == .liquidGlass ? nil : 48)
+                        .contentShape(Circle())
                         .foregroundColor(webViewCoordinator == nil
                             ? colors.onSurface.opacity(0.38)
                             : colors.onBackground)
                 }
-                .buttonStyle(SleepyButtonStyle())
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                .frame(width: 48, height: 48)
+                .contentShape(Circle())
                 .disabled(webViewCoordinator == nil)
                 .accessibilityLabel(L10n.format(editingUrl ? "jw_url_submit" : "jw_edit_url"))
                 .accessibilityIdentifier("jw_edit_url")
@@ -189,14 +214,17 @@ struct JwWebViewLoginScreen: View {
                     // 图标随状态切换: 手机 UA → Computer(点了变桌面), 桌面 UA → PhoneMobile
                     // (点了回手机); enabled = webViewRef != null
                     Button(action: toggleDesktopUa) {
-                        Image(systemName: uaToggleSymbol)
-                            .font(.system(size: 24))   // ← M3 Icon 24dp
-                            .frame(width: 40, height: 40)   // ← M3 IconButton 40×40
+                        AndroidSettingsIcon(name: desktopUa ? .phoneAndroid : .computer, size: 24)   // ← M3 Icon 24dp
+                            .frame(width: style == .liquidGlass ? nil : 48,
+                                   height: style == .liquidGlass ? nil : 48)
+                            .contentShape(Circle())
                             .foregroundColor(webViewCoordinator == nil
                                 ? colors.onSurface.opacity(0.38)   // ← disabled: onSurface 38%
                                 : colors.onBackground)   // ← actionIconContentColor
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
                     .disabled(webViewCoordinator == nil)
                     // ← contentDescription: jw_toggle_mobile_ua / jw_toggle_desktop_ua
                     .accessibilityLabel(L10n.format(desktopUa ? "jw_toggle_mobile_ua"
@@ -205,14 +233,17 @@ struct JwWebViewLoginScreen: View {
                     // ← actions 刷新 IconButton: webViewRef?.reload(); 刷新进度表现由
                     // estimatedProgress KVO 驱动上方进度条(原 progress 1..99 同判)
                     Button(action: { webViewCoordinator?.reload() }) {
-                        Image(systemName: "arrow.clockwise")   // ← Icons.Outlined.Refresh
-                            .font(.system(size: 24))
-                            .frame(width: 40, height: 40)
+                        AndroidSettingsIcon(name: .refresh, size: 24)   // ← Icons.Outlined.Refresh
+                            .frame(width: style == .liquidGlass ? nil : 48,
+                                   height: style == .liquidGlass ? nil : 48)
+                            .contentShape(Circle())
                             .foregroundColor(webViewCoordinator == nil
                                 ? colors.onSurface.opacity(0.38)
                                 : colors.onBackground)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
                     .disabled(webViewCoordinator == nil)
                     .accessibilityLabel(L10n.format("jw_refresh"))   // ← contentDescription
                     .accessibilityIdentifier("jw_refresh")
@@ -231,11 +262,13 @@ struct JwWebViewLoginScreen: View {
                     // ← onNavigationUrlChanged: !editingUrl 时回写 currentUrl
                     //   (编辑态不覆盖用户正在输入的草稿)
                     onUrlChanged: { url in
+                        thuCaptureToken = UUID()
                         if !editingUrl, let url = url, !url.isEmpty { currentUrl = url }
                     },
                     onCoordinatorCreated: { coordinator in
                         webViewCoordinator = coordinator
                         currentUrl = coordinator.currentURLString ?? school.url
+                        prepareSgAdapter(coordinator)
                         onWebViewReady?(coordinator)   // 排查包导出通道 (dump JS 段引)
                     },
                     onHtmlCaptured: { html in onHtmlCaptured(html, school, [], "") },
@@ -264,27 +297,40 @@ struct JwWebViewLoginScreen: View {
                 Spacer()
                 Button(action: capture) {
                     HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle")
-                            .font(.system(size: 24))   // ← 原 CheckCircle 默认 24dp
+                        AndroidSettingsIcon(name: .checkCircle, size: 24)   // ← 原 CheckCircle 默认 24dp
                         Text(L10n.format("jw_import_page"))
                     }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(webViewCoordinator == nil
                         ? colors.onSurface.opacity(0.38)   // ← 原 disabled: onSurface 38%
                         : colors.onPrimary)
-                    .padding(.horizontal, 24)   // ← M3 Button ContentPadding 24/8 (高 40)
-                    .padding(.vertical, 8)
-                    .background(webViewCoordinator == nil
-                        ? colors.onSurface.opacity(0.12)   // ← 原 disabled: onSurface 12% 容器
-                        : colors.primary)
-                    .cornerRadius(SleepyShapes.extraLarge)
+                    .padding(.horizontal, style == .liquidGlass ? 0 : 24)   // ← M3 Button ContentPadding 24/8 (高 40)
+                    .padding(.vertical, style == .liquidGlass ? 0 : 8)
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.extraLarge,
+                        tint: webViewCoordinator == nil ? colors.onSurface.opacity(0.12) : colors.primary,
+                        prominent: true)
                 }
-                .buttonStyle(SleepyButtonStyle())
+                .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.extraLarge))
+                .frame(minHeight: style == .liquidGlass ? 44 : nil)
+                .tint(webViewCoordinator == nil ? colors.onSurface.opacity(0.12) : colors.primary)
                 .disabled(webViewCoordinator == nil)   // ← 原 enabled = webViewRef != null
             }
             .padding(16)
             .background(colors.surface)
         }
+        .confirmationDialog(L10n.t("jw_sg_choose_adapter"), isPresented: $showSgAdapterChoices, titleVisibility: .visible) {
+            ForEach(sgAdapterChoices) { adapter in
+                Button((adapter.adapterName?.isEmpty == false ? adapter.adapterName! : adapter.id) + " · " + adapter.importUrl) {
+                    chosenSgAdapterId = adapter.id
+                    onSgAdapterSelected?(adapter.id)
+                    if let url = URL(string: adapter.importUrl), ["http", "https"].contains(url.scheme ?? "") {
+                        webViewCoordinator?.webView?.load(URLRequest(url: url))
+                    }
+                }
+            }
+            Button(L10n.t("cancel"), role: .cancel) {}
+        }
+        .onDisappear { thuCaptureToken = UUID(); webViewCoordinator?.cancelFetch() }
         .overlay(alignment: .bottom) {
             if let msg = snackMessage {
                 Text(msg)
@@ -304,13 +350,6 @@ struct JwWebViewLoginScreen: View {
                     }
             }
         }
-    }
-
-    // ← Icons.Outlined.Computer / Phone原版本; "iphone" SF Symbol 需 iOS16, 低版本回退
-    private var uaToggleSymbol: String {
-        guard desktopUa else { return "desktopcomputer" }
-        if #available(iOS 16.0, *) { return "iphone" }
-        return "phone"
     }
 
     // ← BackHandler: editingUrl 退编辑 → wv.canGoBack() ? goBack() : onBack()
@@ -375,6 +414,21 @@ struct JwWebViewLoginScreen: View {
 
     // ← CaptureBar onCapture: 派发全协议; fetch JS 一律过 20s 超时闸
     // (evaluateFetchWithTimeout, 禁无限 pending — 教务宕机时桥回调永不到达)。
+    private func prepareSgAdapter(_ coordinator: WebViewCoordinator) {
+        guard school.type == JwProtocol.TYPE_SG_ASSET else { return }
+        do {
+            let choices = try JwSgAssetBridge.entries(schoolName: school.name)
+            sgAdapterChoices = choices
+            if let restored = JwSgAssetBridge.restoreChoice(choices, savedId: chosenSgAdapterId) {
+                chosenSgAdapterId = restored.id
+                onSgAdapterSelected?(restored.id)
+                if let url = URL(string: restored.importUrl), ["http", "https"].contains(url.scheme ?? "") {
+                    coordinator.webView?.load(URLRequest(url: url))
+                }
+            } else { showSgAdapterChoices = true }
+        } catch { snackMessage = error.localizedDescription }
+    }
+
     private func capture() {
         guard let coordinator = webViewCoordinator else {
             // ← 原版本 webViewRef==null 分支走 onCaptureError(webviewNotReadyMsg)
@@ -384,10 +438,21 @@ struct JwWebViewLoginScreen: View {
             return
         }
         snackMessage = L10n.format("jw_fetching")
+        let pageCaptureToken = UUID()
+        thuCaptureToken = pageCaptureToken
         let fetchURL = coordinator.currentURLString ?? ""
+        if let capture = Jw1064CaptureScripts.selection(type: school.type, currentUrl: fetchURL) {
+            coordinator.evaluateFetchWithTimeout(capture.script, timeout: capture.timeout)
+            return
+        }
         if school.type == JwProtocol.TYPE_SG_ASSET {
             do {
-                coordinator.evaluateFetchWithTimeout(try JwSgAssetBridge.bridgeJs(schoolName: school.name))
+                guard JwSgAssetBridge.restoreChoice(sgAdapterChoices, savedId: chosenSgAdapterId) != nil else {
+                    showSgAdapterChoices = true; return
+                }
+                let id = UUID().uuidString
+                coordinator.evaluateFetchWithTimeout(try JwSgAssetBridge.bridgeJs(schoolName: school.name,
+                    selectedAdapterId: chosenSgAdapterId, sessionId: id), timeout: 120, captureId: id)
             } catch {
                 showCaptureError(FrameCaptureResult(selectedFramePath: nil, html: "",
                     matchedAnchors: [], status: .unknown), error.localizedDescription)
@@ -455,7 +520,7 @@ struct JwWebViewLoginScreen: View {
             let prefix = Eams5PathPrefix.fromSchoolUrl(school.url)
             let isAhu = school.url.lowercased().contains("ahu.edu.cn")
                 || fetchURL.lowercased().contains("ahu.edu.cn")
-            let template = isAhu ? Eams5AhuFetchJs.js : Eams5FetchJs.js
+            let template = isAhu ? Jw1064CaptureScripts.JwAhuCapture : Eams5FetchJs.js
             coordinator.evaluateFetchWithTimeout(
                 template.replacingOccurrences(of: EAMS5_PREFIX_PLACEHOLDER, with: prefix))
             return
@@ -463,19 +528,10 @@ struct JwWebViewLoginScreen: View {
         // T5: 新版正方 — WebView 内 fetch kbList JSON。
         // 路径指纹: school.type 显式 zf_new, 或 URL 含 /jwglxt/、/kbcx/ (广东医科等新版),
         // 或 WebVPN /http/<hex>/ 重写形态; QZ_IEAS (移动教务 ieas2.1) 不派发 ZF_NEW。
-        let lowerURL = fetchURL.lowercased()
-        let isIeas = school.type == JwProtocol.TYPE_QZ_IEAS
-            || lowerURL.contains("/ieas2.1/")
-        let hasHexWebvpn = jwWebvpnHexRegex.firstMatch(
-            in: fetchURL, range: NSRange(fetchURL.startIndex..., in: fetchURL)) != nil
-        let isZfNew = !isIeas && (school.type == JwProtocol.TYPE_ZF_NEW
-            || lowerURL.contains("/jwglxt/")
-            || lowerURL.contains("/kbcx/")
-            || hasHexWebvpn)
+        let isZfNew = Jw1064CaptureScripts.shouldUseZfNewFetch(type: school.type, currentUrl: fetchURL)
         if isZfNew {
-            // ← 原版本: ZF_NEW 派发是裸 evaluateJavascript(不经超时闸)——该 JS 同步路径
-            // 必有回调, 与其余 fetch 模板同口径闸反而偏离 原版本 行为, 保持镜像
-            coordinator.evaluate(JwZfNewFetchJs.js)
+            // Use the capture gate so navigation and timeouts invalidate stale results.
+            coordinator.evaluateFetchWithTimeout(JwZfNewFetchJs.js)
             return
         }
         // T7: DFS frame 抓取 + ready 重试, 决策在 Swift 层(可测可日志)。
@@ -489,7 +545,26 @@ struct JwWebViewLoginScreen: View {
             let hint = JwCaptureGuidance.errorHint(for: r, schoolType: school.type, currentURL: liveURL)
             switch r.status {
             case .ok, .emptySemester:
-                onHtmlCaptured(r.html, school, [], "")
+                if school.type == JwProtocol.TYPE_THU {
+                    Task { @MainActor in
+                        do {
+                            let payload = try await JwThuSemesterCapture.capture(r.html)
+                            guard thuCaptureToken == pageCaptureToken, coordinator.currentURLString == liveURL else { return }
+                            coordinator.captureOnce { current in
+                                guard thuCaptureToken == pageCaptureToken else { return }
+                                guard coordinator.currentURLString == liveURL,
+                                      current.status == .ok || current.status == .emptySemester,
+                                      JwThuCapturePayload.sameSemester(r.html, current.html) else {
+                                    showCaptureError(current, "采集期间学期或页面已改变，请重新导入"); return
+                                }
+                                onHtmlCaptured(payload, school, [], "")
+                            }
+                        } catch {
+                            guard thuCaptureToken == pageCaptureToken else { return }
+                            showCaptureError(r, error.localizedDescription)
+                        }
+                    }
+                } else { onHtmlCaptured(r.html, school, [], "") }
             case .sessionExpired, .crossDomainIframeBlocked, .containerEmptyAfterDelay,
                  .iframeNavPending, .wrongPage, .unknown:
                 showCaptureError(r, hint)
@@ -552,7 +627,29 @@ struct JwWebViewLoginScreen: View {
                 }
             }
             let effectiveStartDate = termStart.isEmpty ? termStartDate : termStart
-            onHtmlCaptured(content, school, periods, effectiveStartDate)
+            var payload = content
+            if school.type == JwProtocol.TYPE_SG_ASSET {
+                let adapter = JwSgAssetBridge.restoreChoice(sgAdapterChoices, savedId: chosenSgAdapterId)
+                var provenance: [String: Any] = [:]
+                if let adapter {
+                    provenance = ["schoolId": adapter.schoolId ?? "", "adapterId": adapter.id, "name": adapter.adapterName ?? "",
+                                  "category": adapter.category ?? "", "importUrl": adapter.importUrl]
+                }
+                do {
+                    payload = try JwSgSourceMetadata.stringify(["sleepySgAsset": true,
+                        "coursesJson": content, "config": obj["sgConfig"] as? [String: Any] ?? [:], "adapter": provenance])
+                    _ = try JwSgSourceMetadata.capture(payload, school.type)
+                } catch { snackMessage = error.localizedDescription; return }
+            }
+            var capturedSchool = school
+            if obj["protocol"] as? String == "chaoxing_share",
+               Jw1064CaptureScripts.isChaoxingShareUrl(webViewCoordinator?.currentURLString ?? "") {
+                capturedSchool.type = "chaoxing_share"
+            } else if school.type == JwProtocol.TYPE_SG_ASSET,
+                      let adapter = JwSgAssetBridge.restoreChoice(sgAdapterChoices, savedId: chosenSgAdapterId) {
+                capturedSchool.url = adapter.importUrl
+            }
+            onHtmlCaptured(payload, capturedSchool, periods, effectiveStartDate)
         } else {
             let err = (obj["err"] as? String) ?? ""
             let msg = L10n.format("jw_fetch_failed",
@@ -606,6 +703,11 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
     private let initialDesktopUa: Bool
     private let onUrlChanged: (String?) -> Void
     private var lastNavUrl: String?
+    private let fetchBudget = JwFetchBudget()
+    private var fetchTimeoutWork: DispatchWorkItem?
+    private var sgRequests: [[String: Any]] = []
+    private var sgAttempts: [Int: Int] = [:]
+    private var sgAlert: UIAlertController?
 
     init(school: JwSchoolInfo,
          desktopUa: Bool,
@@ -634,6 +736,8 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
         // 行为零变化
         // ← addJavascriptInterface(__sleepyBridge) → ScriptMessageHandler
         config.userContentController.add(self, name: "__sleepyBridge")
+        config.userContentController.add(self, name: "__sleepySgInteraction")
+        config.userContentController.add(self, name: "__sleepySgAcknowledged")
         // ← addJavascriptInterface(DiagnosticNetworkBridge("__sleepyNetworkBridge")):
         // recorder 兼容增量回调(权威导出走 pull)→ recordJsNetwork。
         config.userContentController.add(self, name: "__sleepyNetworkBridge")
@@ -718,17 +822,90 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
     // ← evaluateFetchWithTimeout: evaluateJavascript 无内建超时, 教务宕机/挂起时
     // 桥回调永远不来, 用户只见「正在抓取」无限 pending。20s 无回调即报超时
     // (禁无限 pending)。状态 CONTAINER_EMPTY_AFTER_DELAY, hint = jw_fetch_timeout。
-    func evaluateFetchWithTimeout(_ js: String) {
+    func evaluateFetchWithTimeout(_ js: String, timeout: TimeInterval = jwFetchTimeoutSeconds,
+                                  captureId: String = UUID().uuidString) {
         guard let wv = webView else { return }
-        let gate = JwTimeoutGate()
-        wv.evaluateJavaScript(js) { _, _ in gate.answered = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + jwFetchTimeoutSeconds) {
-            guard !gate.answered else { return }
-            self.onCaptureError(
-                FrameCaptureResult(selectedFramePath: nil, html: "",
-                                   matchedAnchors: [], status: .containerEmptyAfterDelay),
-                L10n.format("jw_fetch_timeout"))
+        cancelFetch()
+        fetchBudget.begin(id: captureId, timeout: timeout)
+        scheduleFetchTimeout(captureId)
+        wv.evaluateJavaScript(scopeJwFetchScript(js, captureId: captureId)) { [weak self] _, error in
+            guard let self, let error, (error as NSError).code != WKError.javaScriptResultTypeIsUnsupported.rawValue,
+                  self.fetchBudget.complete(id: captureId) else { return }
+            self.fetchTimeoutWork?.cancel()
+            self.onCaptureError(FrameCaptureResult(selectedFramePath: nil, html: "", matchedAnchors: [], status: .unknown), error.localizedDescription)
         }
+    }
+
+    private func scheduleFetchTimeout(_ id: String) {
+        fetchTimeoutWork?.cancel()
+        guard let seconds = fetchBudget.remainingSeconds(id: id) else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.fetchBudget.captureId == id else { return }
+            self.cancelFetch()
+            self.onCaptureError(FrameCaptureResult(selectedFramePath: nil, html: "", matchedAnchors: [], status: .containerEmptyAfterDelay), L10n.format("jw_fetch_timeout"))
+        }
+        fetchTimeoutWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
+    }
+
+    func cancelFetch() {
+        if let id = fetchBudget.captureId,
+           let quoted = try? JwSgSourceMetadata.stringify([id]) {
+            webView?.evaluateJavaScript("if(window.SleepySgShim)SleepySgShim.cancelSession(" + String(quoted.dropFirst().dropLast()) + ");", completionHandler: nil)
+        }
+        fetchBudget.cancel(); fetchTimeoutWork?.cancel(); fetchTimeoutWork = nil
+        sgAlert?.dismiss(animated: false); sgAlert = nil; sgRequests = []; sgAttempts = [:]
+    }
+
+    private func receiveSgInteraction(_ request: [String: Any]) {
+        guard let id = request["sessionId"] as? String, id == fetchBudget.captureId,
+              request["requestId"] is NSNumber, let kind = request["kind"] as? String,
+              ["alert", "prompt", "selection"].contains(kind) else { return }
+        sgRequests.append(request)
+        fetchBudget.setWaiting(id: id, waiting: true); fetchTimeoutWork?.cancel()
+        if sgRequests.count == 1 { presentSgInteraction() }
+    }
+
+    private func presentSgInteraction(error: String = "") {
+        guard let request = sgRequests.first, let session = request["sessionId"] as? String,
+              session == fetchBudget.captureId, let requestId = request["requestId"] as? Int else { return }
+        let kind = request["kind"] as? String ?? ""
+        let detail = error.isEmpty ? (request[kind == "alert" ? "content" : "tip"] as? String ?? "") : error
+        let alert = UIAlertController(title: request["title"] as? String, message: detail, preferredStyle: .alert)
+        sgAlert = alert
+        if kind == "prompt" { alert.addTextField { $0.text = request["defaultText"] as? String ?? "" } }
+        if kind == "selection", let items = request["items"] as? [String] {
+            for (index, item) in items.enumerated() {
+                alert.addAction(UIAlertAction(title: item, style: .default) { [weak self] _ in self?.respondSg(session, requestId, index) })
+            }
+        } else {
+            alert.addAction(UIAlertAction(title: (request["confirmText"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? L10n.t("confirm"), style: .default) { [weak self, weak alert] _ in
+                self?.respondSg(session, requestId, kind == "alert" ? true : (alert?.textFields?.first?.text ?? ""))
+            })
+        }
+        alert.addAction(UIAlertAction(title: L10n.t("cancel"), style: .cancel) { [weak self] _ in self?.respondSg(session, requestId, kind == "alert" ? false : NSNull()) })
+        var presenter = webView?.window?.rootViewController
+        while let next = presenter?.presentedViewController, !(next is UIAlertController) { presenter = next }
+        presenter?.present(alert, animated: true)
+    }
+
+    private func respondSg(_ session: String, _ request: Int, _ value: Any) {
+        guard session == fetchBudget.captureId else { return }
+        let attempt = (sgAttempts[request] ?? 0) + 1; sgAttempts[request] = attempt
+        guard let args = try? JwSgSourceMetadata.stringify([session, request, attempt, value]) else { return }
+        webView?.evaluateJavaScript("SleepySgShim.respond.apply(null," + args + ");", completionHandler: nil)
+    }
+
+    private func acknowledgeSgInteraction(_ ack: [String: Any]) {
+        guard let session = ack["sessionId"] as? String, session == fetchBudget.captureId,
+              let request = ack["requestId"] as? Int, let active = sgRequests.first,
+              active["requestId"] as? Int == request, ack["attemptId"] as? Int == sgAttempts[request] else { return }
+        sgAlert = nil
+        if ack["accepted"] as? Bool == true {
+            sgRequests.removeFirst(); sgAttempts[request] = nil
+            if sgRequests.isEmpty { fetchBudget.setWaiting(id: session, waiting: false); scheduleFetchTimeout(session) }
+            else { DispatchQueue.main.async { self.presentSgInteraction() } }
+        } else { DispatchQueue.main.async { self.presentSgInteraction(error: ack["error"] as? String ?? "") } }
     }
 
     // ← captureOnce: evaluateJavascript(CAPTURE_FRAMES_JS + "(8);") → selectBestFrame。
@@ -742,7 +919,10 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
             }
             return
         }
-        wv.evaluateJavaScript(CaptureFramesJs.js + "(8);") { result, _ in
+        let frameScript = school.type == JwProtocol.TYPE_THU
+            ? CaptureFramesJs.js.replacingOccurrences(of: "win.document.documentElement.outerHTML", with: JwThuSemesterCapture.liveHtmlJs)
+            : CaptureFramesJs.js
+        wv.evaluateJavaScript(frameScript + "(8);") { result, _ in
             guard let raw = result as? String, !raw.isEmpty, raw != "null" else {
                 onResult(FrameCaptureResult(selectedFramePath: nil, html: "",
                                             matchedAnchors: [], status: .wrongPage,
@@ -756,7 +936,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
                let unquoted = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? String {
                 payload = unquoted
             }
-            onResult(FrameTraversalTree.selectBestFrame(FrameSnapshotList.fromJson(payload)))
+            onResult(FrameTraversalTree.selectBestFrame(FrameSnapshotList.fromJson(payload), declaredType: self.school.type))
         }
     }
 
@@ -888,6 +1068,10 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
         clientDelegate?.webView(webView, didCommit: navigation)
     }
 
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        cancelFetch()
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         clientDelegate?.webView(webView, didFinish: navigation)
     }
@@ -928,8 +1112,15 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
         case "__sleepyBridge":
             if let body = message.body as? [String: Any],
                let json = body["json"] as? String {
+                guard let payload = JwSgSourceMetadata.object(json), let id = payload["captureId"] as? String,
+                      fetchBudget.complete(id: id) else { return }
+                fetchTimeoutWork?.cancel(); sgAlert?.dismiss(animated: false); sgAlert = nil; sgRequests = []
                 DispatchQueue.main.async { self.onWiseduResult(json) }
             }
+        case "__sleepySgInteraction":
+            if let request = message.body as? [String: Any] { receiveSgInteraction(request) }
+        case "__sleepySgAcknowledged":
+            if let ack = message.body as? [String: Any] { acknowledgeSgInteraction(ack) }
         case "__sleepyNetworkBridge":
             // recorder 增量 flush 兼容通道(权威导出走 pull)— ← recordJsNetwork
             if let json = message.body as? String {

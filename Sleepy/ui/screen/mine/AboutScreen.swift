@@ -1,11 +1,12 @@
 // AboutScreen.swift — ← ui/screen/mine/AboutScreen.kt
-// 关于页: App 名+版本 / 作者 / 源码 / 隐私 / 反馈 / QQ 群 / 许可证。
+// 关于页: App 名+版本 / 反馈 / QQ 群 / 作者 / 源码 / 隐私 / 许可证。
 // (1.0.64: 获取更新切片移除 — 分发收敛到 App Store/TestFlight, GitHub 仅源码公开。)
 
 import SwiftUI
 
 struct AboutScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var uiStyle
     let onDismiss: () -> Void
     // ★ v7.10.18 Track D: 长 License 卡拆二级页, AboutScreen 留入口行
     var onOpenLicense: () -> Void = {}
@@ -22,116 +23,21 @@ struct AboutScreen: View {
 
                     appNameHeader
 
+                    Group {
                     // Version info card
                     InfoCard {
                         HStack(spacing: 12) {
-                            Image(systemName: "sparkles.rectangle.stack")
-                                .font(.system(size: 24))
+                            AndroidSettingsIcon(name: .newReleases, size: 24)
                                 .foregroundColor(colors.primary)
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                                 Text(L10n.format("about_version"))
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(SettingsLayout.headingStyle)
                                     .foregroundColor(colors.onSurface)
                                 Text(L10n.format("about_version_detail",
                                                  VersionUtils.currentVersionName, buildCode))
-                                    .font(.system(size: 14))
+                                    .font(SettingsLayout.descriptionStyle)
                                     .foregroundColor(colors.onSurfaceVariant)
                             }
-                        }
-                    }
-                    Spacer().frame(height: 12)
-
-                    // Author card
-                    InfoCard {
-                        HStack(spacing: 12) {
-                            Image(systemName: "person")
-                                .font(.system(size: 24))
-                                .foregroundColor(colors.primary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.format("about_author"))
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(colors.onSurface)
-                                Text(L10n.format("about_author_name"))
-                                    .font(.system(size: 14))
-                                    .foregroundColor(colors.onSurfaceVariant)
-                            }
-                            Spacer()
-                            Button {
-                                openURL("https://github.com/lingion")
-                            } label: {
-                                Image(systemName: "arrow.up.right.square")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(colors.primary)
-                            }
-                            .buttonStyle(SleepyButtonStyle())
-                        }
-                    }
-                    Spacer().frame(height: 12)
-
-                    Group {  // ViewBuilder 上限 10 — 后半段卡片分组(Group 不改变 VStack 布局)
-                    // Source code card
-                    InfoCard {
-                        HStack(spacing: 12) {
-                            Image(systemName: "curlybraces")
-                                .font(.system(size: 24))
-                                .foregroundColor(colors.primary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.format("about_source"))
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(colors.onSurface)
-                                Button {
-                                    openURL("https://github.com/lingion/sleepy")
-                                } label: {
-                                    Text(L10n.format("about_source_url"))
-                                        .font(.system(size: 14))
-                                        .foregroundColor(colors.primary)
-                                        .underline()
-                                }
-                                .buttonStyle(SleepyButtonStyle())
-                            }
-                            Spacer()
-                            Button {
-                                openURL("https://github.com/lingion/sleepy")
-                            } label: {
-                                Image(systemName: "arrow.up.right.square")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(colors.primary)
-                            }
-                            .buttonStyle(SleepyButtonStyle())
-                        }
-                    }
-                    Spacer().frame(height: 12)
-
-                    // Privacy policy card — ← v1.0.62 商店审核要求: 应用内可达
-                    //   https://sleepy.qdp.qzz.io/privacy (与 web 关于页同源) ← AboutScreen.kt 隐私卡
-                    InfoCard {
-                        HStack(spacing: 12) {
-                            Image(systemName: "shield.fill") // ← Icons.Outlined.Shield 24dp
-                                .font(.system(size: 24))
-                                .foregroundColor(colors.primary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.format("about_privacy"))
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(colors.onSurface)
-                                Button {
-                                    openURL("https://sleepy.qdp.qzz.io/privacy")
-                                } label: {
-                                    Text(L10n.format("about_privacy_url"))
-                                        .font(.system(size: 14))
-                                        .foregroundColor(colors.primary)
-                                        .underline()
-                                }
-                                .buttonStyle(SleepyButtonStyle())
-                            }
-                            Spacer()
-                            Button {
-                                openURL("https://sleepy.qdp.qzz.io/privacy")
-                            } label: {
-                                Image(systemName: "arrow.up.right") // ← Icons.AutoMirrored.OpenInNew 20dp
-                                    .font(.system(size: 20))
-                                    .foregroundColor(colors.primary)
-                            }
-                            .buttonStyle(SleepyButtonStyle())
                         }
                     }
                     Spacer().frame(height: 12)
@@ -140,12 +46,11 @@ struct AboutScreen: View {
                     //   (FeedbackComposer 已 1:1 移植, 这里只是接上 UI)
                     InfoCard {
                         HStack(spacing: 12) {
-                            Image(systemName: "ant")
-                                .font(.system(size: 24))
+                            AndroidSettingsIcon(name: .bugReport, size: 24)
                                 .foregroundColor(colors.primary)
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                                 Text(L10n.format("about_feedback"))
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(SettingsLayout.headingStyle)
                                     .foregroundColor(colors.onSurface)
                                 Text(L10n.format("about_feedback_detail"))
                                     .font(.system(size: 12))
@@ -153,18 +58,22 @@ struct AboutScreen: View {
                             }
                             Spacer()
                             Button { openGitHubFeedback() } label: {
-                                Image(systemName: "arrow.up.right.square")
-                                    .font(.system(size: 20))
+                                AndroidSettingsIcon(name: .openInNew, size: 20)
+                                    .frame(width: uiStyle == .classic ? SettingsLayout.minRowHeight : nil,
+                                           height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
                                     .foregroundColor(colors.primary)
                             }
-                            .buttonStyle(SleepyButtonStyle())
+                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                             .accessibilityLabel(L10n.format("about_feedback_github"))
                             Button { openEmailFeedback() } label: {
-                                Image(systemName: "envelope")
-                                    .font(.system(size: 20))
+                                AndroidSettingsIcon(name: .email, size: 20)
+                                    .frame(width: uiStyle == .classic ? SettingsLayout.minRowHeight : nil,
+                                           height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
                                     .foregroundColor(colors.primary)
                             }
-                            .buttonStyle(SleepyButtonStyle())
+                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                             .accessibilityLabel(L10n.format("about_feedback_email"))
                         }
                     }
@@ -175,12 +84,11 @@ struct AboutScreen: View {
                         HStack(spacing: 0) {
                             Button(action: joinQqGroup) {
                                 HStack(spacing: 12) {
-                                    Image(systemName: "person.3") // ← Icons.Outlined.Groups 24dp
-                                        .font(.system(size: 24))
+                                    AndroidSettingsIcon(name: .groups, size: 24) // ← Icons.Outlined.Groups 24dp
                                         .foregroundColor(colors.primary)
-                                    VStack(alignment: .leading, spacing: 2) {
+                                    VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                                         Text(L10n.format("about_qq_title"))
-                                            .font(.system(size: 16, weight: .semibold))
+                                            .font(SettingsLayout.headingStyle)
                                             .foregroundColor(colors.onSurface)
                                         Text(L10n.format("about_qq_detail", L10n.format("about_qq_group_number")))
                                             .font(.system(size: 12)) // ← bodySmall
@@ -192,14 +100,117 @@ struct AboutScreen: View {
                             }
                             .buttonStyle(SleepyButtonStyle())
                             Button(action: joinQqGroup) { // ← 尾随 ContentCopy IconButton 20dp
-                                Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 20))
+                                AndroidSettingsIcon(name: .contentCopy, size: 20)
+                                    .frame(width: uiStyle == .classic ? SettingsLayout.minRowHeight : nil,
+                                           height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
                                     .foregroundColor(colors.primary)
-                                    .padding(8)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(SleepyButtonStyle())
+                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                             .accessibilityLabel(L10n.format("about_qq_copy_action"))
+                        }
+                    }
+                    Spacer().frame(height: 12)
+
+                    }
+                    Group {
+                    // Author card
+                    InfoCard {
+                        HStack(spacing: 12) {
+                            AndroidSettingsIcon(name: .person, size: 24)
+                                .foregroundColor(colors.primary)
+                            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
+                                Text(L10n.format("about_author"))
+                                    .font(SettingsLayout.headingStyle)
+                                    .foregroundColor(colors.onSurface)
+                                Text(L10n.format("about_author_name"))
+                                    .font(SettingsLayout.descriptionStyle)
+                                    .foregroundColor(colors.onSurfaceVariant)
+                            }
+                            Spacer()
+                            Button {
+                                openURL("https://github.com/lingion")
+                            } label: {
+                                AndroidSettingsIcon(name: .openInNew, size: 20)
+                                    .frame(width: uiStyle == .classic ? SettingsLayout.minRowHeight : nil,
+                                           height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
+                                    .foregroundColor(colors.primary)
+                            }
+                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
+                            .accessibilityLabel(L10n.format("about_author"))
+                        }
+                    }
+                    Spacer().frame(height: 12)
+
+                    // Source code card
+                    InfoCard {
+                        HStack(spacing: 12) {
+                            AndroidSettingsIcon(name: .code, size: 24)
+                                .foregroundColor(colors.primary)
+                            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
+                                Text(L10n.format("about_source"))
+                                    .font(SettingsLayout.headingStyle)
+                                    .foregroundColor(colors.onSurface)
+                                Button {
+                                    openURL("https://github.com/lingion/sleepy")
+                                } label: {
+                                    Text(L10n.format("about_source_url"))
+                                        .font(SettingsLayout.descriptionStyle)
+                                        .foregroundColor(colors.primary)
+                                        .underline()
+                                }
+                                .buttonStyle(SleepyButtonStyle())
+                            }
+                            Spacer()
+                            Button {
+                                openURL("https://github.com/lingion/sleepy")
+                            } label: {
+                                AndroidSettingsIcon(name: .openInNew, size: 20)
+                                    .frame(width: uiStyle == .classic ? SettingsLayout.minRowHeight : nil,
+                                           height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
+                                    .foregroundColor(colors.primary)
+                            }
+                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
+                            .accessibilityLabel(L10n.format("about_source"))
+                        }
+                    }
+                    Spacer().frame(height: 12)
+
+                    // Privacy policy card — ← v1.0.62 商店审核要求: 应用内可达
+                    //   https://sleepy.qdp.qzz.io/privacy (与 web 关于页同源) ← AboutScreen.kt 隐私卡
+                    InfoCard {
+                        HStack(spacing: 12) {
+                            AndroidSettingsIcon(name: .shield, size: 24) // ← Icons.Outlined.Shield 24dp
+                                .foregroundColor(colors.primary)
+                            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
+                                Text(L10n.format("about_privacy"))
+                                    .font(SettingsLayout.headingStyle)
+                                    .foregroundColor(colors.onSurface)
+                                Button {
+                                    openURL("https://sleepy.qdp.qzz.io/privacy")
+                                } label: {
+                                    Text(L10n.format("about_privacy_url"))
+                                        .font(SettingsLayout.descriptionStyle)
+                                        .foregroundColor(colors.primary)
+                                        .underline()
+                                }
+                                .buttonStyle(SleepyButtonStyle())
+                            }
+                            Spacer()
+                            Button {
+                                openURL("https://sleepy.qdp.qzz.io/privacy")
+                            } label: {
+                                AndroidSettingsIcon(name: .openInNew, size: 20) // ← Icons.AutoMirrored.OpenInNew 20dp
+                                    .frame(width: uiStyle == .classic ? SettingsLayout.minRowHeight : nil,
+                                           height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
+                                    .foregroundColor(colors.primary)
+                            }
+                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
+                            .accessibilityLabel(L10n.format("about_privacy"))
                         }
                     }
                     Spacer().frame(height: 12)
@@ -209,17 +220,17 @@ struct AboutScreen: View {
                         Button(action: onOpenLicense) {
                             // ← 原版本 无前导图标: 标题+副题+尾随 ChevronRight(20dp)
                             HStack(spacing: 0) {
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                                     Text(L10n.format("about_license_title"))
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(SettingsLayout.headingStyle)
                                         .foregroundColor(colors.onSurface)
                                     Text(L10n.format("about_license_detail"))
                                         .font(.system(size: 12))
                                         .foregroundColor(colors.onSurfaceVariant)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 20))
+                                AndroidMaterialIcon(name: .chevronRight, size: 20)
+                                    .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                                     .foregroundColor(colors.onSurfaceVariant)
                             }
                         }
@@ -230,14 +241,14 @@ struct AboutScreen: View {
                     Spacer().frame(height: 32)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, SettingsLayout.pageInset)
             }
         }
         .background(colors.background)
         .overlay(alignment: .bottom) {
             if let msg = snackMessage {
                 Text(msg)
-                    .font(.system(size: 14)) // ← 原 Snackbar bodyMedium 14
+                    .font(SettingsLayout.descriptionStyle) // ← 原 Snackbar bodyMedium 14
                     // ← G5: 稳定锚点 — QQ 群复制/无邮件客户端提示的结果信号,
                     //   无 id 时 UI 测试无法断言该分支。
                     .accessibilityIdentifier("about_snackbar")
@@ -271,7 +282,7 @@ struct AboutScreen: View {
                 .foregroundColor(colors.onSurface)
             Spacer().frame(height: 4)
             Text("v\(VersionUtils.currentVersionName)")
-                .font(.system(size: 14))
+                .font(SettingsLayout.descriptionStyle)
                 .foregroundColor(colors.onSurfaceVariant)
             Spacer().frame(height: 24)
         }

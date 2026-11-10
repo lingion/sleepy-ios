@@ -5,6 +5,7 @@ import SwiftUI
 
 struct ManagementPage: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.localNavExtraBottomPadding) private var navExtra
     @ObservedObject var viewModel: ScheduleViewModel
     let onImportRequested: () -> Void
@@ -51,10 +52,13 @@ struct ManagementPage: View {
                         Text(L10n.format("manage_view_all_tables"))
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(colors.onSurfaceVariant)
-                            .padding(.horizontal, 12)
-                            .frame(minWidth: 58, minHeight: 48)
+                            .padding(.horizontal, style == .classic ? 12 : 0)
+                            .frame(minWidth: style == .classic ? 58 : nil,
+                                   minHeight: style == .classic ? 48 : nil)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle())
+                    .tint(colors.onSurfaceVariant)
+                    .frame(minHeight: 48)
                     .accessibilityIdentifier("manage_all_tables")
                     // Android's TextButton is positioned independently of
                     // the summary column's sixteen-point content padding.
@@ -106,8 +110,19 @@ private struct ManageCard: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 22))
+                Group {
+                    if id == "manage_add_course" {
+                        AndroidMaterialIcon(name: .add, size: 22)
+                    } else if id == "manage_import" {
+                        AndroidSettingsIcon(name: .fileUpload, size: 22)
+                    } else if id == "manage_period_tables" {
+                        AndroidSettingsIcon(name: .schedule, size: 22)
+                    } else if id == "manage_export" {
+                        AndroidSettingsIcon(name: .share, size: 22)
+                    } else {
+                        Image(systemName: icon).font(.system(size: 22))
+                    }
+                }
                     .foregroundColor(colors.onPrimaryContainer)
                     .frame(width: 44, height: 44)
                     .background(colors.primaryContainer)

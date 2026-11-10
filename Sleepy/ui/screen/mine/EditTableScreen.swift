@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct EditTableScreen: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.localWakeUpColors) private var colors
     @ObservedObject var viewModel: ScheduleViewModel
     var tableId: Int64? = nil
@@ -90,6 +91,9 @@ struct EditTableScreen: View {
         return bound ?? allPeriodTables.first { $0.id == pendingBind }
     }
 
+    @State private var showJwUpdate = false
+    @State private var jwUpdateActive = false
+
     var body: some View {
         let state = viewModel.state
         // ← 原版本: tableId == null 编辑当前表; 显式 tableId 未命中 → edit_table_not_found 空态。
@@ -168,6 +172,16 @@ struct EditTableScreen: View {
                     }
                     .onAppear { enterSession(table: table) }
 
+                    Button { showJwUpdate = true } label: {
+                        Label(L10n.t("course_update_from_school"), systemImage: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(colors.onSecondaryContainer)
+                            .frame(maxWidth: .infinity).padding(16)
+                            .background(colors.secondaryContainer).cornerRadius(SleepyShapes.large)
+                    }
+                    .buttonStyle(SleepyButtonStyle())
+                    .accessibilityIdentifier("table_update_from_school")
+
                     // 节次时间表(可折叠)
                     VStack(spacing: 0) {
                         Button {
@@ -184,8 +198,7 @@ struct EditTableScreen: View {
                                         .foregroundColor(colors.onSurfaceVariant)
                                 }
                                 Spacer()
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 24))   // ← 原 ExpandMore Icon 默认 24dp
+                                AndroidSettingsIcon(name: .expandMore, size: 24)   // ← 原 ExpandMore Icon 默认 24dp
                                     .foregroundColor(colors.onSurfaceVariant)
                                     .rotationEffect(.degrees(timeSlotsExpanded ? 180 : 0))
                             }
@@ -269,18 +282,18 @@ struct EditTableScreen: View {
                     // 保存
                     Button(action: { save(table: table, effective: effective) }) {
                         HStack(spacing: 8) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 24))   // ← 原 Check Icon 默认 24dp
+                            AndroidMaterialIcon(name: .check, size: 24)   // ← 原 Check Icon 默认 24dp
                             Text(L10n.format("edit_table_save"))
                                 .font(.system(size: 14, weight: .medium))   // ← labelLarge 14 Medium
                         }
                         .foregroundColor(colors.onPrimary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(colors.primary)
-                        .cornerRadius(SleepyShapes.large)
+                        .frame(height: uiStyle == .liquidGlass ? nil : 56)
+                        .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .tint(colors.primary)
                     .disabled(editState == nil)
                     .accessibilityIdentifier("edit_table_save")
 
@@ -288,18 +301,18 @@ struct EditTableScreen: View {
                     if pendingNewTableId == nil {
                         Button(action: { showDeleteConfirm = true }) {
                             HStack(spacing: 8) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 24))   // ← 原 Delete Icon 默认 24dp
+                                AndroidSettingsIcon(name: .delete, size: 24)   // ← 原 Delete Icon 默认 24dp
                                 Text(L10n.format("edit_table_delete"))
                                     .font(.system(size: 14, weight: .medium))   // ← labelLarge 14 Medium
                             }
                             .foregroundColor(colors.onErrorContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .background(colors.errorContainer)
-                            .cornerRadius(SleepyShapes.large)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 48)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .tint(colors.errorContainer)
                         .accessibilityIdentifier("edit_table_delete")
                     }
 
@@ -327,6 +340,13 @@ struct EditTableScreen: View {
             Text(courseCount == 0
                  ? L10n.format("edit_table_delete_msg", table.name)
                  : L10n.format("edit_table_delete_msg_count", table.name, courseCount))
+        }
+        .sheet(isPresented: $showJwUpdate) {
+            JwImportFlow(onFinish: { _ in showJwUpdate = false },
+                onActiveImportChanged: { jwUpdateActive = $0 },
+                targetTableId: table.id, updateExistingCourses: true,
+                updateRepository: viewModel.occurrenceRepository)
+                .interactiveDismissDisabled(jwUpdateActive)
         }
         // issue#40 §5.3: 换绑确认 — 换绑后本课表按新节次表解释节次时间, 自定义时间课程不受影响
         .alert(L10n.format("period_table_bind_preview_title"), isPresented: $showRebindConfirm) {
@@ -456,12 +476,13 @@ struct EditTableScreen: View {
         let maxWeek = Int(maxWeekText) ?? 20
         // ← 原版本 startDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) 全串匹配
         let dateOK = matchesFull(startDate, #"\d{4}-\d{2}-\d{2}"#)
-        let timeFmtOK = slotRows.allSatisfy {
-            matchesFull($0.start, #"\d{2}:\d{2}"#) && matchesFull($0.end, #"\d{2}:\d{2}"#)
-        }
-        let orderOK = slotRows.allSatisfy { $0.start < $0.end }
-        guard dateOK && timeFmtOK && orderOK else {
+        guard dateOK else {
             error = L10n.format("edit_table_validation_error")
+            return
+        }
+        let validation = TimeTableUtils.validatePeriodRows(slotRows)
+        guard validation == .valid else {
+            error = validation.errorMessage
             return
         }
         // 绑定保持不变时, 有效作息数据尚未加载 = 流还在初始化, 禁止把过期

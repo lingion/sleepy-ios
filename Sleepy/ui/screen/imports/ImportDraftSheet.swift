@@ -86,6 +86,7 @@ private struct ImportDraftRow: View {
     let onDelete: () -> Void
 
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -112,12 +113,20 @@ private struct ImportDraftRow: View {
                     .font(.system(size: 22, weight: .medium))   // ← Icon size(22.dp)
                     .foregroundColor(colors.primary)
             }
+            .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+            .tint(colors.primary)
+            .frame(width: style == .liquidGlass ? 48 : nil,
+                   height: style == .liquidGlass ? 48 : nil)
             .accessibilityLabel(Text(L10n.t("import_draft_restore")))
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .font(.system(size: 22, weight: .medium))   // ← Icon size(22.dp)
                     .foregroundColor(colors.error)              // ← colors.error (主题派生,非固定红)
             }
+            .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+            .tint(colors.error)
+            .frame(width: style == .liquidGlass ? 48 : nil,
+                   height: style == .liquidGlass ? 48 : nil)
             .accessibilityLabel(Text(L10n.t("import_draft_delete")))
         }
         .padding(.leading, 16)                                   // ← padding(start = 16

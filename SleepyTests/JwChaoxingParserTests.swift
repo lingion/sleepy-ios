@@ -7,8 +7,7 @@
 //    → resources/chaoxing/jlbtc-grdb.json, queryKbForGrdb 个人课表 22 行单节粒度。
 //  - 闽江师范高等专科学校采集包 (sleepy-adapt-20260930-153532, 2026-09-30)
 //    → resources/chaoxing/fzmjtc-grdb.json, Syswin 变体 42 行单节粒度,
-//      同一节因按周次换教室返回多行 — 锁死"按(课名,星期,教师)分组 + 周次并集
-//      + 多教室 / 连接"的合并行为, 防止重叠课程卡回归。
+//      同一节因按周次换教室返回多行 — 保留每个周次对应的原始教室和教师。
 
 import XCTest
 @testable import Sleepy
@@ -143,8 +142,8 @@ final class JwChaoxingParserTests: XCTestCase {
 
     func testFzmjtcParsesRowsWithoutDuplicateOverlappingCards() throws { // ← `parses rows without duplicate overlapping cards`
         let courses = try parseFzmjtc()
-        // 同(课名,星期,教师)分组: 连堂拉通 + 周次并集; 换教室多行合并后 40 条
-        XCTAssertEqual(40, courses.count)
+        // Android v1.0.64: 原始42行逐周核对，换教室的两个周次段分别保留。
+        XCTAssertEqual(41, courses.count)
         // 关键回归: 同一(课名,星期,节次段,周次段)只允许一条 (重叠课程卡 bug)
         let keys = courses.map { "\($0.name)|\($0.day)|\($0.startNode)|\($0.endNode)|\($0.startWeek)|\($0.endWeek)" }
         XCTAssertEqual(Set(keys).count, keys.count, "存在重叠课程卡")
@@ -164,18 +163,16 @@ final class JwChaoxingParserTests: XCTestCase {
         XCTAssertTrue(cs.contains(where: { $0.startWeek == 7 && $0.endWeek == 19 }))
     }
 
-    func testFzmjtcRoomSwapCourseUnionsWeeksIntoSingleCard() throws { // ← `room swap course unions weeks into single card with both rooms`
-        // 安全与急救处理 周一 3-4 节: 5-15 奇数周 A 室 + 17,19 周 B 室 → 合并到同一节块
+    func testFzmjtcRoomSwapKeepsClassroomAttachedToOriginalWeeks() throws {
         let cs = try parseFzmjtc().filter { $0.name == "安全与急救处理" && $0.day == 1 && $0.startNode == 3 }
-        // 周次并集 5,7,9,11,13,15,17,19 全奇数 → 单周 type=1, 一段 [5,19]
-        XCTAssertEqual(1, cs.count)
-        let c = cs[0]
-        XCTAssertEqual(4, c.endNode)
-        XCTAssertEqual(1, c.type)
-        XCTAssertEqual(5, c.startWeek)
-        XCTAssertEqual(19, c.endWeek)
-        XCTAssertTrue(c.room.contains("仓-1-703-急危重症实训室") && c.room.contains("仓-3-703"),
-                      "合并卡应同时含两间教室")
+        XCTAssertEqual(2, cs.count)
+        let early = try XCTUnwrap(cs.first { $0.room == "仓-3-703" })
+        let late = try XCTUnwrap(cs.first { $0.room == "仓-1-703-急危重症实训室" })
+        XCTAssertEqual(5, early.startWeek); XCTAssertEqual(15, early.endWeek)
+        XCTAssertEqual(17, late.startWeek); XCTAssertEqual(19, late.endWeek)
+        for course in cs {
+            XCTAssertEqual(4, course.endNode); XCTAssertEqual(1, course.type); XCTAssertEqual("叶珊", course.teacher)
+        }
     }
 
     func testFzmjtcThreePeriodCourseSpans57OnDay4() throws { // ← `three-period course spans periods 5-7 on day 4`

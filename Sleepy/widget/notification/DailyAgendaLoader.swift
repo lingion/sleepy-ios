@@ -18,7 +18,7 @@ struct LoadedDailyAgenda {
 /// 取课走反向查 ← HolidayTransferHelper.courseDateForDate:
 /// 补班日 = sourceDate(上被挪走那天的课), 放假日 = nil(无课)。
 func loadDailyAgenda(repository: ScheduleRepository, targetDate: Date) async throws -> LoadedDailyAgenda {
-    let tables = try repository.getAllTables().map { t -> TimeTableEntity in
+    let tables = try repository.getReminderTables().map { t -> TimeTableEntity in
         var pt: PeriodTableEntity? = nil
         if let pid = t.periodTableId { pt = try? repository.getPeriodTable(pid) }
         return t.hydratedWith(pt)

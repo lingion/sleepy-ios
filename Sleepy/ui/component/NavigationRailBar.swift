@@ -28,10 +28,15 @@ import SwiftUI
 struct NavigationRailBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
+    @Namespace private var selectionNamespace
     /// 3 个固定槽数据(today/manage/mine, 顺序即槽位顺序)。
     let rightTabs: [PillNavItemData]
     /// 当前右半 tab id(= 胶囊所在槽; ← 原版本 effectiveRightTab)。
     let selectedTab: AppRootViewModel.Tab
+    /// Motion follows the actual route, including Schedule while Today is
+    /// displayed as its derived right pane.
+    let motionSelectedTab: AppRootViewModel.Tab
     /// Schedule SF Symbol(胶囊上半图标 ← 原版本 Tab.Schedule.icon)。
     let scheduleIcon: String
     /// Medium landscape windows use four ordinary tabs and one content pane.
@@ -43,26 +48,49 @@ struct NavigationRailBar: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(rightTabs) { item in
-                if scheduleIsPinned && item.id == tabId(selectedTab) {
-                    // ← 原版本 when(effectiveRightTab) 分支: 当前槽 = 跑道胶囊
-                    CombinedRailItemView(item: item,
-                                          scheduleIcon: scheduleIcon,
-                                          colors: colors)
-                        .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).content)
-                } else {
-                    // 另两槽 = 普通项(恒未选中态, ← 原版本 PlainRailItem selected=false)
-                    RailItemView(item: item, colors: colors)
-                        .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).content)
+            if style == .liquidGlass {
+                SleepyNativeGlassGroup(spacing: 8) {
+                    VStack(spacing: 8) {
+                        navigationItems
+                    }
+                    .frame(width: 64)
+                    .sleepyNativeGlassSurface(cornerRadius: 32)
                 }
+            } else {
+                navigationItems
             }
             Spacer(minLength: 0)
         }
         .padding(.top, 16)
         .frame(width: Self.railWidth)
         .frame(maxHeight: .infinity)
-        .background(colors.background)
+        .background {
+            if style != .liquidGlass { colors.background }
+        }
         .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: selectedTab)
+        .androidNavigationIconBar(selectedIDs: [motionTabID])
+    }
+
+    private var motionTabID: String {
+        switch motionSelectedTab {
+        case .schedule: return "schedule"
+        case .today: return "today"
+        case .manage: return "manage"
+        case .mine: return "mine"
+        }
+    }
+
+    private var navigationItems: some View {
+        ForEach(rightTabs) { item in
+            if scheduleIsPinned && item.id == tabId(selectedTab) {
+                CombinedRailItemView(item: item, scheduleIcon: scheduleIcon, colors: colors,
+                                     selectionNamespace: selectionNamespace)
+                    .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).content)
+            } else {
+                RailItemView(item: item, colors: colors, selectionNamespace: selectionNamespace)
+                    .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).content)
+            }
+        }
     }
 
     /// Tab → rail item id 映射(胶囊/普通项判定共用)。
@@ -84,11 +112,43 @@ struct NavigationRailBar: View {
 /// 未选中透明底(语义: 胶囊只在当前槽出现, 恒 selected=true)。
 private struct CombinedRailItemView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.sleepyUIStyle) private var style
     let item: PillNavItemData
     let scheduleIcon: String
     let colors: WakeUpColorScheme
+    let selectionNamespace: Namespace.ID
 
+    @ViewBuilder
     var body: some View {
+        if style == .liquidGlass {
+            Button(action: item.onClick) {
+                VStack(spacing: 2) {
+                    AndroidMaterialIcon(name: .calendarMonth, size: 22)
+                        .frame(width: 28, height: 28)
+                    Divider().frame(width: 28)
+                    NavigationIcon(id: item.id, selected: item.selected, size: 22,
+                                   activationID: item.id)
+                        .frame(width: 28, height: 28)
+                }
+                .foregroundColor(item.selected ? colors.primary : colors.onSurfaceVariant)
+                .frame(width: 56, height: 68)
+                .sleepyNativeGlassSelection(item.selected, cornerRadius: 28,
+                                           tint: colors.primary.opacity(0.12), namespace: selectionNamespace)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .androidNavigationIconPress(id: item.id)
+            .tint(colors.primary)
+            .frame(width: 56, height: 68)
+            .accessibilityIdentifier("rail_schedule_\(item.id)")
+            .accessibilityLabel("\(L10n.t("tab_schedule")), \(item.label)")
+            .accessibilityAddTraits(item.selected ? .isSelected : [])
+        } else {
+            classicButton
+        }
+    }
+
+    private var classicButton: some View {
         Button(action: item.onClick) {
             VStack(spacing: 0) {
                 iconSlot(scheduleIcon, desc: L10n.t("tab_schedule"))
@@ -111,15 +171,24 @@ private struct CombinedRailItemView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(SleepyMotionButtonStyle())
+        .androidNavigationIconPress(id: item.id)
         // 胶囊项标识: rail_schedule_<从tab>(与 pill_*/rail_* 同命名空间;
         // ← 原版本 tab_schedule_today 字符串已删, 组合语义由 id 前缀承载)
         .accessibilityIdentifier("rail_schedule_\(item.id)")
+        .accessibilityLabel("\(L10n.t("tab_schedule")), \(item.label)")
+        .accessibilityAddTraits(item.selected ? .isSelected : [])
     }
 
     private func iconSlot(_ name: String, desc: String) -> some View {
         // 28pt 图标盒(Box(size=28) 居中 22dp 图标; v1.0.60 showUpdateDot 随更新切片移除)
-        Image(systemName: name)
-            .font(.system(size: 22))
+        Group {
+            if name == scheduleIcon {
+                AndroidMaterialIcon(name: .calendarMonth, size: 22)
+            } else {
+                NavigationIcon(id: item.id, selected: item.selected, size: 22,
+                               activationID: item.id)
+            }
+        }
             .foregroundColor(item.selected ? colors.onPrimaryContainer
                                            : colors.onSurfaceVariant)
             .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: item.selected)
@@ -131,10 +200,41 @@ private struct CombinedRailItemView: View {
 // MARK: - 普通 rail 项(PlainRailItem: NavigationRailItem icon+label)
 
 private struct RailItemView: View {
+    @Environment(\.sleepyUIStyle) private var style
     let item: PillNavItemData
     let colors: WakeUpColorScheme
+    let selectionNamespace: Namespace.ID
 
+    @ViewBuilder
     var body: some View {
+        if style == .liquidGlass {
+            Button(action: item.onClick) {
+                VStack(spacing: 4) {
+                    NavigationIcon(id: item.id, selected: item.selected, size: 20)
+                    Text(item.label)
+                        .font(.system(size: 12, weight: item.selected ? .semibold : .regular))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                .foregroundColor(item.selected ? colors.primary : colors.onSurfaceVariant)
+                .frame(width: 56, height: 54)
+                .sleepyNativeGlassSelection(item.selected, cornerRadius: 27,
+                                           tint: colors.primary.opacity(0.12), namespace: selectionNamespace)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .androidNavigationIconPress(id: item.id)
+            .tint(colors.primary)
+            .frame(width: 56, height: 54)
+            .accessibilityIdentifier("rail_\(item.id)")
+            .accessibilityLabel(item.label)
+            .accessibilityAddTraits(item.selected ? .isSelected : [])
+        } else {
+            classicButton
+        }
+    }
+
+    private var classicButton: some View {
         Button(action: item.onClick) {
             VStack(spacing: 4) {
                 ZStack {
@@ -144,8 +244,7 @@ private struct RailItemView: View {
                         .fill(item.selected ? colors.primaryContainer : Color.clear)
                         .frame(width: 56, height: 32)
                     ZStack(alignment: .topTrailing) {
-                        Image(systemName: item.icon)
-                            .font(.system(size: 20))
+                        NavigationIcon(id: item.id, selected: item.selected, size: 20)
                             .foregroundColor(item.selected ? colors.onPrimaryContainer
                                                            : colors.onSurfaceVariant)
                     }
@@ -161,6 +260,7 @@ private struct RailItemView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(SleepyMotionButtonStyle())
+        .androidNavigationIconPress(id: item.id)
         // 与 pill_* 同命名空间: rail_<id>; UITests 宽屏分支按此定位
         .accessibilityIdentifier("rail_\(item.id)")
     }

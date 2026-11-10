@@ -44,7 +44,7 @@ struct ShareScheduleSheet: View {
                             text: SleepyNativeExporter.exportShareText(
                                 tableName: table.name, startDate: table.startDate,
                                 maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
-                                timeJson: table.timeJson, courses: courses),
+                                timeJson: table.timeJson, courses: courses, importSourceJson: table.importSourceJson),
                             subject: table.name, url: nil)
                     }
                     .accessibilityIdentifier("share_format_text")
@@ -66,7 +66,7 @@ struct ShareScheduleSheet: View {
                             text: SleepyNativeExporter.exportShareText(
                                 tableName: table.name, startDate: table.startDate,
                                 maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
-                                timeJson: table.timeJson, courses: courses),
+                                timeJson: table.timeJson, courses: courses, importSourceJson: table.importSourceJson),
                             subject: table.name, url: nil)
                     }
                     .accessibilityIdentifier("share_format_native")
@@ -137,8 +137,15 @@ private struct ShareRow: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.system(size: 24))   // ← M3 Icon 默认 24dp(原 ExportItem 未覆写 size),此前 20
+                Group {
+                    switch icon {
+                    case "curlybraces": AndroidSettingsIcon(name: .code, size: 24)
+                    case "square.and.arrow.up": AndroidSettingsIcon(name: .share, size: 24)
+                    case "calendar": AndroidMaterialIcon(name: .calendarMonth, size: 24)
+                    case "star": AndroidSettingsIcon(name: .star, size: 24)
+                    default: Image(systemName: icon).font(.system(size: 24))
+                    }
+                }   // ← M3 Icon 默认 24dp(原 ExportItem 未覆写 size),此前 20
                     .foregroundColor(colors.onPrimaryContainer)
                     .frame(width: 44, height: 44)
                     .background(colors.primaryContainer)

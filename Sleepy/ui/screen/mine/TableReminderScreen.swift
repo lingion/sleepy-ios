@@ -60,7 +60,8 @@ struct TableReminderScreen: View {
                                 set: { setEnabled(table.id, $0) }
                             ))
                             .labelsHidden()
-                            .toggleStyle(SwitchToggleStyle(tint: colors.primary))
+                            .toggleStyle(SleepyToggleStyle())
+                            .tint(colors.primary)
                             .disabled(!enabled)
                         }
                         .padding(.horizontal, 16)
@@ -107,7 +108,7 @@ struct TableReminderScreen: View {
             tablesCancellable = repo.observeAllTables()
                 .catch { _ in Just<[TimeTableEntity]>([]) }
                 .receive(on: DispatchQueue.main)
-                .sink { tables in self.tables = tables }
+                .sink { tables in self.tables = resolveReminderTableScope(tables: tables, selectedTableId: tables.first { $0.isDefault }?.id) }
         }
         .onDisappear { tablesCancellable = nil }
     }

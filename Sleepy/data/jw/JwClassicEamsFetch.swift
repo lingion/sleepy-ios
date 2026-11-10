@@ -4,7 +4,7 @@ import Foundation
 
 enum JwClassicEamsFetch {
     static let idsPattern = #"addInput\(\s*form\s*,\s*["']ids["']\s*,\s*["'](\d+)["']"#
-    static let semesterPattern = #"semesterCalendar\(\{[^}]*value\s*:\s*["'](\d+)["']"#
+    static let semesterPattern = #"semesterCalendar\(\{[^}]*["']?\bvalue["']?\s*:\s*["'](\d+)["']"#
     static let actionPath = "courseTableForStd!courseTable.action"
     static let entryPath = "courseTableForStd.action"
 

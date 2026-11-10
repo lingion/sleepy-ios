@@ -137,3 +137,49 @@ enum WeekGridWidgetLoader {
                             ? source.display.targetDate : nil)
     }
 }
+
+/// One source is shared by all three edit previews, so their bindings and course snapshot agree.
+enum WeekGridWideDataLoader {
+    static func load(mode: WeekGridWideMode, now: Date = Date()) async -> WeekData {
+        let source = await WidgetWeekDataLoader.resolve(WeekGridWideSettings.kind)
+        return await dataForSource(source, mode: mode, now: now)
+    }
+
+    static func coursesForDate(_ source: WidgetWeekSource, date: Date) -> [CourseEntity] {
+        let actual = HolidayTransferOps.coursesForDate(date, startDate: source.table.startDate,
+            maxWeek: source.table.maxWeek, courses: source.courses, transfers: source.transfers)
+        let key = HolidayTransferOps.dayKey(date)
+        let preview: [CourseEntity]
+        if !source.transfers.contains(where: {
+            HolidayTransferOps.dayKey($0.sourceDate) == key || HolidayTransferOps.dayKey($0.targetDate) == key
+        }) && DateUtils.semesterStatus(startDate: source.table.startDate,
+            maxWeek: source.table.maxWeek, today: date) == .beforeStart {
+            preview = source.courses.filter {
+                $0.fixedDate == nil && $0.day == DateUtils.todayDayOfWeek(today: date) && $0.inWeek(1)
+            }
+        } else {
+            preview = []
+        }
+        return (actual + preview).sorted { $0.startNode < $1.startNode }
+    }
+
+    static func dataForSource(_ source: WidgetWeekSource?, mode: WeekGridWideMode,
+                              now: Date) async -> WeekData {
+        let prefs = AppPrefs.shared
+        var data = WeekData(days: [], hasTable: source != nil,
+                            isDark: prefs.isDarkMode(isSystemDark: currentSystemDark()),
+                            themeKey: prefs.getThemeKey(), themeMode: prefs.getThemeMode(),
+                            showDate: prefs.isShowDate())
+        guard let source else { return data }
+        for date in WeekGridWideWindowCore.visibleDates(today: now, mode: mode) {
+            // Use each real date, including weekends crossing a week/semester boundary.
+            data.days.append(DayData(date: date, dayOfWeek: DateUtils.todayDayOfWeek(today: date),
+                courses: coursesForDate(source, date: date), timeJson: source.table.timeJson,
+                isGrey: await HolidayManager.shouldGrey(date, tableId: source.table.id)))
+        }
+        data.visibleDays = Set(data.days.map(\.dayOfWeek))
+        data.semesterStatus = data.days.contains { !$0.courses.isEmpty } && source.display.semesterStatus == .afterEnd
+            ? .inRange : source.display.semesterStatus
+        return data
+    }
+}

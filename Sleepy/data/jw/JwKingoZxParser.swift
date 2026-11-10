@@ -31,7 +31,7 @@ final class JwKingoZxParser: JwParser, JwParserConfidenceReporting {
         pattern: "^([0-9]+)(?:-([0-9]+))?\\s*(单|双)?$")
     /// 节次 token: "5-6节" / "第3节"。
     private static let reSectionToken = try! NSRegularExpression(
-        pattern: "(?:第)?([0-9]+)(?:-([0-9]+))?节")
+        pattern: "^(?:\\[\\s*)?(?:第)?([0-9]+(?:\\s*[-,]\\s*[0-9]+)*)节\\s*\\]?")
     /// 网格块内 "[5-6]" / "[5-6节]"; "[傍晚]" 特殊形态由调用方单独判断。
     private static let reBracketSection = try! NSRegularExpression(
         pattern: "\\[([0-9]+)(?:-([0-9]+))?节?\\]")
@@ -94,24 +94,15 @@ final class JwKingoZxParser: JwParser, JwParserConfidenceReporting {
 
     func generateCourseList() throws -> [JwCourse] {
         guard let doc = try? SwiftSoup.parse(source) else { return [] }
-        // 1. pageRpt 报表: 内层第 2 张表优先, 退第 1 张 (← listOfNotNull(getOrNull(1), firstOrNull()))
-        if let outer = (try? doc.select("table#pageRpt").first()) ?? nil {
-            let tables = ((try? outer.select("table")) ?? Elements()).array().filter { $0 !== outer }
-            var candidates: [Element] = []
-            if tables.count > 1 { candidates.append(tables[1]) }
-            if let first = tables.first { candidates.append(first) }
-            for table in candidates {
-                let parsed = JwKingoZxParser.parseReport(table)
-                if !parsed.isEmpty { return parsed }
-            }
+        for (selector, timingColumn) in [("#pageRpt", 10), ("#reportArea", 12)] {
+            guard let outer = jw1064Elements(doc, selector).first else { continue }
+            var seen = Set<JwCourse>()
+            let reports = jw1064Elements(outer, "table").flatMap { Self.parseReport($0, timingColumn: timingColumn) }.filter { seen.insert($0).inserted }
+            if !reports.isEmpty { return reports }
         }
-        // 2. 老式网格: #mytable → #xkinfo table → #reportArea table
-        let grid = (try? doc.select("table#mytable").first()) ?? nil
-            ?? (try? doc.select("#xkinfo table").first()) ?? nil
-            ?? (try? doc.select("#reportArea table").first()) ?? nil
-        if let grid = grid {
-            return JwKingoZxParser.parseGrid(grid)
-        }
+        if !jw1064Elements(doc, "table#mytable").isEmpty { return WakeUpCompat.parseKingoSuperHtml(source) }
+        let grid = jw1064Elements(doc, "#xkinfo table").first ?? jw1064Elements(doc, "#reportArea table").first
+        if let grid { return Self.parseGrid(grid) }
         return []
     }
 
@@ -119,7 +110,7 @@ final class JwKingoZxParser: JwParser, JwParserConfidenceReporting {
 
     var confidenceValue: Int {
         guard let doc = try? SwiftSoup.parse(source) else { return 0 }
-        if ((try? doc.select("table#pageRpt table").first()) ?? nil) != nil { return 90 }
+        if ((try? doc.select("#pageRpt table, #reportArea table").first()) ?? nil) != nil { return 90 }
         let tdGrid = (try? doc.select("table#mytable td.td, #xkinfo table td.td, #reportArea table td.td")) ?? Elements()
         if !tdGrid.isEmpty() { return 85 }
         return 0
@@ -128,7 +119,8 @@ final class JwKingoZxParser: JwParser, JwParserConfidenceReporting {
     var matchedFeatureList: [String] {
         guard let doc = try? SwiftSoup.parse(source) else { return [] }
         var out: [String] = []
-        if ((try? doc.select("table#pageRpt table").first()) ?? nil) != nil { out.append("pageRpt-report") }
+        if !jw1064Elements(doc, "#pageRpt table").isEmpty { out.append("pageRpt-report") }
+        if !jw1064Elements(doc, "#reportArea table").isEmpty { out.append("reportArea-report") }
         if !((try? doc.select("table#mytable td.td")) ?? Elements()).isEmpty() { out.append("mytable-grid") }
         if !((try? doc.select("#xkinfo table td.td")) ?? Elements()).isEmpty() { out.append("xkinfo-grid") }
         if !((try? doc.select("#reportArea table td.td")) ?? Elements()).isEmpty() { out.append("reportArea-grid") }
@@ -137,51 +129,42 @@ final class JwKingoZxParser: JwParser, JwParserConfidenceReporting {
 
     // MARK: - 报表解析 (pageRpt)
 
-    private static func parseReport(_ table: Element) -> [JwCourse] {
+    private static func parseReport(_ table: Element, timingColumn: Int) -> [JwCourse] {
         var out: [JwCourse] = []
-        for row in (try? table.select("tr")) ?? Elements() {
-            let cells = row.children().filter { $0.tagNameNormal() == "td" }
-            if cells.count <= 10 { continue }
-            let name = (((try? cells[1].text()) ?? "") as String)
-                .split(separator: "]", maxSplits: 1, omittingEmptySubsequences: false)
-                .dropFirst().joined(separator: "]")
-                .trimmingCharacters(in: .whitespaces)
-            if name.isEmpty { continue }
-            let teacher = ((try? cells[4].select("a")) ?? Elements()).array()
-                .map { a -> String in
-                    let t = ((try? a.text()) ?? "") as String
-                    return before(t, "[").trimmingCharacters(in: .whitespaces)
-                }
-                .joined(separator: " & ")
-            for line in linesAfterBreaks((try? cells[10].html()) ?? "") {
-                guard let dayMatch = reDayToken.firstMatch(
-                    in: line, options: [], range: NSRange(location: 0, length: (line as NSString).length))
-                else { continue }
-                let lineNs = line as NSString
-                guard let dayChar = lineNs.substring(with: dayMatch.range(at: 1)).first,
-                      let day = dayNumbers[dayChar] else { continue }
-                guard let secMatch = reSectionToken.firstMatch(
-                    in: line, options: [], range: NSRange(location: 0, length: (line as NSString).length))
-                else { continue }
-                guard let start = Int(lineNs.substring(with: secMatch.range(at: 1))) else { continue }
-                let end = secMatch.range(at: 2).location != NSNotFound
-                    ? (Int(lineNs.substring(with: secMatch.range(at: 2))) ?? start) : start
-                guard (1...30).contains(start), (start...30).contains(end) else { continue }
-                // 源码同时支持 [周次] 星期 [节次] 与 星期 节次 周次 两种顺序。
-                // (NSRange 偏移是 UTF-16 口径, 统一用 NSString 切片避免混用 String.Index)
-                let beforeDay = trimChars(lineNs.substring(to: dayMatch.range.location), "[] ")
-                let afterSection = lineNs.substring(from: secMatch.range.upperBound)
-                let weekSpec: String
-                if beforeDay.contains(where: { $0.isNumber }) {
-                    weekSpec = beforeDay
-                } else {
-                    weekSpec = trimChars(before(afterSection, "/"), "[] ")
-                }
-                let room = line.contains("/") ? after(line, "/").trimmingCharacters(in: .whitespaces) : ""
-                for (first, last, type) in weekRuns(weekSpec) {
-                    out.append(JwCourse(name: name, room: room, teacher: teacher,
-                                        day: day, startNode: start, endNode: end,
-                                        startWeek: first, endWeek: last, type: type))
+        for row in jw1064Elements(table, "tr") where ((try? row.parents().array()) ?? []).first(where: { $0.tagName() == "table" }) == table {
+            let cells = row.children().array().filter { $0.tagName() == "td" }
+            guard cells.count > timingColumn else { continue }
+            let name = after(jw1064Text(cells[1]), "]").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { continue }
+            let teachers = jw1064Elements(cells[4], "a")
+            let teacher = teachers.isEmpty ? before(jw1064Text(cells[4]), "[").trimmingCharacters(in: .whitespacesAndNewlines)
+                : teachers.map { before(jw1064Text($0), "[").trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: " & ")
+            let amount = Float(jw1064Text(cells[2])) ?? 0
+            let credit: Float = amount.isFinite && amount >= 0 ? amount : 0
+            for line in linesAfterBreaks((try? cells[timingColumn].html()) ?? "") {
+                let timing = before(before(line, "/"), " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                let ns = timing as NSString
+                let dayPattern = #"(?:星期|周)([一二三四五六日天])|^([一二三四五六日天])(?=\s)"#
+                guard let regex = try? NSRegularExpression(pattern: dayPattern),
+                      let dayMatch = regex.firstMatch(in: timing, range: NSRange(location: 0, length: ns.length)) else { continue }
+                let single = dayMatch.range(at: 1).location == NSNotFound
+                let group = single ? 2 : 1
+                guard let dayChar = ns.substring(with: dayMatch.range(at: group)).first, let day = dayNumbers[dayChar] else { continue }
+                let afterDay = ns.substring(from: dayMatch.range.upperBound).trimmingCharacters(in: .whitespacesAndNewlines)
+                let afterNs = afterDay as NSString
+                guard let section = reSectionToken.firstMatch(in: afterDay, range: NSRange(location: 0, length: afterNs.length)) else { continue }
+                let sections = schoolNodeRanges(afterNs.substring(with: section.range(at: 1)))
+                guard !sections.isEmpty, sections.allSatisfy({ (1...366).contains($0.0) && ($0.0...366).contains($0.1) }) else { continue }
+                let beforeDay = trimChars(ns.substring(to: dayMatch.range.location), "[] ")
+                let prefixWeeks = beforeDay.contains(where: { $0.isNumber })
+                let weekSpec = prefixWeeks ? beforeDay : trimChars(afterNs.substring(from: section.range.upperBound), "[] ")
+                var room = (line.contains("/") ? after(line, "/") : after(line, " ")).trimmingCharacters(in: .whitespacesAndNewlines)
+                if room.isEmpty && name.hasSuffix("m") { room = "在线" }
+                for (from, to, parity) in weekRuns(weekSpec, singletonIsExplicit: single, parityAppliesToAll: prefixWeeks) {
+                    for (start, end) in sections {
+                        out.append(JwCourse(name: name, room: room, teacher: teacher, day: day, startNode: start, endNode: end,
+                                            startWeek: from, endWeek: to, type: parity, credit: credit))
+                    }
                 }
             }
         }
@@ -216,7 +199,7 @@ final class JwKingoZxParser: JwParser, JwParserConfidenceReporting {
                         firstSection = v
                     } else { continue }
                     let lastSection = (secGroups.flatMap { Int($0[2] ?? "") }) ?? firstSection
-                    guard (1...30).contains(firstSection), (firstSection...30).contains(lastSection) else { continue }
+                    guard (1...366).contains(firstSection), (firstSection...366).contains(lastSection) else { continue }
                     let weekSpec = before(parts[2], "[")
                     for (first, last, type) in weekRuns(weekSpec) {
                         let course = JwCourse(name: parts[0], room: parts[3], teacher: parts[1],
@@ -233,17 +216,22 @@ final class JwKingoZxParser: JwParser, JwParserConfidenceReporting {
     // MARK: - 周次段归并
 
     /// "1-16" / "5,7,9,13-16,1-18 单" → 连续段 (单双周步长 2 归并)。
-    static func weekRuns(_ spec: String) -> [(Int, Int, Int)] {
+    static func weekRuns(_ spec: String, singletonIsExplicit: Bool = false, parityAppliesToAll: Bool = false) -> [(Int, Int, Int)] {
         var weeks: Set<Int> = []
-        let normalized = spec.replacingOccurrences(of: "周", with: "")
-            .replacingOccurrences(of: "，", with: ",")
+        var normalized = spec.replacingOccurrences(of: "周", with: "").replacingOccurrences(of: "，", with: ",")
+            .filter { !$0.isWhitespace }.replacingOccurrences(of: "[", with: "").replacingOccurrences(of: "]", with: "")
+        var globalParity = ""
+        if normalized.filter({ $0 == "单" || $0 == "双" }).count == 1 {
+            let marker = normalized.first(where: { parityAppliesToAll && ($0 == "单" || $0 == "双") })
+                ?? normalized.first.flatMap { $0 == "单" || $0 == "双" ? $0 : nil }
+                ?? normalized.last.flatMap { $0 == "单" || $0 == "双" ? $0 : nil }
+            if let marker { globalParity = String(marker); normalized = normalized.replacingOccurrences(of: globalParity, with: "") }
+        }
         for part in normalized.components(separatedBy: ",") {
-            let trimmed = part.trimmingCharacters(in: .whitespaces)
-            guard let g = groups(reWeekToken, trimmed, entire: true) else { continue }
-            guard let first = Int(g[1] ?? "") else { continue }
-            let last = Int(g[2] ?? "") ?? first
-            let parity = g[3] ?? ""
-            guard (1...30).contains(first), (first...30).contains(last) else { continue }
+            guard let g = groups(reWeekToken, part, entire: true), let first = jw1064Integer(g[1]) else { return [] }
+            let last = g[2].flatMap { jw1064Integer($0) } ?? first
+            let parity = singletonIsExplicit && first == last ? "" : (g[3] ?? globalParity)
+            guard (1...366).contains(first), (first...366).contains(last) else { return [] }
             for week in first...last {
                 if parity == "单" && week % 2 == 0 { continue }
                 if parity == "双" && week % 2 == 1 { continue }

@@ -135,13 +135,13 @@ final class JwParserTests: XCTestCase {
         XCTAssertTrue(courses.count >= 1, "应至少 1 门课")
         // 原版本 侧只打日志不断言字段。iOS 补字段断言,但对齐真实语义:
         // - name: 无 <font> 标签时 substringBefore("<font")=整块 → text() 拼全部
-        // - day: td 顺序计数,节次格("1")也算第 1 天 → 课程在 td[1] = day 2
+        // - day: v1.0.64 只取最后七个星期单元格，前置节次列不再占用星期编号。
         // - 周: title="周次(节次)" 1-16周 → (1,16)
         let c = courses[0]
         XCTAssertTrue(c.name.contains("高数"), "name 应含课程名(实际: \(c.name))")
         XCTAssertEqual("张三", c.teacher)
         XCTAssertEqual("A101", c.room)
-        XCTAssertEqual(2, c.day)
+        XCTAssertEqual(1, c.day)
         XCTAssertEqual(1, c.startWeek)
         XCTAssertEqual(16, c.endWeek)
         XCTAssertEqual(3, c.startNode)  // mock 有两行 tr: 空行 nodeCount=1、课行 nodeCount=2 → node=2*2-1=3(与 Kotlin 一致)
@@ -439,8 +439,8 @@ final class JwImportViewModelLogicTests: XCTestCase {
         //   (安卓 v1.0.62 tag 10adc247 assets/schools.json 逐条与 iOS resources/schools.json 一致)
         let list = try loadSchools()
         XCTAssertEqual(4140, list.count)
-        // v1.0.63新增1402未验证入口，身份集合不变；URL不代表登录导入验证。
-        XCTAssertEqual(2880, list.filter { !$0.url.isEmpty }.count)
+        // v1.0.64 retains 4140 identities and declares 2881 URLs; URLs do not imply account verification.
+        XCTAssertEqual(2881, list.filter { !$0.url.isEmpty }.count)
         let first = list[0]
         XCTAssertFalse(first.name.isEmpty)
     }

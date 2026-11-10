@@ -22,8 +22,8 @@ settings:
     # xcodegen 不默认注入这批标准设置 — 缺 PRODUCT_NAME 产物名变空(.app/.appex 冲突)
     PRODUCT_NAME: "$(TARGET_NAME)"
     PRODUCT_BUNDLE_IDENTIFIER: "$(PRODUCT_BUNDLE_IDENTIFIER)"
-    CURRENT_PROJECT_VERSION: "63"
-    MARKETING_VERSION: "1.0.63"
+    CURRENT_PROJECT_VERSION: "64"
+    MARKETING_VERSION: "1.0.64"
   configs:
     Debug:
       ONLY_ACTIVE_ARCH: YES
@@ -241,7 +241,7 @@ targets:
                    # WidgetCenter 深链是 iPhone 桌面小组件专有; 手表 UI 原生重做,
                    # 只取 Foundation 级装载器)
                    "widget/TodayWidgetView.swift", "widget/TwoDayWidgetView.swift",
-                   "widget/WeekGridWidgetView.swift", "widget/WeekListWidgetView.swift",
+                   "widget/WeekGridWidgetView.swift", "widget/WeekGridWideWidgetView.swift", "widget/WeekListWidgetView.swift",
                    "widget/WeekViewWidgetView.swift", "widget/WidgetWindowCore.swift",
                    "widget/WidgetBackgroundCompat.swift", "widget/WidgetCourseCard.swift",
                    "widget/WidgetVendorActions.swift", "widget/WidgetEditViewModel.swift",
@@ -317,7 +317,7 @@ targets:
                    "data/calendar", "data/jw", "data/migration",
                    "data/repository/ImportDraftRepository.swift",
                    "widget/TodayWidgetView.swift", "widget/TwoDayWidgetView.swift",
-                   "widget/WeekGridWidgetView.swift", "widget/WeekListWidgetView.swift",
+                   "widget/WeekGridWidgetView.swift", "widget/WeekGridWideWidgetView.swift", "widget/WeekListWidgetView.swift",
                    "widget/WeekViewWidgetView.swift", "widget/WidgetWindowCore.swift",
                    "widget/WidgetBackgroundCompat.swift", "widget/WidgetCourseCard.swift",
                    "widget/WidgetVendorActions.swift", "widget/WidgetEditViewModel.swift",

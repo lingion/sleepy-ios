@@ -5,6 +5,35 @@
 import SwiftUI
 import UIKit  // tabWidth 实测需 UIFont/NSString sizing(同目录 PillNavigationBar 惯例)
 
+// ← Android v1.0.64 SettingsLayout：只作用于设置页的尺寸与文字层级。
+enum SettingsLayout {
+    static let pageInset: CGFloat = 16
+    static let cardInset: CGFloat = 16
+    static let cardGap: CGFloat = 12
+    static let sectionGap: CGFloat = 24
+    static let headerGap: CGFloat = 8
+    static let descriptionGap: CGFloat = 4
+    static let controlGap: CGFloat = 12
+    static let minRowHeight: CGFloat = 48
+    static let headingStyle = Font.system(size: 14, weight: .semibold)
+    static let itemStyle = Font.system(size: 14)
+    static let descriptionStyle = Font.system(size: 12)
+}
+
+struct SettingsSection<Content: View>: View {
+    let title: String
+    var first = false
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SettingsLayout.headerGap) {
+            SectionHeader(title: title)
+            content()
+        }
+        .padding(.top, first ? 0 : SettingsLayout.sectionGap - SettingsLayout.cardGap)
+    }
+}
+
 // ← SectionHeader
 struct SectionHeader: View {
     @Environment(\.localWakeUpColors) private var colors
@@ -12,18 +41,17 @@ struct SectionHeader: View {
     var subtitle: String? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(colors.onBackground)
-            if let subtitle = subtitle {
+            if let subtitle = subtitle, !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(subtitle)
                     .font(.system(size: 12))
                     .foregroundColor(colors.onSurfaceVariant)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 8)
     }
 }
 
@@ -57,30 +85,32 @@ struct SettingsCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: SettingsLayout.controlGap) {
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(colors.onSurface)
                 Spacer()
                 // 箭头随展开旋转, 与内容动画同拍
                 // ← 原版本 animateFloatAsState(if (expanded) 180f else 0f)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 20))
+                AndroidSettingsIcon(name: .expandMore, size: 20)
                     .foregroundColor(colors.onSurfaceVariant)
                     .rotationEffect(.degrees(expanded ? 180 : 0))
             }
+            .padding(.vertical, 12)
+            .frame(minHeight: SettingsLayout.minRowHeight)
             // 展开动画: 高度+淡入同拍, 替代此前无事务包裹的瞬间弹出
             if expanded {
                 // ← 原版本 AnimatedVisibility 内 Column{Spacer(4); content()}: 标题→内容总间距 8, 内容子项间距 0
                 VStack(alignment: .leading, spacing: 0) {
                     content()
                 }
-                .padding(.top, 4)
+                .padding(.top, SettingsLayout.headerGap)
+                .padding(.bottom, SettingsLayout.cardInset)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(16)
+        .padding(.horizontal, SettingsLayout.cardInset)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyShapes.large)
@@ -99,14 +129,9 @@ struct SettingsCard<Content: View>: View {
 }
 
 // ← SettingsFlatCard: 平铺卡(不折叠) — 标题行右侧内嵌课表页同款 SegmentedSwitcher
-//   (用户 2026-09-03 指令: 整块圆角矩形 + 色块在元素上滑动, 🚫系统 Picker)。
+//   Classic 保留 Material 轨道，Liquid Glass 由系统 segmented Picker 呈现。
 //   ← 原版本 SettingsCards.kt:109-161 全参: subtitle(标题下 bodySmall 行)、
 //   options 为空 = 单开关卡(由 content 自行露出控件)、content ColumnScope 尾槽。
-private struct SettingsCardWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
 struct SettingsFlatCard<Content: View>: View {
     @Environment(\.localWakeUpColors) private var colors
     let title: String
@@ -137,38 +162,55 @@ struct SettingsFlatCard<Content: View>: View {
         let titleWidth = ceil((title as NSString).size(withAttributes: [
             .font: UIFont.systemFont(ofSize: 14, weight: .semibold)
         ]).width)
-        let inline = options.isEmpty || Self.tabWidth(options: options) + titleWidth + 12 <= measuredWidth - 32
-        VStack(alignment: .leading, spacing: 4) {
+        let availableWidth = max(0, measuredWidth - SettingsLayout.cardInset * 2)
+        let inline = !options.isEmpty && Self.tabWidth(options: options) + titleWidth + SettingsLayout.controlGap <= availableWidth
+        VStack(alignment: .leading, spacing: SettingsLayout.headerGap) {
             if inline {
-                HStack(spacing: 12) {
+                HStack(spacing: SettingsLayout.controlGap) {
                     heading
                     if !options.isEmpty {
                         segmentedOptions.frame(width: Self.tabWidth(options: options))
                     }
                 }
+                .frame(minHeight: SettingsLayout.minRowHeight)
             } else {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: SettingsLayout.headerGap) {
                     heading
-                    segmentedOptions
+                    if !options.isEmpty {
+                        if Self.tabWidth(options: options) <= availableWidth {
+                            segmentedOptions
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(Array(options.enumerated()), id: \.offset) { index, label in
+                                    DisplayModeOption(label: label, subtitle: "", selected: selectedIndex == index) {
+                                        selectedIndex = index
+                                        onSelect?(index)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             // ← 原 if (subtitle != null) bodySmall 行(CalendarImportDialog 用法)
-            if let subtitle = subtitle {
+            if let subtitle = subtitle, !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(subtitle)
                     .font(.system(size: 12))
                     .foregroundColor(colors.onSurfaceVariant)
             }
             content()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.horizontal, SettingsLayout.cardInset)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyShapes.large)
+        .accessibilityElement(children: .contain)
         .background(GeometryReader { geometry in
-            Color.clear.preference(key: SettingsCardWidthKey.self, value: geometry.size.width)
+            Color.clear
+                .onAppear { measuredWidth = geometry.size.width }
+                .onChange(of: geometry.size.width) { measuredWidth = $0 }
         })
-        .onPreferenceChange(SettingsCardWidthKey.self) { measuredWidth = $0 }
     }
 
     private var heading: some View {
@@ -187,15 +229,12 @@ struct SettingsFlatCard<Content: View>: View {
                 onSelect?(idx)
             },
             containerColor: colors.surfaceContainerHighest,
-            height: 36)
-            .accessibilityLabel(Text(title))
+            height: 36,
+            accessibilityTitle: title)
     }
 
-    /// ← 原版本 SettingsCards.kt:136-145: tabWidth = (maxLabel宽 + 16dp×2) × n + 4dp×2
-    ///   (dp→pt 1:1 本项目惯例)。🚫 IntrinsicSize/系统 Picker — CJK 必须实测,
-    ///   测量字号与 SegmentedSwitcher 标签一致: labelLarge SemiBold = 14pt semibold
-    ///   + tracking 0.1。同步测量(非 PreferenceKey 异步测量), 与 SegmentedSwitcher
-    ///   「确定性几何」约定一致。
+    /// Material 标签尺寸决定单行卡片能否容纳选项；原生分段沿用这份可用宽度。
+    /// CJK 按 14pt semibold 和 tracking 0.1 同步测量，不依赖异步宽度偏好。
     static func tabWidth(options: [String]) -> CGFloat {
         let attrs: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 14, weight: .semibold),
@@ -237,13 +276,13 @@ struct DisplayModeOption: View {
 
     var body: some View {
         Button(action: onClick) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: SettingsLayout.controlGap) {
+                VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                     Text(label)
-                        .font(.system(size: 16))
+                        .font(SettingsLayout.itemStyle)
                         .foregroundColor(selected ? colors.primary : colors.onSurface)
                     // ← 原 if (subtitle.isNotEmpty())
-                    if !subtitle.isEmpty {
+                    if !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(subtitle)
                             .font(.system(size: 12))
                             .foregroundColor(colors.onSurfaceVariant)
@@ -251,16 +290,16 @@ struct DisplayModeOption: View {
                 }
                 Spacer()
                 if selected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 20))
+                    AndroidMaterialIcon(name: .check, size: 20)
                         .foregroundColor(colors.primary)
                 }
             }
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: SettingsLayout.minRowHeight, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier(aid)
-        .padding(.vertical, 10)
-        .padding(.horizontal, 4)
     }
 }
 
@@ -275,13 +314,13 @@ struct SettingToggleRow: View {
     let onCheckedChange: (Bool) -> Void
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: SettingsLayout.controlGap) {
+            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                 Text(label)
-                    .font(.system(size: 16))
+                    .font(SettingsLayout.itemStyle)
                     .foregroundColor(colors.onSurface)
                 // ← 原 if (subtitle != null); "" 哨兵同样视为无
-                if let subtitle = subtitle, !subtitle.isEmpty {
+                if let subtitle = subtitle, !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(subtitle)
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
@@ -292,16 +331,16 @@ struct SettingToggleRow: View {
                 get: { checked },
                 set: { onCheckedChange($0) }
             ))
-            .toggleStyle(.switch)
+            .toggleStyle(SleepyToggleStyle())
             .tint(colors.primary)   // checkedTrackColor=primary
             .labelsHidden()
         }
         .padding(.vertical, 4)
-        .padding(.horizontal, 4)
+        .frame(minHeight: SettingsLayout.minRowHeight)
     }
 }
 
-// InfoCard — 通用信息卡(About/License 等用): 单色块 + 内边距 20, 由 content 提供正文。
+// InfoCard — 通用信息卡(About/License 等用)，内边距跟随设置页公共 token。
 // ← AboutScreen.kt InfoCard; v7.10.18 提到 SettingsCards.swift 共享, LicenseScreen 也用。
 struct InfoCard<Content: View>: View {
     @Environment(\.localWakeUpColors) private var colors
@@ -311,7 +350,7 @@ struct InfoCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             content()
         }
-        .padding(20)
+        .padding(SettingsLayout.cardInset)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyShapes.large)

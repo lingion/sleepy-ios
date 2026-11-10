@@ -20,6 +20,13 @@ enum TimetableViewportPolicy {
     /// 18:00 当日分钟数(Kotlin LocalTime.of(18,0) 比较域)
     static let EVENING_START_MINUTES = 18 * 60
 
+    /// Keep the current page and its neighbors ready; pin the native drag's source host.
+    static func shouldRenderWeek(_ page: Int, selectedWeek: Int, dragHostWeek: Int?) -> Bool {
+        guard page > 0, selectedWeek > 0 else { return false }
+        let distance = page > selectedWeek ? page - selectedWeek : selectedWeek - page
+        return distance <= 1 || page == dragHostWeek
+    }
+
     /// 策略自有槽位引用(node + 起止分钟) ← TimeSlot 同构投影
     struct SlotRef {
         let nodeStart: Int
@@ -137,6 +144,54 @@ enum TimetableViewportPolicy {
         if startVerticalSpan <= 0 { return min(max(startRowHeightDp, minRowHeightDp), maxRowHeightDp) }
         let ratio = max(currentVerticalSpan / startVerticalSpan, 0.1)
         return min(max(startRowHeightDp * ratio, minRowHeightDp), maxRowHeightDp)
+    }
+
+    struct PinchAnchor: Equatable {
+        let startScrollPx: CGFloat
+        let weightedRowsAbove: CGFloat
+    }
+
+    static func weightedRowsAbove(_ row: CGFloat, weights: [CGFloat]) -> CGFloat {
+        guard row > 0, !weights.isEmpty else { return 0 }
+        let full = min(Int(row), weights.count)
+        var value = weights.prefix(full).reduce(0, +)
+        if full < weights.count, row > CGFloat(full) { value += weights[full] * (row - CGFloat(full)) }
+        return value
+    }
+
+    static func crossedMealBreaks(_ row: CGFloat, breakRows: [Int]) -> Int {
+        let full = max(Int(row), 0)
+        return breakRows.filter { $0 < full }.count
+    }
+
+    /// Invert the grid's weighted row geometry; a meal-gap point resolves to its row boundary.
+    static func rowCoordinateFromBodyY(_ bodyY: CGFloat, rowPx: CGFloat, mealGapExtraPx: CGFloat,
+                                       breakRows: [Int], weights: [CGFloat]) -> CGFloat {
+        guard rowPx > 0, bodyY > 0, !weights.isEmpty else { return 0 }
+        func y(_ row: CGFloat) -> CGFloat {
+            rowPx * weightedRowsAbove(row, weights: weights)
+                + mealGapExtraPx * CGFloat(crossedMealBreaks(row, breakRows: breakRows))
+        }
+        let maximum = CGFloat(weights.count)
+        if bodyY >= y(maximum) { return maximum }
+        var lower: CGFloat = 0, upper = maximum
+        for _ in 0..<30 {
+            let middle = (lower + upper) / 2
+            if y(middle) < bodyY { lower = middle } else { upper = middle }
+        }
+        return (lower + upper) / 2
+    }
+
+    static func capturePinchAnchor(scrollPx: CGFloat, centerYPx: CGFloat, headerPx: CGFloat,
+                                   rowPx: CGFloat, mealGapExtraPx: CGFloat,
+                                   breakRows: [Int], weights: [CGFloat]) -> PinchAnchor {
+        let row = rowCoordinateFromBodyY(max(scrollPx + centerYPx - headerPx, 0), rowPx: rowPx,
+                                         mealGapExtraPx: mealGapExtraPx, breakRows: breakRows, weights: weights)
+        return PinchAnchor(startScrollPx: scrollPx, weightedRowsAbove: weightedRowsAbove(row, weights: weights))
+    }
+
+    static func pinchTargetScrollPx(_ anchor: PinchAnchor, rowPx0: CGFloat, rowPx1: CGFloat) -> CGFloat {
+        max(anchor.startScrollPx + anchor.weightedRowsAbove * (rowPx1 - rowPx0), 0)
     }
 
     private static func courseInterval(

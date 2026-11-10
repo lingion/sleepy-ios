@@ -14,6 +14,7 @@ import Combine
 import SwiftUI
 
 struct PeriodTableEditScreen: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.localWakeUpColors) private var colors
     @ObservedObject var viewModel: ScheduleViewModel
@@ -136,8 +137,7 @@ struct PeriodTableEditScreen: View {
                                         .foregroundColor(colors.onSurfaceVariant)
                                 }
                                 Spacer()
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 24))
+                                AndroidSettingsIcon(name: .expandMore, size: 24)
                                     .foregroundColor(colors.onSurfaceVariant)
                                     .rotationEffect(.degrees(timeSlotsExpanded ? 180 : 0))
                                     .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: timeSlotsExpanded)
@@ -187,36 +187,36 @@ struct PeriodTableEditScreen: View {
                     // 保存 — 先预览后确认(§5.2)
                     Button(action: { prepareSave(periodTable: periodTable) }) {
                         HStack(spacing: 8) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 24))
+                            AndroidMaterialIcon(name: .check, size: 24)
                             Text(L10n.format("edit_table_save"))
                                 .font(.system(size: 14, weight: .medium))
                         }
                         .foregroundColor(colors.onPrimary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 56)   // ← SleepyTheme.Buttons.ctaHeight
-                        .background(colors.primary)
-                        .cornerRadius(SleepyShapes.large)
+                        .frame(height: uiStyle == .liquidGlass ? nil : 56)   // ← SleepyTheme.Buttons.ctaHeight
+                        .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .tint(colors.primary)
                     .accessibilityIdentifier("period_table_save")
 
                     // v1.0.56 T7: 删除键(新建未保存的表不显示 — 退出即丢弃, 无"已存在的东西"可删)
                     if !unsavedNew {
                         Button(action: { showDeleteConfirm = true }) {
                             HStack(spacing: 8) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 24))
+                                AndroidSettingsIcon(name: .delete, size: 24)
                                 Text(L10n.format("period_table_delete_confirm"))
                                     .font(.system(size: 14, weight: .medium))
                             }
                             .foregroundColor(colors.onErrorContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)   // ← SleepyTheme.Buttons.regularHeight
-                            .background(colors.errorContainer)
-                            .cornerRadius(SleepyShapes.large)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 48)   // ← SleepyTheme.Buttons.regularHeight
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .tint(colors.errorContainer)
                     }
 
                     Spacer().frame(height: 28)
@@ -262,9 +262,11 @@ struct PeriodTableEditScreen: View {
     private func headerBar(periodTable: PeriodTableEntity) -> some View {
         HStack {
             Button(action: handleBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .medium))
+                AndroidSettingsIcon(name: .arrowBack, size: 24)
+                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
             }
+            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("back")))
             Spacer()
             Text(L10n.t("period_tables_title"))
@@ -273,10 +275,13 @@ struct PeriodTableEditScreen: View {
             HStack(spacing: 0) {
                 // v1.0.56 T11: 分享作息表(原生格式 / JSON 二选一)
                 Button(action: { showShareSheet = true }) {
-                    Image(systemName: "square.and.arrow.up")
+                    AndroidSettingsIcon(name: .share, size: 24)
+                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                         .foregroundColor(colors.onBackground)
                 }
-                .accessibilityLabel(Text(L10n.t("period_table_share_sheet_title")))
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+                .frame(width: 48, height: 48)
+            .accessibilityLabel(Text(L10n.t("period_table_share_sheet_title")))
                 Spacer().frame(width: 16)
                 // v1.0.56 T8: 复制先弹命名框, 确认后才落库; 成功回管理页
                 Button {
@@ -285,10 +290,13 @@ struct PeriodTableEditScreen: View {
                         showCopyDialog = true
                     }
                 } label: {
-                    Image(systemName: "doc.on.doc")
+                    AndroidSettingsIcon(name: .contentCopy, size: 24)
+                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                         .foregroundColor(colors.onBackground)
                 }
-                .accessibilityLabel(Text(L10n.t("period_table_copy")))
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+                .frame(width: 48, height: 48)
+            .accessibilityLabel(Text(L10n.t("period_table_copy")))
                 .accessibilityIdentifier("period_table_copy")
             }
         }
@@ -343,14 +351,9 @@ struct PeriodTableEditScreen: View {
     // MARK: - 保存(先预览)
 
     private func prepareSave(periodTable: PeriodTableEntity) {
-        let valid = !slotRows.isEmpty
-            && slotRows.allSatisfy {
-                $0.start.range(of: "^\\d{2}:\\d{2}$", options: .regularExpression) != nil &&
-                $0.end.range(of: "^\\d{2}:\\d{2}$", options: .regularExpression) != nil
-            }
-            && slotRows.allSatisfy { $0.start < $0.end }
-        guard valid else {
-            error = L10n.format("edit_table_validation_error")
+        let validation = TimeTableUtils.validatePeriodRows(slotRows)
+        guard validation == .valid else {
+            error = validation.errorMessage
             return
         }
         error = nil

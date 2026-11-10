@@ -31,6 +31,7 @@ private struct DialogContainerWidthKey: PreferenceKey {
 
 struct DialogActionButtons: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let confirmText: String
     let onConfirm: () -> Void
     var dismissText: String? = nil
@@ -143,12 +144,16 @@ struct DialogActionButtons: View {
                 .font(.system(size: 14, weight: .medium))   // ← labelLarge 14 Medium
                 .foregroundColor(content)
                 .lineLimit(1)
-                .frame(minWidth: width, maxWidth: width ?? .infinity,
-                       minHeight: 48, maxHeight: 48)   // 48 ← SleepyTheme.Buttons.regularHeight
-                .background(container)
-                .cornerRadius(SleepyShapes.large)
+                .frame(minWidth: style == .liquidGlass ? nil : width,
+                       maxWidth: style == .liquidGlass ? .infinity : width ?? .infinity,
+                       minHeight: style == .liquidGlass ? nil : 48,
+                       maxHeight: style == .liquidGlass ? nil : 48)   // 48 ← SleepyTheme.Buttons.regularHeight
+                .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: container, prominent: true)
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+        .frame(minWidth: width, maxWidth: width ?? .infinity,
+               minHeight: style == .liquidGlass ? 48 : nil)
+        .tint(container)
         .disabled(!enabled)
         .opacity(enabled ? 1 : SleepyTheme.Alpha.inactive)
         .modifier(OptionalBlockButtonId(id: identifier))

@@ -36,9 +36,13 @@ struct JwSchoolInfo: Equatable {
         return id.isEmpty ? "\(sortKey)_\(name)" : id
     }
 
+    var sortOrderKey: String {
+        let first = sortKey.first.map { $0.isLetter ? String($0).uppercased() : "★" } ?? "★"
+        return "\(first)|\(sortKeyFull.isBlank ? name : sortKeyFull)"
+    }
+
     var isSupported: Bool {
-        (status == Self.STATUS_SUPPORTED || status == Self.STATUS_GRAD_SUPPORTED)
-            && !(type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        status == Self.STATUS_SUPPORTED || status == Self.STATUS_GRAD_SUPPORTED
     }
     var isUnverified: Bool {
         status == Self.STATUS_UNVERIFIED || status == Self.STATUS_GRAD_UNVERIFIED

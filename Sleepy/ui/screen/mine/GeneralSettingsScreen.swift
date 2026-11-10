@@ -1,22 +1,11 @@
-// GeneralSettingsScreen.swift — ← ui/screen/mine/GeneralSettingsScreen.kt
-// 通用设置页(决策 D1 L1 ⑤): 五组 — ①课表显示 / ②画面与导航 / ③语言 /
-// ④实验室 / ⑤数据迁移 (2026-09-21 原版本 定稿分组与顺序, 本文件 v1.0.61 对齐重排;
-// v1.0.62 B4: 原分组② 小组件整块移出至 WidgetSettingsScreen 独立页, 原版本 −78 同口径)。
-// 显示项变更后即时刷新小组件;语言切换 → LocaleHelper.applyLanguage(无 Activity.recreate,
-// 等价适配:iOS 由窗口重建语言环境)。
-// 分组②③④⑤与各折叠卡抽为子视图 — SwiftUI ViewBuilder 单闭包 10 子视图上限。
-// 平台适配说明:
-// - 高刷新率行: 本 App 由系统按需调度，未移植 Android 窗口固定高刷开关 — 已载于
-//   PlatformParityNotes.swift; ③组仅 启动默认页 + 底栏样式。
-// - 数据迁移: 原版本 CreateDocument/OpenDocument → fileExporter(临时 .sleepybackup
-//   文件分享落盘) + fileImporter; Toast → 底部胶囊浮层(仓库同款模式)。
-
+// General settings, schedule display and backup share their existing preference and migration actions.
 import SwiftUI
 import WidgetKit
 import UniformTypeIdentifiers
 
 @MainActor
 struct GeneralSettingsScreen: View {
+    enum Section { case general, display, backup }
     @Environment(\.localWakeUpColors) private var colors
     // ★ v7.10.18 原生化: onBack → onDismiss(由 fullScreenCover / sheet 关闭)
     //   holiday 子页由本屏内 NavigationView + NavigationLink 承载, 不再走 AppRoot enum
@@ -30,6 +19,16 @@ struct GeneralSettingsScreen: View {
     /// `viewModel: scheduleViewModel`(scheduleViewModel 已在 PresentOverlay 内, 见 SleepyApp.swift:545)。
     /// { viewModel?.refreshTransfer() } 的 Void? 闭包在 () -> Void 槽位写法同 JwWebViewLoginScreen:191 先例。
     var viewModel: ScheduleViewModel? = nil
+    var section: Section = .general
+    @State private var showPeriodHeaders = false
+
+    private var pageTitle: String {
+        switch section {
+        case .general: return L10n.format("mine_general")
+        case .display: return L10n.format("appearance_section_schedule_display")
+        case .backup: return L10n.format("settings_backup")
+        }
+    }
 
     private let prefs = AppPrefs.shared
 
@@ -37,21 +36,18 @@ struct GeneralSettingsScreen: View {
     @State private var displayMode: String = AppPrefs.shared.getDisplayMode()
     @State private var gridSubInfo: String = AppPrefs.shared.getGridSubInfo()
     @State private var showDate: Bool = AppPrefs.shared.isShowDate()
+    @State private var nearestBusyDay = AppPrefs.shared.isNearestBusyDay()
     @State private var showViewSwitcher: Bool = AppPrefs.shared.isShowViewSwitcher()
     /// 启动默认视图 — ← AppPrefs.getStartView 原版本 (默认 "full")。仅通用设置里设置,
     /// 手动切换课表顶部视图不写入(原版本 注释硬规则, iOS 一致遵循)。
     @State private var startView: String = AppPrefs.shared.getStartView()
     @State private var visibleDays: Set<Int> = AppPrefs.shared.getVisibleDays()
-    @State private var courseColorless: Bool = AppPrefs.shared.isCourseColorless()
     // ★ issue#8 主页显示 pill 组(GeneralSettingsScreen)
     @State private var weekUseAlias: Bool = AppPrefs.shared.isWeekUseAlias()
     @State private var gridUseAlias: Bool = AppPrefs.shared.isGridUseAlias()
     @State private var weekTwoColumn: Bool = AppPrefs.shared.isWeekTwoColumn()
     @State private var weekTwoColumnMode: String = AppPrefs.shared.getWeekTwoColumnMode()
     @State private var weekHideEmptyDays: Bool = AppPrefs.shared.isWeekHideEmptyDays()
-    /// 底栏样式三档(2026-10-26 设备自适应): 0=自动(prefs 无键) / 1=贴底 / 2=悬浮。
-    /// 初值从 AppPrefs 读存在性 — 未写入即自动(缺省 false 不是用户意志)。
-    @State private var navStyleIdx: Int = DisplayNavigationSection.initialNavStyleIndex()
     // ★ v1.0.61 数据迁移组(GeneralSettingsScreen.kt 分组⑥)
     @State private var migrationBusy = false
     @State private var pendingImportBytes: Data? = nil
@@ -189,62 +185,31 @@ struct GeneralSettingsScreen: View {
         //   - 6sp 空白: NavigationView 在此内嵌(非 root),子屏 navbar 是合法 UX 预期
         NavigationView {
                 VStack(spacing: 0) {
-                    SettingsTopBar(title: L10n.format("mine_general"), onBack: onDismiss)
+                    SettingsTopBar(title: pageTitle, onBack: onDismiss)
                     ScrollView {
-                        VStack(spacing: 16) {
-                            // ── 分组① 课表显示 (2026-09-21 原版本 改名: 与③「画面与导航」拉开边界) ──
-                            Group {
-                                Group {
-                                    SectionHeader(title: L10n.format("appearance_section_schedule_display"))
-
-                                    displayModeCard
-                                    gridSubInfoCard
-                                    pillCard
-                                    visibleDaysCard
+                        VStack(spacing: SettingsLayout.cardGap) {
+                            if section == .general {
+                                LanguageSection()
+                                SettingsSection(title: L10n.format("settings_performance")) {
+                                InfoCard {
+                                    Text(L10n.format("settings_ios_refresh_policy"))
+                                        .font(.system(size: 14))
+                                        .foregroundColor(colors.onSurfaceVariant)
                                 }
-                                Group {
-                                    courseColorlessCard
-                                    holidayEntryCard
                                 }
-
-                                MajorDivider()
+                                SettingsSection(title: L10n.format("settings_editing")) {
+                                UndoDepthSettingsRow()
+                                    .padding(.horizontal, 16)
+                                    .background(colors.surfaceContainer)
+                                    .cornerRadius(SleepyShapes.large)
+                                }
+                            } else if section == .display {
+                                displaySettings
+                            } else {
+                                MigrationSection(busy: migrationBusy,
+                                                 onExport: onMigrationExportClick,
+                                                 onImport: { if !migrationBusy { showImportPicker = true } })
                             }
-
-                            // ── 分组③ 画面与导航 (v1.0.62 B4: 分组② 小组件整块
-                            //    移出至 WidgetSettingsScreen 独立页, 「我的」页进入) ──
-                            Group {
-                                // 分组③ (启动默认页 + 底栏样式;
-                                //    高刷新率 = 未移植原版本窗口固定刷率开关，iOS 按需调度)
-                                DisplayNavigationSection(
-                                    startView: $startView,
-                                    navStyleIdx: $navStyleIdx,
-                                    onNavStyleChange: { idx in
-                                        // 单源真值:AppRoot 监听 prefs 后即刻重渲底栏。
-                                        // 两项制(2026-10-26 Kerry 定): 0=贴底(存 false),
-                                        // 1=悬浮(存 true; 内部自动适配原生/自绘由 resolver 判)。
-                                        prefs.setNavDocked(idx == 1)
-                                    })
-
-                                MajorDivider()
-                            }
-
-                            // ── 分组④ 语言 (v1.0.56 T4: 折叠卡) ──
-                            LanguageSection()
-
-                            MajorDivider()
-
-                            // ── 分组⑤ 实验室 (2026-09-16 用户令: 实验性功能默认全关) ──
-                            LabSection(refreshWidgets: refreshWidgets)
-
-                            MajorDivider()
-
-                            // ── 分组⑥ 数据迁移 ──
-                            MigrationSection(busy: migrationBusy,
-                                             onExport: onMigrationExportClick,
-                                             onImport: {
-                                                 // ← 原版本: if (!migrationBusy) importLauncher.launch(...)
-                                                 if !migrationBusy { showImportPicker = true }
-                                             })
                         }
                         .padding(16)
                     }
@@ -252,8 +217,7 @@ struct GeneralSettingsScreen: View {
                 .background(colors.background)
                 // ← 原版本 rememberSaveable(expandedSections): AppRoot 状态恢复时折叠
                 //   展开集保真。iOS 等价 = 变更即落 sleepy_prefs, 页面重建(load())回填。
-                //   单一收口挂在父级 State 上 — WidgetSection 经 $expandedSections 改动
-                //   同样触发。
+                //   单一收口挂在父级 State 上。
                 .onChange(of: expandedSections) { SettingsExpandedSectionsStore.save($0) }
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationBarHidden(true)
@@ -320,6 +284,72 @@ struct GeneralSettingsScreen: View {
                               onCompletion: onImportFileResult)
         }
         .navigationViewStyle(.stack)
+        .sheet(isPresented: $showPeriodHeaders) {
+            PeriodHeaderSettingsScreen(onBack: { showPeriodHeaders = false })
+        }
+    }
+
+    private var displaySettings: some View {
+        VStack(spacing: SettingsLayout.cardGap) {
+            ScheduleSettingsPreview(viewModel: viewModel)
+            SettingsSection(title: L10n.format("settings_appearance_common"), first: true) {
+                startViewCard
+                displayModeCard
+                visibleDaysCard
+                commonDisplayToggles
+            }
+            SettingsSection(title: L10n.format("settings_start_view_full")) {
+                pillCard
+                ScheduleDisplayContent(section: .week)
+            }
+            SettingsSection(title: L10n.format("settings_start_view_cards")) {
+                gridSubInfoCard
+                gridAliasCard
+                LabSection(refreshWidgets: refreshWidgets)
+                ScheduleDisplayContent(section: .grid)
+                AppearanceNavigationRow(title: L10n.format("appearance_period_header"),
+                                        onClick: { showPeriodHeaders = true })
+                    .accessibilityIdentifier("settings_period_header")
+            }
+            SettingsSection(title: L10n.format("settings_conflict_style")) {
+                ScheduleDisplayContent(section: .conflict)
+            }
+            SettingsSection(title: L10n.format("settings_appearance_holidays")) {
+                holidayEntryCard
+            }
+        }
+    }
+
+    private var startViewCard: some View {
+        SettingsFlatCard(title: L10n.format("settings_start_view"),
+                         options: [L10n.format("settings_start_view_full"), L10n.format("settings_start_view_cards")],
+                         selectedIndex: Binding(get: { startView == "cards" ? 1 : 0 }, set: {
+                             startView = $0 == 1 ? "cards" : "full"
+                             prefs.setStartView(startView)
+                         }))
+    }
+
+    private var commonDisplayToggles: some View {
+        VStack(spacing: 8) {
+            SettingToggleRow(label: L10n.format("settings_nearest_busy_day"),
+                             subtitle: L10n.format("settings_nearest_busy_day_sub"), checked: nearestBusyDay) {
+                nearestBusyDay = $0; prefs.setNearestBusyDay($0); refreshWidgets()
+            }
+            SettingToggleRow(label: L10n.format("settings_show_date"), checked: showDate) {
+                showDate = $0; prefs.setShowDate($0); refreshWidgets()
+            }
+            SettingToggleRow(label: L10n.format("settings_show_view_switcher"), checked: showViewSwitcher) {
+                showViewSwitcher = $0; prefs.setShowViewSwitcher($0)
+            }
+        }
+        .padding(16).background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
+    }
+
+    private var gridAliasCard: some View {
+        SettingToggleRow(label: L10n.format("settings_grid_alias"), checked: gridUseAlias) {
+            gridUseAlias = $0; prefs.setGridUseAlias($0)
+        }
+        .padding(16).background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
     }
 
     // 课程时间显示: 节次 / 时间 — ← 原版本 SettingsFlatCard(标题行右侧 tab)
@@ -397,7 +427,7 @@ struct GeneralSettingsScreen: View {
     // 样式参数(缩放/圆角)已迁外观与主题页(ScheduleDisplayScreen), 这里只保留内容/可见性参数 —
     // 两栏 → 分栏标准(条件) → 隐藏无课日 → 周/网格别名 → 表头日期 → 视图切换栏。
     private var pillCard: some View {
-        SettingsCard(title: L10n.format("settings_pill"),
+        SettingsCard(title: L10n.format("settings_start_view_full"),
                      expanded: expandedSections.contains("gridScale"),
                      onToggle: { toggleSection("gridScale") }) {
             // 内容 14 条 — 拆两 Group(ViewBuilder 10 项上限)
@@ -443,60 +473,7 @@ struct GeneralSettingsScreen: View {
                     prefs.setWeekUseAlias($0)
                 }
             }
-            Group {
-                SubDivider()
-                SettingToggleRow(label: L10n.format("settings_grid_alias"),
-                                 subtitle: "",
-                                 checked: gridUseAlias) {
-                    gridUseAlias = $0
-                    prefs.setGridUseAlias($0)
-                }
-                // 表头日期 — 网格视图列头 + 小组件列头共用的开关
-                SubDivider()
-                SettingToggleRow(label: L10n.format("settings_show_date"),
-                                 subtitle: "",
-                                 checked: showDate) {
-                    showDate = $0
-                    prefs.setShowDate($0)
-                    refreshWidgets()
-                }
-                // 视图切换栏属于课表显示设置, 与主页显示参数放在同一子选项内
-                SubDivider()
-                SettingToggleRow(label: L10n.format("settings_show_view_switcher"),
-                                 subtitle: "",
-                                 checked: showViewSwitcher) {
-                    showViewSwitcher = $0
-                    prefs.setShowViewSwitcher($0)
-                }
-            }
         }
-    }
-
-    // 课程胶囊统一底色: 标题行开关 — ← 原 flat title-plus-switch row
-    // (2026-09-21 原版本 标签补主语「App 内」— 文案随 L10n 键更新, 结构不变)
-    private var courseColorlessCard: some View {
-        HStack {
-            Text(L10n.format("settings_course_colorless"))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(colors.onSurface)
-            Spacer()
-            Toggle("", isOn: Binding(
-                get: { courseColorless },
-                set: {
-                    courseColorless = $0
-                    prefs.setCourseColorless($0)
-                }
-            ))
-            .toggleStyle(.switch)
-            .tint(colors.primary)
-            .labelsHidden()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity)
-        .background(colors.surfaceContainer)
-        .cornerRadius(SleepyShapes.large)
-        .accessibilityLabel(Text(L10n.format("settings_course_colorless")))
     }
 
     // ← 节假日课程灰显: 点击进入二级页 — ← 原版本 GeneralSettingsScreen.kt: titleSmall 单行, 无副标题
@@ -562,7 +539,7 @@ private struct VisibleDayRow: View {
                 get: { checked },
                 set: { commit($0) }
             ))
-            .toggleStyle(.switch)
+            .toggleStyle(SleepyToggleStyle())
             .tint(colors.primary)
             .labelsHidden()
         }
@@ -583,79 +560,11 @@ private struct VisibleDayRow: View {
 //   偏好键零迁移: settings_widget_colorless / separator / nearest_busy_day 三开关
 //   与「管理桌面小组件」入口行现宿主于 ui/screen/mine/WidgetSettingsScreen.swift。
 
-// ← 分组③ 画面与导航: 启动默认页 + 底栏样式(高刷新率 = 当前未移植，见 PlatformParityNotes)
-private struct DisplayNavigationSection: View {
-    // 卡片样式由 SettingsFlatCard 自带(surfaceContainer + 内嵌 tab), 本组无需直读 colors
-    @Binding var startView: String
-    // ★ 2026-10-26 Kerry 定稿两项制: 贴底 / 悬浮(默认悬浮)。无「自动」档 —
-    //   「悬浮」内部自动适配: 系统原生 TabBar 可用(iOS26+)→ 原生玻璃, 否则自绘药丸。
-    //   navStyleIdx: 0=贴底(存 false), 1=悬浮(存 true 或未写入缺省)。
-    @Binding var navStyleIdx: Int
-    let onNavStyleChange: (Int) -> Void
-
-    private let prefs = AppPrefs.shared
-
-    var body: some View {
-        VStack(spacing: 16) {
-            SectionHeader(title: L10n.format("settings_section_display_navigation"))
-            // 启动默认页: App 级启动偏好, 与课程/小组件渲染参数分组 — ← 原版本 SettingsFlatCard
-            SettingsFlatCard(
-                title: L10n.format("settings_start_view"),
-                options: [
-                    L10n.format("settings_start_view_full"),
-                    L10n.format("settings_start_view_cards")
-                ],
-                selectedIndex: Binding(
-                    get: { startView == "cards" ? 1 : 0 },
-                    set: { idx in
-                        let v = idx == 1 ? "cards" : "full"
-                        guard v != startView else { return }
-                        startView = v
-                        prefs.setStartView(v)
-                    }
-                ),
-                onSelect: { _ in }
-            )
-            // 底栏样式: 贴底 / 悬浮两项(用户 2026-09-04 定分组; 2026-10-26 Kerry 定稿两项制)。
-            //   ★ 无「自动」档 —— 设备/系统差异全部折叠进「悬浮」内部自适配:
-            //     iOS26+ 原生 TabBar 可用 → 原生玻璃悬浮; 不可用 → 自绘药丸兜底。
-            //     贴底恒自绘(Home 键老设备形态)。缺省(未写入)= 悬浮。
-            //   布局: 「标题+全宽双 tab」独立行(SE 320pt 下日/西长标签稳, SegmentedSwitcher
-            //   自带 minimumScaleFactor 0.75 + allowsTightening 兜最宽标签)。
-            //   状态由 AppRoot 持有下传: 底栏与设置页同一真值, 切换即生效。
-            SettingsFlatCard(
-                title: L10n.format("settings_nav_style"),
-                options: [
-                    L10n.format("settings_nav_style_docked"),
-                    L10n.format("settings_nav_style_floating")
-                ],
-                selectedIndex: Binding(
-                    get: { navStyleIdx },
-                    set: { idx in
-                        // ← 原 if (navDock != on) 守卫精神: 同值不回写、不重渲底栏
-                        guard idx != navStyleIdx else { return }
-                        navStyleIdx = idx
-                        onNavStyleChange(idx)
-                    }
-                ),
-                onSelect: { _ in }
-            )
-            .accessibilityIdentifier("settings_nav_style")
-        }
-    }
-
-    /// 初值映射(两项制): 存 false→0(贴底); 存 true 或未写入缺省→1(悬浮)。
-    /// 语义锚 = AppPrefs: isNavDocked() true=悬浮(2026-09-08 方向校正后);
-    /// 未写入 = 从未设置 = 缺省悬浮(Kerry 2026-10-26 定)。
-    static func initialNavStyleIndex() -> Int {
-        return NavStyleResolver.isFloatingRequested() ? 1 : 0
-    }
-}
-
 // ← 分组④ 语言 (v1.0.56 T4: 折叠卡 — 收起只显当前语言值 + 展开箭头, 点开展开 5 项;
 //   2026-09-21: 组标题已示「语言」, 卡标题禁两遍, 改显当前值)
 private struct LanguageSection: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @State private var language: String = AppPrefs.shared.getLanguage()
     // ← 原 languageExpanded 默认 false(会话态足够: 选择语言即重建)
     @State private var expanded = false
@@ -674,67 +583,118 @@ private struct LanguageSection: View {
 
     var body: some View {
         let currentLabel = languages.first { $0.0 == language }?.1 ?? language
-        VStack(spacing: 16) {
-            SectionHeader(title: L10n.format("settings_language"))
-            VStack(alignment: .leading, spacing: 0) {
-                // 折叠头: 当前语言值 + 展开箭头 — padding(16)
-                Button {
-                    withAnimation(expandAnimation) { expanded.toggle() }
-                } label: {
-                    HStack {
-                        Text(currentLabel)
-                            .font(.system(size: 16, weight: .semibold)) // ← titleMedium(16) SemiBold
-                            .foregroundColor(colors.onSurface)
-                        Spacer()
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 20))
-                            .foregroundColor(colors.onSurfaceVariant)
-                            .rotationEffect(.degrees(expanded ? 180 : 0))
+        SettingsSection(title: L10n.format("settings_language"), first: true) {
+            if style == .liquidGlass {
+                nativeLanguageMenu(currentLabel: currentLabel)
+            } else {
+                classicLanguageCard(currentLabel: currentLabel)
+            }
+        }
+    }
+
+    private func nativeLanguageMenu(currentLabel: String) -> some View {
+        Menu {
+            Picker(L10n.format("settings_language"), selection: Binding(
+                get: { language },
+                set: { code in
+                    guard code != language else { return }
+                    // Let the native menu finish its selection before rebuilding the locale.
+                    DispatchQueue.main.async {
+                        language = code
+                        AppPrefs.shared.setLanguage(code)
+                        LocaleHelper.applyLanguage(code)
                     }
-                    .padding(16)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(SleepyButtonStyle())
-                .accessibilityIdentifier("card_language")
-                // 展开体: 5 项列表, spacedBy 4, padding(start/end/bottom 16)
-                if expanded {
-                    VStack(spacing: 4) {
-                        ForEach(languages, id: \.0) { code, label in
-                            let selected = language == code
-                            Button {
-                                language = code
-                                AppPrefs.shared.setLanguage(code)
-                                // Activity.recreate() → applyLanguage(重设 bundle + AppleLanguages)
-                                LocaleHelper.applyLanguage(code)
-                            } label: {
-                                HStack {
-                                    Text(label)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(selected ? colors.primary : colors.onSurface)
-                                    Spacer()
-                                    if selected {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 20))
-                                            .foregroundColor(colors.primary)
-                                    }
-                                }
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 4)
-                            }
-                            .buttonStyle(SleepyButtonStyle())
-                            if code != languages.last!.0 { SubDivider() }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+            )) {
+                ForEach(languages, id: \.0) { code, label in
+                    Text(label).tag(code)
                 }
             }
+            .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 12) {
+                Text(L10n.format("settings_language"))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onSurface)
+                Spacer(minLength: 0)
+                HStack(spacing: 4) {
+                    Text(currentLabel)
+                        .font(.system(size: 16))
+                        .lineLimit(1)
+                    AndroidSettingsIcon(name: .expandMore, size: 16)
+                }
+                .foregroundColor(colors.onSurfaceVariant)
+                .frame(maxWidth: 180, alignment: .trailing)
+            }
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(colors.surfaceContainer)
             .cornerRadius(SleepyShapes.large)
-            .animation(expandAnimation, value: expanded)
+            .contentShape(Rectangle())
         }
+        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("card_language")
+        .accessibilityValue(currentLabel)
+    }
+
+    private func classicLanguageCard(currentLabel: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 折叠头: 当前语言值 + 展开箭头 — padding(16)
+            Button {
+                withAnimation(expandAnimation) { expanded.toggle() }
+            } label: {
+                HStack {
+                    Text(currentLabel)
+                        .font(.system(size: 16, weight: .semibold)) // ← titleMedium(16) SemiBold
+                        .foregroundColor(colors.onSurface)
+                    Spacer()
+                    AndroidSettingsIcon(name: .expandMore, size: 20)
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .padding(16)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(SleepyButtonStyle())
+            .accessibilityIdentifier("card_language")
+            // 展开体: 5 项列表, spacedBy 4, padding(start/end/bottom 16)
+            if expanded {
+                VStack(spacing: 4) {
+                    ForEach(languages, id: \.0) { code, label in
+                        let selected = language == code
+                        Button {
+                            language = code
+                            AppPrefs.shared.setLanguage(code)
+                            // Activity.recreate() → applyLanguage(重设 bundle + AppleLanguages)
+                            LocaleHelper.applyLanguage(code)
+                        } label: {
+                            HStack {
+                                Text(label)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(selected ? colors.primary : colors.onSurface)
+                                Spacer()
+                                if selected {
+                                    AndroidMaterialIcon(name: .check, size: 20)
+                                        .foregroundColor(colors.primary)
+                                }
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 4)
+                        }
+                        .buttonStyle(SleepyButtonStyle())
+                        if code != languages.last!.0 { SubDivider() }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(colors.surfaceContainer)
+        .cornerRadius(SleepyShapes.large)
+        .animation(expandAnimation, value: expanded)
     }
 }
 
@@ -758,12 +718,6 @@ private struct LabSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(title: L10n.format("settings_lab"))
-            // ← 原版本 labelSmall(11sp) + bottom padding 8
-            Text(L10n.format("settings_lab_sub"))
-                .font(.system(size: 11))
-                .foregroundColor(colors.onSurfaceVariant)
-                .padding(.bottom, 8)
             VStack(alignment: .leading, spacing: 0) {
                 // 内容 12 条 — 拆两 Group(ViewBuilder 10 项上限)
                 Group {
@@ -807,15 +761,6 @@ private struct LabSection: View {
                         }
                         .padding(.vertical, 10)
                     }
-                    SubDivider()
-                    // 竖排标点优化: 自 widget 卡迁入实验室组(2026-09-21)
-                    SettingToggleRow(label: L10n.format("settings_vert_punct"),
-                                     subtitle: L10n.format("settings_vert_punct_sub"),
-                                     checked: vertPunct) {
-                        vertPunct = $0
-                        AppPrefs.shared.setVertPunctReplace($0)
-                        refreshWidgets()
-                    }
                 }
                 Group {
                     SubDivider()
@@ -834,8 +779,6 @@ private struct LabSection: View {
                         prefs.setGridLongBreakSpacing($0)
                         refreshWidgets()
                     }
-                    SubDivider()
-                    UndoDepthSettingsRow()
                 }
             }
             .padding(.horizontal, 16)
@@ -936,8 +879,7 @@ private struct MigrationSection: View {
                                 .foregroundColor(colors.onSurfaceVariant)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 20)) // ← 全 app chevron 惯例 20pt(本页节假日/管理入口同值)
+                        AndroidMaterialIcon(name: .chevronRight, size: 20) // ← 全 app chevron 惯例 20pt(本页节假日/管理入口同值)
                             .foregroundColor(colors.onSurfaceVariant)
                     }
                     .padding(16)
@@ -962,8 +904,7 @@ private struct MigrationSection: View {
                                 .foregroundColor(colors.onSurfaceVariant)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 20)) // ← 全 app chevron 惯例 20pt(本页节假日/管理入口同值)
+                        AndroidMaterialIcon(name: .chevronRight, size: 20) // ← 全 app chevron 惯例 20pt(本页节假日/管理入口同值)
                             .foregroundColor(colors.onSurfaceVariant)
                     }
                     .padding(16)

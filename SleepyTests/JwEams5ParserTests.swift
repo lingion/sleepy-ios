@@ -133,8 +133,8 @@ final class JwEams5ParserTests: XCTestCase {
         XCTAssertTrue(feats.contains { $0.contains("lessonList") })
     }
 
-    func test_eams5_unmappable_start_falls_back_to_periods_not_dropped() throws {
-        // KDoc 承诺: startTime 不可映射时退 startNode=1, endNode = 1 + periods - 1
+    func test_eams5_duration_without_start_time_does_not_invent_first_period() throws {
+        // Android v1.0.64: duration alone cannot locate a class in the day.
         let p = JwEams5Parser("""
         {"result": {
           "lessonList": [{"id": 9001, "courseName": "兜底课"}],
@@ -145,9 +145,7 @@ final class JwEams5ParserTests: XCTestCase {
         }}
         """)
         let courses = try p.generateCourseList()
-        XCTAssertEqual(1, courses.count)
-        XCTAssertEqual(1, courses[0].startNode)
-        XCTAssertEqual(3, courses[0].endNode)
+        XCTAssertTrue(courses.isEmpty)
     }
 
     func test_eams5_unmappable_start_without_periods_drops_row() throws {
@@ -266,7 +264,7 @@ final class JwEams5ParserTests: XCTestCase {
         XCTAssertEqual(1, try p.generateCourseList().count)
     }
 
-    func test_ahu_empty_weekindexes_falls_back_to_week_1() throws {
+    func test_ahu_empty_weekindexes_does_not_invent_week_1() throws {
         let p = JwEams5Parser("""
         {
           "code": 200,
@@ -280,8 +278,7 @@ final class JwEams5ParserTests: XCTestCase {
         }
         """)
         let courses = try p.generateCourseList()
-        XCTAssertEqual(1, courses.count)
-        XCTAssertEqual(1, courses[0].startWeek)
+        XCTAssertTrue(courses.isEmpty)
     }
 
     // MARK: - parseWeekRanges 完整 RLE (12 例, 经 generateCourseList 行为锁定)
@@ -388,23 +385,17 @@ final class JwEams5ParserTests: XCTestCase {
         XCTAssertEqual(2, cs[1].type)
     }
 
-    func test_week_ranges_empty_bitmap_falls_back() throws {
-        let c = try XCTUnwrap(ahuWeek("").first)
-        XCTAssert((1, 1, 0) == (c.startWeek, c.endWeek, c.type))
+    func test_week_ranges_empty_bitmap_does_not_invent_week_1() throws {
+        XCTAssertTrue(try ahuWeek("").isEmpty)
     }
 
-    // 直接对 static parseWeekRanges 的边界回归 (锁定 issue #3 split-limit-2 对齐):
-    // 原版本 bare.split("-", limit = 2) 且 b 解析失败回退 a → "5-12-16" → (5,5,parity)
-    func test_week_ranges_malformed_multi_dash_behaves_like_split_limit_2() {
-        let r = JwEams5Parser.parseWeekRanges("5-12-16")
-        XCTAssertEqual(1, r.count)
-        XCTAssert((5, 5, 0) == r[0])
+    // Android v1.0.64 要求整个 token 符合周次语法，非法尾部不能退回单周。
+    func test_week_ranges_malformed_multi_dash_is_rejected() {
+        XCTAssertTrue(JwEams5Parser.parseWeekRanges("5-12-16").isEmpty)
     }
 
-    func test_week_ranges_malformed_multi_dash_with_parity() {
-        let r = JwEams5Parser.parseWeekRanges("3-4-5单")
-        XCTAssertEqual(1, r.count)
-        XCTAssert((3, 3, 1) == r[0])   // a=3, b="4-5" 解析失败 → b=a=3
+    func test_week_ranges_malformed_multi_dash_with_parity_is_rejected() {
+        XCTAssertTrue(JwEams5Parser.parseWeekRanges("3-4-5单").isEmpty)
     }
 
     // MARK: - teacher 字段多形态 fallback (5 仓共识)

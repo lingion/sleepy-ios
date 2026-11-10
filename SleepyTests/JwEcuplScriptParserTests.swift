@@ -1,4 +1,4 @@
-// JwEcuplScriptParserTests.swift — ← 原版本 v1.0.62 JwEcuplScriptParserTest.kt (逐用例移植)
+// JwEcuplScriptParserTests.swift — ← Android v1.0.64 JwEcuplScriptParserTest.kt
 //
 // ECUPL script 子协议 (R5/R6/R7) 解析器测试。
 // 覆盖 3 个 regex_invariants + isolation tests。
@@ -58,8 +58,8 @@ final class JwEcuplScriptParserTests: XCTestCase {
         let src = try scriptSample()
         let pairs = allMatches(JwEcuplScriptParser.reTimePair, src)
         XCTAssertTrue(pairs.count >= 12, "≥ 12 时间对, 实际 \(pairs.count)")
-        XCTAssertEqual("480", group(src, pairs[0], 1))
-        XCTAssertEqual("525", group(src, pairs[0], 2))
+        XCTAssertEqual("800", group(src, pairs[0], 1))
+        XCTAssertEqual("845", group(src, pairs[0], 2))
     }
 
     // MARK: - C. R7: newActivity + addActivityByTime 配对 emit 课程
@@ -98,15 +98,15 @@ final class JwEcuplScriptParserTests: XCTestCase {
     // ← 原 JwEcuplScriptParserTest.kt: `unmatched minutes and overflowing bitmap emit no invented courses`
     func testUnmatchedMinutesAndOverflowingBitmapEmitNoInventedCourses() throws {
         let base = try scriptSample()
-        let unmatched = base.replacingOccurrences(of: "activity,1,480,580", with: "activity,1,481,580")
+        let unmatched = base.replacingOccurrences(of: "activity,1,800,940", with: "activity,1,801,940")
         XCTAssertEqual(3, try JwEcuplScriptParser(unmatched).generateCourseList().count)
-        let overflow = base.replacingOccurrences(of: "65535", with: "18446744073709551616")
+        let overflow = base.replacingOccurrences(of: "131070", with: "18446744073709551616")
         XCTAssertEqual(0, try JwEcuplScriptParser(overflow).generateCourseList().count)
     }
 
     // ← 原 JwEcuplScriptParserTest.kt: `sparse decimal bitmap retains gaps and date offset`
     func testSparseDecimalBitmapRetainsGapsAndDateOffset() throws {
-        let html = try scriptSample().replacingOccurrences(of: "\"2024-02-26\",65535", with: "\"2024-03-04\",21")
+        let html = try scriptSample().replacingOccurrences(of: "\"2024-02-26\",131070", with: "\"2024-03-04\",42")
         let courses = try JwEcuplScriptParser(html).generateCourseList()
             .filter { $0.name == "民法(总则)" && $0.day == 1 }
         // ← Kotlin `(startWeek..endWeek step (type==0 ? 1 : 2))` flatMap

@@ -36,6 +36,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+
 jobs:
   unsigned-ipa:
     if: github.event_name == 'workflow_dispatch'
@@ -63,6 +66,10 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || inputs.tests == 'yes'
     runs-on: macos-15
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [unit-drag, ui-settings, ui-workflows]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -103,6 +110,7 @@ jobs:
             -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES \
             2>&1 | tee build/ci/build.log
       - name: Run unit and integration tests
+        if: matrix.suite == 'unit-drag'
         shell: bash
         run: |
           set -euo pipefail
@@ -112,7 +120,7 @@ jobs:
             -only-testing:SleepyTests -resultBundlePath build/ci/unit.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/unit.log
       - name: Run native drag acceptance
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.suite == 'unit-drag' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -122,8 +130,21 @@ jobs:
             -only-testing:SleepyUITests/CourseDragUITests \
             -resultBundlePath build/ci/drag.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/drag.log
+      - name: Run settings and control UI acceptance
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.suite == 'ui-settings' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
+            -only-testing:SleepyUITests/MineSettingsUITests \
+            -only-testing:SleepyUITests/UIElementAuditUITests \
+            -only-testing:SleepyUITests/WatchTimeStripSettingsUITests \
+            -resultBundlePath build/ci/ui.xcresult \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/ui.log
       - name: Run remaining UI acceptance
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.suite == 'ui-workflows' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -131,13 +152,16 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
             -only-testing:SleepyUITests -skip-testing:SleepyUITests/CourseDragUITests \
+            -skip-testing:SleepyUITests/MineSettingsUITests \
+            -skip-testing:SleepyUITests/UIElementAuditUITests \
+            -skip-testing:SleepyUITests/WatchTimeStripSettingsUITests \
             -resultBundlePath build/ci/ui.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/ui.log
       - name: Upload logs and result bundles
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-acceptance-${{ github.sha }}
+          name: ios-acceptance-${{ matrix.suite }}-${{ github.sha }}
           path: build/ci
           retention-days: 7
           if-no-files-found: warn

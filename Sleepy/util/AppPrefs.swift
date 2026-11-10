@@ -11,6 +11,9 @@ final class AppPrefs {
     static let shared = AppPrefs()
 
     static let FILE = "sleepy_prefs"
+    static let KEY_UI_STYLE = "ui_style"
+    static let KEY_DOCK_THEME = "dock_theme"
+    static let KEY_RECENT_JW_SCHOOL_KEYS = "recent_jw_school_keys"
     static let KEY_DARK = "dark_mode"
     static let KEY_REMINDER = "reminder_master"      // master toggle (default false)
     static let KEY_DAILY_ENABLED = "daily_reminder"   // daily sub-toggle (default true)
@@ -115,11 +118,41 @@ final class AppPrefs {
     private let themeKeySubject = CurrentValueSubject<String, Never>(ThemePresets.KEY_DEFAULT)
     lazy private(set) var themeKeyPublisher: AnyPublisher<String, Never> = themeKeySubject.eraseToAnyPublisher()
 
+    private let uiStyleSubject = CurrentValueSubject<String, Never>("classic")
+    lazy private(set) var uiStylePublisher: AnyPublisher<String, Never> = uiStyleSubject.removeDuplicates().eraseToAnyPublisher()
+
+    func getUiStyle() -> String {
+        let stored = d.string(forKey: Self.KEY_UI_STYLE) ?? d.string(forKey: Self.KEY_DOCK_THEME) ?? "classic"
+        return stored == "liquid_glass" ? "liquid_glass" : "classic"
+    }
+    func setUiStyle(_ style: String) {
+        let value = style == "liquid_glass" ? "liquid_glass" : "classic"
+        d.set(value, forKey: Self.KEY_UI_STYLE)
+        uiStyleSubject.send(value)
+    }
+    func getDockTheme() -> String { getUiStyle() }
+    func setDockTheme(_ style: String) { setUiStyle(style) }
+
+    var recentJwSchoolKeys: [String] {
+        guard let raw = d.string(forKey: Self.KEY_RECENT_JW_SCHOOL_KEYS),
+              let bytes = raw.data(using: .utf8),
+              let list = try? JSONDecoder().decode([String].self, from: bytes) else { return [] }
+        return Array(list.filter { !$0.isEmpty }.prefix(3))
+    }
+    func recordRecentJwSchool(key: String) {
+        guard !key.isEmpty else { return }
+        let keys = Array(([key] + recentJwSchoolKeys.filter { $0 != key }).prefix(3))
+        if let data = try? JSONEncoder().encode(keys), let value = String(data: data, encoding: .utf8) {
+            d.set(value, forKey: Self.KEY_RECENT_JW_SCHOOL_KEYS)
+        }
+    }
+
     /// 单测注入用:默认 UserDefaults.standard。测试用 suiteName 隔离。
     private let d: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
         self.d = defaults
+        uiStyleSubject.send(getUiStyle())
     }
 
     private func sp() -> UserDefaults { d }

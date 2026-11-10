@@ -20,184 +20,84 @@ final class JwUrpParser: JwParser, JwParserConfidenceReporting {
     }
 
     func generateCourseList() throws -> [JwCourse] {
-        var result: [JwCourse] = []
-        guard let doc = try? SwiftSoup.parse(source) else { return result }
-        // T10: URP 网格变体 (td[id='day_node'] + div.class_div) — 真实结构来自 urp_01.js
+        guard let doc = Jw64.doc(source) else { return [] }
         let grid = Self.parseUrpGrid(doc)
         if !grid.isEmpty { return grid }
+        return Jw64.select(doc, "table.displayTag,table.table.table-striped.table-bordered,table#tb").flatMap(Self.parseTable)
+    }
 
-        var tables = (try? doc.getElementsByAttributeValue("class", "displayTag")) ?? Elements()
-        if tables.isEmpty() {
-            tables = (try? doc.getElementsByAttributeValue("class", "table table-striped table-bordered")) ?? Elements()
-        }
-        if tables.isEmpty() { return result }
-
-        for table in tables {
-            // 跳过非课表(第一行含"星期一"的是顶部信息行)
-            if let text = try? table.text(), text.contains("星期一") { continue }
-
-            guard let thead = (try? table.getElementsByTag("thead"))?.first() else { continue }
-            let ths = (try? thead.getElementsByTag("th")) ?? Elements()
-            let headSize = ths.count
-
-            var nameIdx = -1
-            var teacherIdx = -1
-            var weekIdx = -1
-            var dayIdx = -1
-            var nodeIdx = -1
-            var stepIdx = -1
-            var buildingIdx = -1
-            var roomIdx = -1
-
-            // ← ths.eachText().forEachIndexed
-            for (i, th) in ths.enumerated() {
-                let s = ((try? th.text()) ?? "").trimmingCharacters(in: .whitespaces)
-                switch s {
-                case "课程名": nameIdx = i
-                case "教师": teacherIdx = i
-                case "周次": weekIdx = i
-                case "星期": dayIdx = i
-                case "节次": nodeIdx = i
-                case "节数": stepIdx = i
-                case "教学楼": buildingIdx = i
-                case "教室": roomIdx = i
-                default: break
-                }
+    private static func parseTable(_ table: Element) -> [JwCourse] {
+        let headers = Jw64.select(table, "thead th").map(Jw64.text)
+        func column(_ label: String) -> Int { headers.firstIndex(where: { $0.contains(label) }) ?? -1 }
+        let nameIndex = column("课程名"), teacherIndex = column("教师"), weekIndex = column("周次"), dayIndex = column("星期"), nodeIndex = column("节次"), stepIndex = column("节数"), buildingIndex = column("教学楼"), roomIndex = column("教室"), creditIndex = column("学分")
+        guard [nameIndex, weekIndex, dayIndex, nodeIndex].allSatisfy({ $0 >= 0 }) else { return [] }
+        let rows = Jw64.select(table, "tbody > tr").filter { Jw64.ancestor($0, css: "table") === table }
+        var carried: [Int: (Element, Int)] = [:], previousMetadata: [Int: String]?, courses: [JwCourse] = []
+        for (rowIndex, row) in rows.enumerated() {
+            var cells = Array<Element?>(repeating: nil, count: headers.count)
+            for (index, entry) in carried where entry.1 >= rowIndex { cells[index] = entry.0 }
+            let directCells = Jw64.children(row).filter { $0.tagNameNormal() == "td" }
+            let continuation = previousMetadata != nil && weekIndex > 0 && [nameIndex, teacherIndex, creditIndex].filter { $0 >= 0 }.allSatisfy { $0 < weekIndex } && cells.allSatisfy { $0 == nil } && directCells.count == headers.count - weekIndex && directCells.allSatisfy { cell in ["rowspan", "colspan"].allSatisfy { !cell.hasAttr($0) || Jw64.attr(cell, $0) == "1" } }
+            var cursor = continuation ? weekIndex : 0
+            for cell in Jw64.children(row) {
+                guard cell.tagNameNormal() == "td" else { return [] }
+                let span = cell.hasAttr("rowspan") ? jw1064Integer(Jw64.attr(cell, "rowspan")) : 1
+                let width = cell.hasAttr("colspan") ? jw1064Integer(Jw64.attr(cell, "colspan")) : 1
+                guard let span, (1...(rows.count - rowIndex)).contains(span), width == 1 else { return [] }
+                while cursor < cells.count && cells[cursor] != nil { cursor += 1 }
+                guard cursor < cells.count else { return [] }
+                cells[cursor] = cell
+                if span > 1 { carried[cursor] = (cell, rowIndex + span - 1) }
+                cursor += 1
             }
-            // ★ 周/节数列索引缺失时无法安全对齐列,跳过此表(避免越界崩溃)
-            if weekIdx == -1 || nodeIdx == -1 || nameIdx == -1 { continue }
-
-            guard let tbody = (try? table.getElementsByTag("tbody"))?.first() else { continue }
-            var courseName = ""
-            var teacher = ""
-
-            let trs = (try? tbody.getElementsByTag("tr")) ?? Elements()
-            for tr in trs {
-                let tds = (try? tr.getElementsByTag("td")) ?? Elements()
-                func tdText(_ i: Int) -> String {
-                    guard i >= 0 && i < tds.count else { return "" }  // Kotlin 侧靠 try/catch 吞越界
-                    return ((try? tds[i].text()) ?? "")
-                }
-                let wholeFlag = tds.count > headSize - weekIdx
-                let acDayIdx = wholeFlag ? dayIdx : dayIdx - weekIdx
-                if tdText(acDayIdx).trimmingCharacters(in: .whitespaces).isEmpty { continue }
-
-                if wholeFlag {
-                    courseName = tdText(nameIdx)
-                    teacher = tdText(teacherIdx).trimmingCharacters(in: .whitespaces)
-                }
-
-                // ← try { bIdx/rIdx 越界 → "" } catch
-                let room: String = {
-                    let bIdx = wholeFlag ? buildingIdx : buildingIdx - weekIdx
-                    let rIdx = wholeFlag ? roomIdx : roomIdx - weekIdx
-                    guard bIdx >= 0 && bIdx < tds.count && rIdx >= 0 && rIdx < tds.count else { return "" }
-                    return ((try? tds[bIdx].text()) ?? "").trimmingCharacters(in: .whitespaces) +
-                        ((try? tds[rIdx].text()) ?? "").trimmingCharacters(in: .whitespaces)
-                }()
-
-                let nodeE = tds[wholeFlag ? nodeIdx : nodeIdx - weekIdx]
-                let nodeText = (try? nodeE.text()) ?? ""
-                let startNode = Self.getStartNode(nodeText)
-                let step: Int
-                if stepIdx != -1 {
-                    let sIdx = wholeFlag ? stepIdx : stepIdx - weekIdx
-                    step = Self.getStep(tdText(sIdx).trimmingCharacters(in: .whitespaces))
-                } else {
-                    // ← substringAfter('-').substringBefore('节').toIntOrNull() ?: startNode
-                    let after = nodeText.trimmingCharacters(in: .whitespaces)
-                        .components(separatedBy: "-").dropFirst().first ?? ""
-                    let beforeJie = after.components(separatedBy: "节").first ?? ""
-                    let end = Int(beforeJie.trimmingCharacters(in: .whitespaces)) ?? startNode
-                    step = end - startNode + 1
-                }
-                let day = Self.getDay(tdText(acDayIdx))
-                let acWeekIdx = wholeFlag ? weekIdx : 0
-                let weekStr = tdText(acWeekIdx).trimmingCharacters(in: .whitespaces)
-
-                let ranges = Self.weekStrToRanges(weekStr)
-                for r in ranges {
-                    result.append(JwCourse(
-                        name: courseName,
-                        room: room,
-                        teacher: teacher,
-                        day: day,
-                        startNode: startNode,
-                        endNode: startNode + step - 1,
-                        startWeek: r.0,
-                        endWeek: r.1,
-                        type: r.2
-                    ))
-                }
+            if cells.indices.contains(where: { cells[$0] == nil && (!continuation || $0 >= weekIndex) }) { continue }
+            func text(_ index: Int) -> String {
+                if continuation && index >= 0 && index < weekIndex { return previousMetadata?[index] ?? "" }
+                return index >= 0 && index < cells.count ? Jw64.text(cells[index]) : ""
+            }
+            let name = text(nameIndex)
+            guard !name.isEmpty else { continue }
+            if !continuation { previousMetadata = Dictionary(uniqueKeysWithValues: (0..<weekIndex).map { ($0, text($0)) }) }
+            guard let day = dayNumber(text(dayIndex)) else { continue }
+            let ranges = nodeRanges(text(nodeIndex))
+            guard !ranges.isEmpty else { continue }
+            let step: Int?
+            if stepIndex < 0 { step = nil }
+            else { guard let value = smallNumber(text(stepIndex)), (1...366).contains(value) else { continue }; step = value }
+            let weekText = text(weekIndex), parsedWeeks = schoolWeekRanges(weekText, trailingParityAppliesToAll: true)
+            let weeks: [(Int, Int, Int)]
+            if weekText.contains(",") || weekText.contains("，") {
+                let values = parsedWeeks.flatMap { first, last, parity in (first...last).filter { parity == 0 || $0 % 2 == parity % 2 } }
+                weeks = JwChengFangParser.weekIntList2WeekBeanList(Array(Set(values)).sorted())
+            } else { weeks = parsedWeeks }
+            let credit = Float(text(creditIndex)) ?? 0
+            for (start, end) in ranges {
+                guard let last = step.flatMap({ explicitScheduleEnd(start, $0) }) ?? (step == nil ? end : nil), (1...366).contains(start), (start...366).contains(last) else { continue }
+                for (firstWeek, lastWeek, parity) in weeks { courses.append(JwCourse(name: name, room: text(buildingIndex) + text(roomIndex), teacher: text(teacherIndex), day: day, startNode: start, endNode: last, startWeek: firstWeek, endWeek: lastWeek, type: parity, credit: credit.isFinite && credit >= 0 ? credit : 0)) }
             }
         }
-        return result
+        return courses
     }
 
-    private static func getDay(_ str: String) -> Int {
-        let t = str.trimmingCharacters(in: .whitespaces)
-        if let v = Int(t) { return v }
-        switch t {
-        case "星期一": return 1
-        case "星期二": return 2
-        case "星期三": return 3
-        case "星期四": return 4
-        case "星期五": return 5
-        case "星期六": return 6
-        case "星期日", "星期天": return 7
-        default: return 1
-        }
+    private static func dayNumber(_ raw: String) -> Int? {
+        if let value = jw1064Integer(raw), (1...7).contains(value) { return value }
+        var text = raw
+        if text.hasPrefix("星期") { text = String(text.dropFirst(2)) }; if text.hasPrefix("周") { text.removeFirst() }
+        let day = Jw64.day(text); return day == 0 ? nil : day
     }
-
-    private static func getStartNode(_ s: String) -> Int {
-        let t = s.trimmingCharacters(in: .whitespaces)
-        if t.contains("-") {
-            // ← substringBefore('-')
-            return Int(t.components(separatedBy: "-").first?.trimmingCharacters(in: .whitespaces) ?? "") ?? 1
-        } else {
-            // ← substringAfter('第').substringBefore('大').substringBefore('小')
-            let afterDi = t.components(separatedBy: "第").dropFirst().first ?? ""
-            let beforeDa = afterDi.components(separatedBy: "大").first ?? ""
-            let beforeXiao = beforeDa.components(separatedBy: "小").first ?? ""
-            return Int(beforeXiao.trimmingCharacters(in: .whitespaces)) ?? 1
-        }
+    private static func smallNumber(_ raw: String) -> Int? {
+        jw1064Integer(raw) ?? ["一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9,"十":10,"十一":11,"十二":12,"十三":13,"十四":14,"十五":15][raw]
     }
-
-    private static func getStep(_ s: String) -> Int { Int(s) ?? 1 }
-
-    private static func weekStrToRanges(_ weekStr: String) -> [(Int, Int, Int)] {
-        var result: [(Int, Int, Int)] = []
-        if weekStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {  // ← isBlank
-            result.append((1, 20, 0))
-            return result
+    private static func nodeRanges(_ raw: String) -> [(Int, Int)] {
+        var cleaned = raw
+        if cleaned.hasPrefix("第") { cleaned.removeFirst() }; if cleaned.hasSuffix("节") { cleaned.removeLast() }
+        if cleaned.hasSuffix("大") {
+            guard let value = smallNumber(String(cleaned.dropLast())), let pair = explicitSchedulePair(value) else { return [] }
+            return [(pair.lowerBound, pair.lowerBound)]
         }
-        // 支持 "1-16周", "1-16周(单)", "2,4,6,8,10周"(逗号列表按上游 weekIntList2WeekBeanList 归并)
-        let type: Int
-        if weekStr.contains("单") { type = 1 }
-        else if weekStr.contains("双") { type = 2 }
-        else { type = 0 }
-        let cleaned = weekStr.replacingOccurrences(of: "周", with: "")
-            .replacingOccurrences(of: "(", with: "")
-            .replacingOccurrences(of: ")", with: "")
-            .replacingOccurrences(of: "单", with: "")
-            .replacingOccurrences(of: "双", with: "")
-            .trimmingCharacters(in: .whitespaces)
-        if cleaned.contains("-") {
-            let parts = cleaned.components(separatedBy: "-")
-            let s = Int(parts[0].trimmingCharacters(in: .whitespaces)) ?? 1
-            let e = parts.count > 1 ? (Int(parts[1].trimmingCharacters(in: .whitespaces)) ?? s) : s
-            result.append((s, e, type))
-        } else if cleaned.contains(",") {
-            // 逗号列表: 归并成连续/单双周段 (T10 契约: "2,4,6,8,10周" → (2,10,type=2))
-            let weeks = cleaned.components(separatedBy: ",")
-                .map { Int($0.trimmingCharacters(in: .whitespaces)) }
-                .compactMap { $0 }
-            result += JwChengFangParser.weekIntList2WeekBeanList(weeks)
-        } else {
-            let v = Int(cleaned.trimmingCharacters(in: .whitespaces)) ?? 1
-            result.append((v, v, type))
-        }
-        return result
+        let value = smallNumber(cleaned.hasSuffix("小") ? String(cleaned.dropLast()) : cleaned)
+        if let value, (1...366).contains(value) { return [(value, value)] }
+        return schoolNodeRanges(cleaned)
     }
 
     ///

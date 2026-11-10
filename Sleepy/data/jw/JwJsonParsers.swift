@@ -286,43 +286,38 @@ final class JwUstcParser: JwParser, JwParserConfidenceReporting {
     }
 
     func generateCourseList() throws -> [JwCourse] {
-        // 对齐 Kotlin Json { ignoreUnknownKeys = true; isLenient = true }
-        guard let root = jwParseJSONLenient(source) as? [String: Any],
-              let tableVm = jsonObj(root["studentTableVm"]),
-              let activities = jsonArr(tableVm["activities"]) else { return [] }
-        var out: [JwCourse] = []
-        for el in activities {
-            guard let obj = jsonObj(el) else { continue }
-            let name = jstr(obj, "courseName")
-            if name.isEmpty { continue }
-            let room = fallbackRoom(obj)
-            let teacher = joinTeachers(obj)
-            // lessonCode 4 位定宽是自创解读 (上游 json_version.py 只把它拼进
-            // description, 节次实际由 startDate/endDate 时间表达); 不合式时用
-            // startDate/endDate 推断兜底, 不整行丢弃。(同 原版本 v1.0.61)
-            let fromCode = parseLessonCode(obj)
-            let startNode: Int, endNode: Int
-            if fromCode.start > 0 {
-                (startNode, endNode) = fromCode
-            } else if let inferred = inferNodesFromTime(jstr(obj, "startDate"), jstr(obj, "endDate")) {
-                (startNode, endNode) = inferred
+        guard let root = jwParseJSONLenient(source) as? [String: Any], let table = jsonObj(root["studentTableVm"]), let activities = jsonArr(table["activities"]) else { return [] }
+        var result: [JwCourse] = []
+        for case let row as [String: Any] in activities {
+            let name = jstr(row, "courseName"), start = jstr(row, "startDate"), end = jstr(row, "endDate")
+            guard !name.isEmpty, let day = jw1064Integer(jstr(row, "weekday")), (1...7).contains(day) else { continue }
+            let validTime = JwCourse.isValidTimeRange(start, end)
+            guard (start.isEmpty && end.isEmpty) || validTime else { continue }
+            let nodes: (Int, Int)
+            if row.keys.contains("startUnit") || row.keys.contains("endUnit") {
+                guard let first = jw1064Integer(jstr(row, "startUnit")), let last = jw1064Integer(jstr(row, "endUnit")), (1...366).contains(first), (first...366).contains(last) else { continue }
+                nodes = (first, last)
             } else {
-                continue
+                guard validTime else { continue }
+                nodes = (1, 1)
             }
-            guard let weekday = jint(obj, "weekday") else { continue }
-            let weeksStr = jstr(obj, "weeksStr")
-            if weeksStr.isEmpty { continue }
-            let (typeInt, cleanStr) = parseWeeksType(weeksStr)
-            for (sw0, ew0) in parseWeekSegments(cleanStr) {
-                // 共享 helper: 端点相等时 end 抬回 start, 不产出 (7,6) 倒挂区间
-                let (sw, ew) = JwParity.adjustedRange(sw0, ew0, parity: typeInt)
-                out.append(JwCourse(
-                    name: name, room: room, teacher: teacher,
-                    day: weekday, startNode: startNode, endNode: endNode,
-                    startWeek: sw, endWeek: ew, type: typeInt))
+            let weeks = JwEams5Parser.parseWeekRanges(jstr(row, "weeksStr").replacingOccurrences(of: ")周", with: ")"))
+            guard weeks.allSatisfy({ (1...366).contains($0.0) && ($0.0...366).contains($0.1) }) else { continue }
+            let plain = (row["teachers"] as? [Any] ?? []).compactMap { value -> String? in
+                guard !(value is [Any]) && !(value is [String: Any]) && !(value is NSNull) else { return nil }
+                let name = String(describing: value).trimmingCharacters(in: .whitespacesAndNewlines)
+                return name.isEmpty ? nil : name
+            }
+            let deep = (row["teacherDeepVms"] as? [[String: Any]] ?? []).compactMap { ($0["person"] as? [String: Any]).map { jstr($0, "nameZh") } }.filter { !$0.isEmpty }
+            let joined = (plain.isEmpty ? deep : plain).joined(separator: " ")
+            let teacher = joined.isEmpty ? jstr(row, "teachers") : joined
+            let credit = Float(jstr(row, "credits")) ?? 0
+            for (first, last, parity) in weeks {
+                let range = JwParity.adjustedRange(first, last, parity: parity)
+                result.append(JwCourse(name: name, room: fallbackRoom(row), teacher: teacher, day: day, startNode: nodes.0, endNode: nodes.1, startWeek: range.0, endWeek: range.1, type: parity, startTime: start, endTime: end, credit: credit.isFinite && credit >= 0 ? credit : 0, note: jstr(row, "lessonCode") + jstr(row, "lessonRemark")))
             }
         }
-        return out
+        return Jw64.distinct(result)
     }
 
     /// weeksStr → (type, cleanStr): type 0=每周 1=单 2=双, cleanStr 已剥"单/双"后缀。

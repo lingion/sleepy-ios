@@ -23,18 +23,118 @@ final class CourseEditorUITests: XCTestCase {
         app.terminate()   // 隔离: 每用例杀进程重启, 防跨用例状态串扰
     }
 
+    private func tapSettled(_ element: XCUIElement,
+                            file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.waitForExistence(timeout: 5), file: file, line: line)
+        var previousFrame = CGRect.zero
+        var stableSince = Date()
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard element.exists && element.isHittable else {
+                stableSince = Date()
+                return false
+            }
+            let frame = element.frame
+            guard self.app.frame.contains(frame) && frame.width > 0 && frame.height > 0 else {
+                stableSince = Date()
+                return false
+            }
+            if frame != previousFrame { stableSince = Date() }
+            previousFrame = frame
+            return Date().timeIntervalSince(stableSince) >= 0.3
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed,
+                       "The complete action must settle before its single tap", file: file, line: line)
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    }
+
+    private func expectLabel(_ label: String, on element: XCUIElement,
+                             file: StaticString = #filePath, line: UInt = #line) {
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", label), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed,
+                       "The action must update its accessibility label", file: file, line: line)
+        XCTAssertEqual(element.label, label, file: file, line: line)
+    }
+
     /// 管理页 → manage_add_course 卡 → AddCourseScreen
     private func openEditor() {
         app.switchToPillTab("manage")
         let addCard = app.descendants(matching: .any)["manage_add_course"]
         XCTAssertTrue(addCard.waitForExistence(timeout: 5), "管理页 Add Course 卡锚点未找到")
-        addCard.tap()
+        tapSettled(addCard)
         let manual = app.descendants(matching: .any)["import_manual"]
         XCTAssertTrue(manual.waitForExistence(timeout: 5), "添加课程来源页的手动入口未找到")
-        if !manual.isHittable { app.swipeUp() }
-        manual.tap()
+        if !manual.isHittable || !app.frame.contains(manual.frame) { app.swipeUp() }
+        tapSettled(manual)
         XCTAssertTrue(app.staticTexts["Create Course"].waitForExistence(timeout: 5),
                       "加课页未打开")
+    }
+
+    func testMeetingCardCollapseKeepsSummaryAndRestoresControls() {
+        let toggle = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'course_slot_' AND identifier ENDSWITH '_expand'")).firstMatch
+        for _ in 0..<6 {
+            if toggle.exists && toggle.isHittable && app.frame.contains(toggle.frame) { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "Collapse period", "The first card in a new course starts expanded")
+        tapSettled(toggle)
+        expectLabel("Expand period", on: toggle)
+        let nodeSlider = app.descendants(matching: .any).matching(NSPredicate(format:
+            "identifier BEGINSWITH 'course_slot_' AND identifier ENDSWITH '_nodes_start'")).firstMatch
+        XCTAssertFalse(nodeSlider.exists, "Collapsed cards remove their editing controls")
+        tapSettled(toggle)
+        expectLabel("Collapse period", on: toggle)
+        XCTAssertTrue(nodeSlider.waitForExistence(timeout: 5), "Expanding restores the period controls")
+    }
+
+    func testGlassMeetingRangeUsesNativeSlidersAndRetainsValuesAfterCollapse() {
+        app.terminate()
+        app.launchArguments += ["-ui_style", "liquid_glass"]
+        app.sleepyLaunch()
+        openEditor()
+        let start = app.sliders.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'course_slot_' AND identifier ENDSWITH '_nodes_start'")).firstMatch
+        let end = app.sliders.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'course_slot_' AND identifier ENDSWITH '_nodes_end'")).firstMatch
+        for _ in 0..<10 {
+            if end.exists && end.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(start.exists && end.exists, "Both endpoints must expose native adjustable sliders")
+        XCTAssertTrue(end.isHittable)
+        end.adjust(toNormalizedSliderPosition: 0.8)
+        for _ in 0..<5 {
+            if start.isHittable { break }
+            app.swipeDown()
+        }
+        XCTAssertTrue(start.isHittable)
+        start.adjust(toNormalizedSliderPosition: 0.4)
+        guard let first = Int(start.value as? String ?? ""), let last = Int(end.value as? String ?? "") else {
+            return XCTFail("The endpoint accessibility values must retain their integer semantics")
+        }
+        XCTAssertGreaterThan(first, 1)
+        XCTAssertGreaterThanOrEqual(last, first)
+        let toggle = app.buttons.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'course_slot_' AND identifier ENDSWITH '_expand'")).firstMatch
+        for _ in 0..<8 {
+            if toggle.isHittable && app.frame.contains(toggle.frame) { break }
+            app.swipeDown()
+        }
+        tapSettled(toggle)
+        expectLabel("Expand period", on: toggle)
+        let collapsed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: start)
+        XCTAssertEqual(XCTWaiter.wait(for: [collapsed], timeout: 5), .completed)
+        XCTAssertFalse(start.exists)
+        tapSettled(toggle)
+        expectLabel("Collapse period", on: toggle)
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        XCTAssertTrue(end.waitForExistence(timeout: 5))
+        XCTAssertEqual(start.value as? String, String(first))
+        XCTAssertEqual(end.value as? String, String(last))
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "native-glass-course-range"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     // MARK: 4 个 TextField 都能输入
@@ -114,26 +214,39 @@ final class CourseEditorUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Slot 3"].waitForExistence(timeout: 3))
     }
 
-    // MARK: 删除时段(Slot 2 的 minus 按钮 → 只剩 Slot 1)
+    // MARK: 删除第二个时段，保留第一个时段
 
     func testRemoveSlotBlock() {
-        let addSlot = app.descendants(matching: .any)["course_add_slot"]
-        XCTAssertTrue(addSlot.waitForExistence(timeout: 5))
-        addSlot.tap()
-        XCTAssertTrue(app.staticTexts["Slot 2"].waitForExistence(timeout: 3))
-        // Slot 2 内的删除按钮(minus 图标) — MeetingBlockEditor onRemove
-        let removeBtn = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS 'trash' OR label CONTAINS 'minus'")
-        ).firstMatch
-        if removeBtn.exists && removeBtn.isHittable {
-            removeBtn.tap()
-            XCTAssertFalse(app.staticTexts["Slot 2"].waitForExistence(timeout: 2),
-                           "删除后 Slot 2 应消失")
-        } else {
-            // 图标无 label — 通过坐标点 Slot 2 标题右上
-            let slot2 = app.staticTexts["Slot 2"]
-            slot2.coordinate(withNormalizedOffset: CGVector(dx: 8.0, dy: -0.3)).tap()
+        func scrollUntilHittable(_ element: XCUIElement, defaultSwipeUp: Bool) {
+            for _ in 0..<12 {
+                if element.exists && element.isHittable { break }
+                if element.exists && !element.frame.isEmpty {
+                    if element.frame.midY < app.frame.midY { app.swipeDown() }
+                    else { app.swipeUp() }
+                } else if defaultSwipeUp { app.swipeUp() }
+                else { app.swipeDown() }
+            }
+            XCTAssertTrue(element.exists, "应能滚动找到 \(element.identifier)")
+            XCTAssertTrue(element.isHittable, "\(element.identifier) 应在屏幕内可点击")
         }
+
+        let addSlot = app.buttons["course_add_slot"]
+        scrollUntilHittable(addSlot, defaultSwipeUp: true)
+        addSlot.tap()
+        let slot2 = app.staticTexts["Slot 2"]
+        XCTAssertTrue(slot2.waitForExistence(timeout: 3))
+        let remove = app.buttons["course_slot_2_remove"]
+        scrollUntilHittable(remove, defaultSwipeUp: false)
+        XCTAssertEqual(remove.label, "Remove slot")
+        remove.tap()
+
+        let removed = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: slot2)
+        wait(for: [removed], timeout: 3)
+        XCTAssertFalse(remove.exists, "被删除时段的操作按钮应一起消失")
+        let slot1 = app.staticTexts["Slot 1"]
+        scrollUntilHittable(slot1, defaultSwipeUp: false)
+        XCTAssertTrue(slot1.exists, "删除第二个时段后应保留第一个时段")
+        XCTAssertFalse(slot2.exists, "删除后第二个时段应保持消失")
     }
 
     // MARK: Mode 切换(byNode ↔ byClock)

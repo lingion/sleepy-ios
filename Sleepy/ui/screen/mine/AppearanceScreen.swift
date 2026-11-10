@@ -1,8 +1,4 @@
-// AppearanceScreen.swift — ← ui/screen/mine/AppearanceScreen.kt
-// 外观页(决策 D2 合并页): 仅主题色彩组(SystemThemeCard + 2列预设网格 + 深浅色三态)
-// + Section③ 课表显示(内嵌 ScheduleDisplayContent) + Section④ 节次表头入口(2026-10 对齐补全)。
-// 选主题/模式后立即刷小组件(refreshWidgets 管线保留)。
-
+// Appearance groups palette, interface material, navigation shape and the schedule display entry.
 import SwiftUI
 import UIKit
 import WidgetKit
@@ -18,6 +14,9 @@ struct AppearanceScreen: View {
     // ← 原版本 onOpenPeriodHeaderSettings(Section④ 节次表头入口, 默认 no-op 保持 API 兼容,
     //   接线 .periodHeaderSettings 路由归共享文件 SleepyApp/SleepyNavigator, 见 needs_shared_wiring)
     var onOpenPeriodHeaderSettings: () -> Void = {}
+    var onOpenScheduleDisplay: () -> Void = {}
+    @State private var uiStyle = AppPrefs.shared.getUiStyle()
+    @State private var navStyleIndex = NavStyleResolver.isFloatingRequested() ? 1 : 0
 
     @State private var currentKey: String
     // 自定义主题列表(编辑器保存/删除后重载)← 原版本 customListVersion
@@ -35,12 +34,14 @@ struct AppearanceScreen: View {
          themeMode: String = AppPrefs.THEME_MODE_SYSTEM,
          onThemeModeChange: @escaping (String) -> Void = { _ in },
          onThemeKeyChange: @escaping () -> Void = {},
-         onOpenPeriodHeaderSettings: @escaping () -> Void = {}) {
+         onOpenPeriodHeaderSettings: @escaping () -> Void = {},
+         onOpenScheduleDisplay: @escaping () -> Void = {}) {
         self.onDismiss = onDismiss
         self.themeMode = themeMode
         self.onThemeModeChange = onThemeModeChange
         self.onThemeKeyChange = onThemeKeyChange
         self.onOpenPeriodHeaderSettings = onOpenPeriodHeaderSettings
+        self.onOpenScheduleDisplay = onOpenScheduleDisplay
         _currentKey = State(initialValue: AppPrefs.shared.getThemeKey())
     }
 
@@ -57,10 +58,23 @@ struct AppearanceScreen: View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("mine_appearance"), onBack: onDismiss)
             ScrollView {
-                VStack(spacing: 12) {
-                    // ── 分组① 主题色彩 ──
-                    SectionHeader(title: L10n.format("appearance_section_theme"))
-
+                VStack(spacing: SettingsLayout.cardGap) {
+                    SettingsSection(title: L10n.format("theme_appearance"), first: true) {
+                        SegmentedSwitcher(
+                            options: [(AppPrefs.THEME_MODE_SYSTEM, L10n.format("theme_mode_system")),
+                                      (AppPrefs.THEME_MODE_LIGHT, L10n.format("theme_mode_light")),
+                                      (AppPrefs.THEME_MODE_DARK, L10n.format("theme_mode_dark"))],
+                            selected: themeMode,
+                            onSelect: { mode in
+                                guard mode != themeMode else { return }
+                                prefs.setThemeMode(mode)
+                                onThemeModeChange(mode)
+                                refreshWidgets()
+                                if courseColorMode == AppPrefs.COURSE_COLOR_MODE_FOLLOW_THEME { recalcAllCourses() }
+                            }, containerColor: colors.surfaceContainerHighest)
+                            .accessibilityIdentifier("settings_mode_segment")
+                    }
+                    SettingsSection(title: L10n.format("appearance_section_theme")) {
                     SystemThemeCard(selected: currentKey == ThemePresets.KEY_SYSTEM) {
                         prefs.setThemeKey(ThemePresets.KEY_SYSTEM)
                         currentKey = ThemePresets.KEY_SYSTEM
@@ -92,43 +106,28 @@ struct AppearanceScreen: View {
                         }
                     }
 
-                    // ── 分组② 外观深浅 ──
-                    // ← 原版本: SectionHeader(theme_appearance) 独立 item +
-                    //   外层 clip(shapes.large)+surfaceContainer+padding(4)+spacedBy(4),
-                    //   未选中段 background=surfaceContainerHigh(与容器拉开层级)
-                    SectionHeader(title: L10n.format("theme_appearance"))
-                    let modes: [(String, String)] = [
-                        (AppPrefs.THEME_MODE_SYSTEM, L10n.format("theme_mode_system")),
-                        (AppPrefs.THEME_MODE_LIGHT, L10n.format("theme_mode_light")),
-                        (AppPrefs.THEME_MODE_DARK, L10n.format("theme_mode_dark"))
-                    ]
-                    HStack(spacing: 4) {
-                        ForEach(modes, id: \.0) { mode, label in
-                            let sel = mode == themeMode
-                            Button {
-                                guard mode != themeMode else { return }
-                                prefs.setThemeMode(mode)
-                                onThemeModeChange(mode)
-                                refreshWidgets()
-                            } label: {
-                                Text(label)
-                                    .font(.system(size: 14, weight: sel ? .semibold : .medium))
-                                    .foregroundColor(sel ? colors.onPrimary : colors.onSurfaceVariant)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(sel ? colors.primary : colors.surfaceContainerHigh)
-                                    .cornerRadius(SleepyShapes.medium)
-                            }
-                            .buttonStyle(SleepyButtonStyle())
-                            .accessibilityIdentifier("theme_mode_\(mode)")
-                        }
                     }
-                    .padding(4)
-                    .background(colors.surfaceContainer)
-                    .cornerRadius(SleepyShapes.large)
-
-                    // ── 分组②·5 课程配色 (v1.0.62 B1) ──
-                    SectionHeader(title: L10n.format("appearance_section_course_color"))
+                    SettingsSection(title: L10n.format("settings_appearance_navigation")) {
+                    SettingsFlatCard(title: L10n.format("settings_nav_style"),
+                                     options: [L10n.format("settings_nav_style_docked"),
+                                               L10n.format("settings_nav_style_floating")],
+                                     selectedIndex: Binding(get: { navStyleIndex }, set: {
+                                         navStyleIndex = $0; prefs.setNavDocked($0 == 1)
+                                     }))
+                        .accessibilityIdentifier("appearance_navigation_shape")
+                    }
+                    VStack(alignment: .leading, spacing: SettingsLayout.headerGap) {
+                        Text(L10n.format("appearance_section_dock_theme")).font(SettingsLayout.headingStyle).foregroundColor(colors.onSurface)
+                    SettingsFlatCard(title: L10n.format("appearance_section_dock_theme")) {
+                        SegmentedSwitcher(options: [("classic", L10n.format("dock_theme_classic")),
+                                                    ("liquid_glass", L10n.format("dock_theme_liquid_glass"))],
+                                          selected: uiStyle, onSelect: { value in
+                                              uiStyle = value; prefs.setUiStyle(value)
+                                          }, containerColor: colors.surfaceContainerHighest)
+                            .accessibilityIdentifier("appearance_ui_style")
+                    }
+                    }
+                    SettingsSection(title: L10n.format("appearance_section_course_color")) {
                     CourseColorSection(
                         mode: courseColorMode,
                         colorless: courseColorless,
@@ -150,29 +149,17 @@ struct AppearanceScreen: View {
                             Task { await refreshHueStore() }
                         }
 
-                    // ── 分组③ 课表显示: 冲突样式及参数仍属于本组 ──
-                    // ← 原版本 SectionHeader(appearance_section_schedule_display) +
-                    //   Surface(shapes.large, surfaceContainer) 内嵌 ScheduleDisplayContent(padding 16)
-                    SectionHeader(title: L10n.format("appearance_section_schedule_display"))
-                    ScheduleDisplayContent()
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(colors.surfaceContainer)
-                        .cornerRadius(SleepyShapes.large)
-
-                    // ── 分组④ 节次表头 ──
-                    // ← 原版本 SectionHeader(appearance_period_header) +
-                    //   AppearanceNavigationRow(onClick = onOpenPeriodHeaderSettings)
-                    SectionHeader(title: L10n.format("appearance_period_header"))
+                    }
                     AppearanceNavigationRow(
-                        title: L10n.format("appearance_period_header"),
-                        onClick: onOpenPeriodHeaderSettings
-                    )
+                        title: L10n.format("appearance_section_schedule_display"),
+                        onClick: onOpenScheduleDisplay)
+                        .accessibilityIdentifier("appearance_schedule_display")
                 }
                 .padding(16)
             }
         }
         .background(colors.background)
+        .onReceive(prefs.uiStylePublisher) { uiStyle = $0 }
         // 自定义主题编辑器 ← 原版本 全屏 overlay;iOS 用 sheet 承载,
         // 这样编辑器内部的 .interactiveDismissDisabled(dirty) 才真正挡住下滑手势。
         .sheet(isPresented: $showEditor, onDismiss: { editingTheme = nil }) {
@@ -332,8 +319,7 @@ private struct SystemThemeCard: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 16) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 28))
+                AndroidSettingsIcon(name: .autoAwesome, size: 28)
                     .foregroundColor(colors.onPrimaryContainer)
                     .frame(width: 56, height: 56)
                     .background(colors.primaryContainer)
@@ -349,9 +335,10 @@ private struct SystemThemeCard: View {
                 }
                 Spacer()
                 if selected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 24))
+                    AndroidMaterialIcon(name: .check, size: 24)
                         .foregroundColor(colors.primary)
+                        .accessibilityLabel(L10n.format("selected"))
+                        .accessibilityHidden(false)
                 }
             }
             .padding(16)
@@ -423,10 +410,10 @@ private struct CheckmarkSlot: View {
         ZStack {
             Color.clear.frame(width: 20, height: 20)
             if selected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 20))
+                AndroidMaterialIcon(name: .check, size: 20)
                     .foregroundColor(colors.primary)
                     .accessibilityLabel(L10n.format("selected"))
+                    .accessibilityHidden(false)
             }
         }
         .frame(width: 20, height: 20)
@@ -458,6 +445,7 @@ private struct ColorSwatch: View {
 /// edit 图标在色板行右端:色块包裹(可点性可见)+ 与 3 色块同行,不撑高卡片。
 private struct CustomThemeCard: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var uiStyle
     let theme: CustomTheme
     let selected: Bool
     let onClick: () -> Void
@@ -475,18 +463,18 @@ private struct CustomThemeCard: View {
                     ColorSwatch(color: scheme.secondary)
                     ColorSwatch(color: scheme.tertiary)
                     Spacer(minLength: 0)
-                    // edit 色块:surfaceContainerHighest 与卡片底色拉开层级;
-                    // ← 原版本 28dp(与色板同高, 内嵌 16dp Edit 图标), 首行结构与
-                    // 预设卡严格同构不撑高(24 会差 4pt)
                     Button(action: onEdit) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 16))
+                        AndroidSettingsIcon(name: .edit, size: 18)
                             .foregroundColor(colors.onSurfaceVariant)
-                            .frame(width: 28, height: 28)
-                            .background(colors.surfaceContainerHighest)
-                            .cornerRadius(SleepyShapes.small)
+                            .frame(width: uiStyle == .liquidGlass ? nil : 36,
+                                   height: uiStyle == .liquidGlass ? nil : 36)
+                            .background(uiStyle == .liquidGlass ? Color.clear : colors.surfaceContainerHighest,
+                                        in: Circle())
+                            .frame(width: uiStyle == .liquidGlass ? nil : 48,
+                                   height: uiStyle == .liquidGlass ? nil : 48)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(compact: true, shape: .circle))
+                    .frame(width: 48, height: 48)
                     .accessibilityIdentifier("theme_custom_edit_\(theme.id)")
                     .accessibilityLabel(L10n.format("theme_custom_edit"))
                 }
@@ -542,8 +530,7 @@ private struct DashedCircleWithPlus: View {
                     colors.onSurface,
                     style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])
                 )
-            Image(systemName: "plus")
-                .font(.system(size: size / 2))
+            AndroidMaterialIcon(name: .add, size: size / 2)
                 .foregroundColor(colors.onSurface)
         }
         .frame(width: size, height: size)

@@ -73,7 +73,7 @@ struct DailyAgendaScreen: View {
                             .foregroundColor(colors.onSurfaceVariant)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Button(L10n.t("holiday_data_retry")) { reloadToken += 1 }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
                             .foregroundColor(colors.primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else if let agenda {

@@ -22,9 +22,22 @@ struct WidgetGalleryCard: Identifiable {
     /// 画廊卡展示用的代表 family — 5 kind 各取最代表性尺寸(原 base 档
     /// S/M/L 混排的 iOS 简化, 见文件头注)。
     let previewFamily: WidgetFamily
-    var id: String { variant.kind }
+    var id: String { variant.kind + "|" + previewFamily.description }
     /// ← receiverName = receiverClass.name — iOS kind 即唯一键(冷却/去重锚点)
     var receiverName: String { variant.kind }
+}
+
+struct WidgetGalleryGroup: Identifiable {
+    let id: String
+    let cards: [WidgetGalleryCard]
+    var primary: WidgetGalleryCard { cards[0] }
+    var isMultiSize: Bool { cards.count > 1 }
+}
+
+struct WidgetGalleryRow: Identifiable {
+    let groups: [WidgetGalleryGroup]
+    var expanded: Bool = false
+    var id: String { (expanded ? "expanded|" : "collapsed|") + groups.map(\.id).joined(separator: "|") }
 }
 
 enum WidgetGalleryData {
@@ -35,6 +48,42 @@ enum WidgetGalleryData {
         allWidgetVariants.map { variant in
             WidgetGalleryCard(variant: variant, previewFamily: previewFamily(for: variant.kind))
         }
+    }
+
+    /// WidgetKit exposes size families under each kind. The dedicated wide grid joins its grid family.
+    static func buildGroups() -> [WidgetGalleryGroup] {
+        #if os(watchOS)
+        return buildCards().map { WidgetGalleryGroup(id: $0.variant.kind, cards: [$0]) }
+        #else
+        var order: [String] = []
+        var grouped: [String: [WidgetGalleryCard]] = [:]
+        for variant in allWidgetVariants {
+            let key = variant.kind == "WeekGridWideWidget" ? "WeekGridWidgetV19" : variant.kind
+            if grouped[key] == nil { order.append(key) }
+            let families: [WidgetFamily] = variant.kind == "WeekGridWideWidget"
+                ? [.systemMedium] : [.systemLarge, .systemMedium, .systemSmall]
+            grouped[key, default: []] += families.map { WidgetGalleryCard(variant: variant, previewFamily: $0) }
+        }
+        return order.map { key in
+            WidgetGalleryGroup(id: key, cards: grouped[key]!.sorted {
+                let lhs = previewSize(of: $0.previewFamily), rhs = previewSize(of: $1.previewFamily)
+                return lhs.width * lhs.height > rhs.width * rhs.height
+            })
+        }
+        #endif
+    }
+
+    /// The expanded family occupies a full row; preceding/following groups keep their order.
+    static func rows(_ groups: [WidgetGalleryGroup], expandedKey: String?) -> [WidgetGalleryRow] {
+        func collapsed(_ items: ArraySlice<WidgetGalleryGroup>) -> [WidgetGalleryRow] {
+            let items = Array(items)
+            return stride(from: 0, to: items.count, by: 2).map {
+                WidgetGalleryRow(groups: Array(items[$0..<min($0 + 2, items.count)]))
+            }
+        }
+        guard let index = groups.firstIndex(where: { $0.id == expandedKey }) else { return collapsed(groups[...]) }
+        return collapsed(groups[..<index]) + [WidgetGalleryRow(groups: [groups[index]], expanded: true)] +
+            collapsed(groups[(index + 1)...])
     }
 
     private static func previewFamily(for kind: String) -> WidgetFamily {

@@ -1,11 +1,14 @@
 // ScheduleDisplayScreen.swift — ← ui/screen/mine/ScheduleDisplayScreen.kt
 // 课表显示设置页 — 网格/周缩放 + 圆角比例 + 冲突样式三档 + 参数滑杆。
-// Reusable body used directly at the bottom of AppearanceScreen.
+// Dedicated display page with shared sections for grid, week and conflict settings.
 
 import SwiftUI
+import Combine
 
-/// 复用主体 — AppearanceScreen 底部直接嵌入。
+/// Shared display controls retain the original preference actions.
 struct ScheduleDisplayContent: View {
+    enum Section { case all, grid, week, conflict }
+    var section: Section = .all
     @Environment(\.localWakeUpColors) private var colors
     @State private var gridScale: Double = AppPrefs.shared.getGridScale()
     @State private var weekScale: Double = AppPrefs.shared.getWeekScale()
@@ -24,6 +27,7 @@ struct ScheduleDisplayContent: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            if section == .all || section == .grid {
             DisplaySlider(
                 label: L10n.t("settings_pill_scale"), value: $gridScale,
                 valueText: "\(Int(gridScale * 100))%", range: 0.7...1.3,
@@ -32,27 +36,34 @@ struct ScheduleDisplayContent: View {
                 baseline: baselineGridScale
             )
             DisplaySlider(
-                label: L10n.t("settings_pill_week_scale"), value: $weekScale,
-                valueText: "\(Int(weekScale * 100))%", range: 0.7...1.3,
-                onValueChange: { weekScale = Double(Int($0 * 20)) / 20 },
-                onFinished: { AppPrefs.shared.setWeekScale(weekScale) },
-                baseline: baselineWeekScale
-            )
-            DisplaySlider(
                 label: L10n.t("settings_pill_corner"), value: $cornerRatio,
                 valueText: "\(Int(cornerRatio * 100))%", range: 0...2,
                 onValueChange: { cornerRatio = Double(Int($0 * 20)) / 20 },
                 onFinished: { AppPrefs.shared.setGridCornerRatio(cornerRatio) },
                 baseline: baselineCornerRatio
             )
+            }
+            if section == .all || section == .week {
+            DisplaySlider(
+                label: L10n.t("settings_pill_week_scale"), value: $weekScale,
+                valueText: "\(Int(weekScale * 100))%", range: 0.7...1.3,
+                onValueChange: { weekScale = Double(Int($0 * 20)) / 20 },
+                onFinished: { AppPrefs.shared.setWeekScale(weekScale) },
+                baseline: baselineWeekScale
+            )
+            }
+            if section == .all || section == .conflict {
             // 冲突课程样式 — 课表显示 Section 的下级分组: 子标题降级区分
-            Text(L10n.t("settings_conflict_style"))
-                .font(SleepyTypography.labelMedium)   // ← 原 labelMedium
-                .foregroundColor(colors.onSurfaceVariant)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 8)
+            if section == .all {
+                Text(L10n.t("settings_conflict_style"))
+                    .font(SleepyTypography.labelMedium)
+                    .foregroundColor(colors.onSurfaceVariant)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+            }
             conflictStylePicker
             conflictStyleSlider
+            }
         }
         .onAppear { captureBaselines() }
     }
@@ -126,34 +137,47 @@ struct ScheduleDisplayContent: View {
 }
 
 struct ScheduleDisplayScreen: View {
-    @Environment(\.localWakeUpColors) private var colors
     let onBack: () -> Void
-
+    var viewModel: ScheduleViewModel? = nil
+    init(onDismiss: @escaping () -> Void, viewModel: ScheduleViewModel? = nil) {
+        self.onBack = onDismiss; self.viewModel = viewModel
+    }
+    init(onBack: @escaping () -> Void, viewModel: ScheduleViewModel? = nil) {
+        self.onBack = onBack; self.viewModel = viewModel
+    }
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button(action: onBack) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .medium))
-                }
-                .accessibilityLabel(Text(L10n.t("back")))
-                Spacer()
-                Text(L10n.t("appearance_section_schedule_display"))
-                    .font(.headline)
-                Spacer()
-                Color.clear.frame(width: 30, height: 30)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            ScheduleDisplayContent()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            Spacer()
+        GeneralSettingsScreen(onDismiss: onBack, viewModel: viewModel, section: .display)
+    }
+}
+
+/// A read-only production grid, shown before the controls it explains.
+struct ScheduleSettingsPreview: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let viewModel: ScheduleViewModel?
+    @State private var revision = 0
+    var body: some View {
+        let sample = WidgetGallerySampleData.make()
+        let state = viewModel?.state
+        let courses = state?.currentWeekCourses ?? sample.week.days.flatMap(\.courses)
+        let timeJson = state?.effectiveCurrentTable?.timeJson ?? sample.week.days.first?.timeJson ?? ""
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.format("course_color_preview")).font(.system(size: 14, weight: .semibold))
+            CardsGridView(courses: courses, timeSlots: TimeTableUtils.renderSlots(timeJson: timeJson),
+                          timeJson: timeJson, visibleDays: AppPrefs.shared.getVisibleDays(),
+                          showDate: AppPrefs.shared.isShowDate(),
+                          startDate: state?.currentTable?.startDate ?? "",
+                          currentWeek: state?.selectedWeek ?? 1, onCourseClick: { _ in })
+                .frame(height: 250).clipped().allowsHitTesting(false).accessibilityHidden(true)
         }
-        // ← 原版本 Scaffold/TopAppBar containerColor = colorScheme.background
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.background)
-        .navigationBarHidden(true)
+        .padding(12).background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
+        .id(revision)
+        .accessibilityIdentifier("settings_display_preview")
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: RunLoop.main)) { _ in
+            revision &+= 1
+        }
+        .onReceive(viewModel?.objectWillChange.eraseToAnyPublisher() ?? Empty<Void, Never>().eraseToAnyPublisher()) { _ in
+            revision &+= 1
+        }
     }
 }
 
@@ -175,7 +199,7 @@ private struct DisplaySlider: View {
             NativeBaselineSlider(value: value, range: range, baseline: baseline,
                                  label: label, valueText: valueText,
                                  onValueChange: onValueChange, onFinished: onFinished)
-                .frame(height: 32)
+                .frame(height: 44)
         }
     }
 }

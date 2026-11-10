@@ -38,31 +38,24 @@ final class JwChengFangParser: JwParser, JwParserConfidenceReporting {
             if name.isEmpty { continue }
             let teacher = str("teaxms")
             let room = str("jxcdmcs")
-            guard let day = Int(str("xq")) else { continue }
-
-            let jcdm2 = str("jcdm2")
-            if jcdm2.isEmpty { continue }
-            let nodes = jcdm2.components(separatedBy: ",")
-                .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-            if nodes.isEmpty { continue }
-            let startNode = nodes.first!
-            let step = nodes.last! - startNode + 1
-
-            let zcs = str("zcs")
-            if zcs.isEmpty { continue }
-            let weekList = zcs.components(separatedBy: ",")
-                .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-            if weekList.isEmpty { continue }
-
-            for wb in Self.weekIntList2WeekBeanList(weekList) {
-                result.append(JwCourse(
-                    name: name, room: room, teacher: teacher,
-                    day: min(max(day, 1), 7),
-                    startNode: max(startNode, 1),
-                    endNode: max(startNode + step - 1, startNode),
-                    startWeek: max(wb.0, 1),
-                    endWeek: max(wb.1, wb.0),
-                    type: wb.2))
+            guard let day = jw1064Integer(str("xq")), (1...7).contains(day) else { continue }
+            let nodeValues = str("jcdm2").components(separatedBy: ",").map { jw1064Integer($0.trimmingCharacters(in: .whitespaces)) }
+            guard !nodeValues.isEmpty, nodeValues.allSatisfy({ ($0 ?? 0) > 0 }) else { continue }
+            let nodes = Set(nodeValues.compactMap { $0 }).sorted()
+            var blocks: [(Int, Int)] = []
+            for node in nodes {
+                if let previous = blocks.last, node == previous.1 + 1 {
+                    blocks[blocks.count - 1] = (previous.0, node)
+                } else { blocks.append((node, node)) }
+            }
+            let weekValues = str("zcs").components(separatedBy: ",").map { jw1064Integer($0.trimmingCharacters(in: .whitespaces)) }
+            guard !weekValues.isEmpty, weekValues.allSatisfy({ ($0 ?? 0) > 0 }) else { continue }
+            for (first, last) in blocks {
+                for wb in Self.weekIntList2WeekBeanList(weekValues.compactMap { $0 }) {
+                    result.append(JwCourse(name: name, room: room, teacher: teacher, day: day,
+                                           startNode: first, endNode: last,
+                                           startWeek: wb.0, endWeek: wb.1, type: wb.2))
+                }
             }
         }
         return result
@@ -111,7 +104,7 @@ final class JwChengFangParser: JwParser, JwParserConfidenceReporting {
 
     static func weekIntList2WeekBeanList(_ input: [Int]) -> [(Int, Int, Int)] {
         if input.isEmpty { return [] }
-        let a = input.sorted()
+        let a = Array(Set(input)).sorted()
         var reset = 0
         var start = 0, end = 0, type = -1
         var list: [(Int, Int, Int)] = []
