@@ -101,11 +101,11 @@ private struct CourseGroupCard: View {
                 .font(.system(size: 16, weight: .semibold)) // ← titleMedium(16).copy(SemiBold)
                 .foregroundColor(colors.onSurface)
             if !group.teacher.isBlank {
-                MetaRow(icon: "person", text: group.teacher)
+                MetaRow(icon: .person, text: group.teacher)
             }
             ForEach(group.locations, id: \.room) { location in
                 if !location.room.isBlank {
-                    MetaRow(icon: "mappin.and.ellipse", text: location.room)
+                    MetaRow(icon: .locationOn, text: location.room)
                 }
                 Text(L10n.format("course_list_arrangements", location.rows.count))
                     .font(SleepyTypography.labelSmall) // ← labelSmall(11sp Medium)
@@ -127,13 +127,12 @@ private struct CourseGroupCard: View {
 
 private struct MetaRow: View {
     @Environment(\.localWakeUpColors) private var colors
-    let icon: String
+    let icon: AndroidSettingsIcon.Name
     let text: String
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 14)) // ← 原 Modifier.size(14.dp)
+            AndroidSettingsIcon(name: icon, size: 14) // ← 原 Modifier.size(14.dp)
                 .foregroundColor(colors.onSurfaceVariant)
             Text(text)
                 .font(.system(size: 12)) // ← bodySmall(12sp)
@@ -153,8 +152,7 @@ private struct ArrangementRowView: View {
         let nodeLabel = row.nodeString(isShort: true)
         let weekRangeLabel = L10n.format("course_week_range", nodeLabel, row.startWeek, row.endWeek)
         return HStack(spacing: 4) {
-            Image(systemName: "book")
-                .font(.system(size: 12)) // ← 原 Modifier.size(12.dp)
+            AndroidSettingsIcon(name: .classroom, size: 12) // ← 原 Modifier.size(12.dp)
                 .foregroundColor(colors.onSurfaceVariant)
             Text("\(dayLabel) · \(weekRangeLabel)")
                 .font(.system(size: 12)) // ← bodySmall(12sp)

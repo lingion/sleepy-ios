@@ -816,6 +816,7 @@ struct AppRoot: View {
         HStack(spacing: 0) {
             NavigationRailBar(rightTabs: sideBySide ? tabletRailItems : navItems,
                               selectedTab: sideBySide ? tabletRightTab : root.currentTab,
+                              motionSelectedTab: root.currentTab,
                               scheduleIcon: "calendar", scheduleIsPinned: sideBySide)
                 .ignoresSafeArea(edges: .bottom)
             // ← 原版本 内容 Row: padding(horizontal=16, vertical=12) +
@@ -926,7 +927,7 @@ struct AppRoot: View {
     //     一条死白背景。修复 = 每屏 ignoresSafeArea(.container,.bottom) 铺到
     //     屏底, 再注入 nativeScrollBottomPadding 作滚动余量(最后一行可滚离
     //     玻璃遮挡) — 与自绘 floating 的"直通屏底+navExtra"同一语义。
-    //   - tabItem 图标沿用 PillNavigationBar 同款 SF Symbols, 文案沿用 tab_* 键。
+    //   - tabItem 使用 Android 同源矢量模板图，原生 TabView 负责玻璃与选中交互。
     //   - 4 屏无 onAppear 副作用(数据经 root/scheduleViewModel 常驻订阅),
     //     TabView 懒实例化其余 tab 安全。
     private var nativeTabs: some View {
@@ -935,19 +936,19 @@ struct AppRoot: View {
             set: { root.currentTab = $0 })) {
             screen(for: .schedule)
                     .nativeScreen(extraBottom: nativeScrollBottomPadding)
-                .tabItem { Label(L10n.t("tab_schedule"), systemImage: "calendar") }
+                .tabItem { Image(uiImage: AndroidMaterialIcon.navigationImage(for: "schedule")); Text(L10n.t("tab_schedule")) }
                 .tag(AppRootViewModel.Tab.schedule)
             screen(for: .today)
                     .nativeScreen(extraBottom: nativeScrollBottomPadding)
-                .tabItem { Label(L10n.t("tab_today"), systemImage: "doc.on.doc") }
+                .tabItem { Image(uiImage: AndroidMaterialIcon.navigationImage(for: "today")); Text(L10n.t("tab_today")) }
                 .tag(AppRootViewModel.Tab.today)
             screen(for: .manage)
                     .nativeScreen(extraBottom: nativeScrollBottomPadding)
-                .tabItem { Label(L10n.t("tab_manage"), systemImage: "gearshape") }
+                .tabItem { Image(uiImage: AndroidMaterialIcon.navigationImage(for: "manage")); Text(L10n.t("tab_manage")) }
                 .tag(AppRootViewModel.Tab.manage)
             screen(for: .mine)
                     .nativeScreen(extraBottom: nativeScrollBottomPadding)
-                .tabItem { Label(L10n.t("tab_mine"), systemImage: "person") }
+                .tabItem { Image(uiImage: AndroidMaterialIcon.navigationImage(for: "mine")); Text(L10n.t("tab_mine")) }
                 .tag(AppRootViewModel.Tab.mine)
         }
         .modifier(ThemePrimaryTint())
@@ -1423,7 +1424,7 @@ private struct PresentOverlay: ViewModifier {
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onBack, onCommit: commitGestureDismiss)
         case .general:
-            GeneralSettingsScreen(onDismiss: onDismiss)
+            GeneralSettingsScreen(onDismiss: onDismiss, viewModel: scheduleViewModel)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
@@ -1434,7 +1435,8 @@ private struct PresentOverlay: ViewModifier {
                 onThemeModeChange: onThemeModeChange,
                 onThemeKeyChange: onThemeKeyChange,
                 // ← 原版本 Appearance Section④ 节次表头入口 (默认 no-op 已解除)
-                onOpenPeriodHeaderSettings: { overlayScreen = .periodHeaderSettings })
+                onOpenPeriodHeaderSettings: { overlayScreen = .periodHeaderSettings },
+                onOpenScheduleDisplay: { overlayScreen = .scheduleDisplay })
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
@@ -1496,7 +1498,7 @@ private struct PresentOverlay: ViewModifier {
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onBack, onCommit: commitGestureDismiss)
         case .scheduleDisplay:
-            ScheduleDisplayScreen(onBack: onDismiss)
+            ScheduleDisplayScreen(onBack: onDismiss, viewModel: scheduleViewModel)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)

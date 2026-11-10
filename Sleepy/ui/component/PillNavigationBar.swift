@@ -49,6 +49,7 @@ import UIKit
 
 struct PillNavigationBar: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let items: [PillNavItemData]
     /// 底栏样式: .docked(贴底 默认) / .floating(悬浮玻璃胶囊) ← 原版本 v1.0.45 b0f8280/351436d
     var dockStyle: DockStyle = .docked
@@ -58,13 +59,18 @@ struct PillNavigationBar: View {
     var body: some View {
         // 形态分流:贴底 / 悬浮 各用独立几何(← Kotlin if (dock) DockNavigationBar() else Box())
         Group {
-            switch dockStyle {
-            case .docked:
-                DockedBar(items: items, colors: colors)
-            case .floating:
-                FloatingBar(items: items, colors: colors)
+            if style == .liquidGlass {
+                NativePillBar(items: items, dockStyle: dockStyle, colors: colors)
+            } else {
+                switch dockStyle {
+                case .docked:
+                    DockedBar(items: items, colors: colors)
+                case .floating:
+                    FloatingBar(items: items, colors: colors)
+                }
             }
         }
+        .androidNavigationIconBar(selectedIDs: items.filter(\.selected).map(\.id))
     }
 }
 
@@ -118,6 +124,83 @@ private enum DockedSpec {
     static let innerInset: CGFloat = 6          // HStack 水平内边距(← Row .padding(horizontal = 6.dp))
 }
 
+/// One system glass capsule contains plain navigation buttons and a tinted selection.
+private struct NativePillBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var selectionNamespace
+    let items: [PillNavItemData]
+    let dockStyle: PillNavigationBar.DockStyle
+    let colors: WakeUpColorScheme
+
+    var body: some View {
+        SleepyNativeGlassGroup(spacing: DockSpec.itemGap) {
+            navigationBar
+        }
+        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).thumb,
+                   value: items.filter(\.selected).map(\.id))
+    }
+
+    @ViewBuilder private var navigationBar: some View {
+        switch dockStyle {
+        case .docked:
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                ForEach(items) { item in
+                    nativeButton(item, seatWidth: DockedSpec.thumbWidth,
+                                 iconSize: DockedSpec.iconSize)
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: DockedSpec.barHeight)
+            .padding(.horizontal, DockedSpec.innerInset)
+            .sleepyNativeGlassSurface(cornerRadius: DockedSpec.barHeight / 2)
+            .padding(.top, DockedSpec.surfaceTopPad)
+            .padding(.bottom, DockedSpec.surfaceBottomPad)
+        case .floating:
+            HStack(spacing: DockSpec.itemGap) {
+                ForEach(items) { item in
+                    nativeButton(item, seatWidth: DockSpec.itemSeat,
+                                 iconSize: DockSpec.iconSize)
+                }
+            }
+            .padding(.horizontal, DockSpec.innerPad)
+            .frame(height: DockSpec.capsuleHeight)
+            .sleepyNativeGlassSurface(cornerRadius: DockSpec.capsuleHeight / 2)
+            .padding(.horizontal, DockSpec.horizontalMargin)
+            .padding(.bottom, DockSpec.bottomFloat)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func nativeButton(_ item: PillNavItemData, seatWidth: CGFloat,
+                              iconSize: CGFloat) -> some View {
+        Button(action: item.onClick) {
+            VStack(spacing: DockSpec.iconSpacer) {
+                NavigationIcon(id: item.id, selected: item.selected, size: iconSize)
+                Text(item.label)
+                    .font(.system(size: DockSpec.labelFontSize,
+                                  weight: item.selected ? .semibold : .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .foregroundColor(item.selected ? colors.primary : colors.onSurfaceVariant)
+            .frame(width: seatWidth - 4, height: DockSpec.thumbHeight)
+            .sleepyNativeGlassSelection(item.selected, cornerRadius: 28,
+                                       tint: colors.primary.opacity(0.12), namespace: selectionNamespace)
+            .frame(width: seatWidth, height: DockSpec.capsuleHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .androidNavigationIconPress(id: item.id)
+        .tint(colors.primary)
+        .frame(width: seatWidth, height: DockSpec.capsuleHeight)
+        .accessibilityIdentifier("pill_\(item.id)")
+        .accessibilityLabel(item.label)
+        .accessibilityAddTraits(item.selected ? .isSelected : [])
+    }
+}
+
 // MARK: - Docked (贴底) 76pt 通栏
 
 private struct DockedBar: View {
@@ -140,9 +223,9 @@ private struct DockedBar: View {
             // thumb 色块 — 64×32 y=12(相对 Row 76 上下对称; SleepyShapes.large 圆角)
             // ★ v2.8: thumbPlaced 前 opacity 0 + 无动画(等价 原版本 graphicsLayer
             //   alpha 守卫 + snapTo); 落位后 selectedIndex 变化才走弹簧。
-            RoundedRectangle(cornerRadius: SleepyShapes.large)
-                .fill(colors.secondaryContainer)
+            Color.clear
                 .frame(width: DockedSpec.thumbWidth, height: DockedSpec.thumbHeight)
+                .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer)
                 .opacity(thumbPlaced ? 1 : 0)
                 .offset(x: thumbX, y: DockedSpec.thumbYOffset)
                 // 同款 — 原版本 SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
@@ -251,8 +334,7 @@ private struct DockedBar: View {
             Color.clear
                 .frame(width: DockedSpec.thumbWidth, height: DockedSpec.thumbHeight)
                 .overlay(
-                    Image(systemName: item.icon)
-                        .font(.system(size: DockedSpec.iconSize))
+                    NavigationIcon(id: item.id, selected: item.selected, size: DockedSpec.iconSize)
                         .foregroundColor(lerpColor(
                             from: colors.onSurfaceVariant,
                             to: colors.onSurface,
@@ -301,6 +383,7 @@ private struct DockedBar: View {
           .contentShape(Rectangle())
         }
         .buttonStyle(SleepyMotionButtonStyle())
+        .androidNavigationIconPress(id: item.id)
         .accessibilityIdentifier("pill_\(item.id)")
         .accessibilityLabel(item.label)
         .accessibilityAddTraits(isSel ? .isSelected : [])
@@ -318,6 +401,7 @@ private struct DockedBar: View {
 ///   - shadow radius 12 y 4 black 0.2 + Material.ultraThinMaterial + 0.86 tint
 private struct FloatingBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.sleepyUIStyle) private var style
     let items: [PillNavItemData]
     let colors: WakeUpColorScheme
 
@@ -356,8 +440,9 @@ private struct FloatingBar: View {
             ZStack(alignment: .topLeading) {
                 // 选中色块 — 56×52pt y=6pt → 完整罩住图标+label
                 RoundedRectangle(cornerRadius: DockSpec.thumbHeight / 2)
-                    .fill(colors.secondaryContainer)
+                    .fill(Color.clear)
                     .frame(width: DockSpec.thumbWidth, height: DockSpec.thumbHeight)
+                    .sleepyControlSurface(cornerRadius: DockSpec.thumbHeight / 2, tint: colors.secondaryContainer)
                     .offset(x: thumbX, y: DockSpec.thumbYOffset)
                     // 同款 — 原版本 SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
                     .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).thumb, value: thumbCenterX)
@@ -375,8 +460,8 @@ private struct FloatingBar: View {
             // 表面色 0.86 — 与 原版本 DockNavigationBar glassBg = surfaceContainer.copy(alpha=0.86f) 1:1。
             // 不加 .ultraThinMaterial: 原版本 是纯平面色(无高斯模糊),双层 tint 会发白发灰。
             .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(colors.surfaceContainer.opacity(0.86))
+                Color.clear.sleepyControlSurface(cornerRadius: cornerRadius,
+                                                 tint: colors.surfaceContainer.opacity(style == .classic ? 0.86 : 0.5))
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             // shadow elevation 12dp(Compose) ≈ SwiftUI radius 12 y 4 black 0.2
@@ -405,8 +490,7 @@ private struct FloatingBar: View {
 
         Button(action: item.onClick) {
           VStack(spacing: DockSpec.iconSpacer) {
-            Image(systemName: item.icon)
-                .font(.system(size: DockSpec.iconSize))
+            NavigationIcon(id: item.id, selected: item.selected, size: DockSpec.iconSize)
                 .foregroundColor(color)
             Text(item.label)
                 .font(.system(size: DockSpec.labelFontSize, weight: .medium))
@@ -417,6 +501,7 @@ private struct FloatingBar: View {
           .contentShape(Rectangle())
         }
         .buttonStyle(SleepyMotionButtonStyle())
+        .androidNavigationIconPress(id: item.id)
         .accessibilityIdentifier("pill_\(item.id)")
         .accessibilityLabel(item.label)
         .accessibilityAddTraits(isSel ? .isSelected : [])

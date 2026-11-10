@@ -24,7 +24,7 @@ struct PeriodTableShareSheet: View {
                 .padding(.vertical, 12)
 
             VStack(spacing: 0) {
-                shareRow(icon: "star",              // ← Icons.Outlined.Star
+                shareRow(icon: .star,              // ← Icons.Outlined.Star
                          title: L10n.t("period_table_share_native_title"),
                          subtitle: L10n.t("period_table_share_native_sub")) {
                     shareSheet = ShareTextPayload(
@@ -32,7 +32,7 @@ struct PeriodTableShareSheet: View {
                         subject: periodTable.name)
                 }
                 RowDivider()
-                shareRow(icon: "curlybraces.square", // ← Icons.Outlined.Code
+                shareRow(icon: .code, // ← Icons.Outlined.Code
                          title: L10n.t("period_table_share_json_title"),
                          subtitle: L10n.t("period_table_share_json_sub")) {
                     shareSheet = ShareTextPayload(
@@ -48,12 +48,11 @@ struct PeriodTableShareSheet: View {
         }
     }
 
-    private func shareRow(icon: String, title: String, subtitle: String,
+    private func shareRow(icon: AndroidSettingsIcon.Name, title: String, subtitle: String,
                           onClick: @escaping () -> Void) -> some View {
         Button(action: onClick) {
             HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.system(size: 24))   // ← 原默认 Icon 24dp
+                AndroidSettingsIcon(name: icon, size: 24)   // ← 原默认 Icon 24dp
                     .foregroundColor(colors.onPrimaryContainer)
                     .frame(width: 44, height: 44)
                     .background(colors.primaryContainer)

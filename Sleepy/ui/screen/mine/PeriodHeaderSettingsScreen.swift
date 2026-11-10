@@ -75,23 +75,27 @@ struct PeriodHeaderSettingsScreen: View {
                                 showX = newValue
                                 prefs.setPeriodHeaderShowX(newValue)
                             }))
+                        .toggleStyle(SleepyToggleStyle(showsLabel: true))
+                        .tint(colors.primary)
                         // v1.0.62 B4: 隐藏时间行仅适用旧式两行表头; 三行式以时间为主体, 不适用。
                         if layout == "legacy" {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(L10n.t("appearance_header_time_alignment"))
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(colors.onSurfaceVariant)
-                                SegmentedSwitcher(
-                                    options: [
-                                        ("dash", L10n.t("appearance_header_alignment_dash")),
-                                        ("center", L10n.t("appearance_header_alignment_center"))
-                                    ],
-                                    selected: timeAlignment,
-                                    onSelect: { value in
-                                        timeAlignment = value
-                                        prefs.setPeriodHeaderTimeAlignment(value)
-                                    },
-                                    containerColor: colors.surfaceContainerHighest)
+                            if !hideTime {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(L10n.t("appearance_header_time_alignment"))
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(colors.onSurfaceVariant)
+                                    SegmentedSwitcher(
+                                        options: [
+                                            ("dash", L10n.t("appearance_header_alignment_dash")),
+                                            ("center", L10n.t("appearance_header_alignment_center"))
+                                        ],
+                                        selected: timeAlignment,
+                                        onSelect: { value in
+                                            timeAlignment = value
+                                            prefs.setPeriodHeaderTimeAlignment(value)
+                                        },
+                                        containerColor: colors.surfaceContainerHighest)
+                                }
                             }
                             VStack(alignment: .leading, spacing: 2) {
                                 Toggle(L10n.t("appearance_header_hide_time"), isOn: Binding(
@@ -100,6 +104,8 @@ struct PeriodHeaderSettingsScreen: View {
                                         hideTime = newValue
                                         prefs.setPeriodHeaderHideTime(newValue)
                                     }))
+                                .toggleStyle(SleepyToggleStyle(showsLabel: true))
+                                .tint(colors.primary)
                                 Text(L10n.t("appearance_header_hide_time_sub"))
                                     .font(.system(size: 14))   // ← bodyMedium
                                     .foregroundColor(colors.onSurfaceVariant)
@@ -123,7 +129,7 @@ struct PeriodHeaderSettingsScreen: View {
                                     onFinished: {
                                         prefs.setPeriodHeaderHanging(hangingUnits)
                                     })
-                                    .frame(height: 32)
+                                    .frame(height: 44)
                             }
                         }
                     }

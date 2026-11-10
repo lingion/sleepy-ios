@@ -12,6 +12,7 @@ import SwiftUI
 
 struct PendingPolicyBanner: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let policy: SchedulePolicy
     let onModify: () -> Void
 
@@ -20,8 +21,7 @@ struct PendingPolicyBanner: View {
             EmptyView()
         } else {
             HStack(spacing: 8) {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 18))   // ← 原 Info 默认 24dp, iOS 18pt 视觉近似
+                AndroidSettingsIcon(name: .info, size: 18)
                     .foregroundColor(colors.onSecondaryContainer)
                     .frame(height: 18)
                 Text(L10n.format("schedule_conflict_banner_format", policyText))
@@ -32,10 +32,13 @@ struct PendingPolicyBanner: View {
                     Text(L10n.t("schedule_conflict_banner_modify"))
                         .font(.system(size: 14, weight: .semibold))   // ← labelLarge SemiBold
                         .foregroundColor(colors.primary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, style == .classic ? 12 : 0)
+                        .padding(.vertical, style == .classic ? 6 : 0)
+                        .frame(minHeight: style == .classic ? 48 : nil)
                 }
-                .buttonStyle(SleepyButtonStyle())
+                .buttonStyle(SleepyPlatformButtonStyle())
+                .tint(colors.primary)
+                .frame(minHeight: 48)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)

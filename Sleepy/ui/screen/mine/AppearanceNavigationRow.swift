@@ -19,13 +19,12 @@ struct AppearanceNavigationRow: View {
 
     var body: some View {
         Button(action: onClick) {
-            HStack(spacing: 0) {
+            HStack(spacing: SettingsLayout.controlGap) {
                 Text(title)
                     .font(.system(size: 16))    // ← 原 bodyLarge 16sp
                     .foregroundColor(colors.onSurface)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 20))    // ← ChevronRight 默认 24dp, 20pt 为全 app chevron 惯例(General/HolidaySettingsScreen 同值)
+                AndroidMaterialIcon(name: .chevronRight, size: 24)
                     .foregroundColor(colors.onSurfaceVariant)
             }
             .padding(.horizontal, 16)

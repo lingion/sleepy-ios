@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct PeriodTablesScreen: View {
+    @Environment(\.sleepyUIStyle) private var uiStyle
     @Environment(\.localWakeUpColors) private var colors
     let onBack: () -> Void
     let onOpenEdit: (Int64) -> Void
@@ -42,9 +43,11 @@ struct PeriodTablesScreen: View {
     private var header: some View {
         HStack {
             Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .medium))
+                AndroidSettingsIcon(name: .arrowBack, size: 24)
+                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
             }
+            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("back")))
             .accessibilityIdentifier("period_tables_back")
             Spacer()
@@ -87,9 +90,12 @@ struct PeriodTablesScreen: View {
             Button {
                 onOpenEdit(pt.id)
             } label: {
-                Image(systemName: "square.and.pencil")
+                AndroidSettingsIcon(name: .edit, size: 24)
+                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                     .foregroundColor(colors.onSurfaceVariant)
             }
+            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("edit_table_title")))
             .accessibilityIdentifier("period_table_edit_\(pt.id)")
             Button {
@@ -98,9 +104,12 @@ struct PeriodTablesScreen: View {
                     copyName = suggested
                 }
             } label: {
-                Image(systemName: "doc.on.doc")
+                AndroidSettingsIcon(name: .contentCopy, size: 24)
+                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                     .foregroundColor(colors.onSurfaceVariant)
             }
+            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("period_table_copy")))
             .accessibilityIdentifier("period_table_copy_\(pt.id)")
             // v1.0.56 T7: 删除键在编辑页底部, 行内只留 编辑+复制
@@ -116,17 +125,18 @@ struct PeriodTablesScreen: View {
             if newId > 0 { onCreateNew(newId) }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "plus")
+                AndroidMaterialIcon(name: .add, size: 24)
                 Text(L10n.t("period_table_new"))
             }
             .font(.system(size: 14, weight: .medium))
             .foregroundColor(colors.onPrimary)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)   // ← SleepyTheme.Buttons.ctaHeight
-            .background(colors.primary)
-            .cornerRadius(SleepyShapes.large)   // ← SleepyTheme.Buttons.shape
+            .frame(height: uiStyle == .liquidGlass ? nil : 56)   // ← SleepyTheme.Buttons.ctaHeight
+            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)   // ← SleepyTheme.Buttons.shape
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+        .frame(maxWidth: .infinity, minHeight: 56)
+        .tint(colors.primary)
         .accessibilityIdentifier("period_tables_new")
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

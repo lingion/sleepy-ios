@@ -20,6 +20,11 @@ struct MineScreen: View {
     // v1.0.62 B4: 「小组件」入口 → WidgetSettingsScreen(内嵌 cover 链,
     //   与 holiday/widgetManagement 同款惯例, 无根 overlay 承载)
     @State private var showWidgetSettings = false
+    @State private var settingsSheet: SettingsSheet?
+    private enum SettingsSheet: String, Identifiable {
+        case holiday, backup
+        var id: String { rawValue }
+    }
 
     var body: some View {
         let state = viewModel.state
@@ -50,7 +55,9 @@ struct MineScreen: View {
                 SettingsNavList(onOpenAllTables: onOpenAllTables, onOpenPeriodTables: onOpenPeriodTables,
                                 onOpenReminder: onOpenReminder, onOpenAppearance: onOpenAppearance,
                                 onOpenGeneral: onOpenGeneral, onOpenAbout: onOpenAbout,
-                                onOpenWidgetSettings: { showWidgetSettings = true })
+                                onOpenWidgetSettings: { showWidgetSettings = true },
+                                onOpenHoliday: { settingsSheet = .holiday },
+                                onOpenBackup: { settingsSheet = .backup })
 
                 // Widget 归档诊断钩子: UI 测试 runner 无 App Group 权限读
                 // widget_archive.log, 由 app 进程(有权限)把日志内容透出到
@@ -69,6 +76,16 @@ struct MineScreen: View {
         }
         .background(colors.background)
         // v1.0.62 B4: 小组件设置页 cover(与 GeneralSettings→WidgetManagement 链同款惯例)
+        .sheet(item: $settingsSheet) { sheet in
+            switch sheet {
+            case .holiday:
+                HolidaySettingsScreen(onDismiss: { settingsSheet = nil },
+                                      tableId: viewModel.state.selectedTableId,
+                                      refreshTransfer: { viewModel.refreshTransfer() })
+            case .backup:
+                GeneralSettingsScreen(onDismiss: { settingsSheet = nil }, viewModel: viewModel, section: .backup)
+            }
+        }
         .fullScreenCover(isPresented: $showWidgetSettings) {
             WidgetSettingsScreen(onDismiss: { showWidgetSettings = false })
         }
@@ -156,7 +173,7 @@ private struct StatItem: View {
 // ← SettingsItem
 private struct SettingsItem: View {
     @Environment(\.localWakeUpColors) private var colors
-    let icon: String
+    let icon: AndroidSettingsIcon.Name
     let label: String
     let identifier: String       // ← G5: UI 测试稳定锚点
     let onClick: () -> Void
@@ -164,8 +181,7 @@ private struct SettingsItem: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
+                AndroidSettingsIcon(name: icon, size: 20)
                     .foregroundColor(colors.onPrimaryContainer)
                     .frame(width: 40, height: 40)
                     .background(colors.primaryContainer)
@@ -214,52 +230,49 @@ private struct SettingsNavList: View {
     let onOpenAppearance: () -> Void
     let onOpenGeneral: () -> Void
     let onOpenAbout: () -> Void
-    // v1.0.62 B4: 「小组件」入口行(原版本 MineScreen +36: Widgets 图标项,
-    //   插在「通用」与「关于」之间)
     let onOpenWidgetSettings: () -> Void
+    let onOpenHoliday: () -> Void
+    let onOpenBackup: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            SettingsItem(icon: "square.and.pencil", label: L10n.format("all_tables"),
-                         identifier: "mine_all_tables", onClick: onOpenAllTables)
-            HDivider()
-            // issue#40: 时间节次表入口 — 与课表管理并列(设计 §4.1)
-            SettingsItem(icon: "clock.badge.checkmark", label: L10n.format("mine_period_tables"),
-                         identifier: "mine_period_tables", onClick: onOpenPeriodTables)
-            HDivider()
-            SettingsItem(icon: "bell", label: L10n.format("reminder_title"),
-                         identifier: "mine_reminder", onClick: onOpenReminder)
-            HDivider()
-            SettingsNavListB(onOpenAppearance: onOpenAppearance, onOpenGeneral: onOpenGeneral,
-                             onOpenAbout: onOpenAbout, onOpenWidgetSettings: onOpenWidgetSettings)
+        VStack(spacing: 16) {
+            SectionHeader(title: L10n.format("settings_schedule_management"))
+            group {
+                SettingsItem(icon: .edit, label: L10n.format("all_tables"),
+                             identifier: "mine_all_tables", onClick: onOpenAllTables)
+                HDivider()
+                SettingsItem(icon: .schedule, label: L10n.format("mine_period_tables"),
+                             identifier: "mine_period_tables", onClick: onOpenPeriodTables)
+                HDivider()
+                SettingsItem(icon: .dateRange, label: L10n.format("settings_holiday_title"),
+                             identifier: "mine_holiday", onClick: onOpenHoliday)
+            }
+            SectionHeader(title: L10n.format("settings_application"))
+            group {
+                SettingsItem(icon: .notifications, label: L10n.format("reminder_title"),
+                             identifier: "mine_reminder", onClick: onOpenReminder)
+                HDivider()
+                SettingsItem(icon: .palette, label: L10n.format("mine_appearance"),
+                             identifier: "mine_appearance", onClick: onOpenAppearance)
+                HDivider()
+                SettingsItem(icon: .tune, label: L10n.format("mine_general"),
+                             identifier: "mine_general", onClick: onOpenGeneral)
+                HDivider()
+                SettingsItem(icon: .widgets, label: L10n.format("mine_widget"),
+                             identifier: "mine_widget", onClick: onOpenWidgetSettings)
+            }
+            SectionHeader(title: L10n.format("settings_data"))
+            group {
+                SettingsItem(icon: .saveAlt, label: L10n.format("settings_backup"),
+                             identifier: "mine_backup", onClick: onOpenBackup)
+            }
+            group {
+                SettingsItem(icon: .info, label: L10n.format("about_title"),
+                             identifier: "mine_about", onClick: onOpenAbout)
+            }
         }
-        .background(colors.surfaceContainer)
-        .cornerRadius(SleepyShapes.large)
     }
-}
-
-private struct SettingsNavListB: View {
-    @Environment(\.localWakeUpColors) private var colors
-    let onOpenAppearance: () -> Void
-    let onOpenGeneral: () -> Void
-    let onOpenAbout: () -> Void
-    let onOpenWidgetSettings: () -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            SettingsItem(icon: "paintpalette", label: L10n.format("mine_appearance"),
-                         identifier: "mine_appearance", onClick: onOpenAppearance)
-            HDivider()
-            SettingsItem(icon: "slider.horizontal.3", label: L10n.format("mine_general"),
-                         identifier: "mine_general", onClick: onOpenGeneral)
-            HDivider()
-            // v1.0.62 B4: 小组件入口(← Icons.Outlined.Widgets; iOS 无同名 SF Symbol,
-            //   取同义 2×2 方格网格 — 原版本 Widgets 图标即 2×2 方块)
-            SettingsItem(icon: "square.grid.2x2", label: L10n.format("mine_widget"),
-                         identifier: "mine_widget", onClick: onOpenWidgetSettings)
-            HDivider()
-            SettingsItem(icon: "info.circle", label: L10n.format("about_title"),
-                         identifier: "mine_about", onClick: onOpenAbout)
-        }
+    private func group<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0, content: content).background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
     }
 }
