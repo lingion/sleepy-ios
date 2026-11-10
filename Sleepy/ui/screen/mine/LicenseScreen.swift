@@ -24,6 +24,31 @@ private struct PerSchoolEntry {
 
 private let foundationalEntries: [FoundationalEntry] = [
     FoundationalEntry(
+        title: "Android Material Icons",
+        meta: "Apache-2.0 · Android Open Source Project",
+        usage: "AndroidX Compose Material Icons 1.7.8：导航、课表工具栏及设置入口的原始矢量路径，转换为 Swift Path 和原生 TabView 模板图。许可原文：third_party/Android-Material-Icons-NOTICE.txt。"
+    ),
+    FoundationalEntry(
+        title: "教务协议跨仓参考",
+        meta: "协议形态与字段核验",
+        usage: "NanCunChild/elecon (elecon contributors, MIT); Cheukfung/ZFCrawler (Cheukfung Ho, MIT); FarmerChillax/new-school-sdk (FarmerChillax; dairoot, MIT); cuijinyu/qingguospider (cuijinyu, No LICENSE); ncc-devlab/elecon-adapters (ncc-devlab, No LICENSE); KnellInferno/zfn_api_ts (KnellInferno, MPL-2.0); moeshin/ai-schedule-chaoxing (moeshin, MIT); whoisnian/getMyCourses (whoisnian, MIT); WenqiOfficial/SHOU-URP-AiSchedule (WenqiOfficial, MIT); SaltGardenia/calm-schedule (SaltGardenia, GPL-3.0); Landon-3314/AHU-TimeTable (Landon-3314, No LICENSE); MoeclubM/AHU-AIO (MoeclubM, GPL-3.0); Zeraora-807/Anhui-Univ-DSH-Tool (Zeraora-807, GPL-3.0); abydym/Ahu_Plus (abydym, GPL-3.0)"
+    ),
+    FoundationalEntry(
+        title: "教务协议调研补充（一）",
+        meta: "owner/repo 标识仓库账号，版权另记；调研致谢不表示已集成",
+        usage: "0-sprey/shiguang_warehouse [MIT; Copyright (c) 2025 星河欲转]\n00mjk/funhubu [license unconfirmed or undeclared; copyright unconfirmed]\n06xy/aischedule [license unconfirmed or undeclared; copyright unconfirmed; info.txt developer: 颜致恒]\n090012/ZFCheckScores [Apache-2.0; Copyright © 2024 NianBroken; root copyright template unfilled]\n0x24bin/ZF-system [license unconfirmed or undeclared; copyright unconfirmed; ASPX meta credits zfsoft]\n0x65ca/QZAPI [license unconfirmed or undeclared; copyright unconfirmed]\n0x8ubb1e/cuit-ai-timetable [license unconfirmed or undeclared; copyright unconfirmed]\n0xiaobao0/school-api [MIT; Copyright (c) 2018 戴艺森; code author: dairoot]\n0XPYEX0/FaQ_Kingo [license unconfirmed or undeclared; copyright unconfirmed]\n1026266545/URP [license unconfirmed or undeclared; copyright unconfirmed; index.html creator: avastms@ghostunix.org]\n123zhuzhu61/shiguang_warehouse [MIT; Copyright (c) 2025 星河欲转]\n1246365871/school-api [MIT; Copyright (c) 2018 dairoot]\n1246365871/zf-tools [GPL-3.0; README Copyright (C) 2020 sunnysab; AES helper has separate credits]\n1250422131/tjdz-aischedule-adapter [license unconfirmed or undeclared; copyright unconfirmed]\n1252158112/AISchedule_ECJTU [license unconfirmed or undeclared; copyright unconfirmed]\n1253818934/MI-AICourseTable [AGPL-3.0; copyright holder unfilled; historical README: horizon86, Zhaosn]\n1375272391/ZFCheckScores-AHDY [Apache-2.0; copyright holder unfilled in LICENSE]\n1434334/zhengfang-xuanke [Apache-2.0; copyright holder unfilled in LICENSE]\n1443690715/ZfsoftCampusAssit [Apache-2.0; copyright holder unfilled; README contact: huangjiawendanny; code author: hjw]\n15098424032/zhengfang-jwc01-password [license unconfirmed or undeclared; copyright unconfirmed]\n1531691629/ZF_Spider [MIT; Copyright (c) 2018, holder unfilled; README: vhyz]\n1547119495/fudgeclass [MulanPSL-2.0; copyright year and holder unfilled in LICENSE template]\n1713344511/zfnew [license conflict: root LICENSE MIT; setup classifier GPLv3; Copyright (c) 2019 Wenhao Liao; setup author: NeroAsmar]\n1757526725/jwmis [license unconfirmed or undeclared; copyright unconfirmed]"
+    ),
+    FoundationalEntry(
+        title: "教务协议调研补充（二）",
+        meta: "owner/repo 标识仓库账号，版权另记；调研致谢不表示已集成",
+        usage: "1757526725/kingoHelper [license conflict: root LICENSE GPL-3.0; file headers Apache Licence; code author: itacajsj; copyright unconfirmed]\n1757526725/tit-client [license unconfirmed or undeclared; copyright unconfirmed]\n1757526725/zhkuas_ssm_maven [MIT; Copyright (c) 2017 灿]\n1816586742-stack/course-research-tool [MIT; Copyright (c) 2026 湖汽猫学长]\n18214091046/school-api [MIT; Copyright (c) 2018 dairoot]\n187155317/ZCrawler [Apache-2.0; source Copyright 2017 yuan1994 all rights reserved; composer author: yuan1994]\n1963077475/WeCourseService [MIT; Copyright (c) 2020 清丶风]\n1itt1eB0y/NEAU-URP [GPL-3.0; copyright holder unfilled; script contact: adobe17]\n1ming1/zucc_xk_ZhengFang [license unconfirmed or undeclared; copyright unconfirmed]\n1wang-cell/ZFCheckScores [Apache-2.0; Copyright © 2024 NianBroken; root copyright template unfilled]\n1zhangyy1/WeCourseService [MIT; Copyright (c) 2020 清丶风]\n2018wzh/ecnu-eams-client [GPL-3.0; project copyright unconfirmed in generic LICENSE]\n20231009/ZFCheckScores [Apache-2.0; Copyright © 2024 NianBroken; root copyright template unfilled]\n2029881498/ZFCheckScores [Apache-2.0; Copyright © 2024 NianBroken; root copyright template unfilled]\n2041818984/coursetable [license unconfirmed or undeclared; copyright unconfirmed]\n2151834060/ZFCheckScores [Apache-2.0; Copyright © 2024 NianBroken; root copyright template unfilled]\n2239828197/ZF_Spider [MIT; Copyright (c) 2018, holder unfilled; README: vhyz]\n2250127831/zero-one-eams [license unconfirmed or undeclared; copyright unconfirmed; eams-frontstu template credit: KeJun]\n2317715129p-droid/ZFCheckScores [Apache-2.0; Copyright © 2024 NianBroken; root copyright template unfilled]\n2601869897-hue/new-school-sdk [MIT; Copyright (c) 2018 dairoot; code author: -Farmer]\n2601869897-hue/ZFCheckScores [Apache-2.0; Copyright © 2024 NianBroken; root copyright template unfilled]\n26560/ZFCheckScores [Apache-2.0; Copyright © 2024 NianBroken; root copyright template unfilled]\n2705496023/eams [license unconfirmed or undeclared; copyright unconfirmed]\n2746267826/kebiao-to-ics [license unconfirmed or undeclared; copyright unconfirmed]\n2889563008/zhishuidezhengfang [Apache-2.0; Copyright © 2024 NianBroken; root copyright template unfilled]"
+    ),
+    FoundationalEntry(
+        title: "教务协议来源说明",
+        meta: "许可与版权状态",
+        usage: "123456lj7q/Jsoup-Android-Timetable [license unconfirmed or undeclared; account: 123456lj7q; copyright unconfirmed]"
+    ),
+    FoundationalEntry(
         title: "Old-QZ 协议核对",
         meta: "历史协议参考",
         usage: "旧版强智教务协议参考：[Crazy-ChenMiLin 的课表项目](https://github.com/Crazy-ChenMiLin/TableAPK) (Apache-2.0)；LonelyMarch/OpenWakeUp (AGPL-3.0)；ThaiCao/WakeupSchedule_Kotlin (Apache-2.0)；YuZhangWang/Java-Demo (GPL-3.0)；dIT8Zv/WakeupSchedule_BUPT (Apache-2.0)；ershiyidian/WakeUp_SHU (NOASSERTION，许可未确认)；历史 WakeUp 版本 (YZune，闭源，仅参考协议，未复用代码)。"
@@ -77,6 +102,14 @@ private let foundationalEntries: [FoundationalEntry] = [
 
 private let perSchoolEntries: [PerSchoolEntry] = [
     PerSchoolEntry(
+        id: "school-bfa-gdbyxy-sources", title: "北京电影学院与广东白云学院协议参考",
+        usage: "danbaixi/UAAS-API (蛋白熙, MIT)\nshixiang123/XJTU-SE-project (shixiang123；XJTU-API-main 作者蛋白熙, 子目录 MIT；根目录未声明许可)\nwpplane/sheep-reptile (wpplane, 未声明许可)\nDragonBaiMo/baiyunu-school (DragonBaiMo, 未声明许可)\ncursimple/cursimple-app (CurSimple Team, MIT)\nHolyn/BaiYun2 (Holyn, 未声明许可)：用于教务入口和课程字段交叉核对，未复用源码。"
+    ),
+    PerSchoolEntry(
+        id: "school-swust-source", title: "西南科技大学 SWUST",
+        usage: "flben233/SWUST-Schedule-Export (ShirakawaTyu, MIT): 课名、教师字段及两节一行布局的协议交叉参考；未复用脚本代码。"
+    ),
+    PerSchoolEntry(
         id: "school-hfut", title: "合肥工业大学 HFUT",
         usage: "HFUT-Schedule (Chiu-xaH, MIT)\nHfutOpenApi (BoynChan, MIT)\nhfut_schedule_hacker (Aoi-cn)\ndjango-hfut-auth (elonzh, MIT)\nhfut-api (hfut-soft-ware)\nhfut-api (SnowingFox)\nhfut_api_service (onlineG2)\nHFUTer (BrikerMan)\nHFUTICS (ssyu0808)\nAiSchedule-for-hfut (imnuke, GPL-3.0)\nAISchedule (HualiNox)\nclassduck (luyishui)"
     ),
@@ -90,7 +123,7 @@ private let perSchoolEntries: [PerSchoolEntry] = [
     ),
     PerSchoolEntry(
         id: "school-ustc", title: "中国科学技术大学 USTC",
-        usage: "USTC-timetable-to-ics (1970633640)\nustc-course-timetable (HowardZorn, GPL-3.0)\nustc-timetable (kirsh1, AGPL-3.0)"
+        usage: "USTC-timetable-to-ics (1970633640)\nustc-course-timetable (HowardZorn, GPL-3.0)\nustc-timetable (kirsh1, AGPL-3.0)\nUSTC-XeF2/pyustc (XeF2, MIT)"
     ),
     PerSchoolEntry(
         id: "school-scu", title: "四川大学 SCU",
@@ -284,36 +317,56 @@ private struct ContributorEntry {
 private let contributorEntries: [ContributorEntry] = [
     ContributorEntry(
         id: "contributor-jim139129", title: "jim139129", meta: "GitHub @jim139129",
-        usage: "已合并多项 PR 并持续反馈 issue — 全部提交与讨论记录见 github.com/jim139129"
+        usage: "感谢代码贡献与持续反馈。全部提交与讨论记录见 github.com/jim139129"
     ),
     ContributorEntry(
         id: "contributor-YYiChen", title: "YYiChen", meta: "GitHub @YYiChen",
-        usage: "已合并 PR #43 课表自适应高度、PR #48 前一晚明日预告 — 全部提交与讨论记录见 github.com/YYiChen"
+        usage: "感谢代码贡献与持续反馈。全部提交与讨论记录见 github.com/YYiChen"
     ),
     ContributorEntry(
         id: "contributor-LzBsA", title: "LzBsA", meta: "GitHub @LzBsA",
-        usage: "已合并 PR #30 燕山大学研究生课表导入适配 — 全部提交与讨论记录见 github.com/LzBsA"
+        usage: "感谢代码贡献与持续反馈。全部提交与讨论记录见 github.com/LzBsA"
     ),
     ContributorEntry(
         id: "contributor-Cold577", title: "冷冷冷 Cold577", meta: "GitHub @Cold577",
-        usage: "已合并 PR #79 小组件选择器预览图修复 — 全部提交与讨论记录见 github.com/Cold577"
+        usage: "感谢代码贡献与持续反馈。全部提交与讨论记录见 github.com/Cold577"
     ),
     ContributorEntry(
         id: "contributor-X-art-hash", title: "X-art-hash", meta: "GitHub @X-art-hash",
-        usage: "已合并的代码贡献 — 全部提交与讨论记录见 github.com/X-art-hash"
+        usage: "感谢代码贡献与持续反馈。全部提交与讨论记录见 github.com/X-art-hash"
     ),
     ContributorEntry(
         id: "contributor-echo0731", title: "echo0731", meta: "GitHub @echo0731",
-        usage: "已合并的代码贡献 — 全部提交与讨论记录见 github.com/echo0731"
+        usage: "感谢代码贡献与持续反馈。全部提交与讨论记录见 github.com/echo0731"
     ),
     ContributorEntry(
         id: "contributor-Kerry1020", title: "Kerry1020", meta: "GitHub @Kerry1020",
-        usage: "已合并 PR #115 数据库结构导出与升级验证，帮助保障版本升级时的数据完整性 — 全部提交与讨论记录见 github.com/Kerry1020"
+        usage: "感谢代码贡献与持续反馈。全部提交与讨论记录见 github.com/Kerry1020"
     ),
+]
+
+private struct RecentAttributionGroup: Identifiable {
+    let key: String
+    var id: String { key }
+    var titleKey: String { "license_recent_\(key)_title" }
+    var bodyKey: String { "license_recent_\(key)_body" }
+}
+
+private let recentAttributionGroups = [
+    RecentAttributionGroup(key: "sources"),
+    RecentAttributionGroup(key: "libraries"),
+    RecentAttributionGroup(key: "data"),
+    RecentAttributionGroup(key: "design"),
+    RecentAttributionGroup(key: "glass_research"),
+    RecentAttributionGroup(key: "vendor"),
+    RecentAttributionGroup(key: "background"),
+    RecentAttributionGroup(key: "protocol_research"),
 ]
 
 struct LicenseScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var uiStyle
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onDismiss: () -> Void
     // ← mutableStateMapOf: 展开态按 id 记忆, 进入页面不重置
     @State private var expanded: [String: Bool] = [:]
@@ -349,6 +402,29 @@ struct LicenseScreen: View {
                             onToggle: nil)
                     }
 
+                    SectionHeader(L10n.format("license_recent_section"))
+                    LicenseCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(L10n.format("license_recent_source_notice"))
+                                .font(.system(size: 14))
+                                .foregroundColor(colors.onSurface)
+                            Text(L10n.format("license_recent_intro"))
+                                .font(.system(size: 12))
+                                .foregroundColor(colors.onSurfaceVariant)
+                        }
+                    }
+                    ForEach(recentAttributionGroups) { group in
+                        AttributionCard(
+                            title: L10n.format(group.titleKey),
+                            subtitle: nil,
+                            description: nil,
+                            lines: L10n.format(group.bodyKey).components(separatedBy: "\n"),
+                            expanded: expanded[group.id] ?? false,
+                            onToggle: {
+                                withAnimation { expanded[group.id] = !(expanded[group.id] ?? false) }
+                            })
+                    }
+
                     // ---- 致谢导语区块 (可折叠: 展开看 about_license_body 全文) ----
                     LicenseCard {
                         VStack(alignment: .leading, spacing: 0) {
@@ -366,12 +442,12 @@ struct LicenseScreen: View {
                                 Button {
                                     withAnimation { bodyExpanded.toggle() }
                                 } label: {
-                                    Image(systemName: bodyExpanded ? "chevron.up" : "chevron.down")
-                                        .font(.system(size: 24)) // ← 原 IconButton 内 Icon 默认 24dp
+                                    AndroidSettingsIcon(name: bodyExpanded ? .expandLess : .expandMore, size: 24) // ← 原 IconButton 内 Icon 默认 24dp
                                         .foregroundColor(colors.onSurfaceVariant)
-                                        .frame(width: 36, height: 36)
+                                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                                 }
-                                .buttonStyle(SleepyButtonStyle())
+                                .buttonStyle(SleepyPlatformButtonStyle(compact: true, shape: .circle))
+                                .frame(width: 48, height: 48)
                                 .accessibilityLabel(bodyExpanded ? "collapse" : "expand")
                             }
                             .contentShape(Rectangle())
@@ -384,9 +460,11 @@ struct LicenseScreen: View {
                                     .foregroundColor(colors.onSurfaceVariant)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.top, 8)
+                                    .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).expand)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastSpatial, value: bodyExpanded)
                     }
 
                     // ---- 跨校普适项目 ----
@@ -436,6 +514,8 @@ struct LicenseScreen: View {
     // ← AttributionCard: 顶层致谢卡 (跨校=不可展开, 单校=可展开)
     private struct AttributionCard: View {
         @Environment(\.localWakeUpColors) private var colors
+        @Environment(\.sleepyUIStyle) private var uiStyle
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
         let title: String
         let subtitle: String?
         let description: String?
@@ -446,12 +526,9 @@ struct LicenseScreen: View {
         var body: some View {
             LicenseCard {
                 VStack(alignment: .leading, spacing: 6) {
-                    if let onToggle = onToggle {
-                        Button(action: onToggle) { row }
-                            .buttonStyle(SleepyButtonStyle())
-                    } else {
-                        row
-                    }
+                    row
+                        .contentShape(Rectangle())
+                        .onTapGesture { onToggle?() }
                     if onToggle == nil, let d = description, !d.isEmpty {
                         Text(attributionText(d))
                             .font(.system(size: 14))
@@ -465,9 +542,11 @@ struct LicenseScreen: View {
                                     .foregroundColor(colors.onSurfaceVariant)
                             }
                         }
+                        .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).expand)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastSpatial, value: expanded)
             }
         }
 
@@ -493,12 +572,15 @@ struct LicenseScreen: View {
                     }
                 }
                 Spacer()
-                if onToggle != nil {
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 24)) // ← 原 IconButton 内 Icon 默认 24dp
-                        .foregroundColor(colors.onSurfaceVariant)
-                    // ← 原 contentDescription = collapse/expand
-                        .accessibilityLabel(expanded ? "collapse" : "expand")
+                if let onToggle {
+                    Button(action: onToggle) {
+                        AndroidSettingsIcon(name: expanded ? .expandLess : .expandMore, size: 24)
+                            .foregroundColor(colors.onSurfaceVariant)
+                            .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                    }
+                    .buttonStyle(SleepyPlatformButtonStyle(compact: true, shape: .circle))
+                    .frame(width: 48, height: 48)
+                    .accessibilityLabel(expanded ? "collapse" : "expand")
                 }
             }
         }
