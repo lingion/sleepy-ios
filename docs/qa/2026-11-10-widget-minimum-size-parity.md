@@ -1,6 +1,6 @@
 # 最小小组件复核与修正（2026-11-10）
 
-用户指出Android最小周列表只显示三列。本次复核确认此前把Android可拉伸SMALL receiver的150dp升档门槛直接套用到iOS最小family，导致158pt的systemSmall错误显示整周；此前149/150/158pt切脸结论不再适用。
+Android最小周列表显示三列。此前把Android可拉伸SMALL receiver的150dp升档门槛直接套用到iOS最小family，导致158pt的systemSmall错误显示整周；此前149/150/158pt切脸结论不再适用。
 
 ## 对齐规则
 
