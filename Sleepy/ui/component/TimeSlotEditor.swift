@@ -232,8 +232,7 @@ private struct BindChoiceRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if selected {
                     Spacer().frame(width: 8)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 18))
+                    AndroidMaterialIcon(name: .check, size: 18)
                         .foregroundColor(colors.onPrimaryContainer)
                 }
             }
@@ -250,6 +249,7 @@ private struct BindChoiceRow: View {
 // ← ManualTimeSlotEditor
 private struct ManualTimeSlotEditor: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Read the live rows when a sheet callback fires, not a captured array snapshot.
     @Binding var rows: [TimeTableUtils.TimeSlotRow]
@@ -288,18 +288,18 @@ private struct ManualTimeSlotEditor: View {
                     onRowsChange(TimeTableUtils.appendEmptyRow(rows))
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 18))
+                        AndroidMaterialIcon(name: .add, size: 18)
                         Text(L10n.format("add_period"))
                             .font(SleepyTypography.labelMedium)
                     }
                     .foregroundColor(colors.onSecondaryContainer)
-                    .padding(.horizontal, 24)   // ← M3 Button 默认水平 contentPadding 24dp
-                    .frame(minHeight: 40)       // ← M3 Button 最小高 40dp
-                    .background(colors.secondaryContainer)
-                    .cornerRadius(SleepyShapes.medium)
+                    .padding(.horizontal, style == .liquidGlass ? 0 : 24)   // ← M3 Button 默认水平 contentPadding 24dp
+                    .frame(minHeight: style == .liquidGlass ? nil : 40)       // ← M3 Button 最小高 40dp
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.secondaryContainer, prominent: true)
                 }
-                .buttonStyle(SleepyButtonStyle())
+                .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                .frame(minHeight: style == .liquidGlass ? 44 : nil)
+                .tint(colors.secondaryContainer)
                 .accessibilityIdentifier("slot_add")
             }
             .padding(.horizontal, 12)
@@ -324,7 +324,7 @@ private struct ManualTimeSlotEditor: View {
 
             // Rows
             VStack(spacing: 10) {
-                ForEach(Array(rows.enumerated()), id: \.element.node) { index, row in
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                     let dragging = draggingNode == row.node
                     let target = targetIndex == index && !dragging
                     TimeSlotRowItem(
@@ -333,20 +333,23 @@ private struct ManualTimeSlotEditor: View {
                         isDragging: dragging,
                         isDropTarget: target,
                         dropInvalid: dragging && invalidTarget,
+                        conflict: TimeTableUtils.findConflictForSlot(rows, targetNode: row.node),
                         onStartChange: { newStart in
-                            onRowsChange(rows.map { item in
-                                if item.node == row.node { var r = item; r.start = newStart; return r }
-                                return item
-                            })
+                            guard rows.indices.contains(index) else { return }
+                            var updated = rows; updated[index].start = newStart
+                            onRowsChange(updated)
                         },
                         onEndChange: { newEnd in
-                            onRowsChange(rows.map { item in
-                                if item.node == row.node { var r = item; r.end = newEnd; return r }
-                                return item
-                            })
+                            guard rows.indices.contains(index) else { return }
+                            var updated = rows; updated[index].end = newEnd
+                            onRowsChange(updated)
                         },
                         onDelete: {
-                            onRowsChange(TimeTableUtils.removeAndRenumber(rows, node: row.node))
+                            guard rows.indices.contains(index) else { return }
+                            var updated = rows; updated.remove(at: index)
+                            onRowsChange(updated.enumerated().map { offset, item in
+                                var value = item; value.node = offset + 1; return value
+                            })
                         })
                         .background(GeometryReader { geometry in
                             Color.clear.preference(key: TimeSlotRowHeightKey.self,
@@ -466,30 +469,82 @@ private struct TimeSlotRowHeightKey: PreferenceKey {
     }
 }
 
+private struct TimeSlotRowWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 // ← TimeSlotRowItem
 private struct TimeSlotRowItem: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .body) private var regularMinimumWidth: CGFloat = 240
+    @State private var availableWidth: CGFloat = 0
     let row: TimeTableUtils.TimeSlotRow
     let canDelete: Bool
     var isDragging = false
     var isDropTarget = false
     var dropInvalid = false
+    var conflict: TimeTableUtils.PeriodValidationResult? = nil
     let onStartChange: (String) -> Void
     let onEndChange: (String) -> Void
     let onDelete: () -> Void
 
     private var isBlank: Bool {
         row.start.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || row.end.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && row.end.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(L10n.format("course_node_format", "\(row.node)"))
-                .font(.system(size: 14))
+        VStack(alignment: .leading, spacing: 4) {
+            fields(compact: availableWidth > 0 && availableWidth < regularMinimumWidth)
+            .background(
+            RoundedRectangle(cornerRadius: SleepyShapes.medium)
+                .fill(dropInvalid ? colors.errorContainer : conflict != nil ? colors.errorContainer.opacity(0.4)
+                      : isDragging ? colors.primaryContainer
+                      : isBlank ? colors.secondaryContainer : colors.surface)
+                // effects 仅作用于底色，避免时间字段/删除按钮继承空间动画。
+                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: isBlank)
+                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: isDragging)
+                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: dropInvalid)
+                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: conflict)
+            )
+            if isBlank {
+                Text(L10n.t("timeslot_row_blank_hint"))
+                    .font(SleepyTypography.bodySmall)
+                    .foregroundColor(colors.onSurfaceVariant)
+                    .padding(.horizontal, 12)
+            }
+            if let conflict = conflict {
+                Text(conflict.errorMessage)
+                    .font(SleepyTypography.bodySmall)
+                    .foregroundColor(colors.error)
+                    .padding(.horizontal, 12)
+                    .accessibilityIdentifier("slot_error_\(row.node)")
+            }
+        }
+        .background(GeometryReader { geometry in
+            Color.clear.preference(key: TimeSlotRowWidthKey.self, value: geometry.size.width)
+        })
+        .onPreferenceChange(TimeSlotRowWidthKey.self) { availableWidth = $0 }
+        .overlay(alignment: .top) {
+            if isDropTarget {
+                Rectangle().fill(colors.primary).frame(height: 2)
+                    .accessibilityHidden(true)
+            }
+        }
+        .shadow(color: Color.black.opacity(isDragging ? 0.15 : 0), radius: isDragging ? 6 : 0, y: isDragging ? 3 : 0)
+        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: isDragging)
+    }
+
+    private func fields(compact: Bool) -> some View {
+        HStack(spacing: compact ? 4 : 8) {
+            Text(compact ? "\(row.node)" : L10n.format("course_node_format", "\(row.node)"))
+                .font(compact ? SleepyTypography.labelSmall : SleepyTypography.bodyMedium)
                 .foregroundColor(colors.onSurface)
-                .frame(width: 44, alignment: .leading)
+                .frame(width: compact ? 20 : 44, alignment: .leading)
+                .accessibilityLabel(L10n.format("course_node_format", "\(row.node)"))
             TimePickerField(value: row.start, onValueChange: onStartChange,
                             label: L10n.format("start_label"), fillsWidth: true,
                             showsPendingHint: true)
@@ -500,35 +555,21 @@ private struct TimeSlotRowItem: View {
                 .accessibilityIdentifier("slot_end_\(row.node)")
             if canDelete {
                 Button(action: onDelete) {
-                    Image(systemName: "minus.circle")
-                        .font(.system(size: 20))
+                    AndroidSettingsIcon(name: .removeCircleOutline, size: 20)
                         .foregroundColor(colors.error)
+                        .frame(width: style == .liquidGlass ? 20 : 44,
+                               height: style == .liquidGlass ? 20 : 44)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(SleepyButtonStyle())
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 22, compact: true, shape: .circle))
+                .tint(colors.error)
+                .frame(width: style == .liquidGlass ? 48 : 44,
+                       height: style == .liquidGlass ? 48 : 44)
                 .accessibilityIdentifier("slot_row_delete_\(row.node)")
-                // ← 原 contentDescription = delete_period
                 .accessibilityLabel(L10n.format("delete_period"))
-                .frame(width: 32, height: 32)   // ← 原 IconButton 32dp 方形
-            } else {
-                Spacer().frame(width: 32)
-            }
+            } else { Spacer().frame(width: style == .liquidGlass ? 48 : 44) }
         }
-        .background(
-            RoundedRectangle(cornerRadius: SleepyShapes.medium)
-                .fill(dropInvalid ? colors.errorContainer : isDragging ? colors.primaryContainer
-                      : isBlank ? colors.secondaryContainer : colors.surface)
-                // effects 仅作用于底色，避免时间字段/删除按钮继承空间动画。
-                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: isBlank)
-                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: isDragging)
-                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: dropInvalid)
-        )
-        .overlay(alignment: .top) {
-            if isDropTarget {
-                Rectangle().fill(colors.primary).frame(height: 2)
-                    .accessibilityHidden(true)
-            }
-        }
-        .shadow(color: Color.black.opacity(isDragging ? 0.15 : 0), radius: isDragging ? 6 : 0, y: isDragging ? 3 : 0)
-        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: isDragging)
+        .padding(.horizontal, compact ? 4 : 10)
+        .padding(.vertical, 8)
     }
 }

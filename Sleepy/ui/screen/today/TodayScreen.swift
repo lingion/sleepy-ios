@@ -42,17 +42,7 @@ struct TodayScreen: View {
         let state = viewModel.state
         let today = AppClock.now
         let dateContext = TodayDisplayContext(state: state, today: today)
-        // issue#40 对齐: 节次时间域一律走水合后的当前表(← 原实现
-        // `state.effectiveCurrentTable?.timeJson`)。绑定独立节次表 → 以所绑表 timeJson
-        // 为准; 悬空/未绑定 → 回退旧兼容列。ScheduleState 尚无 effectiveCurrentTable
-        // 计算属性(在他人任务文件 ScheduleViewModel.swift, 本 agent 禁改), 此处按
-        // AddCourseScreen.swift 同款本地解算; VM 侧字段已报集成者统一补。
-        let effectiveTimeJson: String? = {
-            guard let table = state.currentTable else { return nil }
-            let period = (try? ScheduleRepository(AppDatabase.getShared())
-                .effectivePeriodTable(tableId: table.id)) ?? nil
-            return table.hydratedWith(period).timeJson
-        }()
+        let effectiveTimeJson = state.effectiveRenderTimeJson
         // ★ 学期外感知: BEFORE_START/AFTER_END 时今日课不按周过滤展示
         let semesterStatus = dateContext.semesterStatus
         let todayCourses: [CourseEntity] = {
@@ -79,6 +69,10 @@ struct TodayScreen: View {
                 TodayHeader(date: dateContext.date, week: dateContext.actualWeek, count: todayCourses.count,
                             semesterStatus: semesterStatus)
 
+                if state.hasPeriodConflict {
+                    PeriodConflictBanner(message: L10n.format("period_conflict_detected_banner", state.periodValidation.errorMessage))
+                }
+
                 if todayCourses.isEmpty {
                     EmptyToday(semesterStatus: semesterStatus)
                 } else {
@@ -86,11 +80,13 @@ struct TodayScreen: View {
                                 action: L10n.format("n_periods", todayCourses.count))
                     // v7.10.10 冲突分栏: 单栏整宽; 多栏并排+栏间浅细竖线(与周视图同款)
                     ForEach(laneRows, id: \.courses.first!.id) { row in
-                        if row.laneCount == 1, let only = row.courses.first {
-                            TodayCourseCard(course: only, timeJson: effectiveTimeJson,
-                                            groupRows: todayCourses.filter { $0.groupId == only.groupId }) {
-                                selectedCourseDate = today
-                                selectedCourse = only
+                        if row.laneCount == 1 {
+                            ForEach(row.courses) { course in
+                                TodayCourseCard(course: course, timeJson: effectiveTimeJson,
+                                                groupRows: todayCourses.filter { $0.groupId == course.groupId }) {
+                                    selectedCourseDate = today
+                                    selectedCourse = course
+                                }
                             }
                         } else {
                             TodayLaneRow(row: row, timeJson: effectiveTimeJson,
@@ -135,6 +131,26 @@ struct TodayScreen: View {
                     viewModel.occurrenceSaved()
                 })
         }
+    }
+}
+
+struct PeriodConflictBanner: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            AndroidSettingsIcon(name: .notifications, size: 20)
+                .accessibilityHidden(true)
+            Text(message).font(SleepyTypography.bodySmall)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .foregroundColor(colors.onErrorContainer)
+        .padding(12)
+        .background(colors.errorContainer.opacity(0.4))
+        .cornerRadius(SleepyShapes.medium)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("period_conflict_banner")
     }
 }
 
@@ -245,8 +261,7 @@ private struct EmptyToday: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "clock")
-                .font(.system(size: 48))
+            AndroidSettingsIcon(name: .schedule, size: 48)
                 .foregroundColor(colors.onSurfaceVariant)
             // ★ 学期外: 主副文案换学期状态(不是"今天没课")
             if semesterStatus != .inRange {
@@ -294,12 +309,13 @@ private struct TodayCourseCard: View {
             persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
         let time: String? = {
-            if course.ownTime, !course.startTime.isEmpty, !course.endTime.isEmpty {
-                return "\(course.startTime)-\(course.endTime)"
-            }
-            guard let tj = timeJson else { return nil }
-            return TimeTableUtils.courseTimeString(courseStartNode: course.startNode,
-                                                   courseStep: course.step, timeJson: tj)
+            guard let parts = TimeTableUtils.effectiveCourseTime(
+                isIrregularTime: course.ownTime || course.isIrregularTime,
+                startTime: course.startTime, endTime: course.endTime,
+                startNode: course.startNode, step: course.step, timeJson: timeJson ?? ""),
+                  let start = TimeTableUtils.hmToSeconds(parts.0),
+                  let end = TimeTableUtils.hmToSeconds(parts.1), end > start else { return nil }
+            return "\(parts.0)-\(parts.1)"
         }()
 
         Button {

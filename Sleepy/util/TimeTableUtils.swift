@@ -10,6 +10,9 @@ import Foundation
 /// UI 渲染时用 timeSlotsFor 把 JSON 转为每节独立的 TimeSlot；
 /// 与 WakeUp 默认 12 节制对应，若用户改 nodesPerDay，会按节点列表拆段。
 enum TimeTableUtils {
+    private static let nodeReadCache = PeriodReadCache<[NodeTime]>()
+    private static let rowReadCache = PeriodReadCache<[TimeSlotRow]>()
+    private static let slotReadCache = PeriodReadCache<[TimeSlotRow]>()
 
     /// 默认节次时间表（12 节 / 45-50 分钟）。
     ///
@@ -44,21 +47,22 @@ enum TimeTableUtils {
     /// ← 原 parseNodes `o.optInt("node", i + 1)` + 整体 try/catch:
     /// 任一行缺 start/end 或时间非法 → 整体返回空数组(不是丢弃单行)。
     static func parseNodes(_ timeJson: String) -> [NodeTime] {
-        guard let data = timeJson.data(using: .utf8),
-              let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            return []
-        }
+        // NodeTime uses Date on iOS; refresh its reference day when the date or time zone changes.
+        let referenceDay = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970
+        return nodeReadCache.value(for: "\(referenceDay)|\(timeJson)") { parseNodesUncached(timeJson) }
+    }
+
+    private static func parseNodesUncached(_ timeJson: String) -> [NodeTime] {
+        guard let rows = strictPeriodRows(timeJson), Set(rows.map(\.node)).count == rows.count else { return [] }
         let cal = Calendar(identifier: .gregorian)
         let today = cal.startOfDay(for: Date())
         var out: [NodeTime] = []
-        out.reserveCapacity(arr.count)
-        for (i, o) in arr.enumerated() {
-            let node = (o["node"] as? NSNumber)?.intValue ?? (i + 1)
-            guard let startS = o["start"] as? String,
-                  let endS = o["end"] as? String,
-                  let start = parseTime(startS, base: today),
-                  let end = parseTime(endS, base: today) else { return [] }
-            out.append(NodeTime(node: node, start: start, end: end))
+        out.reserveCapacity(rows.count)
+        for row in rows {
+            guard let start = parsePeriodClock(row.start), let end = parsePeriodClock(row.end) else { return [] }
+            out.append(NodeTime(node: row.node,
+                                start: today.addingTimeInterval(TimeInterval(start * 60)),
+                                end: today.addingTimeInterval(TimeInterval(end * 60))))
         }
         return out.sorted { $0.node < $1.node }
     }
@@ -77,8 +81,10 @@ enum TimeTableUtils {
 
     /// 把节点时间表转为每节独立的 TimeSlotRow 展示行(D5 TimeSlot 的数据来源)
     static func timeSlotsFor(timeJson: String) -> [TimeSlotRow] {
-        parseNodes(timeJson).map { n in
-            TimeSlotRow(node: n.node, start: formatTime(n.start), end: formatTime(n.end))
+        slotReadCache.value(for: timeJson) {
+            parseNodes(timeJson).map { n in
+                TimeSlotRow(node: n.node, start: formatTime(n.start), end: formatTime(n.end))
+            }
         }
     }
 
@@ -104,7 +110,9 @@ enum TimeTableUtils {
         }
         let nodes = parseNodes(timeJson)
         if nodes.isEmpty { return nil }
-        let endNode = courseStartNode + courseStep - 1
+        guard courseStep > 0 else { return nil }
+        let (endNode, overflow) = courseStartNode.addingReportingOverflow(courseStep - 1)
+        guard !overflow, Int32(exactly: endNode) != nil else { return nil }
         guard let first = nodes.first(where: { $0.node == courseStartNode }),
               let last = nodes.first(where: { $0.node == endNode }) else { return nil }
         return (formatTime(first.start), formatTime(last.end))
@@ -278,6 +286,10 @@ enum TimeTableUtils {
 
     /// timeJson -> 编辑 rows (按数组顺序)
     static func parseTimeSlotRows(_ timeJson: String) -> [TimeSlotRow] {
+        rowReadCache.value(for: timeJson) { parseTimeSlotRowsUncached(timeJson) }
+    }
+
+    private static func parseTimeSlotRowsUncached(_ timeJson: String) -> [TimeSlotRow] {
         guard let data = timeJson.data(using: .utf8),
               let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return (1...12).map { node in TimeSlotRow(node: node, start: smartStartDefault(node), end: smartEndDefault(node)) }
@@ -367,8 +379,8 @@ enum TimeTableUtils {
             if idx > 0 { out.append(",") }
             out.append("{")
             out.append("\"node\":\(row.node),")
-            out.append("\"start\":\(jsonString(row.start)),")
-            out.append("\"end\":\(jsonString(row.end))")
+            out.append("\"start\":\(jsonString(row.start.trimmingCharacters(in: .whitespacesAndNewlines))),")
+            out.append("\"end\":\(jsonString(row.end.trimmingCharacters(in: .whitespacesAndNewlines)))")
             if let e = row.edgeClass {
                 out.append(",\"edge\":\(jsonString(e.rawValue))")
             }
@@ -432,17 +444,16 @@ enum TimeTableUtils {
         return result
     }
 
-    /// Standard starts may be equal; blank rows are skipped. Edge rows are stored at
-    /// arbitrary physical positions, so validate their intervals without comparing their order.
+    /// Filled rows, including edge periods, must not overlap in their displayed order.
     static func isTimeSlotOrderValid(_ rows: [TimeSlotRow]) -> Bool {
-        var previousStart: Int? = nil
+        guard Set(rows.map(\.node)).count == rows.count else { return false }
+        var previousEnd: Int? = nil
         for row in rows {
             if row.start.isBlank && row.end.isBlank { continue }
-            guard let start = hmToSeconds(row.start), let end = hmToSeconds(row.end),
+            guard let start = parsePeriodClock(row.start), let end = parsePeriodClock(row.end),
                   start < end else { return false }
-            guard row.edgeClass == nil && row.node > 0 else { continue }
-            guard previousStart.map({ start >= $0 }) ?? true else { return false }
-            previousStart = start
+            guard previousEnd.map({ start >= $0 }) ?? true else { return false }
+            previousEnd = end
         }
         return true
     }
@@ -456,7 +467,8 @@ enum TimeTableUtils {
               Set(rows.map(\.node)).count == rows.count else { return false }
         let reordered = reorderTimeSlotRows(rows, fromIndex: fromIndex, toIndex: toIndex)
         guard Set(reordered.map(\.node)).count == reordered.count,
-              isTimeSlotOrderValid(reordered) else { return false }
+              // iOS preserves appended edge anchors in storage; validate their logical node order.
+              isTimeSlotOrderValid(reordered.sorted { $0.node < $1.node }) else { return false }
         if fromIndex == toIndex { return true }
 
         var oldIndicesInNewOrder = standardIndices
@@ -647,10 +659,13 @@ enum TimeTableUtils {
             guard let s = normalizedHm(startTime), let e = normalizedHm(endTime) else { return nil }
             return (s, e)
         }
-        let rows = parseTimeSlotRows(timeJson)
-        guard let first = rows.first(where: { $0.node == startNode }),
-              let last = rows.first(where: { $0.node == startNode + step - 1 }) else { return nil }
-        return (first.start, last.end)
+        guard step > 0 else { return nil }
+        let (endNode, overflow) = startNode.addingReportingOverflow(step - 1)
+        guard !overflow, Int32(exactly: endNode) != nil else { return nil }
+        let nodes = parseNodes(timeJson)
+        guard let first = nodes.first(where: { $0.node == startNode }),
+              let last = nodes.first(where: { $0.node == endNode }) else { return nil }
+        return (formatTime(first.start), formatTime(last.end))
     }
 
     /// "HH:mm" → 当日分钟数 (widget 窗口/冲突聚簇共用的时间域刻度); 非法 → nil
