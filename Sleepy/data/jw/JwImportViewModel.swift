@@ -571,6 +571,7 @@ final class JwImportViewModel: ObservableObject {
                 courseName: jw.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "未命名" : jw.name,  // ← kt ifBlank
                 teacher: jw.teacher,
                 room: jw.room,
+                note: jw.note,
                 day: min(max(jw.day, 1), 7),
                 startNode: max(jw.startNode, 1),
                 step: step,
@@ -578,6 +579,11 @@ final class JwImportViewModel: ObservableObject {
                 endWeek: max(jw.endWeek, jw.startWeek),
                 type: jw.type,
                 color: defaultColor,
+                isIrregularTime: jw.hasActualTime,
+                ownTime: jw.hasActualTime,
+                startTime: jw.startTime,
+                endTime: jw.endTime,
+                credit: Double(jw.credit),
                 id: 0
             )
         }
@@ -597,7 +603,9 @@ final class JwImportViewModel: ObservableObject {
         nodesPerDay: Int = 0,
         smartConfigJson: String = "",
         periodTable: PeriodTableEntity? = nil,
-        bindPeriodTableId: Int64? = nil
+        bindPeriodTableId: Int64? = nil,
+        termWeekCount: Int = 0,
+        importSourceJson: String = ""
     ) throws -> Int64 {
         if courses.isEmpty {
             throw NSError(domain: "JwImport", code: 3,
@@ -613,9 +621,11 @@ final class JwImportViewModel: ObservableObject {
                 table: TimeTableEntity(
                     name: tableName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "导入的课表" : tableName,
                     startDate: resolvedStartDate,
+                    maxWeek: termWeekCount > 0 ? max(termWeekCount, courses.map { $0.endWeek }.max() ?? 0) : max(20, courses.map { $0.endWeek }.max() ?? 0),
                     nodesPerDay: nodesPerDay > 0 ? nodesPerDay : (courses.map { max($0.startNode, $0.endNode) }.max() ?? 1),
                     timeJson: timeJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? TimeTableUtils.DEFAULT_TIME_JSON : timeJson,
-                    smartConfigJson: smartConfigJson),
+                    smartConfigJson: smartConfigJson,
+                    importSourceJson: importSourceJson),
                 courses: toCourseEntities(courses, tableId: 0, defaultColor: "#FF6750A4"),
                 periodTable: nil, bindPeriodTableId: bindPeriodTableId)
         }
@@ -635,10 +645,12 @@ final class JwImportViewModel: ObservableObject {
             var newTable = TimeTableEntity(
                 name: tableName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "导入的课表" : tableName,  // ← kt ifBlank
                 startDate: resolvedStartDate,
+                maxWeek: termWeekCount > 0 ? max(termWeekCount, courses.map { $0.endWeek }.max() ?? 0) : max(20, courses.map { $0.endWeek }.max() ?? 0),
                 nodesPerDay: maxNode,
                 timeJson: timeJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? TimeTableUtils.DEFAULT_TIME_JSON : timeJson,
                 isDefault: true,  // 导入的课表设为默认,widget 直接展示
                 smartConfigJson: smartConfigJson,
+                importSourceJson: importSourceJson,
                 id: 0
             )
             // v1.0.56 T10: 自动作息表先落库拿 id — 建表时同名, 但全局唯一名墙:

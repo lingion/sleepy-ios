@@ -427,7 +427,7 @@ final class EducationalImportModalTests: XCTestCase {
     /// F8-T1-05: JwSchoolInfo isSupported check.
     func testF8_T1_05_schoolInfoIsSupportedValidation() {
         let supported = JwSchoolInfo(sortKey: "B", name: "北京大学", url: "https://pku.edu.cn", type: "pku", sortKeyFull: "beida")
-        let unsupported = JwSchoolInfo(sortKey: "U", name: "未知系统校", url: "", type: "", sortKeyFull: "weizhi")
+        let unsupported = JwSchoolInfo(sortKey: "U", name: "未知系统校", url: "", type: "", status: JwSchoolInfo.STATUS_PENDING, sortKeyFull: "weizhi")
 
         XCTAssertTrue(supported.isSupported)
         XCTAssertFalse(unsupported.isSupported)

@@ -73,6 +73,30 @@ struct JwImportParseLifecycle {
     }
 }
 
+enum JwImportInteraction {
+    static func locksDismissal(activeImport: Bool, isApplying: Bool, reportVisible: Bool) -> Bool {
+        activeImport || isApplying || reportVisible
+    }
+}
+
+/// Uses the host's repository so a reviewed update keeps the app's mutation callbacks.
+struct JwCourseUpdateCommit {
+    let repository: ScheduleRepository
+
+    static func hasChanges(_ diff: CourseUpdateDiff) -> Bool {
+        !diff.added.isEmpty || !diff.changed.isEmpty || !diff.removed.isEmpty
+    }
+
+    @discardableResult
+    func apply(tableId: Int64, diff: CourseUpdateDiff, incomingTimeJson: String,
+               expectedCourses: [CourseEntity]) throws -> Bool {
+        guard Self.hasChanges(diff) else { return false }
+        try repository.updateImportedCourses(tableId: tableId, courses: diff.merged,
+            incomingTimeJson: incomingTimeJson, expectedCourses: expectedCourses)
+        return true
+    }
+}
+
 enum JwStage: Int, Comparable {
     case selectSchool = 0
     case webViewLogin = 1
@@ -124,6 +148,7 @@ private let jwHmRegex = try! NSRegularExpression(pattern: #"^\d{2}:\d{2}$"#)
 
 struct JwImportFlow: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.dismiss) private var dismiss
     let onFinish: (JwImportOutcome) -> Void
 
@@ -136,6 +161,8 @@ struct JwImportFlow: View {
     var onDismissAttempt: (() -> Void)? = nil
     var targetTableId: Int64? = nil
     var newTableOnly = false
+    var updateExistingCourses = false
+    var updateRepository: ScheduleRepository? = nil
 
     @StateObject private var jwViewModel = JwImportViewModel()
     // ← SleepyApp.get().importDraftRepository: iOS 无 app 级单例, 自装配同库仓储。
@@ -167,6 +194,17 @@ struct JwImportFlow: View {
     @State private var parsedSchool: JwSchoolInfo? = nil
     @State private var draftId: String? = nil
     @State private var configStartDate = ""
+    @State private var configTermWeekText = ""
+    @State private var importSourceJson = ""
+    @State private var capturedSourceTimeJson = ""
+    @State private var datedCourseOrigin = ""
+    @State private var pendingDatedCapture: (html: String, school: JwSchoolInfo, periods: [(Int, String, String)], start: String)?
+    @State private var showDatedCalendar = false
+    @State private var datedFirstWeek = ""
+    @State private var datedCalendarError: String?
+    @State private var selectedSgAdapterId = ""
+    @State private var updateExpectedCourses: [CourseEntity] = []
+    @State private var courseUpdateDiff: CourseUpdateDiff? = nil
     @State private var configUsedDefaultTimes = false
     @State private var configTimeJson = ""
     @State private var configRows: [TimeTableUtils.TimeSlotRow] = []
@@ -191,6 +229,11 @@ struct JwImportFlow: View {
 
     private var requiresDraftExitConfirmation: Bool {
         targetTableId == nil || incomingDraftId != nil
+    }
+
+    private var locksDismissal: Bool {
+        JwImportInteraction.locksDismissal(activeImport: exitDraftState.activeImport,
+            isApplying: isApplying, reportVisible: reportDialogSchool != nil)
     }
 
     var body: some View {
@@ -264,6 +307,20 @@ struct JwImportFlow: View {
         .onSheetDismissAttempt {
             handleDismissAttempt()
         }
+        .sheet(isPresented: $showDatedCalendar, onDismiss: { pendingDatedCapture = nil; statusMsg = nil }) {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(L10n.t("import_week_start")).font(.title2)
+                Text(L10n.t("jw_dated_calendar_required"))
+                DatePickerField(value: datedFirstWeek, onValueChange: { datedFirstWeek = $0; datedCalendarError = nil },
+                                label: L10n.t("import_week_start"), isError: datedCalendarError != nil, fillsWidth: true)
+                if let datedCalendarError { Text(datedCalendarError).foregroundColor(colors.error) }
+                HStack {
+                    Button(L10n.t("cancel")) { showDatedCalendar = false }
+                    Spacer()
+                    Button(L10n.t("import_confirm")) { confirmDatedCapture() }
+                }
+            }.padding(24)
+        }
         .onAppear {
             // F084: 流程「新进入」= Activity 重建 → saveable 状态清零。
             //   外层 ZStack 身份在 stage 切换中稳定, onAppear 每次流程呈现只跑一次,
@@ -287,7 +344,7 @@ struct JwImportFlow: View {
         //    ← LaunchedEffect(stage) { errorMsg = null }
         .onChange(of: stage) { _ in errorMsg = nil }
         // issue#39: activeImport 翻转外抛给 sheet 宿主(交互下滑关闭闸门用)
-        .onChange(of: exitDraftState.activeImport || reportDialogSchool != nil) { active in
+        .onChange(of: locksDismissal) { active in
             onActiveImportChanged?(active)
         }
     }
@@ -366,7 +423,8 @@ struct JwImportFlow: View {
                             },
                             onCaptureError: { result, hint in
                                 handleCaptureError(result, hint)
-                            })
+                            }, selectedSgAdapterId: selectedSgAdapterId,
+                            onSgAdapterSelected: { selectedSgAdapterId = $0; checkpointDraft() })
                             .transition(stageTransition)
                             .zIndex(stage == .webViewLogin ? 1 : 0)
                     } else {
@@ -376,7 +434,9 @@ struct JwImportFlow: View {
                 case .preview:
                     if !parsedCourses.isEmpty {
                         Group {
-                            if let preview = importPreview {
+                            if updateExistingCourses {
+                                manualUpdatePreview
+                            } else if let preview = importPreview {
                                 if targetTableId != nil {
                                     if courseSelectionConfirmed {
                                         ImportPreviewDialog(preview: preview, courseDecision: true,
@@ -479,7 +539,12 @@ struct JwImportFlow: View {
             tableName: configTableName,
             smartConfigJson: encodeSmartConfigJson(configSmartConfig),
             usedDefaultTimes: configUsedDefaultTimes,
-            phase: parsedCourses.isEmpty ? .webViewLogin : .configureConfirm)
+            phase: parsedCourses.isEmpty ? .webViewLogin : .configureConfirm,
+            termWeekCount: Int(configTermWeekText) ?? 0,
+            datedCourseOrigin: datedCourseOrigin,
+            importSourceJson: importSourceJson,
+            selectedSgAdapterId: selectedSgAdapterId,
+            termWeekText: configTermWeekText)
     }
 
     /// 每次日期/课表名/行/智慧配置变化即快照落草稿(← checkpointDraft); 无 draftId 不建。
@@ -503,6 +568,7 @@ struct JwImportFlow: View {
     private func finishOrReport(_ school: JwSchoolInfo?) {
         // 已落库即成功；报告弹窗期间再退出也不能回退成取消。
         importOutcome = .completed
+        if let school { AppPrefs.shared.recordRecentJwSchool(key: school.stableKey) }
         parseLifecycle.invalidate()
         if let id = draftId { try? draftRepository.delete(id) }
         draftId = nil
@@ -602,6 +668,10 @@ struct JwImportFlow: View {
             courseSelectionConfirmed = false
             previewGeneration = UUID()
             configStartDate = snapshot.termStartDate
+            configTermWeekText = snapshot.termWeekText ?? (snapshot.termWeekCount > 0 ? String(snapshot.termWeekCount) : "")
+            importSourceJson = snapshot.importSourceJson
+            datedCourseOrigin = snapshot.datedCourseOrigin
+            selectedSgAdapterId = snapshot.selectedSgAdapterId
             configTableName = jwIsBlank(snapshot.tableName)
                 ? L10n.format("jw_import_title", snapshot.school.name)
                 : snapshot.tableName
@@ -611,6 +681,7 @@ struct JwImportFlow: View {
             // 补齐标志随快照恢复 — 默认作息提示不因退出重进而丢失
             configUsedDefaultTimes = snapshot.usedDefaultTimes
             configTimeJson = TimeTableUtils.buildTimeJsonFromRows(configRows)
+            capturedSourceTimeJson = TimeTableUtils.buildTimeJsonFromRows(configRows.filter { JwCourse.isValidTimeRange($0.start, $0.end) })
             // issue#23 T5: 草稿已存配置仍能 derive 出恢复的行 → 原样保留; 缺失/损坏 →
             // 从恢复行重推断; 行不可推断 → 保底默认(TimeSlotEditor 保持手动 + 既有校验兜底)。
             let restoredStored = jwIsBlank(snapshot.smartConfigJson)
@@ -674,11 +745,26 @@ struct JwImportFlow: View {
         // #18 UCAS: 课程格链到跨源详情站 xkcts:8443 (WebView fetch 被 CORS 挡),
         // 详情页免登录 → 原生 HTTP 逐课直抓补全周次/教室; 失败降级原 HTML
         // (parser 落 1-16 占位, 与既有行为一致) ← runCatching{enrich}.getOrDefault(html)
-        let htmlForParse: String
+        var htmlForParse: String
         if effectiveType == JwProtocol.TYPE_UCAS {
-            htmlForParse = await UcasDetailFetch.enrich(html)
+            do { htmlForParse = try await UcasDetailFetch.enrich(html) }
+            catch { errorMsg = error.localizedDescription; statusMsg = nil; return }
         } else {
             htmlForParse = html
+        }
+        let isDated = effectiveType == "shsmu" && JwShsmuCaptureCalendar.isDatedCapture(htmlForParse)
+        if isDated, JwSgSourceMetadata.object(htmlForParse).flatMap(JwShsmuCaptureCalendar.resolve) == nil {
+            if let targetTableId {
+                do {
+                    let repo = ScheduleRepository(AppDatabase.getShared())
+                    guard let existing = try repo.getTable(targetTableId) else { throw JwParseError(message: "Target timetable was not found") }
+                    htmlForParse = try JwShsmuCaptureCalendar.bind(htmlForParse, firstWeekDate: existing.startDate, basis: .EXISTING_TABLE)
+                } catch { errorMsg = error.localizedDescription; statusMsg = nil; return }
+            } else {
+                pendingDatedCapture = (htmlForParse, sch, periods, termStartDate)
+                datedFirstWeek = ""; datedCalendarError = nil; showDatedCalendar = true; statusMsg = nil
+                return
+            }
         }
         guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else { return }
         // ← 原 parseHtml 在 scope.launch try/catch 内: parser 抛异常 →
@@ -699,30 +785,35 @@ struct JwImportFlow: View {
             statusMsg = nil
             return
         }
+        let sourceJson: String
+        do { sourceJson = try JwSgSourceMetadata.capture(htmlForParse, effectiveType) }
+        catch { errorMsg = error.localizedDescription; statusMsg = nil; return }
         // 不直接落库, 进预览页(v1.0.56 T10 起解析成功默认选中自动建表)
         parsedCourses = courses
+        datedCourseOrigin = isDated ? JwSgSourceMetadata.object(htmlForParse).flatMap(JwShsmuCaptureCalendar.resolve).map(JwSourceCalendar.stamp) ?? "" : ""
         importPreview = nil
         courseSelectionConfirmed = false
         previewGeneration = UUID()
         parsedSchool = sch
         exitDraftState.activeImport = requiresDraftExitConfirmation
-        // 课程实际节次数生成行; WebView 抓到 periods 则预填
         let maxNode = courses.map { max($0.startNode, $0.endNode) }.max() ?? 0
-        let periodMap = Dictionary(periods.map { ($0.0, ($0.1, $0.2)) }, uniquingKeysWith: { a, _ in a })
-        let newRows = (1...max(1, maxNode)).map { node -> TimeTableUtils.TimeSlotRow in
-            let filled = periodMap[node]
-            return TimeTableUtils.TimeSlotRow(node: node,
-                                              start: filled?.0 ?? "",
-                                              end: filled?.1 ?? "")
+        let sourcePeriods = JwSourcePeriods.resolve(htmlForParse, effectiveType, schoolName: sch.name, captured: periods)
+        let newRows = JwSourcePeriods.confirmationRows(courseMaxNode: maxNode, sourcePeriods: sourcePeriods).map {
+            TimeTableUtils.TimeSlotRow(node: $0.0, start: $0.1, end: $0.2)
         }
+        importSourceJson = sourceJson
+        let sourceWeeks = JwSourceCalendar.resolveWeekCount(htmlForParse, effectiveType, schoolName: sch.name)
+        configTermWeekText = String(max(sourceWeeks, courses.map { $0.endWeek }.max() ?? 1))
+        capturedSourceTimeJson = TimeTableUtils.buildTimeJsonFromRows(newRows.filter { JwCourse.isValidTimeRange($0.start, $0.end) })
         let initialized = TimeTableUtils.initialManualRows(newRows)
         configRows = initialized.rows
         configUsedDefaultTimes = initialized.usedDefaults
         // 学期起始日预填: JSON 直连协议 (boya_pp/cqu/chaoxing) 能从接口拿到第一周周一
         // (如燕大 2026-2027-1 实为 2026-08-31, 本地 9 月首一推断会差一周), 用户仍可改
-        configStartDate = termStartDate
+        configStartDate = JwSourceCalendar.resolveStartDate(htmlForParse, effectiveType, capturedDate: termStartDate)
         configTimeJson = TimeTableUtils.buildTimeJsonFromRows(configRows)
-        configTableName = L10n.format("jw_import_title", sch.name)
+        configTableName = JwSourceTableName.resolve(htmlForParse, effectiveType, schoolName: sch.name)
+            ?? L10n.format("jw_import_title", sch.name)
         // issue#23 T5: 实时确认态与草稿持久化用同一推断结果播种; 行不全 → 简单兜底,
         // 无法补齐的行留在手动校验，其余使用已提示的默认作息。
         let inferredSmartConfig = TimeTableUtils.inferSmartPeriodConfig(configRows)
@@ -735,10 +826,15 @@ struct JwImportFlow: View {
             school: sch,
             courses: courses,
             periods: configRows.map { JwImportDraftPeriod(node: $0.node, start: $0.start, end: $0.end) },
-            termStartDate: termStartDate,
-            tableName: L10n.format("jw_import_title", sch.name),
+            termStartDate: configStartDate,
+            tableName: configTableName,
             smartConfigJson: encodeSmartConfigJson(inferredSmartConfig),
-            usedDefaultTimes: configUsedDefaultTimes)
+            usedDefaultTimes: configUsedDefaultTimes,
+            termWeekCount: Int(configTermWeekText) ?? 0,
+            datedCourseOrigin: datedCourseOrigin,
+            importSourceJson: importSourceJson,
+            selectedSgAdapterId: selectedSgAdapterId,
+            termWeekText: configTermWeekText)
         if targetTableId == nil {
             guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else { return }
             let repo = draftRepository
@@ -760,9 +856,19 @@ struct JwImportFlow: View {
         statusMsg = nil
     }
 
+    private func confirmDatedCapture() {
+        guard let pending = pendingDatedCapture else { return }
+        do {
+            let bound = try JwShsmuCaptureCalendar.bind(pending.html, firstWeekDate: datedFirstWeek, basis: .USER_CONFIRMED)
+            pendingDatedCapture = nil; showDatedCalendar = false
+            Task { @MainActor in await parseAndAdvance(bound, pending.school, pending.periods, pending.start) }
+        } catch { datedCalendarError = error.localizedDescription }
+    }
+
     // MARK: - 预览 (← Stage.Preview LaunchedEffect(parsedCourses))
 
     private func rebuildPreview() {
+        if updateExistingCourses { rebuildCourseUpdatePreview(); return }
         if targetTableId != nil && importPreview != nil { return }
         let generation = UUID()
         previewGeneration = generation
@@ -771,6 +877,8 @@ struct JwImportFlow: View {
         let bindId = configBindPeriodTableId
         let tableName = configTableName
         let startDate = configStartDate
+        let sourceJson = importSourceJson
+        let termWeekCount = Int(configTermWeekText) ?? 0
         // L10n 取词留主线程; DB IO 走工作线程(repo.getAllTables suspend)
         Task { @MainActor in
             do {
@@ -799,7 +907,8 @@ struct JwImportFlow: View {
                         courses: entities,
                         timeJson: timeJson,
                         nodesPerDay: courses.map { max($0.startNode, $0.endNode) }.max() ?? 0,
-                        maxWeek: courses.map { $0.endWeek }.max() ?? 0)
+                        maxWeek: max(termWeekCount, courses.map { $0.endWeek }.max() ?? 0),
+                        importSourceJson: sourceJson)
                     guard let preview = ImportSheet.buildImportPreview(parseResult, targetTableId: targetId, repository: repo) else {
                         throw AddCoursesImport.ValidationError.empty
                     }
@@ -827,6 +936,78 @@ struct JwImportFlow: View {
         if saved != nil { finishOrReport(selectedSchool ?? parsedSchool) }
     }
 
+    private func rebuildCourseUpdatePreview() {
+        guard let tableId = targetTableId else { return }
+        guard let repository = updateRepository else {
+            errorMsg = L10n.t("table_reminder_save_failed")
+            return
+        }
+        let generation = UUID()
+        previewGeneration = generation
+        courseUpdateDiff = nil
+        let incoming = JwImportViewModel.toCourseEntities(parsedCourses, tableId: tableId, defaultColor: "#FF6750A4")
+        Task { @MainActor in
+            do {
+                let expected = try await Task.detached(priority: .userInitiated) {
+                    try repository.getCourses(tableId)
+                }.value
+                guard !didFinishFlow, previewGeneration == generation else { return }
+                updateExpectedCourses = expected
+                courseUpdateDiff = diffImportedCourses(existing: expected, incoming: incoming)
+            } catch { errorMsg = error.localizedDescription }
+        }
+    }
+
+    @ViewBuilder private var manualUpdatePreview: some View {
+        if let diff = courseUpdateDiff {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(L10n.t("jw_update_preview_title")).font(.title2)
+                    Text(L10n.format("jw_update_preview_counts", diff.added.count, diff.changed.count, diff.removed.count))
+                    ForEach(Array(diff.added.enumerated()), id: \.offset) { _, course in
+                        Text("+ \(course.courseName) · \(DateUtils.localizedDay(course.day)) \(course.nodeString(isShort: true))")
+                    }
+                    ForEach(Array(diff.changed.enumerated()), id: \.offset) { _, pair in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("↻ \(pair.0.courseName)")
+                            Text("\(pair.0.room) · \(pair.0.teacher) → \(pair.1.room) · \(pair.1.teacher)").font(.caption)
+                        }
+                    }
+                    ForEach(Array(diff.removed.enumerated()), id: \.offset) { _, course in
+                        Text("− \(course.courseName) · \(DateUtils.localizedDay(course.day)) \(course.nodeString(isShort: true))")
+                    }
+                    JwApplyButton(title: L10n.t("jw_update_apply"), danger: false,
+                                  enabled: !isApplying && JwCourseUpdateCommit.hasChanges(diff)) { applyCourseUpdate(diff) }
+                    Button(L10n.t("cancel")) { requestExit() }
+                        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+                        .disabled(isApplying)
+                }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+            }.accessibilityIdentifier("jw_course_update_preview")
+        } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
+    }
+
+    private func applyCourseUpdate(_ diff: CourseUpdateDiff) {
+        guard !isApplying, JwCourseUpdateCommit.hasChanges(diff), let tableId = targetTableId,
+              let repository = updateRepository else { return }
+        isApplying = true
+        let expected = updateExpectedCourses
+        let sourceTimeJson = capturedSourceTimeJson
+        Task { @MainActor in
+            do {
+                let changed = try await Task.detached(priority: .userInitiated) {
+                    try JwCourseUpdateCommit(repository: repository).apply(tableId: tableId, diff: diff,
+                        incomingTimeJson: sourceTimeJson, expectedCourses: expected)
+                }.value
+                isApplying = false
+                if changed { finishOrReport(parsedSchool) }
+            } catch {
+                isApplying = false
+                errorMsg = error.localizedDescription
+                rebuildCourseUpdatePreview()
+            }
+        }
+    }
+
     // MARK: - 预览五模式路由 (← ImportPreviewDialog onApply)
 
     private func onPreviewApply(_ mode: ImportApplyMode) {
@@ -850,8 +1031,20 @@ struct JwImportFlow: View {
 
     /// ← applySharedImport: 追加走共享 applyImportPreview; 被拒绝的追加必须保留
     /// 预览与可恢复草稿(仅 imported 才 completeImport 删草稿)。
-    private func applySharedImport(preview: ImportPreview, mode: ImportApplyMode) async throws {
+    private func applySharedImport(preview: ImportPreview, mode: ImportApplyMode,
+                                   confirmedCourses: [JwCourse]? = nil) async throws {
         var varResult = preview.parseResult
+        if let confirmedCourses {
+            varResult = ScheduleParser.ParseResult(
+                tableName: varResult.tableName, startDate: varResult.startDate,
+                courses: JwImportViewModel.toCourseEntities(
+                    confirmedCourses, tableId: preview.targetTableId, defaultColor: "#FF6750A4"),
+                timeJson: varResult.timeJson, nodesPerDay: varResult.nodesPerDay,
+                droppedLines: varResult.droppedLines, warnings: varResult.warnings,
+                maxWeek: varResult.maxWeek, groupIdsAuthoritative: varResult.groupIdsAuthoritative,
+                periodTable: varResult.periodTable, importSourceJson: varResult.importSourceJson)
+        }
+        varResult.maxWeek = max(Int(configTermWeekText) ?? 0, varResult.courses.map { $0.endWeek }.max() ?? 0)
         // ← 原版本 TimeTableUtils.parseTimeSlotRows(configTimeJson).maxOfOrNull { it.node } ?: 0
         //   (坏/空 JSON 走 12 默认行兜底, iOS 同名函数语义一致, 禁另开 Safe 分支)
         varResult.timeJson = configTimeJson
@@ -914,6 +1107,14 @@ struct JwImportFlow: View {
                     .background(colors.surfaceContainer)
                     .cornerRadius(SleepyTheme.fieldShape)
                     .accessibilityIdentifier("jw_config_table_name")
+                TextField(L10n.t("jw_semester_weeks_label"), text: $configTermWeekText)
+                    .keyboardType(.numberPad)
+                    .onChange(of: configTermWeekText) { _ in checkpointDraft() }
+                    .padding(12)
+                    .background(colors.surfaceContainer)
+                    .cornerRadius(SleepyTheme.fieldShape)
+                    .accessibilityIdentifier("jw_config_term_weeks")
+                JwSourceSuggestions(importSourceJson: importSourceJson)
                 // ← confirmError 内联展示(不上全局横幅): error 色 bodySmall
                 if let confirmError = confirmError {
                     Text(confirmError)
@@ -951,7 +1152,9 @@ struct JwImportFlow: View {
                     }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
-                    .frame(height: 40)
+                    .frame(height: style == .liquidGlass ? nil : 40)
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+                    .frame(minHeight: style == .liquidGlass ? 44 : nil)
                     .disabled(isApplying)
                     Spacer()
                     Button(L10n.format("jw_config_confirm")) {
@@ -959,7 +1162,9 @@ struct JwImportFlow: View {
                     }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
-                    .frame(height: 40)
+                    .frame(height: style == .liquidGlass ? nil : 40)
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+                    .frame(minHeight: style == .liquidGlass ? 44 : nil)
                     .disabled(isApplying)
                 }
                 .buttonStyle(SleepyButtonStyle())
@@ -999,7 +1204,7 @@ struct JwImportFlow: View {
     // ← confirmButton 校验链 + 落库
     private func confirmAndImport() {
         // 校验(与 原版本 同链: confirmError 内联, 只置字段级错误)
-        if jwIsBlank(configStartDate) || !jwMatchesFull(jwDateRegex, configStartDate) {
+        if JwShsmuCaptureCalendar.date(configStartDate) == nil {
             confirmError = L10n.format("start_date_format")
             return
         }
@@ -1019,6 +1224,16 @@ struct JwImportFlow: View {
             confirmError = L10n.format("slot_time_invalid", first.node)
             return
         }
+        let confirmedCourses: [JwCourse]
+        do {
+            confirmedCourses = datedCourseOrigin.isEmpty ? parsedCourses :
+                try JwShsmuCaptureCalendar.rebase(parsedCourses, oldOrigin: datedCourseOrigin, firstWeekDate: configStartDate)
+        } catch { confirmError = error.localizedDescription; return }
+        guard let count = Int(configTermWeekText), (1...366).contains(count),
+              count >= (confirmedCourses.map { $0.endWeek }.max() ?? 1) else {
+            confirmError = L10n.t("jw_semester_weeks_invalid")
+            return
+        }
         confirmError = nil
         configTimeJson = TimeTableUtils.buildTimeJsonFromRows(effectiveRows)
         // 落库
@@ -1027,13 +1242,15 @@ struct JwImportFlow: View {
         isApplying = true
         // 工作线程闭包只捕获值拷贝(Sendable 友好), 不捕获 self
         let mode = pendingMode
-        let courses = parsedCourses
+        let courses = confirmedCourses
         let startDate = configStartDate
         let timeJson = configTimeJson
         let bindId = configBindPeriodTableId
         let smartJson = encodeSmartConfigJson(configSmartConfig)
         let rawTableName = configTableName
         let previewSnapshot = importPreview
+        let sourceJson = importSourceJson
+        let weekCount = Int(configTermWeekText) ?? 0
         Task { @MainActor in
             do {
                 if mode == .importAsNew {
@@ -1062,7 +1279,9 @@ struct JwImportFlow: View {
                             nodesPerDay: maxNode,
                             smartConfigJson: smartJson,
                             periodTable: autoPeriodEntity,
-                            bindPeriodTableId: (bindId ?? 0) > 0 ? bindId : nil)
+                            bindPeriodTableId: (bindId ?? 0) > 0 ? bindId : nil,
+                            termWeekCount: weekCount,
+                            importSourceJson: sourceJson)
                     }.value
                     // ← 原 `finishOrReport(school)` (未验证学校 → 报告弹窗, 非静默结束)
                     finishOrReport(school)
@@ -1071,7 +1290,7 @@ struct JwImportFlow: View {
                         isApplying = false
                         return
                     }
-                    try await applySharedImport(preview: preview, mode: mode)
+                    try await applySharedImport(preview: preview, mode: mode, confirmedCourses: courses)
                     if !importFinished {
                         // 被拒绝的追加: 保留预览, 回预览页可再试(草稿不删)
                         statusMsg = nil
@@ -1250,6 +1469,7 @@ struct JwErrorDialog: View {
 /// isApplying 防重复提交闸(ImportPreviewDialog(isApplying) 1.0.61)。
 struct JwImportPreviewDialog: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let preview: ImportPreview
     let isApplying: Bool
     let onDismiss: () -> Void
@@ -1393,9 +1613,10 @@ struct JwImportPreviewDialog: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onSurfaceVariant)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
+                            .frame(height: style == .liquidGlass ? nil : 40)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+                    .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
                     .disabled(isApplying)
                 }
             }
@@ -1411,6 +1632,7 @@ struct JwImportPreviewDialog: View {
 
 private struct JwApplyButton: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let title: String
     let danger: Bool
     let enabled: Bool
@@ -1423,11 +1645,13 @@ private struct JwApplyButton: View {
                 .lineLimit(1)   // ← 原 maxLines = 1
                 .foregroundColor(danger ? colors.onErrorContainer : colors.onPrimary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 40)
-                .background(danger ? colors.errorContainer : colors.primary)
-                .cornerRadius(SleepyShapes.medium)
+                .frame(height: style == .liquidGlass ? nil : 40)
+                .sleepyControlSurface(cornerRadius: SleepyShapes.medium,
+                                      tint: danger ? colors.errorContainer : colors.primary, prominent: true)
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+        .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
+        .tint(danger ? colors.errorContainer : colors.primary)
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.5)
     }

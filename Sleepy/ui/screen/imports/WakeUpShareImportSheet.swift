@@ -43,6 +43,7 @@ final class WakeUpShareImportModel: ObservableObject {
 @MainActor
 struct WakeUpShareImportSheet: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @StateObject private var model: WakeUpShareImportModel
     @State private var input: String
     let onResolved: (String) -> Void
@@ -88,16 +89,9 @@ struct WakeUpShareImportSheet: View {
                     if model.isLoading {
                         ProgressView(text("wakeup_share_fetching", "正在获取分享课表…"))
                             .accessibilityIdentifier("wakeup_share_progress")
-                        Button(text("wakeup_share_cancel_request", "取消请求")) { model.cancel() }
-                            .accessibilityIdentifier("wakeup_share_cancel_request")
+                        cancelRequestButton
                     } else {
-                        Button(text("wakeup_share_fetch", "获取并预览")) {
-                            model.fetch(input, onResolved: onResolved)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(colors.primary)
-                        .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .accessibilityIdentifier("wakeup_share_fetch")
+                        fetchButton
                     }
                 }
                 .padding(16)
@@ -105,5 +99,33 @@ struct WakeUpShareImportSheet: View {
         }
         .background(colors.background)
         .onDisappear { model.cancel() }
+    }
+
+    @ViewBuilder
+    private var cancelRequestButton: some View {
+        let button = Button(text("wakeup_share_cancel_request", "取消请求")) { model.cancel() }
+            .accessibilityIdentifier("wakeup_share_cancel_request")
+        if style == .liquidGlass {
+            button.buttonStyle(SleepyPlatformButtonStyle(shape: .capsule))
+                .frame(minHeight: 44)
+        } else {
+            button
+        }
+    }
+
+    @ViewBuilder
+    private var fetchButton: some View {
+        let button = Button(text("wakeup_share_fetch", "获取并预览")) {
+            model.fetch(input, onResolved: onResolved)
+        }
+        .tint(colors.primary)
+        .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .accessibilityIdentifier("wakeup_share_fetch")
+        if style == .liquidGlass {
+            button.buttonStyle(SleepyPlatformButtonStyle(prominent: true, shape: .capsule))
+                .frame(minHeight: 44)
+        } else {
+            button.buttonStyle(.borderedProminent)
+        }
     }
 }
