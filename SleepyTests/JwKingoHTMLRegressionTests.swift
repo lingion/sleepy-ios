@@ -1,4 +1,4 @@
-// 合成 fixtures 对照 Android v1.0.63 JwKingoSuperSourceShapeTest.kt 与 PR35 Kingo 三链。
+// 合成 fixtures 对照 Android v1.0.64 JwKingoSuperSourceShapeTest.kt 与 PR35 Kingo 三链。
 import XCTest
 @testable import Sleepy
 
@@ -12,7 +12,7 @@ final class JwKingoHTMLRegressionTests: XCTestCase {
     }
 
     func testSectionSuffixAndRangeSeparators() throws {
-        for (text, start, end) in [("3-4节", 3, 4), ("2节", 2, 2), ("5~6节", 5, 6), ("29至30节", 29, 30), ("1", 1, 1)] {
+        for (text, start, end) in [("3-4节", 3, 4), ("2节", 2, 2), ("5~6节", 5, 6), ("29至30节", 29, 30), ("1", 1, 1), ("31节", 31, 31), ("366节", 366, 366)] {
             let courses = try JwKingoParser(grid(block("1-60周[\(text)]"))).generateCourseList()
             XCTAssertEqual(courses, [JwCourse(name: "课程", room: "A101", teacher: "教师", day: 2,
                 startNode: start, endNode: end, startWeek: 1, endWeek: 60)], text)
@@ -20,7 +20,7 @@ final class JwKingoHTMLRegressionTests: XCTestCase {
     }
 
     func testInvalidSectionsDoNotInventCoursesOrHideFollowingBlock() throws {
-        for text in ["1,3,5节", "0节", "31节", "5-3节", "1-31节", "-1节", "1-2-3节", "999999999999999999节", "３节", "3节junk"] {
+        for text in ["1,3,5节", "0节", "367节", "5-3节", "1-367节", "-1节", "1-2-3节", "999999999999999999节", "３节", "3节junk"] {
             let courses = try JwKingoParser(grid(block("1-8周[\(text)]", name: "坏课") + block("1-8周[2节]", name: "好课"))).generateCourseList()
             XCTAssertEqual(courses, [JwCourse(name: "好课", room: "A101", teacher: "教师", day: 2,
                 startNode: 2, endNode: 2, startWeek: 1, endWeek: 8)], text)
@@ -28,7 +28,7 @@ final class JwKingoHTMLRegressionTests: XCTestCase {
     }
 
     func testInvalidWeeksDoNotHideFollowingCourse() throws {
-        for text in ["-1-8周", "1-2-3周", "999999999999999999周", "0周", "61周", "8-1周", "1-61周", "１-８周", "junk1-8周", "1-8周junk"] {
+        for text in ["-1-8周", "1-2-3周", "999999999999999999周", "0周", "367周", "8-1周", "1-367周", "１-８周", "junk1-8周", "1-8周junk"] {
             let courses = try JwKingoParser(grid(block("\(text)[1-2节]", name: "坏课") + block("1-8周(单),10-12周（双）[3-4节]", name: "好课"))).generateCourseList()
             XCTAssertEqual(courses, [
                 JwCourse(name: "好课", room: "A101", teacher: "教师", day: 2, startNode: 3, endNode: 4, startWeek: 1, endWeek: 8, type: 1),
@@ -114,23 +114,23 @@ final class JwKingoHTMLRegressionTests: XCTestCase {
     }
 
     func testKbDivRejectsInvalidWeeksButKeepsFollowingCell() throws {
-        for invalid in ["-1-8周", "1-2-3周", "999999999999999999周", "0周", "61周", "8-1周"] {
+        for invalid in ["-1-8周", "1-2-3周", "999999999999999999周", "0周", "367周", "8-1周"] {
             let source = """
-            <table id='kbDiv'><tbody><tr><td>节次1</td><td>坏课(\(invalid) A101)</td><td>好课(60周(单) A102)</td>
+            <table id='kbDiv'><tbody><tr><td>节次1</td><td>坏课(\(invalid) A101)</td><td>好课(60周双 A102)</td>
             <td></td><td></td><td></td><td></td><td></td></tr></tbody></table>
             """
             XCTAssertEqual(try JwKingoParser(source).generateCourseList(), [
-                JwCourse(name: "好课", room: "A102", day: 2, startNode: 1, endNode: 1, startWeek: 60, endWeek: 60, type: 1)
+                JwCourse(name: "好课", room: "A102", day: 2, startNode: 1, endNode: 1, startWeek: 60, endWeek: 60, type: 2)
             ], invalid)
         }
     }
 
-    func testKbDivEnforcesNodeThirtyUpperBound() throws {
+    func testKbDivEnforcesExplicitNodeResourceBound() throws {
         let emptyRow = "<tr>" + String(repeating: "<td></td>", count: 7) + "</tr>"
         let courseRow = "<tr><td>边界课(1-8周 A101)</td>" + String(repeating: "<td></td>", count: 6) + "</tr>"
-        let source = "<table id='kbDiv'><tbody>" + String(repeating: emptyRow, count: 29) + courseRow + courseRow + "</tbody></table>"
+        let source = "<table id='kbDiv'><tbody>" + String(repeating: emptyRow, count: 365) + courseRow + courseRow + "</tbody></table>"
         XCTAssertEqual(try JwKingoParser(source).generateCourseList(), [
-            JwCourse(name: "边界课", room: "A101", day: 1, startNode: 30, endNode: 30, startWeek: 1, endWeek: 8)
+            JwCourse(name: "边界课", room: "A101", day: 1, startNode: 366, endNode: 366, startWeek: 1, endWeek: 8)
         ])
     }
 
@@ -148,14 +148,17 @@ final class JwKingoHTMLRegressionTests: XCTestCase {
         XCTAssertEqual(try JwKingoParser(source).generateCourseList().map(\.name), ["好课"])
     }
 
-    func testLegacyZxGutterSparseWeeksAndDuplicates() throws {
+    func testLegacyZxGutterSparseWeeksAndSourceDuplicates() throws {
         let legacy = "<div>数据结构<br>钱老师<br>5,7,9,13-16,1-18 单[5-6]<br>教2-301</div>"
         let source = """
         <table id='mytable'><tr><td>节次</td><td class='td'>\(legacy)\(legacy)</td>
         <td class='td'><div>大学英语<br>孙老师<br>2-8 双[1-2]<br>教1-102</div></td></tr></table>
         """
         XCTAssertEqual(JwParserRegistry.selectBest(source).0, try JwKingoParser(source).generateCourseList())
+        // v1.0.64 preserves repeated source blocks after normalizing overlapping week tokens.
         XCTAssertEqual(try JwKingoParser(source).generateCourseList(), [
+            JwCourse(name: "数据结构", room: "教2-301", teacher: "钱老师", day: 1, startNode: 5, endNode: 6, startWeek: 1, endWeek: 13, type: 1),
+            JwCourse(name: "数据结构", room: "教2-301", teacher: "钱老师", day: 1, startNode: 5, endNode: 6, startWeek: 14, endWeek: 17),
             JwCourse(name: "数据结构", room: "教2-301", teacher: "钱老师", day: 1, startNode: 5, endNode: 6, startWeek: 1, endWeek: 13, type: 1),
             JwCourse(name: "数据结构", room: "教2-301", teacher: "钱老师", day: 1, startNode: 5, endNode: 6, startWeek: 14, endWeek: 17),
             JwCourse(name: "大学英语", room: "教1-102", teacher: "孙老师", day: 2, startNode: 1, endNode: 2, startWeek: 2, endWeek: 8, type: 2)
