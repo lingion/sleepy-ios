@@ -57,19 +57,17 @@ enum JwParserRegistry {
         (JwProtocol.TYPE_SOUTH_SOFT, 10),
         (JwProtocol.TYPE_CHAOXING_LEGACY, 11),
         (JwProtocol.TYPE_SHUWEI, 12),
+        (JwProtocol.TYPE_UMOOC, 13),
+        (JwProtocol.TYPE_YL, 13),
         (JwProtocol.TYPE_SUDA_POST, 13),
         (JwProtocol.TYPE_CUMTB, 14),
         (JwProtocol.TYPE_XJU_POST, 15),
-        (JwProtocol.TYPE_THU, 16),
-        (JwProtocol.TYPE_UMOOC, 13),
-        (JwProtocol.TYPE_YL, 13),
         (JwProtocol.TYPE_ECUPL, 16),
         (JwProtocol.TYPE_ECUPL_SCRIPT, 17),
         (JwProtocol.TYPE_ECUPL_SUPER, 18),
         (JwProtocol.TYPE_NEW_URP_SUPER, 16),
+        (JwProtocol.TYPE_THU, 16),
         (JwProtocol.TYPE_NWPU_POST, 16),
-        (JwProtocol.TYPE_KINGO_ZX, 205),
-        (JwProtocol.TYPE_SCAU, 200),
         (JwProtocol.TYPE_WISEDU, 20),
         (JwProtocol.TYPE_CQU, 25),
         (JwProtocol.TYPE_CHAOXING, 26),
@@ -78,14 +76,14 @@ enum JwParserRegistry {
         (JwProtocol.TYPE_CLASSIC_EAMS, 29),
         (JwProtocol.TYPE_NUIT, 30),
         (JwProtocol.TYPE_KUST, 31),
-        (JwProtocol.TYPE_PKU, 32),
-        (JwProtocol.TYPE_SEU, 33),
-        (JwProtocol.TYPE_ZJU, 34),
-        (JwProtocol.TYPE_USTC, 35),
-        (JwProtocol.TYPE_SCU, 36),
-        (JwProtocol.TYPE_NEU, 37),
-        (JwProtocol.TYPE_BJTU, 38),
-        (JwProtocol.TYPE_YETHAN, 39),
+        (JwProtocol.TYPE_PKU, 30),
+        (JwProtocol.TYPE_SEU, 32),
+        (JwProtocol.TYPE_ZJU, 33),
+        (JwProtocol.TYPE_USTC, 34),
+        (JwProtocol.TYPE_SCU, 35),
+        (JwProtocol.TYPE_NEU, 36),
+        (JwProtocol.TYPE_BJTU, 37),
+        (JwProtocol.TYPE_YETHAN, 38),
         (JwProtocol.TYPE_BNUZ, 40),
         (JwProtocol.TYPE_CF_NEW, 45),
         (JwProtocol.TYPE_CF, 50),
@@ -104,6 +102,8 @@ enum JwParserRegistry {
         (JwProtocol.TYPE_QZ_APP, 141),
         (JwProtocol.TYPE_UCAS, 142),
         (JwProtocol.TYPE_QZ_OLD, 145),
+        (JwProtocol.TYPE_KINGO_ZX, 205),
+        (JwProtocol.TYPE_SCAU, 200),
         (JwProtocol.TYPE_SG_ASSET, 210),
     ]
 
@@ -111,11 +111,143 @@ enum JwParserRegistry {
     /// 注意：TYPE_ZF_1 复用 JwOldZfParser(type=1)。
     static func factoryFor(_ type: String) -> ((String) -> JwParser)? {
         switch type {
+        case JwProtocol.TYPE_JLICT_QZ_OLD: return { JwOldQzSuperParser($0, declaredForm: .jlict) }
+        case JwProtocol.TYPE_CCUT_QZ_OLD: return { JwOldQzSuperParser($0, declaredForm: .ccut) }
+        case JwProtocol.TYPE_CCSU_QZ_OLD: return { JwOldQzSuperParser($0, declaredForm: .ccsu) }
+        case JwProtocol.TYPE_SHUWEI_M: return { JwShuweiParser($0) }
+        case JwProtocol.TYPE_XATU_SHUWEI: return { JwShuweiParser($0) }
+        case JwProtocol.TYPE_SIAS_SHUWEI: return { JwShuweiParser($0) }
+        case JwProtocol.TYPE_SNUT_SHUWEI: return { JwShuweiParser($0) }
+        case JwProtocol.TYPE_UESTC_SHUWEI: return { JwShuweiParser($0) }
+        case JwProtocol.TYPE_HUNNU_SHUWEI: return { JwShuweiParser($0) }
+        case JwProtocol.TYPE_XSYU_SHUWEI: return { JwShuweiParser($0) }
+        case JwProtocol.TYPE_NWPU: return { JwEams5Parser($0) }
+        case JwProtocol.TYPE_JMU: return { JwEams5Parser($0) }
+        case JwProtocol.TYPE_SHUWEI_NEW: return { JwEams5Parser($0) }
+        case JwProtocol.TYPE_AHNU: return { JwCumtbParser($0) }
+        case JwProtocol.TYPE_HFU: return { JwCumtbParser($0) }
+        case JwProtocol.TYPE_HUAT: return { JwUndergradBHtmlParser($0, protocolType: JwProtocol.TYPE_HUAT) }
+        case JwProtocol.TYPE_SEU_2017: return { JwUndergradBHtmlParser($0, protocolType: JwProtocol.TYPE_SEU_2017) }
+        case JwProtocol.TYPE_SHU2024: return { JwUndergradBHtmlParser($0, protocolType: JwProtocol.TYPE_SHU2024) }
+        case JwProtocol.TYPE_TJU: return { JwUndergradBHtmlParser($0, protocolType: JwProtocol.TYPE_TJU) }
+        case JwProtocol.TYPE_HQU: return { JwUndergradBHtmlParser($0, protocolType: JwProtocol.TYPE_HQU) }
+        case JwProtocol.TYPE_CHANGZHOU: return { JwUndergradBHtmlParser($0, protocolType: JwProtocol.TYPE_CHANGZHOU) }
+        case JwProtocol.TYPE_SICNU: return { JwUndergradBGridParser($0, protocolType: JwProtocol.TYPE_SICNU) }
+        case JwProtocol.TYPE_NUIST: return { JwUndergradBGridParser($0, protocolType: JwProtocol.TYPE_NUIST) }
+        case JwProtocol.TYPE_SIT: return { JwUndergradBGridParser($0, protocolType: JwProtocol.TYPE_SIT) }
+        case JwProtocol.TYPE_SYSU: return { JwUndergradBGridParser($0, protocolType: JwProtocol.TYPE_SYSU) }
+        case JwProtocol.TYPE_SUES: return { JwSuesParser($0) }
+        case JwProtocol.TYPE_JZ_1: return { JwDeclaredJinZhiParser($0, protocolType: JwProtocol.TYPE_JZ_1) }
+        case JwProtocol.TYPE_JZ_X: return { JwDeclaredJinZhiParser($0, protocolType: JwProtocol.TYPE_JZ_X) }
+        case JwProtocol.TYPE_WIST: return { JwDeclaredJinZhiParser($0, protocolType: JwProtocol.TYPE_WIST) }
+        case JwProtocol.TYPE_XMU: return { JwDeclaredJinZhiParser($0, protocolType: JwProtocol.TYPE_XMU) }
+        case JwProtocol.TYPE_SWJTU_POST: return { JwDeclaredJinZhiParser($0, protocolType: JwProtocol.TYPE_SWJTU_POST) }
+        case JwProtocol.TYPE_KG_ZX: return { JwKingoZxParser($0) }
+        case JwProtocol.TYPE_HBUT: return { JwSchoolTableParser($0, JwProtocol.TYPE_HBUT) }
+        case JwProtocol.TYPE_HNJM: return { JwSchoolTableParser($0, JwProtocol.TYPE_HNJM) }
+        case JwProtocol.TYPE_LZ: return { JwSchoolTableParser($0, JwProtocol.TYPE_LZ) }
+        case JwProtocol.TYPE_NAU: return { JwSchoolTableParser($0, JwProtocol.TYPE_NAU) }
+        case JwProtocol.TYPE_NJU: return { JwSchoolTableParser($0, JwProtocol.TYPE_NJU) }
+        case JwProtocol.TYPE_CQUPT: return { JwSchoolTableParser($0, JwProtocol.TYPE_CQUPT) }
+        case JwProtocol.TYPE_XHTD: return { JwUndergradCParser($0, protocolType: JwProtocol.TYPE_XHTD) }
+        case JwProtocol.TYPE_XYTC: return { JwUndergradCParser($0, protocolType: JwProtocol.TYPE_XYTC) }
+        case JwProtocol.TYPE_CIDP: return { JwUndergradCParser($0, protocolType: JwProtocol.TYPE_CIDP) }
+        case JwProtocol.TYPE_SDPEI: return { JwUndergradCParser($0, protocolType: JwProtocol.TYPE_SDPEI) }
+        case JwProtocol.TYPE_SHU: return { JwUndergradCParser($0, protocolType: JwProtocol.TYPE_SHU) }
+        case JwProtocol.TYPE_JMPT: return { JwUndergradCParser($0, protocolType: JwProtocol.TYPE_JMPT) }
+        case JwProtocol.TYPE_LNGD: return { JwUndergradCParser($0, protocolType: JwProtocol.TYPE_LNGD) }
+        case JwProtocol.TYPE_VATUU: return { JwUndergradCParser($0, protocolType: JwProtocol.TYPE_VATUU) }
+        case JwProtocol.TYPE_YZZY: return { JwUndergradCParser($0, protocolType: JwProtocol.TYPE_YZZY) }
+        case JwProtocol.TYPE_HIT: return { JwHitParser($0) }
+        case JwProtocol.TYPE_BUAA: return { JwBuaaParser($0) }
+        case JwProtocol.TYPE_GXIC: return { JwSchoolGridParser($0, JwProtocol.TYPE_GXIC) }
+        case JwProtocol.TYPE_GXNU: return { JwSchoolGridParser($0, JwProtocol.TYPE_GXNU) }
+        case JwProtocol.TYPE_JXNU: return { JwSchoolGridParser($0, JwProtocol.TYPE_JXNU) }
+        case JwProtocol.TYPE_NNUTC: return { JwSchoolGridParser($0, JwProtocol.TYPE_NNUTC) }
+        case JwProtocol.TYPE_SHSMU: return { JwUndergradClockParser($0, protocolType: JwProtocol.TYPE_SHSMU) }
+        case JwProtocol.TYPE_YGU: return { JwUndergradClockParser($0, protocolType: JwProtocol.TYPE_YGU) }
+        case JwProtocol.TYPE_XJTU_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_XJTU_POST) }
+        case JwProtocol.TYPE_UESTC_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_UESTC_POST) }
+        case JwProtocol.TYPE_BFA_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_BFA_POST) }
+        case JwProtocol.TYPE_GDBYXY: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_GDBYXY) }
+        case JwProtocol.TYPE_CUPL_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_CUPL_POST) }
+        case JwProtocol.TYPE_YSU_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_YSU_POST) }
+        case JwProtocol.TYPE_WHU_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_WHU_POST) }
+        case JwProtocol.TYPE_HRBEU_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_HRBEU_POST) }
+        case JwProtocol.TYPE_SHTU_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_SHTU_POST) }
+        case JwProtocol.TYPE_USTC_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_USTC_POST) }
+        case JwProtocol.TYPE_XAUAT_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_XAUAT_POST) }
+        case JwProtocol.TYPE_ZJU_POST: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_ZJU_POST) }
+        case JwProtocol.TYPE_CSV: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_CSV) }
+        case JwProtocol.TYPE_SHUWEI_OLD: return { JwPostgradSchoolParser($0, protocolType: JwProtocol.TYPE_SHUWEI_OLD) }
+        case JwProtocol.TYPE_JNU: return { JwUndergradLegacyParser($0, protocolType: JwProtocol.TYPE_JNU) }
+        case JwProtocol.TYPE_SWUST: return { JwUndergradLegacyParser($0, protocolType: JwProtocol.TYPE_SWUST) }
+        case JwProtocol.TYPE_JMUCY: return { JwUndergradHtmlParser($0, protocolType: JwProtocol.TYPE_JMUCY) }
+        case JwProtocol.TYPE_NUAAJC: return { JwUndergradHtmlParser($0, protocolType: JwProtocol.TYPE_NUAAJC) }
+        case JwProtocol.TYPE_QMU: return { JwUndergradHtmlParser($0, protocolType: JwProtocol.TYPE_QMU) }
+        case JwProtocol.TYPE_JAVTC: return { JwUndergradHtmlParser($0, protocolType: JwProtocol.TYPE_JAVTC) }
+        case JwProtocol.TYPE_HITSZ: return { JwUndergradHtmlParser($0, protocolType: JwProtocol.TYPE_HITSZ) }
+        case JwProtocol.TYPE_URP_NEW_AJAX: return { JwNewUrpParser($0) }
+        case JwProtocol.TYPE_ZF_CLS: return { JwZfClassParser($0) }
+        case JwProtocol.TYPE_QZ_2017: return { JwQzParser($0) }
+        case JwProtocol.TYPE_QZ_2024: return { JwQzParser($0) }
+        case JwProtocol.TYPE_QZ_FSPT: return { JwQzFsptParser($0) }
+        case JwProtocol.TYPE_QZ_USTB: return { JwQzUstbParser($0) }
+        case JwProtocol.TYPE_QZ_SINGLE_NODE: return { JwQzSchoolParser($0, protocolType: JwProtocol.TYPE_QZ_SINGLE_NODE) }
+        case JwProtocol.TYPE_QZ_NJUST: return { JwQzSchoolParser($0, protocolType: JwProtocol.TYPE_QZ_NJUST) }
+        case JwProtocol.TYPE_QZ_WIT: return { JwQzSchoolParser($0, protocolType: JwProtocol.TYPE_QZ_WIT) }
+        case JwProtocol.TYPE_QZ_ECUST: return { JwQzSchoolParser($0, protocolType: JwProtocol.TYPE_QZ_ECUST) }
+        case JwProtocol.TYPE_QZ_AHUT: return { JwQzSchoolParser($0, protocolType: JwProtocol.TYPE_QZ_AHUT) }
+        case JwProtocol.TYPE_QZ_BJFU: return { JwQzSchoolParser($0, protocolType: JwProtocol.TYPE_QZ_BJFU) }
+        case JwProtocol.TYPE_SIMC: return { JwSimcParser($0) }
+        case JwProtocol.TYPE_SHTU_POST_2024: return { JwShtu2024Parser($0) }
+        case JwProtocol.TYPE_RUC: return { JwRucParser($0) }
+        case JwProtocol.TYPE_BFA: return { JwBfaParser($0) }
+        case JwProtocol.TYPE_HUST: return { JwHustParser($0) }
+        case JwProtocol.TYPE_AIC: return { JwAicParser($0) }
+        case JwProtocol.TYPE_HBMZU: return { JwHbmzuParser($0) }
+        case JwProtocol.TYPE_NUA: return { JwNuaParser($0) }
+        case JwProtocol.TYPE_STUM: return { JwStumParser($0) }
+        case JwProtocol.TYPE_AHMU: return { JwAhmuParser($0) }
+        case JwProtocol.TYPE_GDEI: return { JwGdeiParser($0) }
+        case JwProtocol.TYPE_JLU_POST: return { JwJluPostParser($0) }
+        case JwProtocol.TYPE_CCIBE: return { JwCcibeParser($0) }
+        case JwProtocol.TYPE_CPPU: return { JwCppuParser($0) }
+        case JwProtocol.TYPE_SHCC: return { JwShccParser($0) }
+        case JwProtocol.TYPE_FSTVC: return { JwFstvcParser($0) }
+        case JwProtocol.TYPE_GDBH: return { JwGdbhParser($0) }
+        case JwProtocol.TYPE_GLIET: return { JwGlietParser($0) }
+        case JwProtocol.TYPE_CNU: return { JwCnuParser($0) }
+        case JwProtocol.TYPE_XBELLSOFT: return { JwXbellsoftParser($0) }
+        case JwProtocol.TYPE_CDUT: return { JwCdutParser($0) }
+        case JwProtocol.TYPE_GZHUYJS: return { JwGzhuyjsParser($0) }
+        case JwProtocol.TYPE_DHU: return { JwDhuParser($0) }
+        case JwProtocol.TYPE_ECJTU: return { JwEcjtuParser($0) }
+        case JwProtocol.TYPE_ZPTC: return { JwZptcParser($0) }
+        case JwProtocol.TYPE_CTGU: return { JwCtguParser($0) }
+        case JwProtocol.TYPE_NYIST: return { JwNyistParser($0) }
+        case JwProtocol.TYPE_JXAU: return { JwJxauParser($0) }
+        case JwProtocol.TYPE_FDU: return { JwFduParser($0) }
+        case JwProtocol.TYPE_ZTVTIT: return { JwZtvtitParser($0) }
+        case JwProtocol.TYPE_SDU: return { JwSduParser($0) }
+        case JwProtocol.TYPE_SEIG: return { JwSeigParser($0) }
+        case JwProtocol.TYPE_KINGOSOFT: return { JwKingosoftParser($0) }
+        case JwProtocol.TYPE_CHAOXING_SHARE: return { JwChaoxingShareParser($0) }
+        case JwProtocol.TYPE_SUSTECH: return { JwUndergradSchoolParser($0, protocolType: JwProtocol.TYPE_SUSTECH) }
+        case JwProtocol.TYPE_UIC: return { JwUndergradSchoolParser($0, protocolType: JwProtocol.TYPE_UIC) }
+        case JwProtocol.TYPE_CITYU: return { JwUndergradSchoolParser($0, protocolType: JwProtocol.TYPE_CITYU) }
+        case JwProtocol.TYPE_STU: return { JwUndergradSchoolParser($0, protocolType: JwProtocol.TYPE_STU) }
+        case JwProtocol.TYPE_NFU: return { JwUndergradSchoolParser($0, protocolType: JwProtocol.TYPE_NFU) }
         case JwProtocol.TYPE_JW_HOME: return { JwHomeParser($0) }
         case JwProtocol.TYPE_SG_ASSET: return { JwSgAssetParser($0) }
         case JwProtocol.TYPE_WISEDU: return { JwWiseduParser($0) }
         case JwProtocol.TYPE_WHUT: return { JwWhutParser($0) }
-        case JwProtocol.TYPE_CQU: return { JwCquParser($0) }
+        case JwProtocol.TYPE_CQU: return { source in
+            if source.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<") && source.contains("print-schedule-table") {
+                return JwUndergradCParser(source, protocolType: JwProtocol.TYPE_CQU)
+            }
+            return JwCquParser(source)
+        }
         case JwProtocol.TYPE_CHAOXING: return { JwChaoxingParser($0) }
         case JwProtocol.TYPE_BOYA_PP: return { JwBoyaPpParser($0) }
         case JwProtocol.TYPE_EAMS5: return { JwEams5Parser($0) }
@@ -215,7 +347,8 @@ enum JwParserRegistry {
     /// 单测应控制 fixture 大小（< 50KB）以保持测试快速。
     static func selectBest(_ html: String, declaredType: String? = nil) -> ([JwCourse], [ParserAttemptSnapshot]) {
         var attempts: [ParserAttemptSnapshot] = []
-        let candidates = allCandidates(html)
+        var candidates = allCandidates(html)
+        if let declaredType, !candidates.contains(where: { $0.0 == declaredType }), let factory = factoryFor(declaredType) { candidates.append((declaredType, factory(html))) }
 
         var results: [Row] = []
         for (type, parser) in candidates {

@@ -38,14 +38,14 @@ final class SchoolCityIndexTests: XCTestCase {
         XCTAssertTrue(SchoolCityIndex.schoolsInCity(schools, city: " ").isEmpty)
     }
 
-    // MARK: - recommendations prefer supported entries then use pinyin without changing input order
+    // MARK: - v1.0.64 recommendations use the same pinyin dictionary order as the directory
 
-    func testRecommendationsPreferSupportedThenPinyin() throws {
+    func testRecommendationsUsePinyinWithoutStatusPriority() throws {
         let pending = school("待适配学校", "合肥市", key: "a", status: JwSchoolInfo.STATUS_PENDING)
         let beta = school("乙校", "合肥市", key: "b")
         let alpha = school("甲校", "合肥市", key: "a")
         let input = [pending, beta, alpha]
-        XCTAssertEqual(SchoolCityIndex.schoolsInCity(input, city: "合肥市"), [alpha, beta, pending])
+        XCTAssertEqual(SchoolCityIndex.schoolsInCity(input, city: "合肥市"), [pending, alpha, beta])
         XCTAssertEqual(input, [pending, beta, alpha]) // 输入顺序不被修改
     }
 

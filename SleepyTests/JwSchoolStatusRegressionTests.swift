@@ -41,8 +41,9 @@ final class JwSchoolStatusRegressionTests: XCTestCase {
         }
         for status in ["supported", "grad_supported"] {
             for type: String? in [nil, "", " \n"] {
-                XCTAssertFalse(school(status, type: type).isSupported)
-                XCTAssertFalse(school(status, type: type).canImport)
+                // Supported is a catalog status; admission still requires a valid URL.
+                XCTAssertTrue(school(status, type: type).isSupported)
+                XCTAssertTrue(school(status, type: type).canImport)
             }
         }
     }

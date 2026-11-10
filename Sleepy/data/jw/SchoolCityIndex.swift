@@ -68,10 +68,8 @@ enum SchoolCityIndex {
             return false
         }
         return matched.sorted { a, b in
-            if a.isSupported != b.isSupported { return a.isSupported }
-            let ka = a.sortKeyFull.isEmpty ? a.name : a.sortKeyFull
-            let kb = b.sortKeyFull.isEmpty ? b.name : b.sortKeyFull
-            return ka < kb
+            if a.sortOrderKey != b.sortOrderKey { return a.sortOrderKey < b.sortOrderKey }
+            return a.name < b.name
         }
     }
 }
