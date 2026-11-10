@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://testflight.apple.com/join/SxymmDzf"><img src="https://img.shields.io/badge/TestFlight-公测-007AFF?style=flat-square&logo=apple&logoColor=white" alt="TestFlight 公测"></a>
+  <a href="https://apps.apple.com/app/id6827001840">App Store 正式版</a> · <a href="https://testflight.apple.com/join/SxymmDzf">TestFlight 公测版</a>
   <a href="https://github.com/lingion/sleepy-ios/releases"><img src="https://img.shields.io/github/v/release/lingion/sleepy-ios?style=flat-square&label=version" alt="Latest Release"></a>
   <img src="https://img.shields.io/github/stars/lingion/sleepy-ios?style=flat-square&logo=github" alt="Stars">
   <img src="https://img.shields.io/badge/platform-iOS-000000?style=flat-square&logo=apple&logoColor=white" alt="iOS">
@@ -27,7 +27,7 @@
 ---
 
 > [!IMPORTANT]
-> **官方上线途径声明**：Apple TestFlight 公测（[testflight.apple.com/join/SxymmDzf](https://testflight.apple.com/join/SxymmDzf)）为目前**唯一合法上线途径**。点击加入后即可通过 Apple 官方 TestFlight App 安装体验，无需自行签名，并自动接收后续版本推送。
+> **官方安装渠道**：中国大陆以外的 [App Store](https://apps.apple.com/app/id6827001840) 均已上线，正式版通过商店安装与更新。中国大陆区仍在审核中，可加入 [TestFlight 公测](https://testflight.apple.com/join/SxymmDzf)，通过 Apple 官方 TestFlight App 安装与更新，无需自行签名。正式商店与公测独立发布，实际功能以安装渠道的版本说明为准。渠道核对日期为2026年11月10日。
 
 ---
 
@@ -42,7 +42,7 @@
 </p>
 
 <p align="center">
-  iOS 15.6+ · 包名 <code>com.lingion.sleepy</code> · 版本以 <a href="https://github.com/lingion/sleepy-ios/releases">Releases</a> 为准
+  iOS 15.6+ · 包名 <code>com.lingion.sleepy</code> · 安装版本与要求以 <a href="https://apps.apple.com/app/id6827001840">App Store</a> 或 <a href="https://testflight.apple.com/join/SxymmDzf">TestFlight</a> 页面为准
 </p>
 
 ---
@@ -316,7 +316,9 @@ xcodebuild -project Sleepy.xcodeproj \
 
 ### 安装
 
-- **App Store / TestFlight 为官方分发渠道**：正式版通过 App Store 安装与更新；公测版点击加入 [TestFlight 公测](https://testflight.apple.com/join/SxymmDzf)，通过 Apple 官方 TestFlight App 安装体验最新版本，自动接收版本更新。
+- **App Store 正式版**：[打开商店](https://apps.apple.com/app/id6827001840)，适用于中国大陆以外的商店地区。安装与更新由 App Store 管理。
+- **TestFlight 公测版**：中国大陆区 App Store 仍在审核中，可加入 [TestFlight](https://testflight.apple.com/join/SxymmDzf)，通过 TestFlight App 安装与更新。其他地区也可自愿选择公测渠道。
+- **系统与版本**：2026年11月10日核验的 App Store 版为1.0.62，最低 iOS 15.6；后续商店和公测版本以各自渠道页面为准，源码主线不代表已安装版本。
 - **本仓库（GitHub）仅公开源码**，不作为安装包分发渠道；应用内不提供更新检查。
 
 ---

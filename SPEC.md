@@ -1,7 +1,7 @@
 # Spec: Sleepy iOS — sleepy 课程表 100% 移植 (original → iOS)
 
 **源项目**: `~/Desktop/sleepy` (Kotlin + Compose, 87 文件 / 18,242 行, v1.0.34, GPL-3.0)
-**目标**: SwiftUI 等价移植,AltStore Classic 免费账号侧载,自用分发。
+**目标**: SwiftUI 原生移植。当前用户分发采用 App Store 和 TestFlight；下文 AltStore 与无签名构建属于早期开发验收方案。安装状态见文末“当前分发状态”。
 
 ---
 
@@ -16,14 +16,14 @@
 | 项 | 选择 | 理由 |
 |---|---|---|
 | 语言 | Swift 5.8 | Xcode 14.3.1 自带 |
-| UI | SwiftUI (iOS 16.4 SDK) | 部署目标 iOS 16.0,iOS 26 设备兼容 |
+| UI | SwiftUI (iOS 16.4 SDK) | 当前部署目标 iOS 15.6，与 project.yml 一致；新系统能力按可用性分支处理 |
 | 持久化 | GRDB 6.x (SPM) | Room 最自然对应;无 SwiftData(Xcode 14 无) |
 | Widget | WidgetKit | 5 类 widget 全移植 |
 | 网络 | URLSession 内置 | 教务直连导入 |
 | WebView | WKWebView | JW 登录取 cookie |
 | 工程生成 | XcodeGen | project.yml 可读可 diff,免手写 pbxproj |
 | 签名 | **不签名构建** → AltStore 用免费 Apple ID 重签 | 侧载标准做法;App Group 由 AltStore 注入 |
-| 分发 | unsigned IPA 本地文件 → AltStore 安装 | 自用,更新=重新侧载 |
+| 分发 | App Store 正式版与 TestFlight 公测 | 中国大陆商店审核中，使用 TestFlight；无签名 IPA 仅用于开发验收 |
 
 依赖经 SPM 拉取,git 源走 `gh.qdp.qzz.io` 镜像替换 `github.com`。
 
@@ -132,3 +132,7 @@ Kotlin → Swift 逐行对译,保结构:
 - AltStore 免费账号对 app+widget extension 的 App Group 注入如真机验证失败 → 降级方案:widget ext 直读同一 GRDB 文件路径(无沙箱共享需 App Group,此路不通则改 AltStore PAL 或付费账号,届时再问)
 - GRDB 经镜像拉取失败 → 退 raw SQLite3 C API 薄 DAO 层(再问)
 ```
+
+## 当前分发状态
+
+2026年11月10日核对：中国大陆以外的 [App Store](https://apps.apple.com/app/id6827001840) 均已上线，中国大陆区仍在审核中，可通过 [TestFlight](https://testflight.apple.com/join/SxymmDzf) 安装。正式商店、公测与源码主线独立，安装版本和系统要求以所选渠道页面为准。GitHub 仅作为源码与开发记录入口，应用不通过 GitHub 检查更新。

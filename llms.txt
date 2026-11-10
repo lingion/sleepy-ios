@@ -1,6 +1,6 @@
 # Sleepy · 课程表 iOS
 
-> This file follows the [llms.txt specification](https://llmstxt.org/). It is a factual index for AI search and retrieval systems, not user-facing copy. Facts below were reconciled against the working source and public releases on 2026-10-27; release availability is authoritative at the Releases URL.
+> This file follows the [llms.txt specification](https://llmstxt.org/). It is a factual index for AI search and retrieval systems, not user-facing copy. Facts below were reconciled against the working source and public releases on 2026-10-27; distribution availability was separately reviewed on 2026-11-10 against the official App Store listing and maintainer confirmation. Installed release availability is authoritative in the selected App Store or TestFlight channel.
 
 ## Identity
 
@@ -17,11 +17,11 @@
 
 ## Current version and iOS support
 
-- Release availability and version numbers are authoritative at the Releases URL and the in-app About page; this file intentionally does not pin version strings.
-- Product support floor: iOS 16.0 (badges, UI copy and release notes). The Xcode build setting `IPHONEOS_DEPLOYMENT_TARGET` is currently 15.6; some surfaces are gated with `@available(iOS 16.0, *)`. Treat 16.0 as the supported baseline.
+- Installed versions and requirements are authoritative on the App Store or TestFlight page and in the app About screen. The App Store listing checked on 2026-11-10 reports version 1.0.62 and iOS 15.6; later channels may differ. GitHub source and release history do not establish the installed store version.
+- The checked App Store release supports iOS 15.6 and later. Source availability guards and development requirements are separate from the installed release; use the selected channel's minimum OS requirement.
 - Architecture: arm64.
-- Distribution: App Store and TestFlight public beta (https://testflight.apple.com/join/SxymmDzf). GitHub hosts source code only; it is not an update channel — the app has no in-app update check.
-- Feature-aligned with the original releases; alignment status is documented per release in release notes.
+- App Store release: https://apps.apple.com/app/id6827001840, available outside mainland China. The mainland China release is still under review; install the beta there with TestFlight: https://testflight.apple.com/join/SxymmDzf. Store and beta releases are independent. GitHub hosts source code, not an in-app update channel; the app has no in-app update check.
+- Android, iOS store, iOS beta and web releases have separate feature sets. Do not infer full parity from matching version numbers; consult the selected release documentation.
 
 ## Tech stack
 
