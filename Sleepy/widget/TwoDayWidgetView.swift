@@ -137,6 +137,36 @@ struct TwoDayWidgetProvider: TimelineProvider {
 
 }
 
+/// Horizontal budgets are shared by every family and by the live gallery face.
+/// The separator occupies its own slot; neither column may draw into its gutter.
+struct TwoDayWidgetColumnLayout {
+    static let outerPadding: CGFloat = 12
+    let contentWidth: CGFloat
+    let columnWidth: CGFloat
+    let dividerWidth: CGFloat
+    let dividerInset: CGFloat
+    var separatorWidth: CGFloat { dividerWidth + dividerInset * 2 }
+
+    init(containerWidth: CGFloat, columnCount: Int) {
+        let width = containerWidth.isFinite ? max(containerWidth, 0) : 0
+        contentWidth = max(width - Self.outerPadding * 2, 0)
+        let count = max(columnCount, 0)
+        if count > 1 {
+            let separatorBudget = contentWidth / CGFloat(count - 1)
+            dividerWidth = min(1, separatorBudget)
+            dividerInset = min(WidgetRowGeometry.twoDayRowGap,
+                               max((separatorBudget - dividerWidth) / 2, 0))
+        } else {
+            dividerWidth = 0
+            dividerInset = 0
+        }
+        columnWidth = count > 0
+            ? max((contentWidth - CGFloat(max(count - 1, 0)) *
+                   (dividerWidth + dividerInset * 2)) / CGFloat(count), 0)
+            : 0
+    }
+}
+
 // MARK: - View ← renderTwoDayRegular
 
 struct TwoDayWidgetEntryView: View {
@@ -173,6 +203,8 @@ struct TwoDayWidgetEntryView: View {
         return GeometryReader { proxy in
             let wins = Self.twoDayWindows(data: data, heightDp: proxy.size.height, tier: tier,
                                           nowMin: nowMin)
+            let columns = TwoDayWidgetColumnLayout(containerWidth: proxy.size.width,
+                                                   columnCount: data.days.count)
             VStack(alignment: .leading, spacing: 0) {
                 if !data.hasTable || data.days.isEmpty {
                     Text(L10n.format("widget_create_schedule"))
@@ -192,20 +224,26 @@ struct TwoDayWidgetEntryView: View {
                         .foregroundColor(s.onSurfaceVariant)
                     Spacer(minLength: 0)
                 } else {
-                    // ★ 左右两栏: 每天一列, 中间竖直分隔 (id 用列序 — 调休映射下
-                    //   两列 dayOfWeek 可能相同, 不能作 identity)
-                    HStack(alignment: .top, spacing: 10) { // 列间距 10 ← 原 colGap 10dp (:1328)
+                    // The divider has a real layout slot with equal clear space on both sides.
+                    HStack(alignment: .top, spacing: 0) {
                         ForEach(Array(data.days.enumerated()), id: \.offset) { colIdx, day in
+                            if colIdx > 0 {
+                                Rectangle()
+                                    .fill(s.onSurfaceVariant.opacity(0.125))
+                                    .frame(width: columns.dividerWidth)
+                                    .frame(width: columns.separatorWidth)
+                            }
                             TwoDayColumn(day: day, scheme: s, colorless: colorless,
                                          displayMode: displayMode, showDate: showDate,
-                                         isLast: colIdx == data.days.count - 1,
                                          window: colIdx < (wins?.count ?? 0) ? wins?[colIdx] : nil,
                                          useAlias: useAlias)
+                                .frame(width: columns.columnWidth, alignment: .topLeading)
+                                .clipped()
                         }
                     }
                 }
             }
-            .padding(12)  // 外边距 12 ← 原 renderTwoDayRegular pad=12dp (:1279), 与窗口扣减 44 同源
+            .padding(TwoDayWidgetColumnLayout.outerPadding)  // 与窗口扣减 44 同源
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -229,7 +267,6 @@ private struct TwoDayColumn: View {
     let colorless: Bool
     let displayMode: String
     let showDate: Bool
-    let isLast: Bool
     /// 本列 FIXED 窗口;nil = 无窗口 (整列直排, 由容器裁切)
     let window: WidgetWindowCore.WindowResult?
     /// issue#26: widget 场景别名 — 透传给课程胶囊
@@ -290,16 +327,7 @@ private struct TwoDayColumn: View {
                 scheme: s)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        // 列间竖直分隔线 ← 原版本 :1448-50 — 全高 listTop→listBottom (列组件本身
-        //   即覆盖该区), 1dp 线位于列间距中心 (trailing −5 = 间距 10 的中点)
-        .overlay(alignment: .trailing) {
-            if !isLast {
-                Rectangle()
-                    .fill(s.onSurfaceVariant.opacity(0.125))  // 0x20 alpha ≈ 12.5%
-                    .frame(width: 1)
-                    .padding(.trailing, -5)
-            }
-        }
+
     }
 
     private var title: String {

@@ -15,6 +15,43 @@ final class WidgetFaceGeometryTests: XCTestCase {
         XCTAssertFalse(WidgetFaceGeometry.isToday(nil, referenceDate: today))
     }
 
+    func testTwoDayDividerHasSymmetricClearanceAtEveryFamilyWidth() {
+        // Small phone/tablet and medium/large/gallery widths all use one layout.
+        for width: CGFloat in [110, 141, 158, 170, 200, 328, 345, 364, 430] {
+            let layout = TwoDayWidgetColumnLayout(containerWidth: width, columnCount: 2)
+            XCTAssertEqual(layout.dividerWidth, 1)
+            XCTAssertEqual(layout.dividerInset, WidgetRowGeometry.twoDayRowGap)
+            let leftCardRight = layout.columnWidth
+            let dividerLeft = leftCardRight + layout.dividerInset
+            let dividerRight = dividerLeft + layout.dividerWidth
+            let rightCardLeft = layout.columnWidth + layout.separatorWidth
+            XCTAssertEqual(dividerLeft - leftCardRight, 6, accuracy: 0.0001)
+            XCTAssertEqual(rightCardLeft - dividerRight, 6, accuracy: 0.0001)
+            XCTAssertEqual((dividerLeft + dividerRight) / 2, layout.contentWidth / 2,
+                           accuracy: 0.0001)
+            XCTAssertEqual(layout.columnWidth * 2 + layout.separatorWidth,
+                           width - TwoDayWidgetColumnLayout.outerPadding * 2, accuracy: 0.0001)
+            XCTAssertGreaterThan(layout.columnWidth, 0)
+        }
+    }
+
+    func testTwoDayColumnBudgetsStayBoundedForEmptySingleAndTinyContainers() {
+        for width: CGFloat in [-10, 0, 12, 24, 24.5, 30, 50, 158] {
+            for count in 0...3 {
+                let layout = TwoDayWidgetColumnLayout(containerWidth: width, columnCount: count)
+                XCTAssertGreaterThanOrEqual(layout.columnWidth, 0)
+                XCTAssertGreaterThanOrEqual(layout.dividerInset, 0)
+                let used = layout.columnWidth * CGFloat(count)
+                    + layout.separatorWidth * CGFloat(max(count - 1, 0))
+                XCTAssertLessThanOrEqual(used, layout.contentWidth + 0.0001)
+                if count == 1 {
+                    XCTAssertEqual(layout.columnWidth, layout.contentWidth)
+                    XCTAssertEqual(layout.separatorWidth, 0)
+                }
+            }
+        }
+    }
+
     func testTwoDayFooterUsesActualColumnBudgetForLargeCountsAndNarrowFamilies() {
         XCTAssertEqual(WidgetFaceGeometry.footerWidth(textWidth: 12, columnWidth: 145), 28)
         XCTAssertEqual(WidgetFaceGeometry.footerWidth(textWidth: 50, columnWidth: 145), 66)
