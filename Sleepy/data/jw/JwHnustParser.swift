@@ -9,7 +9,8 @@
 //   <div id="1-1" style="display: none;">课名<br>教师<br>1-16周<br>教室</div>
 //   div id 前段 N = 大节序号 → startNode = N*2-1, endNode = N*2（第 1 大节 = 1-2 节）
 //
-// oldQzType: 0=湖南科技大学/潇湘学院：style="display: none;" 的 div 才是课
+// oldQzType: -1=默认保留全部课程；CSS 可见性不决定课表内容。
+//            0=兼容旧调用：style="display: none;" 的 div 才是课
 //            1=东北石油大学：style != "display: none;" 的 div 才是课
 //
 // 对上游偏离：kbtable null 返回空；style 比较去空格+小写（兼容 "display:none;" 与 "display: none;"）；
@@ -24,109 +25,50 @@ final class JwHnustParser: JwParser, JwParserConfidenceReporting {
     let source: String
     let oldQzType: Int
 
-    init(_ source: String, oldQzType: Int = 0) {
+    init(_ source: String, oldQzType: Int = -1) {
         self.source = source
         self.oldQzType = oldQzType
     }
 
     func generateCourseList() throws -> [JwCourse] {
-        var courseList: [JwCourse] = []
-        let doc = try SwiftSoup.parse(source)
-        guard let kbtable = (try? doc.getElementById("kbtable")) ?? nil else { return courseList }   // H1
-        let trs = (try? kbtable.getElementsByTag("tr")) ?? Elements()
-
-        for tr in trs {
-            let tds = (try? tr.getElementsByTag("td")) ?? Elements()
-            if tds.isEmpty() { continue }
-
-            var day = -1
-            for td in tds {
-                day += 1
-                let divs = (try? td.getElementsByTag("div")) ?? Elements()
-                for div in divs {
-                    let style = ((try? div.attr("style")) ?? "")
-                        .replacingOccurrences(of: " ", with: "").lowercased()   // H2
-                    if ((try? div.text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
-                    if oldQzType == 0 {
-                        if style != "display:none;" { continue }
-                    } else {
-                        if style == "display:none;" { continue }
-                    }
-
-                    // H6: SwiftSoup 把 void 元素序列化为 "<br />"（Jsoup 输出 "<br>"），
-                    // 先归一化再按 "<br>" 切分，语义与 原版本 侧 div.html().split("<br>") 一致
-                    let split = ((try? div.html()) ?? "")
-                        .replacingOccurrences(of: #"<br\s*/?>"#, with: "<br>", options: .regularExpression)
-                        .components(separatedBy: "<br>")
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    var preIndex = -1
-
-                    for i in split.indices {
-                        if split[i].range(of: Self.WEEK_PATTERN2, options: .regularExpression) != nil {
-                            if preIndex != -1 { toCourse(split, preIndex, div, day, &courseList) }
-                            preIndex = i
+        guard let table = try SwiftSoup.parse(source).getElementById("kbtable") else { return [] }
+        var courses: [JwCourse] = []
+        for row in jw1064Elements(table, "tr") where ((try? row.parents().array()) ?? []).first(where: { $0.tagName() == "table" }) == table {
+            for (day, cell) in row.children().array().filter({ $0.tagName() == "td" }).enumerated() {
+                guard (1...7).contains(day) else { continue }
+                for div in jw1064Elements(cell, "div[id]") {
+                    let id = jw1064Attribute(div, "id")
+                    guard id.range(of: #"^[0-9]+-[^\s]+$"#, options: .regularExpression) != nil,
+                          let pair = jw1064Integer(id.components(separatedBy: "-")[0]), (1...15).contains(pair),
+                          !jw1064Elements(div, "div[id]").contains(where: { $0 != div }) else { continue }
+                    let hidden = jw1064Attribute(div, "style").range(of: #"(?i)(?:^|;)\s*display\s*:\s*none\s*(?:;|$)"#, options: .regularExpression) != nil
+                    if oldQzType == 0 && !hidden || oldQzType == 1 && hidden { continue }
+                    // Only BR separates protocol fields. Formatting newlines in
+                    // source HTML or SwiftSoup serialization are whitespace.
+                    let fields = ((try? div.html()) ?? "")
+                        .replacingOccurrences(of: #"(?i)<br\s*/?>"#, with: "\u{001E}", options: .regularExpression)
+                        .components(separatedBy: "\u{001E}")
+                        .map { (try? SwiftSoup.parseBodyFragment($0).text().trimmingCharacters(in: .whitespacesAndNewlines)) ?? "" }
+                    var blockStart = 0
+                    for i in fields.indices {
+                        guard i >= blockStart + 2, i + 1 < fields.count, fields[i].contains("周") else { continue }
+                        let start = blockStart
+                        blockStart = i + 2
+                        let headings = Array(fields[start..<(i - 1)].drop(while: { $0.isEmpty }))
+                        guard let name = headings.first, !name.isEmpty else { continue }
+                        for (from, to, parity) in schoolWeekRanges(fields[i]) {
+                            courses.append(JwCourse(name: name, room: fields[i + 1], teacher: fields[i - 1], day: day,
+                                                    startNode: pair * 2 - 1, endNode: pair * 2,
+                                                    startWeek: from, endWeek: to, type: parity,
+                                                    note: headings.dropFirst().joined(separator: "\n")))
                         }
-                        if i == split.count - 1 { toCourse(split, preIndex, div, day, &courseList) }
                     }
                 }
             }
         }
-        return courseList
+        var seen = Set<JwCourse>()
+        return courses.filter { seen.insert($0).inserted }
     }
-
-    private func toCourse(
-        _ split: [String], _ preIndex: Int, _ div: Element,
-        _ day: Int, _ out: inout [JwCourse]
-    ) {
-        if preIndex == -1 { return }
-        if preIndex - 1 < 0 || preIndex + 1 >= split.count { return }   // H3/H5
-        let courseName = ((try? SwiftSoup.parse(split[0]).text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let room = ((try? SwiftSoup.parse(split[preIndex + 1]).text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let teacher = ((try? SwiftSoup.parse(split[preIndex - 1]).text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let timeInfo = ((try? SwiftSoup.parse(split[preIndex]).text()) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: ",")
-        for t in timeInfo {
-            let s = t.trimmingCharacters(in: .whitespacesAndNewlines)
-            if s.isEmpty { continue }
-            // ← substringBefore('周')
-            let weekStr: String
-            if let r = s.firstIndex(of: "周") {
-                weekStr = String(s[s.startIndex..<r]).trimmingCharacters(in: .whitespacesAndNewlines)
-            } else {
-                weekStr = s
-            }
-            if weekStr.isEmpty { continue }
-            let startWeek: Int
-            let endWeek: Int
-            if weekStr.contains("-") {
-                guard let sw = Int(weekStr.components(separatedBy: "-").first?.filter { $0.isNumber } ?? "") else { continue }  // H4
-                startWeek = sw
-                let after = weekStr.components(separatedBy: "-").dropFirst().joined(separator: "-")
-                endWeek = Int(after.filter { $0.isNumber }) ?? startWeek
-            } else {
-                guard let sw = Int(weekStr.filter { $0.isNumber }) else { continue }
-                startWeek = sw
-                endWeek = startWeek
-            }
-            // ← div.attr("id").split('-').firstOrNull()?.filter{digit}.toIntOrNull()
-            let idPart = ((try? div.attr("id")) ?? "").components(separatedBy: "-").first ?? ""
-            guard let nodeIdx = Int(idPart.filter { $0.isNumber }) else { continue }   // H4
-            let startNode = nodeIdx * 2 - 1
-            out.append(JwCourse(
-                name: courseName, room: room, teacher: teacher,
-                day: min(max(day, 1), 7),
-                startNode: max(startNode, 1),
-                endNode: max(startNode + 1, startNode),
-                startWeek: max(startWeek, 1),
-                endWeek: max(endWeek, startWeek),
-                type: 0))
-        }
-    }
-
-    /// 上游 Common.weekPattern2 原文，不可改字符
-    private static let WEEK_PATTERN2 = #"\d{1,2}周"#
 
     /// T8: kbtable + div(style) + div id 前段数字 = 100; 仅 kbtable = 60
     var confidenceValue: Int {

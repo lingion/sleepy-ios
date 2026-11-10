@@ -6,7 +6,7 @@
 //   3. hnust_login_page_无kbtable返回空不抛 (fixture hnust_login_page.html)
 //   4. hnust_style两种写法都识别            (内联字符串)
 //   5. hnust_oldQzType1_反向过滤            (内联字符串)
-//   6. hnust_构造默认参数为0                (内联字符串)
+//   6. hnust_默认保留全部课程                  (内联字符串)
 
 import XCTest
 @testable import Sleepy
@@ -83,6 +83,7 @@ final class JwHnustParserTests: XCTestCase {
         // 真实页 "display: none;"（冒号后空格）与 fixture "display:none;"（无空格）必须都能命中
         let withSpace = """
         <html><body><table id="kbtable"><tr>
+        <td>节次</td>
         <td><div id="1-1" style="display: none;">课A<br>王老师<br>1-10周<br>教室X</div></td>
         <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
         </tr></table></body></html>
@@ -106,6 +107,7 @@ final class JwHnustParserTests: XCTestCase {
         // oldQzType=1：style != display:none 的 div 才是课
         let src = """
         <html><body><table id="kbtable"><tr>
+        <td>节次</td>
         <td><div id="1-1">课B<br>李老师<br>1-8周<br>教室Y</div></td>
         <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
         </tr></table></body></html>
@@ -117,12 +119,12 @@ final class JwHnustParserTests: XCTestCase {
         XCTAssertEqual(0, try JwHnustParser(src, oldQzType: 0).generateCourseList().count)
     }
 
-    // MARK: - 6. 构造默认参数为 0
+    // MARK: - 6. 默认保留全部课程
 
-    func test_hnust_构造默认参数为0() throws {
-        // 默认 oldQzType=0：无 display:none 样式的页面 0 产出
-        let plain = #"<html><body><table id="kbtable"><tr><td><div id="1-1">课C<br>师<br>1-2周<br>房</div></td></tr></table></body></html>"#
-        XCTAssertEqual(0, try JwHnustParser(plain).generateCourseList().count)
+    func test_hnust_默认保留全部课程() throws {
+        let plain = #"<html><body><table id="kbtable"><tr><td>节次</td><td><div id="1-1">课C<br>师<br>1-2周<br>房</div></td></tr></table></body></html>"#
+        XCTAssertEqual(1, try JwHnustParser(plain).generateCourseList().count)
         XCTAssertEqual(1, try JwHnustParser(plain, oldQzType: 1).generateCourseList().count)
+        XCTAssertEqual(0, try JwHnustParser(plain, oldQzType: 0).generateCourseList().count)
     }
 }

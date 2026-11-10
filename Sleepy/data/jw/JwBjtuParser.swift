@@ -255,7 +255,7 @@ final class JwBjtuParser: JwParser, JwParserConfidenceReporting {
         return candidates.max { a, b in
             if a.courses.count != b.courses.count { return a.courses.count < b.courses.count }
             return sectionPriority(a.label) < sectionPriority(b.label)
-        }?.courses ?? []
+        }?.courses ?? JwUndergradLegacyParser(source, protocolType: "bjtu").generateCourseList()
     }
 
     /// 段优先级: schedule(全学期)=2 > stuschedule(本学期)=1 > 其他=0
@@ -321,7 +321,7 @@ final class JwBjtuParser: JwParser, JwParserConfidenceReporting {
         var groups: [String: [BlockInfo]] = [:]
         var groupOrder: [String] = []
         for b in infos {
-            let key = "\(b.name)|\(b.weeksText)|\(b.room)|\(b.day)"
+            let key = "\(b.name)|\(b.weeksText)|\(b.room)|\(b.teacher)|\(b.day)"
             if groups[key] == nil { groupOrder.append(key) }
             groups[key, default: []].append(b)
         }
@@ -430,7 +430,7 @@ final class JwBjtuParser: JwParser, JwParserConfidenceReporting {
         }
         // distinctBy { it.first }
         var seenKeys = Set<String>()
-        return parts.filter { seenKeys.insert($0.0).inserted }
+        return parts.filter { seenKeys.insert($0.0 + "\u{0}" + $0.1).inserted }
     }
 
     /// 教师: 块内全部 i 标签 (ellipsis/title 路径用)
