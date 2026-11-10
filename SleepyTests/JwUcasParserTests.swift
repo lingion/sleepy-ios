@@ -31,18 +31,8 @@ final class JwUcasParserTests: XCTestCase {
 
     // ---- HTML 路径 (fallback) ----
 
-    func testParsesUcasScheduleGridAndMergesAdjacentNodes() throws {
-        let courses = try JwUcasParser(grid()).generateCourseList()
-        XCTAssertEqual(6, courses.count)
-        let theory = try XCTUnwrap(courses.first { $0.name == "新时代中国特色社会主义理论与实践" })
-        XCTAssertEqual(1, theory.day)
-        XCTAssertEqual(1, theory.startNode)
-        XCTAssertEqual(2, theory.endNode)
-        XCTAssertEqual(JwUcasParser.PROVISIONAL_START_WEEK, theory.startWeek)
-        XCTAssertEqual(JwUcasParser.PROVISIONAL_END_WEEK, theory.endWeek)
-        let architecture = try XCTUnwrap(courses.first { $0.name == "计算机体系结构" && $0.day == 1 })
-        XCTAssertEqual(10, architecture.startNode)
-        XCTAssertEqual(11, architecture.endNode)
+    func testGridWithoutDetailsDoesNotInventSemesterWeeks() throws {
+        XCTAssertTrue(try JwUcasParser(grid()).generateCourseList().isEmpty)
     }
 
     func testUcasHtmlParserIdentifiesCapturedPageShape() throws {
@@ -164,10 +154,7 @@ final class JwUcasParserTests: XCTestCase {
 
         // 详情页里的周四块在网格没有对应格子 → 不造课 (网格权威)
         XCTAssertTrue(courses.allSatisfy { !($0.name == "网络攻防基础" && $0.day == 4) })
-        // 无详情的课保持占位
-        let badminton = try XCTUnwrap(courses.first { $0.name == "羽毛球" })
-        XCTAssertEqual(JwUcasParser.PROVISIONAL_START_WEEK, badminton.startWeek)
-        XCTAssertEqual(JwUcasParser.PROVISIONAL_END_WEEK, badminton.endWeek)
+        XCTAssertTrue(courses.allSatisfy { $0.name != "羽毛球" })
     }
 
     func testContinuousWeeksStaySingleCourseAndRoomIsEnriched() throws {
@@ -187,9 +174,7 @@ final class JwUcasParserTests: XCTestCase {
         XCTAssertEqual("教一楼107", theory.room)
 
         // 同名但节点不重叠的格子 (计算机体系结构 周六第 2 节 vs 详情块周一 1-2) 不误挂
-        let arch = try XCTUnwrap(courses.first { $0.name == "计算机体系结构" && $0.day == 6 })
-        XCTAssertEqual(JwUcasParser.PROVISIONAL_START_WEEK, arch.startWeek)
-        XCTAssertEqual(JwUcasParser.PROVISIONAL_END_WEEK, arch.endWeek)
+        XCTAssertTrue(courses.allSatisfy { !($0.name == "计算机体系结构" && $0.day == 6) })
     }
 
     /// 单格网格 (甲, 周一第 1 节)
@@ -230,16 +215,12 @@ final class JwUcasParserTests: XCTestCase {
         XCTAssertEqual(JwUcasParser.TYPE_ODD, oddCourse.type)
     }
 
-    func testMalformedDetailSectionFallsBackToPlaceholder() throws {
+    func testMalformedDetailSectionDoesNotInventWeeks() throws {
         let combined = try grid() + detailSection(
             "https://xkcts.ucas.ac.cn:8443/course/coursetime/999999",
             "<html><body>无标签内容</body></html>")
         let courses = try JwUcasParser(combined).generateCourseList()
-        XCTAssertEqual(6, courses.count)
-        XCTAssertTrue(courses.allSatisfy {
-            $0.startWeek == JwUcasParser.PROVISIONAL_START_WEEK
-                && $0.endWeek == JwUcasParser.PROVISIONAL_END_WEEK
-        })
+        XCTAssertTrue(courses.isEmpty)
     }
 
     func testDetailSectionForUnknownCourseIsIgnored() throws {
@@ -252,11 +233,7 @@ final class JwUcasParserTests: XCTestCase {
         let combined = try grid() + detailSection(
             "https://xkcts.ucas.ac.cn:8443/course/coursetime/1", detail)
         let courses = try JwUcasParser(combined).generateCourseList()
-        XCTAssertEqual(6, courses.count)
-        XCTAssertTrue(courses.allSatisfy {
-            $0.startWeek == JwUcasParser.PROVISIONAL_START_WEEK
-                && $0.endWeek == JwUcasParser.PROVISIONAL_END_WEEK
-        })
+        XCTAssertTrue(courses.isEmpty)
     }
 
     func testExtractDetailUrlsDedupesAndAbsolutizesRelativeForms() throws {
@@ -343,14 +320,13 @@ final class JwUcasParserTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    func testReal0906GridPageHitsUcasConfidenceGateAndYieldsCourses() throws {
+    func testReal0906GridPageIsRecognizedButRequiresDetails() throws {
         // v1.1 采集器包: 无详情页, 网格页必须能被认出 (>=90 才会被 registry 选中)
         let html = try realGrid("person-schedule.real-0906")
         let parser = JwUcasParser(html)
         XCTAssertGreaterThanOrEqual(parser.confidenceValue, 90)
         let courses = try parser.generateCourseList()
-        // 0906 网格页实有 13 门课 (含 AI for Science 方法与磐石平台应用 / 网络攻防基础)
-        XCTAssertGreaterThanOrEqual(courses.count, 13)
+        XCTAssertTrue(courses.isEmpty)
     }
 
     func testReal0908GridPlus11RealDetailPagesGivesExactWeeks() throws {
@@ -398,16 +374,9 @@ final class JwUcasParserTests: XCTestCase {
                       "不应有占位周次课: \(provisional.map { $0.name })")
     }
 
-    func testReal0908GridAloneStillFallsBackToProvisionalWeeks() throws {
-        // 只有网格页 (无详情) 时走 fallback 占位 1..16 — 报告人 0906 采集器场景
+    func testReal0908GridAloneRequiresCapturedDetailWeeks() throws {
         let html = try realGrid("person-schedule.real-0908")
-        let parser = JwUcasParser(html)
-        let courses = try parser.generateCourseList()
-        XCTAssertFalse(courses.isEmpty)
-        XCTAssertTrue(
-            courses.allSatisfy { $0.startWeek == 1 && $0.endWeek == 16 },
-            "无详情时全部应为 1..16 占位: \(courses.filter { $0.startWeek != 1 || $0.endWeek != 16 }.map { $0.name })"
-        )
+        XCTAssertTrue(try JwUcasParser(html).generateCourseList().isEmpty)
     }
 
     func testReal0906GridDetailUrlsMatchExpectedCourseIds() throws {
@@ -440,13 +409,13 @@ final class JwUcasParserTests: XCTestCase {
         XCTAssertEqual("教一楼107", theory.room)
     }
 
-    func testEnrichDegradesToOriginalHtmlWhenNoDetailUrl() async {
+    func testEnrichDegradesToOriginalHtmlWhenNoDetailUrl() async throws {
         // 无详情链接的 HTML → 原样返回, 不发请求也不抛
         let html = "<html><body><p>no links</p></body></html>"
-        let out = await UcasDetailFetch.enrich(html)
+        let out = try await UcasDetailFetch.enrich(html)
         XCTAssertEqual(html, out)
         // 空 HTML 同样安全 (precondition 防呆)
-        let emptyOut = await UcasDetailFetch.enrich("")
+        let emptyOut = try await UcasDetailFetch.enrich("")
         XCTAssertEqual("", emptyOut)
     }
 

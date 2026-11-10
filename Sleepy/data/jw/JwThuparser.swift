@@ -89,7 +89,8 @@ private func regexAllMatches(_ pattern: String, in s: String) -> [String] {
 final class JwThuparser: JwParser, JwParserConfidenceReporting {
 
     let source: String
-    init(_ source: String) { self.source = source }
+    private let semesterDataJson: String?
+    init(_ source: String) { self.source = JwThuCapturePayload.htmlOrOriginal(source); self.semesterDataJson = JwThuCapturePayload.semesterJson(source) }
 
     // MARK: - Static tables (WakeUp THUParser f9220/f9221)
 
@@ -153,134 +154,12 @@ final class JwThuparser: JwParser, JwParserConfidenceReporting {
     // MARK: - JwParser
 
     func generateCourseList() throws -> [JwCourse] {
-        skippedCourseCount = 0
-        var out: [JwCourse] = []
-        if !source.contains("function setInitValue") || !source.contains("Event.observe") {
-            return []
-        }
-        // 原版本: RE_SET_INIT_VALUE.find(source) ?: return emptyList() — 需完整 "function setInitValue()"
-        guard let startRange = regexFirstMatchRange(Self.RE_SET_INIT_VALUE, in: source, from: 0) else {
-            return []
-        }
-        let startIdx = startRange.location
-        // 原版本: RE_EVENT_OBSERVE.find(source, startIdx) ?: source.length — observe 缺失时解析至源文末尾
-        let nsSource = source as NSString
-        let endIdx = regexFirstMatchRange(Self.RE_EVENT_OBSERVE, in: source, from: startIdx)?.location ?? nsSource.length
-        let jsBlock = nsSource.substring(with: NSRange(location: startIdx, length: max(0, endIdx - startIdx)))
-        let lines = jsBlock.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var state = ParseState.idle
-        var pending = PendingCourse()
-        var foundCourses: [String: PendingCourse] = [:]
-
-        for trimmed in lines {
-            // v1.0.62: 上游在元数据缺项时会直接进入网格坐标;
-            // 不能把下一门课的字段吞进当前记录 → 截断当前 pending 并计数。
-            if state != .idle && (regexHasMatch(Self.RE_C1_LINK, in: trimmed)
-                || regexHasMatch(Self.RE_C2_BLUE_RED_NONE, in: trimmed)) {
-                skippedCourseCount += 1
-                state = .idle
-                pending = PendingCourse()
-            }
-            // v1.0.62: GOT_TITLE/GOT_TEACHER/GOT_TYPE/GOT_WEEKS 阶段网格坐标可提前到达
-            // (缺类型/缺周次/缺地点) — 直接 emit, 不再等 GOT_LOCATION。
-            if [ParseState.gotTitle, .gotTeacher, .gotType, .gotWeeks].contains(state) {
-                if let m = matchStr(Self.RE_C1_WEEKBIG, in: trimmed, groups: [1, 2]) {
-                    pending.big = Int(m[0]) ?? 0
-                    pending.day = Int(m[1]) ?? 0
-                    if let course = emitCourse(pending) {
-                        out.append(course)
-                    } else {
-                        skippedCourseCount += 1
-                    }
-                    foundCourses[pending.courseId] = pending.copy(big: 0, day: 0)
-                    state = .idle
-                    pending = PendingCourse()
-                    continue
-                }
-            }
-            switch state {
-            case .idle:
-                // 优先 C2 (单行 blue_red_none 模式, 跨周实验课/辅修)
-                // v1.0.62: C2 不再即时 emit — 进 pending 管线等 grid 坐标,
-                // 无可用排课信息时由 emitCourse 返回 nil 并计数。
-                if let c2 = matchC2(trimmed) {
-                    pending = PendingCourse(name: c2.name, location: c2.detail, isC2: true)
-                    state = .gotC2
-                    continue
-                }
-                // 否则试 C1 链接
-                if let link = matchStr(Self.RE_C1_LINK, in: trimmed, group: 1) {
-                    let courseId = link.trimmingCharacters(in: .whitespaces)
-                    pending = foundCourses[courseId]?.copy(big: 0, day: 0) ?? PendingCourse(courseId: courseId)
-                    state = .gotLink
-                }
-            case .gotLink:
-                if let name = matchStr(Self.RE_C1_TITLE, in: trimmed, group: 1) {
-                    pending.name = name
-                    foundCourses[pending.courseId] = pending
-                    state = .gotTitle
-                }
-            case .gotTitle:
-                if let teacher = matchStr(Self.RE_C1_DATA, in: trimmed, group: 1) {
-                    pending.teacher = teacher
-                    state = .gotTeacher
-                }
-            case .gotTeacher:
-                if let str = matchStr(Self.RE_C1_DATA, in: trimmed, group: 1) {
-                    if Self.xkTypeList.contains(str) {
-                        pending.type = str
-                        state = .gotType
-                    } else {
-                        // v1.0.62: 课程属性是可选字段; 缺省时本行就是周次, 不可丢弃。
-                        pending.weekText = str
-                        state = .gotWeeks
-                    }
-                }
-            case .gotType:
-                if let weekText = matchStr(Self.RE_C1_DATA, in: trimmed, group: 1) {
-                    pending.weekText = weekText; state = .gotWeeks
-                }
-            case .gotWeeks:
-                if let location = matchStr(Self.RE_C1_DATA, in: trimmed, group: 1) {
-                    pending.location = location; state = .gotLocation
-                }
-            case .gotLocation:
-                if let m = matchStr(Self.RE_C1_WEEKBIG, in: trimmed, groups: [1, 2]) {
-                    pending.big = Int(m[0]) ?? 0
-                    pending.day = Int(m[1]) ?? 0
-                    if let course = emitCourse(pending) {
-                        out.append(course)
-                    } else {
-                        skippedCourseCount += 1
-                    }
-                    // 保留课程 (跨段复用), 重置 big/day
-                    foundCourses[pending.courseId] = pending.copy(big: 0, day: 0)
-                    state = .idle; pending = PendingCourse()
-                }
-            case .gotC2:
-                if let m = matchStr(Self.RE_C1_WEEKBIG, in: trimmed, groups: [1, 2]) {
-                    pending.big = Int(m[0]) ?? 0
-                    pending.day = Int(m[1]) ?? 0
-                    if let course = emitCourse(pending) {
-                        out.append(course)
-                    } else {
-                        skippedCourseCount += 1
-                    }
-                    state = .idle
-                    pending = PendingCourse()
-                }
-            }
-        }
-        // v1.0.62: 收尾仍挂在中间态的残课计一次 skipped
-        if state != .idle { skippedCourseCount += 1 }
-        return out
+        let parser = JwThuScriptParser(source, semesterDataJson)
+        let courses = try parser.generateCourseList()
+        skippedCourseCount = parser.skippedCourseCount
+        return courses
     }
 
-    // MARK: - Emit
-    /// v1.0.62: emit 失败返回 nil (调用方计 skipped), 不再伪造占位课。
     private func emitCourse(_ p: PendingCourse) -> JwCourse? {
         // 原版本: p.name.isBlank() — 纯空白名也算空
         guard !p.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

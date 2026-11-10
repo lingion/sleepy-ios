@@ -266,24 +266,13 @@ final class JwPekingParserTests: XCTestCase {
         XCTAssertEqual(0, try JwPekingParser(Self.pkuLogin).generateCourseList().count)
     }
 
-    // MARK: - E. 多 ~ 边界（← 原 substringAfter 语义，审计 issue 1/2 的回归锁）
-
-    /// "3~~4节"：原版本 substringAfter('~') 取第一个 ~ 之后 = "~4节"，filter isDigit → "4"，
-    /// endNode=4（旧 iOS components(separatedBy:"~")[1]="" → nil→兜底 endNode 会得 (3,3)，错）。
-    func test_multi_tilde_node_range_matches_android_semantics() throws {
-        let courses = try JwPekingParser(row(timeCell: "1~16周 周一3~~4节 教1")).generateCourseList()
-        XCTAssertEqual(1, courses.count)
-        XCTAssertEqual(3, courses[0].startNode)
-        XCTAssertEqual(4, courses[0].endNode)
+    // Android v1.0.64 requires a complete numeric range in each arrangement.
+    func test_multi_tilde_node_range_is_rejected() throws {
+        XCTAssertTrue(try JwPekingParser(row(timeCell: "1~16周 周一3~~4节 教1")).generateCourseList().isEmpty)
     }
 
-    /// "1~2~16周"：原版本 substringAfter('~').substringBefore('周') → "2~16"，
-    /// filter isDigit 跨第二个 ~ 拼接 → "216"，endWeek=216。
-    func test_multi_tilde_week_range_matches_android_semantics() throws {
-        let courses = try JwPekingParser(row(timeCell: "1~2~16周 周一3~4节 教1")).generateCourseList()
-        XCTAssertEqual(1, courses.count)
-        XCTAssertEqual(1, courses[0].startWeek)
-        XCTAssertEqual(216, courses[0].endWeek)
+    func test_multi_tilde_week_range_is_rejected() throws {
+        XCTAssertTrue(try JwPekingParser(row(timeCell: "1~2~16周 周一3~4节 教1")).generateCourseList().isEmpty)
     }
 
     /// 无 ~ 的节次串（"11节"）：Kotlin substringBefore/After 均返回整串 → start=end=11。

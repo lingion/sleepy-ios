@@ -16,7 +16,7 @@ final class JwNwpuPostParserRegressionTests: XCTestCase {
                              file: StaticString = #filePath, line: UInt = #line) throws {
         XCTAssertEqual(try JwNwpuPostParser(html(timing)).generateCourseList(), [
             JwCourse(name: "数值分析(研一)", room: "A101", teacher: "张老师", day: 3,
-                     startNode: start, endNode: end, startWeek: 2, endWeek: 12)
+                     startNode: start, endNode: end, startWeek: 2, endWeek: 12, note: "001")
         ], file: file, line: line)
     }
 

@@ -26,106 +26,29 @@ final class JwPekingParser: JwParser, JwParserConfidenceReporting {
     }
 
     func generateCourseList() throws -> [JwCourse] {
+        guard let table = Jw64.first(Jw64.doc(source), "table[class=datagrid]"), let body = Jw64.first(table, "tbody") else { return [] }
         var result: [JwCourse] = []
-        let doc = try SwiftSoup.parse(source)
-        guard let table = (try? doc.select("table[class=datagrid]").first()) ?? nil else { return result }
-        guard let tbody = (try? table.select("tbody").first()) ?? nil else { return result }
-
-        var teacher = ""
-        let trs = (try? tbody.getElementsByTag("tr")) ?? Elements()
-        for tr in trs {
-            let tds = (try? tr.getElementsByTag("td")) ?? Elements()
-            if tds.size() < 11 { continue }
-            if (((try? tds.get(8).text()) ?? "").contains("未")) { continue }
-
-            let courseName = ((try? tds.get(0).text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            teacher = ((try? tds.get(4).text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-
-            var startWeek = 1, endWeek = 16
-            var startNode = 1, endNode = 2
-            var type = 0, day = 7
-
-            // ← tds[7].html().split("<br>")
-            //   SwiftSoup 2.7.3 的 html() 把空标签序列化为 "<br />"(Jsoup 输出 "<br>"),
-            //   不归一化则永远切不开 → 单/双 标记进不了 timeInfo[1], type 恒为 0。
-            //   归一化后语义与 原 split 完全一致。
-            let timeHtml = ((try? tds.get(7).html()) ?? "")
-                .replacingOccurrences(of: "<br />", with: "<br>")
-            let timeBlocks = timeHtml.components(separatedBy: "<br>")
-            for block in timeBlocks {
-                let parsedText = ((try? SwiftSoup.parse(block).text()) ?? "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                let rawTokens: [String] = parsedText.split(whereSeparator: { $0 == " " }).map { String($0) }
-                let timeInfo: [String] = rawTokens.filter { token in
-                    !token.trimmingCharacters(in: .whitespaces).isEmpty
+        for row in Jw64.select(body, "tr") {
+            let cells = Jw64.select(row, "td")
+            guard cells.count >= 11, !Jw64.text(cells[8]).contains("未") else { continue }
+            for line in Jw64.lines(cells[7]) {
+                let fields = line.split(whereSeparator: \.isWhitespace).map(String.init)
+                guard fields.count >= 2 else { continue }
+                let raw = fields[0].hasSuffix("周") ? String(fields[0].dropLast()) : fields[0]
+                var weeks: [(Int, Int)] = []
+                for token in raw.components(separatedBy: ",") {
+                    guard let m = Jw64.full(#"([0-9]+)(?:~([0-9]+))?"#, token),
+                          let first = jw1064Integer(m[1]), let last = jw1064Integer(m[2].isEmpty ? m[1] : m[2]), first > 0, last >= first else { weeks = []; break }
+                    weeks.append((first, last))
                 }
-                if timeInfo.count < 2 { continue }
-
-                let token0 = timeInfo[0]
-                if token0.contains("~") {
-                    // ← token0.substringBefore('~').filter { isDigit }.toIntOrNull()
-                    let head = token0.components(separatedBy: "~").first ?? token0
-                    if let v = Int(head.filter { $0.isNumber }) { startWeek = v }
-                    // ← token0.substringAfter('~').substringBefore('周').filter { isDigit }.toIntOrNull()
-                    //   substringAfter 取第一个 ~ 之后的全部内容(多余的 ~ 被 filter 丢掉, 数字跨 ~ 拼接)
-                    if let tilde = token0.firstIndex(of: "~") {
-                        let after = String(token0[token0.index(after: tilde)...])
-                        let beforeWeek = after.components(separatedBy: "周").first ?? after
-                        if let v = Int(beforeWeek.filter { $0.isNumber }) { endWeek = v }
-                    }
+                guard !weeks.isEmpty, let timing = Jw64.full(#"周([一二三四五六日天])([0-9]+)(?:~([0-9]+))?节(?:[（(]([^）)]*)[）)])?"#, fields[1]),
+                      let firstNode = jw1064Integer(timing[2]), let lastNode = jw1064Integer(timing[3].isEmpty ? timing[2] : timing[3]) else { continue }
+                let bracket = timing[4], parity = jw1064Parity(bracket)
+                let room = fields.count > 2 ? fields[2] : ["单", "双", "单周", "双周"].contains(bracket) ? "" : bracket
+                for (first, last) in weeks {
+                    let course = JwCourse(name: Jw64.text(cells[0]), room: room, teacher: Jw64.text(cells[4]), day: Jw64.day(timing[1]), startNode: firstNode, endNode: lastNode, startWeek: first, endWeek: last, type: parity)
+                    if Jw64.valid(course) { result.append(course) }
                 }
-                type = {
-                    if timeInfo[1].contains("单") { return 1 }
-                    if timeInfo[1].contains("双") { return 2 }
-                    return 0
-                }()
-                for (index, s) in Self.CHINESE_WEEK_LIST.enumerated() {
-                    if index != 0 && timeInfo[1].contains(s) { day = index; break }
-                }
-                let nodeMatch: Range<String.Index>? = timeInfo[1].range(of: Self.NODE_PATTERN1, options: [.regularExpression])
-                if let m = nodeMatch {
-                    let v = String(timeInfo[1][m])
-                    // ← v.substringBefore('~')... Kotlin 无 ~ 时返回整串, 此时也应更新 startNode
-                    let head = v.components(separatedBy: "~").first ?? v
-                    if let sv = Int(head.filter { $0.isNumber }) { startNode = sv }
-                    // ← v.substringAfter('~'): Kotlin 缺分隔符时返回整串; 有 ~ 时取第一个 ~ 之后全部内容
-                    let after: String
-                    if let tilde = v.firstIndex(of: "~") {
-                        after = String(v[v.index(after: tilde)...])
-                    } else {
-                        after = v
-                    }
-                    let beforeNode = after.components(separatedBy: "节").first ?? after
-                    if let ev = Int(beforeNode.filter { $0.isNumber }) { endNode = ev }
-                }
-                let room: String
-                if timeInfo.count >= 3 {
-                    room = timeInfo[2]
-                } else {
-                    // ← timeInfo[1].substringAfter('(').substringBefore(')')
-                    //   Kotlin substringAfter 以第一个分隔符切, 缺省时返回整串
-                    let t = timeInfo[1]
-                    let after: String
-                    if let p = t.firstIndex(of: "(") {
-                        after = String(t[t.index(after: p)...])
-                    } else {
-                        after = t
-                    }
-                    if let q = after.firstIndex(of: ")") {
-                        room = String(after[after.startIndex..<q])
-                    } else {
-                        room = after
-                    }
-                }
-
-                result.append(JwCourse(
-                    name: courseName, room: room, teacher: teacher,
-                    day: day,
-                    startNode: max(startNode, 1),
-                    endNode: max(endNode, startNode),
-                    startWeek: max(startWeek, 1),
-                    endWeek: max(endWeek, startWeek),
-                    type: type))
             }
         }
         return result
