@@ -10,7 +10,7 @@ final class DeviceAdaptationUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
-                               "-SLEEPY_UI_TEST_SEED"]
+                               "-SLEEPY_UI_TEST_SEED", "-ui_style", "liquid_glass"]
         app.launchEnvironment["TZ"] = "Asia/Shanghai"
         app.launch()
         XCTAssertTrue(app.buttons["topbar_share"].firstMatch.waitForExistence(timeout: 15))
@@ -41,6 +41,18 @@ final class DeviceAdaptationUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         } while Date() < deadline
         return predicate()
+    }
+
+    private func waitForOrientationReady(file: StaticString = #filePath, line: UInt = #line) {
+        let landscape = XCUIDevice.shared.orientation.isLandscape
+        // UIKit can finish rotating before XCTest refreshes the app's AX frame.
+        // A stale portrait frame makes tap() synthesize an off-screen point.
+        XCTAssertTrue(waitFor {
+            let frame = self.app.frame
+            return frame.width > 0 && frame.height > 0
+                && (landscape ? frame.width > frame.height : frame.height > frame.width)
+        }, "The app accessibility frame must match the displayed orientation before tapping",
+        file: file, line: line)
     }
 
     private func makeHittable(_ element: XCUIElement,
@@ -187,6 +199,7 @@ final class DeviceAdaptationUITests: XCTestCase {
 
     func testLandscapeRailPreservesReachableHeaderAndRotationSelection() {
         XCUIDevice.shared.orientation = .landscapeLeft
+        waitForOrientationReady()
         let combined = app.buttons["rail_schedule_today"].firstMatch
         let schedule = app.buttons["rail_schedule"].firstMatch
         XCTAssertTrue(waitFor { combined.exists || schedule.exists },
@@ -206,9 +219,23 @@ final class DeviceAdaptationUITests: XCTestCase {
             }
         }
         capture("landscape-schedule")
-        app.buttons["rail_mine"].firstMatch.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"].firstMatch.waitForExistence(timeout: 10))
+        func captureRailHierarchy(_ name: String) {
+            let attachment = XCTAttachment(string:
+                "Device orientation: \(XCUIDevice.shared.orientation.rawValue)\nApp frame: \(app.frame)\n\(app.debugDescription)")
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        captureRailHierarchy("landscape-before-rail-mine-hierarchy")
+        let mine = app.buttons["rail_mine"].firstMatch
+        XCTAssertTrue(mine.exists && mine.isHittable)
+        mine.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let reachedMine = app.descendants(matching: .any)["mine_all_tables"].firstMatch.waitForExistence(timeout: 10)
+        capture("landscape-after-rail-mine")
+        captureRailHierarchy("landscape-after-rail-mine-hierarchy")
+        XCTAssertTrue(reachedMine)
         XCUIDevice.shared.orientation = .portrait
+        waitForOrientationReady()
         XCTAssertTrue(nativeTab("Me").waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"].firstMatch.exists,
                       "Rotation must preserve the selected tab")
@@ -243,6 +270,13 @@ final class DeviceAdaptationUITests: XCTestCase {
         testAllShareFormatsReachableOnSmallScreen()
     }
     func testLandscapeDatePickerRetainsConfirmationAndCancel() {
+        // Classic deliberately uses the explicit confirmation sheet. Native
+        // glass uses the system compact date picker and has no app-owned OK row.
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-ui_style" || $0 == "liquid_glass" }
+        app.launchArguments += ["-ui_style", "classic"]
+        app.launch()
+        XCTAssertTrue(app.buttons["topbar_share"].firstMatch.waitForExistence(timeout: 15))
         nativeTab("Manage").tap()
         let edit = app.buttons["manage_edit_current"].firstMatch
         XCTAssertTrue(edit.waitForExistence(timeout: 10))
@@ -260,6 +294,27 @@ final class DeviceAdaptationUITests: XCTestCase {
         capture("landscape-date-picker")
         cancel.tap()
         XCTAssertTrue(app.buttons["edit_table_save"].firstMatch.waitForExistence(timeout: 10))
+    }
+
+    func testNativeDatePickerRemainsReachableAfterRotation() {
+        nativeTab("Manage").tap()
+        let edit = app.buttons["manage_edit_current"].firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 10))
+        edit.tap()
+        let date = app.datePickers["field_Semester Start Date"].firstMatch
+        XCTAssertTrue(date.waitForExistence(timeout: 10), "Glass must expose the native date picker")
+        XCTAssertTrue(date.isHittable)
+        let originalValue = date.value as? String
+        XCUIDevice.shared.orientation = .landscapeLeft
+        waitForOrientationReady()
+        XCTAssertTrue(waitFor { date.exists && date.isHittable && self.app.frame.contains(date.frame) })
+        XCTAssertEqual(date.value as? String, originalValue, "Rotation must retain the selected date")
+        date.tap()
+        capture("landscape-native-date-picker")
+        XCUIDevice.shared.orientation = .portrait
+        waitForOrientationReady()
+        XCTAssertTrue(waitFor { date.exists && date.isHittable })
+        XCTAssertEqual(date.value as? String, originalValue)
     }
 
     func testImportDraftSurvivesNativeToRailRotation() {
@@ -342,6 +397,7 @@ final class DeviceAdaptationUITests: XCTestCase {
             makeHittable(cancel)
             cancel.tap()
             XCTAssertTrue(waitFor { !cancel.exists })
+            waitForOrientationReady()
             let close = app.buttons["detail_close"].firstMatch
             makeHittable(close)
             close.tap()
@@ -350,6 +406,7 @@ final class DeviceAdaptationUITests: XCTestCase {
 
         enterDraft("08:23")
         XCUIDevice.shared.orientation = .landscapeLeft
+        waitForOrientationReady()
         XCTAssertTrue(start.waitForExistence(timeout: 10), "The occurrence editor must survive native-to-rail rotation")
         XCTAssertEqual(start.value as? String, "08:23", "Rotation must retain the entered occurrence draft")
         XCTAssertEqual(custom.value as? String, "1")
@@ -362,6 +419,7 @@ final class DeviceAdaptationUITests: XCTestCase {
 
         enterDraft("08:47")
         XCUIDevice.shared.orientation = .portrait
+        waitForOrientationReady()
         XCTAssertTrue(start.waitForExistence(timeout: 10), "The occurrence editor must survive rail-to-native rotation")
         XCTAssertEqual(start.value as? String, "08:47")
         XCTAssertEqual(custom.value as? String, "1")

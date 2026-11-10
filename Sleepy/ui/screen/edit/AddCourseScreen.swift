@@ -34,6 +34,7 @@ struct MeetingBlockDraft: Identifiable {
     var durationText: String = ""
     var clamped: Bool = false
     var fixedDate: String? = nil
+    var isExpanded: Bool = false
     /// Opening values stay fixed while editing; new blocks have no ghost baseline.
     private(set) var initialStartNode: Int? = nil
     private(set) var initialStep: Int? = nil
@@ -95,6 +96,7 @@ struct ValidationIssue {
 
 struct AddCourseScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @ObservedObject var viewModel: ScheduleViewModel
     let onDismiss: () -> Void
     let onSaved: () -> Void
@@ -197,11 +199,9 @@ struct AddCourseScreen: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     ForEach(Array(meetingBlocks.enumerated()), id: \.element.id) { index, block in
-                        if let table = currentTable {
-                            FixedDateCourseField(block: bindingForBlock(withId: block.id), table: table)
-                        }
                         MeetingBlockEditor(
                             title: L10n.format("slot_n", index + 1),
+                            table: currentTable,
                             block: bindingForBlock(withId: block.id),
                             maxStd: TimeTableUtils.maxStandardNode(effectiveTimeJson),
                             maxWeek: maxWeek,
@@ -222,39 +222,39 @@ struct AddCourseScreen: View {
                             startNode: 3, step: 2, startTime: "10:00", endTime: "11:40",
                             // ← 原版本: 新卡默认固定 1..16, 不做 min/max 交换 (周次卡顶部值
                             // 经「应用到全部时段」显式下发, 倒挂交 slot_week_order 校验)
-                            startWeek: 1, endWeek: 16, weekType: 0))
+                            startWeek: 1, endWeek: 16, weekType: 0, isExpanded: true))
                         nextBlockId += 1
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 24))
+                            AndroidMaterialIcon(name: .add, size: 24)
                             Text(L10n.format("add_slot"))
                         }
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colors.onSecondaryContainer)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(colors.secondaryContainer)
-                        .cornerRadius(SleepyShapes.large)
+                        .frame(height: style == .liquidGlass ? nil : 48)
+                        .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
+                    .tint(colors.secondaryContainer)
                     .accessibilityIdentifier("course_add_slot")
 
                     // 保存
                     Button(action: { save() }) {
                         HStack(spacing: 8) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 24))
+                            AndroidMaterialIcon(name: .check, size: 24)
                             Text(L10n.format(editingCourse != nil ? "save_course" : "create_course_btn"))
                         }
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colors.onPrimary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(colors.primary)
-                        .cornerRadius(SleepyShapes.large)
+                        .frame(height: style == .liquidGlass ? nil : 56)
+                        .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
+                    .tint(colors.primary)
                     .disabled(!canSave)
                     .accessibilityIdentifier("course_save")
 
@@ -262,18 +262,18 @@ struct AddCourseScreen: View {
                     if editingCourse != nil {
                         Button(action: { showDeleteConfirm = true }) {
                             HStack(spacing: 8) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 24))
+                                AndroidSettingsIcon(name: .delete, size: 24)
                                 Text(L10n.format("delete_course"))
                             }
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(colors.onErrorContainer)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .background(colors.errorContainer)
-                            .cornerRadius(SleepyShapes.large)
+                            .frame(height: style == .liquidGlass ? nil : 48)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)
                         }
-                        .buttonStyle(SleepyButtonStyle())
+                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
+                        .tint(colors.errorContainer)
                         .disabled(!groupLoaded)
                         .accessibilityIdentifier("course_delete")
                     }
@@ -451,11 +451,12 @@ struct AddCourseScreen: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSecondaryContainer)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(colors.secondaryContainer)
-                    .cornerRadius(SleepyShapes.large)
+                    .frame(height: style == .liquidGlass ? nil : 48)
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
             }
-            .buttonStyle(SleepyButtonStyle())
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
+            .tint(colors.secondaryContainer)
             .accessibilityIdentifier("course_apply_to_all_slots")
         }
     }
@@ -516,7 +517,9 @@ struct AddCourseScreen: View {
         courseAlias = source?.alias ?? ""
         startWeek = source?.startWeek ?? 1
         endWeek = source?.endWeek ?? 16
-        meetingBlocks = [Self.initialMeetingBlock(source)]
+        var firstBlock = Self.initialMeetingBlock(source)
+        firstBlock.isExpanded = source == nil
+        meetingBlocks = [firstBlock]
         hydratedTimeJson = editorContext?.table.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON
         hydratedPeriodTableId = editorContext?.table.periodTableId
 
@@ -534,7 +537,9 @@ struct AddCourseScreen: View {
             }
             startWeek = initialSlot.week
             endWeek = initialSlot.week
-            meetingBlocks = [block]
+            var expanded = block
+            expanded.isExpanded = true
+            meetingBlocks = [expanded]
         }
 
         // LaunchedEffect(editingCourse?.groupId): 查同 groupId 分组回填
@@ -577,6 +582,7 @@ struct AddCourseScreen: View {
                     b.durationText = String(Self.minutesBetween(b.startTime, b.endTime) ?? 0)
                     if Int(b.durationText) == 0 { b.durationText = "" }
                 }
+                b.isExpanded = courses.contains { $0.id == source?.id }
                 blocks.append(b)
                 bid += 1
             }
@@ -1100,6 +1106,8 @@ private struct SwitchRow: View {
             Spacer()
             Toggle("", isOn: $checked)
                 .labelsHidden()
+                .toggleStyle(SleepyToggleStyle())
+                .tint(colors.primary)
         }
     }
 }
@@ -1107,7 +1115,9 @@ private struct SwitchRow: View {
 // ← MeetingBlockEditor (issue#23 逐卡: 卡内两个独立开关 — 非常规节次 / 非常规时间)
 private struct MeetingBlockEditor: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let title: String
+    let table: TimeTableEntity?
     @Binding var block: MeetingBlockDraft
     let maxStd: Int
     let maxWeek: Int
@@ -1157,14 +1167,30 @@ private struct MeetingBlockEditor: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if canRemove {
                     Button(action: onRemove) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 24))
+                        AndroidSettingsIcon(name: .close, size: 24)
                             .foregroundColor(colors.onSurfaceVariant)
+                            .frame(width: style == .liquidGlass ? nil : 48,
+                                   height: style == .liquidGlass ? nil : 48)
                     }
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, shape: .circle))
+                    .frame(width: 48, height: 48)
+                    .accessibilityLabel(L10n.t("delete_slot"))
+                    .accessibilityIdentifier("course_slot_\(block.id)_remove")
                 }
+                Button { withAnimation(.easeInOut(duration: 0.2)) { block.isExpanded.toggle() } } label: {
+                    AndroidSettingsIcon(name: .expandMore, size: 24)
+                        .rotationEffect(.degrees(block.isExpanded ? 180 : 0))
+                        .frame(width: style == .liquidGlass ? nil : 48,
+                               height: style == .liquidGlass ? nil : 48)
+                }
+                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, shape: .circle))
+                .frame(width: 48, height: 48)
+                .accessibilityLabel(L10n.t(block.isExpanded ? "slot_collapse" : "slot_expand"))
+                .accessibilityIdentifier("course_slot_\(block.id)_expand")
             }
 
+            if block.isExpanded {
+            if let table { FixedDateCourseField(block: $block, table: table) }
             MultiDayPicker(selectedDays: block.days) { day in
                 if block.days.contains(day) { block.days.remove(day) } else { block.days.insert(day) }
             }
@@ -1245,6 +1271,7 @@ private struct MeetingBlockEditor: View {
                 ColorSection(block: $block, groupSourceColorHex: groupSourceColorHex)
             }
 
+            }
             // 尾部 if 合并进 Group, 防外层 builder 超 10 子视图
             Group {
                 if !issues.isEmpty {
@@ -1272,6 +1299,7 @@ private struct MeetingBlockEditor: View {
 // 展开内容 padding start/end/bottom 12 spacedBy 12, chevron 20dp 随展开旋转 180°。
 private struct IrregularOptionsSection: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     @Binding var block: MeetingBlockDraft
     let timeJson: String
     let initiallyExpanded: Bool
@@ -1315,8 +1343,7 @@ private struct IrregularOptionsSection: View {
                             .lineLimit(2)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 20))
+                    AndroidSettingsIcon(name: .expandMore, size: 20)
                         .foregroundColor(colors.onSurfaceVariant)
                         .rotationEffect(.degrees(expanded ? 180 : 0))
                 }
@@ -1360,11 +1387,13 @@ private struct IrregularOptionsSection: View {
                                 Button {
                                     onEditSlot(s.node, s.start, s.end)
                                 } label: {
-                                    Image(systemName: "square.and.pencil")
-                                        .font(.system(size: 24))
+                                    AndroidSettingsIcon(name: .edit, size: 24)
                                         .foregroundColor(colors.onSurfaceVariant)
+                                        .frame(width: style == .classic ? 48 : nil,
+                                               height: style == .classic ? 48 : nil)
                                 }
-                                .buttonStyle(SleepyButtonStyle())
+                                .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+                                .frame(width: 48, height: 48)
                                 .accessibilityLabel(L10n.format("irregular_slot_edit_title"))
                             }
                         }
@@ -1504,6 +1533,8 @@ private struct ColorSection: View {
                     }
                 ))
                 .labelsHidden()
+                .toggleStyle(SleepyToggleStyle())
+                .tint(colors.primary)
             }
             if !useDifferent {
                 // OFF = 跟随组色: 仅显示组色 (改组色入口在基础信息卡组色节, 此处无按钮)
@@ -1552,6 +1583,7 @@ private struct ColorSection: View {
 /// ← GroupColorSection (kt L1811-1851)
 private struct GroupColorSection: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let groupSourceColorHex: String
     let onChangeGroupColor: () -> Void
 
@@ -1568,16 +1600,29 @@ private struct GroupColorSection: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(colors.onSurfaceVariant)
                 Spacer()
-                Button(action: onChangeGroupColor) {
-                    Text(L10n.format("change_group_color"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(colors.onSecondaryContainer)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(colors.secondaryContainer)
-                        .cornerRadius(SleepyShapes.medium)
+                if style == .liquidGlass {
+                    Button(action: onChangeGroupColor) {
+                        Text(L10n.format("change_group_color"))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(colors.onSecondaryContainer)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true,
+                                                           cornerRadius: SleepyShapes.medium))
+                    .tint(colors.secondaryContainer)
+                } else {
+                    Button(action: onChangeGroupColor) {
+                        Text(L10n.format("change_group_color"))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(colors.onSecondaryContainer)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(colors.secondaryContainer)
+                            .cornerRadius(SleepyShapes.medium)
+                    }
+                    .buttonStyle(SleepyButtonStyle())
                 }
-                .buttonStyle(SleepyButtonStyle())
             }
         }
     }
@@ -1606,6 +1651,7 @@ private struct GroupColorSwatch: View {
 // 选中=primary 底 + onPrimary 字, 未选=surfaceContainerHighest 底 + onSurface 字; 无勾选符号。
 private struct MultiDayPicker: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let selectedDays: Set<Int>
     let onToggleDay: (Int) -> Void
 
@@ -1621,19 +1667,35 @@ private struct MultiDayPicker: View {
         HStack(spacing: 8) {
             ForEach(range, id: \.self) { day in
                 let selected = selectedDays.contains(day)
-                Button {
-                    onToggleDay(day)
-                } label: {
-                    Text(DateUtils.localizedDay(day))
-                        .font(.system(size: 14, weight: .medium))   // ← labelLarge 14sp (工程惯例)
-                        .foregroundColor(selected ? colors.onPrimary : colors.onSurface)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(selected ? colors.primary : colors.surfaceContainerHighest)
-                        .cornerRadius(SleepyShapes.medium)
-                        .contentShape(Rectangle())
+                if style == .liquidGlass {
+                    Button { onToggleDay(day) } label: {
+                        Text(DateUtils.localizedDay(day))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(selected ? colors.onPrimary : colors.onSurface)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: selected,
+                                                           cornerRadius: SleepyShapes.medium, compact: true))
+                    .tint(colors.primary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                } else {
+                    Button {
+                        onToggleDay(day)
+                    } label: {
+                        Text(DateUtils.localizedDay(day))
+                            .font(.system(size: 14, weight: .medium))   // ← labelLarge 14sp (工程惯例)
+                            .foregroundColor(selected ? colors.onPrimary : colors.onSurface)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(selected ? colors.primary : colors.surfaceContainerHighest)
+                            .cornerRadius(SleepyShapes.medium)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SleepyButtonStyle())
                 }
-                .buttonStyle(SleepyButtonStyle())
             }
             // 第二行 3 个时补空位, 保证芯片宽度与第一行一致 (kt: repeat(4 - row.size) Spacer)
             if range.count < 4 {
@@ -1752,7 +1814,7 @@ private struct EdgeCandidatePickerDialog: View {
                 Button(L10n.format("cancel")) { onDismiss() }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
             }
         }
         .padding(16)
@@ -1790,12 +1852,12 @@ private struct NewEdgeSlotDialog: View {
                 Button(L10n.format("cancel")) { onDismiss() }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
                 Button(L10n.format("edge_insert_ok")) { onConfirm(start, end) }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
                     .disabled(!valid)
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
             }
         }
         .padding(16)
@@ -1846,12 +1908,12 @@ private struct SlotEditDialog: View {
                 Button(L10n.format("cancel")) { onDismiss() }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
                 Button(L10n.format("edge_insert_ok")) { onConfirm(start, end) }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
                     .disabled(!valid)
-                    .buttonStyle(SleepyButtonStyle())
+                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
             }
         }
         .padding(16)
@@ -1865,6 +1927,7 @@ private struct SlotEditDialog: View {
 // ← AutoColorDot
 private struct AutoColorDot: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let selected: Bool
     let onClick: () -> Void
 
@@ -1879,14 +1942,20 @@ private struct AutoColorDot: View {
                     .font(.system(size: 11))
                     .foregroundColor(selected ? colors.onPrimaryContainer : colors.onSurfaceVariant)
             }
+            .frame(width: style == .classic ? 48 : nil,
+                   height: style == .classic ? 48 : nil)
+            .contentShape(Circle())
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+        .frame(width: 48, height: 48)
+        .contentShape(Circle())
     }
 }
 
 // ← CustomColorDot
 private struct CustomColorDot: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let hex: String?
     let onClick: () -> Void
 
@@ -1905,7 +1974,12 @@ private struct CustomColorDot: View {
                         .foregroundColor(colors.onSurfaceVariant)
                 }
             }
+            .frame(width: style == .classic ? 48 : nil,
+                   height: style == .classic ? 48 : nil)
+            .contentShape(Circle())
         }
-        .buttonStyle(SleepyButtonStyle())
+        .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+        .frame(width: 48, height: 48)
+        .contentShape(Circle())
     }
 }

@@ -262,10 +262,11 @@ struct PeriodTableEditScreen: View {
     private func headerBar(periodTable: PeriodTableEntity) -> some View {
         HStack {
             Button(action: handleBack) {
-                AndroidSettingsIcon(name: .arrowBack, size: 17)
+                AndroidSettingsIcon(name: .arrowBack, size: 24)
+                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
             }
             .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
-            .frame(minWidth: 44, minHeight: 44)
+            .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("back")))
             Spacer()
             Text(L10n.t("period_tables_title"))
@@ -275,10 +276,11 @@ struct PeriodTableEditScreen: View {
                 // v1.0.56 T11: 分享作息表(原生格式 / JSON 二选一)
                 Button(action: { showShareSheet = true }) {
                     AndroidSettingsIcon(name: .share, size: 24)
+                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                         .foregroundColor(colors.onBackground)
                 }
                 .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("period_table_share_sheet_title")))
                 Spacer().frame(width: 16)
                 // v1.0.56 T8: 复制先弹命名框, 确认后才落库; 成功回管理页
@@ -289,10 +291,11 @@ struct PeriodTableEditScreen: View {
                     }
                 } label: {
                     AndroidSettingsIcon(name: .contentCopy, size: 24)
+                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
                         .foregroundColor(colors.onBackground)
                 }
                 .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("period_table_copy")))
                 .accessibilityIdentifier("period_table_copy")
             }

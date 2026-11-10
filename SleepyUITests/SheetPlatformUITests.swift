@@ -100,6 +100,22 @@ final class SheetPlatformUITests: XCTestCase {
                 viewport.size.height = max(0, bottom - viewport.minY)
             }
         }
+        if scroll != nil {
+            // A root page scrolls behind the floating navigation. Starting a
+            // drag on that overlay never moves the page. Ignore covered tabs
+            // behind a modal and vertical rails at the side of an iPad.
+            let tabFrames = ["pill_schedule", "pill_today", "pill_manage", "pill_mine"]
+                .map { app.buttons[$0].firstMatch }
+                .filter { $0.exists && $0.isHittable }
+                .map { $0.frame }
+                .filter { $0.width > 0 && $0.height > 0 && $0.intersects(viewport) }
+            if let first = tabFrames.first {
+                let navigation = tabFrames.dropFirst().reduce(first) { $0.union($1) }
+                if navigation.width > navigation.height, navigation.minY >= viewport.midY {
+                    viewport.size.height = max(0, min(viewport.maxY, navigation.minY - 4) - viewport.minY)
+                }
+            }
+        }
         if let keyboard = keyboardOcclusion(), viewport.intersects(keyboard) {
             viewport.size.height = max(0, min(viewport.maxY, keyboard.minY) - viewport.minY)
         }
@@ -216,6 +232,34 @@ final class SheetPlatformUITests: XCTestCase {
                       "Submitting the source-table name must dismiss the keyboard")
         let save = app.buttons["period_table_save"].firstMatch
         makeHittable(save)
+        // Keyboard disappearance can precede the final scroll/layout snapshot.
+        // Settle both the control and its viewport before the single save tap.
+        var previousGeometry: [CGRect] = []
+        var stableSince = Date()
+        var stableSamples = 0
+        XCTAssertTrue(waitUntil {
+            guard !self.app.keyboards.firstMatch.exists, save.exists, save.isHittable else {
+                previousGeometry = []
+                stableSamples = 0
+                return false
+            }
+            let frame = save.frame
+            let viewport = self.visibleViewport(in: self.owningScrollView(save))
+            guard frame.width > 0, frame.height > 0, viewport.contains(frame) else {
+                previousGeometry = []
+                stableSamples = 0
+                return false
+            }
+            let geometry = [self.app.frame, frame, viewport]
+            if geometry != previousGeometry {
+                previousGeometry = geometry
+                stableSince = Date()
+                stableSamples = 1
+                return false
+            }
+            stableSamples += 1
+            return stableSamples >= 3 && Date().timeIntervalSince(stableSince) >= 0.5
+        }, "The save control and its scroll viewport must settle after keyboard dismissal")
         save.tap()
         let confirm = app.buttons["period_table_preview_confirm"].firstMatch
         makeHittable(confirm)
@@ -345,6 +389,97 @@ final class SheetPlatformUITests: XCTestCase {
         let source = "EditorSource-\(UUID().uuidString.prefix(8))"
         let sourceID = createPeriodTable(named: source)
         exerciseCopy(sourceID: sourceID, sourceName: source, fromEditor: true)
+    }
+
+    func testTimetableCopyValidatesNameAndKeepsLandscapeKeyboardActionsReachable() {
+        app.switchToPillTab("mine")
+        let tables = app.buttons["mine_all_tables"].firstMatch
+        makeHittable(tables)
+        tables.tap()
+        let source = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_select_' ")).firstMatch
+        XCTAssertTrue(source.waitForExistence(timeout: 10))
+        let sourceName = source.label
+        let copy = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_duplicate_' ")).firstMatch
+        makeHittable(copy)
+        copy.tap()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let name = app.descendants(matching: .any)["table_copy_name"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        let confirm = app.buttons["table_copy_confirm"].firstMatch
+        let cancel = app.buttons["table_copy_cancel"].firstMatch
+        replaceText(name, with: "   ")
+        XCTAssertFalse(confirm.isEnabled, "Whitespace-only names cannot create a timetable")
+        replaceText(name, with: sourceName)
+        XCTAssertFalse(confirm.isEnabled, "An existing timetable name cannot create a copy")
+        let discarded = "Discarded-\(UUID().uuidString.prefix(8))"
+        replaceText(name, with: discarded)
+        makeHittable(cancel)
+        assertInteractiveInWindow(cancel)
+        capture("landscape-timetable-copy-cancel-keyboard")
+        cancel.tap()
+        XCTAssertTrue(waitUntil { !cancel.exists })
+        XCTAssertFalse(app.staticTexts[discarded].exists)
+        makeHittable(copy)
+        copy.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        XCTAssertNotEqual(name.value as? String, discarded)
+        let copied = "Timetable-\(UUID().uuidString.prefix(8))"
+        replaceText(name, with: copied)
+        makeHittable(confirm)
+        assertInteractiveInWindow(confirm)
+        capture("landscape-timetable-copy-save-keyboard")
+        confirm.tap()
+        XCTAssertTrue(waitUntil { !confirm.exists })
+        let result = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_select_' AND label == %@", copied)).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 10), "The confirmed copy must appear in the timetable list")
+        XCTAssertTrue(source.exists, "Copying must retain the source timetable")
+        XCTAssertFalse(app.staticTexts[discarded].exists)
+        capture("landscape-timetable-copy-result")
+    }
+
+    func testOccurrenceRoomCancelsDraftThenSavesOnlyTheSelectedOccurrence() {
+        let pager = app.collectionViews["schedule_week_pager"]
+        let course = pager.buttons["gridcell_1"].firstMatch
+        XCTAssertTrue(course.waitForExistence(timeout: 10))
+        course.tap()
+        let edit = app.buttons["course_occurrence_actions"].firstMatch
+        makeHittable(edit)
+        edit.tap()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let field = app.descendants(matching: .any)["occurrence_room"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        let original = field.value as? String ?? ""
+        replaceText(field, with: "Discarded room")
+        let cancel = app.buttons["occurrence_cancel"].firstMatch
+        assertInteractiveInWindow(cancel)
+        cancel.tap()
+        XCTAssertTrue(waitUntil { !cancel.exists })
+        makeHittable(edit)
+        edit.tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        XCTAssertEqual(field.value as? String, original)
+        let replacement = "Studio-\(UUID().uuidString.prefix(6))"
+        replaceText(field, with: "  " + replacement + "  ")
+        let save = app.buttons["occurrence_save"].firstMatch
+        makeHittable(save)
+        assertInteractiveInWindow(save)
+        capture("landscape-occurrence-room-save-keyboard")
+        save.tap()
+        XCTAssertTrue(waitUntil { !save.exists }, "A room-only adjustment must save without changing time")
+        let updated = pager.buttons.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'gridcell_' AND label CONTAINS %@", "高等数学"))
+        XCTAssertTrue(waitUntil { updated.allElementsBoundByIndex.contains { $0.isHittable } })
+        updated.allElementsBoundByIndex.first { $0.isHittable }!.tap()
+        let room = app.staticTexts[replacement].firstMatch
+        XCTAssertTrue(room.waitForExistence(timeout: 10), "The saved room must appear trimmed in occurrence details")
+        capture("landscape-occurrence-room-result")
+        let close = app.buttons["detail_close"].firstMatch
+        makeHittable(close)
+        close.tap()
+        app.buttons["week_next"].firstMatch.tap()
+        XCTAssertTrue(waitUntil { updated.allElementsBoundByIndex.contains { $0.isHittable } })
+        updated.allElementsBoundByIndex.first { $0.isHittable }!.tap()
+        XCTAssertFalse(app.staticTexts[replacement].exists, "Other weeks must retain the original room")
     }
 
     func testLandscapeOccurrenceEditorValidatesSaveAndCancelsDelete() {

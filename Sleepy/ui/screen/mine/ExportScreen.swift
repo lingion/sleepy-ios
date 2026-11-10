@@ -1,7 +1,7 @@
 // ExportScreen.swift — ← ui/screen/mine/ExportScreen.kt
-// 导出课表/作息表页 — 2026-09-16 用户重构对齐:
+// 导出课表/作息表页 — Android 1.0.64:
 // 顶部展开框上半列全部课表、横向分隔线、下半列全部作息表(课表优先展开完)。
-// 选中课表 → 五个格式项(JSON/分享文本/ICS/添加到系统日历/原生);
+// 选中课表 → 文件与分享(原生/分享文本/JSON)、日历与助手(系统日历/ICS/小爱);
 // 选中作息表 → 自动只剩两项(Sleepy 原生 + JSON), 其余格式对纯作息无意义。
 // 平台映射: MediaStore Downloads + ACTION_SEND → ShareLink/UIActivityViewController +
 // 写临时文件(tmp)经 UIActivityViewController 分享(等价适配:iOS 沙箱无公共 Downloads)。
@@ -60,11 +60,11 @@ struct ExportScreen: View {
                                         .font(.system(size: 16, weight: .bold))
                                         .foregroundColor(colors.onPrimaryContainer)
                                         .frame(maxWidth: .infinity, alignment: .leading)
-                                    Image(systemName: "chevron.down")
-                                        .font(.system(size: 24)) // ← 原默认 Icon 24dp(ExpandMore 无 size 修饰)
+                                    AndroidSettingsIcon(name: .expandMore, size: 24) // ← 原默认 Icon 24dp(ExpandMore 无 size 修饰)
                                         .foregroundColor(colors.onPrimaryContainer)
                                         // ← 原 contentDescription = export_pick_table
                                         .accessibilityLabel(L10n.format("export_pick_table"))
+                                        .accessibilityHidden(false)
                                 }
                                 Text(periodSubtitle(pt: selectedPeriodTable, table: table, courses: courses))
                                     .font(.system(size: 14))
@@ -78,8 +78,7 @@ struct ExportScreen: View {
                         .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("export_table_card")
 
-                        // 格式选项 — 选中作息表 → 只剩原生 + JSON 两项(用户 2026-09-16);
-                        // 选中课表 → 完整五项; 皆无(table==nil, 有作息表未选)→ 不渲染格式卡。
+                        // 作息表保留原生与 JSON；课表按文件分享、日历与助手分组。
                         if let pt = selectedPeriodTable {
                             VStack(spacing: 0) {
                                 ExportItem(icon: "star",
@@ -103,107 +102,107 @@ struct ExportScreen: View {
                             .background(colors.surfaceContainer)
                             .cornerRadius(SleepyShapes.large)
                         } else if let table = table {
-                            VStack(spacing: 0) {
-                                ExportItem(icon: "curlybraces",
-                                           title: L10n.format("export_json_title"),
-                                           subtitle: L10n.format("export_json_subtitle"),
-                                           id: "export_json_row") {
-                                    exportFile(displayName: table.name,
-                                               ext: "json", mime: "application/json",
-                                               content: ScheduleExporter.exportWakeUpJson(table.hydratedWith(boundPeriodTable(table)), courses))
-                                }
-                                RowDivider()
-                                ExportItem(icon: "square.and.arrow.up",
-                                           title: L10n.format("export_share_title"),
-                                           subtitle: L10n.format("export_share_subtitle"),
-                                           id: "export_share_row") {
-                                    // ← shareText: sleepy-v1 文本(【来自Sleepy】包裹), 与原实现
-                                    //   SleepyNativeExporter.exportShareText 同构(不再用 WakeUp URL JSON)
-                                    let period = boundPeriodTable(table)
-                                    let effective = table.hydratedWith(period)
-                                    shareSheet = ShareItem(text: SleepyNativeExporter.exportShareText(
-                                                tableName: effective.name, startDate: effective.startDate,
-                                                maxWeek: effective.maxWeek, nodesPerDay: effective.nodesPerDay,
-                                                timeJson: effective.timeJson, courses: courses,
-                                                periodTable: period.map { .init(id: $0.id, name: $0.name,
-                                                    nodesPerDay: $0.nodesPerDay, timeJson: $0.timeJson) }),
-                                                subject: table.name, url: nil)
-                                    snackMessage = L10n.format("export_copied_hint")
-                                }
-                                RowDivider()
-                                // v1.0.62 B6 ← 原版本 ExportScreen: 小爱导出项(SmartToy → SF sparkles,
-                                //   16.4 SDK 无 robot 符号) — voiceassist:// deep link 唤起小爱预览导入
-                                ExportItem(icon: "sparkles",
-                                           title: L10n.format("export_xiaoai_title"),
-                                           subtitle: L10n.format("export_xiaoai_subtitle"),
-                                           id: "export_xiaoai_row") {
-                                    launchXiaoaiImport(table: table,
-                                                       courses: courses,
-                                                       boundPeriodTable: boundPeriodTable(table))
-                                }
-                                RowDivider()
-                                ExportItem(icon: "calendar",
-                                           title: L10n.format("export_ics_title"),
-                                           subtitle: L10n.format("export_ics_subtitle"),
-                                           id: "export_ics_row") {
-                                    // ← 原 `LocalDate.parse` 对非法 startDate 抛异常、不产出文件;
-                                    //   iOS 等价: 走 exportIcsOrThrow, catch 报 export_failed —
-                                    //   不再用 exportIcs 包装器静默分享空 ICS(用户会看到「已保存」假成功)。
-                                    do {
+                            SettingsSection(title: L10n.format("settings_export_sharing")) {
+                                VStack(spacing: 0) {
+                                    ExportItem(icon: "star",
+                                               title: L10n.format("settings_export_native_file_title"),
+                                               subtitle: L10n.format("settings_export_native_file_sub"),
+                                               id: "export_native_row") {
+                                        // MIME 用 text/plain 规避 ImportReceiverActivity MIME 收窄问题(调查报告 P3)
                                         exportFile(displayName: table.name,
-                                                   ext: "ics", mime: "text/calendar",
-                                                   content: try ScheduleExporter.exportIcsOrThrow(table.hydratedWith(boundPeriodTable(table)), courses,
-                                                       transfers: AppPrefs.shared.getHolidayTransfers(table.id)))
-                                    } catch {
-                                        snackMessage = L10n.format("export_failed")
+                                                   ext: "sleepy", mime: "text/plain",
+                                                   content: SleepyNativeExporter.exportFile(
+                                                       tableName: table.name, startDate: table.startDate,
+                                                       maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
+                                                       timeJson: table.timeJson, courses: courses,
+                                                       // issue#40 §6: 绑定了独立时间节次表时携带 P 区块(共享关系可往返)
+                                                       periodTable: boundPeriodTable(table).map {
+                                                           SleepyNativeExporter.PeriodTableExport(
+                                                               id: $0.id, name: $0.name,
+                                                               nodesPerDay: $0.nodesPerDay, timeJson: $0.timeJson)
+                                                       }, importSourceJson: table.importSourceJson))
+                                    }
+                                    RowDivider()
+                                    ExportItem(icon: "square.and.arrow.up",
+                                               title: L10n.format("export_share_title"),
+                                               subtitle: L10n.format("export_share_subtitle"),
+                                               id: "export_share_row") {
+                                        // ← shareText: sleepy-v1 文本(【来自Sleepy】包裹), 与原实现
+                                        //   SleepyNativeExporter.exportShareText 同构(不再用 WakeUp URL JSON)
+                                        let period = boundPeriodTable(table)
+                                        let effective = table.hydratedWith(period)
+                                        shareSheet = ShareItem(text: SleepyNativeExporter.exportShareText(
+                                                    tableName: effective.name, startDate: effective.startDate,
+                                                    maxWeek: effective.maxWeek, nodesPerDay: effective.nodesPerDay,
+                                                    timeJson: effective.timeJson, courses: courses,
+                                                    periodTable: period.map { .init(id: $0.id, name: $0.name,
+                                                        nodesPerDay: $0.nodesPerDay, timeJson: $0.timeJson) }, importSourceJson: table.importSourceJson),
+                                                    subject: table.name, url: nil)
+                                        snackMessage = L10n.format("export_copied_hint")
+                                    }
+                                    RowDivider()
+                                    ExportItem(icon: "curlybraces",
+                                               title: L10n.format("export_json_title"),
+                                               subtitle: L10n.format("export_json_subtitle"),
+                                               id: "export_json_row") {
+                                        exportFile(displayName: table.name,
+                                                   ext: "json", mime: "application/json",
+                                                   content: ScheduleExporter.exportWakeUpJson(table.hydratedWith(boundPeriodTable(table)), courses))
                                     }
                                 }
-                                // ← 原版本 第 4 项: 添加到系统日历 — EventKit 权限状态机:
-                                //   已授权 → 载入目标表课程后直接打开配置弹窗;
-                                //   未授权 → 系统授权弹窗, 回调再实际校验, 拒绝则停留本页(下次点击重试)。
-                                RowDivider()
-                                ExportItem(icon: "calendar",
-                                           title: L10n.format("calendar_import_title"),
-                                           subtitle: (effectiveId != state.selectedTableId && loadedCourses == nil)
-                                               ? L10n.format("calendar_import_loading")
-                                               : L10n.format("calendar_import_subtitle"),
-                                           id: "export_calendar_import_row") {
-                                    if SystemCalendarManager.shared.hasCalendarPermissions() {
-                                        openCalendarImportForCurrentTarget()
-                                    } else {
-                                        Task { @MainActor in
-                                            if await SystemCalendarManager.shared.ensureCalendarPermissions() {
-                                                openCalendarImportForCurrentTarget()
-                                            } else {
-                                                showCalendarImport = false
+                                .background(colors.surfaceContainer)
+                                .cornerRadius(SleepyShapes.large)
+                            }
+                            SettingsSection(title: L10n.format("settings_export_calendar_assistants")) {
+                                VStack(spacing: 0) {
+                                    ExportItem(icon: "calendar",
+                                               title: L10n.format("calendar_import_title"),
+                                               subtitle: (effectiveId != state.selectedTableId && loadedCourses == nil)
+                                                   ? L10n.format("calendar_import_loading")
+                                                   : L10n.format("calendar_import_subtitle"),
+                                               id: "export_calendar_import_row") {
+                                        if SystemCalendarManager.shared.hasCalendarPermissions() {
+                                            openCalendarImportForCurrentTarget()
+                                        } else {
+                                            Task { @MainActor in
+                                                if await SystemCalendarManager.shared.ensureCalendarPermissions() {
+                                                    openCalendarImportForCurrentTarget()
+                                                } else {
+                                                    showCalendarImport = false
+                                                }
                                             }
                                         }
                                     }
+                                    RowDivider()
+                                    ExportItem(icon: "calendar",
+                                               title: L10n.format("export_ics_title"),
+                                               subtitle: L10n.format("export_ics_subtitle"),
+                                               id: "export_ics_row") {
+                                        // ← 原 `LocalDate.parse` 对非法 startDate 抛异常、不产出文件;
+                                        //   iOS 等价: 走 exportIcsOrThrow, catch 报 export_failed —
+                                        //   不再用 exportIcs 包装器静默分享空 ICS(用户会看到「已保存」假成功)。
+                                        do {
+                                            exportFile(displayName: table.name,
+                                                       ext: "ics", mime: "text/calendar",
+                                                       content: try ScheduleExporter.exportIcsOrThrow(table.hydratedWith(boundPeriodTable(table)), courses,
+                                                           transfers: AppPrefs.shared.getHolidayTransfers(table.id)))
+                                        } catch {
+                                            snackMessage = L10n.format("export_failed")
+                                        }
+                                    }
+                                    RowDivider()
+                                    ExportItem(icon: "sparkles",
+                                               title: L10n.format("export_xiaoai_title"),
+                                               subtitle: L10n.format("export_xiaoai_subtitle"),
+                                               id: "export_xiaoai_row") {
+                                        launchXiaoaiImport(table: table,
+                                                           courses: courses,
+                                                           boundPeriodTable: boundPeriodTable(table))
+                                    }
                                 }
-                                // ← 原版本 第 5 行: Sleepy 原生格式 — 文件形态(末尾 z|chk=crc32 尾注),
-                                //   .sleepy 文件经系统分享; 图标 Star → SF "star"(与 ShareScheduleSheet 同映射)
-                                RowDivider()
-                                ExportItem(icon: "star",
-                                           title: L10n.format("export_native_title"),
-                                           subtitle: L10n.format("export_native_subtitle"),
-                                           id: "export_native_row") {
-                                    // MIME 用 text/plain 规避 ImportReceiverActivity MIME 收窄问题(调查报告 P3)
-                                    exportFile(displayName: table.name,
-                                               ext: "sleepy", mime: "text/plain",
-                                               content: SleepyNativeExporter.exportFile(
-                                                   tableName: table.name, startDate: table.startDate,
-                                                   maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
-                                                   timeJson: table.timeJson, courses: courses,
-                                                   // issue#40 §6: 绑定了独立时间节次表时携带 P 区块(共享关系可往返)
-                                                   periodTable: boundPeriodTable(table).map {
-                                                       SleepyNativeExporter.PeriodTableExport(
-                                                           id: $0.id, name: $0.name,
-                                                           nodesPerDay: $0.nodesPerDay, timeJson: $0.timeJson)
-                                                   }))
-                                }
+                                .background(colors.surfaceContainer)
+                                .cornerRadius(SleepyShapes.large)
                             }
-                            .background(colors.surfaceContainer)
-                            .cornerRadius(SleepyShapes.large)
                         }
                     }
                     .padding(16)
@@ -455,8 +454,7 @@ private struct PickerRow: View {
                 }
                 Spacer()
                 if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 18)) // ← 原 Modifier.size(18.dp)
+                    AndroidMaterialIcon(name: .check, size: 18) // ← 原 Modifier.size(18.dp)
                         .foregroundColor(colors.primary)
                 }
             }
@@ -508,8 +506,16 @@ private struct ExportItem: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.system(size: 24)) // ← 原默认 Icon 24dp
+                Group {
+                    switch icon {
+                    case "star": AndroidSettingsIcon(name: .star, size: 24)
+                    case "curlybraces": AndroidSettingsIcon(name: .code, size: 24)
+                    case "square.and.arrow.up": AndroidSettingsIcon(name: .share, size: 24)
+                    case "sparkles": AndroidSettingsIcon(name: .smartToy, size: 24)
+                    case "calendar": AndroidMaterialIcon(name: .calendarMonth, size: 24)
+                    default: Image(systemName: icon).font(.system(size: 24))
+                    }
+                } // ← 原默认 Icon 24dp
                     .foregroundColor(colors.onPrimaryContainer)
                     .frame(width: 44, height: 44)
                     .background(colors.primaryContainer)
