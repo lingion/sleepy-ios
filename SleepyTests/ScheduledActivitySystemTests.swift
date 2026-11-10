@@ -7,6 +7,7 @@ import XCTest
 final class ScheduledActivitySystemTests: XCTestCase {
     @MainActor
     func testScheduledActivityStartsAndEndsThroughSystem() async throws {
+        #if compiler(>=6.2)
         guard #available(iOS 26.0, *) else { throw XCTSkip("Requires iOS 26 scheduling") }
         guard UIApplication.shared.applicationState == .active else { throw XCTSkip("App must be foreground to schedule") }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { throw XCTSkip("Live Activities disabled on this test device") }
@@ -28,10 +29,14 @@ final class ScheduledActivitySystemTests: XCTestCase {
         await activity.end(nil, dismissalPolicy: .immediate)
         XCTAssertEqual(observed, .active, "The system should activate the scheduled request without an app timer")
         XCTAssertTrue(activity.activityState == .ended || activity.activityState == .dismissed)
+        #else
+        throw XCTSkip("Requires an SDK that supports iOS 26 scheduled activities")
+        #endif
     }
 
     @MainActor
     func testCancellingPendingActivityPreventsItsStart() async throws {
+        #if compiler(>=6.2)
         guard #available(iOS 26.0, *) else { throw XCTSkip("Requires iOS 26 scheduling") }
         guard UIApplication.shared.applicationState == .active else { throw XCTSkip("App must be foreground to schedule") }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { throw XCTSkip("Live Activities disabled on this test device") }
@@ -47,5 +52,8 @@ final class ScheduledActivitySystemTests: XCTestCase {
         try? await Task.sleep(nanoseconds: 6_000_000_000)
         XCTAssertNotEqual(activity.activityState, .active)
         XCTAssertNotEqual(activity.activityState, .pending)
+        #else
+        throw XCTSkip("Requires an SDK that supports iOS 26 scheduled activities")
+        #endif
     }
 }

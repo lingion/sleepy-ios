@@ -3,6 +3,14 @@ import Foundation
 enum ClassDayActivityCore {
     typealias Course = CourseReminderOccurrence
 
+    /// Older Xcode SDKs keep the foreground-only path even on a newer OS.
+    static var supportsScheduledActivities: Bool {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) { return true }
+        #endif
+        return false
+    }
+
     enum Phase: String, Codable { case upcoming, ongoing }
 
     struct Selection: Equatable {

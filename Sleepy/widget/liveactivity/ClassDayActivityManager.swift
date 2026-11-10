@@ -79,8 +79,7 @@ enum ClassDayActivityManager {
             .filter { $0.value > now.timeIntervalSince1970 }
         ledger?.set(dismissed, forKey: "dismissed")
         let lead = prefs.getBeforeClassMinutes()
-        let supportsScheduling: Bool
-        if #available(iOS 26.0, *) { supportsScheduling = true } else { supportsScheduling = false }
+        let supportsScheduling = ClassDayActivityCore.supportsScheduledActivities
         let planned = ClassDayActivityCore.activityPlan(from: courses.filter { dismissed[$0.identifier] == nil }, now: now,
             leadMinutes: lead, supportsScheduling: supportsScheduling)
         let wanted = Set(planned.map(\.identifier))
@@ -122,6 +121,7 @@ enum ClassDayActivityManager {
             guard UIApplication.shared.applicationState == .active else { continue }
             do {
                 let activity: Activity<SleepyClassActivityAttributes>
+                #if compiler(>=6.2)
                 if #available(iOS 26.0, *), fire > now {
                     // Apple: pending requests count toward the activity limit;
                     // scheduled starts require an explicit alert configuration.
@@ -132,12 +132,12 @@ enum ClassDayActivityManager {
                         alertConfiguration: AlertConfiguration(title: "\(course.name)",
                             body: "\(TimeTableUtils.formatTime(course.start)) · \(course.room)", sound: .default),
                         start: fire)
-                } else if #available(iOS 16.2, *) {
-                    activity = try Activity.request(attributes: SleepyClassActivityAttributes(),
-                        content: ActivityContent(state: state, staleDate: course.end), pushType: nil)
                 } else {
-                    activity = try Activity.request(attributes: SleepyClassActivityAttributes(), contentState: state, pushType: nil)
+                    activity = try startImmediately(state: state, end: course.end)
                 }
+                #else
+                activity = try startImmediately(state: state, end: course.end)
+                #endif
                 observe(activity)
             } catch {
                 failed = true
@@ -155,6 +155,14 @@ enum ClassDayActivityManager {
                         : boundary ?? CourseOccurrences.calendar.startOfDay(for: now).addingTimeInterval(86400))
     }
 
+    private static func startImmediately(state: SleepyClassActivityAttributes.ContentState, end: Date) throws -> Activity<SleepyClassActivityAttributes> {
+        if #available(iOS 16.2, *) {
+            return try Activity.request(attributes: SleepyClassActivityAttributes(),
+                content: ActivityContent(state: state, staleDate: end), pushType: nil)
+        }
+        return try Activity.request(attributes: SleepyClassActivityAttributes(), contentState: state, pushType: nil)
+    }
+
     private static func publishStatus(failed: Bool) {
         let pending = Activity<SleepyClassActivityAttributes>.activities.filter { isPending($0) }
         let status = ClassDayActivityStatus.shared
@@ -164,7 +172,9 @@ enum ClassDayActivityManager {
     }
 
     private static func isPending(_ activity: Activity<SleepyClassActivityAttributes>) -> Bool {
+        #if compiler(>=6.2)
         if #available(iOS 26.0, *) { return activity.activityState == .pending }
+        #endif
         return false
     }
 

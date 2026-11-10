@@ -202,7 +202,9 @@ final class ReminderPermissionUITests: XCTestCase {
         for _ in 0..<5 where !live.isHittable { app.swipeUp() }
         XCTAssertEqual(live.value as? String, "1")
         XCTAssertEqual(notification.value as? String, "1")
-        XCTAssertTrue(app.descendants(matching: .any)["reminder_live_activity_schedule_status"].exists)
+        if #available(iOS 26.0, *) {
+            XCTAssertTrue(app.descendants(matching: .any)["reminder_live_activity_schedule_status"].exists)
+        }
     }
 }
 
