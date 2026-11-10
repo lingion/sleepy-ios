@@ -103,6 +103,7 @@ final class AppPrefs {
     static let KEY_SHOW_VIEW_SWITCHER = "show_view_switcher"     // bool default true — 首页周/网格视图切换栏显隐(GeneralSettingsScreen.LabPrefs 正式归属地)
     // ★ widget v1.0.60 对齐键 (← AppPrefs.kt)
     static let KEY_NEAREST_BUSY_DAY = "nearest_busy_day" // bool default false — 今天没课时自动显示最近一个有课的日子
+    static let KEY_WATCH_TIME_STRIP_TOMORROW = "watch_time_strip_tomorrow" // bool default false — 仅 Watch 课程时间带的次日预览
     static let KEY_COMPACT_WINDOW_TODAY_FIRST = "compact_window_today_first" // bool default true — 最小档三天窗口锚点(2026-09-15 用户令)
     static let KEY_WIDGET_SCROLL_ENABLED = "widget_scroll_enabled" // bool default false — 强制滚动(实验), 默认 FIXED 固定窗口
     static let GRID_SCALE_RANGE: ClosedRange<Double> = 0.7...1.3
@@ -250,7 +251,7 @@ final class AppPrefs {
     }
 
     func isBeforeClassBannerEnabled() -> Bool {
-        // iOS 只有横幅实现，保留独立投递闸，兼容旧版显式关闭及手表快照。
+        // 保留独立投递闸，兼容旧版显式关闭及手表快照。
         getBeforeClassMode() == Self.BEFORE_CLASS_MODE_BANNER
             && (sp().object(forKey: Self.KEY_BEFORE_CLASS_BANNER) as? Bool ?? true)
     }
@@ -260,10 +261,8 @@ final class AppPrefs {
         if v { setBeforeClassMode(Self.BEFORE_CLASS_MODE_BANNER) }
     }
 
-    // iOS 未实现流体卡片；保留旧键与读写语义，兼容迁移和手表快照。
-    @available(*, deprecated, message: "仅供旧偏好迁移与同步；v1.0.64 起实况活动接通此模式(见 ClassDayActivityManager)")
+    // fluid 是历史存储值，iOS 使用它选择 ActivityKit 实况活动。
     func isBeforeClassFluidEnabled() -> Bool { getBeforeClassMode() == Self.BEFORE_CLASS_MODE_FLUID }
-    @available(*, deprecated, message: "仅供旧偏好迁移与同步；v1.0.64 起实况活动接通此模式(见 ClassDayActivityManager)")
     func setBeforeClassFluidEnabled(_ v: Bool) {
         setBeforeClassMode(v ? Self.BEFORE_CLASS_MODE_FLUID : Self.BEFORE_CLASS_MODE_BANNER)
     }
@@ -561,6 +560,11 @@ final class AppPrefs {
         sp().set(v, forKey: Self.KEY_NEAREST_BUSY_DAY)
         WidgetCenter.shared.reloadAllTimelines()
     }
+
+    /// 仅 Watch 课程时间带: 今日结束后预览下一个自然日, 默认关闭。
+    /// 与最近有课日及明日提醒独立; 手机设置页负责请求 Watch 同步。
+    func isWatchTimeStripTomorrow() -> Bool { sp().bool(forKey: Self.KEY_WATCH_TIME_STRIP_TOMORROW) }
+    func setWatchTimeStripTomorrow(_ v: Bool) { sp().set(v, forKey: Self.KEY_WATCH_TIME_STRIP_TOMORROW) }
 
     /// 最小档三天窗口锚点全局旧值 — 默认 true (getBoolean(KEY_COMPACT_WINDOW_TODAY_FIRST, true);
     /// 2026-09-15 用户令: 未写入过时今日居第一位)

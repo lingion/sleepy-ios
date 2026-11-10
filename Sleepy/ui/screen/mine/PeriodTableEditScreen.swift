@@ -22,6 +22,7 @@ struct PeriodTableEditScreen: View {
     /// issue#40: 本表是否为"新建后直接进入"的未保存表 — 返回(未保存)时整行丢弃, 管理页不留空壳
     var isNewUnsaved: Bool = false
     let onBack: () -> Void
+    var onSaved: (() -> Void)? = nil
 
     // ← 原 remember 键控三段式:
     //   name/unsavedNew   ← remember(periodTable.id)                (ktl L107/L114)
@@ -145,6 +146,7 @@ struct PeriodTableEditScreen: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(SleepyButtonStyle())
+                        .accessibilityIdentifier("period_table_slots_header")
 
                         if timeSlotsExpanded && seededTableId != periodTable.id {
                             ProgressView()
@@ -197,6 +199,7 @@ struct PeriodTableEditScreen: View {
                         .cornerRadius(SleepyShapes.large)
                     }
                     .buttonStyle(SleepyButtonStyle())
+                    .accessibilityIdentifier("period_table_save")
 
                     // v1.0.56 T7: 删除键(新建未保存的表不显示 — 退出即丢弃, 无"已存在的东西"可删)
                     if !unsavedNew {
@@ -286,6 +289,7 @@ struct PeriodTableEditScreen: View {
                         .foregroundColor(colors.onBackground)
                 }
                 .accessibilityLabel(Text(L10n.t("period_table_copy")))
+                .accessibilityIdentifier("period_table_copy")
             }
         }
         .padding(.horizontal, 16)
@@ -418,16 +422,19 @@ struct PeriodTableEditScreen: View {
                 onConfirm: {
                     pendingPreview = nil
                     pendingSave = nil
-                    // issue#40: 已确认保存 — 新建行的丢弃标记解除, 返回不再清行
-                    unsavedNew = false
-                    viewModel.updatePeriodTableContent(toSave)
-                    onBack()
+                    viewModel.updatePeriodTableContent(toSave, onFinish: {
+                        // Only a committed save clears the unsaved-new discard marker.
+                        unsavedNew = false
+                        (onSaved ?? onBack)()
+                    }, onFailure: { error = $0 })
                 },
                 dismissText: L10n.t("cancel"),
                 onDismiss: {
                     pendingPreview = nil
                     pendingSave = nil
-                })
+                },
+                confirmIdentifier: "period_table_preview_confirm",
+                dismissIdentifier: "period_table_preview_cancel")
         }
         .padding(24)
         .background(colors.surface)
@@ -487,42 +494,48 @@ struct PeriodTableEditScreen: View {
             candidate,
             courseTableNames: viewModel.state.tables.map { $0.name },
             periodTableNames: allPeriodTables.map { $0.name })
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.t("period_table_copy_dialog_title"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(colors.onSurface)
-            FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
-                // ← 原版本 TextField(isError = nameTaken) (ktl L494): 输入框本体错误态。
-                //   FieldTextField 在 EditTableScreen.swift(本任务禁改), 按 DatePickerField
-                //   同款先例在调用处补 M3 active indicator 底线; supportingText 红色说明行紧随其下。
-                .overlay(alignment: .bottom) {
-                    if nameTaken {
-                        Rectangle()
-                            .fill(colors.error)
-                            .frame(height: 1)
-                            .padding(.horizontal, 12)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.t("period_table_copy_dialog_title"))
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(colors.onSurface)
+                    .accessibilityIdentifier("period_table_copy_dialog")
+                FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
+                    .accessibilityIdentifier("period_table_copy_name")
+                    // ← 原版本 TextField(isError = nameTaken) (ktl L494): 输入框本体错误态。
+                    //   在调用处补 M3 active indicator 底线，错误说明行紧随其下。
+                    .overlay(alignment: .bottom) {
+                        if nameTaken {
+                            Rectangle()
+                                .fill(colors.error)
+                                .frame(height: 1)
+                                .padding(.horizontal, 12)
+                        }
                     }
+                if nameTaken {
+                    Text(L10n.t("period_table_name_taken"))
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.error)
                 }
-            if nameTaken {
-                Text(L10n.t("period_table_name_taken"))
-                    .font(.system(size: 12))
-                    .foregroundColor(colors.error)
+                Spacer().frame(height: 12)
+                DialogActionButtons(
+                    confirmText: L10n.t("ok"),
+                    onConfirm: {
+                        let newId = viewModel.copyPeriodTableAs(sourceId: periodTable.id, newName: candidate)
+                        if newId > 0 {
+                            showCopyDialog = false
+                            onBack()
+                        }
+                    },
+                    dismissText: L10n.t("cancel"),
+                    onDismiss: { showCopyDialog = false },
+                    confirmEnabled: !candidate.isEmpty && !nameTaken,
+                    confirmIdentifier: "period_table_copy_confirm",
+                    dismissIdentifier: "period_table_copy_cancel")
             }
-            Spacer().frame(height: 12)
-            DialogActionButtons(
-                confirmText: L10n.t("ok"),
-                onConfirm: {
-                    let newId = viewModel.copyPeriodTableAs(sourceId: periodTable.id, newName: candidate)
-                    if newId > 0 {
-                        showCopyDialog = false
-                        onBack()
-                    }
-                },
-                dismissText: L10n.t("cancel"),
-                onDismiss: { showCopyDialog = false },
-                confirmEnabled: !candidate.isEmpty && !nameTaken)
+            .padding(24)
         }
-        .padding(24)
+        .scrollDismissesKeyboardImmediatelyCompat()
         .background(colors.surface)
     }
 }

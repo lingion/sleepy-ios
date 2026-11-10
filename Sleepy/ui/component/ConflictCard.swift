@@ -212,6 +212,9 @@ struct ConflictClusterCard: View {
                    let f = TimeTableUtils.timeToFractionalRows(c.startTime, c.endTime, slots: timeSlots) {
                     return (c.id, (f.0, f.1 - f.0))
                 }
+                if let rows = CourseGridRowLayout.standardRowRange(startNode: c.startNode, step: c.step, slots: timeSlots) {
+                    return (c.id, (Double(rows.lowerBound), Double(rows.count)))
+                }
                 let sIdx = Double(max(slotIndexOf(c.startNode), 0))
                 return (c.id, (sIdx, Double(clampedSteps[c.id] ?? 1)))
             })

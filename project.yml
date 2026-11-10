@@ -22,8 +22,8 @@ settings:
     # xcodegen 不默认注入这批标准设置 — 缺 PRODUCT_NAME 产物名变空(.app/.appex 冲突)
     PRODUCT_NAME: "$(TARGET_NAME)"
     PRODUCT_BUNDLE_IDENTIFIER: "$(PRODUCT_BUNDLE_IDENTIFIER)"
-    CURRENT_PROJECT_VERSION: "62"
-    MARKETING_VERSION: "1.0.62"
+    CURRENT_PROJECT_VERSION: "63"
+    MARKETING_VERSION: "1.0.63"
   configs:
     Debug:
       ONLY_ACTIVE_ARCH: YES
@@ -107,9 +107,24 @@ targets:
           - CFBundleURLName: com.lingion.sleepy
             CFBundleURLSchemes: [sleepy]
         CFBundleDocumentTypes:
-          - CFBundleTypeName: Schedule JSON
-            LSHandlerRank: Owner
-            LSItemContentTypes: ["public.json"]
+          - CFBundleTypeName: Sleepy Schedule
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - public.json
+              - public.plain-text
+              - public.html
+              - public.xml
+              - public.comma-separated-values-text
+              - com.apple.ical.ics
+              - public.calendar-event
+              - com.lingion.sleepy.schedule
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.lingion.sleepy.schedule
+            UTTypeDescription: Sleepy Schedule
+            UTTypeConformsTo: ["public.plain-text"]
+            UTTypeTagSpecification:
+              public.filename-extension: [sleepy]
         LSSupportsOpeningDocumentsInPlace: false
         # ★ 教务系统跳转链常混 http 中间页(校园网旧系统)。WKWebView 默认 ATS 拦 http,
         #   表现为重定向链中途断掉。Android 原版 mixedContentMode=ALWAYS_ALLOW 等价意图:
@@ -119,6 +134,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # ★ v1.0.64 课程实况活动(灵动岛/锁屏) — 缺此键 → ActivityKit 请求被系统拒绝
         NSSupportsLiveActivities: true
+        BGTaskSchedulerPermittedIdentifiers: [sleepy.alarm.daily.resync]
+        UIBackgroundModes: [fetch]
         # ★ QQ/TIM 加群拉起探针 (2026-10-31 B2 对齐)
         #   iOS 的 UIApplication.canOpenURL 对未声明的 scheme 恒返回 false,
         #   缺此键 → 教务导入报告弹窗的「加入 QQ 群」链只剩浏览器兜底,
@@ -161,6 +178,7 @@ targets:
         excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
                    "debug", "data/share",
                    "widget/notification/BatterySettingsLauncher.swift",
+                   "widget/liveactivity/ClassDayActivityManager.swift",
                    "util/NavStyleResolver.swift",
                    "gamecenter",
                    # 主 app 的隐私清单只归 Sleepy target; widget 用自己的
@@ -255,6 +273,11 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.lingion.sleepy
+        # 2026-10-30 修: watch 侧 onOpenURL(sleepy://watch?tab=) 此前因 scheme 未注册永远收不到
+        # (表盘 complication 深链真机同样失效的潜伏 bug); 补注册与主 app 同 scheme
+        CFBundleURLTypes:
+          - CFBundleURLName: com.lingion.sleepy.watch
+            CFBundleURLSchemes: [sleepy]
         # 独立启动语义 (通知/Complication 刷新不要求 iPhone App 在前台)
         WKRunsIndependentlyOfCompanionApp: true
     settings:

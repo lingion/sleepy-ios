@@ -5,6 +5,7 @@
 // 出当前标准行则原样保留, 否则从当前行重推断(以 stored 为 previous 承接分组标签)。
 
 import SwiftUI
+import UIKit
 
 enum TimeSlotEditorMode { case manual, auto, periodTable }
 
@@ -83,6 +84,8 @@ struct TimeSlotEditor: View {
     var usedDefaultTimes = false
     var smartConfig: SmartPeriodConfig = SmartPeriodConfig()
     var onSmartConfigChange: (SmartPeriodConfig) -> Void = { _ in }
+    var reorderEnabled = false
+    var courses: [CourseEntity] = []
     var periodTableOptions: [PeriodTableOption] = []
     var selectedPeriodTableId: Int64? = nil
     var onSelectPeriodTable: (Int64?) -> Void = { _ in }
@@ -110,7 +113,8 @@ struct TimeSlotEditor: View {
 
             switch mode {
             case .manual:
-                ManualTimeSlotEditor(rows: $rows, onRowsChange: onRowsChange)
+                ManualTimeSlotEditor(rows: $rows, onRowsChange: onRowsChange,
+                                     reorderEnabled: reorderEnabled, courses: courses)
             case .auto:
                 // Bug 2 fix: config 变化立即 merge 同步(保留 edge 行)。调用方不一定回传
                 // smartConfig(ImportSheet 旧接线), 故回调内直接同步; 回传方由 onChange 兜底。
@@ -250,6 +254,18 @@ private struct ManualTimeSlotEditor: View {
     // Read the live rows when a sheet callback fires, not a captured array snapshot.
     @Binding var rows: [TimeTableUtils.TimeSlotRow]
     let onRowsChange: ([TimeTableUtils.TimeSlotRow]) -> Void
+    let reorderEnabled: Bool
+    let courses: [CourseEntity]
+
+    @GestureState private var dragGestureActive = false
+    @State private var draggingNode: Int? = nil
+    @State private var sourceIndex: Int? = nil
+    @State private var targetIndex: Int? = nil
+    @State private var sourceRows: [TimeTableUtils.TimeSlotRow] = []
+    @State private var dragOffset: CGFloat = 0
+    @State private var invalidTarget = false
+    @State private var rowHeights: [Int: CGFloat] = [:]
+    @State private var showInvalidDrop = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -289,12 +305,34 @@ private struct ManualTimeSlotEditor: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 6)
 
+            if reorderEnabled {
+                Text(L10n.t("timeslot_longpress_to_reorder"))
+                    .font(SleepyTypography.bodyMedium)
+                    .foregroundColor(colors.onSurface)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+                if rows.contains(where: { $0.edgeClass != nil || $0.node <= 0 }) {
+                    Text(L10n.t("timeslot_reorder_standard_only"))
+                        .font(SleepyTypography.bodySmall)
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 6)
+                }
+            }
+
             // Rows
             VStack(spacing: 10) {
-                ForEach(rows, id: \.node) { row in
+                ForEach(Array(rows.enumerated()), id: \.element.node) { index, row in
+                    let dragging = draggingNode == row.node
+                    let target = targetIndex == index && !dragging
                     TimeSlotRowItem(
                         row: row,
                         canDelete: rows.count > 1,
+                        isDragging: dragging,
+                        isDropTarget: target,
+                        dropInvalid: dragging && invalidTarget,
                         onStartChange: { newStart in
                             onRowsChange(rows.map { item in
                                 if item.node == row.node { var r = item; r.start = newStart; return r }
@@ -310,6 +348,20 @@ private struct ManualTimeSlotEditor: View {
                         onDelete: {
                             onRowsChange(TimeTableUtils.removeAndRenumber(rows, node: row.node))
                         })
+                        .background(GeometryReader { geometry in
+                            Color.clear.preference(key: TimeSlotRowHeightKey.self,
+                                                   value: [row.node: geometry.size.height])
+                        })
+                        .offset(y: dragging ? dragOffset : 0)
+                        .zIndex(dragging ? 1 : 0)
+                        // Keep time-field/delete Button taps ahead of row reordering.
+                        // The sequence still recognizes a held drag on the row's free area.
+                        .gesture(reorderGesture(row: row, index: index),
+                                 including: reorderEnabled && row.edgeClass == nil && row.node > 0 ? .all : .subviews)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityValue(dragging ? L10n.t(invalidTarget ? "timeslot_drop_invalid" : "timeslot_reorder_in_progress")
+                                                    : target ? L10n.t("timeslot_row_drop_target") : "")
+                        .accessibilityIdentifier("slot_row_\(row.node)")
                         .transition(SleepyMotionPolicy(reduceMotion: reduceMotion).expand)
                 }
             }
@@ -320,6 +372,97 @@ private struct ManualTimeSlotEditor: View {
             // 只增删行触发空间变化；时间编辑不重建行身份或驱动整行位移。
             .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: rows.count)
         }
+        .onPreferenceChange(TimeSlotRowHeightKey.self) { rowHeights = $0 }
+        .onChange(of: dragGestureActive) { active in
+            if !active && draggingNode != nil { cancelReorder() }
+        }
+        .onChange(of: rows) { newRows in
+            if draggingNode != nil && newRows != sourceRows { cancelReorder() }
+        }
+        .onDisappear { cancelReorder() }
+        .overlay(alignment: .bottom) {
+            if showInvalidDrop {
+                Text(L10n.t("timeslot_drop_invalid"))
+                    .font(SleepyTypography.bodySmall)
+                    .foregroundColor(colors.onErrorContainer)
+                    .padding(12)
+                    .background(colors.errorContainer)
+                    .cornerRadius(SleepyShapes.medium)
+                    .accessibilityIdentifier("slot_reorder_invalid")
+                    .task {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        if !Task.isCancelled { showInvalidDrop = false }
+                    }
+            }
+        }
+    }
+
+    private func reorderGesture(row: TimeTableUtils.TimeSlotRow, index: Int) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.35, maximumDistance: 12)
+            .sequenced(before: DragGesture(minimumDistance: 0))
+            .updating($dragGestureActive) { value, active, _ in
+                if case .second(true, _) = value { active = true }
+            }
+            .onChanged { value in
+                guard reorderEnabled, row.edgeClass == nil, row.node > 0,
+                      case .second(true, let drag) = value else { return }
+                if draggingNode == nil {
+                    sourceRows = rows
+                    sourceIndex = index
+                    targetIndex = index
+                    draggingNode = row.node
+                    invalidTarget = false
+                    showInvalidDrop = false
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+                guard draggingNode == row.node, !invalidTarget, let drag else { return }
+                let pitch = max((rowHeights[row.node] ?? 44) + 10, 1)
+                dragOffset = max(-1_000_000, min(1_000_000, drag.translation.height))
+                let destination = min(max(index + Int(dragOffset / pitch), 0), sourceRows.count - 1)
+                targetIndex = destination
+                invalidTarget = !TimeTableUtils.canReorderTimeSlot(sourceRows, fromIndex: index,
+                                                                  toIndex: destination, courses: courses)
+                if invalidTarget {
+                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                    withAnimation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial) {
+                        dragOffset = CGFloat(destination - index) * pitch
+                    }
+                }
+            }
+            .onEnded { _ in
+                guard let from = sourceIndex, let to = targetIndex, rows == sourceRows else {
+                    cancelReorder()
+                    return
+                }
+                let valid = !invalidTarget && TimeTableUtils.canReorderTimeSlot(sourceRows, fromIndex: from,
+                                                                               toIndex: to, courses: courses)
+                let reordered = valid ? TimeTableUtils.reorderTimeSlotRows(sourceRows, fromIndex: from, toIndex: to) : rows
+                withAnimation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastSpatial) {
+                    resetReorder()
+                    if valid && from != to { onRowsChange(reordered) }
+                }
+                if !valid { showInvalidDrop = true }
+            }
+    }
+
+    private func cancelReorder() {
+        withAnimation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastSpatial) { resetReorder() }
+    }
+
+    private func resetReorder() {
+        draggingNode = nil
+        sourceIndex = nil
+        targetIndex = nil
+        sourceRows = []
+        dragOffset = 0
+        invalidTarget = false
+    }
+}
+
+private struct TimeSlotRowHeightKey: PreferenceKey {
+    static var defaultValue: [Int: CGFloat] = [:]
+    static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
     }
 }
 
@@ -329,6 +472,9 @@ private struct TimeSlotRowItem: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let row: TimeTableUtils.TimeSlotRow
     let canDelete: Bool
+    var isDragging = false
+    var isDropTarget = false
+    var dropInvalid = false
     let onStartChange: (String) -> Void
     let onEndChange: (String) -> Void
     let onDelete: () -> Void
@@ -369,9 +515,20 @@ private struct TimeSlotRowItem: View {
         }
         .background(
             RoundedRectangle(cornerRadius: SleepyShapes.medium)
-                .fill(isBlank ? colors.secondaryContainer : colors.surface)
+                .fill(dropInvalid ? colors.errorContainer : isDragging ? colors.primaryContainer
+                      : isBlank ? colors.secondaryContainer : colors.surface)
                 // effects 仅作用于底色，避免时间字段/删除按钮继承空间动画。
                 .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: isBlank)
+                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: isDragging)
+                .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultEffects, value: dropInvalid)
         )
+        .overlay(alignment: .top) {
+            if isDropTarget {
+                Rectangle().fill(colors.primary).frame(height: 2)
+                    .accessibilityHidden(true)
+            }
+        }
+        .shadow(color: Color.black.opacity(isDragging ? 0.15 : 0), radius: isDragging ? 6 : 0, y: isDragging ? 3 : 0)
+        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).defaultSpatial, value: isDragging)
     }
 }

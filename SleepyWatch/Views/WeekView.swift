@@ -62,7 +62,7 @@ struct WeekView: View {
                 }
                 if grey {
                     // 「放假 X」/「补班 X」/「无课」 — store 内同源前缀复用 iOS 键。
-                    // WidgetScheme 无 error token, 固定红 = iOS 节假日标注同源色
+                    // WidgetScheme 无 error token → WatchPalette.errorColor (M3 light=#B3261E/dark=#F2B8B5)
                     Text(store.greyAnnotation(date, tableId: table.id))
                         .font(.system(size: 9))
                         .foregroundColor(WatchPalette.errorColor(isDark: scheme.isDark))
@@ -89,7 +89,7 @@ struct WeekView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(4)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(scheme.surfaceVariant))
+                    .background(RoundedRectangle(cornerRadius: SleepyShapes.small).fill(scheme.surfaceVariant))
                 }
                 .buttonStyle(SleepyButtonStyle())
             }

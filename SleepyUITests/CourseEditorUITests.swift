@@ -29,6 +29,10 @@ final class CourseEditorUITests: XCTestCase {
         let addCard = app.descendants(matching: .any)["manage_add_course"]
         XCTAssertTrue(addCard.waitForExistence(timeout: 5), "管理页 Add Course 卡锚点未找到")
         addCard.tap()
+        let manual = app.descendants(matching: .any)["import_manual"]
+        XCTAssertTrue(manual.waitForExistence(timeout: 5), "添加课程来源页的手动入口未找到")
+        if !manual.isHittable { app.swipeUp() }
+        manual.tap()
         XCTAssertTrue(app.staticTexts["Create Course"].waitForExistence(timeout: 5),
                       "加课页未打开")
     }

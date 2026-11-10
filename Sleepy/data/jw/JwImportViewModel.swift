@@ -596,11 +596,28 @@ final class JwImportViewModel: ObservableObject {
         timeJson: String = "",
         nodesPerDay: Int = 0,
         smartConfigJson: String = "",
-        periodTable: PeriodTableEntity? = nil
+        periodTable: PeriodTableEntity? = nil,
+        bindPeriodTableId: Int64? = nil
     ) throws -> Int64 {
         if courses.isEmpty {
             throw NSError(domain: "JwImport", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "课程列表为空，请确认已到达课表页面"])  // ← kt:672 全角逗号
+        }
+
+        // An existing bell schedule is validated and bound inside the same transaction
+        // as the new table and courses. A removed selection must leave no partial import.
+        if let bindPeriodTableId {
+            let resolvedStartDate = (startDate?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? Self.normalizeStartDate(startDate!) : nil) ?? computeCurrentSemesterStart()
+            return try ScheduleRepository(db).importNewTable(
+                table: TimeTableEntity(
+                    name: tableName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "导入的课表" : tableName,
+                    startDate: resolvedStartDate,
+                    nodesPerDay: nodesPerDay > 0 ? nodesPerDay : (courses.map { max($0.startNode, $0.endNode) }.max() ?? 1),
+                    timeJson: timeJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? TimeTableUtils.DEFAULT_TIME_JSON : timeJson,
+                    smartConfigJson: smartConfigJson),
+                courses: toCourseEntities(courses, tableId: 0, defaultColor: "#FF6750A4"),
+                periodTable: nil, bindPeriodTableId: bindPeriodTableId)
         }
 
         // ★ 整个建表 + 落库包在单一事务里:中途失败回滚,避免留下空课表。 ← db.withTransaction

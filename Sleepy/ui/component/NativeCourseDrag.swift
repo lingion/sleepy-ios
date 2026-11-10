@@ -163,11 +163,11 @@ extension CourseDropGrid {
             guard index < timeRows.count else { return frame.height }
             return timeRows[index].top + timeRows[index].height * CGFloat(fraction - Double(index))
         }
-        let endIndex = Int(span.1.rounded())
-        let subtract = span.1 == Double(endIndex) && endIndex > 0
-            ? timeRows[endIndex - 1].gapAfter : rowGap
-        return CGRect(x: column.minX, y: frame.minY + y(span.0), width: column.width,
-                      height: max(y(span.1) - y(span.0), rowHeight * 0.3) - subtract)
+        let bounds = CourseGridRowLayout.timedCardBounds(fraction: span,
+            rowHeight: rowHeight, rowGap: rowGap, yOfRows: y,
+            gapAfterRow: { timeRows[$0].gapAfter })
+        return CGRect(x: column.minX, y: frame.minY + bounds.top, width: column.width,
+                      height: bounds.height)
     }
 }
 

@@ -4,6 +4,25 @@
 
 import SwiftUI
 
+/// 补课日的周次/学期状态跟随取课源日期，日期标题仍显示实际今天。
+/// ← TodayScreen.kt / CompactTodayPane: courseDateFor(today) ?: today。
+struct TodayDisplayContext {
+    let date: Date
+    let actualWeek: Int
+    let semesterStatus: DateUtils.SemesterStatus
+
+    init(state: ScheduleState, today: Date) {
+        date = today
+        let courseDate = state.courseDateFor(today) ?? today
+        actualWeek = state.currentTable.map {
+            DateUtils.currentWeek(startDate: $0.startDate, today: courseDate)
+        } ?? state.currentWeek
+        semesterStatus = state.currentTable.map {
+            DateUtils.semesterStatus(startDate: $0.startDate, maxWeek: $0.maxWeek, today: courseDate)
+        } ?? .inRange
+    }
+}
+
 struct TodayScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localNavExtraBottomPadding) private var navExtra
@@ -22,6 +41,7 @@ struct TodayScreen: View {
     var body: some View {
         let state = viewModel.state
         let today = AppClock.now
+        let dateContext = TodayDisplayContext(state: state, today: today)
         // issue#40 对齐: 节次时间域一律走水合后的当前表(← 原实现
         // `state.effectiveCurrentTable?.timeJson`)。绑定独立节次表 → 以所绑表 timeJson
         // 为准; 悬空/未绑定 → 回退旧兼容列。ScheduleState 尚无 effectiveCurrentTable
@@ -33,13 +53,8 @@ struct TodayScreen: View {
                 .effectivePeriodTable(tableId: table.id)) ?? nil
             return table.hydratedWith(period).timeJson
         }()
-        let actualWeek = state.currentTable.map {
-            DateUtils.currentWeek(startDate: $0.startDate, today: today)
-        } ?? state.currentWeek
         // ★ 学期外感知: BEFORE_START/AFTER_END 时今日课不按周过滤展示
-        let semesterStatus = state.currentTable.map {
-            DateUtils.semesterStatus(startDate: $0.startDate, maxWeek: $0.maxWeek, today: today)
-        } ?? .inRange
+        let semesterStatus = dateContext.semesterStatus
         let todayCourses: [CourseEntity] = {
             let list = state.currentTable.map { table in
                 HolidayTransferOps.coursesForDate(today, startDate: table.startDate, maxWeek: table.maxWeek,
@@ -61,7 +76,7 @@ struct TodayScreen: View {
 
         ScrollView {
             VStack(spacing: compact ? 12 : 16) {
-                TodayHeader(date: today, week: actualWeek, count: todayCourses.count,
+                TodayHeader(date: dateContext.date, week: dateContext.actualWeek, count: todayCourses.count,
                             semesterStatus: semesterStatus)
 
                 if todayCourses.isEmpty {

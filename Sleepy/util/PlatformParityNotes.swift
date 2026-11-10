@@ -7,7 +7,7 @@ import Foundation
 
 enum PlatformParityNotes {
 
-    // MARK: - HighRefreshRate.kt → iOS 无对应 API (系统自管)
+    // MARK: - HighRefreshRate.kt → iOS 按需调度（无窗口固定刷新率开关）
 
     /**
      * 原平台: 高刷新率(流畅优先) — 用户 2026-09-04 指令: 能上高刷就上高刷。
@@ -15,15 +15,15 @@ enum PlatformParityNotes {
      * 120Hz 屏上动画只有 60 帧。原平台用窗口级 preferredDisplayModeId 把刷率钉到
      * 屏幕支持的最高档。
      *
-     * iOS: ProMotion (iPhone 13 Pro+) 由 Core Animation 自动调度 — CADisplayLink
-     * 按帧需求自适应 10-120Hz, 无公开 API 钉刷率 (private API 包括
-     * CAPreferredFrameRateRange 仅限 Metal/游戏场景且 App Store 拒审)。
-     * SwiftUI 动画在 ProMotion 设备上自动跑满 120Hz, 无 app 侧动作。
+     * iOS: CADisplayLink.preferredFrameRateRange 是公开的刷新率范围提示 API，
+     * CADisableMinimumFrameDurationOnPhone 可允许相应设备使用更高帧率；两者
+     * 都不能强制屏幕固定刷新率。SwiftUI / Core Animation 按内容、功耗和系统
+     * 条件调度，不保证每段动画都达到 120Hz。
      *
-     * 落点: SleepyApp.swift AppDelegate.didFinishLaunchingWithOptions 内注释
-     * (2026-09-10 原生化审计时已写) — "高刷新率:iOS 无公开刷率 API,ProMotion 上
-     * 系统自动调度 120Hz,无需 app 侧动作"。
-     * 结论: 原 isHighRefresh 开关在 iOS 端无对应设置项 (无刷率可钉), 不移植。
+     * 本 App 未移植 Android 的窗口固定高刷开关；这是当前产品与渲染策略，
+     * 并非 iOS 不存在公开 API 或使用公开 API 会被拒审。
+     * 官方依据: Apple《Optimizing iPhone and iPad apps to support ProMotion displays》
+     * https://developer.apple.com/documentation/quartzcore/optimizing-iphone-and-ipad-apps-to-support-promotion-displays
      */
 
     // MARK: - MainActivity.kt → SleepyApp.swift + AppRootViewModel (壳不动)
@@ -37,7 +37,7 @@ enum PlatformParityNotes {
      *   2. pendingImportText / incomingImportText → PendingImportText + sleepy://import?text=
      *   3. UpdateNotifier(冷启动检查更新) → 1.0.64 随「获取更新」切片整体移除
      *      (分发收敛 App Store/TestFlight, GitHub 仅源码公开)
-     *   4. HighRefreshRate.apply → 见上节 (iOS 无对应)
+     *   4. HighRefreshRate.apply → 见上节（未移植窗口固定刷新率开关）
      *   5. UpdateManager.cleanOldApk → 同随更新切片移除
      *   6. 深链路由表 (sleepy://open | sleepy://course/<id> | sleepy://import?text=)
      *      已在 SleepyApp.swift AppRoot.handleDeepLink 集中定义 — 即 原平台侧

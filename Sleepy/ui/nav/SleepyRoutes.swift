@@ -20,6 +20,13 @@ struct CourseAddSlot: Equatable, Hashable {
 struct CourseEditorIdentity: Hashable {
     let courseId: Int64?
     let initialSlot: CourseAddSlot?
+    let targetTableId: Int64?
+
+    init(courseId: Int64?, initialSlot: CourseAddSlot?, targetTableId: Int64? = nil) {
+        self.courseId = courseId
+        self.initialSlot = initialSlot
+        self.targetTableId = targetTableId
+    }
 }
 
 // SleepyRoutes — 原版本 SleepyRoutes.kt (NavHost 路由表) → iOS 等价路由表.

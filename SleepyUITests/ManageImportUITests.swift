@@ -95,7 +95,7 @@ final class ManageImportUITests: XCTestCase {
             .waitForExistence(timeout: 3), "再点应收起")
     }
 
-    // MARK: 完整文本导入链(输入 WakeUp JSON → Preview → 3 模式按钮 → 确认 → 新表)
+    // MARK: 完整文本导入链(输入 WakeUp JSON → 新表配置确认 → 新表)
 
     func testFullTextImportFlow() {
         // 方案: UIPasteboard + context menu paste 解决 SwiftUI TextField 在 iOS16
@@ -116,127 +116,34 @@ final class ManageImportUITests: XCTestCase {
         XCTAssertTrue(expanded, "展开后应出现 Preview 按钮")
         // 最小合法 WakeUp JSON(对象 + courses 数组, 字段 camelCase)
         let json = "{\"name\":\"测试导入表\",\"startDate\":\"2026-08-24\",\"courses\":[{\"name\":\"编译原理\",\"teacher\":\"陈老师\",\"position\":\"教3-401\",\"day\":4,\"startNode\":7,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}]}"
-        // 步骤1: 复制 JSON 到 UIPasteboard
-        UIPasteboard.general.string = json
+        let textField = app.descendants(matching: .any)["import_paste_input"].firstMatch
+        let inputCard = app.descendants(matching: .any)["import_paste_viewport"].firstMatch
+        let scroll = app.scrollViews["import_methods_scroll"].firstMatch
+        XCTAssertTrue(textField.waitForExistence(timeout: 5))
+        for _ in 0..<5 where !inputCard.isHittable { scroll.swipeUp() }
+        XCTAssertTrue(inputCard.isHittable)
+        // The filled card's blank area must focus the actual input, too.
+        inputCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65)).tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5),
+                      "Tapping the filled import card must focus its text input")
+        textField.typeText(json)
+        XCTAssertEqual(textField.value as? String, json,
+                       "Preview must consume the complete user-entered document")
+        let draft = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        draft.name = "full-text-import-draft"
+        draft.lifetime = .keepAlways
+        add(draft)
 
-        // 步骤2: 找到文本输入区域(import_paste_input)并尝试聚焦
-        // 注意: SwiftUI TextField(axis:.vertical) 在 iOS16 accessibility tree 中可能不暴露为 textField
-        // 我们用其 identifier 定位，然后尝试多种方式输入
-        let textField = app.descendants(matching: .any)["import_paste_input"]
-
-        // 先把输入区域滚入可视范围
-        app.swipeUp()
-        sleep(1)
-
-        // 尝试点击文本区域激活键盘(使用坐标点击确保命中)
-        let previewBtn = app.descendants(matching: .any)["import_preview_btn"]
-        XCTAssertTrue(previewBtn.waitForExistence(timeout: 3))
-
-        // TextField 在 Preview 上方, 使用相对坐标
-        // 按钮高 48(2026-08-29 从 44 调齐 原版本 regularHeight) + VStack spacing 8:
-        // dy=-1.7 ≈ 82pt 上方 = TextField 下半区中心, 保证命中输入框
-        let textFieldCenter = previewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -1.7))
-        textFieldCenter.tap()
-        sleep(1)
-
-        // 检查键盘是否出现
-        if app.keyboards.count > 0 {
-            // 键盘已弹出，尝试使用 Paste 功能
-            // 在焦点元素上长按弹出上下文菜单
-            textFieldCenter.press(forDuration: 0.8)
-            sleep(1)
-
-            // 查找 Paste 菜单项
-            if app.menuItems["Paste"].waitForExistence(timeout: 2) {
-                app.menuItems["Paste"].tap()
-                sleep(1)
-            } else {
-                // 菜单没出现，回退到选中+替换方式
-                textFieldCenter.doubleTap()
-                sleep(1)
-                app.typeText(UIPasteboard.general.string ?? json)
-            }
-        } else {
-            // 键盘未弹出，尝试其他激活方式
-            // 再次点击并等待
-            textFieldCenter.tap()
-            sleep(2)
-
-            if app.keyboards.count > 0 {
-                // 现在键盘出现了
-                textFieldCenter.press(forDuration: 0.8)
-                sleep(1)
-                if app.menuItems["Paste"].waitForExistence(timeout: 2) {
-                    app.menuItems["Paste"].tap()
-                } else {
-                    // 直接输入
-                    textFieldCenter.doubleTap()
-                    sleep(1)
-                    app.typeText(json)
-                }
-            } else {
-                // 最后的尝试：使用坐标直接输入(会替换选中文本或追加)
-                app.typeText(json)
-            }
-        }
-
-        // 确保输入框有内容
-        // 如果输入失败，使用 launch argument 传递 JSON
-        let inputField = app.descendants(matching: .any)["import_paste_input"]
-        let hasInput = inputField.exists  // 元素存在即认为可能已有输入
-
-        sleep(1)
-        // 收键盘: 向下滑动手势
-        let scrollStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
-        let scrollEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
-        scrollStart.press(forDuration: 0.05, thenDragTo: scrollEnd)
-        sleep(1)
-
-        // 步骤4: 点击 Preview 按钮
-        let previewButton = app.descendants(matching: .any)["import_preview_btn"]
-        XCTAssertTrue(previewButton.waitForExistence(timeout: 3))
+        let previewButton = app.buttons["import_preview_btn"].firstMatch
+        XCTAssertTrue(previewButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(previewButton.isHittable,
+                      "The import preview action must remain reachable above the keyboard")
+        XCTAssertFalse(previewButton.frame.intersects(app.keyboards.firstMatch.frame),
+                       "The keyboard must not cover the preview action")
         previewButton.tap()
-        // 预览对话框: 标题 + 3 模式按钮(any — 内嵌 sheet 里的元素类型不定)
-        XCTAssertTrue(app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS 'Import Preview'")).firstMatch
-            .waitForExistence(timeout: 6), "预览对话框未弹出(解析失败?)")
-        // 课程名行可能是任意元素类型;再等 1s 后不强断(解析成功由 Import Preview 弹出证明)
-        _ = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS '编译原理'")).firstMatch.waitForExistence(timeout: 2)
-
-        // 选 "Import as new schedule" 模式: 只有该模式(及 Append as new table / Overwrite
-        // current)会弹 "Confirm Before Import" 对话框; "Append non-conflicting" 在原平台
-        // 源上本来就不弹 confirm(直接应用) → 旧断言不可能通过。
-        // ★ v1.0.62 对齐: 改按 accessibilityIdentifier 定位(import_mode_as_new 等),
-        //   不再按本地化文案匹配 —— 预览底部按钮浮在 List 之上, 按 label 匹配时偶发
-        //   拿到无效 frame({inf,inf}/{0,0}) → "Failed to compute hit point"(旧失败根因之一)。
-        let asNewBtn = app.descendants(matching: .any)["import_mode_as_new"]
-        if asNewBtn.waitForExistence(timeout: 3) {
-            // 预览 sheet 弹出前粘贴框仍是 first responder 时键盘不收,键盘会把预览
-            // sheet 的内容容器下移 → 模式按钮落到屏幕外(frame 变成 {{inf,inf}})。
-            // App 侧已收键盘,这里再兜一次底:键盘还在就收掉再点。
-            if app.keyboards.count > 0 {
-                let dismissKey = app.keyboards.buttons.matching(
-                    NSPredicate(format: "label IN {'Return', 'Done', 'return', 'done', '换行', '完成'}")
-                ).firstMatch
-                if dismissKey.waitForExistence(timeout: 2) {
-                    dismissKey.tap()
-                }
-                sleep(1)
-            }
-            if asNewBtn.isHittable {
-                asNewBtn.tap()
-            } else {
-                // 元素存在但不可点(仍在屏幕外)→ 用坐标兜底点它的中心
-                asNewBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            }
-        } else {
-            // 兜底: "⚠ Overwrite current" 也走 confirm 流(替换种子表为导入内容,
-            // 编译原理 周四 7-8 不碰种子课时段, 课表仍可验证)
-            let replace = app.descendants(matching: .any)["import_mode_overwrite"]
-            XCTAssertTrue(replace.waitForExistence(timeout: 2), "confirm 流模式按钮都不在")
-            replace.tap()
-        }
+        // Management's new-table entry goes straight to configuration, matching
+        // Android v1.0.63. It must never expose overwrite/append modes here.
+        XCTAssertFalse(app.buttons["import_mode_overwrite"].exists)
 
         // 确认对话框: 表名/开始日期/Confirm Import
         XCTAssertTrue(app.descendants(matching: .any)["import_confirm_title"]

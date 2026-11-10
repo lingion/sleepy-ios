@@ -8,20 +8,6 @@
 import Foundation
 import Combine
 
-/// 甲案 (设计文档 §2.1) — 处置选择枚举。
-/// - none:        未发生 / 已清空 — 默认状态, 也用于"取消"和"选择后再次改作息"。
-/// - detachCopy:  改本表作息: 用 draftEffectiveSchedule 写本表内置作息 + 解绑共享表。
-/// - createNew:   以 draftEffectiveSchedule 新建同名独立作息表 + 改绑到新表。
-/// - sync:        把 draftEffectiveSchedule 写回共享作息表 (影响所有绑定它的课表)。
-///
-/// 不变量 7: 三个选项始终显示 (不隐藏), 影响数量仅用于提示文案。
-enum SchedulePolicy: Equatable {
-    case none
-    case detachCopy
-    case createNew
-    case sync
-}
-
 /// 设计文档 §2.1 — 单张课表编辑会话的状态容器:
 ///
 /// - originalEffectiveSchedule: 进入编辑页时实际生效的作息 (含绑定水合结果)。

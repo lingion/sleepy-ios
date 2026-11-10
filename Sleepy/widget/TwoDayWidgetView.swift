@@ -141,6 +141,7 @@ struct TwoDayWidgetProvider: TimelineProvider {
 
 struct TwoDayWidgetEntryView: View {
     @Environment(\.widgetFamily) var widgetFamily
+    @Environment(\.sleepyWidgetGalleryFamily) private var galleryFamily
     @Environment(\.colorScheme) private var widgetColorScheme
     @Environment(\.colorSchemeContrast) private var widgetContrast
     let entry: TwoDayWidgetEntry
@@ -165,7 +166,7 @@ struct TwoDayWidgetEntryView: View {
         let showDate = prefs.isShowDate()
         // issue#26: widget 全局一档别名开关
         let useAlias = prefs.isWidgetUseAlias()
-        let tier = WidgetLayoutTier(family: widgetFamily)
+        let tier = WidgetLayoutTier(family: galleryFamily ?? widgetFamily)
         // 时间窗只作用在「今天」列 (WidgetWindows.twoDay 内按 day.isToday 判定)
         let nowMin = entry.nowMin
 
@@ -222,6 +223,7 @@ struct TwoDayWidgetEntryView: View {
 }
 
 private struct TwoDayColumn: View {
+    @Environment(\.sleepyWidgetGalleryDate) private var galleryDate
     let day: DayData
     let scheme: WidgetScheme
     let colorless: Bool
@@ -282,12 +284,10 @@ private struct TwoDayColumn: View {
             }
             Spacer(minLength: 0)
             // ← 8c0fcbea / ab27230c: 每列「+N」恒画 (含「+0」), 各列独立计数, 不可点
-            // 定稿: 宽度上限 46 (原 pillW coerceAtMost(colW) 语义的 iOS 固定上界近似;
-            //   胶囊本体圆角 = 高/2 = 9、字号 11 bold 见 WidgetCourseCard.WidgetCapsulePill)
+            // 原 pillW = min(textWidth+16, colW), 居中在各列真实宽度内。
             WidgetFooterCapsule(
                 text: window.map { WidgetWindowCore.capsuleText(hidden: $0.hiddenAheadCourses) },
                 scheme: s)
-                .frame(maxWidth: 46)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // 列间竖直分隔线 ← 原版本 :1448-50 — 全高 listTop→listBottom (列组件本身
@@ -305,8 +305,15 @@ private struct TwoDayColumn: View {
     private var title: String {
         // ← 原版本 :1373-77: 仅 isToday/明天/星期 三分支, 无跳转态标题
         // (NEAREST_BUSY_DAY 只换日期列内容, 标题保持星期口径)
-        if day.isToday { return L10n.format("today_today") }
-        if day.isTomorrow { return L10n.format("tomorrow") }
+        if let referenceDate = galleryDate {
+            if DateUtils.isDateToday(day.date, referenceDate) { return L10n.format("today_today") }
+            if DateUtils.isDateToday(day.date, Calendar.isoAddDays(referenceDate, 1)) {
+                return L10n.format("tomorrow")
+            }
+        } else {
+            if day.isToday { return L10n.format("today_today") }
+            if day.isTomorrow { return L10n.format("tomorrow") }
+        }
         return day.dayName
     }
 }

@@ -36,7 +36,7 @@
 "manage_export" = "Export Current";
 "manage_export_sub" = "Share the current timetable as file";
 "manage_manual_add" = "Add Course";
-"manage_manual_add_sub" = "Add a course directly to current schedule";
+"manage_manual_add_sub" = "Import courses or add them manually";
 "table_info" = "Start: %1$@  |  Week %2$d  |  %3$d courses";
 "current_table_week" = "Current · Week %1$d";
 "table_start_date" = "Start: %1$@";
@@ -54,7 +54,7 @@
 "edit_table_not_found" = "Schedule not found";
 "edit_table_validation_error" = "Date must be yyyy-MM-dd, time must be HH:mm with start before end";
 "edit_table_delete_confirm" = "Confirm Delete";
-"edit_table_delete_msg" = "Delete schedule \\\"%1$@\\\"? This cannot be undone.";
+"edit_table_delete_msg" = "Delete schedule \"%1$@\"? This cannot be undone.";
 "default_table_name" = "Default";
 "import_paste" = "Paste Text";
 "import_paste_hint" = "Paste schedule text…";
@@ -104,7 +104,7 @@
 "format_csv" = "CSV file";
 "format_csv_desc" = ".csv with headers, comma separated";
 "format_html" = "HTML table";
-"format_html_desc" = "&lt;table&gt; format, parse by row after detecting headers";
+"format_html_desc" = "<table> format, parse by row after detecting headers";
 "format_plain" = "Plain text";
 "format_plain_desc" = "One course per line, tab separated";
 "import_start_date_required" = "Please enter semester start date";
@@ -144,7 +144,7 @@
 "add_slot" = "Add time slot";
 "save_course" = "Save Course";
 "delete_course" = "Delete Course";
-"delete_course_confirm" = "Delete course \\\"%1$@\\\"? This cannot be undone.";
+"delete_course_confirm" = "Delete course \"%1$@\"? This cannot be undone.";
 "select_at_least_one_day" = "Select at least one day";
 "delete_slot" = "Remove slot";
 "start_node" = "Start Period";
@@ -184,6 +184,7 @@
 "mine_stat_tables" = "Schedules";
 "mine_stat_courses" = "Courses";
 "mine_stat_week" = "Week";
+"mine_stat_period_tables" = "Bell schedules";
 "settings_language" = "Language";
 "settings_display_mode" = "Time Display";
 "settings_grid_sub_info" = "Grid card sub-info";
@@ -194,9 +195,9 @@
 "settings_grid_sub_none" = "None";
 "settings_grid_sub_none_sub" = "Grid cards show course name only";
 "settings_display_node" = "Show as periods";
-"settings_display_node_sub" = "All courses show as \\\"Period N\\\"";
+"settings_display_node_sub" = "All courses show as \"Period N\"";
 "settings_display_time" = "Show as times";
-"settings_display_time_sub" = "All courses show as \\\"HH:mm–HH:mm\\\"";
+"settings_display_time_sub" = "All courses show as \"HH:mm–HH:mm\"";
 "settings_show_date" = "Show dates on schedule";
 "settings_show_date_sub" = "Display specific date (M/D) in each column header";
 "settings_visible_days" = "Visible Days";
@@ -233,7 +234,7 @@
 "jw_parse_empty" = "Parse result is empty. Please make sure you are on the \"My Schedule\" page (not home/login page)";
 "jw_import_success" = "Successfully imported %1$d courses";
 "jw_parse_failed" = "Parse failed: %1$@";
-"jw_parse_failed_hint" = "\\n\\nTip: For HEU, log in via browser then navigate to \"My Schedule\" page before clicking import";
+"jw_parse_failed_hint" = "\n\nTip: For HEU, log in via browser then navigate to \"My Schedule\" page before clicking import";
 "jw_webview_not_ready" = "WebView not ready";
 "jw_fetching" = "Fetching schedule…";
 "jw_fetch_failed_no_response" = "Fetch failed: No response from page (may still be loading)";
@@ -259,10 +260,10 @@
 "end_label" = "End";
 "delete_period" = "Delete this period";
 "mine_about" = "About";
-"mine_about_body" = "Sleepy Schedule v%1$@\\n\\nA minimal, clean, local-first schedule app.\\nAll data stays on your device — nothing is uploaded.\\n\\n· No ads\\n· No tracking\\n· Supports WakeUp / ICS / CSV / HTML / plain text import";
+"mine_about_body" = "Sleepy Schedule v%1$@\n\nA minimal, clean, local-first schedule app.\nAll data stays on your device — nothing is uploaded.\n\n· No ads\n· No tracking\n· Supports WakeUp / ICS / CSV / HTML / plain text import";
 "date_long_format" = "%1$d/%2$d";
 "notif_title" = "Today's Classes — %1$@ %2$@";
-"notif_text" = "Tap to view today\\'s schedule";
+"notif_text" = "Tap to view today's schedule";
 "theme_name_default" = "Lilac";
 "theme_name_spring" = "Spring";
 "theme_name_ocean" = "Ocean";
@@ -282,7 +283,7 @@
 "day_short_7" = "S";
 "section_node_format" = "Period %1$d–%2$d";
 "section_single" = "Period %1$d";
-"mine_appearance" = "Appearance &amp; display";
+"mine_appearance" = "Appearance & display";
 "mine_general" = "General";
 "theme_appearance" = "Appearance";
 "theme_mode_system" = "Auto (light/dark)";
@@ -356,10 +357,10 @@
 "jw_pending_input_url" = "Enter URL Manually";
 "jw_pending_legacy" = "Legacy";
 "jw_pending_manual" = "Add Course Manually";
-"jw_pending_msg" = "The course registration system for %1$@ is not yet supported by Sleepy.\\n\\nYou can:\\n1. Tap \\\"Request Support\\\" to submit to the developer\\n2. Tap \\\"Enter URL Manually\\\" to open and log in via WebView\\n3. Temporarily import via HTML / CSV file, or add courses manually";
+"jw_pending_msg" = "The course registration system for %1$@ is not yet supported by Sleepy.\n\nYou can:\n1. Tap \"Request Support\" to submit to the developer\n2. Tap \"Enter URL Manually\" to open and log in via WebView\n3. Temporarily import via HTML / CSV file, or add courses manually";
 "jw_pending_pending" = "Pending";
 "jw_pending_supported" = "Supported";
-"jw_pending_title" = "This school\\'s course registration import is not yet available";
+"jw_pending_title" = "This school's course registration import is not yet available";
 "jw_pending_use_csv" = "Import via CSV File";
 "jw_pending_use_html" = "Import via HTML File";
 "mine_refresh_widgets" = "Refresh All Widgets";
@@ -393,13 +394,13 @@
 "reminder_fluid_field_time" = "Time";
 "reminder_fluid_fields" = "Capsule Primary Content";
 "reminder_fluid_fields_hint" = "Choose a primary display field";
-"reminder_fluid_note" = "Live Activity follows the before-class reminder switch; availability depends on the system (iPhone 8+ on iOS 16.1+)";
+"reminder_fluid_note" = "Uses the configured lead time and enabled timetables. Sleepy refreshes, switches and ends cards while active. In the background, existing timers continue but new cards, course changes and automatic removal are not guaranteed. Reopen Sleepy to refresh. Requires iOS 16.1+; Live Activities have a separate system permission.";
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
 "reminder_mode_label" = "Reminder style";
 "reminder_mode_banner" = "Banner";
-"reminder_mode_fluid" = "Fluid Cloud";
+"reminder_mode_fluid" = "Live Activities (Dynamic Island)";
 "reminder_mode_banner_sub" = "Standard dismissible banner in the notification bar; safe for watch/band sync";
-"reminder_mode_fluid_sub" = "Course cards appear on the Dynamic Island / Lock Screen; devices without the island get the lock-screen live strip (iOS 16.1+). After the app is fully quit, a new card only appears on its next launch";
+"reminder_mode_fluid_sub" = "Uses the configured lead time and enabled timetables. Sleepy refreshes, switches and ends cards while active. In the background, existing timers continue but new cards, course changes and automatic removal are not guaranteed. Reopen Sleepy to refresh. Requires iOS 16.1+; Live Activities have a separate system permission.";
 "reminder_master_sub" = "Allow Sleepy to send course notifications";
 "reminder_master_title" = "Enable Reminders";
 "reminder_notif_denied_title" = "Notifications are denied";
@@ -452,7 +453,7 @@
 "label_from" = "From";
 "schedule_jump_week" = "Jump to week";
 "schedule_jump_current" = "Jump to current week";
-"schedule_empty_name" = "Schedule \\\"%1$@\\\" is still empty";
+"schedule_empty_name" = "Schedule \"%1$@\" is still empty";
 "schedule_empty_name_hint" = "Add courses to this schedule, or import a new one";
 "course_count_format" = "%1$d courses";
 "today_suffix" = " · Today";
@@ -483,10 +484,10 @@
 "import_dropped_title" = "%1$d lines could not be parsed";
 "schedule_week_prefix" = "Week %1$d";
 "semester_ended" = "Semester is over";
-"semester_not_started" = "Semester hasn\\'t started";
+"semester_not_started" = "Semester hasn't started";
 "today_semester_out_hint" = "Outside the semester range — classes shown for reference";
-"format_wakeup_share_when" = "Migrating everything from the WakeUp app. Copy the entire text generated by WakeUp\\'s \"Share courses\" and paste it as-is.";
-"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"My table\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%5B%7B%22name%22…%5D\"}";
+"format_wakeup_share_when" = "Migrating everything from the WakeUp app. Copy the entire text generated by WakeUp's \"Share courses\" and paste it as-is.";
+"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"My table\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%%5B%%7B%%22name%%22…%%5D\"}";
 "format_wakeup_json_when" = "Content of a WakeUp-exported .json file, or JSON you write yourself in this structure.";
 "format_wakeup_json_example" = "{\\n  \"name\": \"My table\",\\n  \"startDate\": \"2026-09-07\",\\n  \"courses\": [\\n    {\"name\":\"Calculus\",\"teacher\":\"John\",\"position\":\"A101\",\"day\":1,\"startNode\":1,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}\\n  ]\\n}";
 "format_ics_when" = "Calendar files (.ics) exported from your school system or WakeUp. Pick the file via \"Import from file\", or open it in a text editor and paste everything.";
@@ -507,10 +508,10 @@
 "format_wakeup_json_spec_4" = "color is optional";
 "format_ics_spec_0" = "Text must start with BEGIN:VCALENDAR — dropping the first line breaks recognition";
 "format_ics_spec_1" = "Each class is one event: SUMMARY = course name, LOCATION = room; teacher is read from the description";
-"format_ics_spec_2" = "Weekday is derived from the event date; week 1 = the Monday of the earliest event\\'s week";
+"format_ics_spec_2" = "Weekday is derived from the event date; week 1 = the Monday of the earliest event's week";
 "format_ics_spec_3" = "Periods are read from the \"第X - Y节\" line in the description, or estimated from start/end times";
 "format_ics_spec_4" = "Biweekly events are merged automatically";
-"format_csv_spec_0" = "First line must be a header containing: a course column (course/name) + a teacher column (teacher) + a weekday or weeks column — without the teacher column it won\\'t be detected as CSV; if your table lacks teacher data, add an empty \"teacher\" header column yourself";
+"format_csv_spec_0" = "First line must be a header containing: a course column (course/name) + a teacher column (teacher) + a weekday or weeks column — without the teacher column it won't be detected as CSV; if your table lacks teacher data, add an empty \"teacher\" header column yourself";
 "format_csv_spec_1" = "Required columns: course, weekday, weeks, period; optional: teacher, room, type, note";
 "format_csv_spec_2" = "Period: a single \"1-2\" column, or separate start/end period columns";
 "format_csv_spec_3" = "Weekday accepts 1-7, Monday, or Mon";
@@ -521,10 +522,10 @@
 "format_html_spec_1" = "The page must contain a table whose header row mentions the course column";
 "format_html_spec_2" = "Column names are the same as CSV: course, weekday, period, weeks required; teacher, room, type, note optional";
 "format_html_spec_3" = "Same as CSV: optional start/end time columns, applied automatically on import";
-"format_html_spec_4" = "Mon-Sun grid layouts don\\'t parse; a long \"one course per row\" table is needed";
+"format_html_spec_4" = "Mon-Sun grid layouts don't parse; a long \"one course per row\" table is needed";
 "format_plain_spec_0" = "Fixed column order: course, teacher, room, weekday, period, weeks, type (last column optional, defaults to weekly)";
 "format_plain_spec_1" = "Separate columns with tab, spaces, or full-width comma";
-"format_plain_spec_2" = "Weekday must be a number 1-7 (1=Monday); \"Monday\" won\\'t parse";
+"format_plain_spec_2" = "Weekday must be a number 1-7 (1=Monday); \"Monday\" won't parse";
 "format_plain_spec_3" = "Period as a range: 1-2; single period is just the number: 3";
 "format_plain_spec_4" = "Weeks as a range: 1-16";
 "format_plain_spec_5" = "Type as a number: 0=weekly 1=odd 2=even";
@@ -877,17 +878,17 @@
 "period_table_share_native_sub" = "Bell schedule only, importable by Sleepy";
 "period_table_share_native_title" = "Sleepy native format";
 "period_table_share_sheet_title" = "Share bell schedule";
-"period_table_unbound" = "Not bound (use this table\\'s periods)";
+"period_table_unbound" = "Not bound (use this table's periods)";
 "period_tables_tab" = "Bell schedule";
 "period_tables_title" = "Bell schedule";
 "possible_schools" = "Possible schools";
 "reminder_before_class_preview_dynamic" = "Example: %@ — next class: %@ at %@ in %4$s%5$s";
 "reminder_before_class_preview_dynamic_no_course" = "Example: No upcoming classes to remind you about.";
-"reminder_class_dnd_sub" = "Automatically enable DND during class and restore afterwards";
+"reminder_class_dnd_sub" = "Silence this app’s pre-class notifications during class while the app is open. System Focus stays unchanged.";
 "reminder_class_dnd_title" = "Class-time Do Not Disturb";
 "reminder_daily_preview_dynamic" = "Example: %@ — %lld classes. First class: %@ at %4$s in %5$s%6$s";
 "reminder_daily_preview_dynamic_no_course" = "Example: %@ — no classes.";
-"reminder_daily_today_toggle_sub" = "Send today\\'s course summary at the set time";
+"reminder_daily_today_toggle_sub" = "Send today's course summary at the set time";
 "reminder_daily_today_toggle_title" = "Today summary";
 "reminder_date_rules_advanced_button" = "Open holiday settings";
 "reminder_date_rules_advanced_subtitle" = "These options apply only when enabled. Mappings are timetable-specific, weekends are distinct from legal holidays, and all four reminder paths are affected.";
@@ -930,7 +931,7 @@
 "reminder_reliability_widget" = "Home-screen widgets: %@";
 "reminder_tomorrow_preview" = "Example: Tomorrow the 16th, 3 classes. First class 08:00 Advanced Math @ Bldg A101";
 "reminder_tomorrow_time_label" = "Tomorrow preview time";
-"reminder_tomorrow_toggle_sub" = "Send tomorrow\\'s summary the previous evening";
+"reminder_tomorrow_toggle_sub" = "Send tomorrow's summary the previous evening";
 "reminder_tomorrow_toggle_title" = "Tomorrow preview";
 "schedule_conflict_banner_format" = "Pending: %@ · takes effect on next save";
 "schedule_conflict_banner_modify" = "Change";
@@ -1017,22 +1018,22 @@
 "widget_scroll_dialog_confirm" = "Enable experimental";
 "widget_scroll_dialog_title" = "Enable forced scrolling (experimental)?";
 "widget_status_all_done" = "All classes done today";
-"widget_today_description" = "Today\\'s classes";
-"widget_today_small_description" = "Today\\'s classes in a compact card";
-"widget_today_wide_description" = "Today\\'s classes in a wide card";
+"widget_today_description" = "Today's classes";
+"widget_today_small_description" = "Today's classes in a compact card";
+"widget_today_wide_description" = "Today's classes in a wide card";
 "widget_today_wide_label" = "Today · Medium";
 "widget_twoday_description" = "Classes for the next two days";
 "widget_twoday_small_description" = "Next two days in a compact card";
 "widget_twoday_wide_description" = "Next two days in a wide card";
 "widget_twoday_wide_label" = "Two Days · Medium";
-"widget_week_grid_description" = "This week\\'s classes in a grid";
-"widget_week_grid_small_description" = "This week\\'s classes in a compact grid";
-"widget_week_list_description" = "This week\\'s classes in a list";
-"widget_week_list_small_description" = "This week\\'s classes in a compact list";
-"widget_week_list_wide_description" = "This week\\'s classes in a wide list";
+"widget_week_grid_description" = "This week's classes in a grid";
+"widget_week_grid_small_description" = "This week's classes in a compact grid";
+"widget_week_list_description" = "This week's classes in a list";
+"widget_week_list_small_description" = "This week's classes in a compact list";
+"widget_week_list_wide_description" = "This week's classes in a wide list";
 "widget_week_list_wide_label" = "Week List · Medium";
-"widget_week_view_description" = "This week\\'s classes in a week view";
-"widget_week_view_small_description" = "This week\\'s classes in a compact week view";
+"widget_week_view_description" = "This week's classes in a week view";
+"widget_week_view_small_description" = "This week's classes in a compact week view";
 
 "timeslot_longpress_to_reorder" = "Long press a row to drag and reorder";
 "timeslot_row_blank_hint" = "Blank rows can be dragged to any position";
@@ -1097,14 +1098,14 @@
 "appearance_header_hide_time_sub" = "Show only period numbers in the legacy header (experimental, off by default)";
 "mine_widget" = "Widgets";
 "widget_gallery_title" = "Add Widget";
-"widget_manage_empty_v2" = "Tap + at the top right to add a widget. If none is added yet, long-press an empty spot on the Home Screen → + → search for Sleepy.";
+"widget_manage_empty_v2" = "Tap + at the top right to view widgets and instructions for adding them to the Home Screen.";
 "widget_guide_title" = "Add the Widget to Your Home Screen";
-"widget_guide_search_hint" = "It’s called “%1$@” in the widget gallery";
+"widget_guide_search_hint" = "Search for the app “%1$@”, then choose the widget shown below.";
 "widget_guide_copy_name" = "Copy name";
 "widget_guide_step_hold" = "Press and hold an empty spot on the Home Screen until the icons start to jiggle";
-"widget_guide_step_plus" = "Tap the ➕ in the top-left corner, then “Add Widget” at the bottom right";
-"widget_guide_step_search" = "Type the copied name into the search field to find this widget";
-"widget_guide_step_drag" = "Press and hold the widget icon and drag it onto your Home Screen, then tap “Done”";
+"widget_guide_step_plus" = "Tap Edit at the top left, then Add Widget. On older iOS versions, tap +.";
+"widget_guide_step_search" = "Search for Sleepy, tap the app, then choose the widget and size you want.";
+"widget_guide_step_drag" = "Tap Add Widget, move it to the desired position, then tap Done.";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "Daily agenda";
@@ -1160,6 +1161,9 @@
 "occurrence_keep_date" = "Keep original date";
 "occurrence_continue" = "Continue";
 "occurrence_stale" = "The timetable or holiday transfers have changed. Reopen this occurrence.";
+"occurrence_invalid_date" = "Choose a date within this semester.";
+"occurrence_invalid_nodes" = "Choose valid consecutive periods.";
+"occurrence_invalid_time" = "Enter valid times with the end later than the start.";
 "occurrence_actions" = "Edit or delete this occurrence";
 "theme_system_source_window_tint" = "Color source: current interface tint";
 "theme_system_source_fallback" = "Color source: default seed (no valid interface tint available)";
@@ -1179,3 +1183,62 @@
 "watch_tomorrow_mark" = "Tomorrow";
 "watch_tomorrow_no_class" = "No classes tomorrow";
 "watch_holiday" = "On break";
+
+// MARK: - Watch course time strip
+"watch_time_strip_display_name" = "Course time strip";
+"watch_time_strip_description" = "Shows classes and gaps on a fixed 90-minute strip, refreshed on the system’s schedule.";
+"watch_time_strip_preview" = "Tomorrow preview";
+"watch_time_strip_break" = "Break";
+"watch_time_strip_free" = "Free";
+"watch_time_strip_finished" = "Today’s classes are finished";
+"watch_time_strip_scale" = "90 min";
+"watch_time_strip_overlap" = "%1$d classes";
+"watch_time_strip_unavailable" = "Schedule unavailable. Sync from iPhone.";
+"settings_watch_time_strip_section" = "Apple Watch course time strip";
+"settings_watch_time_strip_tomorrow" = "Show tomorrow after today ends";
+"settings_watch_time_strip_tomorrow_hint" = "Previews only the next calendar day, independently of nearest class day and reminder settings.";
+"settings_watch_time_strip_overview" = "The full width always represents 90 minutes. Updates are scheduled by the system, not a continuous animation.";
+"settings_watch_time_strip_preview_details" = "Off by default. After today’s classes end (or if today has none), only the next calendar day is previewed, with its date and a “Tomorrow preview” label. The preview starts at the first class, advances one schedule minute per elapsed minute, and repeats after the last class. If tomorrow is empty, it shows “No classes tomorrow” instead of skipping to a later day.";
+
+"import_target_missing" = "The selected timetable no longer exists. Reopen the import preview.";
+"import_period_missing" = "The selected period table no longer exists. Choose it again.";
+
+"live_activity_title" = "Live Activities (Dynamic Island)";
+"live_activity_limits" = "Uses the configured lead time and enabled timetables. Sleepy refreshes, switches and ends cards while active. In the background, existing timers continue but new cards, course changes and automatic removal are not guaranteed. Reopen Sleepy to refresh. Requires iOS 16.1+; Live Activities have a separate system permission.";
+"live_activity_permission" = "Live Activities are disabled. Tap to open Settings.";
+"live_activity_starts" = "Starts in";
+"live_activity_ends" = "Ends in";
+"live_activity_stale" = "Schedule may be out of date";
+"live_activity_open_to_refresh" = "Open Sleepy to refresh";
+"live_activity_next" = "Next: %1$@";
+
+"timeslot_reorder_standard_only" = "Edge periods stay fixed. Drag standard periods to reorder.";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "Calculus";
+"widget_preview_english" = "English Reading";
+"widget_preview_linear_algebra" = "Linear Algebra";
+"widget_preview_sports" = "PE";
+"widget_preview_programming" = "Programming Lab";
+"widget_preview_seminar" = "Seminar";
+"widget_preview_gym" = "Gym";
+
+// Android v1.0.63 THU course-page navigation and recovery.
+"jw_nav_hint_thu" = "Open the course system’s Overall Timetable, select the semester, then tap Import This Page";
+"jw_err_thu_course_page" = "No THU Overall Timetable course script was found. Sign in, open Overall Timetable, select the semester, then tap Import This Page.";
+
+// Android v1.0.63 — explicit-target course imports.
+"add_course_title" = "Add Course";
+"add_course_from_existing" = "From Existing Timetable";
+"select_courses_title" = "Select Courses";
+"select_courses_all" = "Select All";
+"select_courses_none" = "Deselect All";
+"select_courses_count" = "%1$lld of %2$lld selected";
+"import_selection_empty" = "No courses selected";
+"add_course_manual" = "Add Course Manually";
+"add_course_no_source" = "No other timetables available. Add a timetable first.";
+"import_backup_original" = "Back up original timetable";
+"import_backup_original_sub" = "Copy the original timetable before adding these courses";
+"import_append_conflicts_option" = "Append conflicting courses";
+"import_append_conflicts_option_sub" = "When off, courses conflicting with existing ones are skipped";
+"import_backup_name" = "%1$@ - Backup";

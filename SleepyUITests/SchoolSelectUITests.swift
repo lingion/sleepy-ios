@@ -73,6 +73,23 @@ final class SchoolSelectUITests: XCTestCase {
             .waitForExistence(timeout: 5), "输入 URL 应出现直连入口")
     }
 
+    func testUnverifiedSchoolRequiresCatalogNoticeAndCloseReturnsToSelection() {
+        let search = app.descendants(matching: .any)["school_search"]
+        search.tap()
+        search.typeText("佳木斯大学")
+        let row = app.staticTexts["佳木斯大学"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        let notice = app.descendants(matching: .any)["jw_catalog_notice_dialog"].firstMatch
+        XCTAssertTrue(notice.waitForExistence(timeout: 10), "An unverified school must require catalog confirmation")
+        XCTAssertTrue(notice.buttons["Try anyway"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["jw_refresh"].exists, "Do not open the login WebView before confirmation")
+        notice.buttons["Close"].firstMatch.tap()
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        XCTAssertFalse(notice.exists)
+        XCTAssertFalse(app.buttons["jw_refresh"].exists)
+    }
+
     // MARK: 学校行点击 → 进入登录流程(WebView 页出现)
 
     func testSchoolRowTapOpensLogin() {

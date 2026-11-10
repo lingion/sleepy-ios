@@ -41,7 +41,7 @@ struct CountdownView: View {
 
                     // 大字倒计时 — M3 displaySmall=36pt (最大 display 层级)
                     Text(state.countdownText)
-                        .font(.system(size: 36, weight: .bold).monospacedDigit())
+                        .font(SleepyTypography.displaySmall).fontWeight(.bold).monospacedDigit()
                         .foregroundColor(state.phase == .inClass
                                          ? scheme.onPrimaryContainer
                                          : scheme.onSurface)

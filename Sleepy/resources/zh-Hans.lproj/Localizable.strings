@@ -35,8 +35,8 @@
 "manage_edit_current_sub" = "编辑当前课表名称、日期、节次时间";
 "manage_export" = "导出当前课表";
 "manage_export_sub" = "以文件分享当前课表";
-"manage_manual_add" = "手动添加课程";
-"manage_manual_add_sub" = "直接添加一门课程到当前课表";
+"manage_manual_add" = "添加课程";
+"manage_manual_add_sub" = "从课表导入或手动添加课程";
 "table_info" = "开始日期: %1$@  |  第%2$d周  |  %3$d门课";
 "current_table_week" = "当前课表 · 第%1$d周";
 "table_start_date" = "开始日期: %1$@";
@@ -105,7 +105,7 @@
 "format_csv" = "CSV 文件";
 "format_csv_desc" = "含表头的 .csv，逗号分隔";
 "format_html" = "HTML 表格";
-"format_html_desc" = "&lt;table&gt; 形式，识别表头后逐行解析";
+"format_html_desc" = "<table> 形式，识别表头后逐行解析";
 "format_plain" = "纯文本";
 "format_plain_desc" = "一行一课，制表符分隔";
 "import_start_date_required" = "请填写学期开始日期";
@@ -211,6 +211,7 @@
 "mine_stat_tables" = "课表数";
 "mine_stat_courses" = "课程数";
 "mine_stat_week" = "当前周";
+"mine_stat_period_tables" = "作息表数";
 "settings_language" = "语言 / Language";
 "settings_display_mode" = "课程时间显示";
 "settings_grid_sub_info" = "网格卡片副信息";
@@ -283,7 +284,7 @@
 "course_period_range" = "%1$d-%2$d节";
 "jw_no_url" = "该学校暂未配置教务 URL";
 "jw_pending_title" = "该学校暂未实现教务导入";
-"jw_pending_msg" = "%1$@ 的教务系统未在 Sleepy 适配列表中。\\n\\n你可以：\\n1. 点击「申请适配」提交给开发者\\n2. 点击「手动输入 URL」在 WebView 打开并登录\\n3. 暂用 HTML / CSV 文件导入，或手动添加课程";
+"jw_pending_msg" = "%1$@ 的教务系统未在 Sleepy 适配列表中。\n\n你可以：\n1. 点击「申请适配」提交给开发者\n2. 点击「手动输入 URL」在 WebView 打开并登录\n3. 暂用 HTML / CSV 文件导入，或手动添加课程";
 "jw_pending_supported" = "已支持";
 "jw_pending_pending" = "待适配";
 "jw_pending_grad" = "研究生";
@@ -300,7 +301,7 @@
 "jw_parse_empty" = "解析结果为空，请确认已到达「个人课表」页（而非首页/登录页）";
 "jw_import_success" = "成功导入 %1$d 门课程";
 "jw_parse_failed" = "解析失败：%1$@";
-"jw_parse_failed_hint" = "\\n\\n提示：HEU 需在浏览器中登录后导航到『个人课表』页面再点导入";
+"jw_parse_failed_hint" = "\n\n提示：HEU 需在浏览器中登录后导航到『个人课表』页面再点导入";
 "jw_webview_not_ready" = "WebView 未就绪";
 "jw_fetching" = "正在抓取课表…";
 "jw_fetch_failed_no_response" = "抓取失败：网页无响应（可能还在加载）";
@@ -326,7 +327,7 @@
 "end_label" = "结束";
 "delete_period" = "删除此节";
 "mine_about" = "关于";
-"mine_about_body" = "Sleepy 课程表 v%1$@\\n\\n一个极简、干净、本地优先的课表工具。\\n所有数据均存储在你的设备上，不上传任何服务器。\\n\\n· 无广告\\n· 无追踪\\n· 支持 WakeUp / ICS / CSV / HTML / 纯文本 导入";
+"mine_about_body" = "Sleepy 课程表 v%1$@\n\n一个极简、干净、本地优先的课表工具。\n所有数据均存储在你的设备上，不上传任何服务器。\n\n· 无广告\n· 无追踪\n· 支持 WakeUp / ICS / CSV / HTML / 纯文本 导入";
 "date_long_format" = "%1$d月%2$d日";
 "notif_title" = "今日课程 — %1$@ %2$@";
 "notif_text" = "点击查看今日课程安排";
@@ -345,16 +346,16 @@
 "reminder_fluid_title" = "流体云 / 超级岛";
 "reminder_mode_label" = "提醒形态";
 "reminder_mode_banner" = "横幅";
-"reminder_mode_fluid" = "流体云";
+"reminder_mode_fluid" = "实况活动（灵动岛）";
 "reminder_mode_banner_sub" = "系统通知栏普通横幅,可手动划掉;手环/手表同步不受影响";
-"reminder_mode_fluid_sub" = "课程卡片出现在灵动岛/锁屏；无灵动岛机型显示为锁屏实况条(iOS 16.1+)。App 完全退出后，新的卡片要等下次打开才出现";
+"reminder_mode_fluid_sub" = "按课前提前时间和各课表提醒开关显示课程。Sleepy 在前台时会更新、切课和结束卡片。退到后台后已有倒计时可继续，但无法保证新卡片、课程切换或下课后自动移除；再次打开应用即可刷新。需要 iOS 16.1+，系统实况活动权限与通知权限独立。";
 "reminder_fluid_fields" = "胶囊主显示内容";
 "reminder_fluid_fields_hint" = "选择一个主显示内容";
 "reminder_fluid_field_name" = "课程名称";
 "reminder_fluid_field_time" = "上课时间";
 "reminder_fluid_field_room" = "上课地点";
 "reminder_fluid_field_teacher" = "任课老师";
-"reminder_fluid_note" = "实况通知随课前提醒开关;具体以系统支持为准(需要 iPhone 8+ 且 iOS 16.1+)";
+"reminder_fluid_note" = "按课前提前时间和各课表提醒开关显示课程。Sleepy 在前台时会更新、切课和结束卡片。退到后台后已有倒计时可继续，但无法保证新卡片、课程切换或下课后自动移除；再次打开应用即可刷新。需要 iOS 16.1+，系统实况活动权限与通知权限独立。";
 "reminder_notif_denied_title" = "通知权限已被拒绝";
 "reminder_notif_denied_sub" = "iOS 不会再次弹出授权请求，请前往系统设置手动开启通知。";
 "reminder_pick_time" = "选择提醒时间";
@@ -486,7 +487,7 @@
 "semester_not_started" = "学期未开始";
 "today_semester_out_hint" = "学期范围外，课程仅供参考";
 "format_wakeup_share_when" = "从 WakeUp 课程表 app 整体搬家。在 WakeUp 里点「分享课程」生成的整段文字，原样粘贴即可。";
-"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"我的课表\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%5B%7B%22name%22…%5D\"}";
+"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"我的课表\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%%5B%%7B%%22name%%22…%%5D\"}";
 "format_wakeup_json_when" = "WakeUp 导出的 .json 文件内容，或按下面的结构自己写 JSON。";
 "format_wakeup_json_example" = "{\\n  \"name\": \"我的课表\",\\n  \"startDate\": \"2026-09-07\",\\n  \"courses\": [\\n    {\"name\":\"高等数学\",\"teacher\":\"张三\",\"position\":\"A101\",\"day\":1,\"startNode\":1,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}\\n  ]\\n}";
 "format_ics_when" = "学校教务系统或 WakeUp 导出的日历文件（.ics）。用「从文件导入」选它，或用文本编辑器打开后复制全部内容粘贴。";
@@ -884,7 +885,7 @@
 "possible_schools" = "可能的学校";
 "reminder_before_class_preview_dynamic" = "示例：%@，下节课是「%@」，于 %@ 在 %4$s 上课%5$s";
 "reminder_before_class_preview_dynamic_no_course" = "示例：未来没有可提醒的课程。";
-"reminder_class_dnd_sub" = "上课时段自动开启勿扰, 下课自动恢复";
+"reminder_class_dnd_sub" = "仅在 App 前台时，静音上课时段的本应用课前通知；系统专注模式保持不变";
 "reminder_class_dnd_title" = "上课自动勿扰";
 "reminder_daily_preview_dynamic" = "示例：%@，您有 %lld 节课。第一节课是「%@」，于 %4$s 在 %5$s 上课%6$s";
 "reminder_daily_preview_dynamic_no_course" = "示例：%@，暂无课程。";
@@ -1098,14 +1099,14 @@
 "appearance_header_hide_time_sub" = "旧式表头只显示节次，不显示上课时间（实验性，默认关闭）";
 "mine_widget" = "小组件";
 "widget_gallery_title" = "添加小组件";
-"widget_manage_empty_v2" = "点右上角 ＋ 添加小组件;还没添加过时,长按桌面空白处 → ＋ → 搜索 Sleepy。";
+"widget_manage_empty_v2" = "点右上角 ＋ 查看小组件样式和添加到主屏幕的步骤。";
 "widget_guide_title" = "把小组件加到桌面";
-"widget_guide_search_hint" = "小组件库里叫「%1$@」";
+"widget_guide_search_hint" = "搜索应用「%1$@」，再选择下方的小组件。";
 "widget_guide_copy_name" = "复制名称";
 "widget_guide_step_hold" = "长按桌面空白处,直到 App 图标开始抖动";
-"widget_guide_step_plus" = "点左上角的 ➕,再点右下角的「添加小组件」";
-"widget_guide_step_search" = "在搜索框输入上面复制的名称,找到这个小组件";
-"widget_guide_step_drag" = "按住它的图标,拖到桌面空位,然后点右上角「完成」";
+"widget_guide_step_plus" = "点左上角「编辑」，再点「添加小组件」；较早版本的 iOS 请点 ＋。";
+"widget_guide_step_search" = "搜索 Sleepy 并点开应用，选择需要的小组件和尺寸。";
+"widget_guide_step_drag" = "点「添加小组件」，调整到桌面合适位置，再点「完成」。";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "每日议程";
@@ -1161,6 +1162,9 @@
 "occurrence_keep_date" = "按原日保存";
 "occurrence_continue" = "继续";
 "occurrence_stale" = "课表或调休设置已变化，请重新打开本次课程。";
+"occurrence_invalid_date" = "请选择当前学期内的日期。";
+"occurrence_invalid_nodes" = "请选择有效的起始节次和连续节数。";
+"occurrence_invalid_time" = "请输入有效起止时间，结束时间须晚于开始时间。";
 "occurrence_actions" = "调整或删除本次课程";
 "theme_system_source_window_tint" = "配色来源：当前界面强调色";
 "theme_system_source_fallback" = "配色来源：默认种子（暂未取得有效界面强调色）";
@@ -1180,3 +1184,62 @@
 "watch_tomorrow_mark" = "明日";
 "watch_tomorrow_no_class" = "明日无课";
 "watch_holiday" = "假期中";
+
+// MARK: - Watch course time strip
+"watch_time_strip_display_name" = "课程时间带";
+"watch_time_strip_description" = "以固定 90 分钟宽度显示课程与空档，由系统安排刷新。";
+"watch_time_strip_preview" = "明日预览";
+"watch_time_strip_break" = "课间";
+"watch_time_strip_free" = "空闲";
+"watch_time_strip_finished" = "今日课程已结束";
+"watch_time_strip_scale" = "90 分钟";
+"watch_time_strip_overlap" = "%1$d 门课程";
+"watch_time_strip_unavailable" = "课表暂不可用，请在 iPhone 同步";
+"settings_watch_time_strip_section" = "Apple Watch 课程时间带";
+"settings_watch_time_strip_tomorrow" = "今日结束后显示明日";
+"settings_watch_time_strip_tomorrow_hint" = "仅预览下一个自然日，与最近有课日和提醒设置互不影响。";
+"settings_watch_time_strip_overview" = "整条宽度始终代表 90 分钟。刷新时机由系统安排，不会持续逐秒滑动。";
+"settings_watch_time_strip_preview_details" = "默认关闭。今日课程结束后（或今日无课时），仅预览下一个自然日，并标明日期与「明日预览」。预览从明日第一节课开始，按实际时间流速前进，最后一节课结束后重新循环。明日无课时显示「明日无课」，不会跳到之后的有课日。";
+
+"import_target_missing" = "目标课表已不存在，请重新打开导入预览。";
+"import_period_missing" = "所选作息表已不存在，请重新选择。";
+
+"live_activity_title" = "实况活动（灵动岛）";
+"live_activity_limits" = "按课前提前时间和各课表提醒开关显示课程。Sleepy 在前台时会更新、切课和结束卡片。退到后台后已有倒计时可继续，但无法保证新卡片、课程切换或下课后自动移除；再次打开应用即可刷新。需要 iOS 16.1+，系统实况活动权限与通知权限独立。";
+"live_activity_permission" = "系统已关闭实况活动，点此打开设置。";
+"live_activity_starts" = "距离上课";
+"live_activity_ends" = "距离下课";
+"live_activity_stale" = "课程状态可能已过期";
+"live_activity_open_to_refresh" = "打开 Sleepy 刷新";
+"live_activity_next" = "下节：%1$@";
+
+"timeslot_reorder_standard_only" = "边缘节次保持固定，仅标准节次支持拖拽排序。";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "高等数学";
+"widget_preview_english" = "英文阅读";
+"widget_preview_linear_algebra" = "线性代数";
+"widget_preview_sports" = "体育";
+"widget_preview_programming" = "程序设计实践";
+"widget_preview_seminar" = "研讨课";
+"widget_preview_gym" = "体育馆";
+
+// Android v1.0.63 THU course-page navigation and recovery.
+"jw_nav_hint_thu" = "导航到选课系统「整体课表」页，选好学期后点「导入此页」";
+"jw_err_thu_course_page" = "尚未检测到清华大学「整体课表」的课程脚本。请登录选课系统、打开「整体课表」、选好学期后再点「导入此页」";
+
+// Android v1.0.63 — explicit-target course imports.
+"add_course_title" = "添加课程";
+"add_course_from_existing" = "从现有课表";
+"select_courses_title" = "选择课程";
+"select_courses_all" = "全选";
+"select_courses_none" = "取消全选";
+"select_courses_count" = "已选 %1$lld / 共 %2$lld 门";
+"import_selection_empty" = "未选择任何课程";
+"add_course_manual" = "手动添加课程";
+"add_course_no_source" = "没有其他可用课表，请先添加课表";
+"import_backup_original" = "备份原课表";
+"import_backup_original_sub" = "开启后先复制原课表作为备份，再添加本次课程";
+"import_append_conflicts_option" = "追加冲突课程";
+"import_append_conflicts_option_sub" = "关闭后放弃与现有课程冲突的课程";
+"import_backup_name" = "%1$@-备份";

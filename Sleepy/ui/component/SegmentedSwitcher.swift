@@ -42,13 +42,14 @@ struct SegmentedSwitcher<T: Hashable>: View {
     private func segmentedBody(containerWidth: CGFloat) -> some View {
         let trackW = max(containerWidth - 8, 0)
         let segW = trackW / CGFloat(max(options.count, 1))
+        let trackH = max(height - 8, 0)
 
         return ZStack(alignment: .topLeading) {
             // 层0: thumb — 弹簧滑到选中段(确定性几何,无状态)
             RoundedRectangle(cornerRadius: 12)
                 .fill(colors.secondaryContainer)
-                .frame(width: segW, height: height - 8)
-                .offset(x: 4 + CGFloat(selectedIndex) * segW, y: 4)
+                .frame(width: segW, height: trackH)
+                .offset(x: CGFloat(selectedIndex) * segW)
                 // 同款 — 原版本 SleepyThumbSpring (高硬度+无回弹实测定参), 见 SleepyMotion.swift
                 .animation(sleepyThumbSpring, value: selectedIndex)
 
@@ -68,7 +69,7 @@ struct SegmentedSwitcher<T: Hashable>: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                             .allowsTightening(true)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(width: segW, height: trackH)
                     }
                     .buttonStyle(SleepyButtonStyle())
                     .accessibilityIdentifier("seg_\(pair.1)")
@@ -76,8 +77,12 @@ struct SegmentedSwitcher<T: Hashable>: View {
                     .accessibilityAddTraits(isSel ? .isSelected : [])
                 }
             }
-            .frame(height: height)
+            .frame(width: trackW, height: trackH)
         }
+        // The thumb and button cells share the inset track coordinates.
+        // Applying an additional four-point thumb offset or an outer-height
+        // button row shifts selection off its label and overflows short rows.
+        .frame(width: trackW, height: trackH)
         .padding(4)
         .frame(width: containerWidth, height: height)
         .background(containerColor ?? colors.surfaceContainer)

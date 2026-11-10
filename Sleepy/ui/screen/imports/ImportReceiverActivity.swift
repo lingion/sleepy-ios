@@ -24,8 +24,16 @@ import Foundation
 
 enum ImportReceiverActivity {
 
+    /// 系统文档打开先于 sleepy:// 深链分派；网络 URL 不进入文件读取通路。
+    @discardableResult
+    static func receiveIfFileURL(_ url: URL, onReceived: @escaping @MainActor () -> Void = {}) -> Bool {
+        guard url.isFileURL else { return false }
+        receive(url: url, onReceived: onReceived)
+        return true
+    }
+
     /// 入口(← onCreate): 读 URI → 空/失败静默回主界面 → 成功写 PendingImportText。
-    static func receive(url: URL) {
+    static func receive(url: URL, onReceived: @escaping @MainActor () -> Void = {}) {
         // ← lifecycleScope.launch { withContext(Dispatchers.IO) { ... } }
         Task.detached(priority: .userInitiated) {
             do {
@@ -43,6 +51,8 @@ enum ImportReceiverActivity {
                     //   iOS 主壳此时已在前台(或冷启即达), PendingImportText 写入即触发
                     //   AppRoot.onChange(currentTab=.manage) + ImportSheet 自动弹预览,
                     //   等价 原版本 "forward MainActivity 由 ImportSheet 接收"。
+                    // 管理页可能已常驻；显式请求在载荷就绪后呈现，不能只依赖切 Tab。
+                    onReceived()
                 }
             } catch {
                 // ← android.util.Log.e("Sleepy", "external import failed", e)
@@ -64,10 +74,9 @@ enum ImportReceiverActivity {
         if url.isFileURL {
             let secured = url.startAccessingSecurityScopedResource()
             defer { if secured { url.stopAccessingSecurityScopedResource() } }
-            // ← File(cacheDir, "shared_import_${System.currentTimeMillis()}.json")
+            // 同时收到多个文档也使用独立临时副本。
             let cacheFile = FileManager.default.temporaryDirectory
-                .appendingPathComponent(
-                    "shared_import_\(Int64(Date().timeIntervalSince1970 * 1000)).json")
+                .appendingPathComponent("shared_import_\(UUID().uuidString).json")
             // ← inputStream().copyTo(out)
             try FileManager.default.copyItem(at: url, to: cacheFile)
             // ← cacheFile.readText().also { cacheFile.delete() }

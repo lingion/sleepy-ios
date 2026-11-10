@@ -1,5 +1,5 @@
 // MineScreen.swift — ← ui/screen/mine/MineScreen.kt
-// 我的页: 标题 + 数据统计卡(表/课/周) + 7 设置导航项。
+// 我的页: 标题 + 数据统计卡(课表/课程/作息表) + 设置导航项。
 // v1.0.62 B4 (+36 对齐): 新增「小组件」入口行(→ WidgetSettingsScreen 独立页);
 //   「刷新所有小组件」按钮 + snackbar 自本页迁出(动作随 widget 块移入设置页)。
 
@@ -14,7 +14,6 @@ struct MineScreen: View {
     var onOpenPeriodTables: () -> Void = {}
     var onOpenAppearance: () -> Void = {}
     var onOpenGeneral: () -> Void = {}
-    var onOpenExport: () -> Void = {}
     var onOpenReminder: () -> Void = {}
     var onOpenAbout: () -> Void = {}
 
@@ -30,7 +29,7 @@ struct MineScreen: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.format("tab_mine"))
                         // ← Material 3 headlineMedium = 28sp (MineScreen.kt)
-                        .font(.system(size: 28))
+                        .font(.system(size: 28, weight: .bold))
                         .foregroundColor(colors.onBackground)
                     Text(L10n.format("mine_subtitle"))
                         .font(.system(size: 14))
@@ -42,13 +41,13 @@ struct MineScreen: View {
                 StatsCard(tableCount: state.tables.count,
                           // 与 CourseListScreen 同口径: 同名课程一组, 空名按 groupId 区分
                           courseCount: Set(state.courses.map { $0.courseName.isBlank ? "#\($0.groupId)" : $0.courseName }).count,
-                          week: state.currentWeek,
+                          periodTableCount: viewModel.allPeriodTables.count,
                           onOpenTables: onOpenAllTables,
-                          onOpenCourses: onOpenCourseList)
+                          onOpenCourses: onOpenCourseList,
+                          onOpenPeriodTables: onOpenPeriodTables)
 
                 // 设置项 (导航项扁平列表) — 抽出子视图(类型推断上限 workaround)
                 SettingsNavList(onOpenAllTables: onOpenAllTables, onOpenPeriodTables: onOpenPeriodTables,
-                                onOpenExport: onOpenExport,
                                 onOpenReminder: onOpenReminder, onOpenAppearance: onOpenAppearance,
                                 onOpenGeneral: onOpenGeneral, onOpenAbout: onOpenAbout,
                                 onOpenWidgetSettings: { showWidgetSettings = true })
@@ -88,10 +87,10 @@ private struct StatsCard: View {
     @Environment(\.localWakeUpColors) private var colors
     let tableCount: Int
     let courseCount: Int
-    let week: Int
-    // ← v1.0.60: 表数/课数两项可点进入管理页/课程清单(week 项不可点)
+    let periodTableCount: Int
     var onOpenTables: () -> Void = {}
     var onOpenCourses: () -> Void = {}
+    var onOpenPeriodTables: () -> Void = {}
 
     var body: some View {
         // ← Arrangement.SpaceEvenly: 三项中心均匀分布(1/6, 1/2, 5/6) = 两边靠边中间居中。
@@ -111,9 +110,12 @@ private struct StatsCard: View {
             .buttonStyle(SleepyButtonStyle())
             .frame(maxWidth: .infinity)
             VDivider()
-            StatItem(value: "\(week)", label: L10n.format("mine_stat_week"),
-                     identifier: "mine_stat_week")
-                .frame(maxWidth: .infinity)
+            Button(action: onOpenPeriodTables) {
+                StatItem(value: "\(periodTableCount)", label: L10n.format("mine_stat_period_tables"),
+                         identifier: "mine_stat_period_tables")
+            }
+            .buttonStyle(SleepyButtonStyle())
+            .frame(maxWidth: .infinity)
         }
         .padding(.vertical, 18)
         .padding(.horizontal, 8)
@@ -208,7 +210,6 @@ private struct SettingsNavList: View {
     @Environment(\.localWakeUpColors) private var colors
     let onOpenAllTables: () -> Void
     let onOpenPeriodTables: () -> Void
-    let onOpenExport: () -> Void
     let onOpenReminder: () -> Void
     let onOpenAppearance: () -> Void
     let onOpenGeneral: () -> Void
@@ -225,9 +226,6 @@ private struct SettingsNavList: View {
             // issue#40: 时间节次表入口 — 与课表管理并列(设计 §4.1)
             SettingsItem(icon: "clock.badge.checkmark", label: L10n.format("mine_period_tables"),
                          identifier: "mine_period_tables", onClick: onOpenPeriodTables)
-            HDivider()
-            SettingsItem(icon: "square.and.arrow.up", label: L10n.format("mine_export"),
-                         identifier: "mine_export", onClick: onOpenExport)
             HDivider()
             SettingsItem(icon: "bell", label: L10n.format("reminder_title"),
                          identifier: "mine_reminder", onClick: onOpenReminder)

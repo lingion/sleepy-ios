@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/lang-Swift-FA7343?style=flat-square&logo=swift&logoColor=white" alt="Swift">
   <img src="https://img.shields.io/badge/UI-SwiftUI-007AFF?style=flat-square" alt="SwiftUI">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">
-  <img src="https://img.shields.io/badge/minSDK-16.0-green?style=flat-square" alt="Min SDK">
+  <img src="https://img.shields.io/badge/minSDK-15.6-green?style=flat-square" alt="Min SDK">
   <img src="https://img.shields.io/badge/QQ群-1063407652-12B7F5?style=flat-square&logo=tencentqq&logoColor=white" alt="QQ 群">
 </p>
 
@@ -42,7 +42,7 @@
 </p>
 
 <p align="center">
-  iOS 16.0+ · 包名 <code>com.lingion.sleepy</code> · 版本以 <a href="https://github.com/lingion/sleepy-ios/releases">Releases</a> 为准
+  iOS 15.6+ · 包名 <code>com.lingion.sleepy</code> · 版本以 <a href="https://github.com/lingion/sleepy-ios/releases">Releases</a> 为准
 </p>
 
 ---
@@ -52,7 +52,7 @@
 | 项 | 值 |
 |---|---|
 | 包名 | `com.lingion.sleepy` |
-| 最低版本 | `16.0` |
+| 最低版本 | `15.6` |
 | 架构 | arm64 |
 | 语言 | zh-CN · zh-TW · en · ja · es |
 

@@ -707,47 +707,51 @@ private struct HolidayTransferRow: View {
     }
 
     private var makeupDatePicker: some View {
-        VStack(spacing: 0) {
-            DatePicker(
-                "",
-                selection: $pickedOther,
-                displayedComponents: .date
-            )
-            .datePickerStyle(.wheel)
-            .labelsHidden()
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            HStack(spacing: 8) {
-                Button {
-                    showDatePicker = false
-                } label: {
-                    Text(L10n.format("cancel"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(colors.onSecondaryContainer)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 40)
-                        .background(colors.secondaryContainer)
-                        .cornerRadius(SleepyShapes.medium)
-                        .contentShape(Rectangle())
+        ScrollView {
+            VStack(spacing: 0) {
+                DatePicker(
+                    "",
+                    selection: $pickedOther,
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                HStack(spacing: 8) {
+                    Button {
+                        showDatePicker = false
+                    } label: {
+                        Text(L10n.format("cancel"))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(colors.onSecondaryContainer)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .background(colors.secondaryContainer)
+                            .cornerRadius(SleepyShapes.medium)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SleepyButtonStyle())
+                    Button {
+                        showDatePicker = false
+                        onPick(pickedOther)
+                    } label: {
+                        Text(L10n.format("ok"))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(colors.onPrimary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .background(colors.primary)
+                            .cornerRadius(SleepyShapes.medium)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SleepyButtonStyle())
+                    .accessibilityIdentifier("holiday_date_confirm")
                 }
-                .buttonStyle(SleepyButtonStyle())
-                Button {
-                    showDatePicker = false
-                    onPick(pickedOther)
-                } label: {
-                    Text(L10n.format("ok"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(colors.onPrimary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 40)
-                        .background(colors.primary)
-                        .cornerRadius(SleepyShapes.medium)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(SleepyButtonStyle())
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity)
         .background(colors.surface)
@@ -853,110 +857,115 @@ private struct HolidayRangeEditDialog: View {
 
     var body: some View {
         // ← 原版本 AlertDialog text Column spacedBy(12)
-        VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.format(isNew ? "holiday_add_title" : "holiday_edit_title"))
-                .font(.system(size: 24)) // ← 原 AlertDialog headlineSmall 24
-                .foregroundColor(colors.onSurface)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(L10n.format(isNew ? "holiday_add_title" : "holiday_edit_title"))
+                    .font(.system(size: 24)) // ← 原 AlertDialog headlineSmall 24
+                    .foregroundColor(colors.onSurface)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            // ← native iOS DatePicker(.compact): 点击展开滚轮, 系统级体验
-            //   手动 HStack 替代 LabeledContent (iOS 16+), 保持 iOS 15.6 兼容。
-            //   end 不钳制下限 — 允许 end < start, 走下方 holiday_date_invalid 提示
-            //   (原版本 DatePickerField 同样允许填出倒挂区间并报错, 校验路径等价)。
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(L10n.format("holiday_name_label_date"))
-                        .font(.system(size: 14))
-                        .foregroundColor(colors.onSurfaceVariant)
-                    Spacer()
-                    DatePicker("", selection: $startDate, displayedComponents: .date)
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
+                // ← native iOS DatePicker(.compact): 点击展开滚轮, 系统级体验
+                //   手动 HStack 替代 LabeledContent (iOS 16+), 保持 iOS 15.6 兼容。
+                //   end 不钳制下限 — 允许 end < start, 走下方 holiday_date_invalid 提示
+                //   (原版本 DatePickerField 同样允许填出倒挂区间并报错, 校验路径等价)。
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text(L10n.format("holiday_name_label_date"))
+                            .font(.system(size: 14))
+                            .foregroundColor(colors.onSurfaceVariant)
+                        Spacer()
+                        DatePicker("", selection: $startDate, displayedComponents: .date)
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                    }
+                    HStack {
+                        Text(L10n.format("holiday_name_label_end"))
+                            .font(.system(size: 14))
+                            .foregroundColor(datesValid ? colors.onSurfaceVariant : colors.error)
+                        Spacer()
+                        DatePicker("", selection: $endDate, displayedComponents: .date)
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                    }
                 }
-                HStack {
-                    Text(L10n.format("holiday_name_label_end"))
-                        .font(.system(size: 14))
-                        .foregroundColor(datesValid ? colors.onSurfaceVariant : colors.error)
-                    Spacer()
-                    DatePicker("", selection: $endDate, displayedComponents: .date)
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
+                .padding(.vertical, 4)
+
+                if !datesValid {
+                    Text(L10n.format("holiday_date_invalid"))
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.error)
+                }
+
+                TextField(L10n.format("holiday_name_label"), text: $name)
+                    .textFieldStyle(.plain)
+                    .accessibilityIdentifier("holiday_name_input")
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(colors.surfaceContainer)
+                    .cornerRadius(SleepyTheme.fieldShape)
+
+                // ← SegmentedSwitcher 全宽(与设置页 Tab 同款, 替代散排 chip) — 原版本 1.0.51
+                SegmentedSwitcher(
+                    options: [(0, L10n.format("holiday_type_holiday")),
+                              (1, L10n.format("holiday_type_workday"))],
+                    selected: type == HolidayManager.TYPE_PUBLIC_HOLIDAY ? 0 : 1,
+                    onSelect: { idx in
+                        type = idx == 0 ? HolidayManager.TYPE_PUBLIC_HOLIDAY
+                                        : HolidayManager.TYPE_TRANSFER_WORKDAY
+                    }
+                )
+
+                if !isNew {
+                    // 删除走 errorContainer 色块 — 纯色块禁描边规则。
+                    // 弹窗不设"恢复": 已保存段删除=移除覆盖(可从已删除区恢复), 网络段删除=REMOVED 覆盖(同入口恢复);
+                    // 弹窗内两个按钮会做同一件事, 恢复入口统一收敛到"已删除"区块。
+                    Button {
+                        onDelete(target)
+                    } label: {
+                        Text(L10n.format("holiday_delete_range"))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(colors.onErrorContainer)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(colors.errorContainer)
+                            .cornerRadius(SleepyShapes.large)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SleepyButtonStyle())
+                }
+
+                HStack(spacing: 8) {
+                    Button(action: onDismiss) {
+                        Text(L10n.format("cancel"))
+                            .font(.system(size: 14, weight: .medium)) // ← 原 TextButton labelLarge 14sp Medium
+                            .foregroundColor(colors.onSurfaceVariant)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SleepyButtonStyle())
+                    Button {
+                        onSave(HolidayRange(id: target.id,
+                                            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                                            startDate: startDate, endDate: endDate,
+                                            type: type, sourceKey: target.sourceKey))
+                    } label: {
+                        Text(L10n.format("save"))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(datesValid ? colors.onPrimary : colors.onPrimary.opacity(0.4))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .background(datesValid ? colors.primary : colors.primary.opacity(0.3))
+                            .cornerRadius(SleepyShapes.medium)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SleepyButtonStyle())
+                    .disabled(!datesValid)
+                    .accessibilityIdentifier("holiday_save")
                 }
             }
-            .padding(.vertical, 4)
-
-            if !datesValid {
-                Text(L10n.format("holiday_date_invalid"))
-                    .font(.system(size: 12))
-                    .foregroundColor(colors.error)
-            }
-
-            TextField(L10n.format("holiday_name_label"), text: $name)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(colors.surfaceContainer)
-                .cornerRadius(SleepyTheme.fieldShape)
-
-            // ← SegmentedSwitcher 全宽(与设置页 Tab 同款, 替代散排 chip) — 原版本 1.0.51
-            SegmentedSwitcher(
-                options: [(0, L10n.format("holiday_type_holiday")),
-                          (1, L10n.format("holiday_type_workday"))],
-                selected: type == HolidayManager.TYPE_PUBLIC_HOLIDAY ? 0 : 1,
-                onSelect: { idx in
-                    type = idx == 0 ? HolidayManager.TYPE_PUBLIC_HOLIDAY
-                                    : HolidayManager.TYPE_TRANSFER_WORKDAY
-                }
-            )
-
-            if !isNew {
-                // 删除走 errorContainer 色块 — 纯色块禁描边规则。
-                // 弹窗不设"恢复": 已保存段删除=移除覆盖(可从已删除区恢复), 网络段删除=REMOVED 覆盖(同入口恢复);
-                // 弹窗内两个按钮会做同一件事, 恢复入口统一收敛到"已删除"区块。
-                Button {
-                    onDelete(target)
-                } label: {
-                    Text(L10n.format("holiday_delete_range"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(colors.onErrorContainer)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(colors.errorContainer)
-                        .cornerRadius(SleepyShapes.large)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(SleepyButtonStyle())
-            }
-
-            HStack(spacing: 8) {
-                Button(action: onDismiss) {
-                    Text(L10n.format("cancel"))
-                        .font(.system(size: 14, weight: .medium)) // ← 原 TextButton labelLarge 14sp Medium
-                        .foregroundColor(colors.onSurfaceVariant)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 40)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(SleepyButtonStyle())
-                Button {
-                    onSave(HolidayRange(id: target.id,
-                                        name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                                        startDate: startDate, endDate: endDate,
-                                        type: type, sourceKey: target.sourceKey))
-                } label: {
-                    Text(L10n.format("save"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(datesValid ? colors.onPrimary : colors.onPrimary.opacity(0.4))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 40)
-                        .background(datesValid ? colors.primary : colors.primary.opacity(0.3))
-                        .cornerRadius(SleepyShapes.medium)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(SleepyButtonStyle())
-                .disabled(!datesValid)
-            }
+            .padding(20)
         }
-        .padding(20)
+        .scrollDismissesKeyboardImmediatelyCompat()
     }
 }

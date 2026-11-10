@@ -415,6 +415,72 @@ enum TimeTableUtils {
         return rows + [TimeSlotRow(node: nextNode, start: "", end: "")]
     }
 
+    /// Reorder standard periods while retaining edge anchors and their physical slots.
+    static func reorderTimeSlotRows(_ rows: [TimeSlotRow], fromIndex: Int, toIndex: Int) -> [TimeSlotRow] {
+        let standardIndices = rows.indices.filter { rows[$0].edgeClass == nil && rows[$0].node > 0 }
+        guard let from = standardIndices.firstIndex(of: fromIndex),
+              let to = standardIndices.firstIndex(of: toIndex), from != to else { return rows }
+        var standards = standardIndices.map { rows[$0] }
+        let movingRow = standards.remove(at: from)
+        standards.insert(movingRow, at: to)
+        var result = rows
+        for (rank, index) in standardIndices.enumerated() {
+            var copy = standards[rank]
+            copy.node = rank + 1
+            result[index] = copy
+        }
+        return result
+    }
+
+    /// Standard starts may be equal; blank rows are skipped. Edge rows are stored at
+    /// arbitrary physical positions, so validate their intervals without comparing their order.
+    static func isTimeSlotOrderValid(_ rows: [TimeSlotRow]) -> Bool {
+        var previousStart: Int? = nil
+        for row in rows {
+            if row.start.isBlank && row.end.isBlank { continue }
+            guard let start = hmToSeconds(row.start), let end = hmToSeconds(row.end),
+                  start < end else { return false }
+            guard row.edgeClass == nil && row.node > 0 else { continue }
+            guard previousStart.map({ start >= $0 }) ?? true else { return false }
+            previousStart = start
+        }
+        return true
+    }
+
+    /// The view previews a move without publishing draft changes until this validation succeeds.
+    static func canReorderTimeSlot(_ rows: [TimeSlotRow], fromIndex: Int, toIndex: Int,
+                                   courses: [CourseEntity] = []) -> Bool {
+        let standardIndices = rows.indices.filter { rows[$0].edgeClass == nil && rows[$0].node > 0 }
+        guard let from = standardIndices.firstIndex(of: fromIndex),
+              let to = standardIndices.firstIndex(of: toIndex),
+              Set(rows.map(\.node)).count == rows.count else { return false }
+        let reordered = reorderTimeSlotRows(rows, fromIndex: fromIndex, toIndex: toIndex)
+        guard Set(reordered.map(\.node)).count == reordered.count,
+              isTimeSlotOrderValid(reordered) else { return false }
+        if fromIndex == toIndex { return true }
+
+        var oldIndicesInNewOrder = standardIndices
+        let movingIndex = oldIndicesInNewOrder.remove(at: from)
+        oldIndicesInNewOrder.insert(movingIndex, at: to)
+        // Enumerate NEW positions to invert the permutation. Android v1.0.63 instead
+        // indexed this array by old position, which can miss a split multi-period course.
+        // Edge nodes retain their original identities, including zero/negative nodes.
+        var oldNodeToNewNode = Dictionary(uniqueKeysWithValues: rows.map { ($0.node, $0.node) })
+        for (rank, index) in oldIndicesInNewOrder.enumerated() {
+            oldNodeToNewNode[rows[index].node] = rank + 1
+        }
+        return courses.allSatisfy { course in
+            if course.ownTime || course.step <= 1 { return true }
+            let mapped = oldNodeToNewNode.compactMap { oldNode, newNode -> Int? in
+                let (distance, overflow) = oldNode.subtractingReportingOverflow(course.startNode)
+                return !overflow && distance >= 0 && distance < course.step ? newNode : nil
+            }
+            // A course referencing absent rows retains the existing orphan-row behavior.
+            guard mapped.count == course.step, let first = mapped.min(), let last = mapped.max() else { return true }
+            return last - first + 1 == mapped.count
+        }
+    }
+
     /**
      * 追加导入扩展 timeJson — 把 incomingJson 中 node > currentMaxNode 的节次复制进来,
      * 时间从 incoming 拿, node 重新连续编号避免冲突。

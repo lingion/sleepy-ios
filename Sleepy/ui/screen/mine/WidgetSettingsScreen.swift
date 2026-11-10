@@ -27,6 +27,7 @@ struct WidgetSettingsScreen: View {
     @State private var widgetColorless = AppPrefs.shared.isWidgetColorless()
     @State private var widgetSeparator = AppPrefs.shared.isWidgetSeparator()
     @State private var nearestBusyDay = AppPrefs.shared.isNearestBusyDay()
+    @State private var watchTimeStripTomorrow = AppPrefs.shared.isWatchTimeStripTomorrow()
 
     // ← 已放置实例 = 页尾刷新按钮的存在条件(单一真源, 同「添加或管理」页)
     @State private var placedItems: [PlacedWidgetItem] = []
@@ -88,6 +89,10 @@ struct WidgetSettingsScreen: View {
                     // 添加或管理桌面小组件: 跳「添加或管理」页(右上 ＋ 进画廊)
                     manageEntry
 
+                    // 独立于桌面小组件和最近有课日选项; 不改变现有开关语义。
+                    SectionHeader(title: L10n.format("settings_watch_time_strip_section"))
+                    watchTimeStripCard
+
                     // 刷新所有小组件: 桌面已有已放置实例才出现(空桌面 = 无可刷, 按钮隐藏)
                     if !placedItems.isEmpty {
                         refreshButton
@@ -133,6 +138,42 @@ struct WidgetSettingsScreen: View {
                 reloadPlaced()
             })
         }
+    }
+
+    private var watchTimeStripCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Toggle(isOn: Binding(
+                get: { watchTimeStripTomorrow },
+                set: { enabled in
+                    watchTimeStripTomorrow = enabled
+                    prefs.setWatchTimeStripTomorrow(enabled)
+                    WatchSyncCoordinator.shared.scheduleSync()
+                }
+            )) {
+                Text(L10n.format("settings_watch_time_strip_tomorrow"))
+                    .font(.body)
+                    .foregroundColor(colors.onSurface)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .toggleStyle(.switch)
+            .tint(colors.primary)
+            .accessibilityLabel(Text(L10n.format("settings_watch_time_strip_tomorrow")))
+            .accessibilityHint(Text(L10n.format("settings_watch_time_strip_tomorrow_hint")))
+            .accessibilityIdentifier("watch_time_strip_tomorrow_toggle")
+
+            Text(L10n.format("settings_watch_time_strip_overview"))
+                .font(.footnote)
+                .foregroundColor(colors.onSurfaceVariant)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(L10n.format("settings_watch_time_strip_preview_details"))
+                .font(.footnote)
+                .foregroundColor(colors.onSurfaceVariant)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(colors.surfaceContainer)
+        .cornerRadius(SleepyShapes.large)
     }
 
     // ← 管理入口行: GeneralSettingsScreen 时代同款(titleSmall + ChevronRight 20dp)

@@ -34,6 +34,11 @@ struct MeetingBlockDraft: Identifiable {
     var durationText: String = ""
     var clamped: Bool = false
     var fixedDate: String? = nil
+    /// Opening values stay fixed while editing; new blocks have no ghost baseline.
+    private(set) var initialStartNode: Int? = nil
+    private(set) var initialStep: Int? = nil
+    private(set) var initialStartWeek: Int? = nil
+    private(set) var initialEndWeek: Int? = nil
 
     /// ← 原 `irregularOptionsExpanded by mutableStateOf(isIrregularNode || isIrregularTime)`:
     /// 非常规选项折叠栏 — 编辑已启用任一非常规项的卡时自动展开, 否则默认收起
@@ -95,6 +100,7 @@ struct AddCourseScreen: View {
     let onSaved: () -> Void
     var editingCourse: CourseEntity? = nil
     var initialSlot: CourseAddSlot? = nil
+    var targetTableId: Int64? = nil
 
     @State private var loadedForId: Int64 = -1
     @State private var courseName = ""
@@ -115,6 +121,7 @@ struct AddCourseScreen: View {
     @State private var showConflictConfirm = false
     @State private var pendingConflictDetails: [String] = []
     @State private var groupLoaded = false
+    @State private var editorContext: CourseEditorContext? = nil
     // issue#23 逐卡: 边缘槽位暂存 + 三个弹层目标
     @State private var pendingEdgeInserts: [PendingEdgeInsert] = []
     @State private var pendingEdgeEdits: [EdgeSlotEdit] = []
@@ -122,14 +129,16 @@ struct AddCourseScreen: View {
     // loadIfNeeded 写入, effectiveTimeJson/保存写回读取。currentTable.timeJson 兼容列
     // 在绑定共享作息表时可能过期, 禁止直接当节次时间域用。
     @State private var hydratedTimeJson: String = TimeTableUtils.DEFAULT_TIME_JSON
+    @State private var hydratedPeriodTableId: Int64? = nil
     @State private var edgePickTargetIndex: Int? = nil
     @State private var newSlotTarget: NewSlotTarget? = nil
     @State private var slotEditTarget: SlotEditTarget? = nil
 
     private var canSave: Bool {
-        !courseName.trimmingCharacters(in: .whitespaces).isEmpty && !meetingBlocks.isEmpty
-            && (initialSlot == nil || initialSlot?.tableId == viewModel.state.selectedTableId)
+        groupLoaded && !courseName.trimmingCharacters(in: .whitespaces).isEmpty && !meetingBlocks.isEmpty
     }
+
+    private var maxWeek: Int { min(30, max(1, editorContext?.table.maxWeek ?? 30)) }
 
     // ← 原 conflict AlertDialog 正文: "• " 前缀行, 最多 6 条, 多余折叠提示
     private var conflictDetailMessage: String {
@@ -159,7 +168,7 @@ struct AddCourseScreen: View {
 
     var body: some View {
         let state = viewModel.state
-        let currentTable = state.currentTable
+        let currentTable = editorContext?.table
 
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format(editingCourse != nil ? "edit_course" : "create_course"),
@@ -195,6 +204,7 @@ struct AddCourseScreen: View {
                             title: L10n.format("slot_n", index + 1),
                             block: bindingForBlock(withId: block.id),
                             maxStd: TimeTableUtils.maxStandardNode(effectiveTimeJson),
+                            maxWeek: maxWeek,
                             timeJson: effectiveTimeJson,
                             canRemove: meetingBlocks.count > 1,
                             issues: validationIssues.filter { $0.blockId == block.id }.map { $0.message },
@@ -231,7 +241,7 @@ struct AddCourseScreen: View {
                     .accessibilityIdentifier("course_add_slot")
 
                     // 保存
-                    Button(action: { save(state: state) }) {
+                    Button(action: { save() }) {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 24))
@@ -264,6 +274,7 @@ struct AddCourseScreen: View {
                             .cornerRadius(SleepyShapes.large)
                         }
                         .buttonStyle(SleepyButtonStyle())
+                        .disabled(!groupLoaded)
                         .accessibilityIdentifier("course_delete")
                     }
 
@@ -274,6 +285,15 @@ struct AddCourseScreen: View {
         }
         .background(colors.background)
         .onAppear { loadIfNeeded(state: state) }
+        .onChange(of: editingCourse?.id) { _ in loadIfNeeded(state: viewModel.state) }
+        .onChange(of: targetTableId) { _ in
+            loadedForId = -1
+            loadIfNeeded(state: viewModel.state)
+        }
+        .onChange(of: initialSlot) { _ in
+            loadedForId = -1
+            loadIfNeeded(state: viewModel.state)
+        }
         // 改组色弹层(issue#22 spec §6.2/§6.3 恢复): 调色盘 + 全组影响确认。
         // 编辑模式才弹(新建模式无 groupId, showGroupColorPicker 永远不会置 true)
         .sheet(isPresented: $showGroupColorPicker) {
@@ -298,10 +318,13 @@ struct AddCourseScreen: View {
         .alert(L10n.format("confirm_delete"), isPresented: $showDeleteConfirm) {
             Button(L10n.format("delete"), role: .destructive) {
                 showDeleteConfirm = false
-                if let eg = editingCourse, let tid = state.selectedTableId {
-                    try? ScheduleRepository(AppDatabase.getShared()).deleteCourseGroup(tid, eg.groupId)
+                do {
+                    guard let editorContext else { throw ScheduleRepository.TableEditSaveError.invalidCourseDraft }
+                    try editorContext.deleteGroup(repository: ScheduleRepository(AppDatabase.getShared()))
+                    onSaved()
+                } catch {
+                    validationIssues = [ValidationIssue(blockId: nil, message: L10n.t("table_reminder_save_failed"))]
                 }
-                onSaved()
             }
             Button(L10n.format("cancel"), role: .cancel) {}
         } message: {
@@ -310,7 +333,7 @@ struct AddCourseScreen: View {
         .alert(L10n.format("conflict_detail_title"), isPresented: $showConflictConfirm) {
             Button(L10n.format("conflict_detail_save_anyway")) {
                 showConflictConfirm = false
-                save(state: state, forceAfterConflict: true)
+                save(forceAfterConflict: true)
             }
             Button(L10n.format("conflict_detail_go_back"), role: .cancel) {
                 showConflictConfirm = false
@@ -402,6 +425,14 @@ struct AddCourseScreen: View {
     private var weekRangeCard: some View {
         CardSection(title: L10n.format("week_range"),
                     subtitle: L10n.format("week_range_sub")) {
+            let shown = IntSliderRange(start: startWeek, end: endWeek, minimum: 1, maximum: maxWeek)
+            IntRangeSlider(summary: Self.weekRangeSummary(shown), minValue: 1, maxValue: maxWeek,
+                startValue: shown.start, endValue: shown.end,
+                onValueChange: { startWeek = $0; endWeek = $1 },
+                initialStart: editorContext?.editingCourse?.startWeek,
+                initialEnd: editorContext?.editingCourse?.endWeek,
+                startLabel: L10n.format("start_week"), endLabel: L10n.format("end_week"),
+                identifier: "course_week_range")
             HStack(spacing: 12) {
                 NumberStepperField(label: L10n.format("start_week"), value: $startWeek, minV: 1, maxV: 30)
                     .frame(maxWidth: .infinity)
@@ -465,39 +496,40 @@ struct AddCourseScreen: View {
         guard loadedForId != key else { return }
         loadedForId = key
         groupLoaded = false
-        courseName = editingCourse?.courseName ?? ""
-        courseAlias = editingCourse?.alias ?? ""
-        startWeek = editingCourse?.startWeek ?? 1
-        endWeek = editingCourse?.endWeek ?? 16
+        editorContext = nil
+        groupSourceColorHex = ""
         nextBlockId = 2
         validationIssues = []
         pendingEdgeInserts = []
         pendingEdgeEdits = []
-        meetingBlocks = [Self.initialMeetingBlock(editingCourse)]
-
-        // 2026-09-23 对齐: 本地解析有效水合表(state.effectiveCurrentTable)。
-        // 绑定 periodTable 存在 → 所绑表 timeJson 为节次时间域; 悬空/未绑定 → 兼容列。
-        if let table = state.currentTable {
-            let period = (try? ScheduleRepository(AppDatabase.getShared())
-                .effectivePeriodTable(tableId: table.id)) ?? nil
-            hydratedTimeJson = table.hydratedWith(period).timeJson
-        } else {
-            hydratedTimeJson = TimeTableUtils.DEFAULT_TIME_JSON
+        do {
+            editorContext = try CourseEditorContext.load(editingCourse: editingCourse,
+                targetTableId: targetTableId, initialSlot: initialSlot, selectedTableId: state.selectedTableId,
+                repository: ScheduleRepository(AppDatabase.getShared()))
+        } catch {
+            meetingBlocks = []
+            validationIssues = [ValidationIssue(blockId: nil, message: L10n.t("edit_table_not_found"))]
+            return
         }
+        let source = editorContext?.editingCourse
+        courseName = source?.courseName ?? ""
+        courseAlias = source?.alias ?? ""
+        startWeek = source?.startWeek ?? 1
+        endWeek = source?.endWeek ?? 16
+        meetingBlocks = [Self.initialMeetingBlock(source)]
+        hydratedTimeJson = editorContext?.table.timeJson ?? TimeTableUtils.DEFAULT_TIME_JSON
+        hydratedPeriodTableId = editorContext?.table.periodTableId
 
         if editingCourse == nil, let initialSlot {
-            guard var table = state.currentTable, state.selectedTableId == initialSlot.tableId else {
+            guard let table = editorContext?.table, table.id == initialSlot.tableId else {
                 meetingBlocks = []
                 validationIssues = [ValidationIssue(blockId: nil, message: L10n.t("edit_table_not_found"))]
-                groupLoaded = true
                 return
             }
-            table.timeJson = hydratedTimeJson
             guard let block = Self.quickAddMeetingBlock(initialSlot, table: table) else {
                 meetingBlocks = []
                 validationIssues = [ValidationIssue(blockId: nil, message: L10n.format("slot_step_exceeds_max",
                     1, initialSlot.node, TimeTableUtils.maxStandardNode(hydratedTimeJson)))]
-                groupLoaded = true
                 return
             }
             startWeek = initialSlot.week
@@ -506,50 +538,49 @@ struct AddCourseScreen: View {
         }
 
         // LaunchedEffect(editingCourse?.groupId): 查同 groupId 分组回填
-        if let eg = editingCourse, !eg.groupId.isEmpty, let tid = state.selectedTableId {
-            let repo = ScheduleRepository(AppDatabase.getShared())
-            if let groupCourses = try? repo.getGroupCourses(tid, eg.groupId), !groupCourses.isEmpty {
-                // 组色源: 同组 colorMode=GROUP 中 id 最小行的 color (CourseColorUtil 单点)
-                groupSourceColorHex = CourseColorUtil.groupSourceColorHex(groupCourses)
-                // 按完整时段特征分组(保序: 原 groupBy 的 LinkedHashMap 首次出现序);
-                // issue#22: room/teacher 进分组 key
-                let slots = Self.groupSlotsForEdit(groupCourses)
-                // issue#23 §4.3: startNode 落在边缘槽位 → 点亮该卡「非常规节次」;
-                // ownTime=true → 点亮「非常规时间」并预填课程起止 (旧 ByClock 并入此开关)
-                let edgeNodes = Set(TimeTableUtils.parseTimeSlotRows(
-                    hydratedTimeJson
-                ).filter { $0.edgeClass != nil }.map { $0.node })
-                var blocks: [MeetingBlockDraft] = []
-                var bid = 1
-                for courses in slots {
-                    let first = courses[0]
-                    let isEdge = edgeNodes.contains(first.startNode)
-                    var b = MeetingBlockDraft(
-                        id: bid,
-                        days: Set(courses.map { $0.day }),
-                        startNode: first.startNode,
-                        step: first.step,
-                        startTime: first.startTime.isEmpty ? "08:00" : first.startTime,
-                        endTime: first.endTime.isEmpty ? "09:40" : first.endTime,
-                        startWeek: first.startWeek, endWeek: first.endWeek,
-                        weekType: first.type,
-                        room: first.room, teacher: first.teacher,
-                        note: first.note, color: first.color,
-                        colorMode: first.colorMode,
-                        isIrregularNode: isEdge,
-                        selectedEdgeNode: isEdge ? first.startNode : 0,
-                        isIrregularTime: first.ownTime,
-                        fixedDate: first.fixedDate)
-                    // §2.4: 覆盖时间的卡补派生时长文本
-                    if b.isIrregularTime {
-                        b.durationText = String(Self.minutesBetween(b.startTime, b.endTime) ?? 0)
-                        if Int(b.durationText) == 0 { b.durationText = "" }
-                    }
-                    blocks.append(b)
-                    bid += 1
+        if editingCourse != nil, let groupCourses = editorContext?.groupCourses, !groupCourses.isEmpty {
+            // 组色源: 同组 colorMode=GROUP 中 id 最小行的 color (CourseColorUtil 单点)
+            groupSourceColorHex = CourseColorUtil.groupSourceColorHex(groupCourses)
+            // 按完整时段特征分组(保序: 原 groupBy 的 LinkedHashMap 首次出现序);
+            // issue#22: room/teacher 进分组 key
+            let slots = Self.groupSlotsForEdit(groupCourses)
+            // issue#23 §4.3: startNode 落在边缘槽位 → 点亮该卡「非常规节次」;
+            // ownTime=true → 点亮「非常规时间」并预填课程起止 (旧 ByClock 并入此开关)
+            let edgeNodes = Set(TimeTableUtils.parseTimeSlotRows(
+                hydratedTimeJson
+            ).filter { $0.edgeClass != nil }.map { $0.node })
+            var blocks: [MeetingBlockDraft] = []
+            var bid = 1
+            for courses in slots {
+                let first = courses[0]
+                let isEdge = edgeNodes.contains(first.startNode)
+                var b = MeetingBlockDraft(
+                    id: bid,
+                    days: Set(courses.map { $0.day }),
+                    startNode: first.startNode,
+                    step: first.step,
+                    startTime: first.startTime.isEmpty ? "08:00" : first.startTime,
+                    endTime: first.endTime.isEmpty ? "09:40" : first.endTime,
+                    startWeek: first.startWeek, endWeek: first.endWeek,
+                    weekType: first.type,
+                    room: first.room, teacher: first.teacher,
+                    note: first.note, color: first.color,
+                    colorMode: first.colorMode,
+                    isIrregularNode: isEdge,
+                    selectedEdgeNode: isEdge ? first.startNode : 0,
+                    isIrregularTime: first.ownTime,
+                    fixedDate: first.fixedDate,
+                    initialStartNode: first.startNode, initialStep: first.step,
+                    initialStartWeek: first.startWeek, initialEndWeek: first.endWeek)
+                // §2.4: 覆盖时间的卡补派生时长文本
+                if b.isIrregularTime {
+                    b.durationText = String(Self.minutesBetween(b.startTime, b.endTime) ?? 0)
+                    if Int(b.durationText) == 0 { b.durationText = "" }
                 }
-                meetingBlocks = blocks
+                blocks.append(b)
+                bid += 1
             }
+            meetingBlocks = blocks
         }
         groupLoaded = true
     }
@@ -559,17 +590,16 @@ struct AddCourseScreen: View {
     private func confirmGroupColor() {
         guard let hex = pendingGroupColorHex else { return }
         pendingGroupColorHex = nil
-        guard let eg = editingCourse, !eg.groupId.isEmpty, let tid = viewModel.state.selectedTableId else { return }
-        let repo = ScheduleRepository(AppDatabase.getShared())
-        try? repo.setGroupSourceColor(tid, eg.groupId, hex)
-        if let fresh = try? repo.getGroupCourses(tid, eg.groupId), !fresh.isEmpty {
-            groupSourceColorHex = CourseColorUtil.groupSourceColorHex(fresh)
+        do {
+            guard let editorContext else { throw ScheduleRepository.TableEditSaveError.invalidCourseDraft }
+            groupSourceColorHex = try editorContext.setGroupColor(hex, repository: ScheduleRepository(AppDatabase.getShared()))
+        } catch {
+            validationIssues = [ValidationIssue(blockId: nil, message: L10n.t("table_reminder_save_failed"))]
         }
     }
 
-    private func save(state: ScheduleState, forceAfterConflict: Bool = false) {
-        // 快速加课不得在切表/删除表后被自动创建或改投到另一张表。
-        if let initialSlot, state.selectedTableId != initialSlot.tableId || state.currentTable?.id != initialSlot.tableId {
+    private func save(forceAfterConflict: Bool = false) {
+        guard groupLoaded else {
             validationIssues = [ValidationIssue(blockId: nil, message: L10n.t("edit_table_not_found"))]
             return
         }
@@ -580,31 +610,55 @@ struct AddCourseScreen: View {
         validationIssues = issues
         guard issues.isEmpty else { return }
 
-        let draftTableId = state.selectedTableId ?? 0
+        let repo = ScheduleRepository(AppDatabase.getShared())
+        let context: CourseEditorContext
+        do {
+            if let loaded = editorContext {
+                context = loaded
+            } else {
+                // Only a manual draft opened without any table may create one.
+                guard editingCourse == nil, targetTableId == nil, initialSlot == nil else {
+                    throw ScheduleRepository.TableEditSaveError.missingTable
+                }
+                let newId = viewModel.createEmptyTable()
+                guard let created = try CourseEditorContext.load(editingCourse: nil,
+                    targetTableId: newId, selectedTableId: nil, repository: repo) else {
+                    throw ScheduleRepository.TableEditSaveError.missingTable
+                }
+                context = created
+                editorContext = created
+            }
+        } catch {
+            validationIssues = [ValidationIssue(blockId: nil, message: L10n.t("table_reminder_save_failed"))]
+            return
+        }
+        let tableId = context.table.id
         // issue#22: color/teacher/room/note 从 block 取(每时段独立); issue#26: alias 组级
         // 用户报障 2026-09-10: ownTime 课落库即反算真实节点 —
         // 裸节点消费方(今日页/小组件/详情页)不再拿到表单占位节点。
         let drafts = meetingBlocks.flatMap { block in
             block.days.sorted().map { day in
                 Self.buildCourseEntity(
-                    tableId: draftTableId, groupId: "",
+                    tableId: tableId, groupId: "",
                     courseName: courseName.trimmingCharacters(in: .whitespaces),
                     day: day, block: block,
                     alias: courseAlias.trimmingCharacters(in: .whitespaces),
                     timeJson: timeJson,
-                    tableStartDate: state.currentTable?.startDate)
+                    tableStartDate: context.table.startDate)
             }
         }
 
-        let repo = ScheduleRepository(AppDatabase.getShared())
-        // 没表就自动建一张 (performSave: 先解 tableId, 再冲突检查, 后落库)
-        let tableId = state.selectedTableId ?? viewModel.createEmptyTable()
         // 冲突检测(新建 / 编辑同一 groupId 的草稿都不算 — 用 groupId 排除被编辑的自己)。
         // 基准 = effectiveTimeJson(含本次会话 pendingEdgeInserts/Edits, ← 原 kt L362-364);
         // 无表时 createEmptyTable 后仍检查 (原版本 同序)。
         if !forceAfterConflict {
-            let storedRows = ((try? repo.getCourses(tableId)) ?? [])
-                .filter { editingCourse?.groupId != $0.groupId }
+            let storedRows: [CourseEntity]
+            do {
+                storedRows = try repo.getCourses(tableId).filter { editingCourse?.groupId != $0.groupId }
+            } catch {
+                validationIssues = [ValidationIssue(blockId: nil, message: L10n.t("table_reminder_save_failed"))]
+                return
+            }
             let stored = storedRows.map { Self.conflictLite($0.normalizeNode(timeJson: timeJson)) }
             let draftLites = drafts.map(Self.conflictLite)
             let dayNames = (1...7).map { DateUtils.localizedDay($0) }
@@ -630,60 +684,23 @@ struct AddCourseScreen: View {
         for i in fixedDrafts.indices { fixedDrafts[i].tableId = tableId }
         do {
             if let eg = editingCourse {
-                // 编辑: 行级 diff/patch 替换整组覆盖 — issue#22 同名同周不同地点
-                let gid = eg.groupId
-                for i in fixedDrafts.indices { fixedDrafts[i].groupId = gid }
-                let existing = ((try? repo.getCourses(tableId)) ?? []).filter { $0.groupId == gid }
-                let diff = RowKeyDiffer.diff(fixedDrafts, existing)
-                try repo.applyDiff(tableId, diff)
+                for i in fixedDrafts.indices { fixedDrafts[i].groupId = eg.groupId }
             } else {
                 // 新建: 所有草稿共享同一个 groupId
                 let gid = UUID().uuidString
                 for i in fixedDrafts.indices { fixedDrafts[i].groupId = gid }
-                _ = try repo.insertCourses(fixedDrafts)
             }
+            let hasStagedSlots = !pendingEdgeInserts.isEmpty || !pendingEdgeEdits.isEmpty
+            let timeChange = hasStagedSlots ? ScheduleRepository.CourseTimeChange(
+                expectedPeriodTableId: hydratedPeriodTableId,
+                originalTimeJson: hydratedTimeJson, updatedTimeJson: timeJson) : nil
+            // The repository reads the group, applies its row diff and writes staged
+            // slots to their real owner in one transaction and one undo action.
+            try context.save(drafts: fixedDrafts, timeChange: timeChange, repository: repo)
         } catch {
             // 落库失败留在表单，不触发 onSaved 伪装成保存成功。
-            validationIssues = [ValidationIssue(blockId: nil, message: error.localizedDescription)]
+            validationIssues = [ValidationIssue(blockId: nil, message: L10n.t("table_reminder_save_failed"))]
             return
-        }
-        // issue#23: 新建槽位 / 槽位时间编辑先在编辑页暂存, 课程落库成功后再写回课表 timeJson。
-        // 顺序串接保证一次添加多个槽位时编号连续且方向元数据不丢失。
-        // v7.10.16v 撤回: 课程行 + timeJson 写回是一个动作 — beginBatch 让快照
-        // 固定在动作前, 撤回一次整步回退(否则第二写覆盖快照, 只回退一半)。
-        // 2026-09-23 对齐 原 kt L388-406: 基准用水合表(兼容列可能过期);
-        // 绑定共享作息表时槽位变更必须写回 period_tables(真正 owner),
-        // 写兼容列既不生效也违反 issue#40 不污染原则。
-        if !pendingEdgeInserts.isEmpty || !pendingEdgeEdits.isEmpty {
-            let repo2 = ScheduleRepository(AppDatabase.getShared())
-            let storedTable = (try? repo2.getTable(tableId)) ?? nil
-            let boundPeriodTable = (try? repo2.effectivePeriodTable(tableId: tableId)) ?? nil
-            // ← 原 `val table = currentTable ?: repo.getTable(tableId)` (currentTable=水合表)
-            let hydrated = state.currentTable.map { $0.hydratedWith(boundPeriodTable) } ?? storedTable
-            if let table = hydrated {
-                UndoManager.shared.beginBatch()
-                defer { UndoManager.shared.endBatch() }
-                var updated = table.timeJson
-                for insert in pendingEdgeInserts {
-                    updated = TimeTableUtils.insertEdgeNode(timeJson: updated, edgeClass: insert.edgeClass,
-                                                            start: insert.start, end: insert.end)
-                }
-                for edit in pendingEdgeEdits {
-                    updated = TimeTableUtils.updateEdgeNodeTimes(timeJson: updated, node: edit.node,
-                                                                 start: edit.start, end: edit.end)
-                }
-                if updated != table.timeJson {
-                    if let pt = boundPeriodTable {
-                        var ptCopy = pt
-                        ptCopy.timeJson = updated
-                        viewModel.updatePeriodTableContent(ptCopy)
-                    } else {
-                        var copy = table
-                        copy.timeJson = updated
-                        viewModel.updateTable(copy)
-                    }
-                }
-            }
         }
         onSaved()
     }
@@ -736,7 +753,20 @@ struct AddCourseScreen: View {
                                  note: course.note, color: course.color,
                                  colorMode: course.colorMode,
                                  isIrregularTime: course.ownTime,
-                                 fixedDate: course.fixedDate)
+                                 fixedDate: course.fixedDate,
+                                 initialStartNode: course.startNode, initialStep: course.step,
+                                 initialStartWeek: course.startWeek, initialEndWeek: course.endWeek)
+    }
+
+    static func weekRangeSummary(_ range: IntSliderRange) -> String {
+        range.start == range.end ? L10n.format("slot_summary_week_single", range.start)
+            : L10n.format("slot_summary_week_range", range.start, range.end)
+    }
+
+    static func nodeRangeSummary(_ range: IntSliderRange) -> String {
+        let count = range.end - range.start + 1
+        return count == 1 ? L10n.format("slot_summary_period_single", range.start)
+            : L10n.format("slot_summary_period_range", range.start, range.end, count)
     }
 
     // ← buildCourseEntity (issue#26 alias 参数; 用户报障 2026-09-10: ownTime 落库前反算真实节点)
@@ -1080,6 +1110,7 @@ private struct MeetingBlockEditor: View {
     let title: String
     @Binding var block: MeetingBlockDraft
     let maxStd: Int
+    let maxWeek: Int
     let timeJson: String
     let canRemove: Bool
     let issues: [String]
@@ -1149,6 +1180,14 @@ private struct MeetingBlockEditor: View {
 
             if !block.isIrregularNode {
                 // 标准卡: startNode/step, 1..maxStd
+                let shown = IntSliderRange(start: block.startNode, end: block.startNode + block.step - 1,
+                                           minimum: 1, maximum: maxStd)
+                IntRangeSlider(summary: AddCourseScreen.nodeRangeSummary(shown), minValue: 1, maxValue: maxStd,
+                    startValue: shown.start, endValue: shown.end,
+                    onValueChange: { block.startNode = $0; block.step = $1 - $0 + 1 },
+                    initialStart: block.initialStartNode,
+                    initialEnd: block.initialStartNode.flatMap { start in block.initialStep.map { start + $0 - 1 } },
+                    identifier: "course_slot_\(block.id)_nodes")
                 HStack(spacing: 12) {
                     NumberStepperField(label: L10n.format("start_node"), value: Binding(
                         get: { block.startNode }, set: {
@@ -1170,6 +1209,13 @@ private struct MeetingBlockEditor: View {
                 }
             }
 
+            let shownWeeks = IntSliderRange(start: block.startWeek, end: block.endWeek, minimum: 1, maximum: maxWeek)
+            IntRangeSlider(summary: AddCourseScreen.weekRangeSummary(shownWeeks), minValue: 1, maxValue: maxWeek,
+                startValue: shownWeeks.start, endValue: shownWeeks.end,
+                onValueChange: { block.startWeek = $0; block.endWeek = $1 },
+                initialStart: block.initialStartWeek, initialEnd: block.initialEndWeek,
+                startLabel: L10n.format("start_week"), endLabel: L10n.format("end_week"),
+                identifier: "course_slot_\(block.id)_weeks")
             HStack(spacing: 12) {
                 NumberStepperField(label: L10n.format("slot_week_range") + " " + L10n.format("start_week"), value: $block.startWeek, minV: 1, maxV: 30)
                     .frame(maxWidth: .infinity)

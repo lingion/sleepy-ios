@@ -80,6 +80,8 @@ enum WatchSyncSnapshot {
         var courseColorMode: Int = 0
         // CUSTOM 档种子色相 0..360 (未设 = -1)
         var courseColorSeedHue: Float = -1
+        // 可选以兼容尚未携带此字段的 iPhone; 缺失在使用侧按 false 处理。
+        var timeStripTomorrow: Bool? = nil
     }
 
     struct Body: Codable {
@@ -155,7 +157,8 @@ enum WatchSyncSnapshot {
             autoHideEvening: prefs.isGridAutoHideEmptyEvening(),
             eveningStart: prefs.getGridEveningStart(),
             courseColorMode: prefs.getCourseColorMode(),
-            courseColorSeedHue: prefs.getCourseColorSeedHue())
+            courseColorSeedHue: prefs.getCourseColorSeedHue(),
+            timeStripTomorrow: prefs.isWatchTimeStripTomorrow())
         // course_colors 表仅派生档有值; CLASSIC 档恒空(渲染零变化)。
         let mode = prefs.getCourseColorMode()
         if mode != AppPrefs.COURSE_COLOR_MODE_CLASSIC {
@@ -186,7 +189,7 @@ enum WatchSyncSnapshot {
         var out: [Int64: String] = [:]
         for t in tables {
             let list = AppPrefs.shared.getHolidayTransfers(t.id)
-            if !list.isEmpty { out[t.id] = HolidayTransferOps.encodeTransfers(list) }
+            out[t.id] = HolidayTransferOps.encodeTransfers(list)
         }
         return out
     }
@@ -218,9 +221,13 @@ enum WatchSyncSnapshot {
 
     /// prefs 快照 → 手表本地 UserDefaults (AppPrefs 键名同源; 镜像只读不回写手机)。
     /// 走 setter 显式写 (sp().set), 缺省字段也写死当前值 — 全量载荷无"保留旧值"语义。
-    static func applyPrefs(_ snapshot: PrefsSnapshot?) {
+    static func applyPrefs(_ snapshot: PrefsSnapshot?, tableIds: [Int64] = []) {
         guard let snapshot = snapshot else { return }
+        // 先写共享快照: 下方 setNearestBusyDay 也会触发 timeline reload,
+        // WatchStore 的最终 reload 同样必须读到完整的新选项/语言/映射。
+        WatchTimeStripPreferencesStore.shared.apply(snapshot)
         let prefs = AppPrefs.shared
+        prefs.setWatchTimeStripTomorrow(snapshot.timeStripTomorrow ?? false)
         prefs.setReminderEnabled(snapshot.reminderMaster)
         prefs.setDailyReminderEnabled(snapshot.dailyEnabled)
         prefs.setDailyReminderTime(snapshot.dailyTime)
@@ -255,16 +262,20 @@ enum WatchSyncSnapshot {
         // 年度节假日缓存全量覆盖 (载荷是唯一真源); HolidayManager 缓存读写均在
         // 私有锁内且每次现读 UserDefaults → 落盘后其读取自然命中镜像年。
         HolidayManager.replaceDiskYears(snapshot.holidayYears)
-        // 调休映射逐表落 (镜像表集合外无读取方, 残键无害)
-        for (tableId, json) in snapshot.transfers {
-            prefs.setHolidayTransfers(tableId, HolidayTransferOps.decodeTransfers(json))
-        }
+        applyTransfers(snapshot.transfers, tableIds: tableIds, prefs: prefs)
         // 冲突默认置顶内存真相源 (手表 UI 直读)
         ConflictDefaultTopStore.shared.prime(snapshot.conflictDefaultTop)
         prefs.setGridAutoHideEmptyEvening(snapshot.autoHideEvening)
         prefs.setGridEveningStart(snapshot.eveningStart)
         prefs.setCourseColorMode(snapshot.courseColorMode)
         prefs.setCourseColorSeedHue(snapshot.courseColorSeedHue)
+    }
+
+    /// Missing transfer keys in a full snapshot mean deletion, not retention.
+    static func applyTransfers(_ transfers: [Int64: String], tableIds: [Int64], prefs: AppPrefs) {
+        for tableId in Set(tableIds).union(transfers.keys) {
+            prefs.setHolidayTransfers(tableId, HolidayTransferOps.decodeTransfers(transfers[tableId] ?? "[]"))
+        }
     }
 
     /// 全量重建镜像库: 三表清空 → 显式 id 直插 (FK CASCADE 已建,

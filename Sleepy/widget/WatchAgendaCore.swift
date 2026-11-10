@@ -51,9 +51,16 @@ enum WatchAgendaCore {
     /// - date: 目标日任意时刻 (内部取当日 00:00 为基准) — 明日 = +1 day
     /// - 未开学 / 学期外非补班日 / 当日无课 → [] (调用方用 semesterStatus 区分「假期中」兜底)
     static func dayItems(table: TimeTableEntity, courses: [CourseEntity], date: Date) -> [ClassItem] {
-        guard let week = activeWeek(table: table, date: date) else { return [] }
-        let day = HolidayTransferHelper.effectiveDayOfWeek(table.id, date)
-        let displayMode = AppPrefs.shared.getDisplayMode()
+        dayItems(table: table, courses: courses, date: date,
+                 displayMode: AppPrefs.shared.getDisplayMode(),
+                 transfers: HolidayTransferHelper.transfers(for: table.id))
+    }
+
+    // Widget extensions have separate standard defaults; callers can supply the shared snapshot.
+    static func dayItems(table: TimeTableEntity, courses: [CourseEntity], date: Date,
+                         displayMode: String, transfers: [HolidayTransferEntry]) -> [ClassItem] {
+        guard let week = activeWeek(table: table, date: date, transfers: transfers) else { return [] }
+        let day = HolidayTransferOps.effectiveDayOfWeek(date, transfers)
         let dayStart = Calendar(identifier: .gregorian).startOfDay(for: date)
         return courses
             .filter { $0.day == day && $0.inWeek(week) }
@@ -91,7 +98,8 @@ enum WatchAgendaCore {
 
     /// 生效周次 — nil = 该日无课语境。
     /// ← WatchStore.courses(on:) 逐分支同源; BEFORE_START 刻意 nil (见文件头注释)。
-    private static func activeWeek(table: TimeTableEntity, date: Date) -> Int? {
+    private static func activeWeek(table: TimeTableEntity, date: Date,
+                                   transfers: [HolidayTransferEntry]) -> Int? {
         switch semesterStatus(table: table, date: date) {
         case .inRange:
             return DateUtils.currentWeek(startDate: table.startDate, today: date)
@@ -100,8 +108,7 @@ enum WatchAgendaCore {
         case .afterEnd:
             // 补班日 = 调休映射的 sourceDate (上班日→换日上课); 其余学期外日清空 ← WatchStore 同款
             let cal = Calendar(identifier: .gregorian)
-            let sourceDays = Set(HolidayTransferHelper.transfers(for: table.id)
-                .map { cal.startOfDay(for: $0.sourceDate) })
+            let sourceDays = Set(transfers.map { cal.startOfDay(for: $0.sourceDate) })
             guard sourceDays.contains(cal.startOfDay(for: date)) else { return nil }
             return DateUtils.currentWeek(startDate: table.startDate, today: date)
         }

@@ -257,7 +257,7 @@ struct JwWebViewLoginScreen: View {
                     Text(L10n.format("jw_after_login"))
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
-                    Text(L10n.format("jw_nav_hint"))
+                    Text(JwCaptureGuidance.navigationHint(for: school.type))
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colors.onSurface)
                 }
@@ -407,6 +407,9 @@ struct JwWebViewLoginScreen: View {
         if school.type == JwProtocol.TYPE_NEU {
             coordinator.evaluateFetchWithTimeout(NeuFetchJs.js); return
         }
+        if let script = JwSeuFetchJs.script(for: school.type) {
+            coordinator.evaluateFetchWithTimeout(script); return
+        }
         if school.type == JwProtocol.TYPE_NUIT {
             coordinator.evaluateFetchWithTimeout(NuitFetchJs.js); return
         }
@@ -483,13 +486,7 @@ struct JwWebViewLoginScreen: View {
         // (回调内重读 wv.url, 非派发时快照)。
         coordinator.captureWithRetry(retryCount: 0) { r in
             let liveURL = coordinator.currentURLString ?? fetchURL
-            let hint: String
-            if r.status == .wrongPage && school.type == JwProtocol.TYPE_UCAS
-                && liveURL.contains("sep.ucas.ac.cn") {
-                hint = L10n.format("jw_err_ucas_sep_portal")
-            } else {
-                hint = r.diagnosticHint
-            }
+            let hint = JwCaptureGuidance.errorHint(for: r, schoolType: school.type, currentURL: liveURL)
             switch r.status {
             case .ok, .emptySemester:
                 onHtmlCaptured(r.html, school, [], "")
@@ -1090,9 +1087,19 @@ enum WiseduFetchJs {
             headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'},
             body:'XNXQDM='+encodeURIComponent(xnxq),
             credentials:'include'
-          }).then(function(r){ return r.text().then(function(txt){
-            return {xnxq:xnxq, txt:txt};
-          });});
+          }).then(function(r){
+            if (!r.ok) throw new Error('WISEDU_HTTP_' + r.status + '：课表接口拒绝访问，请重新登录后重试');
+            return r.text().then(function(txt){
+              var payload;
+              try { payload = JSON.parse(txt); }
+              catch(e) { throw new Error('课表接口返回非 JSON，登录态可能失效'); }
+              if (!payload || !payload.datas || !payload.datas.xskcb ||
+                  !Array.isArray(payload.datas.xskcb.rows)) {
+                throw new Error('课表接口响应缺少 xskcb.rows 数组，请重新登录后重试');
+              }
+              return {xnxq:xnxq, txt:txt};
+            });
+          });
         })
         .then(function(o){
           var periods = [];

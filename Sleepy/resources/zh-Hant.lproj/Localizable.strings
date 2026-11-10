@@ -35,8 +35,8 @@
 "manage_edit_current_sub" = "編輯課表名稱、日期、節次時間";
 "manage_export" = "匯出目前課表";
 "manage_export_sub" = "以檔案分享目前課表";
-"manage_manual_add" = "手動新增課程";
-"manage_manual_add_sub" = "直接新增一門課程到目前課表";
+"manage_manual_add" = "新增課程";
+"manage_manual_add_sub" = "從課表匯入或手動新增課程";
 "table_info" = "開始日期: %1$@  |  第%2$d週  |  %3$d門課";
 "current_table_week" = "目前課表 · 第%1$d週";
 "table_start_date" = "開始日期: %1$@";
@@ -104,7 +104,7 @@
 "format_csv" = "CSV 檔案";
 "format_csv_desc" = "含表頭的 .csv，逗號分隔";
 "format_html" = "HTML 表格";
-"format_html_desc" = "&lt;table&gt; 形式，識別表頭後逐行解析";
+"format_html_desc" = "<table> 形式，識別表頭後逐行解析";
 "format_plain" = "純文字";
 "format_plain_desc" = "一行一課，製表符分隔";
 "import_start_date_required" = "請填寫學期開始日期";
@@ -183,6 +183,7 @@
 "mine_stat_tables" = "課表數";
 "mine_stat_courses" = "課程數";
 "mine_stat_week" = "目前週";
+"mine_stat_period_tables" = "作息表數";
 "settings_language" = "語言 / Language";
 "settings_display_mode" = "課程時間顯示";
 "settings_grid_sub_info" = "網格卡片副資訊";
@@ -232,7 +233,7 @@
 "jw_parse_empty" = "解析結果為空，請確認已到達「個人課表」頁（而非首頁/登入頁）";
 "jw_import_success" = "成功匯入 %1$d 門課程";
 "jw_parse_failed" = "解析失敗：%1$@";
-"jw_parse_failed_hint" = "\\n\\n提示：HEU 需在瀏覽器中登入後導航到『個人課表』頁面再點匯入";
+"jw_parse_failed_hint" = "\n\n提示：HEU 需在瀏覽器中登入後導航到『個人課表』頁面再點匯入";
 "jw_webview_not_ready" = "WebView 未就緒";
 "jw_fetching" = "正在抓取課表…";
 "jw_fetch_failed_no_response" = "抓取失敗：網頁無回應（可能還在載入）";
@@ -258,7 +259,7 @@
 "end_label" = "結束";
 "delete_period" = "刪除此節";
 "mine_about" = "關於";
-"mine_about_body" = "Sleepy 課表 v%1$@\\n\\n一個極簡、乾淨、本地優先的課表工具。\\n所有資料均儲存在你的裝置上，不上傳任何伺服器。\\n\\n· 無廣告\\n· 無追蹤\\n· 支援 WakeUp / ICS / CSV / HTML / 純文字 匯入";
+"mine_about_body" = "Sleepy 課表 v%1$@\n\n一個極簡、乾淨、本地優先的課表工具。\n所有資料均儲存在你的裝置上，不上傳任何伺服器。\n\n· 無廣告\n· 無追蹤\n· 支援 WakeUp / ICS / CSV / HTML / 純文字 匯入";
 "date_long_format" = "%1$d月%2$d日";
 "notif_title" = "今日課程 — %1$@ %2$@";
 "notif_text" = "點擊查看今日課程安排";
@@ -356,7 +357,7 @@
 "jw_pending_input_url" = "手動輸入 URL";
 "jw_pending_legacy" = "舊版";
 "jw_pending_manual" = "手動新增課程";
-"jw_pending_msg" = "%1$@ 的教務系統未在 Sleepy 適配列表中。\\n\\n你可以：\\n1. 點擊「申請適配」提交給開發者\\n2. 點擊「手動輸入 URL」在 WebView 開啟並登入\\n3. 暫用 HTML / CSV 檔案匯入，或手動新增課程";
+"jw_pending_msg" = "%1$@ 的教務系統未在 Sleepy 適配列表中。\n\n你可以：\n1. 點擊「申請適配」提交給開發者\n2. 點擊「手動輸入 URL」在 WebView 開啟並登入\n3. 暫用 HTML / CSV 檔案匯入，或手動新增課程";
 "jw_pending_pending" = "待適配";
 "jw_pending_supported" = "已支援";
 "jw_pending_title" = "該學校暫未實現教務匯入";
@@ -393,13 +394,13 @@
 "reminder_fluid_field_time" = "上課時間";
 "reminder_fluid_fields" = "膠囊主顯示內容";
 "reminder_fluid_fields_hint" = "選擇一個主顯示內容";
-"reminder_fluid_note" = "即時通知隨課前提醒開關;以系統支援為準(需 iPhone 8+ 且 iOS 16.1+)";
+"reminder_fluid_note" = "依課前提前時間和各課表提醒設定顯示課程。Sleepy 在前景時會更新、切換課程和結束卡片。進入背景後已有倒數可繼續，但不保證新增卡片、切換課程或下課後自動移除；再次開啟應用程式即可更新。需要 iOS 16.1+，即時動態權限與通知權限獨立。";
 "reminder_fluid_title" = "流體雲 / 超級島";
 "reminder_mode_label" = "提醒形態";
 "reminder_mode_banner" = "橫幅";
-"reminder_mode_fluid" = "流體雲";
+"reminder_mode_fluid" = "即時動態（動態島）";
 "reminder_mode_banner_sub" = "系統通知欄一般橫幅,可手動劃掉;手環/手錶同步不受影響";
-"reminder_mode_fluid_sub" = "課程卡片出現在動態島/鎖定畫面；無動態島機型顯示為鎖定畫面即時條(iOS 16.1+)。App 完全退出後，新卡片要等下次開啟才出現";
+"reminder_mode_fluid_sub" = "依課前提前時間和各課表提醒設定顯示課程。Sleepy 在前景時會更新、切換課程和結束卡片。進入背景後已有倒數可繼續，但不保證新增卡片、切換課程或下課後自動移除；再次開啟應用程式即可更新。需要 iOS 16.1+，即時動態權限與通知權限獨立。";
 "reminder_master_sub" = "允許 Sleepy 發送課程通知";
 "reminder_master_title" = "開啟提醒";
 "reminder_notif_denied_title" = "通知權限已被拒絕";
@@ -486,7 +487,7 @@
 "semester_not_started" = "學期尚未開始";
 "today_semester_out_hint" = "學期範圍外，課程僅供參考";
 "format_wakeup_share_when" = "從 WakeUp 課程表 app 整體搬家。在 WakeUp 裡點「分享課程」生成的整段文字，原樣貼上即可。";
-"format_wakeup_share_example" = "【來自WakeUp課程表】\\n課程分享:\\n{\"name\":\"我的課表\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%5B%7B%22name%22…%5D\"}";
+"format_wakeup_share_example" = "【來自WakeUp課程表】\\n課程分享:\\n{\"name\":\"我的課表\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%%5B%%7B%%22name%%22…%%5D\"}";
 "format_wakeup_json_when" = "WakeUp 匯出的 .json 檔案內容，或按下面的結構自己寫 JSON。";
 "format_wakeup_json_example" = "{\\n  \"name\": \"我的課表\",\\n  \"startDate\": \"2026-09-07\",\\n  \"courses\": [\\n    {\"name\":\"高等數學\",\"teacher\":\"張三\",\"position\":\"A101\",\"day\":1,\"startNode\":1,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}\\n  ]\\n}";
 "format_ics_when" = "學校教務系統或 WakeUp 匯出的日曆檔案（.ics）。用「從檔案匯入」選它，或用文字編輯器開啟後複製全部內容貼上。";
@@ -883,7 +884,7 @@
 "possible_schools" = "可能的學校";
 "reminder_before_class_preview_dynamic" = "範例：%@，下節課是「%@」，於 %@ 在 %4$s 上課%5$s";
 "reminder_before_class_preview_dynamic_no_course" = "範例：未來沒有可提醒的課程。";
-"reminder_class_dnd_sub" = "上課時段自動開啟勿擾, 下課自動恢復";
+"reminder_class_dnd_sub" = "僅在 App 前景時，靜音上課時段的本應用程式課前通知；系統專注模式保持不變";
 "reminder_class_dnd_title" = "上課自動勿擾";
 "reminder_daily_preview_dynamic" = "範例：%@，您有 %lld 節課。第一節課是「%@」，於 %4$s 在 %5$s 上課%6$s";
 "reminder_daily_preview_dynamic_no_course" = "範例：%@，暫無課程。";
@@ -1097,14 +1098,14 @@
 "appearance_header_hide_time_sub" = "舊式表頭僅顯示節次，不顯示上課時間（實驗性，預設關閉）";
 "mine_widget" = "小工具";
 "widget_gallery_title" = "新增小工具";
-"widget_manage_empty_v2" = "點右上角 ＋ 新增小工具;尚未新增過時,長按桌面空白處 → ＋ → 搜尋 Sleepy。";
+"widget_manage_empty_v2" = "點右上角 ＋ 查看小工具樣式和加入主畫面的步驟。";
 "widget_guide_title" = "將小工具加到桌面";
-"widget_guide_search_hint" = "小工具庫裡叫「%1$@」";
+"widget_guide_search_hint" = "搜尋應用程式「%1$@」，再選擇下方的小工具。";
 "widget_guide_copy_name" = "複製名稱";
 "widget_guide_step_hold" = "長按桌面空白處,直到 App 圖示開始抖動";
-"widget_guide_step_plus" = "點左上角的 ➕,再點右下角的「新增小工具」";
-"widget_guide_step_search" = "在搜尋框輸入上面複製的名稱,找到這個小工具";
-"widget_guide_step_drag" = "按住它的圖示,拖到桌面空位,然後點右上角「完成」";
+"widget_guide_step_plus" = "點左上角「編輯」，再點「加入小工具」；較早版本的 iOS 請點 ＋。";
+"widget_guide_step_search" = "搜尋 Sleepy 並開啟應用程式項目，選擇所需的小工具與尺寸。";
+"widget_guide_step_drag" = "點「加入小工具」，調整到主畫面合適位置，再點「完成」。";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "每日議程";
@@ -1160,6 +1161,9 @@
 "occurrence_keep_date" = "按原日儲存";
 "occurrence_continue" = "繼續";
 "occurrence_stale" = "課表或調休設定已變更，請重新開啟本次課程。";
+"occurrence_invalid_date" = "請選擇目前學期內的日期。";
+"occurrence_invalid_nodes" = "請選擇有效的起始節次和連續節數。";
+"occurrence_invalid_time" = "請輸入有效起迄時間，結束時間須晚於開始時間。";
 "occurrence_actions" = "調整或刪除本次課程";
 "theme_system_source_window_tint" = "配色來源：目前介面強調色";
 "theme_system_source_fallback" = "配色來源：預設種子色（暫未取得有效介面強調色）";
@@ -1179,3 +1183,62 @@
 "watch_tomorrow_mark" = "明日";
 "watch_tomorrow_no_class" = "明日無課";
 "watch_holiday" = "假期中";
+
+// MARK: - Watch course time strip
+"watch_time_strip_display_name" = "課程時間帶";
+"watch_time_strip_description" = "以固定 90 分鐘寬度顯示課程與空檔，由系統安排更新。";
+"watch_time_strip_preview" = "明日預覽";
+"watch_time_strip_break" = "課間";
+"watch_time_strip_free" = "空閒";
+"watch_time_strip_finished" = "今日課程已結束";
+"watch_time_strip_scale" = "90 分鐘";
+"watch_time_strip_overlap" = "%1$d 門課程";
+"watch_time_strip_unavailable" = "課表暫不可用，請在 iPhone 同步";
+"settings_watch_time_strip_section" = "Apple Watch 課程時間帶";
+"settings_watch_time_strip_tomorrow" = "今日結束後顯示明日";
+"settings_watch_time_strip_tomorrow_hint" = "僅預覽下一個曆日，與最近有課日和提醒設定互不影響。";
+"settings_watch_time_strip_overview" = "整條寬度始終代表 90 分鐘。更新時機由系統安排，不會持續逐秒滑動。";
+"settings_watch_time_strip_preview_details" = "預設關閉。今日課程結束後（或今日無課時），僅預覽下一個曆日，並標明日期與「明日預覽」。預覽從明日第一節課開始，按實際時間流速前進，最後一節課結束後重新循環。明日無課時顯示「明日無課」，不會跳到之後的有課日。";
+
+"import_target_missing" = "目標課表已不存在，請重新開啟匯入預覽。";
+"import_period_missing" = "所選作息表已不存在，請重新選擇。";
+
+"live_activity_title" = "即時動態（動態島）";
+"live_activity_limits" = "依課前提前時間和各課表提醒設定顯示課程。Sleepy 在前景時會更新、切換課程和結束卡片。進入背景後已有倒數可繼續，但不保證新增卡片、切換課程或下課後自動移除；再次開啟應用程式即可更新。需要 iOS 16.1+，即時動態權限與通知權限獨立。";
+"live_activity_permission" = "系統已關閉即時動態，點此開啟設定。";
+"live_activity_starts" = "距離上課";
+"live_activity_ends" = "距離下課";
+"live_activity_stale" = "課程狀態可能已過期";
+"live_activity_open_to_refresh" = "開啟 Sleepy 更新";
+"live_activity_next" = "下節：%1$@";
+
+"timeslot_reorder_standard_only" = "邊緣節次保持固定，僅標準節次支援拖曳排序。";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "高等數學";
+"widget_preview_english" = "英文閱讀";
+"widget_preview_linear_algebra" = "線性代數";
+"widget_preview_sports" = "體育";
+"widget_preview_programming" = "程式設計實作";
+"widget_preview_seminar" = "研討課";
+"widget_preview_gym" = "體育館";
+
+// Android v1.0.63 THU course-page navigation and recovery.
+"jw_nav_hint_thu" = "導航到選課系統「整體課表」頁，選好學期後點「匯入此頁」";
+"jw_err_thu_course_page" = "尚未偵測到清華大學「整體課表」的課程腳本。請登入選課系統、開啟「整體課表」、選好學期後再點「匯入此頁」";
+
+// Android v1.0.63 — explicit-target course imports.
+"add_course_title" = "新增課程";
+"add_course_from_existing" = "從現有課表";
+"select_courses_title" = "選擇課程";
+"select_courses_all" = "全選";
+"select_courses_none" = "取消全選";
+"select_courses_count" = "已選 %1$lld / 共 %2$lld 門";
+"import_selection_empty" = "未選擇任何課程";
+"add_course_manual" = "手動新增課程";
+"add_course_no_source" = "沒有其他可用課表，請先新增課表";
+"import_backup_original" = "備份原課表";
+"import_backup_original_sub" = "開啟後先複製原課表作為備份，再新增本次課程";
+"import_append_conflicts_option" = "追加衝突課程";
+"import_append_conflicts_option_sub" = "關閉後放棄與現有課程衝突的課程";
+"import_backup_name" = "%1$@-備份";

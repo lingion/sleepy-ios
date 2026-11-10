@@ -13,7 +13,7 @@
 //   - pendingImportText → EXTRA_DRAFT_ID 打开 import   → 外部打开走 URL; 草稿恢复待 data-migrations
 //   - uiMode 监听 (dark 实时重算, configChanges 不重建) → iOS 系统 dark 自动驱动颜色资源, 无需信号
 //   - splash 替换 (installSplashScreen)               → iOS 无公开 splash API, 记录 no-analog
-//   - HighRefreshRate 120Hz 请求                        → 无公开 API (ProMotion 系统调度, 2026-09-10 已审计)
+//   - HighRefreshRate 120Hz 请求                        → 不移植 Android 窗口固定高刷开关；iOS 按需调度，不保证 120Hz
 //   - 权限请求序 (runtime permission)                   → 通知权限在 NotificationScheduler 首次调度时按需请求, 无独立序
 
 import Combine
@@ -74,6 +74,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             guard let self = self else { return }
             WidgetCenter.shared.reloadAllTimelines()
             self.notificationScheduler.scheduleAll()
+            Task { @MainActor in
+                if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
+            }
             // ← 2026-10 watch 伴侶 App: 同一条 refresh 总线挂手表全量快照推送
             // (scheduleSync 只持 Coordinator 单例, [weak self] 模式與本 hook 其余行一致)
             WatchSyncCoordinator.shared.scheduleSync()
@@ -87,12 +90,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         WatchSyncCoordinator.shared.start()
         // ← 原版本 SleepyApp.onCreate: classDndScheduler 注入 (F128 issue#2)
         ClassDndScheduler.shared.configure(repositoryProvider: { [weak self] in self?.repository })
-        // ← 原版本 ReminderRescheduler.init 块 (SleepyApp.kt:44-52) — 同时修复 init_ 从未被调用、
-        //   全树 20+ 处 ReminderRescheduler.shared.request() 被静默丢弃的缺口。fluid-cloud 分支为
-        //   platform-only 不移植:
         ReminderRescheduler.shared.init_(debounceMs: 300) {
             NotificationScheduler.shared.scheduleAll()
             ClassDndScheduler.shared.reconcileReminderRules()
+            await MainActor.run {
+                if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
+            }
         }
         // ← 原版本 BootReceiver kt:808 冷启动无条件校准 (pref 关时 rebuildState 守卫 = 安全 no-op):
         ClassDndScheduler.shared.syncFromPrefs()
@@ -110,7 +113,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             guard self != nil else { return }
             // 原版本 侧此处 reconcileActiveFluidCloud(厂商 SDK 不可移植);
             // iOS 对应物 = ActivityKit 实况活动/灵动岛(v1.0.64 已实现, 能力上限见 SPEC 差异表#3)
-            if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
+            Task { @MainActor in
+                if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
+            }
             ClassDndScheduler.shared.syncFromPrefs()
             // watch 伴侣 App: 回前台兜底重推 (离线期间 onDataChanged 攒的改动追平)
             WatchSyncCoordinator.shared.syncNow()
@@ -129,16 +134,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // ← onCreate: 首启刷新小组件(WidgetUpdater.notifyDataChanged)
         WidgetCenter.shared.reloadAllTimelines()
-        // v1.0.64: 课程实况活动(灵动岛/锁屏) — 本地请求, 无服务端, 只在 App 活跃时刷新
-        if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
         // 到货重查/00:05 载体/摘要刷新的 delegate 此前从未注册 = 死接线 (F128/F129 issue6)。
         UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
         // Game Center 认证：静默，不影响 App 正常使用
         GameCenterManager.shared.authenticate()
-        // 高刷新率:iOS 无公开刷率 API(原 HighRefreshRate 桩已删),ProMotion 上
-        // 系统自动调度 120Hz,无需 app 侧动作(2026-09-10 原生化审计)。
+        // iOS 公开 CADisplayLink.preferredFrameRateRange，但 SwiftUI/CoreAnimation
+        // 由系统按需调度，不保证 120Hz；本 App 不移植 Android 窗口固定高刷开关。
         return true
     }
+}
+
+/// A presentation belongs to the window, so replacing tab/rail layouts cannot dismiss it.
+struct ScheduleShareRequest: Identifiable {
+    let id = UUID()
+    let table: TimeTableEntity
+    let courses: [CourseEntity]
 }
 
 // ← AppRoot 状态机(overlay 导航 + 深链)
@@ -165,11 +175,48 @@ final class AppRootViewModel: ObservableObject {
     }
 
     @Published var currentTab: Tab = .schedule
+    @Published var importRequested = false
+    @Published private(set) var requestedImportTargetTableId: Int64? = nil
+
+    /// Import is a presentation request, independent of whether Manage is already visible.
+    func requestImport() {
+        currentTab = .manage
+        requestedImportTargetTableId = nil
+        importRequested = true
+    }
+
+    func requestAddCourses(targetTableId: Int64) {
+        guard targetTableId > 0 else { return }
+        currentTab = .manage
+        requestedImportTargetTableId = targetTableId
+        importRequested = true
+    }
+
+    func openManualAddCourse(targetTableId: Int64) {
+        guard targetTableId > 0 else { return }
+        navigator.openAddCourse()
+        addCourseTargetTableId = targetTableId
+    }
+    @Published var shareRequest: ScheduleShareRequest? = nil
+    @Published var courseDetailRequest: ScheduleCourseDetailRequest? = nil
+    @Published var addCourseTargetTableId: Int64? = nil
+    @Published private(set) var overlayNavigationRevision: UInt64 = 0
+    private let overlayDismissalState = OverlayDismissalState()
     @Published var overlayScreen: OverlayScreen? = nil {
-        didSet { if overlayScreen != .addCourse { initialCourseSlot = nil } }
+        didSet {
+            recordOverlayNavigation()
+            if overlayScreen != .addCourse {
+                initialCourseSlot = nil
+                addCourseTargetTableId = nil
+            }
+        }
     }
     @Published var editingCourse: CourseEntity? = nil {
-        didSet { if editingCourse != nil { initialCourseSlot = nil } }
+        didSet {
+            recordOverlayNavigation()
+            addCourseTargetTableId = nil
+            if editingCourse != nil { initialCourseSlot = nil }
+        }
     }
     @Published var initialCourseSlot: CourseAddSlot? = nil
     // ← 原版本 b96c865b: 课表视图模式(周/网格)会话级真值, 与 currentTab 同级 —
@@ -182,8 +229,6 @@ final class AppRootViewModel: ObservableObject {
     @Published var pendingNewPeriodTableId: Int64? = nil
     @Published var pendingNewTableId: Int64? = nil
     @Published var previousDefaultTableId: Int64? = nil
-    // 深链课程
-    @Published var deepLinkCourse: CourseEntity? = nil
     // ← v1.0.62 B5: 议程页路由参数(通知点击/深链共用; openDailyAgenda 单一入口)
     @Published var dailyAgendaDate: Date? = nil
     // 语言切换重建 token(← Activity.recreate): L10n.didChange → 递增 → AppRoot 全树重建
@@ -206,6 +251,7 @@ final class AppRootViewModel: ObservableObject {
     private var prefsObserver: NSObjectProtocol?
 
     let scheduleViewModel: ScheduleViewModel
+    private let repository: ScheduleRepository
     private let draftRepository = ImportDraftRepository(AppDatabase.getShared())
     // ← 原版本 MainActivity.kt:261 `rememberSleepyNavigator()`: 门面唯一实例。
     //   iOS 无 composition 生命周期, 挂在 VM 上 = 与 AppRoot 同寿(VM 由 AppDelegate
@@ -215,6 +261,7 @@ final class AppRootViewModel: ObservableObject {
     lazy var navigator: SleepyNavigator = SleepyNavigator(viewModel: self)
 
     init(repository: ScheduleRepository) {
+        self.repository = repository
         scheduleViewModel = ScheduleViewModel(
             repo: repository,
             onWidgetsNeedReload: { WidgetCenter.shared.reloadAllTimelines() })
@@ -264,6 +311,20 @@ final class AppRootViewModel: ObservableObject {
         if navFloating != floating { navFloating = floating }
     }
 
+    private func recordOverlayNavigation() {
+        // Invalidate synchronously, before SwiftUI observes the new route.
+        overlayDismissalState.navigationChanged()
+        overlayNavigationRevision &+= 1
+    }
+
+    func beginOverlayDismissal() -> OverlayDismissalState.Ticket {
+        overlayDismissalState.beginDismissal()
+    }
+
+    func completeOverlayDismissal(_ ticket: OverlayDismissalState.Ticket, then: () -> Void) {
+        overlayDismissalState.completeDismissal(ticket, then: then)
+    }
+
     // ← BackHandler: overlay 返回(pendingNewTable 丢弃链)
     func handleBack() {
         if let discardId = pendingNewTableId {
@@ -297,6 +358,12 @@ final class AppRootViewModel: ObservableObject {
         }
     }
 
+    func finishPeriodTableSave() {
+        pendingNewPeriodTableId = nil
+        periodEditId = nil
+        overlayScreen = nil
+    }
+
     // ← 新建空表(AllTables / Management 共用)
     func createNewTableThenEdit() {
         let previousId = scheduleViewModel.state.currentTable?.id
@@ -322,12 +389,16 @@ final class AppRootViewModel: ObservableObject {
     }
 
     // ← 深链: sleepy://course/<id>
-    func handleDeepLinkCourse(_ id: Int64) {
-        if deepLinkCourse?.id == id { return }
-        let repo = ScheduleRepository(AppDatabase.getShared())
-        if let course = try? repo.getCourse(id) {
-            deepLinkCourse = course
-        }
+    @discardableResult
+    func handleDeepLinkCourse(_ id: Int64) -> Bool {
+        guard let course = try? repository.getCourse(id) else { return false }
+        // Use the existing discard path before replacing the route. Otherwise
+        // Back from this course could discard a previous unsaved table instead.
+        handleBack()
+        if pendingNewPeriodTableId != nil { handleBack() }
+        navigator.session.beginEditCourse(course)
+        navigator.openAddCourse(courseId: course.id, editing: true)
+        return true
     }
 
     // ← v1.0.62 B5: 议程页单一打开入口 (通知点击 + 深链共用)。
@@ -380,6 +451,13 @@ struct AppRoot: View {
     //   keyWindow.safeAreaInsets — 冷启极早窗口未就绪时 resolver 保守按悬浮。
     //   回前台(active)必然有窗口 → 重判一次纠偏(悬浮↔贴底切换仅非全面屏设备可见)。
     @Environment(\.scenePhase) private var scenePhase
+    @State private var importPresentation = ImportPresentationState()
+    @State private var requestedExternalImportDeliveryID: UUID?
+    @State private var showImportSheet = false
+    @State private var importTargetTableId: Int64? = nil
+    @State private var importInitialText: String?
+    @State private var manualAddTargetAfterImportDismiss: Int64? = nil
+    @State private var createTableAfterImportDismiss = false
     @State private var jwImportActive = false
     // 直接/外部草稿入口独立呈现，不伪造导入方式页作为返回目标。
     @State private var jwReturn = JwImportReturnState(origin: .direct)
@@ -399,17 +477,7 @@ struct AppRoot: View {
         // ★ 键盘避让只在 tab 层忽略(旧 fullScreenCover 时代对整个 mainContent 忽略);
         //   浮层走自绘 ZStack 容器, 保留键盘避让 → AddCourse 输入框自动避开键盘。
         mainContent
-        // ★ 实时尺寸通道(← 原版本 Configuration.screenWidthDp/HeightDp 逐帧
-        //   重算语义 + PR#235 几何闸口径): background GeometryReader 零布局侵入,
-        //   变更回灌 VM → rail 双栏↔手机形态随旋转/分屏/Stage Manager 缩放即切。
-        //   iPhone 恒竖屏, 回调值不变=空操作。
-        .background(GeometryReader { proxy in
-            Color.clear.preference(key: WindowSizePreferenceKey.self,
-                                   value: proxy.size)
-        })
-        .onPreferenceChange(WindowSizePreferenceKey.self) { size in
-            root.updateWindowSize(size)
-        }
+        .background(WindowGeometryProbe(onChange: { root.updateWindowSize($0) }))
         // ← Activity.recreate(): 语言切换 → L10n.didChange → languageReload+1 → 全树重建
         .id(root.languageReload)
         .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
@@ -438,6 +506,9 @@ struct AppRoot: View {
             Task { await HolidayManager.preload() }
             // ← 原版本 observeAll() 常驻订阅的等价: 进入即读一次草稿列表
             root.refreshDrafts()
+            requestPendingExternalImport()
+            presentRequestedDraft()
+            presentRequestedImport()
             // 冷启兜底: onAppear 时窗口已就位, 重判一次(inset 判定不再可能 nil)
             root.refreshNavMode()
             // ← v1.0.62 B5: 冷启兜底 — 通知点击拉起 app 时 delegate 先落 pending,
@@ -447,6 +518,7 @@ struct AppRoot: View {
         // ★ 回前台重判底栏形态(仅"未显式设置"自适应路径有意义; 显式选择时
         //   resolver 设置优先, 重判结果不变)。
         .onChange(of: scenePhase) { phase in
+            if #available(iOS 16.1, *), phase != .active { ClassDayActivityManager.suspend() }
             if phase == .active {
                 root.refreshNavMode()
                 // Widget 检测：App 进入前台时检查是否有已添加的 Widget
@@ -457,13 +529,6 @@ struct AppRoot: View {
                 }
             }
         }
-        // 深链课程 → 编辑(← LaunchedEffect(deepLinkCourse?.id))
-        .onChange(of: root.deepLinkCourse?.id) { courseId in
-            if courseId != nil {
-                root.editingCourse = root.deepLinkCourse
-                root.deepLinkCourse = nil
-            }
-        }
         // ← v1.0.62 B5: 通知点击 → 议程页 (delegate didReceive 广播; 冷启竞态由
         //   pendingAgendaDateRaw 兜底, 下方 onAppear 消费)。日期经严格解析, 非法丢弃。
         .onReceive(NotificationCenter.default.publisher(
@@ -472,18 +537,87 @@ struct AppRoot: View {
             drainPendingAgendaDate(raw)
         }
         // pendingImportText → 自动切 Manage + 弹导入(← LaunchedEffect(pendingImportText))
-        .onChange(of: PendingImportText.value) { text in
-            if text != nil {
-                root.currentTab = .manage
+        .onReceive(NotificationCenter.default.publisher(for: PendingImportText.changedNotification)
+            .receive(on: RunLoop.main)) { _ in
+            requestPendingExternalImport()
+        }
+        .onChange(of: root.importRequested) { requested in
+            if requested { presentRequestedImport() }
+        }
+        .sheet(isPresented: $showImportSheet, onDismiss: {
+            let manualTarget = manualAddTargetAfterImportDismiss
+            let createTable = createTableAfterImportDismiss
+            manualAddTargetAfterImportDismiss = nil
+            createTableAfterImportDismiss = false
+            importTargetTableId = nil
+            importInitialText = nil
+            importPresentation.didDismiss(.methods)
+            if let manualTarget {
+                root.openManualAddCourse(targetTableId: manualTarget)
+            } else if createTable {
+                root.createNewTableThenEdit()
             }
+            drainRequestedImportsAfterDismissal()
+        }) {
+            let targetTableId = importTargetTableId
+            ImportSheet(viewModel: root.scheduleViewModel,
+                        onDismiss: { showImportSheet = false },
+                        onImported: importDidFinish,
+                        drafts: root.importDrafts,
+                        onDeleteDraft: { root.deleteDraft($0) },
+                        onJwDismissed: { root.refreshDrafts() },
+                        onCreateNewTable: {
+                            createTableAfterImportDismiss = true
+                            showImportSheet = false
+                        },
+                        targetTableId: targetTableId,
+                        initialImportText: importInitialText,
+                        onManualAddCourse: targetTableId.map { target in
+                            {
+                                manualAddTargetAfterImportDismiss = target
+                                showImportSheet = false
+                            }
+                        })
+                .id(targetTableId)
+                .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                              customThemeVersion: customThemesJson))
+                .environment(\.systemColorSnapshot, systemColorSnapshot)
+                .preferredColorScheme(schemeOverride)
+        }
+        .sheet(item: $root.shareRequest) { request in
+            ShareScheduleSheet(table: request.table, courses: request.courses,
+                               onDismiss: { root.shareRequest = nil })
+                .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                              customThemeVersion: customThemesJson))
+                .environment(\.systemColorSnapshot, systemColorSnapshot)
+                .preferredColorScheme(schemeOverride)
+        }
+        .sheet(item: $root.courseDetailRequest) { request in
+            CourseDetailSheet(
+                course: request.course,
+                timeString: request.course.nodeString(),
+                allCourses: request.allCourses,
+                onEdit: { course in
+                    root.courseDetailRequest = nil
+                    let stored = root.scheduleViewModel.state.courses.first { $0.id == course.id } ?? course
+                    root.navigator.session.beginEditCourse(stored)
+                    root.navigator.openAddCourse(courseId: stored.id, editing: true)
+                },
+                timeJson: request.table?.timeJson,
+                displayDate: request.displayDate,
+                occurrenceTable: request.table,
+                occurrenceRepository: root.scheduleViewModel.occurrenceRepository,
+                onOccurrenceSaved: {
+                    root.courseDetailRequest = nil
+                    root.scheduleViewModel.occurrenceSaved()
+                })
+                .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                              customThemeVersion: customThemesJson))
+                .environment(\.systemColorSnapshot, systemColorSnapshot)
+                .preferredColorScheme(schemeOverride)
         }
         // 待恢复草稿 → 带进 JwImportFlow 入参并消费清零(← EXTRA_DRAFT_ID 一次性语义)
-        .onChange(of: root.pendingDraftId) { id in
-            guard let id = id else { return }
-            jwIncomingDraftId = id
-            root.pendingDraftId = nil
-            jwImportActive = true
-        }
+        .onChange(of: root.pendingDraftId) { _ in presentRequestedDraft() }
         .sheet(isPresented: $jwImportActive, onDismiss: {
             // 下滑关闭与流程内关闭两条路径都收敛到这里: 选校状态重置、入参带完即清、草稿列表随流程结束刷新
             SchoolSelectStateStore.shared.resetForNewEntry()
@@ -491,6 +625,8 @@ struct AppRoot: View {
             jwActiveImport = false
             _ = jwReturn.didDismiss()
             root.refreshDrafts()
+            importPresentation.didDismiss(.jw)
+            drainRequestedImportsAfterDismissal()
         }) {
             JwImportFlow(onFinish: { outcome in
                 jwReturn.record(outcome)
@@ -506,6 +642,47 @@ struct AppRoot: View {
             .interactiveDismissDisabled(jwActiveImport)
             .sheetDragIndicator(.visible)
         }
+    }
+
+    private func requestPendingExternalImport() {
+        guard let text = PendingImportText.value,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let deliveryID = PendingImportText.deliveryID,
+              requestedExternalImportDeliveryID != deliveryID else { return }
+        requestedExternalImportDeliveryID = deliveryID
+        root.requestImport()
+    }
+
+    private func presentRequestedImport() {
+        guard root.importRequested, importPresentation.begin(.methods) else { return }
+        importTargetTableId = root.requestedImportTargetTableId
+        importInitialText = importTargetTableId == nil ? PendingImportText.take() : nil
+        showImportSheet = true
+        root.importRequested = false
+    }
+
+    private func presentRequestedDraft() {
+        guard let id = root.pendingDraftId, importPresentation.begin(.jw) else { return }
+        jwIncomingDraftId = id
+        root.pendingDraftId = nil
+        jwImportActive = true
+    }
+
+    private func drainRequestedImportsAfterDismissal() {
+        // Keep the current identity through UIKit's dismissal animation; a queued
+        // document or draft starts only after its previous sheet has gone away.
+        DispatchQueue.main.async {
+            presentRequestedDraft()
+            presentRequestedImport()
+        }
+    }
+
+    private func importDidFinish() {
+        // The active sheet consumes its payload on appearance. A remaining value
+        // belongs to a later delivery and must survive this import's completion.
+        WidgetCenter.shared.reloadAllTimelines()
+        ReminderRescheduler.shared.request()
+        WatchSyncCoordinator.shared.scheduleSync()
     }
 
     // ← AppPrefs.isDarkMode(context, systemDark)
@@ -534,13 +711,19 @@ struct AppRoot: View {
                 themeKey: themeKey,
                 customThemeVersion: customThemesJson,
                 overlayScreen: $root.overlayScreen,
+                resolvedScreen: root.overlayScreen ?? (root.editingCourse == nil ? nil : .addCourse),
+                navigationRevision: root.overlayNavigationRevision,
+                beginDismissal: { root.beginOverlayDismissal() },
+                completeDismissal: { ticket, action in root.completeOverlayDismissal(ticket, then: action) },
                 editingCourse: root.editingCourse,
                 initialCourseSlot: root.initialCourseSlot,
+                addCourseTargetTableId: root.addCourseTargetTableId,
                 editTableId: root.editTableId,
                 pendingNewTableId: root.pendingNewTableId,
                 periodEditId: root.periodEditId,
                 pendingNewPeriodTableId: root.pendingNewPeriodTableId,
                 dailyAgendaDate: root.dailyAgendaDate,
+                onSavedPeriod: { root.finishPeriodTableSave() },
                 onOpenPeriodEdit: { periodId, isNew in
                     root.periodEditId = periodId
                     root.pendingNewPeriodTableId = isNew ? periodId : nil
@@ -624,22 +807,32 @@ struct AppRoot: View {
     //   宽度通道: background GeometryReader 零布局侵入, .global 系分屏/Stage
     //   Manager 缩放后的实际窗口尺寸; 变更即回灌 refreshNavMode 重判。
     private var railTabs: some View {
+        GeometryReader { geometry in
+            railContent(sideBySide: NavStyleResolver.usesSideBySidePanes(windowSize: geometry.size))
+        }
+    }
+
+    private func railContent(sideBySide: Bool) -> some View {
         HStack(spacing: 0) {
-            NavigationRailBar(rightTabs: tabletRailItems,
-                              selectedTab: tabletRightTab,
-                              scheduleIcon: "calendar")
+            NavigationRailBar(rightTabs: sideBySide ? tabletRailItems : navItems,
+                              selectedTab: sideBySide ? tabletRightTab : root.currentTab,
+                              scheduleIcon: "calendar", scheduleIsPinned: sideBySide)
                 .ignoresSafeArea(edges: .bottom)
             // ← 原版本 内容 Row: padding(horizontal=16, vertical=12) +
             //   spacedBy(16){ 左卡; Box(width=12, background 沟槽); 右卡 }
             //   → 两卡之间总间隔 = 16 + 12(沟槽盒) + 16 = 44dp, 沟槽盒 background
             //   色整高(卡片同高, 含卡上下缘)。iOS HStack(spacing:16) + 12pt 盒逐字复刻。
             HStack(spacing: 16) {
-                tabletPaneCard(content: tabletSchedulePane)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                ThemeRoleFill(role: \.background)
-                    .frame(width: 12)
-                tabletPaneCard(content: tabletRightPane)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if sideBySide {
+                    tabletPaneCard(content: tabletSchedulePane)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ThemeRoleFill(role: \.background)
+                        .frame(width: 12)
+                    tabletPaneCard(content: tabletRightPane)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    tabletPaneCard(content: tabContent)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -674,9 +867,13 @@ struct AppRoot: View {
             viewModel: root.scheduleViewModel,
             viewMode: $root.scheduleViewMode,
             onGoImport: {
-                root.currentTab = .manage
-                root.createNewTableThenEdit()
+                root.requestImport()
             },
+            onShareRequested: { table, courses in
+                root.shareRequest = ScheduleShareRequest(table: table, courses: courses)
+            },
+            onCourseDetailRequested: { root.courseDetailRequest = $0 },
+            courseDetailPresented: root.courseDetailRequest != nil,
             onManualAdd: { root.navigator.openAddCourse() },
             onCreateTable: { root.createNewTableThenEdit() },
             onEditCourse: { course in
@@ -776,7 +973,12 @@ struct AppRoot: View {
             ScheduleScreen(
                 viewModel: root.scheduleViewModel,
                 viewMode: $root.scheduleViewMode,
-                onGoImport: { root.currentTab = .manage },
+                onGoImport: { root.requestImport() },
+                onShareRequested: { table, courses in
+                    root.shareRequest = ScheduleShareRequest(table: table, courses: courses)
+                },
+                onCourseDetailRequested: { root.courseDetailRequest = $0 },
+                courseDetailPresented: root.courseDetailRequest != nil,
                 // ← 原版本 MainTabs:328 onManualAdd = navigator.openAddCourse()
                 onManualAdd: { root.navigator.openAddCourse() },
                 onCreateTable: { root.createNewTableThenEdit() },
@@ -807,7 +1009,6 @@ struct AppRoot: View {
                 onOpenPeriodTables: { root.navigator.openPeriodTables() },
                 onOpenAppearance: { root.navigator.openAppearance() },
                 onOpenGeneral: { root.navigator.openGeneral() },
-                onOpenExport: { root.navigator.openExport() },
                 onOpenReminder: { root.navigator.openReminder() },
                 onOpenAbout: { root.navigator.openAbout() })
         }
@@ -840,38 +1041,16 @@ struct AppRoot: View {
         }
     }
 
-    // 管理页(AppRoot 私有状态绑定最重的一屏) — docked/floating/native 共用。
+    // Window-owned presentations keep import drafts alive across native/rail changes.
     private var managementPage: some View {
         ManagementPage(
             viewModel: root.scheduleViewModel,
-            autoShowImportSheet: PendingImportText.value != nil,
-            // ← 原版本 MainTabs:352 onCreateNewTableRequested = onCreateNewTable
-            //   (MainActivity 闭包 = createEmptyTable + openEditTable; iOS 状态机
-            //   封装在 createNewTableThenEdit, 含 allTables-cover 换页时序, 保持直调)
-            onCreateNewTableRequested: { root.createNewTableThenEdit() },
-            // ← 原版本 MainTabs:355 onManualAdd = navigator.openAddCourse()
-            onManualAdd: { root.navigator.openAddCourse() },
-            // ← 原版本 MainTabs:355 onEditCurrentTable = navigator.openEditTable()
+            onImportRequested: { root.requestImport() },
+            onAddCourses: { root.requestAddCourses(targetTableId: root.scheduleViewModel.state.selectedTableId ?? 0) },
             onEditCurrentTable: { root.navigator.openEditTable() },
-            // ← 原版本 MainTabs:355 onExportRequested = navigator.openExport()
             onExportRequested: { root.navigator.openExport() },
-            // ★ 导入完成链(onImported: 留在管理页, 摘要卡就地刷新)
-            onImported: {
-                // ← 原版本 ce7f7924: 导入完成留在管理页(摘要卡就地刷新), 不再硬跳课表 Tab
-                PendingImportText.value = nil
-            },
-            // ← 原版本 SleepyNavHost: onOpenAllTables = navigator.openAllTables()
             onOpenAllTables: { root.navigator.openAllTables() },
-            onOpenPeriodTables: { root.navigator.openPeriodTables() },
-            // ← 原版本 MainTabs:354 createPeriodTableAndEdit(newId) =
-            //   navigator.createPeriodTableAndEdit(newId) (内部 openPeriodEdit(newId, isNew=true))
-            onCreateNewPeriodTableRequested: { newId in
-                root.navigator.createPeriodTableAndEdit(newId: newId)
-            },
-            // 草稿箱恢复由 ImportSheet 子 sheet 承载；直接草稿入口仍走 pendingDraftId。
-            drafts: root.importDrafts,
-            onDeleteDraft: { id in root.deleteDraft(id) },
-            onJwDismissed: { root.refreshDrafts() })
+            onOpenPeriodTables: { root.navigator.openPeriodTables() })
     }
 
     // ★ docked 模式:bar 占用 76pt(老行为)
@@ -913,6 +1092,9 @@ struct AppRoot: View {
 
     // ← handleDeepLinkIntent(平台差异表#4: Intent extras → URL scheme)
     private func handleDeepLink(_ url: URL) {
+        if ImportReceiverActivity.receiveIfFileURL(url) {
+            return
+        }
         guard url.scheme == "sleepy" else { return }
         switch url.host {
         case "open":
@@ -926,7 +1108,6 @@ struct AppRoot: View {
             if let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
                let text = comps.queryItems?.first(where: { $0.name == "text" })?.value {
                 PendingImportText.value = text
-                root.currentTab = .manage
             }
         case "daily-agenda":
             // ← v1.0.62 B5: sleepy://daily-agenda/<date> (← DailyAgendaRoute.identity)
@@ -1046,15 +1227,6 @@ private extension View {
     }
 }
 
-/// 实时窗口尺寸上报通道(AppRoot background GeometryReader → root.updateWindowSize)。
-/// 初值 .zero = 未就绪(与 VM windowSize=nil 区分开: 首个真实回调前不参与判定)。
-private struct WindowSizePreferenceKey: PreferenceKey {
-    static var defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
-        value = nextValue()
-    }
-}
-
 private struct TabsCanvasBackground: View {
     @Environment(\.localWakeUpColors) private var colors
 
@@ -1080,8 +1252,13 @@ private struct PresentOverlay: ViewModifier {
     // ← AppRoot.customThemesJson 同源下发: 浮层页在自定义主题就地编辑后也要重跑 provider
     var customThemeVersion: String = ""
     @Binding var overlayScreen: AppRootViewModel.OverlayScreen?
+    let resolvedScreen: AppRootViewModel.OverlayScreen?
+    let navigationRevision: UInt64
+    let beginDismissal: () -> OverlayDismissalState.Ticket
+    let completeDismissal: (OverlayDismissalState.Ticket, @escaping () -> Void) -> Void
     let editingCourse: CourseEntity?
     let initialCourseSlot: CourseAddSlot?
+    let addCourseTargetTableId: Int64?
     let editTableId: Int64?
     let pendingNewTableId: Int64?
     // ← v1.0.60 作息表编辑路由参数(镜像 editTable 的 pending 丢弃链)
@@ -1089,6 +1266,7 @@ private struct PresentOverlay: ViewModifier {
     let pendingNewPeriodTableId: Int64?
     // ← v1.0.62 B5: 议程页路由参数(通知点击/深链共用; openDailyAgenda 单一入口落位)
     let dailyAgendaDate: Date?
+    let onSavedPeriod: () -> Void
     let onOpenPeriodEdit: (Int64, _ isNew: Bool) -> Void
     let scheduleViewModel: ScheduleViewModel
     let themeMode: String
@@ -1109,15 +1287,17 @@ private struct PresentOverlay: ViewModifier {
     }
 
     // 浮层容器状态: shownScreen 镜像 activeScreen(带转场生命周期),
-    // dragX = 侧滑跟手位移, dismissSeq 防过期定时器串页。
+    // dragX = 侧滑跟手位移; the window owner invalidates stale dismissal tickets.
     @State private var shownScreen: AppRootViewModel.OverlayScreen?
     @State private var dragX: CGFloat = 0
-    @State private var dismissSeq = 0
 
-    // ← 原 fullScreenCover(item:) get 闭包语义: 深链直接置 editingCourse 也能呈现 addCourse
-    private var activeScreen: AppRootViewModel.OverlayScreen? {
-        if overlayScreen != nil { return overlayScreen }
-        return editingCourse == nil ? nil : .addCourse
+    private struct NavigationSnapshot: Equatable {
+        let screen: AppRootViewModel.OverlayScreen?
+        let revision: UInt64
+    }
+
+    private var navigationSnapshot: NavigationSnapshot {
+        NavigationSnapshot(screen: resolvedScreen, revision: navigationRevision)
     }
 
     func body(content: Content) -> some View {
@@ -1143,12 +1323,17 @@ private struct PresentOverlay: ViewModifier {
                     .transition(SleepyMaterialTransition.forwardTransform)
             }
         }
-        .onChange(of: activeScreen) { syncPresentation($0) }
+        // Read route and revision from the same parent-rendered value. Re-reading
+        // the live Binding in a revision callback can combine a cleared route
+        // with the previous editing record and reopen an empty course editor.
+        // One observer also prevents route and revision callbacks from issuing
+        // opposing close/open decisions during the same navigation change.
+        .onChange(of: navigationSnapshot) { syncPresentation($0.screen) }
         .onAppear {
             // 语言切换 → .id(languageReload) 整树重建 → 本修饰器 @State 复位 nil,
             // 但 VM.overlayScreen 仍持页 → 不恢复会把用户弹回根页
             // (原版本 Activity.recreate 保留当前页, 此处对齐)
-            if shownScreen == nil, let active = activeScreen { shownScreen = active }
+            if shownScreen == nil, let screen = resolvedScreen { shownScreen = screen }
         }
     }
 
@@ -1188,13 +1373,13 @@ private struct PresentOverlay: ViewModifier {
     //   滑出 —— 滑出与 forwardExit 叠加 = 页面既滑走又缩放(双演)。dragX 只保留
     //   手势跟手 + 释放后 commit/cancel 的职责, 复位挪到移除完成后(此时已不可见, 无回弹)。
     private func animateOutThen(then: @escaping () -> Void) {
+        let ticket = beginDismissal()
         withAnimation(SleepyMaterialTransition.forwardAnimation) { shownScreen = nil }
-        dismissSeq += 1
-        let seq = dismissSeq
         DispatchQueue.main.asyncAfter(deadline: .now() + SleepyMaterialTransition.forwardDuration) {
-            guard seq == dismissSeq else { return }
-            dragX = 0
-            then()
+            completeDismissal(ticket) {
+                dragX = 0
+                then()
+            }
         }
     }
 
@@ -1209,8 +1394,10 @@ private struct PresentOverlay: ViewModifier {
                 onDismiss: onDismiss,
                 onSaved: onSavedAdd,
                 editingCourse: editingCourse,
-                initialSlot: initialCourseSlot)
-                .id(CourseEditorIdentity(courseId: editingCourse?.id, initialSlot: initialCourseSlot))
+                initialSlot: initialCourseSlot,
+                targetTableId: addCourseTargetTableId)
+                .id(CourseEditorIdentity(courseId: editingCourse?.id, initialSlot: initialCourseSlot,
+                                         targetTableId: addCourseTargetTableId))
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
@@ -1303,7 +1490,8 @@ private struct PresentOverlay: ViewModifier {
                 viewModel: scheduleViewModel,
                 periodTableId: periodEditId ?? SleepyRoute.NO_ID,
                 isNewUnsaved: pendingNewPeriodTableId != nil,
-                onBack: onBack)
+                onBack: onBack,
+                onSaved: onSavedPeriod)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onBack, onCommit: commitGestureDismiss)

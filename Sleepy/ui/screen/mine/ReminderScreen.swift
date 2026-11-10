@@ -5,7 +5,7 @@
 // 权限申请政策(2026-10): 全 app 唯一弹窗点 = master 开关 onMasterToggle(.notDetermined);
 // NotificationScheduler.createChannels 的隐式申请已摘除。denied 后系统不再弹框
 // (一次性弹窗语义), UI 显示手动设置引导行(NotifDeniedRow → 系统设置)。
-// iOS 未实现流体卡片，不展示其模式选择和字段配置；旧偏好保留供迁移/同步。
+// 实况活动与普通横幅沿用互斥模式；实况权限由系统独立控制，不等同通知授权。
 // 可靠性诊断 5 行 → iOS 快照仅 3 个可观测事实(通知权限/时效性/低电量),
 // widget/vendor/promoted 为 no-analog(见 BackgroundReliabilitySnapshot.swift 头部映射表),
 // 对应行不渲染(不是 silent skip: 映射决策已记录)。
@@ -16,6 +16,7 @@ import SwiftUI
 import UserNotifications
 import UIKit
 import Combine
+import ActivityKit
 
 /// ← private enum class DailyReminderTimeTarget { Today, Tomorrow }
 /// Identifiable: 供 .sheet(item:) 单弹窗复用(pickerTarget 非 nil 即弹)。
@@ -55,6 +56,8 @@ struct ReminderScreen: View {
     @State private var beforeClassEnabled = AppPrefs.shared.isBeforeClassEnabled()
     @State private var minutesInput = "\(AppPrefs.shared.getBeforeClassMinutes())"
     @State private var bannerEnabled = AppPrefs.shared.isBeforeClassBannerEnabled()
+    @State private var liveActivityEnabled = AppPrefs.shared.getBeforeClassMode() == AppPrefs.BEFORE_CLASS_MODE_FLUID
+    @State private var liveActivitiesAllowed = true
     @State private var classDndEnabled = AppPrefs.shared.isClassDndEnabled()
     @State private var pickerTarget: DailyReminderTimeTarget? = nil
     @State private var pickerTime = Date()
@@ -173,6 +176,9 @@ struct ReminderScreen: View {
     private func refreshReliabilitySnapshot() async {
         let snapshot = await BackgroundReliabilityProbe.shared.snapshot()
         reliabilitySnapshot = snapshot
+        if #available(iOS 16.1, *) {
+            liveActivitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
+        }
         // 从系统设置手动开启通知后回前台(本函数同时挂 .task/didBecomeActive),
         // 权限已授权 → 收起 denied 引导行(不自动开 master, 开关仍归用户操作)。
         if snapshot.notificationPermissionGranted { notifDenied = false }
@@ -415,7 +421,32 @@ struct ReminderScreen: View {
                                   checked: $bannerEnabled) {
                     bannerEnabled = $0
                     prefs.setBeforeClassBannerEnabled($0)
+                    liveActivityEnabled = prefs.getBeforeClassMode() == AppPrefs.BEFORE_CLASS_MODE_FLUID
                     ReminderRescheduler.shared.request()
+                }
+                if #available(iOS 16.1, *) {
+                    SubDivider()
+                    ReminderToggleRow(title: L10n.t("live_activity_title"),
+                                      subtitle: L10n.t("live_activity_limits"),
+                                      checked: $liveActivityEnabled) { enabled in
+                        liveActivityEnabled = enabled
+                        if enabled {
+                            prefs.setBeforeClassMode(AppPrefs.BEFORE_CLASS_MODE_FLUID)
+                        } else {
+                            prefs.setBeforeClassBannerEnabled(true)
+                        }
+                        bannerEnabled = prefs.isBeforeClassBannerEnabled()
+                        ClassDayActivityManager.refresh()
+                        ReminderRescheduler.shared.request()
+                    }
+                    .accessibilityIdentifier("reminder_live_activity_toggle")
+                    if !liveActivitiesAllowed {
+                        Button(L10n.t("live_activity_permission")) { openNotificationSettings() }
+                            .font(.caption)
+                            .foregroundColor(colors.primary)
+                            .buttonStyle(SleepyButtonStyle())
+                            .accessibilityIdentifier("reminder_live_activity_settings")
+                    }
                 }
                 reliabilityBlock
             }
@@ -540,42 +571,45 @@ struct ReminderScreen: View {
         let selectedTime = target == .today ? dailyTime : tomorrowTime
         let parts = selectedTime.split(separator: ":").compactMap { Int($0) }
         let defaultHour = target == .today ? 7 : 22   // ← 原 initialHour fallback (默认 07:00/22:00)
-        return VStack(spacing: 0) {
-            Text(L10n.format("reminder_pick_time"))
-                .font(.system(size: 24)) // ← 原 AlertDialog title headlineSmall 24sp Normal
-                .foregroundColor(colors.onSurface)
+        return ScrollView {
+            VStack(spacing: 0) {
+                Text(L10n.format("reminder_pick_time"))
+                    .font(.system(size: 24)) // ← 原 AlertDialog title headlineSmall 24sp Normal
+                    .foregroundColor(colors.onSurface)
+                    .padding()
+                DatePicker("", selection: $pickerTime, displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .fixedSize(horizontal: false, vertical: true)
+                // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
+                DialogActionButtons(
+                    confirmText: L10n.format("action_confirm"),
+                    onConfirm: {
+                        let f = DateFormatter()
+                        f.dateFormat = "HH:mm"
+                        let newTime = f.string(from: pickerTime)
+                        switch target {
+                        case .today:
+                            dailyTime = newTime
+                            prefs.setDailyReminderTime(newTime)
+                        case .tomorrow:
+                            tomorrowTime = newTime
+                            prefs.setTomorrowReminderTime(newTime)
+                        }
+                        ReminderRescheduler.shared.request()
+                        pickerTarget = nil
+                    },
+                    dismissText: L10n.format("action_cancel"),
+                    onDismiss: { pickerTarget = nil },
+                    // ← G5 锚点回归: HEAD 裸 HStack 按钮时代的 identifier
+                    //   (ReminderPermissionUITests test02/03 依赖), 色块重写后随参数穿入
+                    confirmIdentifier: "reminder_time_confirm",
+                    dismissIdentifier: "reminder_time_cancel"
+                )
                 .padding()
-            DatePicker("", selection: $pickerTime, displayedComponents: .hourAndMinute)
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-            // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
-            DialogActionButtons(
-                confirmText: L10n.format("action_confirm"),
-                onConfirm: {
-                    let f = DateFormatter()
-                    f.dateFormat = "HH:mm"
-                    let newTime = f.string(from: pickerTime)
-                    switch target {
-                    case .today:
-                        dailyTime = newTime
-                        prefs.setDailyReminderTime(newTime)
-                    case .tomorrow:
-                        tomorrowTime = newTime
-                        prefs.setTomorrowReminderTime(newTime)
-                    }
-                    ReminderRescheduler.shared.request()
-                    pickerTarget = nil
-                },
-                dismissText: L10n.format("action_cancel"),
-                onDismiss: { pickerTarget = nil },
-                // ← G5 锚点回归: HEAD 裸 HStack 按钮时代的 identifier
-                //   (ReminderPermissionUITests test02/03 依赖), 色块重写后随参数穿入
-                confirmIdentifier: "reminder_time_confirm",
-                dismissIdentifier: "reminder_time_cancel"
-            )
-            .padding()
+            }
         }
-        .sheetDetents([.height(400)])
+        .sheetDetents([.height(400), .large])
         .onAppear {
             var cal = DateUtils.isoCalendar
             pickerTime = cal.date(bySettingHour: parts.first ?? defaultHour,

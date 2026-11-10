@@ -3,9 +3,9 @@
 //
 // 最小档三天窗口数据构建 (2026-09-15 用户令) — 「本周课表（列表/周视图）· 小」专用。
 //
-// 窗口 = compactWindowDates 的三天真实日期; 每列按【该日期所在周】的周次过滤课程,
-// 因此窗口可以越出本周: 周一「今日居第二位」= 上周日(上周周次)/周一/周二(下周周次)。
-// 学期后日期课程清空(与整周口径一致); 学期前钳制到第 1 周(预习口径, currentWeek 自带)。
+// 窗口 = compactWindowDates 的三天真实日期; 列序与星期随展示日, 可跨上下周。
+// 调休课程反向查来源日期与周次; 定日课仅跟随自己的自然日, 不参与调休。
+// 普通学期前日期预习第 1 周常规课; 补班日按来源日期判定学期范围。
 //
 // ★ 平台差异 (WidgetBindingStore.swift 头注同源): 原版本 per-appWidgetId → iOS per-kind。
 //   Core 的 key 形状按 kind 字符串 1:1 保留 (raw map 进出, 迁移语义逐条对齐);
@@ -115,17 +115,31 @@ enum WidgetCompactWindow {
     ) async -> [DayData] {
         let anchorDate = displayDate ?? today
         let dates = WidgetCompactHelpers.compactWindowDates(today, todayFirst, anchorDate)
+        let rows = (try? repo.getCourses(tableId)) ?? []
         // ← dates.map 内 await HolidayManager → 闭包需 async; Sequence.map
         //   不接 async 闭包, 改 for 循环累加 (行为 1:1, 顺序保持, async 透传)
         var result: [DayData] = []
         for effectiveDate in dates {
-            let dow = HolidayTransferHelper.effectiveDayOfWeek(tableId, effectiveDate)
-            // ← 原版本 coerceIn(1, maxWeek) = min(max(x,1),maxWeek); 先钳下限再钳上限
-            let week = min(max(DateUtils.currentWeek(startDate: startDate, today: effectiveDate), 1), maxWeek)
-            let afterEnd = DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek, today: effectiveDate) == .afterEnd
-            let visible: [CourseEntity] = afterEnd ? []
-                : ((try? repo.getCoursesByDay(tableId, day: dow)) ?? [])
-                    .filter { $0.inWeek(week) }.sorted { $0.startNode < $1.startNode }
+            let dow = DateUtils.todayDayOfWeek(today: effectiveDate)
+            let sourceDate = HolidayTransferHelper.courseDateForDate(tableId, effectiveDate)
+            let week = DateUtils.currentWeek(startDate: startDate, today: sourceDate ?? effectiveDate)
+            // Kotlin LocalDate equality compares civil days. Widget timelines
+            // can carry a time of day, while persisted transfers are midnight.
+            let isOriginalDay = sourceDate.map {
+                HolidayTransferOps.dayKey($0) == HolidayTransferOps.dayKey(effectiveDate)
+            } ?? false
+            let visible: [CourseEntity]
+            if isOriginalDay && DateUtils.semesterStatus(
+                startDate: startDate, maxWeek: maxWeek, today: effectiveDate
+            ) == .beforeStart {
+                visible = rows.filter { $0.fixedDate == nil && $0.day == dow && $0.inWeek(week) }
+                    .sorted { $0.startNode < $1.startNode }
+            } else {
+                visible = HolidayTransferOps.coursesForDate(
+                    effectiveDate, startDate: startDate, maxWeek: maxWeek,
+                    courses: rows, transfers: AppPrefs.shared.getHolidayTransfers(tableId)
+                ).sorted { $0.startNode < $1.startNode }
+            }
             result.append(DayData(
                 date: effectiveDate,
                 dayOfWeek: dow,

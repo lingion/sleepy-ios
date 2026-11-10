@@ -36,7 +36,7 @@
 "manage_export" = "現在の時間割をエクスポート";
 "manage_export_sub" = "現在の時間割をファイルで共有";
 "manage_manual_add" = "授業を追加";
-"manage_manual_add_sub" = "現在の時間割に授業を追加";
+"manage_manual_add_sub" = "時間割から取り込む・手動で授業を追加";
 "table_info" = "開始日: %1$@  |  第%2$d週  |  %3$dコマ";
 "current_table_week" = "現在 · 第%1$d週";
 "table_start_date" = "開始日: %1$@";
@@ -104,7 +104,7 @@
 "format_csv" = "CSVファイル";
 "format_csv_desc" = "ヘッダー付き.csv、カンマ区切り";
 "format_html" = "HTMLテーブル";
-"format_html_desc" = "&lt;table&gt;形式、ヘッダー検出後に行ごとに解析";
+"format_html_desc" = "<table>形式、ヘッダー検出後に行ごとに解析";
 "format_plain" = "プレーンテキスト";
 "format_plain_desc" = "1行1授業、タブ区切り";
 "import_start_date_required" = "学期開始日を入力してください";
@@ -183,6 +183,7 @@
 "mine_stat_tables" = "時間割数";
 "mine_stat_courses" = "授業数";
 "mine_stat_week" = "現在の週";
+"mine_stat_period_tables" = "時程表数";
 "settings_language" = "言語 / Language";
 "settings_display_mode" = "時間表示";
 "settings_grid_sub_info" = "グリッドカードの補足情報";
@@ -232,7 +233,7 @@
 "jw_parse_empty" = "解析結果が空です。「個人時間割」ページに移動しているかご確認ください（トップ/ログインページではない）";
 "jw_import_success" = "%1$d 件の授業をインポートしました";
 "jw_parse_failed" = "解析失敗：%1$@";
-"jw_parse_failed_hint" = "\\n\\nヒント：HEUの場合、ブラウザでログイン後「個人時間割」ページに移動してからインポートしてください";
+"jw_parse_failed_hint" = "\n\nヒント：HEUの場合、ブラウザでログイン後「個人時間割」ページに移動してからインポートしてください";
 "jw_webview_not_ready" = "WebViewの準備ができていません";
 "jw_fetching" = "時間割を取得中…";
 "jw_fetch_failed_no_response" = "取得失敗：ページが応答しません（読み込み中かも）";
@@ -258,7 +259,7 @@
 "end_label" = "終了";
 "delete_period" = "この時限を削除";
 "mine_about" = "情報";
-"mine_about_body" = "Sleepy 時間割 v%1$@\\n\\nミニマルでクリーン、ローカルファーストの時間割アプリ。\\nすべてのデータはデバイス内に保存され、サーバーにアップロードされません。\\n\\n· 広告なし\\n· 追跡なし\\n· WakeUp / ICS / CSV / HTML / プレーンテキスト インポート対応";
+"mine_about_body" = "Sleepy 時間割 v%1$@\n\nミニマルでクリーン、ローカルファーストの時間割アプリ。\nすべてのデータはデバイス内に保存され、サーバーにアップロードされません。\n\n· 広告なし\n· 追跡なし\n· WakeUp / ICS / CSV / HTML / プレーンテキスト インポート対応";
 "date_long_format" = "%1$d月%2$d日";
 "notif_title" = "今日の授業 — %1$@ %2$@";
 "notif_text" = "タップして今日の時間割を表示";
@@ -356,7 +357,7 @@
 "jw_pending_input_url" = "URL を手動入力";
 "jw_pending_legacy" = "旧版";
 "jw_pending_manual" = "手動で授業を追加";
-"jw_pending_msg" = "%1$@ の教務システムは Sleepy の対応リストにありません。\\n\\n以下の方法があります：\\n1.「対応をリクエスト」をタップして開発者に送信\\n2.「URL を手動入力」をタップして WebView で開きログイン\\n3. 一時的に HTML / CSV ファイルからインポート、または手動で授業を追加";
+"jw_pending_msg" = "%1$@ の教務システムは Sleepy の対応リストにありません。\n\n以下の方法があります：\n1.「対応をリクエスト」をタップして開発者に送信\n2.「URL を手動入力」をタップして WebView で開きログイン\n3. 一時的に HTML / CSV ファイルからインポート、または手動で授業を追加";
 "jw_pending_pending" = "未対応";
 "jw_pending_supported" = "対応済み";
 "jw_pending_title" = "この学校の教務インポートは未実装です";
@@ -393,13 +394,13 @@
 "reminder_fluid_field_time" = "時刻";
 "reminder_fluid_fields" = "カプセルメイン表示内容";
 "reminder_fluid_fields_hint" = "メイン表示内容を選択";
-"reminder_fluid_note" = "ライブアクティビティは授業前リマインダー設定に追従します;iOS 16.1+ の iPhone 8 以降が必要です";
+"reminder_fluid_note" = "授業前の通知時刻と各時間割の設定に従います。Sleepy が前面にある間は授業の切り替え・更新・終了が反映されます。バックグラウンドでも既存のタイマーは動きますが、新規表示や授業切り替え、自動削除は保証されません。再度アプリを開くと更新されます。iOS 16.1 以降が必要で、ライブアクティビティの許可は通知とは別です。";
 "reminder_fluid_title" = "Fluid Cloud / Super Island";
 "reminder_mode_label" = "リマインダー形態";
 "reminder_mode_banner" = "バナー";
-"reminder_mode_fluid" = "リアルタイムカード";
+"reminder_mode_fluid" = "ライブアクティビティ";
 "reminder_mode_banner_sub" = "通知バーに表示する通常のスワイプ削除可能バナー。ウェアラブル同期に影響なし";
-"reminder_mode_fluid_sub" = "授業カードが Dynamic Island / ロック画面に表示されます(島なし機種ではロック画面のライブバー、iOS 16.1+)。アプリを完全に終了した後、新しいカードは次回起動時にしか現れません";
+"reminder_mode_fluid_sub" = "授業前の通知時刻と各時間割の設定に従います。Sleepy が前面にある間は授業の切り替え・更新・終了が反映されます。バックグラウンドでも既存のタイマーは動きますが、新規表示や授業切り替え、自動削除は保証されません。再度アプリを開くと更新されます。iOS 16.1 以降が必要で、ライブアクティビティの許可は通知とは別です。";
 "reminder_master_sub" = "Sleepy に授業通知の送信を許可";
 "reminder_master_title" = "リマインダーを有効化";
 "reminder_notif_denied_title" = "通知の権限が拒否されています";
@@ -486,7 +487,7 @@
 "semester_not_started" = "学期はまだ始まっていません";
 "today_semester_out_hint" = "学期範囲外のため、授業は参考です";
 "format_wakeup_share_when" = "WakeUp アプリからの乗り換え。WakeUp の「コース共有」で生成されたテキスト全体をそのまま貼り付け。";
-"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"My table\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%5B%7B%22name%22…%5D\"}";
+"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"My table\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%%5B%%7B%%22name%%22…%%5D\"}";
 "format_wakeup_json_when" = "WakeUp がエクスポートした .json ファイルの中身、または同じ構造で自分で書いた JSON。";
 "format_wakeup_json_example" = "{\\n  \"name\": \"My table\",\\n  \"startDate\": \"2026-09-07\",\\n  \"courses\": [\\n    {\"name\":\"Calculus\",\"teacher\":\"John\",\"position\":\"A101\",\"day\":1,\"startNode\":1,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}\\n  ]\\n}";
 "format_ics_when" = "学校システムや WakeUp がエクスポートしたカレンダーファイル（.ics）。「ファイルからインポート」で選ぶか、テキストエディタで開いて全て貼り付け。";
@@ -883,7 +884,7 @@
 "possible_schools" = "候補の学校";
 "reminder_before_class_preview_dynamic" = "例：%@、次の授業は「%@」、%@、教室%4$s%5$s";
 "reminder_before_class_preview_dynamic_no_course" = "例：通知対象の授業はありません。";
-"reminder_class_dnd_sub" = "授業時間帯におやすみモードを自動で有効にし、終了後に復元します";
+"reminder_class_dnd_sub" = "アプリを開いている間、授業中のこのアプリの授業前通知を消音します。システムの集中モードは変更しません。";
 "reminder_class_dnd_title" = "授業中はおやすみモード";
 "reminder_daily_preview_dynamic" = "例：%@、授業は%lldコマ。最初の授業は「%@」、%4$s、教室%5$s%6$s";
 "reminder_daily_preview_dynamic_no_course" = "例：%@、授業はありません。";
@@ -1097,14 +1098,14 @@
 "appearance_header_hide_time_sub" = "旧式ヘッダーで限のみ表示（実験的、デフォルト OFF）";
 "mine_widget" = "ウィジェット";
 "widget_gallery_title" = "ウィジェットを追加";
-"widget_manage_empty_v2" = "右上の＋からウィジェットを追加できます。まだ追加していない場合は、ホーム画面の何もないところを長押し → ＋ → Sleepy を検索、でも開けます。";
+"widget_manage_empty_v2" = "右上の ＋ でウィジェットとホーム画面への追加手順を確認できます。";
 "widget_guide_title" = "ウィジェットをホーム画面に追加する";
-"widget_guide_search_hint" = "ウィジェット一覧での名前は「%1$@」";
+"widget_guide_search_hint" = "アプリ「%1$@」を検索し、下のウィジェットを選んでください。";
 "widget_guide_copy_name" = "名前をコピー";
 "widget_guide_step_hold" = "ホーム画面の何もないところを長押しし、アプリアイコンが揺れ始めたら離します";
-"widget_guide_step_plus" = "左上の ➕ をタップし、右下の「ウィジェットを追加」をタップします";
-"widget_guide_step_search" = "検索欄にコピーした名前を入力して、このウィジェットを探します";
-"widget_guide_step_drag" = "アイコンを長押ししてホーム画面の空きマスにドラッグし、最後に右上の「完了」をタップします";
+"widget_guide_step_plus" = "左上の「編集」から「ウィジェットを追加」を選びます。以前の iOS では ＋ をタップします。";
+"widget_guide_step_search" = "Sleepy を検索してアプリを選び、ウィジェットとサイズを選びます。";
+"widget_guide_step_drag" = "「ウィジェットを追加」をタップし、配置を調整して「完了」をタップします。";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "一日の予定";
@@ -1160,6 +1161,9 @@
 "occurrence_keep_date" = "元の日付で保存";
 "occurrence_continue" = "続ける";
 "occurrence_stale" = "時間割または振替設定が変更されました。この授業を開き直してください。";
+"occurrence_invalid_date" = "現在の学期内の日付を選択してください。";
+"occurrence_invalid_nodes" = "有効な開始時限と連続する時限数を選択してください。";
+"occurrence_invalid_time" = "有効な時刻を入力してください。終了は開始より後にしてください。";
 "occurrence_actions" = "今回の授業を編集・削除";
 "theme_system_source_window_tint" = "配色元：現在の画面のアクセントカラー";
 "theme_system_source_fallback" = "配色元：既定のシードカラー（有効な画面のアクセントカラーを取得できません）";
@@ -1179,3 +1183,62 @@
 "watch_tomorrow_mark" = "明日";
 "watch_tomorrow_no_class" = "明日は授業なし";
 "watch_holiday" = "休み";
+
+// MARK: - Watch course time strip
+"watch_time_strip_display_name" = "授業タイムバー";
+"watch_time_strip_description" = "幅を90分に固定したバーで授業と空き時間を表示。更新はシステムが行います。";
+"watch_time_strip_preview" = "明日のプレビュー";
+"watch_time_strip_break" = "休み時間";
+"watch_time_strip_free" = "空き時間";
+"watch_time_strip_finished" = "今日の授業は終了しました";
+"watch_time_strip_scale" = "90分";
+"watch_time_strip_overlap" = "%1$d コマ";
+"watch_time_strip_unavailable" = "時間割を表示できません。iPhoneから同期してください。";
+"settings_watch_time_strip_section" = "Apple Watchの授業タイムバー";
+"settings_watch_time_strip_tomorrow" = "今日の授業終了後に明日を表示";
+"settings_watch_time_strip_tomorrow_hint" = "翌日だけをプレビューします。次の授業日の表示や通知の設定とは連動しません。";
+"settings_watch_time_strip_overview" = "バー全体の幅は常に90分を表します。更新のタイミングはシステムが決めるため、毎秒動き続ける表示ではありません。";
+"settings_watch_time_strip_preview_details" = "初期設定はオフです。今日の授業が終わると（今日に授業がない場合も）、翌日だけを日付と「明日のプレビュー」の表示付きでプレビューします。翌日の最初の授業から実際の時間と同じ速さで進み、最後の授業が終わると最初に戻ります。翌日に授業がなければ「明日は授業なし」と表示し、その先の授業日には移りません。";
+
+"import_target_missing" = "選択した時間割が見つかりません。取り込みプレビューを開き直してください。";
+"import_period_missing" = "選択した時限設定が見つかりません。選び直してください。";
+
+"live_activity_title" = "ライブアクティビティ";
+"live_activity_limits" = "授業前の通知時刻と各時間割の設定に従います。Sleepy が前面にある間は授業の切り替え・更新・終了が反映されます。バックグラウンドでも既存のタイマーは動きますが、新規表示や授業切り替え、自動削除は保証されません。再度アプリを開くと更新されます。iOS 16.1 以降が必要で、ライブアクティビティの許可は通知とは別です。";
+"live_activity_permission" = "設定でライブアクティビティが無効です。タップして設定を開きます。";
+"live_activity_starts" = "開始まで";
+"live_activity_ends" = "終了まで";
+"live_activity_stale" = "授業情報が古い可能性があります";
+"live_activity_open_to_refresh" = "Sleepy を開いて更新";
+"live_activity_next" = "次の授業：%1$@";
+
+"timeslot_reorder_standard_only" = "特別時限の位置は固定です。通常の時限をドラッグして並べ替えます。";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "微積分";
+"widget_preview_english" = "英語リーディング";
+"widget_preview_linear_algebra" = "線形代数";
+"widget_preview_sports" = "体育";
+"widget_preview_programming" = "プログラミング演習";
+"widget_preview_seminar" = "ゼミナール";
+"widget_preview_gym" = "体育館";
+
+// Android v1.0.63 THU course-page navigation and recovery.
+"jw_nav_hint_thu" = "履修システムの「全体時間割」を開き、学期を選んでから「このページを取り込む」をタップ";
+"jw_err_thu_course_page" = "清華大学の「全体時間割」の授業スクリプトが見つかりません。ログインし、全体時間割を開いて学期を選び、再度取り込んでください。";
+
+// Android v1.0.63 — explicit-target course imports.
+"add_course_title" = "授業を追加";
+"add_course_from_existing" = "既存の時間割から";
+"select_courses_title" = "授業を選択";
+"select_courses_all" = "すべて選択";
+"select_courses_none" = "すべて解除";
+"select_courses_count" = "%1$lld / %2$lld 件選択";
+"import_selection_empty" = "授業が選択されていません";
+"add_course_manual" = "授業を手動で追加";
+"add_course_no_source" = "他の時間割がありません。先に時間割を追加してください。";
+"import_backup_original" = "元の時間割をバックアップ";
+"import_backup_original_sub" = "追加前に元の時間割をコピーします";
+"import_append_conflicts_option" = "競合する授業も追加";
+"import_append_conflicts_option_sub" = "オフにすると既存授業と競合する授業を除外します";
+"import_backup_name" = "%1$@ - バックアップ";

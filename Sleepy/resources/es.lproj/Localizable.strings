@@ -36,7 +36,7 @@
 "manage_export" = "Exportar horario actual";
 "manage_export_sub" = "Comparte el horario actual como archivo";
 "manage_manual_add" = "Añadir curso";
-"manage_manual_add_sub" = "Añadir un curso al horario actual";
+"manage_manual_add_sub" = "Importar cursos o añadirlos manualmente";
 "table_info" = "Inicio: %1$@  |  Semana %2$d  |  %3$d cursos";
 "current_table_week" = "Actual · Semana %1$d";
 "table_start_date" = "Inicio: %1$@";
@@ -54,7 +54,7 @@
 "edit_table_not_found" = "Horario no encontrado";
 "edit_table_validation_error" = "La fecha debe ser yyyy-MM-dd, la hora HH:mm con inicio antes del fin";
 "edit_table_delete_confirm" = "Confirmar eliminación";
-"edit_table_delete_msg" = "¿Eliminar horario \\\"%1$@\\\"? Esta acción no se puede deshacer.";
+"edit_table_delete_msg" = "¿Eliminar horario \"%1$@\"? Esta acción no se puede deshacer.";
 "default_table_name" = "Predeterminado";
 "import_paste" = "Pegar texto";
 "import_paste_hint" = "Pega el texto del horario…";
@@ -104,7 +104,7 @@
 "format_csv" = "Archivo CSV";
 "format_csv_desc" = ".csv con encabezados, separado por comas";
 "format_html" = "Tabla HTML";
-"format_html_desc" = "&lt;table&gt; formato, analizar por fila después de detectar encabezados";
+"format_html_desc" = "<table> formato, analizar por fila después de detectar encabezados";
 "format_plain" = "Texto plano";
 "format_plain_desc" = "Un curso por línea, separado por tabulaciones";
 "import_start_date_required" = "Por favor ingrese la fecha de inicio del semestre";
@@ -143,7 +143,7 @@
 "add_slot" = "Añadir horario";
 "save_course" = "Guardar curso";
 "delete_course" = "Eliminar curso";
-"delete_course_confirm" = "¿Eliminar curso \\\"%1$@\\\"? Esta acción no se puede deshacer.";
+"delete_course_confirm" = "¿Eliminar curso \"%1$@\"? Esta acción no se puede deshacer.";
 "select_at_least_one_day" = "Selecciona al menos un día";
 "delete_slot" = "Eliminar horario";
 "start_node" = "Período inicial";
@@ -183,6 +183,7 @@
 "mine_stat_tables" = "Horarios";
 "mine_stat_courses" = "Cursos";
 "mine_stat_week" = "Semana";
+"mine_stat_period_tables" = "Horarios de períodos";
 "settings_language" = "Idioma / Language";
 "settings_display_mode" = "Visualización de hora";
 "settings_grid_sub_info" = "Sub-info de la tarjeta";
@@ -193,9 +194,9 @@
 "settings_grid_sub_none" = "Ninguno";
 "settings_grid_sub_none_sub" = "Las tarjetas solo muestran el nombre";
 "settings_display_node" = "Mostrar como períodos";
-"settings_display_node_sub" = "Todos los cursos muestran \\\"Período N\\\"";
+"settings_display_node_sub" = "Todos los cursos muestran \"Período N\"";
 "settings_display_time" = "Mostrar como horas";
-"settings_display_time_sub" = "Todos los cursos muestran \\\"HH:mm–HH:mm\\\"";
+"settings_display_time_sub" = "Todos los cursos muestran \"HH:mm–HH:mm\"";
 "settings_show_date" = "Mostrar fechas en el horario";
 "settings_show_date_sub" = "Mostrar fecha específica (M/D) en cada encabezado";
 "settings_visible_days" = "Días visibles";
@@ -232,7 +233,7 @@
 "jw_parse_empty" = "Resultado de análisis vacío. Asegúrate de estar en la página \"Mi horario\" (no inicio de sesión)";
 "jw_import_success" = "%1$d cursos importados exitosamente";
 "jw_parse_failed" = "Error de análisis: %1$@";
-"jw_parse_failed_hint" = "\\n\\nSugerencia: Para HEU, inicia sesión en el navegador y navega a \"Mi horario\" antes de importar";
+"jw_parse_failed_hint" = "\n\nSugerencia: Para HEU, inicia sesión en el navegador y navega a \"Mi horario\" antes de importar";
 "jw_webview_not_ready" = "WebView no está listo";
 "jw_fetching" = "Obteniendo horario…";
 "jw_fetch_failed_no_response" = "Error: la página no responde (puede estar cargando)";
@@ -258,7 +259,7 @@
 "end_label" = "Fin";
 "delete_period" = "Eliminar este período";
 "mine_about" = "Acerca de";
-"mine_about_body" = "Sleepy Horario v%1$@\\n\\nUna aplicación de horario minimalista, limpia y local.\\nTodos los datos se guardan en tu dispositivo — nada se sube a servidores.\\n\\n· Sin anuncios\\n· Sin rastreo\\n· Compatible con WakeUp / ICS / CSV / HTML / texto plano";
+"mine_about_body" = "Sleepy Horario v%1$@\n\nUna aplicación de horario minimalista, limpia y local.\nTodos los datos se guardan en tu dispositivo — nada se sube a servidores.\n\n· Sin anuncios\n· Sin rastreo\n· Compatible con WakeUp / ICS / CSV / HTML / texto plano";
 "date_long_format" = "%1$d/%2$d";
 "notif_title" = "Clases de hoy — %1$@ %2$@";
 "notif_text" = "Toca para ver el horario de hoy";
@@ -356,7 +357,7 @@
 "jw_pending_input_url" = "Introducir URL manualmente";
 "jw_pending_legacy" = "Versión antigua";
 "jw_pending_manual" = "Añadir curso manualmente";
-"jw_pending_msg" = "El sistema de matrícula de %1$@ aún no es compatible con Sleepy.\\n\\nPuedes:\\n1. Pulsar \\\"Solicitar soporte\\\" para enviarlo al desarrollador\\n2. Pulsar \\\"Introducir URL manualmente\\\" para abrir e iniciar sesión en WebView\\n3. Importar temporalmente vía archivo HTML / CSV, o añadir cursos manualmente";
+"jw_pending_msg" = "El sistema de matrícula de %1$@ aún no es compatible con Sleepy.\n\nPuedes:\n1. Pulsar \"Solicitar soporte\" para enviarlo al desarrollador\n2. Pulsar \"Introducir URL manualmente\" para abrir e iniciar sesión en WebView\n3. Importar temporalmente vía archivo HTML / CSV, o añadir cursos manualmente";
 "jw_pending_pending" = "Pendiente";
 "jw_pending_supported" = "Compatible";
 "jw_pending_title" = "La importación de matrícula de esta escuela aún no está disponible";
@@ -393,13 +394,13 @@
 "reminder_fluid_field_time" = "Hora";
 "reminder_fluid_fields" = "Contenido principal de la cápsula";
 "reminder_fluid_fields_hint" = "Elige un campo de visualización principal";
-"reminder_fluid_note" = "La actividad en vivo sigue al interruptor de recordatorios de clase; depende del sistema (iPhone 8+ con iOS 16.1+)";
+"reminder_fluid_note" = "Respeta la antelación y los horarios con recordatorios activados. Sleepy actualiza, cambia y finaliza las tarjetas mientras está en primer plano. En segundo plano continúa el temporizador existente, pero no se garantizan nuevas tarjetas, cambios de clase ni retirada automática. Abre Sleepy para actualizar. Requiere iOS 16.1+; su permiso es independiente del de notificaciones.";
 "reminder_fluid_title" = "Nube Fluida / Súper Isla";
 "reminder_mode_label" = "Estilo de aviso";
 "reminder_mode_banner" = "Banner";
-"reminder_mode_fluid" = "Nube fluida";
+"reminder_mode_fluid" = "Actividades en directo";
 "reminder_mode_banner_sub" = "Banner normal deslizable en la barra de notificaciones; compatible con la sincronización de reloj y pulsera";
-"reminder_mode_fluid_sub" = "Las tarjetas de clase aparecen en la Isla Dinámica / pantalla de bloqueo; en dispositivos sin isla se muestra la franja en vivo de la pantalla de bloqueo (iOS 16.1+). Tras cerrar la app por completo, una tarjeta nueva solo aparece en la siguiente apertura";
+"reminder_mode_fluid_sub" = "Respeta la antelación y los horarios con recordatorios activados. Sleepy actualiza, cambia y finaliza las tarjetas mientras está en primer plano. En segundo plano continúa el temporizador existente, pero no se garantizan nuevas tarjetas, cambios de clase ni retirada automática. Abre Sleepy para actualizar. Requiere iOS 16.1+; su permiso es independiente del de notificaciones.";
 "reminder_master_sub" = "Permitir que Sleepy envíe notificaciones de cursos";
 "reminder_master_title" = "Activar recordatorios";
 "reminder_notif_denied_title" = "Notificaciones denegadas";
@@ -486,7 +487,7 @@
 "semester_not_started" = "El semestre aún no comienza";
 "today_semester_out_hint" = "Fuera del rango del semestre: las clases son solo de referencia";
 "format_wakeup_share_when" = "Migrar todo desde la app WakeUp. Copia el texto completo generado por \"Compartir cursos\" de WakeUp y pégalo tal cual.";
-"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"Mi horario\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%5B%7B%22name%22…%5D\"}";
+"format_wakeup_share_example" = "【来自WakeUp课程表】\\n课程分享:\\n{\"name\":\"Mi horario\",\"startDate\":\"2026-09-07\",\"courseDetailJson\":\"%%5B%%7B%%22name%%22…%%5D\"}";
 "format_wakeup_json_when" = "Contenido de un .json exportado por WakeUp, o JSON escrito por ti con esta estructura.";
 "format_wakeup_json_example" = "{\\n  \"name\": \"Mi horario\",\\n  \"startDate\": \"2026-09-07\",\\n  \"courses\": [\\n    {\"name\":\"Cálculo\",\"teacher\":\"Juan\",\"position\":\"A101\",\"day\":1,\"startNode\":1,\"step\":2,\"startWeek\":1,\"endWeek\":16,\"type\":0}\\n  ]\\n}";
 "format_ics_when" = "Archivos de calendario (.ics) exportados del sistema escolar o WakeUp. Selecciónalo con \"Importar desde archivo\", o ábrelo en un editor de texto y pega todo.";
@@ -883,7 +884,7 @@
 "possible_schools" = "Posibles centros";
 "reminder_before_class_preview_dynamic" = "Ejemplo: %@: próxima clase %@ a las %@ en %4$s%5$s";
 "reminder_before_class_preview_dynamic_no_course" = "Ejemplo: No hay próximas clases que recordar.";
-"reminder_class_dnd_sub" = "Activa No molestar durante las clases y lo restaura al terminar";
+"reminder_class_dnd_sub" = "Silencia los avisos previos de esta app durante las clases mientras está abierta. No cambia el modo de concentración del sistema.";
 "reminder_class_dnd_title" = "No molestar en clase";
 "reminder_daily_preview_dynamic" = "Ejemplo: %@: tienes %lld clases. Primera clase: %@ a las %4$s en %5$s%6$s";
 "reminder_daily_preview_dynamic_no_course" = "Ejemplo: %@: no hay clases.";
@@ -1097,14 +1098,14 @@
 "appearance_header_hide_time_sub" = "Solo el número de periodo en el encabezado clásico (experimental, desactivado)";
 "mine_widget" = "Widgets";
 "widget_gallery_title" = "Añadir widget";
-"widget_manage_empty_v2" = "Toca + arriba a la derecha para añadir un widget. Si aún no tienes ninguno, mantén pulsado un hueco del inicio → + → busca Sleepy.";
+"widget_manage_empty_v2" = "Toca + arriba a la derecha para ver los widgets y cómo añadirlos a la pantalla de inicio.";
 "widget_guide_title" = "Añade el widget a tu pantalla de inicio";
-"widget_guide_search_hint" = "En la galería se llama “%1$@”";
+"widget_guide_search_hint" = "Busca la app «%1$@» y elige el widget que aparece abajo.";
 "widget_guide_copy_name" = "Copiar nombre";
 "widget_guide_step_hold" = "Mantén pulsado un hueco vacío de la pantalla de inicio hasta que los iconos tiemblen";
-"widget_guide_step_plus" = "Pulsa el ➕ arriba a la izquierda y luego «Añadir widgets» abajo a la derecha";
-"widget_guide_step_search" = "Escribe en el buscador el nombre que acabas de copiar para encontrar el widget";
-"widget_guide_step_drag" = "Mantén pulsado su icono y arrástralo a un hueco; después pulsa «Hecho» arriba a la derecha";
+"widget_guide_step_plus" = "Toca Editar arriba a la izquierda y luego Añadir widget. En versiones anteriores de iOS, toca +.";
+"widget_guide_step_search" = "Busca Sleepy, selecciona la app y elige un widget y su tamaño.";
+"widget_guide_step_drag" = "Toca Añadir widget, colócalo donde quieras y toca Hecho.";
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "Agenda diaria";
@@ -1160,6 +1161,9 @@
 "occurrence_keep_date" = "Conservar la fecha original";
 "occurrence_continue" = "Continuar";
 "occurrence_stale" = "El horario o los traslados han cambiado. Vuelve a abrir esta sesión.";
+"occurrence_invalid_date" = "Elige una fecha dentro de este semestre.";
+"occurrence_invalid_nodes" = "Elige un período inicial y un número de períodos consecutivos válidos.";
+"occurrence_invalid_time" = "Introduce horas válidas. La hora de fin debe ser posterior a la de inicio.";
 "occurrence_actions" = "Editar o eliminar esta sesión";
 "theme_system_source_window_tint" = "Origen del color: acento de la interfaz actual";
 "theme_system_source_fallback" = "Origen del color: semilla predeterminada (sin un acento válido de la interfaz)";
@@ -1179,3 +1183,62 @@
 "watch_tomorrow_mark" = "Mañana";
 "watch_tomorrow_no_class" = "Sin clases mañana";
 "watch_holiday" = "Vacaciones";
+
+// MARK: - Watch course time strip
+"watch_time_strip_display_name" = "Franja horaria de clases";
+"watch_time_strip_description" = "Muestra clases y huecos en una franja fija de 90 minutos. El sistema programa las actualizaciones.";
+"watch_time_strip_preview" = "Vista previa de mañana";
+"watch_time_strip_break" = "Descanso";
+"watch_time_strip_free" = "Libre";
+"watch_time_strip_finished" = "Las clases de hoy han terminado";
+"watch_time_strip_scale" = "90 min";
+"watch_time_strip_overlap" = "%1$d clases";
+"watch_time_strip_unavailable" = "Horario no disponible. Sincroniza desde el iPhone.";
+"settings_watch_time_strip_section" = "Franja de clases de Apple Watch";
+"settings_watch_time_strip_tomorrow" = "Mostrar mañana al terminar las clases de hoy";
+"settings_watch_time_strip_tomorrow_hint" = "Solo muestra el día siguiente. Es independiente de la opción del próximo día con clases y de los recordatorios.";
+"settings_watch_time_strip_overview" = "El ancho completo siempre representa 90 minutos. El sistema decide cuándo actualizar; no es una animación continua.";
+"settings_watch_time_strip_preview_details" = "Desactivado por defecto. Al terminar las clases de hoy (o si hoy no hay clases), solo se muestra el día siguiente, con su fecha y la etiqueta «Vista previa de mañana». La vista previa empieza en la primera clase, avanza un minuto de horario por cada minuto transcurrido y vuelve al inicio tras la última clase. Si mañana no hay clases, muestra «Sin clases mañana» sin saltar a un día posterior.";
+
+"import_target_missing" = "El horario seleccionado ya no existe. Abre de nuevo la vista previa de importación.";
+"import_period_missing" = "La tabla de periodos seleccionada ya no existe. Selecciónala de nuevo.";
+
+"live_activity_title" = "Actividades en directo";
+"live_activity_limits" = "Respeta la antelación y los horarios con recordatorios activados. Sleepy actualiza, cambia y finaliza las tarjetas mientras está en primer plano. En segundo plano continúa el temporizador existente, pero no se garantizan nuevas tarjetas, cambios de clase ni retirada automática. Abre Sleepy para actualizar. Requiere iOS 16.1+; su permiso es independiente del de notificaciones.";
+"live_activity_permission" = "Las actividades en directo están desactivadas. Toca para abrir Ajustes.";
+"live_activity_starts" = "Empieza en";
+"live_activity_ends" = "Termina en";
+"live_activity_stale" = "La información puede estar desactualizada";
+"live_activity_open_to_refresh" = "Abre Sleepy para actualizar";
+"live_activity_next" = "Siguiente: %1$@";
+
+"timeslot_reorder_standard_only" = "Los períodos especiales permanecen fijos. Arrastra los períodos normales para reordenarlos.";
+
+// Readable static examples in the widget gallery.
+"widget_preview_calculus" = "Cálculo";
+"widget_preview_english" = "Lectura en inglés";
+"widget_preview_linear_algebra" = "Álgebra lineal";
+"widget_preview_sports" = "Educación física";
+"widget_preview_programming" = "Prácticas de programación";
+"widget_preview_seminar" = "Seminario";
+"widget_preview_gym" = "Gimnasio";
+
+// Android v1.0.63 THU course-page navigation and recovery.
+"jw_nav_hint_thu" = "Abra el horario general en el sistema de cursos, elija el semestre y toque Importar esta página";
+"jw_err_thu_course_page" = "No se encontró el script de cursos del horario general de THU. Inicie sesión, abra el horario general, elija el semestre y toque Importar esta página.";
+
+// Android v1.0.63 — explicit-target course imports.
+"add_course_title" = "Añadir curso";
+"add_course_from_existing" = "Desde un horario existente";
+"select_courses_title" = "Seleccionar asignaturas";
+"select_courses_all" = "Seleccionar todo";
+"select_courses_none" = "Deseleccionar todo";
+"select_courses_count" = "%1$lld de %2$lld seleccionadas";
+"import_selection_empty" = "No se seleccionó ninguna asignatura";
+"add_course_manual" = "Añadir curso manualmente";
+"add_course_no_source" = "No hay otros horarios. Añade un horario primero.";
+"import_backup_original" = "Hacer copia del horario original";
+"import_backup_original_sub" = "Copia el horario original antes de añadir estos cursos";
+"import_append_conflicts_option" = "Añadir cursos en conflicto";
+"import_append_conflicts_option_sub" = "Desactivado: se omiten los cursos que entren en conflicto";
+"import_backup_name" = "%1$@ - Copia";

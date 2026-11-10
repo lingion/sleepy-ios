@@ -132,6 +132,22 @@ final class NavStyleResolverTests: XCTestCase {
         XCTAssertFalse(NavStyleResolver.isWideLayout(windowSize: .zero))
     }
 
+    func testMediumLandscapeKeepsRailWithoutCrowdingTwoPanes() {
+        let medium = CGSize(width: 744, height: 500)
+        XCTAssertTrue(NavStyleResolver.isWideLayout(windowSize: medium))
+        XCTAssertFalse(NavStyleResolver.usesSideBySidePanes(windowSize: medium))
+        XCTAssertFalse(NavStyleResolver.usesSideBySidePanes(windowSize: CGSize(width: 875, height: 600)))
+        XCTAssertTrue(NavStyleResolver.usesSideBySidePanes(windowSize: CGSize(width: 876, height: 600)))
+        XCTAssertTrue(NavStyleResolver.usesSideBySidePanes(windowSize: CGSize(width: 1024, height: 768)))
+    }
+
+    func testSideBySidePanesUseSafeContentWidthAndLandscapeGeometry() {
+        let landscapePhone = CGSize(width: 932, height: 430)
+        XCTAssertFalse(NavStyleResolver.usesSideBySidePanes(windowSize: landscapePhone, horizontalInsets: 118))
+        XCTAssertFalse(NavStyleResolver.usesSideBySidePanes(windowSize: CGSize(width: 1024, height: 1366)))
+        XCTAssertFalse(NavStyleResolver.usesSideBySidePanes(windowSize: .zero))
+    }
+
     func testLandscapeGeometryGate() {
         // ← PR#235 portrait = screenWidthDp < screenHeightDp 取反口径: 宽≥高 放行;
         // 正方形窗口(Stage Manager 默认卡 1087×945 缩放/分屏方窗)= !portrait 放行,
