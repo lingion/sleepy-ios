@@ -213,8 +213,8 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
                 let room = Self.firstStr(o, "cdmc", "classroomName", "jxcd", "jsmc", "jxlh", "jasdm")
 
                 // ── 星期(优先数字 xqj, 文本 xqjmc 兜底) ──────────
-                guard let day = Self.firstInt(o, "xqj", "kcxq", "xq", "classDay", "skxq")
-                    ?? Self.xqjmcToInt(o) else { continue }
+                let numericDay = Self.firstStr(o, "xqj", "kcxq", "xq", "classDay", "skxq")
+                guard let day = numericDay.isEmpty ? Self.xqjmcToInt(o) : jw1064Integer(numericDay), (1...7).contains(day) else { continue }
 
                 // ── 节次(字符串, 支持范围/补零/多段) ──────────────
                 let jcStr = Self.firstStr(o, "jcs", "jc", "classSessions", "ksjcsd", "ksjc")
@@ -231,9 +231,9 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
                             name: name,
                             room: room,
                             teacher: teacher,
-                            day: min(max(day, 1), 7),
-                            startNode: max(node.0, 1),
-                            endNode: max(node.1, node.0),
+                            day: day,
+                            startNode: node.0,
+                            endNode: node.1,
                             startWeek: r.0,
                             endWeek: r.1,
                             type: r.2
@@ -298,7 +298,7 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
                 let bStr = pair.count > 1
                     ? (pair[1...].joined(separator: "-")).trimmingCharacters(in: .whitespacesAndNewlines)
                     : ""
-                if let a = Int(aStr), let b = Int(bStr), (1...16).contains(a), (1...16).contains(b) {
+                if let a = jw1064Integer(aStr), let b = jw1064Integer(bStr), (1...366).contains(a), (a...366).contains(b) {
                     out.append((a, b))
                 }
                 continue
@@ -314,7 +314,7 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
                 var pos = 0
                 while pos + 1 < dc.count {
                     let v = Int(String(dc[pos...(pos + 1)]))
-                    if v == nil || !(1...16).contains(v!) { ok = false; break }
+                    if v == nil || !(1...366).contains(v!) { ok = false; break }
                     nums.append(v!)
                     pos += 2
                 }
@@ -322,7 +322,7 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
                     // 相邻两位一组: 0102 → (1,2), 01121314 → (1,2),(13,14)
                     var k = 0
                     while k + 1 < nums.count {
-                        out.append((nums[k], nums[k + 1]))
+                        if nums[k + 1] >= nums[k] { out.append((nums[k], nums[k + 1])) }
                         k += 2
                     }
                 } else if ok && nums.count == 1 {
@@ -331,7 +331,7 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
                 continue
             }
             // 形态 1 变体: 纯数字单节 "5"
-            if let v = Int(digits), (1...16).contains(v) { out.append((v, v)) }
+            if let v = jw1064Integer(digits), (1...366).contains(v) { out.append((v, v)) }
         }
         return out
     }
@@ -340,15 +340,8 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
     /// 兼容 "星期一"/"周一"/"星期日"/"周日"/"周天"
     private static func xqjmcToInt(_ o: [String: Any]) -> Int? {
         let s = optString(o, "xqjmc").trimmingCharacters(in: .whitespacesAndNewlines)
-        if s.isEmpty { return nil }
-        let zh: [Character] = ["一", "二", "三", "四", "五", "六", "日", "天"]
-        for c in s {
-            if let idx = zh.firstIndex(of: c) {
-                // '日'/'天' 在下标 6/7 → 都是 7 (周日)
-                return idx >= 6 ? 7 : idx + 1
-            }
-        }
-        return nil
+        guard let match = Jw64.full("(?:星期|周)([一二三四五六日天])", s) else { return nil }
+        let day = Jw64.day(match[1]); return day == 0 ? nil : day
     }
 
     private static func firstStr(_ o: [String: Any], _ keys: String...) -> String {
@@ -400,56 +393,21 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
 
     /// 周次字符串 → (start, end, type) 范围列表(T4 加固: 剥 { } 第, 单双周显式枚举)
     private static func parseWeekStr(_ s0: String) -> [(Int, Int, Int)] {
-        // 1. 先剥离花括号与 '第' 字 (SHUFEZJ: '{第1-16周}')
-        let s = s0.replacingOccurrences(of: "{", with: "")
-            .replacingOccurrences(of: "}", with: "")
-            .replacingOccurrences(of: "第", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if s.isEmpty { return [(1, 16, 0)] }
+        let raw = s0.trimmingCharacters(in: .whitespacesAndNewlines)
+        let unwrapped = raw.hasPrefix("{") && raw.hasSuffix("}") ? String(raw.dropFirst().dropLast()) : raw
+        let text = unwrapped.replacingOccurrences(of: "（", with: "(").replacingOccurrences(of: "）", with: ")").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return [] }
+        if text.count >= 10 && text.allSatisfy({ $0 == "0" || $0 == "1" }) {
+            guard text.count <= 366 else { return [] }
+            return bitsToRanges(text.enumerated().compactMap { $0.element == "1" ? $0.offset + 1 : nil })
+        }
         var result: [(Int, Int, Int)] = []
-
-        // 2. bitmap 模式: 11111111111100000(每位 = 第 N 周)
-        if s.count >= 10 && s.allSatisfy({ $0 == "0" || $0 == "1" }) {
-            let weeks = s.enumerated().compactMap { $0.element == "1" ? $0.offset + 1 : nil }
-            return bitsToRanges(weeks)
+        for part in splitMulti(text, separators: [",", "，", ";", "；"]) {
+            guard let match = Jw64.full(#"(?:第\s*)?([0-9]+)\s*(?:-\s*([0-9]+))?\s*(?:周\s*)?(?:(?:\(([单双])(?:周)?\)|([单双])(?:周)?)\s*)?(?:周)?"#, Jw64.trim(part)),
+                  let first = jw1064Integer(match[1]), let last = jw1064Integer(match[2].isEmpty ? match[1] : match[2]), (1...366).contains(first), (first...366).contains(last) else { return [] }
+            result.append((first, last, jw1064Parity(match[3] + match[4])))
         }
-
-        // 3. 范围/列表模式: "1-16" / "1-16周" / "1-16周(单)" / "1,3,5,7" / "1-8,11-16周(双)"
-        for part0 in splitMulti(s, separators: [",", "，", ";", "；"]) {
-            let part = part0.trimmingCharacters(in: .whitespacesAndNewlines)
-            if part.isEmpty { continue }
-            // 单双周后缀显式枚举 (防误判 '单元'/'双方' 等词)
-            let type: Int
-            if part.contains("(单)") || part.contains("(单周)") || part.hasSuffix("单") || part.hasSuffix("单周") {
-                type = 1
-            } else if part.contains("(双)") || part.contains("(双周)") || part.hasSuffix("双") || part.hasSuffix("双周") {
-                type = 2
-            } else {
-                type = 0
-            }
-            let cleaned = part
-                .replacingOccurrences(of: "周", with: "")
-                .replacingOccurrences(of: "(", with: "")
-                .replacingOccurrences(of: ")", with: "")
-                .replacingOccurrences(of: "（", with: "")
-                .replacingOccurrences(of: "）", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if cleaned.contains("-") {
-                let pair = cleaned.components(separatedBy: "-")
-                let startStr = (pair.first ?? "").filter { $0 >= "0" && $0 <= "9" }
-                let endStr = pair.count > 1
-                    ? pair[1...].joined(separator: "-").filter { $0 >= "0" && $0 <= "9" }
-                    : ""
-                let start = startStr.isEmpty ? nil : Int(startStr)
-                let end = endStr.isEmpty ? nil : Int(endStr)
-                if let start, let end { result.append((start, end, type)) }
-            } else {
-                let digits = cleaned.filter { $0 >= "0" && $0 <= "9" }
-                guard !digits.isEmpty, let v = Int(digits) else { continue }
-                result.append((v, v, type))
-            }
-        }
-        return result.isEmpty ? [(1, 16, 0)] : result
+        return result
     }
 
     private static func bitsToRanges(_ weeks: [Int]) -> [(Int, Int, Int)] {
@@ -485,7 +443,7 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
     // ─── HTML 表格解析(兜底) ─────────────────────────────────
 
     /// 移植自 JwOldZfParser 的 (N-M节) 模式, table1/kbgrid 变体共用
-    private static let nodePattern = try! NSRegularExpression(pattern: "\\(\\d{1,2}[-]*\\d*节")
+    private static let nodePattern = try! NSRegularExpression(pattern: "\\([0-9]+(?:-[0-9]+)?节\\)")
 
     /// 新正方 HTML 渲染后的课表解析。容器优先级:
     ///   1. #table1 + td.festival + div.title + p[title=...] (上游 NewZFParser.kt)
@@ -497,8 +455,7 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
         guard let doc = try? SwiftSoup.parse(source) else { return parseHtmlTableFromQz() }
 
         // ── 1. 上游 NewZFParser.kt 期望结构 ──
-        if let table1 = (try? doc.getElementById("table1")) ?? nil,
-           !((try? table1.select("td.festival")) ?? Elements()).isEmpty() {
+        if let table1 = (try? doc.getElementById("table1")) ?? nil {
             let result = parseTable1FestivalView(table1)
             if !result.isEmpty { return result }
         }
@@ -539,12 +496,6 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
         var result: [JwCourse] = []
         let trs = ((try? table.getElementsByTag("tr")) ?? Elements()).array()
         for tr in trs {
-            // 行头: 节次数字 (class="festival")
-            let nodeStr = ((try? tr.getElementsByClass("festival").text()) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if nodeStr.isEmpty { continue }
-            guard let rowNode = Int(nodeStr) else { continue }
-
             let tds = ((try? tr.getElementsByTag("td")) ?? Elements()).array()
             for td in tds {
                 // 跳过无 id 的 td(表头星期单元格)
@@ -566,50 +517,31 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
                     // p[title=教师/上课地点/节/周]
                     var teacher = ""
                     var room = ""
-                    var timeStr = ""
+                    var timeStr = "", note = ""
+                    var credit: Float = 0
                     let pList = ((try? div.getElementsByTag("p")) ?? Elements()).array()
                     for p in pList {
-                        switch (try? p.attr("title")) ?? "" {
+                        let titleElement = Jw64.first(p, "[title]")
+                        let rawLabel = titleElement.map { Jw64.trim(Jw64.attr($0, "title")) } ?? ""
+                        let label = rawLabel.isEmpty ? titleElement.map { Jw64.trim(Jw64.attr($0, "data-original-title")) } ?? "" : rawLabel
+                        switch label {
                         case "教师": teacher = ((try? p.text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                         case "上课地点": room = ((try? p.text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                         case "节/周", "周/节": timeStr = ((try? p.text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                        case "学分": let value = Float(Jw64.text(p)) ?? 0; credit = value.isFinite && value >= 0 ? value : 0
+                        case "选课备注": note = Jw64.text(p)
                         default: break
                         }
                     }
                     if timeStr.isEmpty { continue }
 
-                    // 节/周文本解析: "(N-M节)X-Y周(单),A-B周(双)"
-                    guard let nodeInfo = Self.firstMatch(Self.nodePattern, in: timeStr) else { continue }
-                    // ← Kotlin substring(1).removeSuffix("节").split("-")
-                    let nodes = String(nodeInfo.dropFirst())
-                        .replacingOccurrences(of: "节", with: "")
-                        .components(separatedBy: "-")
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    // ← Kotlin `?: continue`: 首段非法数字时整条跳过
-                    guard var startNode = Int(nodes.first ?? "") else { continue }
-                    let endNode = nodes.count > 1 ? (Int(nodes[1]) ?? startNode) : startNode
-                    // (N-M节) 优先, 行头 rowNode 仅作缺省
-                    if startNode <= 0 { startNode = rowNode }
+                    let schedule = timeStr.replacingOccurrences(of: "（", with: "(").replacingOccurrences(of: "）", with: ")")
+                    guard let section = jw1064Matches(#"\(([^()]*)节\)"#, schedule).first, let location = schedule.range(of: section[0]) else { continue }
+                    let nodes = Self.parseSectionRanges(section[1]), ranges = Self.parseWeekStr(String(schedule[location.upperBound...]))
+                    for range in ranges { for (first, last) in nodes {
+                        result.append(JwCourse(name: courseName, room: room, teacher: teacher, day: day, startNode: first, endNode: last, startWeek: range.0, endWeek: range.1, type: range.2, credit: credit, note: note))
+                    } }
 
-                    // 周次段
-                    let weekList = Self.replace(Self.nodePattern, in: timeStr, with: "").components(separatedBy: ",")
-                    for weekPart in weekList {
-                        let trimmed = weekPart.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmed.isEmpty { continue }
-                        for r in Self.parseWeekStr(trimmed) {
-                            result.append(JwCourse(
-                                name: courseName,
-                                room: room,
-                                teacher: teacher,
-                                day: day,
-                                startNode: startNode,
-                                endNode: endNode,
-                                startWeek: r.0,
-                                endWeek: r.1,
-                                type: r.2
-                            ))
-                        }
-                    }
                 }
             }
         }
@@ -639,18 +571,21 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
                     // p[0] = 节/周; p[1] = 地点; p[2] = 教师
                     let pList = ((try? tc.getElementsByTag("p")) ?? Elements()).array()
                     if pList.count < 3 { continue }  // 缺字段直接跳过(对齐 grid_missing_fields 边界)
-                    let infoStr = ((try? pList[0].text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let infoFonts = Jw64.select(pList[0], "font")
+                    let infoStr = Jw64.text(infoFonts.count > 1 ? infoFonts[1] : pList[0])
                     let position = ((try? pList[1].text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                     let teacher = ((try? pList[2].text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
                     // 节次解析: infoStr 必须含 "(N-M节)"
                     guard let nodeMatch = Self.firstMatch(Self.nodePattern, in: infoStr) else { continue }
                     let nodes = String(nodeMatch.dropFirst())
-                        .replacingOccurrences(of: "节", with: "")
+                        .replacingOccurrences(of: "节)", with: "")
                         .components(separatedBy: "-")
                         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     guard let startNode = Int(nodes.first ?? "") else { continue }
-                    let endNode = nodes.count > 1 ? (Int(nodes[1]) ?? startNode) : startNode
+                    let endNode: Int
+                    if nodes.count > 1 { guard let value = jw1064Integer(nodes[1]) else { continue }; endNode = value } else { endNode = startNode }
+                    guard (1...366).contains(startNode), (startNode...366).contains(endNode) else { continue }
 
                     // 周次段: 剥 (N-M节) 后按逗号拆
                     let weekStr = Self.replace(Self.nodePattern, in: infoStr, with: "")
@@ -705,9 +640,9 @@ final class JwNewZfParser: JwParser, JwParserConfidenceReporting {
                     nodes = [sectionStr]
                 }
                 guard let startNode = Int(nodes[0].trimmingCharacters(in: .whitespacesAndNewlines)) else { continue }
-                let endNode = nodes.count > 1
-                    ? (Int(nodes[1].trimmingCharacters(in: .whitespacesAndNewlines)) ?? startNode)
-                    : startNode
+                let endNode: Int
+                if nodes.count > 1 { guard let value = jw1064Integer(nodes[1].trimmingCharacters(in: .whitespacesAndNewlines)) else { continue }; endNode = value } else { endNode = startNode }
+                guard (1...366).contains(startNode), (startNode...366).contains(endNode) else { continue }
 
                 // td[1] 内 .title div
                 let name = ((try? (try? tds[1].getElementsByClass("title"))?.first()?.text()) ?? "")
