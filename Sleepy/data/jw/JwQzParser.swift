@@ -28,157 +28,114 @@ class JwQzParser: JwParser, JwParserConfidenceReporting {
     /// ← open val tableName = "kbcontent";子类 override
     var tableName: String { "kbcontent" }
 
+    var usesSchoolRowMapping: Bool { false }
+    func rowNodes(_ row: Int) -> (Int, Int) { (row * 2 - 1, row * 2) }
+
     func parseCourseName(_ infoStr: String) -> String {
-        // 兜底:Jsoup 解析在某些裸 HTML 上可能失败,直接取子串
-        // ← substringBefore("<font") = 首个 "<font" 前的部分;无则原串
-        let before = infoStr.components(separatedBy: "<font").first ?? infoStr
-        let trimmed = before.trimmingCharacters(in: .whitespacesAndNewlines)
-        do {
-            return try SwiftSoup.parse(trimmed).text()
-        } catch {
-            return trimmed
+        let prefix = infoStr.range(of: #"(?i)<(?:font|span)\b[^>]*\btitle\s*="#, options: .regularExpression).map { String(infoStr[..<$0.lowerBound]) } ?? infoStr
+        let lines = Self.brLines(prefix).map(Jw64.plain).filter { !$0.isEmpty }
+        guard let first = lines.first else { return "" }
+        if first.hasPrefix("节次:") {
+            if let value = lines.first(where: { $0.contains("学时]") }) { return Jw64.trim(value.components(separatedBy: "[").first!.components(separatedBy: "课序号").first!) }
+            return lines.last(where: { !$0.hasPrefix("节次:") && Jw64.full(#"分组[0-9]+"#, $0) == nil }) ?? ""
         }
+        return Jw64.trim(lines.joined(separator: " ").components(separatedBy: "课序号").first ?? "")
     }
 
     func convert(day: Int, nodeCount: Int, infoStr: String, courseList: inout [JwCourse]) {
-        let node = nodeCount * 2 - 1
-        let courseHtml = try! SwiftSoup.parse(infoStr)  // Jsoup.parse 不抛,Kotlin 侧同
-        let courseName = parseCourseName(infoStr)
-        let teacher = ((try? courseHtml.getElementsByAttributeValue("title", "老师").text()) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        // T2 修复：上游 wakeup QzParser.kt 只认 "老师"，但 JSNU/UPC/CSUFT 等学校
-        // 使用 "教师" 属性名（fixture: edge_teacher_attr.html 已锁现状）。fallback
-        // 顺序：老师 → 教师。仅当两者都空才返回空串，不修改 SwiftSoup 大小写行为。
-        let teacherFinal = teacher.isEmpty
-            ? ((try? courseHtml.getElementsByAttributeValue("title", "教师").text()) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            : teacher
-        let room = ((try? courseHtml.getElementsByAttributeValue("title", "教室").text()) ?? "") +
-            ((try? courseHtml.getElementsByAttributeValue("title", "分组").text()) ?? "")
-        let weekRaw = (try? courseHtml.getElementsByAttributeValue("title", "周次(节次)").text()) ?? ""
-        // ← substringBefore("(周)")
-        let weekStr = weekRaw.components(separatedBy: "(周)").first ?? weekRaw
-        let weekList = weekStr.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-
-        var startWeek = 0
-        var endWeek = 0
-        var type = 0
-
-        for weekItem in weekList {
-            if weekItem.contains("-") {
-                let weeks = weekItem.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
-                if !weeks.isEmpty { startWeek = Int(weeks[0].trimmingCharacters(in: .whitespaces)) ?? 1 }
-                if weeks.count > 1 {
-                    type = {
-                        if weeks[1].contains("单") { return 1 }
-                        if weeks[1].contains("双") { return 2 }
-                        return 0
-                    }()
-                    // 兼容 "1-16周"、"1-16周(单)"、"1-16(单)"、"1-16" 等格式
-                    endWeek = Int(weeks[1]
-                        .replacingOccurrences(of: "周", with: "")
-                        .replacingOccurrences(of: "(", with: "")
-                        .replacingOccurrences(of: ")", with: "")
-                        .replacingOccurrences(of: "单", with: "")
-                        .replacingOccurrences(of: "双", with: "")
-                        .trimmingCharacters(in: .whitespaces)
-                        .filter { $0.isNumber }) ?? startWeek
-                }
-            } else {
-                type = {
-                    if weekItem.contains("单") { return 1 }
-                    if weekItem.contains("双") { return 2 }
-                    return 0
-                }()
-                let cleaned = weekItem.replacingOccurrences(of: "周", with: "")
-                    .replacingOccurrences(of: "单", with: "")
-                    .replacingOccurrences(of: "双", with: "")
-                    .components(separatedBy: "(").first ?? ""
-                let v = Int(cleaned.trimmingCharacters(in: .whitespaces).filter { $0.isNumber }) ?? 1
-                startWeek = v
-                endWeek = v
-            }
-            courseList.append(
-                JwCourse(
-                    name: courseName,
-                    room: room,
-                    teacher: teacherFinal,
-                    day: day,
-                    startNode: node,
-                    endNode: node + 1,
-                    startWeek: startWeek,
-                    endWeek: endWeek,
-                    type: type
-                )
-            )
+        guard let html = Jw64.doc(infoStr) else { return }
+        let name = parseCourseName(infoStr)
+        guard !name.isEmpty, (1...7).contains(day) else { return }
+        func field(_ title: String) -> String { jw1064Text(html, "[title='\(title)']") }
+        let rawTeacher = field("老师"), teacher = rawTeacher.isEmpty ? field("教师") : rawTeacher
+        let rawRoom = field("教室") + field("分组"), room = rawRoom.isEmpty ? field("上课地点") : rawRoom
+        let combined = field("周次(节次)"), separate = field("周次")
+        let enrollment = Jw64.first(html, "[title='选课人数']").map { Self.brLines(Jw64.html($0)) } ?? []
+        let raw = !combined.isEmpty ? combined : !separate.isEmpty ? separate : enrollment.count > 1 ? Jw64.plain(enrollment[1]) : ""
+        let time = raw.replacingOccurrences(of: "（", with: "(").replacingOccurrences(of: "）", with: ")")
+        guard !time.isEmpty else { return }
+        let bracket = jw1064Matches(#"\[([^]]*)]"#, time).first
+        let tail = bracket == nil ? jw1064Matches(#"(?:\s+|(?<=\)))(第?[0-9][0-9,，、\s-]*节)\s*$"#, time).first : nil
+        let matched = bracket ?? tail
+        let weekText = matched.flatMap { time.range(of: $0[0]) }.map { String(time[..<$0.lowerBound]) } ?? time
+        let independent = field("节次").replacingOccurrences(of: "（", with: "(").replacingOccurrences(of: "）", with: ")")
+        let explicit = bracket?[1] ?? tail?[1] ?? (independent.isEmpty ? nil : independent.components(separatedBy: ")").last)
+        let nodes = explicit.map(Self.parseNodes) ?? [rowNodes(nodeCount)]
+        guard !nodes.isEmpty else { return }
+        for segment in weekText.components(separatedBy: CharacterSet(charactersIn: ",，、\\")) {
+            let type = jw1064Parity(segment)
+            let normalized = segment.replacingOccurrences(of: #"[第周单双()\s]"#, with: "", options: .regularExpression)
+            guard let range = Jw64.full(#"([0-9]+)(?:-([0-9]+))?"#, normalized), let start = jw1064Integer(range[1]), let end = jw1064Integer(range[2].isEmpty ? range[1] : range[2]), start > 0, end >= start else { continue }
+            for (first, last) in nodes { courseList.append(JwCourse(name: name, room: room, teacher: teacher, day: day, startNode: first, endNode: last, startWeek: start, endWeek: end, type: type)) }
         }
     }
 
-    func generateCourseList() throws -> [JwCourse] {
-        var courseList: [JwCourse] = []
-        guard let doc = try? SwiftSoup.parse(source) else { return courseList }
-        // v1.0.62: 新强智版式 (NNNU) 用显式分节 + 精细 #timetable 视图;
-        // 无 #kbtable 但有 table#timetable .kbcontent 时委托 JwQzTimetableParser。
-        if ((try? doc.getElementById("kbtable")) ?? nil) == nil,
-           ((try? doc.select("table#timetable .kbcontent").first()) ?? nil) != nil {
-            return try JwQzTimetableParser(source).generateCourseList()
+    private static func parseNodes(_ text: String) -> [(Int, Int)] {
+        var cleaned = Jw64.trim(text)
+        if cleaned.hasPrefix("[") && cleaned.hasSuffix("]") { cleaned = String(cleaned.dropFirst().dropLast()) }
+        if cleaned.hasPrefix("第") { cleaned.removeFirst() }; if cleaned.hasSuffix("节") { cleaned.removeLast() }
+        var values = Set<Int>()
+        for part in cleaned.components(separatedBy: CharacterSet(charactersIn: ",，、")) {
+            let token = part.replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
+            guard let match = Jw64.full(#"([0-9]+)(?:-([0-9]+))?"#, token) else { return [] }
+            let packed = match[2].isEmpty && token.count == 4
+            guard let start = jw1064Integer(packed ? String(token.prefix(2)) : match[1]), let end = jw1064Integer(packed ? String(token.suffix(2)) : match[2].isEmpty ? match[1] : match[2]), (1...366).contains(start), (start...366).contains(end) else { return [] }
+            values.formUnion(start...end)
         }
-        // T8: 找不到 #kbtable 抛 JwParseError(NO_TABLE_CONTAINER_MARKER)
-        //   而不是静默 return courseList. 让 T9 区分"协议选错"和"课表页为空".
-        guard let kbTable = (try? doc.getElementById("kbtable")) ?? nil else {
-            throw JwParseError(
-                message: "页面缺少 #kbtable，可能未到达课表页/选错教务类型",
-                attempts: [ParserAttemptSnapshot(
-                    parserName: "JwQzParser",
-                    type: JwProtocol.TYPE_QZ,
-                    courseCount: 0,
-                    confidence: (self as? JwParserConfidenceReporting)?.confidenceValue ?? 0,
-                    matchedFeatures: (self as? JwParserConfidenceReporting)?.matchedFeatureList ?? [],
-                    exception: JwParseError.NO_TABLE_CONTAINER_MARKER)])
-        }
-        let trs = (try? kbTable.getElementsByTag("tr")) ?? Elements()
+        var runs: [(Int, Int)] = []
+        for node in values.sorted() { if let last = runs.last, last.1 + 1 == node { runs[runs.count - 1] = (last.0, node) } else { runs.append((node, node)) } }
+        return runs
+    }
 
-        var nodeCount = 0
-        for tr in trs {
-            let tds = (try? tr.getElementsByTag("td")) ?? Elements()
-            if tds.isEmpty() {
-                continue
+    private static func brLines(_ html: String) -> [String] { html.replacingOccurrences(of: #"(?i)<br\s*/?>"#, with: "\n", options: .regularExpression).components(separatedBy: "\n") }
+    private static func courseBlocks(_ html: String) -> [String] {
+        var result: [String] = []
+        for part in html.replacingOccurrences(of: #"-{5,}"#, with: "\u{1F}", options: .regularExpression).components(separatedBy: "\u{1F}") {
+            var buffer = "", hasFields = false
+            for line in brLines(part) {
+                let fragment = Jw64.doc(line), text = Jw64.text(fragment)
+                if buffer.isEmpty && text.isEmpty { continue }
+                let isField = !Jw64.select(fragment, "[title]").isEmpty || line.contains("xsks") || Jw64.full(#"[0-9].*\[.+].*"#, text) != nil
+                if hasFields && !isField && !text.isEmpty { result.append(buffer); buffer = ""; hasFields = false }
+                buffer += line + "<br>"; hasFields = hasFields || isField
             }
-            nodeCount += 1
+            if hasFields { result.append(buffer) }
+        }
+        return result
+    }
 
-            var day = 0
-            for td in tds {
-                day += 1
-                let divs = (try? td.getElementsByTag("div")) ?? Elements()
-                for div in divs {
-                    let courseElements = (try? div.getElementsByClass(tableName)) ?? Elements()
-                    let text = (try? courseElements.text()) ?? ""
-                    if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
-                    let courseHtml = (try? courseElements.html()) ?? ""
-                    var startIndex = courseHtml.startIndex
-                    var splitIndex = courseHtml.range(of: "-----")?.lowerBound
-                    while let si = splitIndex {
-                        let sub = String(courseHtml[startIndex..<si])
-                        convert(day: day, nodeCount: nodeCount, infoStr: sub, courseList: &courseList)
-                        // ← startIndex = courseHtml.indexOf("<br>", splitIndex) + 4
-                        if let brRange = courseHtml.range(of: "<br>", range: si..<courseHtml.endIndex) {
-                            startIndex = courseHtml.index(after: brRange.upperBound)  // "<br>" 长 4
-                        } else {
-                            startIndex = courseHtml.endIndex
-                        }
-                        splitIndex = courseHtml.range(of: "-----", range: startIndex..<courseHtml.endIndex)?.lowerBound
-                    }
-                    convert(
-                        day: day,
-                        nodeCount: nodeCount,
-                        infoStr: String(courseHtml[startIndex..<courseHtml.endIndex]),
-                        courseList: &courseList
-                    )
+    func generateCourseList() throws -> [JwCourse] {
+        guard let doc = Jw64.doc(source) else { return [] }
+        if !usesSchoolRowMapping && tableName == "kbcontent", let modern = JwQzModernHtml.parse(doc) { return modern }
+        if !usesSchoolRowMapping && tableName == "kbcontent", Jw64.first(doc, "#kbtable") == nil, Jw64.first(doc, "table#timetable .kbcontent") != nil { return try JwQzTimetableParser(source).generateCourseList() }
+        guard let table = Jw64.first(doc, "#kbtable") ?? Jw64.first(doc, "#timetable") else {
+            throw JwParseError(message: "页面缺少 #kbtable，可能未到达课表页/选错教务类型", attempts: [ParserAttemptSnapshot(parserName: "JwQzParser", type: JwProtocol.TYPE_QZ, courseCount: 0, confidence: confidenceValue, matchedFeatures: matchedFeatureList, exception: JwParseError.NO_TABLE_CONTAINER_MARKER)])
+        }
+        var courses: [JwCourse] = [], nodeCount = 0, days = Array(1...7)
+        for row in Jw64.rows(table) {
+            let cells = Jw64.cells(row), headerDays = cells.compactMap { Self.weekday(Jw64.text($0)) }
+            if headerDays.count == 7 && Set(headerDays).count == 7 { days = headerDays; continue }
+            let tds = cells.filter { $0.tagNameNormal() == "td" }
+            guard !tds.isEmpty else { continue }
+            let dayCells = tds.count >= 7 ? Array(tds.suffix(7)) : Array(tds.drop(while: { Jw64.first($0, ".\(tableName)") == nil && Jw64.full(#"(?:第?[一二三四五六七八九十0-9-]+节|上午|下午|晚上)"#, Jw64.text($0)) != nil }))
+            guard !dayCells.isEmpty, !dayCells.contains(where: { (jw1064Integer(Jw64.attr($0, "colspan")) ?? 1) > 1 }) else { continue }
+            nodeCount += 1
+            for (index, cell) in dayCells.enumerated() where index < days.count {
+                for content in Jw64.select(cell, ".\(tableName)") {
+                    var parent = content.parent(), nested = false
+                    while let node = parent, node !== cell { if node.hasClass(tableName) { nested = true; break }; parent = node.parent() }
+                    if nested || Jw64.text(content).isEmpty { continue }
+                    for block in Self.courseBlocks(Jw64.html(content)) { convert(day: days[index], nodeCount: nodeCount, infoStr: block, courseList: &courses) }
                 }
             }
         }
-        return courseList
+        return courses
+    }
+
+    private static func weekday(_ text: String) -> Int? {
+        var label = Jw64.trim(text)
+        if label.hasPrefix("星期") { label = String(label.dropFirst(2)) }; if label.hasPrefix("周") { label.removeFirst() }
+        let day = Jw64.day(label); return day == 0 ? nil : day
     }
 
     // MARK: - T8 置信度
@@ -187,7 +144,10 @@ class JwQzParser: JwParser, JwParserConfidenceReporting {
     /// 仅命中 kbtable+kbcontent = 70；仅命中 kbtable = 30。
     var confidenceValue: Int {
         guard let doc = try? SwiftSoup.parse(source) else { return 0 }
-        guard let kbtable = (try? doc.getElementById("kbtable")) ?? nil else { return 0 }
+        if !usesSchoolRowMapping && tableName == "kbcontent" && !JwQzModernHtml.features(doc).isEmpty { return 100 }
+        if Jw64.first(doc, "#kbtable") == nil, Jw64.first(doc, "table#timetable .kbcontent [title='周次(节次)']") != nil { return 100 }
+        guard let kbtable = Jw64.first(doc, "#kbtable") ?? Jw64.first(doc, "#timetable") else { return 0 }
+        if Jw64.select(kbtable, ".\(tableName)").contains(where: { Jw64.first($0, "[title='周次(节次)'],[title='周次'],[title='选课人数']") != nil }) { return 100 }
         // v1.0.62: #timetable 视图 (新强智) — 周次(节次) 列锚点即满分。
         if ((try? doc.select("table#timetable .kbcontent [title='周次(节次)']").first()) ?? nil) != nil {
             return 100
@@ -203,7 +163,7 @@ class JwQzParser: JwParser, JwParserConfidenceReporting {
 
     var matchedFeatureList: [String] {
         guard let doc = try? SwiftSoup.parse(source) else { return [] }
-        var out: [String] = []
+        var out: [String] = !usesSchoolRowMapping && tableName == "kbcontent" ? JwQzModernHtml.features(doc) : []
         if ((try? doc.getElementById("kbtable")) ?? nil) != nil { out.append("id=kbtable") }
         if ((try? doc.getElementsByClass(tableName)) ?? Elements()).isEmpty() == false { out.append("class=\(tableName)") }
         if ((try? doc.getElementsByAttributeValue("title", "老师")) ?? Elements()).isEmpty() == false { out.append("title=老师") }

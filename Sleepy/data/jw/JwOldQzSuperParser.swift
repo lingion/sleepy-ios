@@ -18,10 +18,13 @@ import SwiftSoup
 final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
 
     let source: String
+    enum Form: CaseIterable { case jlict, ccut, ccsu, base }
+    private let declaredForm: Form?
     private let doc: Document?
 
-    init(_ source: String) {
+    init(_ source: String, declaredForm: Form? = nil) {
         self.source = source
+        self.declaredForm = declaredForm
         self.doc = try? SwiftSoup.parse(source)
     }
 
@@ -29,10 +32,10 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
 
     /// "1-4,9-12周[0102节]" / "3周[3节]" → (周次段, 节次段)。
     private static let reWeekNode = try! NSRegularExpression(
-        pattern: "^(.+?)周\\[([0-9]{1,4}(?:[-~][0-9]{1,2})?)节]$")
+        pattern: "^(.+?)周\\[([0-9]+(?:[-~][0-9]+)?)节]$")
     /// "1-16" / "3"。
     private static let reRange = try! NSRegularExpression(
-        pattern: "^([0-9]{1,2})(?:[-~]([0-9]{1,2}))?$")
+        pattern: "^([0-9]+)(?:[-~]([0-9]+))?$")
     /// 表头星期单元格。
     private static let reWeekday = try! NSRegularExpression(
         pattern: "^(?:星期|周)([一二三四五六日天])$")
@@ -41,7 +44,7 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
         pattern: "^([1-5])-([1-7])-2$")
     /// CCUT 分组格 id: "group-day" 或 "group-day-n"。
     private static let reGroupDayId = try! NSRegularExpression(
-        pattern: "^([1-9]|1[0-5])-([1-7])(?:-[0-9]+)?$")
+        pattern: "^([0-9]+)-([1-7])(?:-[0-9]+)?$")
     /// <br> 切分 (大小写/自闭合兼容)。
     private static let reBr = try! NSRegularExpression(
         pattern: "<br\\s*/?>", options: [.caseInsensitive])
@@ -52,14 +55,22 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
     // MARK: - JwParser
 
     func generateCourseList() throws -> [JwCourse] {
+        if let declaredForm { return parseForm(declaredForm) }
+        for form in Form.allCases {
+            let rows = parseForm(form)
+            if !rows.isEmpty { return rows }
+        }
+        return []
+    }
+
+    private func parseForm(_ form: Form) -> [JwCourse] {
         var result: [JwCourse] = []
         guard let doc = doc else { return result }
 
         // ── 变体 1: CCSU 固定格 id 显式编码节次组与星期 ──
         let allIded = ((try? doc.select("[id]")) ?? Elements()).array()
             .filter { Self.matchesEntire(Self.reFixedId, (try? $0.id()) ?? "") }
-        let distinctIds = Set(allIded.compactMap { try? $0.id() })
-        if distinctIds.count == 35 {
+        if form == .ccsu {
             for cell in allIded {
                 if Self.isHidden(cell) { continue }
                 let f = Self.fields(cell)
@@ -78,13 +89,16 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
         }
 
         // ── 变体 2: JLICT 链接标题七字段, 行号即文档化的两节组 ──
-        if let kb = (try? doc.getElementById("kb")) ?? nil,
+        if form == .jlict, let kb = (try? doc.getElementById("kb")) ?? nil,
            let table = (try? kb.select("table").first()) ?? nil {
             let rows = ((try? table.select("tr")) ?? Elements()).array()
                 .filter { Self.nearestTable($0) === table }
             for (index, row) in rows.dropFirst().enumerated() {
                 let cells = row.children().filter { $0.tagNameNormal() == "td" || $0.tagNameNormal() == "th" }
-                if cells.count != 8 || index >= 15 { continue }
+                if cells.contains(where: { cell in
+                    ["rowspan", "colspan"].contains { let value = Jw64.attr(cell, $0); return !value.isEmpty && value != "1" }
+                }) { continue }
+                guard let nodes = explicitSchedulePair(index + 1) else { continue }
                 for day in 1...7 {
                     guard day < cells.count else { continue }
                     for link in ((try? cells[day].select("a[title]")) ?? Elements()).array() {
@@ -94,7 +108,7 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
                             .map { Self.afterColon($0).trimmingCharacters(in: .whitespaces) }
                         if f.count >= 7 {
                             Self.add(&result, name: f[2], teacher: f[3], room: f[6],
-                                     day: day, nodes: (index * 2 + 1, index * 2 + 2), weekText: f[5])
+                                     day: day, nodes: (nodes.lowerBound, nodes.upperBound), weekText: Self.jlictWeeks(f[5]))
                         }
                     }
                 }
@@ -102,7 +116,7 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
         }
 
         // ── 变体 3: #kbtable 周次[节次] 字段序 (含 CCUT 分组格 id) ──
-        if let table = (try? doc.getElementById("kbtable")) ?? nil {
+        if (form == .ccut || form == .base), let table = (try? doc.getElementById("kbtable")) ?? nil {
             let rows = ((try? table.select("tr")) ?? Elements()).array()
                 .filter { Self.nearestTable($0) === table }
             let header = rows.first { row -> Bool in
@@ -123,8 +137,10 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
                 if row === header { continue }
                 let cells = row.children().filter { $0.tagNameNormal() == "td" || $0.tagNameNormal() == "th" }
                 // 无表头时只认文档化的 标签+七日 布局, 其余列数形态一律不猜。
-                if days == nil && cells.count != 8 { continue }
-                if let days = days, cells.count != days.count { continue }
+                if cells.contains(where: { cell in
+                    ["rowspan", "colspan"].contains { let value = Jw64.attr(cell, $0); return !value.isEmpty && value != "1" }
+                }) { continue }
+                if let days, cells.count > days.count { continue }
                 for (column, cell) in cells.enumerated() {
                     let day: Int
                     if let days = days {
@@ -141,15 +157,15 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
                         var recordStart = 0
                         var previousName = ""
                         for i in f.indices {
-                            if let m = Self.matchEntire(Self.reWeekNode, f[i]), i >= 2, i + 1 < f.count {
+                            if form == .base, let m = Self.matchEntire(Self.reWeekNode, f[i]), i >= 2, i + 1 < f.count {
                                 let raw = m[2] ?? ""
                                 let nodes: (Int, Int)?
                                 if raw.count == 4 && raw.allSatisfy({ $0.isNumber }) {
                                     let s = raw.prefix(2)
                                     let e = raw.suffix(2)
-                                    nodes = Self.bounds("\(s)-\(e)", max: 30)
+                                    nodes = Self.bounds("\(s)-\(e)", max: EXPLICIT_SCHEDULE_RESOURCE_BOUND)
                                 } else {
-                                    nodes = Self.bounds(raw, max: 30)
+                                    nodes = Self.bounds(raw, max: EXPLICIT_SCHEDULE_RESOURCE_BOUND)
                                 }
                                 let name = (i - recordStart >= 2) ? f[recordStart] : previousName
                                 if let nodes = nodes {
@@ -158,14 +174,14 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
                                 }
                                 previousName = name
                                 recordStart = i + 2
-                            } else if Self.matchEntire(Self.reWeekNode, f[i]) == nil,
+                            } else if form == .ccut, Self.matchEntire(Self.reWeekNode, f[i]) == nil,
                                       f[i].hasSuffix("周"), i >= 3, i + 1 < f.count {
                                 // CCUT: 分组格 id 显式给节次, 绝不从文本顺序推断。
                                 guard let idGroups = Self.matchEntire(Self.reGroupDayId, blockId) else { continue }
                                 guard Int(idGroups[2] ?? "") == day else { continue }
-                                guard let group = Int(idGroups[1] ?? "") else { continue }
+                                guard let group = jw1064Integer(idGroups[1] ?? ""), let nodes = explicitSchedulePair(group) else { continue }
                                 Self.add(&result, name: f[i - 3], teacher: f[i - 1], room: f[i + 1],
-                                         day: day, nodes: (group * 2 - 1, group * 2), weekText: f[i])
+                                         day: day, nodes: (nodes.lowerBound, nodes.upperBound), weekText: f[i])
                                 recordStart = i + 2
                             }
                         }
@@ -175,6 +191,12 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
         }
 
         return Self.dedup(result)
+    }
+
+    private static func jlictWeeks(_ text: String) -> String {
+        let clean = text.replacingOccurrences(of: "周", with: "").replacingOccurrences(of: " ", with: "")
+        guard let match = Jw64.full(#"([0-9,，~\-]+)(单|双)"#, clean) else { return text }
+        return match[1].components(separatedBy: CharacterSet(charactersIn: ",，")).map { $0 + match[2] }.joined(separator: ",")
     }
 
     // MARK: - JwParserConfidenceReporting
@@ -219,7 +241,7 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
             if bare.hasSuffix("单") || bare.hasSuffix("双") {
                 bare = String(bare.dropLast())
             }
-            guard let b = bounds(bare, max: 64) else { return [] }
+            guard let b = bounds(bare, max: EXPLICIT_SCHEDULE_RESOURCE_BOUND) else { return [] }
             result.append((b.0, b.1, type))
         }
         return result
@@ -227,8 +249,10 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
 
     /// "1-16" / "3" → (start, end); 越界 → nil。
     private static func bounds(_ text: String, max: Int) -> (Int, Int)? {
-        guard let g = Self.matchEntire(reRange, text), let start = Int(g[1] ?? "") else { return nil }
-        let end = Int(g[2] ?? "") ?? start
+        guard let g = Self.matchEntire(reRange, text), let start = jw1064Integer(g[1] ?? "") else { return nil }
+        let end: Int
+        if let raw = g[2], !raw.isEmpty { guard let value = jw1064Integer(raw) else { return nil }; end = value }
+        else { end = start }
         guard (1...max).contains(start), (start...max).contains(end) else { return nil }
         return (start, end)
     }
@@ -239,7 +263,7 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
     private static func blocks(_ cell: Element) -> [Element] {
         let divs = ((try? cell.select("div")) ?? Elements()).array()
         let leaves = divs.filter { div -> Bool in
-            ((try? div.select("div")) ?? Elements()).isEmpty()
+            !((try? div.select("div").array()) ?? []).contains(where: { $0 !== div })
         }
         return leaves.isEmpty ? [cell] : leaves
     }
@@ -282,7 +306,7 @@ final class JwOldQzSuperParser: JwParser, JwParserConfidenceReporting {
     private static func add(_ result: inout [JwCourse], name: String, teacher: String, room: String,
                             day: Int, nodes: (Int, Int), weekText: String) {
         if name.trimmingCharacters(in: .whitespaces).isEmpty { return }
-        guard (1...7).contains(day), (1...30).contains(nodes.0), nodes.1 >= nodes.0, nodes.1 <= 30 else { return }
+        guard (1...7).contains(day), (1...EXPLICIT_SCHEDULE_RESOURCE_BOUND).contains(nodes.0), nodes.1 >= nodes.0, nodes.1 <= EXPLICIT_SCHEDULE_RESOURCE_BOUND else { return }
         let trimmedTeacher = teacher.trimmingCharacters(in: CharacterSet(charactersIn: "()[]"))
         for (start, end, type) in weeks(weekText) {
             result.append(JwCourse(name: name, room: room, teacher: trimmedTeacher,

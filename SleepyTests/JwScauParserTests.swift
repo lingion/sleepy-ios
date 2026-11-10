@@ -80,11 +80,15 @@ final class JwScauParserTests: XCTestCase {
     func testExplicitMalformedElementUiSectionsDoNotInventRowDefaults() throws {
         // ← 原 `explicit malformed Element UI sections do not invent row defaults`
         let base = "<div style='position:relative'><div></div><div></div><div></div>"
-            + "<div>课</div><div></div><div>班</div><div>99-100节(1-8周)</div><div>室</div></div>"
+            + "<div>课</div><div></div><div>班</div><div>366-367节(1-8周)</div><div>室</div></div>"
         let html = "<div class='el-table__body-wrapper'><table class='el-table__body'><tbody>"
             + "<tr><td>1-2节</td><td>\(base)</td>" + String(repeating: "<td></td>", count: 6) + "</tr>"
             + "</tbody></table></div>"
         XCTAssertTrue(try JwScauParser(html).generateCourseList().isEmpty)
+        // Explicit high physical nodes remain valid inside the v1.0.64 resource bound.
+        let valid = try JwScauParser(html.replacingOccurrences(of: "366-367节", with: "99-100节")).generateCourseList()
+        XCTAssertEqual(valid.map(\.startNode), [99])
+        XCTAssertEqual(valid.map(\.endNode), [100])
     }
 
     func testSeventhElementUiRowAcceptsExplicitSection() throws {

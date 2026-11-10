@@ -113,7 +113,7 @@ final class JwQzTimetableParser: JwParser {
             tokens.append(rawNs.substring(from: cursor))
         }
         for t in tokens where !t.isEmpty {
-            guard let v = Int(t) else { return }  // ← Kotlin toIntOrNull ?: return
+            guard let v = jw1064Integer(t) else { return }
             nodes.append(v)
         }
         if nodes.isEmpty || nodes.contains(where: { $0 <= 0 }) { return }
@@ -192,8 +192,12 @@ final class JwQzTimetableParser: JwParser {
                 .replacingOccurrences(of: " ", with: "")
             let ns = normalized as NSString
             guard let m = reWeekRange.firstMatch(in: normalized, options: [], range: NSRange(location: 0, length: ns.length)) else { continue }
-            guard let start = Int(ns.substring(with: m.range(at: 1))) else { continue }
-            let end = m.range(at: 2).location != NSNotFound ? (Int(ns.substring(with: m.range(at: 2))) ?? start) : start
+            guard let start = jw1064Integer(ns.substring(with: m.range(at: 1))) else { continue }
+            let end: Int
+            if m.range(at: 2).location != NSNotFound {
+                guard let value = jw1064Integer(ns.substring(with: m.range(at: 2))) else { continue }
+                end = value
+            } else { end = start }
             guard start > 0, end >= start else { continue }
             // 单/双周起点对齐: 起点奇偶与 type 不符时抬一位
             let first = (type != 0 && start % 2 != type % 2) ? start + 1 : start
