@@ -1,5 +1,7 @@
 # Android 1.0.63 Material UI 对照审计（2026-11-09）
 
+> **2026-11-10更正**：本文149/150/158pt小号切脸及窄small全周结论已由[最小小组件复核](2026-11-10-widget-minimum-size-parity.md)取代。当前systemSmall的周列表/周视图使用三天窗口，周网格使用Today脸；补三天调休与定日课取课修复，完整单测2274项零失败。以下先前批次保留为历史证据。
+
 本记录覆盖主要页面的视觉结构。build30的SE8已确认完整2256项unit零失败及Device occurrence、RangeSlider、Sheet occurrence三项UI通过；build31的iPad3和SE9单次编辑分别通过；build32的iPad4增强导入与rail两项通过，输入及预览截图已由中央确认完整可见。build33全目标test build成功，SE10完整2259项unit零失败，包含五语示例解码新增3项回归。本记录保留各历史失败，不将定向补测合并为全App通过；SE10最终UI、后续复测、截图与GitHub发布状态统一见 `2026-11-09-android-1063-parity.md` 的“最终验收统一区”。
 
 ## 基线与证据

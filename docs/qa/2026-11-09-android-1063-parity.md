@@ -1,5 +1,7 @@
 # Android 1.0.63 对齐核查（2026-11-09）
 
+> **2026-11-10更正**：本文149/150/158pt小号切脸及窄small全周结论已由[最小小组件复核](2026-11-10-widget-minimum-size-parity.md)取代。当前systemSmall的周列表/周视图使用三天窗口，周网格使用Today脸；补三天调休与定日课取课修复，完整单测2274项零失败。以下先前批次保留为历史证据。
+
 ## 精确基准与证据边界
 
 - Android：`v1.0.63` annotated tag `a821c6ace1e3e5dbfd02c7fbd738bf2ca1c8a223`，解引用提交 **`b16aa84d11c250acdf644cd8b7812ab27d03dc6a`**（2026-11-02 00:56:13 +0800）。`git ls-remote upstream refs/tags/v1.0.63 refs/tags/v1.0.63^{}` 与本地一致。
