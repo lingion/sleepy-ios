@@ -36,6 +36,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+
 jobs:
   unsigned-ipa:
     if: github.event_name == 'workflow_dispatch'
