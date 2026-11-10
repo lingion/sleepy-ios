@@ -89,10 +89,10 @@ struct WeekViewWidgetEntryView: View {
         let statusH: CGFloat = (data.semesterStatus != .inRange) ? 16 : 0
 
         return GeometryReader { proxy in
-            // ← renderWeekView L1067: SMALL 变体 + 容器 <150dp 才走 compact 脸
-            // (日列 = compactShownDays 单一口径 — compactWindow 优先三天真实日期窗口,
-            //  空才回退今天邻域 ≤3 列; §9.1); 容器被拖大 ≥150dp → 内部升档回全量排版。
-            let isCompact = family == .systemSmall && proxy.size.width < 150
+            // Map WidgetKit's smallest family to Android's default SMALL face.
+            // Android's 150dp resize upgrade does not define an iOS family;
+            // compactShownDays keeps the three-date window on every device.
+            let isCompact = family == .systemSmall
             let days = isCompact
                 ? WidgetCompactHelpers.compactShownDays(data, AppPrefs.shared.getVisibleDays(), todayDow)
                 : galleryFamily == nil ? shownDays(data)

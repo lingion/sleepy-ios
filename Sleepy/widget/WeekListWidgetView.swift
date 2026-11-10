@@ -167,10 +167,10 @@ struct WeekListWidgetEntryView: View {
         let statusH: CGFloat = (data.semesterStatus != .inRange) ? 16 : 0
 
         return GeometryReader { proxy in
-            // ← renderWeekList L786: SMALL 变体 + 容器 <150dp 才走 compact 脸,
-            // 容器被拖大 ≥150dp → 内部升档回全量排版 (iPad/大屏手机 systemSmall 实测
-            // ≥150pt 时与安卓平板同口径显示全周列)。
-            let isCompact = family == .systemSmall && proxy.size.width < 150
+            // Android's default SMALL is a three-date face; its 150dp upgrade
+            // applies when that receiver is resized. WidgetKit chooses a family
+            // instead: even a 158–200pt systemSmall must keep the small face.
+            let isCompact = family == .systemSmall
             let days = isCompact
                 ? WidgetCompactHelpers.compactShownDays(data, AppPrefs.shared.getVisibleDays(), todayDow)
                 : galleryFamily == nil ? shownDays(data)

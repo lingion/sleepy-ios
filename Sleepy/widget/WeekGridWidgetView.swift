@@ -9,9 +9,10 @@ import SwiftUI
 import WidgetKit
 
 enum WeekGridWidgetLayout {
-    /// Android v1.0.63 upgrades even its SMALL variant to a grid at 150dp.
-    static func usesTodayFace(family: WidgetFamily, width: CGFloat) -> Bool {
-        family == .systemSmall && width < 150
+    /// Android's default SMALL uses Today; larger WidgetKit families use a grid.
+    /// Its 150dp resize upgrade cannot be copied to iOS's fixed family canvases.
+    static func usesTodayFace(family: WidgetFamily, width _: CGFloat) -> Bool {
+        family == .systemSmall
     }
 }
 
@@ -76,7 +77,7 @@ struct WeekGridWidgetEntryView: View {
 
     var body: some View {
         // iOS 26 「透明/着色」样式探测 (← WidgetBackgroundCompat): glass 态配色换白 alpha;
-        // SMALL 且实际宽度 <150pt 才用 Today 脸；宽 small 与中/大档保留完整网格。
+        // systemSmall 始终使用默认小档 Today 脸；中/大档保留完整网格。
         WidgetGlassModeContent { mode in
             GeometryReader { geometry in
                 if WeekGridWidgetLayout.usesTodayFace(family: galleryFamily ?? widgetFamily,
