@@ -179,6 +179,7 @@ extension CourseDropGrid {
 
 /// 背景探针只在课程卡内识别长按；轻点和普通滚动由原视图处理。
 struct NativeCourseDropTarget: UIViewRepresentable {
+    @Environment(\.isEnabled) private var isEnabled
     let drag: CourseDragContext
     let week: Int
     let maxWeek: Int
@@ -202,7 +203,7 @@ struct NativeCourseDropTarget: UIViewRepresentable {
         view.table = table
         view.allCourses = allCourses
         view.transfers = transfers
-        view.enabled = enabled
+        view.enabled = enabled && isEnabled
         view.onChangeWeek = onChangeWeek
         view.onMove = onMove
         view.releaseFinishedScrollLock()

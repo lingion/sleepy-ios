@@ -336,4 +336,65 @@ final class CourseDragUITests: XCTestCase {
         assertOccurrence(originalCard, week: 1, day: 1, startNode: 1, firstWeek: 1, lastWeek: 20)
         assertNoUndoOrRedo()
     }
+
+    func testCreateCourseOverlayLongPressDoesNotMoveCoveredCourse() {
+        let original = originalCard.frame
+        let source = CGPoint(x: original.midX, y: original.midY)
+        let target = CGPoint(x: expectedCenter(day: 2, startNode: 1).x, y: original.midY)
+
+        func attachScreenshot(_ name: String) {
+            XCTContext.runActivity(named: name) { activity in
+                let attachment = XCTAttachment(screenshot: app.screenshot())
+                attachment.name = name
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
+            }
+        }
+
+        attachScreenshot("Schedule before opening Create Course")
+        // The schedule toolbar opens AddCourseScreen directly, preserving the
+        // covered schedule tree and its previously measured course geometry.
+        tap("topbar_add")
+        let editor = app.staticTexts["Create Course"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        var previousEditorFrame = editor.frame
+        var stableSince = Date()
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard editor.exists && editor.isHittable && self.app.buttons["topbar_back"].isHittable else {
+                stableSince = Date()
+                return false
+            }
+            let frame = editor.frame
+            if frame != previousEditorFrame { stableSince = Date() }
+            previousEditorFrame = frame
+            return Date().timeIntervalSince(stableSince) >= 0.3
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
+        attachScreenshot("Create Course before covered-course gesture")
+
+        // Send one real touch at the old course center, then move horizontally
+        // to the old adjacent column. The root recognizer must ignore overlay touches.
+        coordinate(at: source).press(forDuration: 1, thenDragTo: coordinate(at: target),
+            withVelocity: .slow, thenHoldForDuration: 0.75)
+        XCTAssertTrue(editor.exists && editor.isHittable, "The gesture must leave Create Course open")
+        attachScreenshot("Create Course after covered-course gesture")
+        tap("topbar_back")
+        waitForHittable(pager)
+        waitForWeek(1)
+        attachScreenshot("Schedule after closing Create Course")
+
+        assertMathCount(1)
+        assertMathCount(0, movedOnly: true)
+        waitForHittable(originalCard)
+        XCTAssertEqual(originalCard.frame.minX, original.minX, accuracy: 3)
+        XCTAssertEqual(originalCard.frame.minY, original.minY, accuracy: 3)
+        assertOccurrence(originalCard, week: 1, day: 1, startNode: 1, firstWeek: 1, lastWeek: 20)
+        assertNoUndoOrRedo()
+
+        restartWithoutSeed()
+        assertMathCount(1)
+        assertMathCount(0, movedOnly: true)
+        assertOccurrence(originalCard, week: 1, day: 1, startNode: 1, firstWeek: 1, lastWeek: 20)
+        assertNoUndoOrRedo()
+    }
 }
