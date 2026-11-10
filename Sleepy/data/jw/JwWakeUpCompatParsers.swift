@@ -30,87 +30,17 @@ enum WakeUpCompat {
         }
         let jzSuper = parseJzSuper(source)
         if !jzSuper.isEmpty { return jzSuper }
-        let jzHtml = parseJzHtml(source)
+        let jzHtml = parseJzNativeChain(source)
         if !jzHtml.isEmpty { return jzHtml }
         let marked = parseMarkedTable(source, markers: markers)
         if !marked.isEmpty { return marked }
-        return jsonHint ? [] : parseDelimited(source)
+        return []
     }
 
     /// JZHandCourseInfoItem JSON: xqj=day, djj=起始节, qmz="1-8;10-16", dsz==1→单 / dsz!=2→双 / else 每周 (WakeUp 反转语义).
     static func parseJzJson(_ root: Any) -> [JwCourse] {
-        // Kotlin: root as? JSONArray + optJSONObject(i) ?: continue — 混合/null 元素逐行跳过, 不丢整串
-        let rows = jsonRows(root)
-        var out: [JwCourse] = []
-        for row in rows {
-            let nameRaw = optString(row["kcmc"])
-            let day = intField(row["xqj"]) ?? 0
-            let start = intField(row["djj"]) ?? 0
-            if nameRaw.trimmingCharacters(in: .whitespaces).isEmpty || day < 1 || day > 7 || start < 1 { continue }
-            let type: Int
-            switch intField(row["dsz"]) ?? 0 {
-            case 1: type = 1
-            case 2: type = 0
-            default: type = 2
-            }
-            // Kotlin: split(';', '；') — 一次按两个分隔符切
-            for token in optString(row["qmz"]).components(separatedBy: CharacterSet(charactersIn: ";；")) {
-                let nums = extractInts(token)
-                if nums.isEmpty { continue }
-                let first = nums[0]
-                let second = nums.count > 1 ? nums[1] : first
-                out.append(JwCourse(name: nameRaw, room: optString(row["skdd"]), teacher: optString(row["jsxm"]),
-                    day: day, startNode: start, endNode: start,
-                    startWeek: first, endWeek: second, type: type))
-            }
-        }
-        return out
-    }
-
-    /// JZ HTML fallback: table#CourseFormTable; 节次行 td 按 <hr> 分块, 每块 <br> 分字段: [0]课名, [1]周次, [2]教师, "第a-b节", 末位地点.
-    static func parseJzHtml(_ source: String) -> [JwCourse] {
-        let doc = (try? SwiftSoup.parse(source)) ?? Document("")
-        guard let els = try? doc.select("#CourseFormTable"), let table = els.first() else { return [] }
-        var out: [JwCourse] = []
-        for row in (try? table.select("tr")) ?? Elements() {
-            let tds = (try? row.select("td")) ?? Elements()
-            if tds.array().contains(where: { (try? $0.text().contains("星期")) ?? false }) { continue }
-            for (col, td) in tds.array().enumerated() {
-                if (try? td.attr("style").contains("center")) ?? false { continue }
-                let day = col + 1
-                let html = (try? td.html()) ?? ""
-                // SwiftSoup 把 <hr>/<br> 序列化为自闭合 "<hr />"/"<br />"(Jsoup 输出字面 "<hr>"/"<br>"),
-                // 字面量分隔符永远切不开 → 整格塌成一行。正则分隔才是 原版本 行为的等价翻译。
-                for chunk in splitByRegex(html, #"<hr\s*/?>"#) {
-                    let lines = splitByRegex(chunk, #"<br\s*/?>"#).map { s -> String in
-                        let d = (try? SwiftSoup.parse(s)) ?? Document("")
-                        return (try? d.text())?.trimmingCharacters(in: .whitespaces) ?? s
-                    }.filter { !$0.isEmpty }
-                    if lines.count < 2 { continue }
-                    let rawFirst = lines[0]
-                    let firstName = rawFirst.components(separatedBy: "(").first ?? rawFirst
-                    let firstLine = firstName.trimmingCharacters(in: .whitespaces)
-                    if firstLine.isEmpty { continue }
-                    let name = firstLine
-                    let weeksText = lines.first { line -> Bool in
-                        line.first?.isNumber == true
-                    } ?? ""
-                    if weeksText.isEmpty { continue }
-                    let nodeField = lines.first { l in l != weeksText && l.range(of: #"第\s*\d+"#, options: .regularExpression) != nil }
-                    let nums = nodeField.flatMap { extractInts($0) }
-                    let start = nums?.first ?? 1
-                    let end = (nums?.count ?? 0) > 1 ? (nums?[1] ?? start) : start
-                    let room = lines.last { $0 != name && $0 != weeksText && $0 != nodeField } ?? ""
-                    let teacher = lines.first { $0 != name && $0 != weeksText && $0 != nodeField && $0 != room } ?? ""
-                    for (from, to, type) in parseWeekTokens(weeksText) {
-                        out.append(JwCourse(name: name, room: room, teacher: teacher,
-                            day: day, startNode: start, endNode: end,
-                            startWeek: from, endWeek: to, type: type))
-                    }
-                }
-            }
-        }
-        return out
+        guard root is [Any], let data = try? JSONSerialization.data(withJSONObject: root), let json = String(data: data, encoding: .utf8) else { return [] }
+        return (try? JwXbellsoftParser(json).generateCourseList()) ?? []
     }
 
     /// KingoInfo JSON: 顶层数组, 行 week1..week7 → day=列号, 值=[{jcxx:"a-b", kcmc, skdd, rkjs, xf}], week=row 索引.
@@ -147,9 +77,10 @@ enum WakeUpCompat {
 extension WakeUpCompat {
 
     static func parseChaoxing(_ source: String) -> [JwCourse] {
-        guard let root = parseJson(source) as? [String: Any] else { return [] }
+        guard let parsed = parseJson(source) else { return [] }
+        let root = parsed as? [String: Any] ?? [:]
         // Kotlin: root.optJSONObject("data")?.optJSONArray("kckbData") ?: root.optJSONArray("kckbData")
-        let rowsNode = optArray((root["data"] as? [String: Any])?["kckbData"]) ?? optArray(root["kckbData"])
+        let rowsNode = (parsed as? [Any]) ?? optArray((root["data"] as? [String: Any])?["kckbData"]) ?? optArray(root["kckbData"])
         guard let rowsNode else { return [] }
         // Kotlin 逐行 optJSONObject(i) ?: continue
         let rows = rowsNode.compactMap { $0 as? [String: Any] }
@@ -166,7 +97,7 @@ extension WakeUpCompat {
             let room = stripMarkup(optString(row["croommc"]))
             let teacher = stripMarkup(optString(row["tmc"]))
             for token in zcRaw.components(separatedBy: ",") {
-                let nums = extractInts(token)
+                let nums = extractInts(token.components(separatedBy: CharacterSet(charactersIn: "(（")).first ?? "")
                 if nums.isEmpty { continue }
                 let first = nums[0]
                 let second = nums.count > 1 ? nums[1] : first
@@ -179,37 +110,23 @@ extension WakeUpCompat {
     }
 
     static func parseCumtb(_ source: String) -> [JwCourse] {
-        guard let root = parseJson(source) as? [String: Any],
-              let payload = root["result"] as? [String: Any] else { return [] }
+        guard let root = Jw64.json(source) as? [String: Any], let payload = root["result"] as? [String: Any], let schedules = payload["scheduleList"] as? [Any] else { return [] }
         var names: [Int: String] = [:]
-        // Kotlin: payload.optJSONArray("lessonList") ?: JSONArray() + 逐行 optJSONObject(i)?.let
-        for l in jsonRows(payload["lessonList"]) {
-            let id = intField(l["id"]) ?? -1
-            names[id] = optString(l["courseName"])
+        for case let lesson as [String: Any] in (payload["lessonList"] as? [Any] ?? []) { if let id = jw1064Integer(lesson["id"]) { names[id] = Jw64.text(lesson, "courseName") } }
+        return schedules.compactMap { raw in
+            guard let row = raw as? [String: Any], let id = jw1064Integer(row["lessonId"]), let day = jw1064Integer(row["weekday"]), (1...7).contains(day),
+                  let week = jw1064Integer(row["weekIndex"]), week > 0, let start = jw1064Integer(row["startTime"]), let end = jw1064Integer(row["endTime"]) else { return nil }
+            let clockStart = String(format: "%02d:%02d", start / 100, start % 100), clockEnd = String(format: "%02d:%02d", end / 100, end % 100)
+            guard JwCourse.isValidTimeRange(clockStart, clockEnd) else { return nil }
+            let node = timeToNode(start); guard node > 0 else { return nil }
+            let name = names[id].flatMap { $0.isEmpty ? nil : $0 } ?? "未知"
+            return JwCourse(name: name, room: (row["room"] as? [String: Any]).map { Jw64.text($0, "nameZh") } ?? "", teacher: Jw64.text(row, "personName"),
+                day: day, startNode: node, endNode: node + durationToNodes(start, end) - 1, startWeek: week, endWeek: week, startTime: clockStart, endTime: clockEnd)
         }
-        // Kotlin: optJSONArray("scheduleList") ?: return emptyList() — 缺失返回空, 混合/null 元素逐行跳过
-        guard let schedulesNode = optArray(payload["scheduleList"]) else { return [] }
-        var out: [JwCourse] = []
-        for row in schedulesNode.compactMap({ $0 as? [String: Any] }) {
-            let lessonId = intField(row["lessonId"]) ?? -1
-            let name = (names[lessonId] ?? "").isEmpty ? "未知" : (names[lessonId] ?? "")
-            let day = intField(row["weekday"]) ?? 0
-            let week = intField(row["weekIndex"]) ?? 0
-            let startTime = intField(row["startTime"]) ?? 0
-            let start = timeToNode(startTime)
-            if day < 1 || day > 7 || week < 1 || start < 1 { continue }
-            let endTime = intField(row["endTime"]) ?? 0
-            let count = durationToNodes(startTime, endTime)
-            let room = optString((row["room"] as? [String: Any])?["nameZh"])
-            let teacher = optString(row["personName"])
-            out.append(JwCourse(name: name, room: room, teacher: teacher,
-                day: day, startNode: start, endNode: start + count - 1,
-                startWeek: week, endWeek: week))
-        }
-        return out
     }
 
-    static func parseSouthSoft(_ source: String) -> [JwCourse] {
+
+    static func parseSouthSoftLegacy(_ source: String) -> [JwCourse] {
         guard let parsed = parseJson(source) else { return [] }
         // Kotlin: root is JSONArray -> root; root is JSONObject ->
         //   root.optJSONArray("value") ?: root.optJSONArray("data") ?: return emptyList()
@@ -269,93 +186,8 @@ extension WakeUpCompat {
     /// Kingo TaskActivity JS grid: "activity = new TaskActivity(name,teacher,room,weeksBinary)";
     /// index=a*unitCount+b → day=a+1, node=b+1; '1'@p → week p+1, 连续段合并成组,
     /// 全奇→单周/全偶→双周.
-    static func parseKingoTaskActivity(_ source: String) -> [JwCourse] {
-        if !source.contains("TaskActivity") { return [] }
-        guard let blockRange = source.range(of: #"var[\s]*activity[\s]*=[\s]*null;[\w\W]*(?=table0\.marshalTable)"#, options: .regularExpression) else {
-            return []
-        }
-        let block = String(source[blockRange])
-        var pending: [(name: String, room: String, teacher: String, weeks: [Int])] = []
-        let stmtRe = try! NSRegularExpression(pattern: #"courseName[\s]*\+?=[\s]*[\"']([^\"']*)[\"']"#, options: [])
-        // Kotlin line 169: Regex("[\"']name[\"']\\s*:\\s*[\"']([^\"']*)[\"']") — 键必须锚定为引号包裹的 name,
-        // 不锚定会误吞 {'teacher':'张三','course':'高数'} 等任意键值对
-        let nameInLineRe = try! NSRegularExpression(pattern: #"["']name["']\s*:\s*["']([^"']*)["']"#, options: [])
-        let taskActRe = try! NSRegularExpression(pattern: #"new[\s]*TaskActivity[\s]*\("#, options: [])
-        let strArgRe = try! NSRegularExpression(pattern: #"['\"]([^'\"]*)['\"]"#, options: [])
-        let indexRe = try! NSRegularExpression(pattern: #"index[\s]*=[\s]*(\d+)[\s]*\*[\s]*unitCount[\s]*\+[\s]*(\d+)"#, options: [])
+    static func parseKingoTaskActivity(_ source: String) -> [JwCourse] { (try? JwClassicEamsParser(source).generateCourseList()) ?? [] }
 
-        var out: [JwCourse] = []
-        var name = ""
-        var teacher = ""
-        for stmt in block.components(separatedBy: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) {
-            let ns = stmt as NSString
-            let r = NSRange(stmt.startIndex..., in: stmt)
-            if let m = stmtRe.firstMatch(in: stmt, options: [], range: r) {
-                name += ns.substring(with: m.range(at: 1))
-            }
-            let matches = nameInLineRe.matches(in: stmt, options: [], range: r)
-            if !matches.isEmpty {
-                teacher = matches.map { ns.substring(with: $0.range(at: 1)) }.joined(separator: ",")
-            }
-            if taskActRe.firstMatch(in: stmt, options: [], range: r) != nil {
-                let args = strArgRe.matches(in: stmt, options: [], range: r)
-                if args.count >= 4 {
-                    let rawName = ns.substring(with: args[0].range(at: 1))
-                    let tName = (rawName.components(separatedBy: "(").first ?? rawName)
-                        .trimmingCharacters(in: .whitespaces)
-                    let nameFinal = tName.isEmpty ? name : tName
-                    if args.count > 1 {
-                        let teacherArg = ns.substring(with: args[1].range(at: 1)).trimmingCharacters(in: .whitespaces)
-                        if !teacherArg.isEmpty { teacher = teacherArg }
-                    }
-                    let room = ns.substring(with: args[2].range(at: 1))
-                    let weeksBinary = ns.substring(with: args[3].range(at: 1))
-                    var weeks: [Int] = []
-                    for (pos, ch) in weeksBinary.enumerated() where ch == "1" {
-                        weeks.append(pos + 1)
-                    }
-                    if !nameFinal.isEmpty && !weeks.isEmpty {
-                        pending.append((nameFinal, room, teacher, weeks))
-                    }
-                }
-            }
-            if let m = indexRe.firstMatch(in: stmt, options: [], range: r) {
-                // 跨仓 4 源一致: WakeUp o0000OO0.java i10=parseInt(g1)+1 / CourseHelper Swift dayOfWeek=match[1]
-                // / shiguang HUNNU+UESTC day=D+1 — index 首因子是 0-based day, +1 才是星期几
-                let a = Int(ns.substring(with: m.range(at: 1))) ?? 0
-                let bRaw = Int(ns.substring(with: m.range(at: 2))) ?? 0
-                let day = a + 1
-                let b: Int
-                if bRaw == 13 { b = 10 }
-                else if bRaw < 9 { b = bRaw + 1 }
-                else { b = bRaw + 2 }
-                if let last = pending.popLast() {
-                    var i = 0
-                    while i < last.weeks.count {
-                        var j = i
-                        while j + 1 < last.weeks.count {
-                            let cur = last.weeks[j]
-                            let nxt = last.weeks[j + 1]
-                            if nxt == cur + 1 || (nxt == cur + 2 && cur % 2 == 1 && nxt % 2 == 1) {
-                                j += 1
-                            } else { break }
-                        }
-                        let runStart = last.weeks[i]
-                        let runEnd = last.weeks[j]
-                        let type: Int
-                        if runStart % 2 == 1 && runEnd % 2 == 1 { type = 1 }
-                        else if runStart % 2 == 0 && runEnd % 2 == 0 { type = 2 }
-                        else { type = 0 }
-                        out.append(JwCourse(name: last.name, room: last.room, teacher: last.teacher,
-                            day: day, startNode: b, endNode: b,
-                            startWeek: runStart, endWeek: runEnd, type: type))
-                        i = j + 1
-                    }
-                }
-            }
-        }
-        return out
-    }
 }
 
 // MARK: - parseXju / extractXjuCourses / parseXjuWeeksWithBrackets
@@ -434,9 +266,13 @@ extension WakeUpCompat {
             var col = 0
             let tds = (try? row.select("td")) ?? Elements()
             for td in tds.array() {
-                let cs = Int((try? td.attr("colspan")) ?? "") ?? 1
-                let rs = Int((try? td.attr("rowspan")) ?? "") ?? 1
+                guard let cs = td.hasAttr("colspan") ? Int((try? td.attr("colspan")) ?? "") : 1,
+                      let rs = td.hasAttr("rowspan") ? Int((try? td.attr("rowspan")) ?? "") : 1,
+                      (1...ths.size()).contains(cs), (1...(dataRows.count - rowIdx)).contains(rs) else { return [] }
                 while occupiedNow.contains(col) { col += 1 }
+                if col + cs > ths.size() {
+                    if wakeText(td).isEmpty && cs == 1 && rs == 1 { continue }; return []
+                }
                 let align = (try? td.attr("align")) ?? ""
                 let isCenter = align.lowercased() == "center"
                 let rawText = (try? td.text()) ?? ""
@@ -471,6 +307,7 @@ extension WakeUpCompat {
             guard (1...20).contains(node) else { continue }
             if col < firstDayCol { continue }
             let dayColIdx = col - firstDayCol
+            guard (0...6).contains(dayColIdx) else { continue }
             let day = ((dayOfFirstCol - 1 + dayColIdx) % 7) + 1
             grid["\(day),\(node)"] = raw
         }
@@ -534,10 +371,10 @@ extension WakeUpCompat {
                     let name = namePrefix
                     for m in matches {
                         let inner = blockNs.substring(with: m.range(at: 1))
-                        for (from, to, teacher, room) in parseXjuWeeksWithBrackets(inner) {
+                        for (from, to, teacher, room, parity) in parseXjuWeeksWithBrackets(inner) {
                             out.append(JwCourse(name: name, room: room, teacher: teacher,
                                 day: day, startNode: startNode, endNode: endNode,
-                                startWeek: from, endWeek: to))
+                                startWeek: from, endWeek: to, type: parity))
                         }
                     }
                     continue
@@ -556,15 +393,6 @@ extension WakeUpCompat {
                             day: day, startNode: startNode, endNode: endNode,
                             startWeek: from, endWeek: to, type: type))
                     }
-                }
-            } else if !block.trimmingCharacters(in: .whitespaces).isEmpty {
-                let name = block.components(separatedBy: "(").first?.components(separatedBy: "｛").first?.trimmingCharacters(in: .whitespaces) ?? block
-                let nums = extractInts(block)
-                if !name.isEmpty {
-                    let first = nums.first ?? 1
-                    let second = nums.count > 1 ? nums[1] : 20
-                    out.append(JwCourse(name: name, day: day, startNode: startNode, endNode: endNode,
-                        startWeek: first, endWeek: second))
                 }
             }
         }
@@ -597,31 +425,22 @@ extension WakeUpCompat {
     }
 
     /// 形态 B 块内解析: "12-19周[教师:孙冬璞,地点:待定]"
-    fileprivate static func parseXjuWeeksWithBrackets(_ inner: String) -> [(Int, Int, String, String)] {
-        let bracket = innerBracket(inner) ?? ""
-        let teacher = bracketTeacher(bracket)
-        let room = bracketRoom(bracket)
-        let beforeBracket: String
-        if let r = inner.range(of: "[") {
-            beforeBracket = String(inner[..<r.lowerBound])
-        } else { beforeBracket = inner }
-        var out: [(Int, Int, String, String)] = []
-        for token in beforeBracket.components(separatedBy: CharacterSet(charactersIn: "、，,")) {
-            for (from, to, _) in parseWeekTokens(token) {
-                out.append((from, to, teacher, room))
+    fileprivate static func parseXjuWeeksWithBrackets(_ inner: String) -> [(Int, Int, String, String, Int)] {
+        guard let re = try? NSRegularExpression(pattern: #"([^\[\]]+)\[([^\[\]]*)\]"#) else { return [] }
+        let ns = inner as NSString, matches = re.matches(in: inner, range: NSRange(location: 0, length: ns.length))
+        guard let last = matches.last, Jw64.trim(ns.substring(from: NSMaxRange(last.range))).isEmpty else { return [] }
+        var out: [(Int, Int, String, String, Int)] = []
+        for match in matches {
+            let weeks = Jw64.trim(Jw64.trim(ns.substring(with: match.range(at: 1))).trimmingCharacters(in: CharacterSet(charactersIn: "、，,")))
+            let bracket = ns.substring(with: match.range(at: 2))
+            for (from, to, parity) in schoolWeekRanges(weeks, trailingParityAppliesToAll: true) {
+                out.append((from, to, bracketTeacher(bracket), bracketRoom(bracket), parity))
             }
         }
         return out
     }
-}
 
-// MARK: - parseSuda / parseShuwei / 工具函数 / confidence / features
-
-extension WakeUpCompat {
-
-    /// Suda DataGrid1/MainWork_DataGrid1: th 行含 星期X 跳过; 数据行 align=center td=node 行标, 其余 td 索引+1=day;
-    /// 单元格 "课程:"-名, "(x)"-教师(非辅讲), "主讲教师:"-教师, "第a-b周[单/双]"(以;/,分).
-    static func parseSuda(_ source: String) -> [JwCourse] {
+    static func parseSudaLegacy(_ source: String) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
         // Kotlin: selectFirst("#DataGrid1") ?: selectFirst("#MainWork_DataGrid1")
         // — 原版本 单测(171/195)喂 <table id="MainWork_DataGrid1">, 缺回退这些页面 iOS 返回 []
@@ -749,7 +568,7 @@ extension WakeUpCompat {
         }
     }
 
-    static func parseShuwei(_ source: String) -> [JwCourse] {
+    static func parseShuweiLegacy(_ source: String) -> [JwCourse] {
         guard let root = parseJson(source) else { return [] }
         var result: [JwCourse] = []
         func visit(_ value: Any?) {
@@ -780,22 +599,24 @@ extension WakeUpCompat {
     }
 
     fileprivate static func parseActivity(_ row: [String: Any]) -> [JwCourse]? {
-        let name = first(row, "courseName", "course", "name", "kcmc")
-        guard let day = firstInt(row, "weekday", "weekDay", "dayOfWeek", "classDay", "xqj", "day"),
-              (1...7).contains(day) else { return nil }
-        guard let start = firstInt(row, "startSection", "beginSection", "beginNumber", "startNode", "ksjc", "start"),
-              start >= 1 else { return nil }
+        let name = first(row, "courseName", "course", "name", "kcmc", "KCM")
+        guard !isBlank(name), let day = firstInt(row, "weekday", "weekDay", "dayOfWeek", "classDay", "xqj", "day", "xq"), (1...7).contains(day),
+              let start = firstInt(row, "startSection", "beginSection", "beginNumber", "startNode", "ksjc", "start"), start > 0 else { return nil }
         let end = firstInt(row, "endSection", "endNumber", "endNode", "jsjc", "end") ?? start
-        let weeks = parseWeekTokens(first(row, "weeksStr", "weekDescription", "week", "weeks", "zc"))
-        guard !weeks.isEmpty, !name.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-        let room = first(row, "room", "classroom", "classroomName", "location", "JASMC", "cdmc")
-        let teacher = first(row, "teacher", "teacherName", "teachers", "attendClassTeacher", "SKJS", "xm")
-        return weeks.map { (from, to, type) in
-            JwCourse(name: name, room: room, teacher: teacher,
-                day: day, startNode: start, endNode: end,
-                startWeek: from, endWeek: to, type: type)
-        }
+        guard end >= start else { return nil }
+        let weeks: [(Int, Int, Int)]
+        if row.keys.contains("startWeek") && row.keys.contains("endWeek") {
+            guard let from = firstInt(row, "startWeek"), let to = firstInt(row, "endWeek") else { return nil }
+            let parity = row.keys.contains("type") ? firstInt(row, "type") : 0
+            guard let parity, (0...3).contains(parity) else { return nil }
+            weeks = [(from, to, parity)]
+        } else { weeks = parseWeekTokens(first(row, "weeksStr", "weekDescription", "week", "weeks", "zc")) }
+        guard !weeks.isEmpty, weeks.allSatisfy({ $0.0 > 0 && $0.1 >= $0.0 }) else { return nil }
+        return weeks.map { JwCourse(name: name, room: first(row, "room", "classroom", "classroomName", "location", "JASMC", "cdmc"),
+            teacher: first(row, "teacher", "teacherName", "teachers", "attendClassTeacher", "SKJS", "xm"), day: day,
+            startNode: start, endNode: end, startWeek: $0.0, endWeek: $0.1, type: $0.2) }
     }
+
 
     fileprivate static func parseWeekTokens(_ value: String) -> [(Int, Int, Int)] {
         if value.trimmingCharacters(in: .whitespaces).isEmpty { return [] }
@@ -828,65 +649,35 @@ extension WakeUpCompat {
 
     fileprivate static func parseJsonCourses(_ root: Any) -> [JwCourse] {
         var result: [JwCourse] = []
-        func walk(_ value: Any?, _ depth: Int) {
+        func walk(_ value: Any, _ depth: Int) {
             guard depth <= 5 else { return }
-            if let arr = value as? [Any] {
-                // Kotlin: for (i in 0 until value.length()) value.opt(i)?.let { item -> if (item is JSONObject) {...}; walk(item, ...) }
-                // — 逐元素访问, null/原始值元素只是跳过该条, 不中断整个数组。
-                for item in arr {
-                    if let obj = item as? [String: Any] {
-                        let name = first(obj, "courseName", "kcmc", "KCM", "name", "course")
-                        if !name.isEmpty,
-                           let day = firstInt(obj, "weekday", "dayOfWeek", "xqj", "day", "classDay", "xq"),
-                           let node = firstInt(obj, "beginNumber", "beginSection", "startNode", "ksjc", "start") {
-                            let endNode = firstInt(obj, "endNumber", "endSection", "endNode", "jsjc", "end") ?? node
-                            let room = first(obj, "location", "room", "classroomName", "JASMC", "cdmc")
-                            let teacher = first(obj, "teacherName", "teacher", "teachers", "SKJS", "xm")
-                            result.append(JwCourse(name: name, room: room, teacher: teacher,
-                                day: max(1, min(day, 7)), startNode: node, endNode: endNode,
-                                startWeek: 1, endWeek: 16))
-                        }
-                    }
-                    walk(item, depth + 1)
-                }
-            } else if let obj = value as? [String: Any] {
-                for key in obj.keys { walk(obj[key], depth + 1) }
-            }
+            if let array = value as? [Any] {
+                for item in array { if let row = item as? [String: Any], let rows = parseActivity(row) { result += rows }; walk(item, depth + 1) }
+            } else if let object = value as? [String: Any] { for value in object.values { walk(value, depth + 1) } }
         }
-        walk(root, 0)
-        return result
+        walk(root, 0); return result
     }
 
+
     fileprivate static func parseMarkedTable(_ source: String, markers: Set<String>) -> [JwCourse] {
-        let doc = (try? SwiftSoup.parse(source)) ?? Document("")
         var out: [JwCourse] = []
-        for row in (try? doc.select("tr")) ?? Elements() {
-            let cells = (try? row.select("td,th")) ?? Elements()
-            if cells.size() < 3 { continue }
-            let texts = cells.array().map { (try? $0.text())?.trimmingCharacters(in: .whitespaces) ?? "" }
-            let text = texts.joined(separator: " | ")
-            if !markers.isEmpty && !markers.contains(where: { source.range(of: $0, options: .caseInsensitive) != nil })
-                && isBlank((try? row.attr("data-day")) ?? "") { continue }
-            let nameAttr = (try? row.attr("data-course")) ?? ""
-            // Kotlin: attr(...).ifBlank { ... } — SwiftSoup attr 缺失时返回 ""(永不 nil), `??` 回退永不触发,
-            // 必须按 blank 判断回退单元格文本
-            let name = isBlank(nameAttr) ? (texts.first ?? "") : nameAttr
-            // Kotlin: row.attr("data-day").toIntOrNull() ?: extractDay(text) ?: continue —
-            // 无 >0 范围校验, data-day=0/-1 照常出行(异形标记表与 原版本 行集一致)
-            guard let dayAttr = Int((try? row.attr("data-day")) ?? "") ?? extractDay(text) else { continue }
-            guard let nodeAttr = Int((try? row.attr("data-node")) ?? "") ?? extractNode(text) else { continue }
-            let rawRoomAttr = (try? row.attr("data-room")) ?? ""
-            let roomAttr = isBlank(rawRoomAttr) ? (cells.size() > 3 ? texts[3] : "") : rawRoomAttr
-            let rawTeacherAttr = (try? row.attr("data-teacher")) ?? ""
-            let teacherAttr = isBlank(rawTeacherAttr) ? (cells.size() > 2 ? texts[2] : "") : rawTeacherAttr
-            if !isBlank(name) {
-                out.append(JwCourse(name: name, room: roomAttr, teacher: teacherAttr,
-                    day: dayAttr, startNode: nodeAttr, endNode: nodeAttr,
-                    startWeek: 1, endWeek: 16))
+        for row in Jw64.select(Jw64.doc(source), "tr") {
+            let cells = Jw64.select(row, "td,th"); guard cells.count >= 3 else { continue }
+            let text = cells.map(Jw64.text).joined(separator: " | ")
+            if !markers.isEmpty && !markers.contains(where: { source.range(of: $0, options: .caseInsensitive) != nil }) && Jw64.attr(row, "data-day").isEmpty { continue }
+            let name = Jw64.attr(row, "data-course").isEmpty ? Jw64.text(cells[0]) : Jw64.attr(row, "data-course")
+            guard !name.isEmpty, let day = Int(Jw64.attr(row, "data-day")) ?? extractDay(text), (1...7).contains(day),
+                  let node = Int(Jw64.attr(row, "data-node")) ?? extractNode(text), node > 0 else { continue }
+            let end = Int(Jw64.attr(row, "data-end-node")) ?? node; guard end >= node else { continue }
+            let room = Jw64.attr(row, "data-room").isEmpty ? (cells.count > 3 ? Jw64.text(cells[3]) : "") : Jw64.attr(row, "data-room")
+            let teacher = Jw64.attr(row, "data-teacher").isEmpty ? Jw64.text(cells[2]) : Jw64.attr(row, "data-teacher")
+            for (from, to, parity) in parseWeekTokens(Jw64.attr(row, "data-weeks")) where from > 0 && to >= from {
+                out.append(JwCourse(name: name, room: room, teacher: teacher, day: day, startNode: node, endNode: end, startWeek: from, endWeek: to, type: parity))
             }
         }
         return out
     }
+
 
     fileprivate static func parseDelimited(_ source: String) -> [JwCourse] {
         source.components(separatedBy: .newlines).compactMap { line -> JwCourse? in
@@ -909,15 +700,11 @@ extension WakeUpCompat {
         }
         return ""
     }
-    fileprivate static func firstInt(_ o: [String: Any], _ keys: String...) -> Int? {
-        for k in keys {
-            if let v = o[k] {
-                if let n = v as? Int { return n }
-                if let s = v as? String, let n = Int(s.filter(\.isNumber)) { return n }
-            }
-        }
+    fileprivate static func firstInt(_ object: [String: Any], _ keys: String...) -> Int? {
+        for key in keys { if let value = jw1064Integer(optString(object[key]).trimmingCharacters(in: .whitespacesAndNewlines)) { return value } }
         return nil
     }
+
     fileprivate static func stripMarkup(_ value: String) -> String {
         let doc = (try? SwiftSoup.parse(value)) ?? Document("")
         return (try? doc.text())?.trimmingCharacters(in: .whitespaces) ?? value
@@ -940,7 +727,7 @@ extension WakeUpCompat {
         }
     }
     fileprivate static func extractNode(_ text: String) -> Int? {
-        let re = try! NSRegularExpression(pattern: "(?:第\\s*)?(\\d{1,2})\\s*(?:[-~至](\\d{1,2}))?\\s*节", options: [])
+        let re = try! NSRegularExpression(pattern: "(?:第\\s*)?(\\d+)\\s*(?:[-~至](\\d+))?\\s*节", options: [])
         let r = NSRange(text.startIndex..., in: text)
         guard let m = re.firstMatch(in: text, options: [], range: r) else { return nil }
         let ns = text as NSString
@@ -954,7 +741,7 @@ extension WakeUpCompat {
     fileprivate static func durationToNodes(_ start: Int, _ end: Int) -> Int {
         let delta = end - start
         if (50...99).contains(delta) { return 1 }
-        if (100...200).contains(delta) { return 2 }
+        if delta <= 200 { return 2 }
         if (210...340).contains(delta) { return 3 }
         return 4
     }
@@ -1156,7 +943,7 @@ extension WakeUpCompat {
                         let head = wakeTrim(before(before(weeksText, "("), "（"))
                         guard let m = matchEntire(reRowSection, head), let f = Int(m[1]) else { continue }
                         let l = m[2].isEmpty ? f : (Int(m[2]) ?? f)
-                        if !(1...30).contains(f) || !(f...30).contains(l) { continue }
+                        if !(1...366).contains(f) || !(f...30).contains(l) { continue }
                         startNode = f
                         endNode = l
                     } else {
@@ -1196,7 +983,7 @@ extension WakeUpCompat {
 
     /// ← Kotlin parseKingoSuperHtml (JwWakeUpCompatParsers.kt:263)。
     /// chain1 #mytable 正选网格(compact/xkinfo); chain2 thead 课程+节次 表; chain3 #kbDiv 7 列网格。
-    static func parseKingoSuperHtml(_ source: String, errors: inout [String]) -> [JwCourse] {
+    static func parseKingoSuperHtmlLegacy(_ source: String, errors: inout [String]) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
 
         func nodes(_ text: String) -> (Int, Int)? {
@@ -1368,7 +1155,7 @@ extension WakeUpCompat {
         return []
     }
 
-    static func parseKingoSuperHtml(_ source: String) -> [JwCourse] {
+    static func parseKingoSuperHtmlLegacy(_ source: String) -> [JwCourse] {
         var errors: [String] = []
         return parseKingoSuperHtml(source, errors: &errors)
     }
@@ -1396,7 +1183,6 @@ final class JwKingoParser: WakeUpMarkerParserBase {
     }
     override var confidenceValue: Int {
         // td.td 正选老 ZX 网格 (首个 td 可能是节次水槽) → 让位 KINGO_ZX
-        if WakeUpCompat.hasKingoTdGrid(source) { return 0 }
         if source.contains("id=\"kbDiv\"") || source.contains("id='kbDiv'") { return 95 }
         if source.contains("<thead") && source.contains("课程") && source.contains("节次")
             && WakeUpCompat.containsMatch(#"(?:星期|周)[一二三四五六日天1-7]"#, source) { return 93 }
@@ -1405,10 +1191,6 @@ final class JwKingoParser: WakeUpMarkerParserBase {
     }
     override func generateCourseList() throws -> [JwCourse] {
         // 声明 KINGO_NEW 的学校仍可能回供老正选网格 → 委托 ZX 保留节次水槽/稀疏周次语义
-        if WakeUpCompat.hasKingoTdGrid(source),
-           let legacy = try? JwKingoZxParser(source).generateCourseList(), !legacy.isEmpty {
-            return legacy
-        }
         // Kingo Super 2026-10 三阶段降级: HTML 3 链 → TaskActivity JS grid → 父类 markers
         var errors: [String] = []
         let superHtml = WakeUpCompat.parseKingoSuperHtml(source, errors: &errors)
@@ -1426,6 +1208,14 @@ final class JwKingoParser: WakeUpMarkerParserBase {
 
 final class JwJzParser: WakeUpMarkerParserBase {
     init(_ source: String) { super.init(source, ["courseTableForStd", "courseTableStudent", "wisedu", "JinZhi"]) }
+    private var nativeFeatures: [String] {
+        let doc = Jw64.doc(source.replacingOccurrences(of: "divclass=", with: "div class="))
+        var features = ["table[id=1]", "table#CourseFormTable", "table.CourseFormTable", ".wut_table .mtt_arrange_item", ".wut_tablex td[data-role][data-week]", ".x-table", "table[id^=jsTbl_] td[xq][jc]", "td[data-role=item] .mtt_arrange_item"].filter { Jw64.first(doc, $0) != nil }.map { "jz=" + $0 }
+        if !Jw64.matches(#"\bvar\s+scheduleList\s*="#, source).isEmpty, !Jw64.matches(#"\bvar\s+notArrangedList\s*="#, source).isEmpty { features.append("jz=scheduleList") }
+        return features
+    }
+    override var confidenceValue: Int { nativeFeatures.isEmpty ? super.confidenceValue : 95 }
+    override var matchedFeatureList: [String] { nativeFeatures + super.matchedFeatureList }
 }
 
 final class JwJzSuperParser: WakeUpMarkerParserBase {
@@ -1483,6 +1273,7 @@ final class JwXjuParser: WakeUpMarkerParserBase {
     init(_ source: String) { super.init(source, ["xjtu", "xju", "courseTable", "课程表"]) }
     override func generateCourseList() throws -> [JwCourse] {
         let primary = WakeUpCompat.parseXju(source)
+        if source.contains("contentParent_dgData") { return primary }
         return primary.isEmpty ? try super.generateCourseList() : primary
     }
 }
@@ -1490,8 +1281,7 @@ final class JwXjuParser: WakeUpMarkerParserBase {
 final class JwUmoocParser: WakeUpMarkerParserBase {
     init(_ source: String) { super.init(source, ["timetable", "infolist_hr_common", "academic/common/security"]) }
     override func generateCourseList() throws -> [JwCourse] {
-        let primary = WakeUpCompat.parseUmooc(source)
-        return primary.isEmpty ? try super.generateCourseList() : primary
+        return WakeUpCompat.parseUmooc(source)
     }
 }
 
@@ -1520,7 +1310,7 @@ extension WakeUpCompat {
     ///      的 0=每周 / 1=单周 / 2=双周 语义以及 `JwParity.adjustedRange` 冲突 ——
     ///      双周课会被当每周、每周课会被当双周。本实现取自然映射 单→1 / 双→2 / 其余→0。
     ///      原版本 侧没有 UMOOC/YL 的单测与 fixture, 该差异无上游断言覆盖。
-    static func parseUmooc(_ source: String) -> [JwCourse] {
+    static func parseUmoocLegacy(_ source: String) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
         // Kotlin: selectFirst(".timetable") ?: selectFirst("#timetable") ?: return emptyList()
         guard let timetable = (try? doc.select(".timetable"))?.first()
@@ -1572,7 +1362,7 @@ extension WakeUpCompat {
 
     /// 奕联(YL) 教务课表: 容器 class 含 "CourseTimeTable" 的表, 取其 tbody 的行。
     /// 字段与 UMOOC 相同(见 parseUmooc 的注释, 含与 原版本 的两处差异说明)。
-    static func parseYl(_ source: String) -> [JwCourse] {
+    static func parseYlLegacy(_ source: String) -> [JwCourse] {
         let doc = (try? SwiftSoup.parse(source)) ?? Document("")
         // Kotlin: selectFirst(".app-components-CourseTimeTable-styles-timeTable")
         //         ?: selectFirst("[class*=CourseTimeTable]") ?: return emptyList()

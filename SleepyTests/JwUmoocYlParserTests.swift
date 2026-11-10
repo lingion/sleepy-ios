@@ -1,15 +1,4 @@
-// JwUmoocYlParserTests.swift — iOS 侧自建的 UMOOC / 奕联(YL) 课表契约锁。
-//
-// ★ 上游没有 oracle: 原版本 v1.0.62 的 `WakeUpCompat.parseUmooc` / `parseYl`
-//   在真实 Jsoup 1.23.2 下是**死代码** —— 它们写 `cell.text().trim().split("\n")`
-//   并要求 `lines.size >= 2`, 而 Jsoup 的 `Element.text()` 把 `<br>` 折成空格,
-//   `split("\n")` 永远只得到 1 行 ⇒ 永远返回空列表。
-//   原版本 仓库里既没有 UMOOC/YL 的单测, 也没有对应 fixture。
-//   所以本文件的期望值由 iOS 侧依据「该解析器本意」自行定义, 并在
-//   `Sleepy/data/jw/JwWakeUpCompatParsers.swift` 里显式记录两处与 原版本 的差异。
-//
-// fixture: SleepyTests/resources/umooc_sample.html, SleepyTests/resources/yl_sample.html
-
+// Synthetic fixtures mirror Android v1.0.64 parseUmooc / parseYl source shapes.
 import XCTest
 @testable import Sleepy
 
@@ -39,9 +28,8 @@ final class JwUmoocYlParserTests: XCTestCase {
         XCTAssertEqual(0, math.type)
     }
 
-    func testUmoocColumnIndexMapsToWeekday() throws {
-        // fixture 第 0 行: [节次, 高等数学, 大学物理, 数据结构, 空, 英语, 空, 空]
-        // → 单元格下标 1..7 对应周一..周日, 即 day = cellIndex + 1。
+    func testUmoocCellIdentityMapsToWeekday() throws {
+        // UMOOC uses the first component of each course cell id as its weekday.
         let html = try load("umooc_sample")
         let courses = try JwUmoocParser(html).generateCourseList()
 
@@ -50,27 +38,26 @@ final class JwUmoocYlParserTests: XCTestCase {
         let ds = try XCTUnwrap(courses.first { $0.name == "数据结构" })
         let eng = try XCTUnwrap(courses.first { $0.name == "英语" })
 
-        XCTAssertEqual(2, math.day)     // cellIndex 1
-        XCTAssertEqual(3, physics.day)  // cellIndex 2
-        XCTAssertEqual(4, ds.day)       // cellIndex 3
-        XCTAssertEqual(6, eng.day)      // cellIndex 5
+        XCTAssertEqual(1, math.day)
+        XCTAssertEqual(2, physics.day)
+        XCTAssertEqual(3, ds.day)
+        XCTAssertEqual(5, eng.day)
     }
 
-    func testUmoocRowIndexMapsToStartNode() throws {
+    func testUmoocSectionHeaderMapsToStartNode() throws {
         let html = try load("umooc_sample")
         let courses = try JwUmoocParser(html).generateCourseList()
 
         let math = try XCTUnwrap(courses.first { $0.name == "高等数学" })
         let pe = try XCTUnwrap(courses.first { $0.name == "体育" })
-        XCTAssertEqual(1, math.startNode)  // 第 0 行
+        XCTAssertEqual(1, math.startNode)  // 第1节 header
         XCTAssertEqual(1, math.endNode)
-        XCTAssertEqual(2, pe.startNode)     // 第 1 行
+        XCTAssertEqual(2, pe.startNode)     // 第2节 header
         XCTAssertEqual(2, pe.endNode)
     }
 
     func testUmoocParityMarkersMapToSingleAndDoubleWeek() throws {
-        // 与 原版本 的差异点 b: iOS 取自然映射 单→1 / 双→2 / 其余→0。
-        // 原版本 写的是 单→1 / 双→0 / 其余→2, 与 JwCourse.type 语义冲突。
+        // v1.0.64 expands the week set before merging adjacent or alternating weeks.
         let html = try load("umooc_sample")
         let courses = try JwUmoocParser(html).generateCourseList()
 
@@ -108,7 +95,7 @@ final class JwUmoocYlParserTests: XCTestCase {
         XCTAssertEqual("六教6A201", math.room)
         XCTAssertEqual(1, math.startWeek)
         XCTAssertEqual(16, math.endWeek)
-        XCTAssertEqual(2, math.day)     // cellIndex 1
+        XCTAssertEqual(1, math.day)
         XCTAssertEqual(1, math.startNode)
     }
 
@@ -118,7 +105,7 @@ final class JwUmoocYlParserTests: XCTestCase {
         let courses = try JwYlParser(html).generateCourseList()
         let pe = try XCTUnwrap(courses.first { $0.name == "体育" }, "体育 应存在")
         XCTAssertEqual(2, pe.startNode)
-        XCTAssertEqual(4, pe.day)       // 第 1 行 cellIndex 3
+        XCTAssertEqual(3, pe.day)       // period gutter is excluded from the weekday index
     }
 
     func testYlRegisteredInRegistry() {
@@ -134,7 +121,7 @@ final class JwUmoocYlParserTests: XCTestCase {
         let umoocParser = JwUmoocParser(umooc)
         let ylParser = JwYlParser(yl)
         XCTAssertNotEqual(umoocParser.matchedFeatureList, ylParser.matchedFeatureList)
-        // YL 的 fixture 不含 .timetable 容器 ⇒ UMOOC 解析器取不到课。
+        // YL has no #timetable container.
         XCTAssertEqual(0, try JwUmoocParser(yl).generateCourseList().count)
     }
 }

@@ -103,7 +103,7 @@ final class JwWakeUpCompatParserTests: XCTestCase {
         let courses = try JwJzParser(source).generateCourseList()
         XCTAssertFalse(courses.isEmpty)
         XCTAssertEqual(courses[0].name, "数据结构")
-        XCTAssertEqual(courses[0].day, 2)
+        XCTAssertEqual(courses[0].day, 1)
         XCTAssertEqual(courses[0].type, 1)
         XCTAssertEqual(courses[0].room, "教2-301")
         XCTAssertEqual(courses[0].teacher, "钱老师")
@@ -112,11 +112,12 @@ final class JwWakeUpCompatParserTests: XCTestCase {
     func testKingoTaskActivityGridUsesIndexTimesUnitCount() throws {
         let source = """
             <html><body><script>
+            var unitCount = 12;
             var activity = null;
             var courseName = '高等代数';
             var actTeachers = new Array();
             actTeachers.push({'name':'孙老师'});
-            activity = new TaskActivity('高等代数','孙老师','博学楼A-302','101010000000000000000000000000000000000000000000');
+            activity = new TaskActivity('t','孙老师','c','高等代数','r','博学楼A-302','010101000000000000000000000000000000000000000000');
             index = 3 * unitCount + 2;
             activity.index = index;
             table0.marshalTable();
@@ -132,8 +133,9 @@ final class JwWakeUpCompatParserTests: XCTestCase {
         XCTAssertEqual(c.room, "博学楼A-302")
         XCTAssertEqual(c.teacher, "孙老师")
         XCTAssertEqual(c.startWeek, 1)
-        XCTAssertEqual(c.endWeek, 5)
-        XCTAssertEqual(c.type, 1)
+        XCTAssertEqual(c.endWeek, 1)
+        XCTAssertEqual(c.type, 0)
+        XCTAssertEqual(courses.map(\.startWeek), [1, 3, 5])
     }
 
     func testXjuDgDataBraceBlocksWithWeekParity() throws {
@@ -163,8 +165,8 @@ final class JwWakeUpCompatParserTests: XCTestCase {
         let source = """
             <html><body><table id="MainWork_DataGrid1">
             <tr align="center"><td>星期一</td><td>星期二</td></tr>
-            <tr><td>高等数学<br>课程:高等数学<br>(张老师)<br>第1-16周<br>博远楼-101</td><td>&nbsp;</td></tr>
-            <tr><td>&nbsp;</td><td>大学英语<br>课程:大学英语<br>(刘老师)<br>第1-16周双<br>博远楼-202</td></tr>
+            <tr><td>高等数学<br>课程:高等数学<br>主讲教师:张老师<br>第1-16周<br>(博远楼-101)</td><td>&nbsp;</td></tr>
+            <tr><td>&nbsp;</td><td>大学英语<br>课程:大学英语<br>主讲教师:刘老师<br>第1-16周双<br>(博远楼-202)</td></tr>
             </table></body></html>
         """
         let courses = try JwSudaParser(source).generateCourseList()
@@ -185,7 +187,7 @@ final class JwWakeUpCompatParserTests: XCTestCase {
         let source = """
             <html><body><table id="MainWork_DataGrid1">
             <tr align="center"><td>星期一</td><td>星期二</td></tr>
-            <tr><td>高等数学<br>课程:高等数学<br>(张老师)<br>第1-16周<br>博远楼-101</td><td rowspan="2">数据结构<br>课程:数据结构<br>(钱老师)<br>第1-16周<br>教2-301</td></tr>
+            <tr><td>高等数学<br>课程:高等数学<br>主讲教师:张老师<br>第1-16周<br>(博远楼-101)</td><td rowspan="2">数据结构<br>课程:数据结构<br>主讲教师:钱老师<br>第1-16周<br>(教2-301)</td></tr>
             <tr><td>&nbsp;</td></tr>
             </table></body></html>
         """
@@ -256,12 +258,12 @@ final class JwWakeUpCompatParserTests: XCTestCase {
         XCTAssertEqual(courses.first?.name, "线性代数")
     }
 
-    /// 回归锁#3: marked table 无 data-* 属性 → room/teacher 回退单元格文本(attr "" ≠ nil)
+    /// 回归锁#3: marked table 无 data-room/data-teacher 属性 → room/teacher 回退单元格文本(attr "" ≠ nil)
     func testMarkedTableFallsBackToCellTextWithoutDataAttrs() throws {
         // 触发 marked-table 通路: kingosoft marker + 无 data-* 的行; day/node 走文本抽取
         let source = """
             <html><body>kingosoft<table>
-            <tr><td>流体力学</td><td>星期三 第5节</td><td>孙老师</td><td>博学楼A-2</td></tr>
+            <tr data-weeks="1-8"><td>流体力学</td><td>星期三 第5节</td><td>孙老师</td><td>博学楼A-2</td></tr>
             </table></body></html>
         """
         let courses = try JwKingoParser(source).generateCourseList()
@@ -297,9 +299,10 @@ final class JwWakeUpCompatParserTests: XCTestCase {
     func testKingoTeacherOnlyFromNameKey() throws {
         let source = """
             <html><body><script>
+            var unitCount = 12;
             var activity = null;
-            actTeachers.push({'teacher':'张三','course':'高数'});
-            activity = new TaskActivity('高数','','博学楼B-1','100000000000000000000000000000000000000000000000');
+            var actTeachers = [{'teacher':'张三','course':'高数'}];
+            activity = new TaskActivity('t',actTeachers.join(','),'c','高数','r','博学楼B-1','010000000000000000000000000000000000000000000000');
             index = 0 * unitCount + 0;
             table0.marshalTable();
             </script></body></html>
