@@ -126,6 +126,18 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
         XCTAssertTrue(app.buttons["period_tables_back"].firstMatch.isHittable)
     }
 
+    private func dismissCenteredDialogOutside(_ dialog: XCUIElement,
+                                              file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(dialog.waitForExistence(timeout: 5), file: file, line: line)
+        let window = app.windows.firstMatch
+        let point = CGPoint(x: window.frame.minX + 8, y: dialog.frame.midY)
+        XCTAssertTrue(window.frame.contains(point), file: file, line: line)
+        XCTAssertFalse(dialog.frame.contains(point), "Cancellation must tap the real outside backdrop", file: file, line: line)
+        window.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: point.x - window.frame.minX, dy: point.y - window.frame.minY)).tap()
+        XCTAssertTrue(waitUntil { !dialog.exists }, file: file, line: line)
+    }
+
     private func replaceText(_ field: XCUIElement, with text: String,
                              file: StaticString = #filePath, line: UInt = #line) {
         reveal(field, file: file, line: line)
@@ -534,6 +546,86 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
         XCTAssertFalse(pending.exists)
         capture("workflow-shared-schedule-cancel-keeps-saved-values")
         tapBack()
+    }
+
+    func testThreeLayerConflictPickerSelectsThenCancelsWithoutChangingCoursesCapture() {
+        let text = "#sleepy-v1\nTConflict Capture|2026-11-02|20|12\nCConflict Orbit A|1|1-2|1-20|Ada|A||||conflict-a\nCConflict Orbit B|1|1-2|1-20|Grace|B||||conflict-b"
+        openTextSource(entryID: "manage_add_course", text: text)
+        for index in 0...1 {
+            let row = app.descendants(matching: .any)["select_course#\(index)"].firstMatch
+            reveal(row)
+            XCTAssertTrue(row.label.contains(index == 0 ? "Conflict Orbit A" : "Conflict Orbit B"))
+            XCTAssertEqual(row.value as? String, "1")
+        }
+        let select = app.buttons["import_select_confirm"].firstMatch
+        reveal(select)
+        select.tap()
+        let backup = app.descendants(matching: .any)["import_preview_backup"].firstMatch
+        reveal(backup)
+        XCTAssertEqual(backup.value as? String, "1")
+        backup.tap()
+        XCTAssertTrue(waitUntil { backup.value as? String == "0" })
+        let append = app.descendants(matching: .any)["import_preview_append"].firstMatch
+        reveal(append)
+        XCTAssertEqual(append.value as? String, "0")
+        append.tap()
+        XCTAssertTrue(waitUntil { append.value as? String == "1" })
+        let apply = app.buttons["import_preview_apply"].firstMatch
+        reveal(apply)
+        XCTAssertTrue(apply.isEnabled)
+        apply.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["import_success_snackbar"].firstMatch.waitForExistence(timeout: 8))
+        XCTAssertTrue(waitUntil { !apply.exists })
+        assertMethodsRestored(pasteDraft: text)
+        tapBack()
+        app.switchToPillTab("schedule")
+
+        let badge = app.buttons["conflict_badge"].firstMatch
+        reveal(badge)
+        XCTAssertEqual(badge.label, "+1", "The two imported meetings and seed mathematics must form three overlapping layers")
+        badge.tap()
+        let dialog = app.descendants(matching: .any)["centered_picker_dialog"].firstMatch
+        XCTAssertTrue(dialog.waitForExistence(timeout: 8))
+        XCTAssertTrue(dialog.staticTexts["Conflicts"].exists)
+        let names = ["高等数学", "Conflict Orbit A", "Conflict Orbit B"]
+        for name in names { reveal(dialog.buttons[name].firstMatch) }
+        XCTAssertEqual(Set(dialog.buttons.allElementsBoundByIndex.map(\.label)), Set(names))
+        capture("workflow-three-layer-conflict-picker")
+        dialog.buttons["Conflict Orbit B"].tap()
+        XCTAssertTrue(waitUntil { !dialog.exists })
+
+        // Only the front card opens details; a lower layer would rotate instead.
+        let front = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Conflict Orbit B")).firstMatch
+        reveal(front)
+        front.tap()
+        let close = app.buttons["detail_close"].firstMatch
+        reveal(close)
+        XCTAssertTrue(app.staticTexts["Conflict Orbit B"].exists)
+        close.tap()
+        XCTAssertTrue(waitUntil { !close.exists })
+        reveal(badge)
+        badge.tap()
+        XCTAssertTrue(dialog.waitForExistence(timeout: 8))
+        for name in names { reveal(dialog.buttons[name].firstMatch) }
+        capture("workflow-three-layer-conflict-selected-top")
+        dismissCenteredDialogOutside(dialog)
+        reveal(badge)
+        XCTAssertEqual(badge.label, "+1")
+        capture("workflow-three-layer-conflict-cancel-grid")
+
+        // Selection changes presentation only; it must not add, delete, or back up courses.
+        app.switchToPillTab("mine")
+        let courses = app.staticTexts["mine_stat_courses_value"].firstMatch
+        XCTAssertTrue(courses.waitForExistence(timeout: 8))
+        XCTAssertEqual(courses.label, "7")
+        XCTAssertEqual(app.staticTexts["mine_stat_tables_value"].firstMatch.label, "1")
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        XCTAssertTrue(courses.waitForExistence(timeout: 8))
+        XCTAssertEqual(courses.label, "7")
+        XCTAssertEqual(app.staticTexts["mine_stat_tables_value"].firstMatch.label, "1")
     }
 
     func testOffGridPeriodCandidateAndNewPeriodDialogsCanCancelCapture() {
