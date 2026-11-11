@@ -146,6 +146,255 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         XCTFail("The open Files panel must expose its actual Cancel action.\n\(snapshot)", file: file, line: line)
     }
 
+    private var tableRows: [String: String] {
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_select_'"))
+            .allElementsBoundByIndex.reduce(into: [:]) { $0[$1.identifier] = $1.label }
+    }
+
+    private func savedTableRows() -> [String: String] {
+        let tables = app.buttons["mine_all_tables"].firstMatch
+        reveal(tables)
+        tables.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_select_'"))
+            .firstMatch.waitForExistence(timeout: 8))
+        let rows = tableRows
+        tapBack()
+        XCTAssertTrue(tables.waitForExistence(timeout: 5))
+        return rows
+    }
+
+    private func restartWithoutSeed() {
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" || $0 == "-SLEEPY_UI_TEST_HOLIDAYS" }
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 10))
+    }
+
+    private func retainFailure(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
+        capture(name)
+        let attachment = XCTAttachment(string: app.debugDescription)
+        attachment.name = name + "-accessibility"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTFail("The real system control must be reachable; inspect the retained accessibility tree", file: file, line: line)
+    }
+
+    private var fixtureCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        calendar.firstWeekday = 2
+        return calendar
+    }
+
+    private func fullDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.timeZone = fixtureCalendar.timeZone
+        formatter.dateStyle = .full
+        return formatter.string(from: date)
+    }
+
+    private func selectOccurrenceDate(_ target: Date, from original: Date,
+                                      file: StaticString = #filePath, line: UInt = #line) {
+        let field = app.buttons["occurrence_date"].firstMatch
+        reveal(field, file: file, line: line)
+        field.tap()
+        let confirm = app.buttons["date_picker_confirm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), file: file, line: line)
+        let picker = app.datePickers.firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), file: file, line: line)
+        let calendar = fixtureCalendar
+        let originalMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: original))!
+        let targetMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: target))!
+        let months = calendar.dateComponents([.month], from: originalMonth, to: targetMonth).month!
+        XCTAssertTrue((0...5).contains(months), "The fixture must remain near the seeded semester", file: file, line: line)
+        for _ in 0..<max(0, months) {
+            let next = picker.buttons["Next Month"].firstMatch
+            guard next.waitForExistence(timeout: 3), next.isHittable else {
+                retainFailure("secondary-holiday-occurrence-month-navigation-missing", file: file, line: line)
+                return
+            }
+            next.tap()
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "EEEE, MMMM d"
+        let labels = [formatter.string(from: target), fullDate(target)]
+        let days = picker.buttons.matching(NSPredicate(format: "label IN %@", labels))
+        let day = days.firstMatch
+        guard day.waitForExistence(timeout: 3), day.isEnabled else {
+            retainFailure("secondary-holiday-occurrence-date-missing", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(days.count, 1, "Select the exact civil date", file: file, line: line)
+        reveal(day, file: file, line: line)
+        day.tap()
+        reveal(confirm, file: file, line: line)
+        confirm.tap()
+        XCTAssertTrue(waitUntil { !confirm.exists && field.label.contains(self.fullDate(target)) }, file: file, line: line)
+    }
+
+    func testHolidayTransferDestinationDirectAndOutgoingPromptsCancelWithoutSavingCourseCapture() throws {
+        let originalTables = savedTableRows()
+        let courseCount = app.staticTexts["mine_stat_courses_value"].firstMatch
+        XCTAssertEqual(courseCount.label, "5")
+        let calendar = fixtureCalendar
+        let today = calendar.startOfDay(for: Date())
+        let monday = calendar.date(byAdding: .day,
+            value: -((calendar.component(.weekday, from: today) + 5) % 7), to: today)!
+        let nextYear = calendar.component(.year, from: today) + 1
+        let source = try XCTUnwrap(calendar.date(from: DateComponents(year: nextYear, month: 1, day: 1)))
+        let destination = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: source))
+        XCTAssertGreaterThan(source, monday)
+        XCTAssertLessThan(destination, calendar.date(byAdding: .day, value: 140, to: monday)!,
+                          "This year-boundary fixture must fit the current seeded semester")
+
+        // Both years are cached by the existing holiday seed. Add through the
+        // real empty next-year page; its new range defaults to January 1.
+        openScheduleSettings()
+        let holiday = app.buttons["settings_holiday_entry"].firstMatch
+        reveal(holiday)
+        holiday.tap()
+        let nextYearButton = app.buttons["Next year"].firstMatch
+        reveal(nextYearButton)
+        nextYearButton.tap()
+        XCTAssertTrue(app.staticTexts[String(nextYear)].waitForExistence(timeout: 5))
+        let dates = app.buttons["holiday_group_dates"].firstMatch
+        reveal(dates)
+        dates.tap()
+        let add = app.buttons["holiday_add_entry"].firstMatch
+        reveal(add)
+        add.tap()
+        let name = app.textFields["holiday_name_input"].firstMatch
+        reveal(name)
+        let fixtureName = "Approval Holiday " + String(UUID().uuidString.prefix(8))
+        name.tap()
+        name.typeText(fixtureName + "\n")
+        XCTAssertEqual(name.value as? String, fixtureName)
+        let saveHoliday = app.buttons["holiday_save"].firstMatch
+        reveal(saveHoliday)
+        saveHoliday.tap()
+        XCTAssertTrue(waitUntil { !saveHoliday.exists })
+        let group = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'holiday_group_transfer:' AND label CONTAINS %@", fixtureName)).firstMatch
+        reveal(group)
+        group.tap()
+        let mappingID = String(format: "holiday_mapping_%04d-01-01", nextYear)
+        let mapping = app.buttons[mappingID].firstMatch
+        reveal(mapping)
+        mapping.tap()
+        let other = app.buttons["Other date…"].firstMatch
+        XCTAssertTrue(other.waitForExistence(timeout: 5))
+        other.tap()
+        let dateConfirm = app.buttons["holiday_date_confirm"].firstMatch
+        XCTAssertTrue(dateConfirm.waitForExistence(timeout: 5))
+        let wheels = app.pickerWheels.allElementsBoundByIndex
+        XCTAssertEqual(wheels.count, 3)
+        let dayWheel = try XCTUnwrap(wheels.first { ($0.value as? String) == "1" })
+        XCTAssertTrue(wheels.contains { ($0.value as? String) == String(nextYear) })
+        XCTAssertTrue(wheels.contains { ($0.value as? String) == "January" })
+        dayWheel.adjust(toPickerWheelValue: "2")
+        reveal(dateConfirm)
+        dateConfirm.tap()
+        XCTAssertTrue(waitUntil { !dateConfirm.exists && mapping.label.contains("1/2") })
+        capture("secondary-holiday-approval-fixture-mapping")
+        tapBack()
+        tapBack()
+
+        app.switchToPillTab("schedule")
+        let course = app.collectionViews["schedule_week_pager"].buttons["gridcell_1"].firstMatch
+        XCTAssertTrue(course.waitForExistence(timeout: 8))
+        let originalCard = course.label
+        course.tap()
+        let actions = app.buttons["course_occurrence_actions"].firstMatch
+        reveal(actions)
+        actions.tap()
+        let adjust = app.buttons["occurrence_adjust"].firstMatch
+        XCTAssertTrue(adjust.waitForExistence(timeout: 5))
+        adjust.tap()
+        let date = app.buttons["occurrence_date"].firstMatch
+        XCTAssertTrue(date.waitForExistence(timeout: 5))
+        let originalDateLabel = date.label
+        let room = app.textFields["occurrence_room"].firstMatch
+        XCTAssertTrue(room.waitForExistence(timeout: 5))
+        let originalRoom = try XCTUnwrap(room.value as? String)
+        selectOccurrenceDate(destination, from: monday)
+        let save = app.buttons["occurrence_save"].firstMatch
+        reveal(save)
+        save.tap()
+        let destinationPrompt = app.alerts["Choose how to schedule this class"].firstMatch
+        XCTAssertTrue(destinationPrompt.waitForExistence(timeout: 5))
+        XCTAssertTrue(destinationPrompt.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS '高等数学' AND label CONTAINS %@ AND label CONTAINS %@",
+            String(format: "%04d-01-02", nextYear), String(format: "%04d-01-01", nextYear))).firstMatch.exists)
+        XCTAssertTrue(destinationPrompt.buttons["Follow the holiday transfer"].isEnabled)
+        XCTAssertTrue(destinationPrompt.buttons["Schedule directly on this day"].isEnabled)
+        capture("secondary-holiday-occurrence-destination-confirmation")
+        destinationPrompt.buttons["occurrence_prompt_cancel"].tap()
+        XCTAssertTrue(waitUntil { !destinationPrompt.exists && date.label.contains(self.fullDate(destination)) })
+        XCTAssertEqual(room.value as? String, originalRoom)
+
+        reveal(save)
+        save.tap()
+        XCTAssertTrue(destinationPrompt.waitForExistence(timeout: 5))
+        destinationPrompt.buttons["Schedule directly on this day"].tap()
+        let hidden = app.alerts["This class will be hidden by the transfer"].firstMatch
+        XCTAssertTrue(hidden.waitForExistence(timeout: 5))
+        XCTAssertTrue(hidden.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS '高等数学' AND label CONTAINS %@ AND label CONTAINS %@",
+            String(format: "%04d-01-02", nextYear), String(format: "%04d-01-01", nextYear))).firstMatch.exists)
+        XCTAssertTrue(hidden.buttons["Schedule directly anyway"].isEnabled)
+        capture("secondary-holiday-occurrence-direct-hidden-confirmation")
+        hidden.buttons["occurrence_prompt_cancel"].tap()
+        XCTAssertTrue(waitUntil { !hidden.exists && date.label.contains(self.fullDate(destination)) })
+        XCTAssertEqual(room.value as? String, originalRoom)
+
+        selectOccurrenceDate(source, from: destination)
+        reveal(save)
+        save.tap()
+        let outgoing = app.alerts["This class will be transferred"].firstMatch
+        XCTAssertTrue(outgoing.waitForExistence(timeout: 5))
+        XCTAssertTrue(outgoing.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS '高等数学' AND label CONTAINS %@ AND label CONTAINS %@",
+            String(format: "%04d-01-01", nextYear), String(format: "%04d-01-02", nextYear))).firstMatch.exists)
+        XCTAssertTrue(outgoing.buttons["Continue"].isEnabled)
+        capture("secondary-holiday-occurrence-outgoing-confirmation")
+        outgoing.buttons["occurrence_prompt_cancel"].tap()
+        XCTAssertTrue(waitUntil { !outgoing.exists && date.label.contains(self.fullDate(source)) })
+        XCTAssertEqual(room.value as? String, originalRoom)
+        capture("secondary-holiday-occurrence-cancel-keeps-date-draft")
+        let cancel = app.buttons["occurrence_cancel"].firstMatch
+        reveal(cancel)
+        cancel.tap()
+        XCTAssertTrue(waitUntil { !cancel.exists && actions.exists })
+        reveal(actions)
+        actions.tap()
+        XCTAssertTrue(adjust.waitForExistence(timeout: 5))
+        adjust.tap()
+        XCTAssertTrue(date.waitForExistence(timeout: 5))
+        XCTAssertEqual(date.label, originalDateLabel)
+        XCTAssertEqual(room.value as? String, originalRoom)
+        reveal(cancel)
+        cancel.tap()
+        let close = app.buttons["detail_close"].firstMatch
+        reveal(close)
+        close.tap()
+        XCTAssertTrue(course.waitForExistence(timeout: 5))
+        XCTAssertEqual(course.label, originalCard)
+        app.switchToPillTab("mine")
+        XCTAssertEqual(courseCount.label, "5")
+        XCTAssertEqual(savedTableRows(), originalTables)
+        restartWithoutSeed()
+        XCTAssertEqual(courseCount.label, "5")
+        XCTAssertEqual(savedTableRows(), originalTables)
+        app.switchToPillTab("schedule")
+        XCTAssertTrue(course.waitForExistence(timeout: 8))
+        XCTAssertEqual(course.label, originalCard, "Approval cancellation must not change the stored course")
+        capture("secondary-holiday-occurrence-cancel-keeps-saved-course")
+    }
+
     func testHolidayMappingOtherDateAndRangeEditorCapture() {
         openScheduleSettings()
         let entry = app.buttons["settings_holiday_entry"].firstMatch
