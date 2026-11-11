@@ -8,6 +8,11 @@ final class JwSeuFetchTests: XCTestCase {
         let requests: [[String: Any]]
     }
 
+    private struct FixtureLoadError: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
     private final class Page: NSObject, WKURLSchemeHandler {
         let html: String
         init(_ html: String) { self.html = html }
@@ -25,10 +30,13 @@ final class JwSeuFetchTests: XCTestCase {
         func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
     }
 
+    @MainActor
     private final class Probe: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         let loaded: XCTestExpectation
         let completed: XCTestExpectation
         var payload: [String: Any]?
+        private(set) var loadFailure: String?
+        private var loadSettled = false
 
         init(loaded: XCTestExpectation, completed: XCTestExpectation) {
             self.loaded = loaded
@@ -36,6 +44,28 @@ final class JwSeuFetchTests: XCTestCase {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            settleLoad(webView)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            settleLoad(webView, failure: "didFail: \(error as NSError)")
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
+                     withError error: Error) {
+            settleLoad(webView, failure: "didFailProvisionalNavigation: \(error as NSError)")
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            settleLoad(webView, failure: "Web content process terminated")
+        }
+
+        private func settleLoad(_ webView: WKWebView, failure: String? = nil) {
+            if let failure = failure, loadFailure == nil {
+                loadFailure = "\(failure); callbackURL=\(webView.url?.absoluteString ?? "<nil>")"
+            }
+            guard !loadSettled else { return }
+            loadSettled = true
             loaded.fulfill()
         }
 
@@ -69,7 +99,8 @@ final class JwSeuFetchTests: XCTestCase {
         let encodedBody = try JSONSerialization.data(withJSONObject: [scheduleBody])
         let bodyLiteral = try XCTUnwrap(String(data: encodedBody, encoding: .utf8))
         let loaded = expectation(description: "Fixture page loaded")
-        let completed = expectation(description: "Production script returned its bridge result")
+        // Only register the script wait once fixture loading has succeeded.
+        let completed = XCTestExpectation(description: "Production script returned its bridge result")
         let probe = Probe(loaded: loaded, completed: completed)
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(Page(html), forURLScheme: "sleepy-seu")
@@ -80,8 +111,14 @@ final class JwSeuFetchTests: XCTestCase {
             webView.stopLoading()
             config.userContentController.removeScriptMessageHandler(forName: "__sleepyBridge")
         }
-        webView.load(URLRequest(url: try XCTUnwrap(URL(string: "sleepy-seu://\(host)\(path)"))))
-        wait(for: [loaded], timeout: 30)
+        let fixtureURL = try XCTUnwrap(URL(string: "sleepy-seu://\(host)\(path)"))
+        webView.load(URLRequest(url: fixtureURL))
+        let loadResult = XCTWaiter.wait(for: [loaded], timeout: 30)
+        guard loadResult == .completed, probe.loadFailure == nil else {
+            throw FixtureLoadError(message: "Fixture page failed to load: waitResult=\(loadResult), "
+                + "requestedURL=\(fixtureURL.absoluteString), currentURL=\(webView.url?.absoluteString ?? "<nil>"), "
+                + "reason=\(probe.loadFailure ?? "No terminal navigation callback before the 30-second deadline")")
+        }
 
         let fixture = """
         window.__seuRequests = [];
