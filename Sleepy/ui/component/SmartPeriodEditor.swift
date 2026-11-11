@@ -269,7 +269,8 @@ private struct AssignmentGroupSection: View {
                 // ← 原版本 Text 与 NumberField 之间无 spacer(weight 1f 吸收全部 slack),不另加间距
                 NumberField(label: "", unit: L10n.format("unit_minutes"),
                             value: minuteValue, onValueChange: onMinuteChange)
-                    .frame(width: 110)
+                    .frame(minWidth: 110)
+                    .fixedSize(horizontal: true, vertical: false)
                 Button(action: onDelete) {
                     AndroidSettingsIcon(name: .close, size: 18)
                         .foregroundColor(colors.onSurfaceVariant)
@@ -456,6 +457,7 @@ private struct NumberField: View {
                     Text(label)
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 TextField("", text: Binding(
                     get: { text.isEmpty ? "\(value)" : text },
@@ -471,10 +473,13 @@ private struct NumberField: View {
                 .accessibilityIdentifier("number_\(label)")   // ← G5: 数字字段锚点
                 .font(.system(size: 16))
             }
+            .frame(minWidth: 40, alignment: .leading)
             if !unit.isEmpty {
                 Text(unit)
                     .font(.system(size: 16))
                     .foregroundColor(colors.onSurfaceVariant)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
         .padding(.horizontal, 12)
