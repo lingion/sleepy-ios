@@ -561,6 +561,19 @@ final class MineSettingsUITests: XCTestCase {
         glass.tap()
         XCTAssertTrue(pollUntil { glass.isSelected })
         XCTAssertTrue(docked.isSelected, "界面材质不能改导航形态")
+        let widthTargets = [app.staticTexts["Appearance & display"].firstMatch,
+                            option("Material Design"), glass, docked, option("Floating"),
+                            app.buttons["theme_new_entry"].firstMatch]
+            + app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'theme_preset_'"))
+                .allElementsBoundByIndex
+        XCTAssertTrue(pollUntil {
+            let window = self.app.frame
+            return widthTargets.allSatisfy { target in
+                guard target.exists else { return false }
+                let frame = target.frame
+                return frame.width > 0 && frame.minX >= window.minX - 1 && frame.maxX <= window.maxX + 1
+            }
+        }, "Switching to native segments must keep the title, theme grid and every option inside the window width")
         retainScreenshot("native-glass-docked-selection")
         option("Material Design").tap()
         XCTAssertTrue(docked.isSelected)

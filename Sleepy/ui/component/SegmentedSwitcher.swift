@@ -23,7 +23,7 @@ struct SegmentedSwitcher<T: Hashable>: View {
                 NativeSegmentedSwitcher(options: options, selected: selected, onSelect: onSelect,
                                         colors: colors, direction: direction, isEnabled: isEnabled,
                                         accessibilityTitle: accessibilityTitle)
-                .frame(minHeight: height)
+                .frame(maxWidth: .infinity, minHeight: height)
             } else {
                 materialSwitcher
             }
@@ -119,6 +119,15 @@ private struct NativeSegmentedSwitcher<T: Hashable>: UIViewRepresentable {
         control.refreshSegmentIdentifiers()
     }
 
+    @available(iOS 16.0, *)
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: NativeThemedSegmentedControl,
+                     context: Context) -> CGSize? {
+        guard let width = proposal.width, width.isFinite else { return nil }
+        // Equal-width native segments can have a very large label-derived ideal
+        // width. The surrounding settings card owns their horizontal space.
+        return CGSize(width: max(0, width), height: uiView.intrinsicContentSize.height)
+    }
+
     final class Coordinator: NSObject {
         var parent: NativeSegmentedSwitcher
 
@@ -135,6 +144,12 @@ private struct NativeSegmentedSwitcher<T: Hashable>: UIViewRepresentable {
 private final class NativeThemedSegmentedControl: UISegmentedControl {
     var segmentTitles: [String] = []
     private var segments: [NativeSegmentAccessibilityElement] = []
+
+    override var intrinsicContentSize: CGSize {
+        // iOS 15's representable sizing has no proposal callback. Preserve the
+        // native height without turning localized labels into a page minimum.
+        CGSize(width: UIView.noIntrinsicMetric, height: super.intrinsicContentSize.height)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()

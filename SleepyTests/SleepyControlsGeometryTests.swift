@@ -147,6 +147,44 @@ final class SleepyControlsGeometryTests: XCTestCase {
         XCTAssertEqual(control.numberOfSegments, 2)
         XCTAssertEqual(control.selectedSegmentIndex, 1)
         XCTAssertEqual(control.titleForSegment(at: 0), "One")
+
+        // Appearance's four localized course-color labels exceed a small phone's
+        // width. Check the UIKit surface itself, rather than its SwiftUI frame.
+        let longLabels = ["Solid color", "Don't follow theme color", "Follow theme", "Custom"]
+        for width: CGFloat in [240, 343] {
+            let narrowContent = ScrollView {
+                VStack {
+                    Text("Appearance & display")
+                    SegmentedSwitcher(options: longLabels.enumerated().map { ($0.offset, $0.element) },
+                        selected: 1, onSelect: { _ in })
+                }
+                .padding(8)
+            }
+            .environment(\.sleepyUIStyle, .liquidGlass)
+            .frame(width: width, height: 100).ignoresSafeArea()
+            let narrowWindow = UIWindow(windowScene: scene)
+            let narrowHost = UIHostingController(rootView: narrowContent)
+            narrowWindow.rootViewController = narrowHost
+            narrowWindow.frame = CGRect(x: 0, y: 0, width: width, height: 100)
+            narrowWindow.isHidden = false
+            defer { narrowWindow.isHidden = true }
+            narrowHost.view.frame = narrowWindow.bounds
+            narrowHost.view.layoutIfNeeded()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            let narrowControls = find(in: narrowHost.view)
+            XCTAssertEqual(narrowControls.count, 1)
+            let narrowControl = try XCTUnwrap(narrowControls.first)
+            let renderedFrame = narrowControl.convert(narrowControl.bounds, to: narrowHost.view)
+            XCTAssertEqual(renderedFrame.minX, 8, accuracy: 1)
+            XCTAssertEqual(renderedFrame.width, width - 16, accuracy: 1,
+                           "Long native segment labels must fit the proposed scroll-content width")
+            XCTAssertLessThanOrEqual(renderedFrame.maxX, width - 8 + 1)
+            XCTAssertEqual(narrowControl.numberOfSegments, longLabels.count)
+            XCTAssertEqual(narrowControl.selectedSegmentIndex, 1)
+            for (index, label) in longLabels.enumerated() {
+                XCTAssertEqual(narrowControl.titleForSegment(at: index), label)
+            }
+        }
     }
 
     @MainActor
