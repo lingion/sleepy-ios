@@ -112,8 +112,9 @@ struct WidgetEditWideGridSection: View {
                         Button { scope.onWideGridSettingsChange(WeekGridWideSettings(mode: mode,
                             labelSide: scope.wideGridSettings.labelSide)) } label: {
                             VStack(alignment: .leading, spacing: 8) {
-                                HStack {
+                                HStack(spacing: 8) {
                                     MaterialSelectionIndicator(kind: .radio, selected: scope.wideGridSettings.mode == mode)
+                                        .frame(width: 48, height: 48)
                                     Text(L10n.format(mode.labelKey)).font(.system(size: 14, weight: .medium))
                                 }
                                 preview(for: mode)
@@ -149,6 +150,7 @@ struct WidgetEditWideGridSection: View {
                             Button { scope.onWideGridSettingsChange(WeekGridWideSettings(mode: .horizontal, labelSide: side)) } label: {
                                 HStack(spacing: 12) {
                                     MaterialSelectionIndicator(kind: .radio, selected: scope.wideGridSettings.labelSide == side)
+                                        .frame(width: 48, height: 48)
                                     Text(L10n.format(side.labelKey))
                                     Spacer()
                                 }

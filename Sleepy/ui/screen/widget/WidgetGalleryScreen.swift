@@ -38,8 +38,12 @@ struct WidgetGalleryScreen: View {
                             HStack(alignment: .top, spacing: 12) {
                                 ForEach(Array(row.groups.enumerated()), id: \.element.id) { index, group in
                                     GalleryCard(card: group.primary, boxAspectRatio: ratios[index],
-                                        enabled: true, title: groupTitle(group)) {
-                                        withAnimation { expandedGroupKey = group.id }
+                                        enabled: !cooling.contains(group.primary.receiverName), title: groupTitle(group)) {
+                                        if group.isMultiSize {
+                                            withAnimation { expandedGroupKey = group.id }
+                                        } else {
+                                            tap(group.primary)
+                                        }
                                     }
                                 }
                                 if row.groups.count == 1 { Color.clear.frame(maxWidth: .infinity) }
@@ -66,7 +70,8 @@ struct WidgetGalleryScreen: View {
     private func expanded(_ group: WidgetGalleryGroup) -> some View {
         VStack(spacing: 12) {
             HStack {
-                Text(groupTitle(group)).font(SleepyTypography.titleSmall)
+                Text(L10n.format(group.primary.variant.displayNameKey))
+                    .font(.system(size: 16, weight: .semibold))
                 Spacer()
                 Button {
                     withAnimation { expandedGroupKey = nil }
@@ -80,7 +85,6 @@ struct WidgetGalleryScreen: View {
                 .accessibilityIdentifier("widget_gallery_collapse_\(group.id)")
             }
             .foregroundColor(colors.onSurface)
-            .padding(.vertical, 8)
             .contentShape(Rectangle())
             .onTapGesture { withAnimation { expandedGroupKey = nil } }
             let ratios = WidgetGalleryData.rowBoxAspectRatios(group.cards, columns: 2)
@@ -91,6 +95,10 @@ struct WidgetGalleryScreen: View {
                 }
             }
         }
+        .padding(14)
+        .background(colors.surfaceContainer)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(colors.outlineVariant.opacity(0.5), lineWidth: 1))
         .accessibilityIdentifier("widget_gallery_expanded_\(group.id)")
     }
 

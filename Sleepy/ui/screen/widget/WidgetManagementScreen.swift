@@ -78,14 +78,27 @@ struct WidgetManagementScreen: View {
                     .padding(.trailing, 4)   // ← TopAppBarHorizontalPadding 4dp
                 }
             if items.isEmpty {
-                // ← 空态: bodyLarge 居中 + padding 24dp
-                //   v1.0.62 B4: 文案改 v2 — 引导右上「＋」进画廊(画廊 pin → 回本页重扫即见)
-                Text(L10n.format("widget_manage_empty_v2"))
-                    .font(.system(size: 16))
-                    .foregroundColor(colors.onSurfaceVariant)
-                    .multilineTextAlignment(.center)
-                    .padding(24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 16) {
+                    Text(L10n.format("widget_manage_empty_v2"))
+                        .font(.system(size: 16))
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .multilineTextAlignment(.center)
+                    Button { showGallery = true } label: {
+                        Text(L10n.format("widget_gallery_title"))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(colors.onSecondaryContainer)
+                            .padding(.horizontal, 24)
+                            .frame(height: uiStyle == .liquidGlass ? nil : 40)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large,
+                                                  tint: colors.secondaryContainer, prominent: true)
+                    }
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(minHeight: 40)
+                    .tint(colors.secondaryContainer)
+                    .accessibilityIdentifier("widget_empty_gallery")
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
