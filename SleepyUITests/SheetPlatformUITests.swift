@@ -394,6 +394,37 @@ final class SheetPlatformUITests: XCTestCase {
         exerciseCopy(sourceID: sourceID, sourceName: source, fromEditor: true)
     }
 
+    func testCopyingAnUnsavedNewBellScheduleKeepsBothStoredRows() {
+        openPeriodTables()
+        let originalIDs = Set(app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'period_table_edit_'"))
+            .allElementsBoundByIndex.map(\.identifier))
+        app.buttons["period_tables_new"].tap()
+        let sourceField = app.textFields["field_Bell schedule name"].firstMatch
+        XCTAssertTrue(sourceField.waitForExistence(timeout: 10))
+        let sourceName = sourceField.value as? String ?? ""
+        XCTAssertFalse(sourceName.isEmpty)
+        let copy = app.buttons["period_table_copy"].firstMatch
+        makeHittable(copy)
+        copy.tap()
+        let copiedName = "NewCopy-\(UUID().uuidString.prefix(8))"
+        let name = app.descendants(matching: .any)["period_table_copy_name"].firstMatch
+        replaceText(name, with: copiedName)
+        let confirm = app.buttons["period_table_copy_confirm"].firstMatch
+        makeHittable(confirm)
+        confirm.tap()
+        XCTAssertTrue(waitUntil { !confirm.exists })
+        openPeriodTables()
+        _ = periodTableID(named: copiedName)
+        let resultingIDs = Set(app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'period_table_edit_'"))
+            .allElementsBoundByIndex.map(\.identifier))
+        XCTAssertTrue(originalIDs.isSubset(of: resultingIDs))
+        XCTAssertEqual(resultingIDs.subtracting(originalIDs).count, 2,
+                       "A successful copy keeps its stored new source as well as the copy")
+        capture("new-bell-schedule-copy-keeps-source")
+    }
+
     func testTimetableCopyValidatesNameAndKeepsLandscapeKeyboardActionsReachable() {
         app.switchToPillTab("mine")
         let tables = app.buttons["mine_all_tables"].firstMatch
