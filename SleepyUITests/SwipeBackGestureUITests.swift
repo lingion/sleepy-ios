@@ -1,15 +1,4 @@
-// SwipeBackGestureUITests.swift — 验证 iOS 原生返回手势(.fullScreenCover / NavigationStack)
-//
-// 背景: 用户痛批"iOS 原生返回手势没做"。验证两个真实导航路径:
-//
-//   路径 A (NavigationStack push → pop): ScheduleScreen 内 NavigationStack push 子页
-//     → 顶部 ⬅️ 返回按钮(系统原生) + 左滑手势均可用
-//
-//   路径 B (fullScreenCover): Mine/Settings 全屏弹层(General / About / Reminder 等)
-//     → 顶栏 ⬅️ 按钮关闭(系统原生 NavigationView 提供)
-//     → iOS 13+ 边缘左滑 dismiss 全屏 sheet
-//
-// 不依赖 Sideloadly 装机 — 用 XCUITest 内置 swipe 在模拟器上模拟手势
+// 实际 overlay 返回、边缘手势与课程详情→编辑→课表的导航回归。
 
 import XCTest
 
@@ -32,7 +21,7 @@ final class SwipeBackGestureUITests: XCTestCase {
         app.terminate()
     }
 
-    // MARK: - 路径 A: fullScreenCover 弹层 — 顶栏 ⬅️ 按钮关闭 (Mine/Settings 入口)
+    // MARK: - 路径 A: 通用设置 overlay — 顶栏返回
 
     func testSettingsFullScreenDismissByBackButton() throws {
         // 进入 Mine tab
@@ -42,7 +31,7 @@ final class SwipeBackGestureUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
                           .waitForExistence(timeout: 5))
 
-        // 点 mine_general 入口 → fullScreenCover overlay 打开
+        // 点 mine_general 入口打开设置 overlay
         let generalEntry = app.descendants(matching: .any)["mine_general"].firstMatch
         XCTAssertTrue(generalEntry.waitForExistence(timeout: 5),
                       "mine_general 入口必须存在")
@@ -64,7 +53,7 @@ final class SwipeBackGestureUITests: XCTestCase {
                       + "\n(返回 Mine 后 mine_general 入口应重新可见)")
     }
 
-    // MARK: - 路径 B: 全屏 overlay — 边缘左滑关闭 (iOS 13+ native gesture)
+    // MARK: - 路径 B: About overlay — 左边缘向右拖动返回
 
     func testFullScreenOverlaySwipeDismiss() throws {
         // 进入 Mine → About
@@ -75,14 +64,13 @@ final class SwipeBackGestureUITests: XCTestCase {
                           .waitForExistence(timeout: 5))
 
         let aboutEntry = app.descendants(matching: .any)["mine_about"].firstMatch
-        guard aboutEntry.waitForExistence(timeout: 5) else {
-            throw XCTSkip("mine_about 入口不可见, 跳过")
-        }
+        XCTAssertTrue(aboutEntry.waitForExistence(timeout: 5), "About entry must exist")
         // ★ mine_about 在 Mine 页下部, 部分可见时 tap 落点可能被 pill 导航栏拦截
         //   (2026-11-06 CI 实证: 无滚动直接 tap → overlay 不弹; A1 截图用例先
         //   swipeUp 再 tap 则稳定过)。滚出 pill bar 拦截区再点, 与
         //   MineSettingsUITests.scrollUntil 同口径(底部 110pt 拦截带)。
-        scrollEntryIntoView(aboutEntry)
+        XCTAssertTrue(scrollEntryIntoView(aboutEntry))
+        XCTAssertTrue(aboutEntry.isHittable)
         aboutEntry.tap()
 
         // 等待 overlay 顶栏 ⬅️ 按钮
@@ -90,7 +78,7 @@ final class SwipeBackGestureUITests: XCTestCase {
         XCTAssertTrue(backButton.waitForExistence(timeout: 5),
                       "About overlay 顶栏 ⬅️ 按钮必须存在")
 
-        // 边缘左滑: 从屏幕左边缘快速拖向中间, 触发系统 dismiss 手势
+        // 从屏幕左边缘拖向右侧，触发应用的 overlay 返回手势
         let leftEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.5))
         let midRight = app.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5))
         leftEdge.press(forDuration: 0.05, thenDragTo: midRight, withVelocity: .fast, thenHoldForDuration: 0.3)
@@ -105,31 +93,38 @@ final class SwipeBackGestureUITests: XCTestCase {
                       "左滑手势关闭后必须回到 Mine，mine_about 入口应重新可见")
     }
 
-    // MARK: - 路径 C: NavigationStack push → pop (Schedule 内导航)
+    // MARK: - 路径 C: 课程详情 → 编辑 → 课表
 
-    func testNavigationStackPushPop() throws {
-        // 确认在 Schedule tab
-        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].firstMatch
-                          .waitForExistence(timeout: 5))
-
-        // 从 Schedule push 进课表(点任一节次)
-        let scheduleCell = app.descendants(matching: .any)["schedule_slot_0_1"].firstMatch
-        guard scheduleCell.waitForExistence(timeout: 5) else {
-            throw XCTSkip("没有课表节次可点, 跳过")
-        }
+    func testCourseEditorBackRestoresSchedule() throws {
+        let pager = app.collectionViews["schedule_week_pager"]
+        XCTAssertTrue(pager.waitForExistence(timeout: 5))
+        let scheduleCell = pager.buttons["gridcell_1"]
+        XCTAssertTrue(scheduleCell.waitForExistence(timeout: 5))
+        XCTAssertTrue(scheduleCell.isHittable)
+        XCTAssertTrue(scheduleCell.label.contains("高等数学"))
         scheduleCell.tap()
-
-        // 等待 ⬅️ 按钮 (SettingsTopBar 覆盖 overlay 也用 topbar_back)
+        let edit = app.buttons["detail_edit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["detail_close"].exists)
+        edit.tap()
+        XCTAssertTrue(app.staticTexts["Edit Course"].waitForExistence(timeout: 5))
+        let name = app.textFields["field_Course Name *"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertEqual(name.value as? String, "高等数学")
         let backButton = app.buttons["topbar_back"]
-        let backExists = backButton.waitForExistence(timeout: 5)
-        guard backExists else {
-            throw XCTSkip("schedule_slot_0_1 没触发 overlay push, 跳过")
-        }
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(backButton.isHittable)
         backButton.tap()
-
-        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].firstMatch
-                          .waitForExistence(timeout: 3),
-                      "⬅️ 按钮必须能 pop 回 Schedule tab")
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                               object: backButton)
+        XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 5), .completed)
+        XCTAssertFalse(name.exists)
+        XCTAssertFalse(app.buttons["detail_edit"].exists)
+        XCTAssertTrue(pager.isHittable)
+        XCTAssertTrue(scheduleCell.label.contains("高等数学"))
+        scheduleCell.tap()
+        XCTAssertTrue(edit.waitForExistence(timeout: 5), "The original course must still open after returning")
+        XCTAssertTrue(app.buttons["detail_close"].exists)
     }
 
     // MARK: - 兜底: About overlay 顶栏 ⬅️ 按钮存在性
@@ -140,11 +135,10 @@ final class SwipeBackGestureUITests: XCTestCase {
         app.switchToPillTab("mine")
 
         let aboutEntry = app.descendants(matching: .any)["mine_about"].firstMatch
-        guard aboutEntry.waitForExistence(timeout: 5) else {
-            throw XCTSkip("mine_about 入口不可见, 跳过")
-        }
+        XCTAssertTrue(aboutEntry.waitForExistence(timeout: 5), "About entry must exist")
         // ★ 同 testFullScreenOverlaySwipeDismiss: 先滚出 pill bar 拦截区再 tap。
-        scrollEntryIntoView(aboutEntry)
+        XCTAssertTrue(scrollEntryIntoView(aboutEntry))
+        XCTAssertTrue(aboutEntry.isHittable)
         aboutEntry.tap()
 
         let backButton = app.buttons["topbar_back"]
