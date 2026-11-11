@@ -84,6 +84,7 @@ struct PeriodTableEditScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .accessibilityIdentifier("period_table_editor_\(periodTableId)")
         .onAppear { reloadTables() }
         // ← allPeriodTables collectAsState(ktl L91): 表列表实时刷新(同 id timeJson 外部更新
         // 时 rows/smartConfig 也经 loadIfNeeded 键控重载)。not-found 阶段尚无本表 → 只播种列表,

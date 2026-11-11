@@ -400,10 +400,12 @@ final class SheetPlatformUITests: XCTestCase {
 
     func testCopyingAnUnsavedNewBellScheduleKeepsBothStoredRows() {
         openPeriodTables()
-        let originalIDs = Set(app.buttons.matching(NSPredicate(
-            format: "identifier BEGINSWITH 'period_table_edit_'"))
-            .allElementsBoundByIndex.map(\.identifier))
         app.buttons["period_tables_new"].tap()
+        let editor = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'period_table_editor_'" )).firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        let sourceID = String(editor.identifier.dropFirst("period_table_editor_".count))
+        XCTAssertNotNil(Int64(sourceID))
         let sourceField = app.textFields["field_Bell schedule name"].firstMatch
         XCTAssertTrue(sourceField.waitForExistence(timeout: 10))
         let sourceName = sourceField.value as? String ?? ""
@@ -419,13 +421,12 @@ final class SheetPlatformUITests: XCTestCase {
         confirm.tap()
         XCTAssertTrue(waitUntil { !confirm.exists })
         openPeriodTables()
-        _ = periodTableID(named: copiedName)
-        let resultingIDs = Set(app.buttons.matching(NSPredicate(
-            format: "identifier BEGINSWITH 'period_table_edit_'"))
-            .allElementsBoundByIndex.map(\.identifier))
-        XCTAssertTrue(originalIDs.isSubset(of: resultingIDs))
-        XCTAssertEqual(resultingIDs.subtracting(originalIDs).count, 2,
-                       "A successful copy keeps its stored new source as well as the copy")
+        let copiedID = periodTableID(named: copiedName)
+        XCTAssertNotEqual(copiedID, sourceID)
+        let source = app.buttons["period_table_edit_\(sourceID)"].firstMatch
+        makeHittable(source)
+        XCTAssertTrue(app.staticTexts["period_table_name_\(sourceID)"].exists,
+                      "A successful copy keeps its exact stored new source as well as the copy")
         capture("new-bell-schedule-copy-keeps-source")
     }
 
