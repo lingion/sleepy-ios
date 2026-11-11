@@ -223,6 +223,7 @@
 		31BA8990DDABCAF60E5EEFC2 /* ReminderCapabilityFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3997ACEE9626F6C1DD522A5 /* ReminderCapabilityFlow.swift */; };
 		31DC9283462FDD18CD1C9D29 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3413D32EAF8B62AF599E26CE /* GRDB */; };
 		329F20B65DE8E40ADE86BF1B /* JwEcuplDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6A7AFEDDFEE5ED0C0F3DEA /* JwEcuplDetails.swift */; };
+		32AF68910A25D2EB6AE861C9 /* AppearanceColorActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6474EB1FA0815FA05BDCD107 /* AppearanceColorActions.swift */; };
 		32C7A0EB4224644590EA4AB5 /* JwQzCrazyParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D445F86E00820411E38285 /* JwQzCrazyParser.swift */; };
 		32DEEB5BE7347262F09EEE9F /* JwSchoolGridParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F32F43FF085BC4AA03C1CF9 /* JwSchoolGridParser.swift */; };
 		32F68944519ADC7366B089B4 /* JwZfVariantHtml.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053689875E625CCE2467E4F3 /* JwZfVariantHtml.swift */; };
@@ -578,6 +579,7 @@
 		81027A0DB46EC0F6E3DAFA0D /* HolidayTransferHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FAF9304707FC68029AD02F /* HolidayTransferHelper.swift */; };
 		814A1D7EB8F1B317FAF01A47 /* TimeTableEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480CB26C5638A20DE5CED8AC /* TimeTableEntity.swift */; };
 		82043935FD859F247D143C7A /* TodayWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4025E8D10A574C8F59C29E21 /* TodayWidgetView.swift */; };
+		8250295DF222D1C38FD42984 /* AppearanceColorActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6474EB1FA0815FA05BDCD107 /* AppearanceColorActions.swift */; };
 		82597FDF064F1686ACACF87F /* BatteryOptimizationIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A490795AC781095315441167 /* BatteryOptimizationIntents.swift */; };
 		82764C98C2EA5D6D7B27A912 /* JwJsonParsers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC7DB3DE13257F697784257 /* JwJsonParsers.swift */; };
 		8278C057A0726BC083939E6D /* WakeUpV6170Crypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 487FC9411AAFE0B3170A36E4 /* WakeUpV6170Crypto.swift */; };
@@ -763,6 +765,7 @@
 		AB4A667621ABE9585219F855 /* MigrationBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D592A336E4B87069FB2952A3 /* MigrationBackup.swift */; };
 		AB9F415EB366901354598846 /* JwNewUrpSuperParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7BDD85AA6C684A8DFCEEC5C /* JwNewUrpSuperParser.swift */; };
 		ABA1A7F51E6B93D9C442E82B /* NewTableImportDefaultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04898817A482E7E3C86126E0 /* NewTableImportDefaultTests.swift */; };
+		ABF312343CD7370493E78517 /* AppearanceColorActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6474EB1FA0815FA05BDCD107 /* AppearanceColorActions.swift */; };
 		AC8A24352585A789CA19DB2D /* JwParity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091CF54ADE6711A4CA322D6D /* JwParity.swift */; };
 		ACC9A5D1C32A957F9070F8BA /* WidgetAddGuideSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EAED4FF0AAFA97607BEBC7 /* WidgetAddGuideSheet.swift */; };
 		AD0511066366C95F452D312F /* ConflictDetailReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31FA03F7AF7A6E296C6B4BD /* ConflictDetailReporter.swift */; };
@@ -810,10 +813,12 @@
 		B7144255097494B63EC058F6 /* WidgetVariantInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B140E2A80329256048C9082 /* WidgetVariantInfo.swift */; };
 		B7347F2295F9A317A70D30F7 /* WidgetWindowCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1362E01134FB72031611514 /* WidgetWindowCore.swift */; };
 		B738E95AA6AB92330F8FB9BB /* JwQzIeasParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5338A3818AD49E6EB2324B79 /* JwQzIeasParser.swift */; };
+		B755435F98FD0EBC367408C3 /* AppearanceColorActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6474EB1FA0815FA05BDCD107 /* AppearanceColorActions.swift */; };
 		B75798C4852058A6C1C208B0 /* WidgetVendorActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95FC3092F0599DF4E35D564E /* WidgetVendorActions.swift */; };
 		B7631047E0E105D0C6B1EFBB /* SystemColorSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A6A789C0880D656AB85064 /* SystemColorSeed.swift */; };
 		B7B7B9E50F2427797E4F6752 /* CourseColorUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F8589E7A5EA8C34355C1FFF /* CourseColorUtil.swift */; };
 		B7BC3D3BC0FC4E11AFA46E7E /* ClassDayActivityCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AEACE9316B4986B3F05F08E /* ClassDayActivityCore.swift */; };
+		B836D020D9042CA7688F60CB /* AppearanceCourseColorParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA3D5A4E555CFE55497911D /* AppearanceCourseColorParityTests.swift */; };
 		B871A6901CC5110E1F1A1482 /* GridSeparatorGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB8D57D18781E227F5F568A /* GridSeparatorGeometry.swift */; };
 		B887E78484012A1082E0D890 /* PeriodTableEdgePreviewParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34521193FF6395B66B8C8329 /* PeriodTableEdgePreviewParityTests.swift */; };
 		B8E34B66D9830F12249D9431 /* MarkdownBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A6E74309BB326A8378BC9A /* MarkdownBlocks.swift */; };
@@ -1400,6 +1405,7 @@
 		4B8F322DCB1C5CF622C99C11 /* JwParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParserTests.swift; sourceTree = "<group>"; };
 		4C57843267B628D25DD90575 /* JwFetchBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwFetchBudget.swift; sourceTree = "<group>"; };
 		4C7D97FDF0BE721C309E4F67 /* CourseEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseEntity.swift; sourceTree = "<group>"; };
+		4CA3D5A4E555CFE55497911D /* AppearanceCourseColorParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceCourseColorParityTests.swift; sourceTree = "<group>"; };
 		4CAD2798811A61E5A2ED8F2C /* WidgetGalleryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGalleryScreen.swift; sourceTree = "<group>"; };
 		4CDAAE384707C4B3E25987D7 /* EdgeTimeReferenceReclaimTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeTimeReferenceReclaimTests.swift; sourceTree = "<group>"; };
 		4D83A7A25FAA92EB0300C64A /* Ics28NeuPeriodsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ics28NeuPeriodsTests.swift; sourceTree = "<group>"; };
@@ -1454,6 +1460,7 @@
 		6267C653C62742958073FDD7 /* JwBoyaPpParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwBoyaPpParser.swift; sourceTree = "<group>"; };
 		62CB68DB9B653E572BD941AC /* ClassDndScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassDndScheduler.swift; sourceTree = "<group>"; };
 		62E666B657065219FD1335EA /* TopBarOverlapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopBarOverlapUITests.swift; sourceTree = "<group>"; };
+		6474EB1FA0815FA05BDCD107 /* AppearanceColorActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceColorActions.swift; sourceTree = "<group>"; };
 		64A552952CA5208B8A961BF4 /* JwQzVariants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwQzVariants.swift; sourceTree = "<group>"; };
 		64BF7FAB38EE44A780C793BD /* CourseEditorUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseEditorUITests.swift; sourceTree = "<group>"; };
 		64CFB5B5DD63AC209144EEDD /* SleepyWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SleepyWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1933,6 +1940,7 @@
 			isa = PBXGroup;
 			children = (
 				79018F3456B69D229A88C9CB /* AppClock.swift */,
+				6474EB1FA0815FA05BDCD107 /* AppearanceColorActions.swift */,
 				A3F73FAB76399721B954DF20 /* AppGroupResolver.swift */,
 				DB174180E779B7796964E378 /* AppPrefs.swift */,
 				D31FA03F7AF7A6E296C6B4BD /* ConflictDetailReporter.swift */,
@@ -2438,6 +2446,7 @@
 				D5C46E87F6C7DE34B2462440 /* AddCoursesImportTests.swift */,
 				ED129426BF2BC8AAA1E960A3 /* AddCoursesPresentationTests.swift */,
 				33A8111380B5AD24AFAC8882 /* Android1064DataParityTests.swift */,
+				4CA3D5A4E555CFE55497911D /* AppearanceCourseColorParityTests.swift */,
 				8BA3B7F525825D51CDEC9739 /* BackgroundReliabilityTests.swift */,
 				DD16A8D777E02206641DCE1C /* CalendarTransferImportTests.swift */,
 				A6A03100D7B4127079A00D7A /* ClassDayActivityCoreTests.swift */,
@@ -3200,6 +3209,7 @@
 				E1F3A0572C8CCC64452BA91E /* AppDatabase.swift in Sources */,
 				FB63563BAAF964DF077FA5B1 /* AppGroupResolver.swift in Sources */,
 				427E000DEAF32AEDF2F36705 /* AppPrefs.swift in Sources */,
+				B755435F98FD0EBC367408C3 /* AppearanceColorActions.swift in Sources */,
 				F5B36407901BE09E59DF5AA5 /* BackgroundReliabilityProbe.swift in Sources */,
 				8D07FFC75B5C2783D9E53DD1 /* BackgroundReliabilitySnapshot.swift in Sources */,
 				F3CB1231775E739C101A0A3F /* CalendarImportRecordDao.swift in Sources */,
@@ -3332,6 +3342,7 @@
 				65CF01F49FC04AD316F12BB6 /* AppDatabase.swift in Sources */,
 				52BF11E4543EFC2F7C4941BA /* AppGroupResolver.swift in Sources */,
 				D850C9512A65FE07DDC9556F /* AppPrefs.swift in Sources */,
+				ABF312343CD7370493E78517 /* AppearanceColorActions.swift in Sources */,
 				C7749C80CF3B91B937B73606 /* AppearanceNavigationRow.swift in Sources */,
 				D1DAE4F6D52A83D515D91744 /* AppearanceScreen.swift in Sources */,
 				D5F7EFF9504BC42333D5D486 /* BackgroundReliabilityProbe.swift in Sources */,
@@ -3716,6 +3727,7 @@
 				92F5FBC94FF2A739A0980E4E /* AppDatabase.swift in Sources */,
 				0721F81C7C4D4E517D11B4D0 /* AppGroupResolver.swift in Sources */,
 				D2E92422ED2FA5E9F9645DE3 /* AppPrefs.swift in Sources */,
+				32AF68910A25D2EB6AE861C9 /* AppearanceColorActions.swift in Sources */,
 				BA0886BFD5285B9F2ED4B736 /* BackgroundReliabilityProbe.swift in Sources */,
 				9BE945CC3CC02808DB5938B1 /* BackgroundReliabilitySnapshot.swift in Sources */,
 				C5C405B7D1B57C3194E7FF86 /* BatteryOptimizationIntents.swift in Sources */,
@@ -3959,6 +3971,7 @@
 				2C09665FC32479EA75AFC667 /* AddCoursesImportTests.swift in Sources */,
 				9A86102FCD6541B6E58087CB /* AddCoursesPresentationTests.swift in Sources */,
 				9504E6C4FC2E5062A82A3F90 /* Android1064DataParityTests.swift in Sources */,
+				B836D020D9042CA7688F60CB /* AppearanceCourseColorParityTests.swift in Sources */,
 				1019C91B3D4BD3F7F3756DA8 /* BackgroundReliabilityTests.swift in Sources */,
 				A71AF9100E148A25FC30A84E /* CalendarTransferImportTests.swift in Sources */,
 				96C7E7A2A3B52C08C63DCBE3 /* ClassDayActivityCoreTests.swift in Sources */,
@@ -4191,6 +4204,7 @@
 				69FE60FF295F9F5E64767937 /* AppDatabase.swift in Sources */,
 				29FF44762D7AF07F1291EB44 /* AppGroupResolver.swift in Sources */,
 				47CEDC5F55C0F4A8F96009E9 /* AppPrefs.swift in Sources */,
+				8250295DF222D1C38FD42984 /* AppearanceColorActions.swift in Sources */,
 				9F213C78CE2B63AF40F9FAB1 /* BackgroundReliabilityProbe.swift in Sources */,
 				3E79A5BFBD26EAE86EBFCDFE /* BackgroundReliabilitySnapshot.swift in Sources */,
 				2801D93B452A0F2E5DEE1D35 /* CalendarImportRecordDao.swift in Sources */,

@@ -13,6 +13,43 @@ import XCTest
 import SwiftUI
 @testable import Sleepy
 
+final class CustomThemeEditorRoleTests: XCTestCase {
+    private let editedTheme = CustomTheme(id: "user-theme", name: "Keep my palette",
+        primary: "#123456", secondary: "#654321", tertiary: "#ABCDEF",
+        surfaceHue: 137, surfaceChroma: 27.5, createdAt: 123)
+
+    func testManualColorEditsPreserveEveryOtherThemeField() {
+        for role in [ThemeEditorRole.primary, .secondary, .tertiary] {
+            let next = CustomThemeEditorScreen.applyingPickedColor(hex: "#FF00FF00", role: role, to: editedTheme)
+            let expected: CustomTheme
+            switch role {
+            case .primary: expected = editedTheme.copy(primary: "#00FF00")
+            case .secondary: expected = editedTheme.copy(secondary: "#00FF00")
+            default: expected = editedTheme.copy(tertiary: "#00FF00")
+            }
+            XCTAssertEqual(next, expected, "Manual \(role) must preserve the remaining user palette")
+        }
+    }
+
+    func testExplicitSeedGenerationUpdatesPaletteAndPreservesThemeIdentity() {
+        let next = CustomThemeEditorScreen.applyingPickedColor(hex: "#FF00FF00", role: .seedPrimary, to: editedTheme)
+        XCTAssertEqual(next.primary, "#00FF00")
+        XCTAssertNotEqual(next.secondary, editedTheme.secondary)
+        XCTAssertNotEqual(next.tertiary, editedTheme.tertiary)
+        XCTAssertEqual(next.surfaceHue, 120, accuracy: 0.001)
+        XCTAssertEqual(next.surfaceChroma, 8)
+        XCTAssertEqual(next.id, editedTheme.id)
+        XCTAssertEqual(next.name, editedTheme.name)
+        XCTAssertEqual(next.createdAt, editedTheme.createdAt)
+    }
+
+    func testInvalidPickedColorLeavesWholeThemeUnchanged() {
+        for role in [ThemeEditorRole.primary, .secondary, .tertiary, .surface, .seedPrimary] {
+            XCTAssertEqual(CustomThemeEditorScreen.applyingPickedColor(hex: "invalid", role: role, to: editedTheme), editedTheme)
+        }
+    }
+}
+
 /// Color → [r, g, b]:Swift 元组不能当 XCTAssertEqual 的 Equatable 参数,统一转数组比
 private func rgbComponents(_ color: Color) -> [Float] {
     let c = CustomSchemeDeriver.rgb(of: color)
