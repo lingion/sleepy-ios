@@ -28,7 +28,7 @@ final class CourseEditorUITests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 5), file: file, line: line)
         var previousFrame = CGRect.zero
         var stableSince = Date()
-        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+        func hasSettled() -> Bool {
             guard element.exists && element.isHittable else {
                 stableSince = Date()
                 return false
@@ -41,9 +41,16 @@ final class CourseEditorUITests: XCTestCase {
             if frame != previousFrame { stableSince = Date() }
             previousFrame = frame
             return Date().timeIntervalSince(stableSince) >= 0.3
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed,
-                       "The complete action must settle before its single tap", file: file, line: line)
+        }
+        // A CI accessibility sample can take four seconds; allow two complete samples on this test thread.
+        let deadline = Date().addingTimeInterval(15)
+        var settled = false
+        repeat {
+            if hasSettled() { settled = true; break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        } while Date() < deadline
+        XCTAssertTrue(settled, "The complete action must settle before its single tap", file: file, line: line)
+        guard settled else { return }
         element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
@@ -120,6 +127,18 @@ final class CourseEditorUITests: XCTestCase {
             if toggle.isHittable && app.frame.contains(toggle.frame) { break }
             app.swipeDown()
         }
+        let beforeCollapse = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        beforeCollapse.name = "glass-course-range-before-collapse"
+        beforeCollapse.lifetime = .keepAlways
+        add(beforeCollapse)
+        let foregroundScroll = app.scrollViews.allElementsBoundByIndex.last(where: { $0.isHittable })
+        let collapseGeometry = XCTAttachment(string:
+            "toggle.frame=\(toggle.frame) app.frame=\(app.frame) " +
+            "scroll.frame=\(String(describing: foregroundScroll?.frame)) " +
+            "toggle.exists=\(toggle.exists) toggle.isHittable=\(toggle.isHittable)")
+        collapseGeometry.name = "glass-course-range-before-collapse-geometry"
+        collapseGeometry.lifetime = .keepAlways
+        add(collapseGeometry)
         tapSettled(toggle)
         expectLabel("Expand period", on: toggle)
         let collapsed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: start)
