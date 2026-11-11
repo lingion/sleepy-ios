@@ -246,7 +246,7 @@ struct ScheduleScreen: View {
         .onChange(of: showShareSheet) { if $0 { quickAdd.dismiss() } }
         .onDisappear { quickAdd.dismiss() }
         // v7.10.14 课表切换弹窗(← TableSwitcherDialog)
-        .sheet(isPresented: $showTableSwitcher) {
+        .centeredDialog(isPresented: $showTableSwitcher) {
             TableSwitcherSheet(
                 tables: state.tables,
                 selectedTableId: state.selectedTableId,
@@ -292,10 +292,8 @@ struct ScheduleScreen: View {
             savedRowScale = persisted
             rowHeightScale = persisted
         }
-        // ← 原版本 跳周 DropdownMenu: 自绘 ZStack 浮层(与仓库浮层容器同款模式),
-        //   280pt 面板 + 圆形周 chip 网格, 点击即选即关, 点面板外任意处关闭。
-        .overlay(alignment: .top) {
-            if showWeekJumpMenu {
+        // Week selection stays centered regardless of the toolbar's current layout.
+        .centeredDialog(isPresented: $showWeekJumpMenu) {
                 // v1.0.62 B5b: 跳周 chip 网格上限同 displayMaxWeek ← 原版本 TopBar 内 DropdownMenu 同参
                 WeekJumpMenu(currentWeek: state.selectedWeek,
                              maxWeek: state.displayMaxWeek,
@@ -304,7 +302,6 @@ struct ScheduleScreen: View {
                                  showWeekJumpMenu = false
                              },
                              onDismiss: { showWeekJumpMenu = false })
-            }
         }
         // 详情 Bottom Sheet
         .sheet(item: $selectedCourse) { course in
@@ -899,12 +896,7 @@ private struct TableSwitcherSheet: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text(L10n.format("schedule_switch_table"))
-                .font(.system(size: 24, weight: .medium))
-                .foregroundColor(colors.onSurface)
-                .padding(.top, 16)
-            ScrollView {
+        CenteredPickerDialog(title: L10n.format("schedule_switch_table"), onDismiss: onDismiss) {
                 VStack(spacing: 4) {
                     ForEach(tables) { table in
                         let isCurrent = table.id == selectedTableId
@@ -931,12 +923,7 @@ private struct TableSwitcherSheet: View {
                         .accessibilityIdentifier("switch_table_\(table.id)")
                     }
                 }
-                .padding(.horizontal, 16)
-            }
-            .frame(maxHeight: 360)
         }
-        .padding(.bottom, 16)
-        .sheetDetents([.medium])
     }
 }
 
@@ -980,12 +967,8 @@ private struct WeekNavButton: View {
     }
 }
 
-// ← ScheduleScreen.kt L475-528 跳周 DropdownMenu — 280dp 弹层 + FlowRow 圆形周 chip:
-//   容器 surfaceContainerHighest / 内边距 12 / 标题 schedule_jump_week(labelMedium
-//   onSurfaceVariant, padding start4 bottom8) / chip 40dp Circle spacedBy 8×8,
-//   选中 primary+Bold+onPrimary, 未选中 surfaceContainerHigh+Regular+onSurface,
-//   点击即选即关; 点面板外任意处关闭(自绘 ZStack 浮层, 与仓库浮层容器模式一致)。
-private struct WeekJumpMenu: View {
+// Window-centered week dialog; its placement is independent of the toolbar label.
+struct WeekJumpMenu: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.sleepyUIStyle) private var style
     let currentWeek: Int
@@ -997,32 +980,34 @@ private struct WeekJumpMenu: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let panelWidth = min(280, max(geometry.size.width - 24, 0))
+            let panelWidth = min(320, max(geometry.size.width - 48, 0))
             let stride = chipDiameter + 8
-            let columns = max(Int((panelWidth - 24 + 8) / stride), 1)
+            let columns = max(Int((panelWidth - 48 + 8) / stride), 1)
             let rows = (max(maxWeek, 1) - 1) / columns + 1
             let gridHeight = CGFloat(rows) * stride - 8
-            ZStack(alignment: .top) {
-                Color.black.opacity(0.001)
+            ZStack {
+                Color.black.opacity(0.32)
                     .contentShape(Rectangle())
                     .onTapGesture(perform: onDismiss)
-                menuPanel(gridHeight: min(gridHeight, max(geometry.size.height - 108, 40)))
+                menuPanel(gridHeight: min(gridHeight, min(400, max(geometry.size.height - 176, 40))))
                     .frame(width: panelWidth, alignment: .leading)
-                    .background(colors.surfaceContainerHighest)
-                    .cornerRadius(4)
+                    .background(colors.surfaceContainerHigh)
+                    .cornerRadius(28)
                     .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
-                    .padding(.top, 56)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("week_jump_dialog")
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
+        .ignoresSafeArea()
     }
 
     private func menuPanel(gridHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(L10n.format("schedule_jump_week"))
-                .font(.system(size: 12, weight: .medium))   // ← labelMedium 12
-                .foregroundColor(colors.onSurfaceVariant)
-                .padding(.leading, 4)
-                .padding(.bottom, 8)
+                .font(SleepyTypography.titleLarge)
+                .foregroundColor(colors.onSurface)
+                .padding(.bottom, 16)
                 .accessibilityIdentifier("week_jump_title")
             ScrollViewReader { proxy in
                 ScrollView {
@@ -1031,8 +1016,16 @@ private struct WeekJumpMenu: View {
                 .frame(height: gridHeight)
                 .onAppear { proxy.scrollTo(currentWeek, anchor: .center) }
             }
+            HStack {
+                Spacer()
+                Button(action: onDismiss) { Text(L10n.format("cancel")) }
+                    .buttonStyle(SleepyPlatformButtonStyle())
+                    .tint(colors.primary)
+                    .accessibilityIdentifier("week_jump_cancel")
+            }
+            .padding(.top, 16)
         }
-        .padding(12)
+        .padding(24)
     }
 
     // Keep the familiar five-column menu, allowing fewer columns in narrow panes.

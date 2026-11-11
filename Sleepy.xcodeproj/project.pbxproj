@@ -396,6 +396,7 @@
 		57E26289B688726AD9BC1472 /* CalendarImportRecordEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0DABC28BEA6BE6A4C2179D /* CalendarImportRecordEntity.swift */; };
 		58293D473C0574A95A1BDE90 /* DialogButtonsLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605E90839E51A5E622A86165 /* DialogButtonsLayoutPolicy.swift */; };
 		5857C83C2C46E5284014163C /* SystemColorProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE3AC9450211B1691131AA2 /* SystemColorProbe.swift */; };
+		588EAD2541E6364F2E80F93F /* WeekDialogLayoutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F320879A74F6E8825ECE3C0 /* WeekDialogLayoutUITests.swift */; };
 		58D9B83D867650A5E6721055 /* SystemColorScheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AADC4D523663B1B42026758 /* SystemColorScheme.swift */; };
 		58FF882511A2FE5F130CF43E /* JwQzIeasParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5338A3818AD49E6EB2324B79 /* JwQzIeasParser.swift */; };
 		592D44339BC45779F6A848C8 /* JwWebViewLoginScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7AF4E2551FE143942A3F3F /* JwWebViewLoginScreen.swift */; };
@@ -1572,6 +1573,7 @@
 		8D929FCEF4A32DF472275A70 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8E062A510E36FD6575BFDAB0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = en; path = en.lproj/Localizable.stringsdict; sourceTree = "<group>"; };
 		8EE12ECE7C7C2621272CE79D /* JwSchoolTableParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwSchoolTableParser.swift; sourceTree = "<group>"; };
+		8F320879A74F6E8825ECE3C0 /* WeekDialogLayoutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekDialogLayoutUITests.swift; sourceTree = "<group>"; };
 		8F4B12CD9D528D4AAFC6E454 /* ReminderModeAndTableReminderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderModeAndTableReminderTests.swift; sourceTree = "<group>"; };
 		8F572ACD5CFFF9BA922865C0 /* HolidayReminderPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayReminderPolicy.swift; sourceTree = "<group>"; };
 		8F7AF4E2551FE143942A3F3F /* JwWebViewLoginScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWebViewLoginScreen.swift; sourceTree = "<group>"; };
@@ -2864,6 +2866,7 @@
 				8CAD39D80DA896A487637E86 /* UIElementAuditUITests.swift */,
 				A7FEE8627F23A972326DD0C3 /* UITestLaunch.swift */,
 				3CCF650CBCA0D0B5B19251A0 /* WatchTimeStripSettingsUITests.swift */,
+				8F320879A74F6E8825ECE3C0 /* WeekDialogLayoutUITests.swift */,
 				3E7AD6CE77CFDEF12C064E61 /* WidgetArchivingUITests.swift */,
 			);
 			path = SleepyUITests;
@@ -3730,6 +3733,7 @@
 				5BBFF48EE96BC7C8BFB2E820 /* UIElementAuditUITests.swift in Sources */,
 				E0C79D8919C1E4EE10294597 /* UITestLaunch.swift in Sources */,
 				FB209E5C6CE38B6D3F97529A /* WatchTimeStripSettingsUITests.swift in Sources */,
+				588EAD2541E6364F2E80F93F /* WeekDialogLayoutUITests.swift in Sources */,
 				76D1F3F2759F5FBE76A9D061 /* WidgetArchivingUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
