@@ -138,6 +138,15 @@ final class UIElementAuditUITests: XCTestCase {
         return condition()
     }
 
+    private func assertNativeColorPickerContent(file: StaticString = #filePath, line: UInt = #line) {
+        let modes = app.descendants(matching: .any).matching(NSPredicate(format: "label IN %@", [
+            "Grid", "Spectrum", "Sliders", "网格", "光谱", "滑块", "網格", "滑桿"
+        ]))
+        XCTAssertTrue(waitForAuditCondition {
+            modes.allElementsBoundByIndex.contains { $0.isHittable }
+        }, "The native picker must render its color controls before capture", file: file, line: line)
+    }
+
     /// Reveal the complete control inside its foreground scroll area and above the dock.
     /// Drag the empty leading gutter so sliders do not consume the scroll gesture.
     /// Use shorter steps only when the target is already near the viewport.
@@ -716,6 +725,7 @@ final class UIElementAuditUITests: XCTestCase {
         seed.tap()
         let pickerCancel = app.navigationBars.buttons["Cancel"].firstMatch
         XCTAssertTrue(pickerCancel.waitForExistence(timeout: 10))
+        assertNativeColorPickerContent()
         captureScreenshot("A8_theme-seed-native-color-picker")
         pickerCancel.tap()
         XCTAssertTrue(waitForAuditCondition { !pickerCancel.exists && name.exists })
@@ -727,6 +737,7 @@ final class UIElementAuditUITests: XCTestCase {
         captureScreenshot("A8_custom-theme-role-colors")
         primary.tap()
         XCTAssertTrue(pickerCancel.waitForExistence(timeout: 10))
+        assertNativeColorPickerContent()
         captureScreenshot("A8_theme-primary-native-color-picker")
         pickerCancel.tap()
         XCTAssertTrue(waitForAuditCondition { !pickerCancel.exists && primary.exists })
@@ -753,6 +764,7 @@ final class UIElementAuditUITests: XCTestCase {
         groupColor.tap()
         let cancelColor = app.navigationBars.buttons["Cancel"].firstMatch
         XCTAssertTrue(cancelColor.waitForExistence(timeout: 10))
+        assertNativeColorPickerContent()
         captureScreenshot("A8_existing-course-group-color-picker")
         cancelColor.tap()
         XCTAssertTrue(waitForAuditCondition { !cancelColor.exists && groupColor.exists })
