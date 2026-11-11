@@ -165,6 +165,134 @@ final class AddCoursesEntryUITests: XCTestCase {
                        "The discarded new table must remain absent after a normal restart")
     }
 
+    func testManualCourseCancelAndSaveReturnToMethodsPreservingPasteDraft() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        defer { app.terminate() }
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+                               "-SLEEPY_UI_TEST_SEED", "-ui_style", "classic"]
+        app.sleepyLaunch()
+        app.switchToPillTab("manage")
+        app.buttons["manage_add_course"].tap()
+
+        func waitUntil(_ condition: () -> Bool) -> Bool {
+            let deadline = Date().addingTimeInterval(8)
+            repeat {
+                if condition() { return true }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+            } while Date() < deadline
+            return condition()
+        }
+
+        func capture(_ name: String) {
+            let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+
+        func tapForegroundBack() {
+            let back = app.buttons.matching(identifier: "topbar_back")
+                .allElementsBoundByIndex.last { $0.isHittable }
+            XCTAssertNotNil(back)
+            back?.tap()
+        }
+
+        func reveal(_ control: XCUIElement, in scroll: XCUIElement) {
+            for _ in 0..<10 {
+                var viewport = scroll.frame.intersection(app.frame)
+                let keyboard = app.keyboards.firstMatch
+                if keyboard.exists, viewport.intersects(keyboard.frame) {
+                    viewport.size.height = max(0, keyboard.frame.minY - viewport.minY - 12)
+                }
+                if control.isHittable && viewport.contains(control.frame) { return }
+                XCTAssertGreaterThan(viewport.height, 60)
+                let origin = app.coordinate(withNormalizedOffset: .zero)
+                let x = viewport.minX + 10
+                origin.withOffset(CGVector(dx: x, dy: viewport.minY + viewport.height * 0.8))
+                    .press(forDuration: 0.05, thenDragTo:
+                        origin.withOffset(CGVector(dx: x, dy: viewport.minY + viewport.height * 0.25)))
+            }
+            XCTFail("The foreground control must be fully reachable above the keyboard: \(control.identifier)")
+        }
+
+        let textSource = app.buttons["import_text"].firstMatch
+        XCTAssertTrue(textSource.waitForExistence(timeout: 8))
+        textSource.tap()
+        let input = app.descendants(matching: .any)["import_paste_input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap()
+        let draft = "Retained manual course methods draft"
+        app.typeText(draft)
+        XCTAssertEqual(input.value as? String, draft)
+        let methods = app.scrollViews["import_methods_scroll"].firstMatch
+        let manual = app.buttons["import_manual"].firstMatch
+        reveal(manual, in: methods)
+        capture("manual-course-methods-draft")
+        manual.tap()
+
+        let name = app.textFields["field_Course Name *"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        name.tap()
+        let discardedName = "Discarded Manual Orbit"
+        app.typeText(discardedName)
+        XCTAssertEqual(name.value as? String, discardedName)
+        tapForegroundBack()
+        let returnedFromCancel = waitUntil {
+            methods.exists && methods.isHittable && input.exists && app.buttons["import_preview_btn"].exists
+        }
+        capture("manual-course-cancel-return")
+        XCTAssertTrue(returnedFromCancel,
+                      "Cancelling manual Add Course must restore the original target methods page")
+        XCTAssertEqual(input.value as? String, draft)
+
+        reveal(manual, in: methods)
+        manual.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        XCTAssertEqual(name.value as? String, "", "The cancelled course editor must discard its unsaved name")
+        name.tap()
+        let savedName = "Retained Manual Orbit"
+        app.typeText(savedName)
+        XCTAssertEqual(name.value as? String, savedName)
+        let save = app.buttons["course_save"].firstMatch
+        let form = app.scrollViews.allElementsBoundByIndex.first { $0.buttons["course_save"].exists }
+        XCTAssertNotNil(form)
+        guard let form else { return }
+        // Saturday is empty in the seed, so the save must not require a conflict override.
+        let monday = app.buttons["Mon"].firstMatch
+        let saturday = app.buttons["Sat"].firstMatch
+        reveal(monday, in: form)
+        reveal(saturday, in: form)
+        monday.tap()
+        saturday.tap()
+        reveal(save, in: form)
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+        let returnedFromSave = waitUntil {
+            methods.exists && methods.isHittable && input.exists && !save.exists
+        }
+        capture("manual-course-save-return")
+        XCTAssertTrue(returnedFromSave, "Saving must close only the manual course editor")
+        XCTAssertEqual(input.value as? String, draft)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+        tapForegroundBack()
+        XCTAssertTrue(waitUntil { app.buttons["pill_schedule"].isSelected },
+                      "Saving changes the underlying tab to Schedule while retaining the methods parent")
+
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        let courses = app.buttons["mine_stat_courses"].firstMatch
+        XCTAssertTrue(courses.waitForExistence(timeout: 8))
+        courses.tap()
+        XCTAssertTrue(app.staticTexts[savedName].waitForExistence(timeout: 8),
+                      "The manually saved course must persist in the original target after restart")
+        XCTAssertFalse(app.staticTexts[discardedName].exists)
+        XCTAssertTrue(app.staticTexts["高等数学"].exists, "The original target courses must remain")
+        capture("manual-course-restart-persisted")
+    }
+
     func testSelectedGroupsAppendPersistAndBackUpOriginalSchedule() {
         let app = openSources()
         defer { app.terminate() }
