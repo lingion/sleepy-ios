@@ -117,6 +117,26 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         }
     }
 
+    private func cancelSystemFilesPanel(file: StaticString = #filePath, line: UInt = #line) {
+        var cancel: XCUIElement?
+        let hasCancel = waitUntil(timeout: 3) {
+            cancel = self.app.buttons.matching(NSPredicate(format: "label == 'Cancel'"))
+                .allElementsBoundByIndex.last { $0.isHittable }
+            return cancel != nil
+        }
+        guard hasCancel, let cancel else {
+            capture("secondary-backup-system-cancel-missing")
+            let snapshot = app.debugDescription
+            let attachment = XCTAttachment(string: snapshot)
+            attachment.name = "secondary-backup-system-cancel-missing-ax"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            XCTFail("The open Files panel must expose its actual Cancel action.\n\(snapshot)", file: file, line: line)
+            return
+        }
+        cancel.tap()
+    }
+
     func testHolidayMappingOtherDateAndRangeEditorCapture() {
         openScheduleSettings()
         let entry = app.buttons["settings_holiday_entry"].firstMatch
@@ -246,18 +266,18 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         capture("secondary-backup-main")
         export.tap()
 
-        // fileExporter presents the system Files controller. Its English actions
-        // vary by OS; both a native Cancel action and export evidence are required.
+        // A Files subdirectory can show a navigation Back action instead of Cancel.
+        // Its Save action and the backup filename establish that export has opened.
         let cancel = app.buttons.matching(NSPredicate(format: "label == 'Cancel'")).firstMatch
         let fileName = app.textFields.matching(NSPredicate(
             format: "value BEGINSWITH 'sleepy-backup' OR label BEGINSWITH 'sleepy-backup'")).firstMatch
         let fileLabel = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'sleepy-backup'")).firstMatch
-        let save = app.buttons.matching(NSPredicate(format: "label IN {'Save', 'Move', 'Export'}")).firstMatch
+        let save = app.buttons.matching(NSPredicate(format: "label == 'Save'")).firstMatch
         XCTAssertTrue(waitUntil(timeout: 15) {
-            cancel.exists && cancel.isHittable && (fileName.exists || fileLabel.exists || save.exists)
+            save.exists && save.isHittable && (fileName.exists || fileLabel.exists)
         }, "Export must present the system file-saving panel")
         capture("secondary-backup-system-save-panel")
-        cancel.tap()
+        cancelSystemFilesPanel()
         let dismissed = waitUntil { !cancel.exists && export.isHittable && restore.isHittable }
         capture("secondary-backup-after-system-cancel")
         XCTAssertTrue(dismissed, app.debugDescription)
@@ -266,10 +286,10 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         // real pickers proves that cancellation also releases the operation lock.
         export.tap()
         XCTAssertTrue(waitUntil(timeout: 15) {
-            cancel.exists && cancel.isHittable && save.exists && (fileName.exists || fileLabel.exists)
+            save.exists && save.isHittable && (fileName.exists || fileLabel.exists)
         }, "Canceling export must allow another backup export to present its filename and Save action.\n\(app.debugDescription)")
         capture("secondary-backup-export-reopened-after-cancel")
-        cancel.tap()
+        cancelSystemFilesPanel()
         XCTAssertTrue(waitUntil {
             !cancel.exists && !fileName.exists && !fileLabel.exists && !save.exists
                 && export.isHittable && restore.isHittable
@@ -283,7 +303,7 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
                 && !fileName.exists && !fileLabel.exists && !save.exists
         }, "Canceling export must allow the system backup import picker to open.\n\(app.debugDescription)")
         capture("secondary-backup-system-import-panel-after-export-cancel")
-        cancel.tap()
+        cancelSystemFilesPanel()
         XCTAssertTrue(waitUntil {
             !cancel.exists && !filesLocation.exists && export.isHittable && restore.isHittable
         }, "Canceling backup import must return to the backup controls.\n\(app.debugDescription)")
