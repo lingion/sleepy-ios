@@ -39,9 +39,17 @@ func resolveAutoPeriodConfig(rows: [TimeTableUtils.TimeSlotRow],
 /// Replace standard rows with automatic output while retaining manual edge rows.
 func mergeAutoRows(existingRows: [TimeTableUtils.TimeSlotRow],
                    derivedStandardRows: [TimeTableUtils.TimeSlotRow]) -> [TimeTableUtils.TimeSlotRow] {
+    let lastStandard = derivedStandardRows.map(\.node).max() ?? 0
+    let afterNodes = existingRows.filter { $0.edgeClass == .after }.map(\.node)
+    let collides = afterNodes.contains { $0 > 0 && $0 <= lastStandard }
+    let afterShift = collides ? lastStandard + 1 - (afterNodes.min() ?? 0) : 0
     var nextStandard = 0
     var merged = existingRows.compactMap { row -> TimeTableUtils.TimeSlotRow? in
-        if row.edgeClass != nil { return row }
+        if row.edgeClass != nil {
+            var edge = row
+            if edge.edgeClass == .after { edge.node += afterShift }
+            return edge
+        }
         defer { nextStandard += 1 }
         guard nextStandard < derivedStandardRows.count else { return nil }
         return derivedStandardRows[nextStandard]
@@ -58,6 +66,13 @@ func decodeSmartPeriodConfig(_ json: String?) -> SmartPeriodConfig? {
           !json.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
           let data = json.data(using: .utf8) else { return nil }
     return try? JSONDecoder().decode(SmartPeriodConfig.self, from: data)
+}
+
+/// Persist a valid config only when it describes the standard rows being saved.
+func encodeMatchingSmartPeriodConfig(rows: [TimeTableUtils.TimeSlotRow], stored: SmartPeriodConfig?) -> String {
+    guard let config = resolveAutoPeriodConfig(rows: rows, stored: stored), config.validationError() == nil,
+          let data = try? JSONEncoder().encode(config), let json = String(data: data, encoding: .utf8) else { return "" }
+    return json
 }
 
 /// v1.0.56 作息表 Tab 选项 — 调用方从 VM 流映射, 组件不触库
@@ -141,11 +156,13 @@ struct TimeSlotEditor: View {
     }
 
     private func syncAutoRows() {
+        guard smartConfig.validationError() == nil else { return }
         onRowsChange(mergeAutoRows(existingRows: rows, derivedStandardRows: smartConfig.derive()))
     }
 
     private func switchToAuto() {
-        let resolved = resolveAutoPeriodConfig(rows: rows, stored: smartConfig) ?? smartConfig
+        let resolved = resolveAutoPeriodConfig(rows: rows, stored: smartConfig)
+            ?? (smartConfig.validationError() == nil ? smartConfig : SmartPeriodConfig())
         onSmartConfigChange(resolved)
         mode = .auto
     }
@@ -336,20 +353,15 @@ private struct ManualTimeSlotEditor: View {
                         conflict: TimeTableUtils.findConflictForSlot(rows, targetNode: row.node),
                         onStartChange: { newStart in
                             guard rows.indices.contains(index) else { return }
-                            var updated = rows; updated[index].start = newStart
-                            onRowsChange(updated)
+                            onRowsChange(TimeTableUtils.updateManualRowTime(rows, node: rows[index].node, start: newStart))
                         },
                         onEndChange: { newEnd in
                             guard rows.indices.contains(index) else { return }
-                            var updated = rows; updated[index].end = newEnd
-                            onRowsChange(updated)
+                            onRowsChange(TimeTableUtils.updateManualRowTime(rows, node: rows[index].node, end: newEnd))
                         },
                         onDelete: {
                             guard rows.indices.contains(index) else { return }
-                            var updated = rows; updated.remove(at: index)
-                            onRowsChange(updated.enumerated().map { offset, item in
-                                var value = item; value.node = offset + 1; return value
-                            })
+                            onRowsChange(TimeTableUtils.removeAndRenumber(rows, node: rows[index].node))
                         })
                         .background(GeometryReader { geometry in
                             Color.clear.preference(key: TimeSlotRowHeightKey.self,

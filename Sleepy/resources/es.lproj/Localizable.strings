@@ -1360,3 +1360,7 @@
 "live_activity_schedule_fallback" = "No se pudieron programar algunas actividades. Se conservan los avisos de notificación activados.";
 "live_activity_schedule_enable_notifications" = "No se pudieron programar algunas actividades. Activa también los avisos de notificación.";
 "live_activity_summary" = "Muestra las clases en la Dynamic Island y la pantalla bloqueada junto con las notificaciones.";
+"smart_period_invalid_start" = "La primera clase debe comenzar entre las 00:00 y las 23:59. No se aplicó el cambio.";
+"smart_period_invalid_count" = "Indica entre 1 y 1439 clases que quepan en el mismo día. No se aplicó el cambio.";
+"smart_period_invalid_duration" = "Las clases deben durar más de 0 minutos y los descansos no pueden ser negativos. No se aplicó el cambio.";
+"smart_period_exceeds_day" = "Las clases y los descansos deben terminar antes de las 23:59 del mismo día. No se aplicó el cambio; reduce la cantidad, la duración o los descansos.";

@@ -1360,3 +1360,7 @@
 "live_activity_schedule_fallback" = "一部の予約に失敗しました。有効な通知リマインダーは維持されます。";
 "live_activity_schedule_enable_notifications" = "一部の予約に失敗しました。通知リマインダーも有効にしてください。";
 "live_activity_summary" = "通知と併用して、Dynamic Island とロック画面に授業を表示します。";
+"smart_period_invalid_start" = "最初の時限の開始は 00:00～23:59 にしてください。この変更は適用されませんでした。";
+"smart_period_invalid_count" = "当日中に収まる 1～1439 時限を指定してください。この変更は適用されませんでした。";
+"smart_period_invalid_duration" = "授業時間は 1 分以上、休憩は 0 分以上にしてください。この変更は適用されませんでした。";
+"smart_period_exceeds_day" = "授業と休憩は当日の 23:59 までに終了する必要があります。この変更は適用されませんでした。時限数・授業時間・休憩時間を減らしてください。";

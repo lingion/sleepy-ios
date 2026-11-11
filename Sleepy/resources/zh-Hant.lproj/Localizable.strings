@@ -1360,3 +1360,7 @@
 "live_activity_schedule_fallback" = "部分即時動態無法預約，已開啟的通知提醒會保留。";
 "live_activity_schedule_enable_notifications" = "部分即時動態無法預約；建議同時開啟通知提醒。";
 "live_activity_summary" = "在動態島與鎖定畫面顯示課程，可同時開啟通知。";
+"smart_period_invalid_start" = "第一節開始時間需為 00:00–23:59，此次修改未套用。";
+"smart_period_invalid_count" = "總節數需在 1–1439 之間，並能排入當天，此次修改未套用。";
+"smart_period_invalid_duration" = "每節時長必須大於 0，課間不能小於 0，此次修改未套用。";
+"smart_period_exceeds_day" = "課程與課間必須在當天 23:59 前結束，此次修改未套用，請減少節數、時長或課間。";

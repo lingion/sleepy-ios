@@ -607,9 +607,7 @@ struct EditTableScreen: View {
 
     /// ← 原 runCatching { Json.encodeToString(cfg) }.getOrDefault("")
     private func encodeSmartConfig(_ cfg: SmartPeriodConfig) -> String {
-        guard let data = try? JSONEncoder().encode(cfg),
-              let json = String(data: data, encoding: .utf8) else { return "" }
-        return json
+        encodeMatchingSmartPeriodConfig(rows: slotRows, stored: cfg)
     }
 }
 

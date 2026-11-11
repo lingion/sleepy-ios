@@ -1360,3 +1360,7 @@
 "live_activity_schedule_fallback" = "Some activities could not be scheduled. Enabled notification reminders are retained.";
 "live_activity_schedule_enable_notifications" = "Some activities could not be scheduled. Enable notification reminders as a fallback.";
 "live_activity_summary" = "Show classes on the Dynamic Island and Lock Screen, alongside notification reminders.";
+"smart_period_invalid_start" = "The first period must start between 00:00 and 23:59. This change was not applied.";
+"smart_period_invalid_count" = "Use 1–1439 periods that fit within the day. This change was not applied.";
+"smart_period_invalid_duration" = "Period lengths must be positive and breaks cannot be negative. This change was not applied.";
+"smart_period_exceeds_day" = "Periods and breaks must finish by 23:59 on the same day. This change was not applied; reduce the count, lengths, or breaks.";
