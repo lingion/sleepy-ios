@@ -356,7 +356,9 @@ struct ExportScreen: View {
 
     static func temporaryExportURL(displayName: String, ext: String,
                                    directory: URL = FileManager.default.temporaryDirectory) -> URL {
-        directory.appendingPathComponent("sleepy_\(displayName)_\(stamp()).\(ext)")
+        let unsafe = CharacterSet.controlCharacters.union(CharacterSet(charactersIn: "/\\:"))
+        let basename = displayName.unicodeScalars.map { unsafe.contains($0) ? "_" : String($0) }.joined()
+        return directory.appendingPathComponent("sleepy_\(basename)_\(stamp()).\(ext)")
     }
 
     private static func stamp() -> String {
