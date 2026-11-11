@@ -117,6 +117,15 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         }
     }
 
+    private func cancelOccurrencePrompt(_ alert: XCUIElement,
+                                        file: StaticString = #filePath, line: UInt = #line) {
+        let cancel = alert.buttons["occurrence_prompt_cancel"].firstMatch
+        XCTAssertEqual(cancel.label, "Go back", file: file, line: line)
+        XCTAssertTrue(cancel.isHittable, file: file, line: line)
+        XCTAssertTrue(cancel.isEnabled, file: file, line: line)
+        cancel.tap()
+    }
+
     private func cancelSystemFilesPanel(file: StaticString = #filePath, line: UInt = #line) {
         for step in 0...8 {
             var cancel: XCUIElement?
@@ -359,7 +368,7 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         XCTAssertTrue(destinationPrompt.buttons["Follow the holiday transfer"].isEnabled)
         XCTAssertTrue(destinationPrompt.buttons["Schedule directly on this day"].isEnabled)
         capture("secondary-holiday-occurrence-destination-confirmation")
-        destinationPrompt.buttons["occurrence_prompt_cancel"].tap()
+        cancelOccurrencePrompt(destinationPrompt)
         XCTAssertTrue(waitUntil { !destinationPrompt.exists && date.label.contains(self.fullDate(destination)) })
         XCTAssertEqual(room.value as? String, originalRoom)
 
@@ -374,7 +383,7 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
             String(format: "%04d-01-02", nextYear), String(format: "%04d-01-01", nextYear))).firstMatch.exists)
         XCTAssertTrue(hidden.buttons["Schedule directly anyway"].isEnabled)
         capture("secondary-holiday-occurrence-direct-hidden-confirmation")
-        hidden.buttons["occurrence_prompt_cancel"].tap()
+        cancelOccurrencePrompt(hidden)
         XCTAssertTrue(waitUntil { !hidden.exists && date.label.contains(self.fullDate(destination)) })
         XCTAssertEqual(room.value as? String, originalRoom)
 
@@ -388,7 +397,7 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
             String(format: "%04d-01-01", nextYear), String(format: "%04d-01-02", nextYear))).firstMatch.exists)
         XCTAssertTrue(outgoing.buttons["Continue"].isEnabled)
         capture("secondary-holiday-occurrence-outgoing-confirmation")
-        outgoing.buttons["occurrence_prompt_cancel"].tap()
+        cancelOccurrencePrompt(outgoing)
         XCTAssertTrue(waitUntil { !outgoing.exists && date.label.contains(self.fullDate(source)) })
         XCTAssertEqual(room.value as? String, originalRoom)
         capture("secondary-holiday-occurrence-cancel-keeps-date-draft")
