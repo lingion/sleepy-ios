@@ -125,6 +125,42 @@ final class NativeSelectionThemeParityTests: XCTestCase {
     }
 
     @MainActor
+    func testNativeBaselineSliderUsesExactMaterialPrimaryForTrackAndBaseline() throws {
+        for scheme in [lightScheme, darkScheme] {
+            let state = NativeTabThemeState(colors: scheme)
+            let host = try hosted(NativeSliderThemeHarness(state: state), size: CGSize(width: 280, height: 64))
+            defer { host.window.isHidden = true }
+            let view = try XCTUnwrap((descendants(host.controller.view) as [BaselineSliderView]).first)
+            assertColor(try XCTUnwrap(view.slider.tintColor), UIColor(scheme.primary))
+            assertColor(try XCTUnwrap(view.ghost.tintColor), UIColor(scheme.primary))
+            assertColor(try XCTUnwrap(view.ghost.thumbTintColor), UIColor(scheme.primary))
+            XCTAssertEqual(view.slider.value, 0.7, accuracy: 0.001)
+            XCTAssertEqual(view.ghost.value, 0.3, accuracy: 0.001)
+            XCTAssertTrue(view.ghostVisible)
+        }
+    }
+
+    @MainActor
+    func testNativeBaselineSliderUpdatesMaterialThemeWithoutReplacingControls() throws {
+        let state = NativeTabThemeState(colors: lightScheme)
+        let host = try hosted(NativeSliderThemeHarness(state: state), size: CGSize(width: 280, height: 64))
+        defer { host.window.isHidden = true }
+        let view = try XCTUnwrap((descendants(host.controller.view) as [BaselineSliderView]).first)
+        let slider = view.slider
+        let ghost = view.ghost
+        state.colors = darkScheme
+        waitForUpdates { self.colorsMatch(slider.tintColor, UIColor(darkScheme.primary)) }
+        let updated = try XCTUnwrap((descendants(host.controller.view) as [BaselineSliderView]).first)
+        XCTAssertTrue(updated === view)
+        XCTAssertTrue(updated.slider === slider)
+        XCTAssertTrue(updated.ghost === ghost)
+        assertColor(try XCTUnwrap(slider.tintColor), UIColor(darkScheme.primary))
+        assertColor(try XCTUnwrap(ghost.thumbTintColor), UIColor(darkScheme.primary))
+        XCTAssertEqual(slider.value, 0.7, accuracy: 0.001)
+        XCTAssertEqual(ghost.value, 0.3, accuracy: 0.001)
+    }
+
+    @MainActor
     private func hosted<Content: View>(_ content: Content, size: CGSize) throws -> (window: UIWindow, controller: UIViewController) {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let controller = UIHostingController(rootView: content.frame(width: size.width, height: size.height).ignoresSafeArea())
@@ -181,7 +217,7 @@ final class NativeSelectionThemeParityTests: XCTestCase {
         while !predicate(), Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.01))
         }
-        XCTAssertTrue(predicate(), "The hosted TabView did not finish updating", file: file, line: line)
+        XCTAssertTrue(predicate(), "The hosted native control did not finish updating", file: file, line: line)
     }
 
     private func schemeName(_ scheme: WakeUpColorScheme) -> String {
@@ -257,5 +293,16 @@ private struct NativeTabThemeHarness: View {
         .modifier(NativeTabSelectionTint())
         .ignoresSafeArea(.container, edges: .bottom)
         .environment(\.localWakeUpColors, state.colors)
+    }
+}
+
+private struct NativeSliderThemeHarness: View {
+    @ObservedObject var state: NativeTabThemeState
+
+    var body: some View {
+        NativeBaselineSlider(value: 0.7, range: 0...1, baseline: 0.3,
+            label: "Theme slider", valueText: "70%", onValueChange: { _ in }, onFinished: {})
+            .environment(\.localWakeUpColors, state.colors)
+            .accentColor(.green)
     }
 }

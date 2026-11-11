@@ -38,6 +38,7 @@ private struct NativeBaselineSliderTrack: UIViewRepresentable {
     let baselineTolerance: Double?
     let onValueCommit: (Double) -> Void
     let identifier: String?
+    @Environment(\.localWakeUpColors) private var colors
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -56,11 +57,12 @@ private struct NativeBaselineSliderTrack: UIViewRepresentable {
         context.coordinator.parent = self
         let direction: UISemanticContentAttribute = layoutDirection == .rightToLeft
             ? .forceRightToLeft : .forceLeftToRight
+        let themeTint = UIColor(colors.primary)
         for slider in [view.slider, view.ghost] {
             slider.minimumValue = Float(range.lowerBound)
             slider.maximumValue = Float(range.upperBound)
             slider.semanticContentAttribute = direction
-            slider.tintColor = UIColor(Color.accentColor)
+            slider.tintColor = themeTint
         }
         view.slider.allowedRange = allowedRange.map { Float($0.lowerBound)...Float($0.upperBound) }
         view.slider.step = step.flatMap { $0.isFinite && $0 > 0 ? Float($0) : nil }
@@ -69,7 +71,7 @@ private struct NativeBaselineSliderTrack: UIViewRepresentable {
         view.slider.accessibilityLabel = label
         view.slider.accessibilityValue = valueText
         view.slider.accessibilityIdentifier = identifier
-        view.ghost.thumbTintColor = UIColor(Color.accentColor)
+        view.ghost.thumbTintColor = themeTint
         let tolerance = baselineTolerance ?? (range.upperBound - range.lowerBound) * 0.025
         let visible = baseline.map { abs(value - $0) > tolerance } ?? false
         view.updateGhost(baseline: baseline.map { Float($0) }, visible: visible, reduceMotion: reduceMotion)
