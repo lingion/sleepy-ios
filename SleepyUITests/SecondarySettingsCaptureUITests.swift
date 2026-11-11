@@ -256,7 +256,36 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         }, "Export must present the system file-saving panel")
         capture("secondary-backup-system-save-panel")
         cancel.tap()
-        XCTAssertTrue(waitUntil { !cancel.exists && export.isHittable && restore.isHittable })
+        let dismissed = waitUntil { !cancel.exists && export.isHittable && restore.isHittable }
+        capture("secondary-backup-after-system-cancel")
+        XCTAssertTrue(dismissed, app.debugDescription)
+
+        // These rows remain hittable while migrationBusy is true. Reopening the
+        // real pickers proves that cancellation also releases the operation lock.
+        export.tap()
+        XCTAssertTrue(waitUntil(timeout: 15) {
+            cancel.exists && cancel.isHittable && save.exists && (fileName.exists || fileLabel.exists)
+        }, "Canceling export must allow another backup export to present its filename and Save action.\n\(app.debugDescription)")
+        capture("secondary-backup-export-reopened-after-cancel")
+        cancel.tap()
+        XCTAssertTrue(waitUntil {
+            !cancel.exists && !fileName.exists && !fileLabel.exists && !save.exists
+                && export.isHittable && restore.isHittable
+        }, "The second export panel must close after cancellation.\n\(app.debugDescription)")
+
+        restore.tap()
+        let filesLocation = app.descendants(matching: .any).matching(NSPredicate(
+            format: "label IN {'Locations', 'Browse', 'Recents', 'On My iPad', 'On My iPhone', 'iCloud Drive'}")).firstMatch
+        XCTAssertTrue(waitUntil(timeout: 15) {
+            cancel.exists && cancel.isHittable && filesLocation.exists
+                && !fileName.exists && !fileLabel.exists && !save.exists
+        }, "Canceling export must allow the system backup import picker to open.\n\(app.debugDescription)")
+        capture("secondary-backup-system-import-panel-after-export-cancel")
+        cancel.tap()
+        XCTAssertTrue(waitUntil {
+            !cancel.exists && !filesLocation.exists && export.isHittable && restore.isHittable
+        }, "Canceling backup import must return to the backup controls.\n\(app.debugDescription)")
+        capture("secondary-backup-after-system-import-cancel")
         tapBack()
         XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
 
