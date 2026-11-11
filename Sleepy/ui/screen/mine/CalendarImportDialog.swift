@@ -400,7 +400,9 @@ struct CalendarImportDialog: View {
             confirmText: L10n.t("ok"),
             onConfirm: onDismiss,
             dismissText: L10n.t("cancel"),
-            onDismiss: onDismiss
+            onDismiss: onDismiss,
+            confirmIdentifier: "calendar_import_done",
+            dismissIdentifier: "calendar_import_cancel"
         )
     }
 

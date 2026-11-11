@@ -666,6 +666,12 @@ final class UIElementAuditUITests: XCTestCase {
         XCTAssertTrue(waitForAuditCondition { !confirm.exists && date.exists })
         XCTAssertEqual(date.label, original, "Canceling the date picker must preserve the occurrence draft")
         app.buttons["occurrence_cancel"].tap()
+        let detailActions = app.buttons["course_occurrence_actions"].firstMatch
+        XCTAssertTrue(waitForAuditCondition {
+            !self.app.buttons["occurrence_cancel"].exists && detailActions.isHittable
+        }, "Cancel closes the occurrence sheet and returns to its course detail")
+        captureScreenshot("A9_occurrence-cancel-returned-to-detail")
+        detailActions.tap()
         XCTAssertTrue(adjust.waitForExistence(timeout: 10))
     }
 
@@ -837,11 +843,12 @@ final class UIElementAuditUITests: XCTestCase {
         revealAuditControl(range)
         XCTAssertTrue(app.staticTexts["Import range"].exists)
         captureScreenshot("A7_calendar-range-configuration")
-        let cancel = calendar.buttons["Cancel"].firstMatch
+        let cancel = app.buttons["calendar_import_cancel"].firstMatch
         revealAuditControl(cancel)
         cancel.tap()
         XCTAssertTrue(waitForAuditCondition { !calendar.exists })
         XCTAssertTrue(calendarEntry.exists, "Cancel must return to export without writing events")
+        XCTAssertTrue(calendarEntry.isHittable)
     }
 
     func testA7_BellScheduleRebindPreviewCanCancelCapture() {
