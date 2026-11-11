@@ -1386,3 +1386,5 @@
 "occurrence_direct" = "Schedule directly on this day";
 "occurrence_direct_anyway" = "Schedule directly anyway";
 "jw_thu_skipped_courses" = "%1$d THU course entries were skipped because details were incomplete or the weeks or times are unsupported. Check the official timetable and add them manually.";
+"manage_create_blank_table" = "Create Blank Timetable";
+"create_table_title" = "Create New Timetable";

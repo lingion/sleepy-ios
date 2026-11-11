@@ -149,7 +149,7 @@ struct ImportSheet: View {
     @ObservedObject var viewModel: ScheduleViewModel
     let onDismiss: () -> Void
     var onImported: () -> Void = {}
-    // 草稿恢复在本页子 sheet 中继续，取消后保留本页输入。
+    // 保留调用方草稿数据接口及教务 incoming 恢复兼容；新导入页无草稿箱入口。
     var drafts: [ImportDraftRowModel] = []
     var onDeleteDraft: (String) -> Void = { _ in }
     var onJwDismissed: () -> Void = {}
@@ -159,8 +159,6 @@ struct ImportSheet: View {
     var onManualAddCourse: (() -> Void)? = nil
 
     @State private var consumedInitialImport = false
-    @State private var showDrafts = false
-    @State private var pendingRestoreDraftId: String? = nil
     @State private var jwPresentation: JwImportPresentation? = nil
     @State private var jwActiveImport = false
     @State private var jwReturn = JwImportReturnState(origin: .importMethods)
@@ -192,58 +190,31 @@ struct ImportSheet: View {
 
     var body: some View {
         let state = viewModel.state
+        VStack(spacing: 0) {
+        SettingsTopBar(title: L10n.format(targetTableId != nil ? "add_course_title" : "create_table_title"),
+                       onBack: onDismiss)
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // 标题与草稿入口 (标题 Row + Inventory2 IconButton)
-                HStack {
-                    Text(L10n.format(targetTableId != nil ? "add_course_title" : (onCreateNewTable == nil ? "import_title" : "manage_add_table")))
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(colors.onSurface)
-                    Spacer()
-                    Button {
-                        showDrafts = true
-                    } label: {
-                        // 2026-09-16 用户: 书签不像草稿箱 — 原版本 换带盖收纳箱
-                        // Inventory2; iOS 等价 SF Symbol "shippingbox"(带盖收纳箱)
-                        Image(systemName: "shippingbox")
-                            .font(.system(size: 22))
-                            .foregroundColor(colors.onPrimaryContainer)
-                            .frame(width: style == .liquidGlass ? nil : 48,
-                                   height: style == .liquidGlass ? nil : 48)
-                            .sleepyControlSurface(cornerRadius: 24, tint: colors.primaryContainer)
-                    }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, shape: .circle))
-                    .tint(colors.primaryContainer)
-                    .frame(width: 48, height: 48)
-                    .accessibilityLabel(L10n.format("import_drafts"))
-                    .accessibilityIdentifier("import_drafts_btn")
-                }
-                .padding(.bottom, 4)
-                Text(L10n.format("import_preview_sub"))
-                    .font(.system(size: 14))
-                    .foregroundColor(colors.onSurfaceVariant)
-                    .padding(.bottom, 16)
-
                 if targetTableId != nil {
                     ImportMethodRow(id: "import_existing", icon: "doc.on.doc",
                                     label: L10n.format("add_course_from_existing")) {
+                        errorMsg = nil
                         showExistingTables = true
                     }.disabled(!canImport)
-                } else if let onCreateNewTable {
-                    ImportMethodRow(id: "manage_new_table", icon: "plus",
-                                    label: L10n.format("manage_new_table"), onClick: onCreateNewTable)
+                    if !state.tables.contains(where: { $0.id == targetTableId }) {
+                        Text(L10n.format("manage_no_table_hint"))
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.onSurfaceVariant)
+                            .padding(16)
+                            .accessibilityIdentifier("import_invalid_target_hint")
+                    }
                 }
 
                 // 行 1: 教务直连
                 ImportMethodRow(id: "import_jw", icon: "qrcode", label: L10n.format("import_jw")) {
                     jwPresentation = JwImportPresentation()
                 }.disabled(!canImport)
-                ImportMethodRow(id: "import_wakeup_share", icon: "link",
-                                label: L10n.format("wakeup_share_import_title")) {
-                    presentWakeUpShare(inputText)
-                }.disabled(!canImport)
-
                 // 行 2: 从文本导入(可折叠)
                 ImportMethodRow(id: "import_text", icon: "doc.text",
                                 label: L10n.format("import_paste"),
@@ -299,7 +270,7 @@ struct ImportSheet: View {
                         .disabled(!canImport || inputText.isEmpty)
                     }
                     .padding(.leading, 56)
-                    .padding(.top, 8)
+                    .padding(.top, 4)
                     .padding(.bottom, 8)
                     .padding(.trailing, 4)
                     .id("import_paste_focus_target")
@@ -309,6 +280,10 @@ struct ImportSheet: View {
                 if targetTableId != nil, let onManualAddCourse {
                     ImportMethodRow(id: "import_manual", icon: "plus",
                                     label: L10n.format("add_course_manual"), onClick: onManualAddCourse)
+                        .disabled(!canImport)
+                } else if let onCreateNewTable {
+                    ImportMethodRow(id: "manage_new_table", icon: "plus",
+                                    label: L10n.format("manage_create_blank_table"), onClick: onCreateNewTable)
                         .disabled(!canImport)
                 }
 
@@ -356,7 +331,7 @@ struct ImportSheet: View {
         }
         .accessibilityIdentifier("import_methods_scroll")
         .scrollDismissesKeyboardImmediatelyCompat()
-        .background(colors.surface)
+        .background(colors.background)
         .background(GeometryReader { geometry in
             Color.clear
                 .onAppear { updateImportInputViewport(geometry.size) }
@@ -432,17 +407,17 @@ struct ImportSheet: View {
         // 统一弹窗不再是 Snackbar 一闪即逝): 标题 jw_error_dialog_title「导入遇到问题」+
         // 单按钮 jw_err_dismiss「知道了」+ 错误文本可滚动(heightIn max 320dp)
         .alert(L10n.format("jw_error_dialog_title"), isPresented: Binding(
-            get: { errorMsg != nil },
+            get: { errorMsg != nil && previewSession.preview == nil && !showExistingTables },
             set: { if !$0 { errorMsg = nil } }
         )) {
             Button(L10n.format("jw_err_dismiss"), role: .cancel) {}
         } message: {
             Text(errorMsg ?? "")
         }
-        .overlay {
-            if showExistingTables { existingTablesDialog }
+        .centeredDialog(isPresented: $showExistingTables) {
+            existingTablesDialog
         }
-        .sheet(item: Binding(
+        .fullScreenCover(item: Binding(
             get: { pendingSelection.map { PreviewBox(preview: $0) } },
             set: { if $0 == nil { pendingSelection = nil } }
         ), onDismiss: {
@@ -460,11 +435,14 @@ struct ImportSheet: View {
                 } catch { errorMsg = error.localizedDescription }
             }, onDismiss: { pendingSelection = nil })
         }
-        // 预览对话框
-        .sheet(item: Binding(
-            get: { previewSession.preview.map { PreviewBox(preview: $0) } },
-            set: { if $0 == nil { previewSession.replacePreview(nil) } }
-        )) { box in
+        // Keep the parsed document and every confirmation inside one modal presenter.
+        .centeredDialog(isPresented: Binding(
+            get: { previewSession.preview != nil },
+            set: { if !$0 && !isLoading { previewSession.replacePreview(nil) } }
+        )) {
+            if let preparedPreview = previewSession.preview {
+            let box = PreviewBox(preview: preparedPreview)
+            Group {
             // v1.0.56 T9: 纯作息导入(只有 P 区块/节次, 零课程) — 不进课程确认框,
             // 弹独立命名框(预填全局唯一名, 用户可改), 确认只建作息表不建空课表。
             if box.preview.parseResult.courses.isEmpty, let pt = box.preview.parseResult.periodTable {
@@ -473,8 +451,9 @@ struct ImportSheet: View {
                     suggestUniqueName: { Self.suggestPurePeriodName(for: pt, state: state, viewModel: viewModel) },
                     courseTableNames: state.tables.map { $0.name },
                     periodTableNames: viewModel.loadAllPeriodTables().map { $0.name },
+                    isApplying: isLoading,
                     onDismiss: {
-                        guard previewSession.preview?.id == box.preview.id else { return }
+                        guard !isLoading, previewSession.preview?.id == box.preview.id else { return }
                         previewSession.replacePreview(nil)
                     },
                     onConfirm: { candidate in
@@ -494,12 +473,13 @@ struct ImportSheet: View {
             } else {
             ImportPreviewDialog(preview: box.preview,
                                 courseDecision: targetTableId != nil,
+                                isApplying: isLoading,
                                 onCourseApply: { decision in applyCourseImport(box.preview, decision: decision) },
                                 showConfirm: previewSession.pendingMode != nil,
                                 onConfirmDismiss: { previewSession.pendingMode = nil },
                                 confirmContent: { AnyView(confirmDialogContent) },
                                 onDismiss: {
-                                    guard previewSession.preview?.id == box.preview.id else { return }
+                                    guard !isLoading, previewSession.preview?.id == box.preview.id else { return }
                                     previewSession.replacePreview(nil)
                                 }) { mode in
                 guard let currentPreview = previewSession.preview,
@@ -559,10 +539,19 @@ struct ImportSheet: View {
                 previewSession.confirmedPreview = currentPreview
                 previewSession.pendingMode = mode
             }
-            .sheetDetents([.large])
+            }
+            }
+            .id(box.id)
+            .alert(L10n.format("jw_error_dialog_title"), isPresented: Binding(
+                get: { errorMsg != nil },
+                set: { if !$0 { errorMsg = nil } }
+            )) {
+                Button(L10n.format("jw_err_dismiss"), role: .cancel) {}
+            } message: {
+                Text(errorMsg ?? "")
+            }
             }
         }
-        // 草稿箱弹窗 (if (showDrafts) ImportDraftSheet(...))
         .sheet(isPresented: $showWakeUpShare, onDismiss: {
             guard let json = pendingWakeUpJSON else { return }
             pendingWakeUpJSON = nil
@@ -577,16 +566,6 @@ struct ImportSheet: View {
                 showWakeUpShare = false
             })
             .environment(\.localWakeUpColors, colors)
-        }
-        .sheet(isPresented: $showDrafts, onDismiss: restoreSelectedDraft) {
-            ImportDraftSheet(
-                drafts: drafts,
-                onDismiss: { showDrafts = false },
-                onRestore: { id in
-                    pendingRestoreDraftId = id
-                    showDrafts = false
-                },
-                onDelete: onDeleteDraft)
         }
         // 原生子 sheet 保留导入方式页及其输入；不拆父页、不用延时换 presentation。
         .sheet(item: $jwPresentation, onDismiss: handleJwDismissed) { presentation in
@@ -603,10 +582,14 @@ struct ImportSheet: View {
                 .sheetDragIndicator(.visible)
         }
         // 格式详情弹窗 ("支持格式"每行 ⓘ 点开)
-        .sheet(item: $detailFormat) { fmt in
-            FormatDetailDialog(format: fmt)
+        .centeredDialog(isPresented: Binding(get: { detailFormat != nil }, set: { if !$0 { detailFormat = nil } })) {
+            if let fmt = detailFormat {
+                FormatDetailDialog(format: fmt, onDismiss: { detailFormat = nil })
+            }
         }
         }
+        }
+        .background(colors.background)
     }
 
     private func updateImportInputViewport(_ size: CGSize) {
@@ -664,12 +647,6 @@ struct ImportSheet: View {
         }
     }
 
-    private func restoreSelectedDraft() {
-        guard let id = pendingRestoreDraftId else { return }
-        pendingRestoreDraftId = nil
-        jwPresentation = JwImportPresentation(draftId: id)
-    }
-
     private func handleJwDismissed() {
         SchoolSelectStateStore.shared.resetForNewEntry()
         jwActiveImport = false
@@ -696,12 +673,16 @@ struct ImportSheet: View {
             tableName: previewSession.confirmedTableName,
             timeJson: previewSession.confirmedTimeJson,
             courses: previewSession.confirmedPreview?.parseResult.courses ?? [],
+            droppedLines: previewSession.confirmedPreview?.parseResult.droppedLines ?? [],
+            warnings: previewSession.confirmedPreview?.parseResult.warnings ?? [],
+            isApplying: isLoading,
             // 仅"创建新课表"或"追加为新课表"需要命名; 覆盖课表不强制重命名
             showTableName: previewSession.pendingMode == .importAsNew || previewSession.pendingMode == .appendAsNew,
             onTableNameChange: { previewSession.confirmedTableName = $0 },
             onStartDateChange: { previewSession.confirmedStartDate = $0 },
             onTimeJsonChange: { previewSession.confirmedTimeJson = $0 },
             onDismiss: {
+                guard !isLoading else { return }
                 if onCreateNewTable != nil && targetTableId == nil { previewSession.replacePreview(nil) }
                 else { previewSession.pendingMode = nil }
             },
@@ -824,36 +805,61 @@ struct ImportSheet: View {
     }
 
     private var existingTablesDialog: some View {
-        ZStack {
-            Color.black.opacity(0.4).ignoresSafeArea().onTapGesture { showExistingTables = false }
-            VStack(alignment: .leading, spacing: 16) {
-                Text(L10n.format("add_course_from_existing")).font(.system(size: 22, weight: .semibold))
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        let sources = viewModel.state.tables.filter { $0.id != targetTableId }
-                        if sources.isEmpty {
-                            Text(L10n.format("add_course_no_source")).accessibilityIdentifier("add_course_no_source")
-                        }
-                        ForEach(sources) { table in
-                            Button(table.name) {
-                                guard let targetTableId else { return }
-                                do {
-                                    let result = try AddCoursesImport.source(repository: ScheduleRepository(AppDatabase.getShared()),
-                                        sourceTableId: table.id, targetTableId: targetTableId)
-                                    invalidatePreparedImport()
-                                    showExistingTables = false
-                                    acceptPreview(Self.buildImportPreview(result, targetTableId: targetTableId))
-                                } catch { errorMsg = error.localizedDescription }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading).frame(minHeight: 44)
-                            .accessibilityIdentifier("import_source_\(table.id)")
-                        }
+        CenteredPickerDialog(title: L10n.format("add_course_from_existing"), maxContentHeight: 320,
+                             onDismiss: dismissExistingTables,
+                             footer: AnyView(HStack {
+            Spacer()
+            Button(L10n.format("cancel"), action: dismissExistingTables)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(colors.primary)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 40)
+                .buttonStyle(SleepyButtonStyle())
+                .accessibilityIdentifier("import_source_cancel")
+        })) {
+            VStack(alignment: .leading, spacing: 8) {
+                let sources = viewModel.state.tables.filter { $0.id != targetTableId }
+                if sources.isEmpty {
+                    Text(L10n.format("add_course_no_source"))
+                        .font(.system(size: 14))
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .accessibilityIdentifier("add_course_no_source")
+                }
+                ForEach(sources) { table in
+                    Button {
+                        guard canImport, let targetTableId else { return }
+                        isLoading = true
+                        defer { isLoading = false }
+                        do {
+                            let result = try AddCoursesImport.source(repository: ScheduleRepository(AppDatabase.getShared()),
+                                sourceTableId: table.id, targetTableId: targetTableId)
+                            invalidatePreparedImport()
+                            showExistingTables = false
+                            acceptPreview(Self.buildImportPreview(result, targetTableId: targetTableId))
+                        } catch { errorMsg = error.localizedDescription }
+                    } label: {
+                        Text(table.name)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(colors.primary)
+                            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
                     }
-                }.frame(maxHeight: 320)
-                Button(L10n.format("cancel")) { showExistingTables = false }.frame(maxWidth: .infinity, alignment: .trailing)
+                    .buttonStyle(SleepyButtonStyle())
+                    .disabled(!canImport)
+                    .accessibilityIdentifier("import_source_\(table.id)")
+                }
+                if let errorMsg {
+                    Text(errorMsg)
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.error)
+                        .accessibilityIdentifier("import_source_error")
+                }
             }
-            .padding(24).background(colors.surfaceContainerHigh).cornerRadius(SleepyShapes.extraLarge).padding(24)
         }
+    }
+
+    private func dismissExistingTables() {
+        errorMsg = nil
+        showExistingTables = false
     }
 
     private func presentWakeUpShare(_ text: String) {
@@ -995,25 +1001,32 @@ private struct FormatRow: View {
 }
 
 // ← FormatDetailDialog(格式详情弹窗: 什么时候用 + 识别要求 + 示例; 纯文本独有 AI Prompt)
-//   iOS 原生化: List + Section 替代裸 VStack — 自动 inset/grouped 视觉, 系统原生分隔线
 private struct FormatDetailDialog: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.sleepyUIStyle) private var style
-    @Environment(\.dismiss) private var dismiss
     let format: ImportFormatKey
+    let onDismiss: () -> Void
     @State private var copiedPrompt = false
 
     var body: some View {
-        NavigationView {
-            List {
-                Section {
+        CenteredPickerDialog(title: L10n.format("format_\(format.l10nKey)"), maxContentHeight: 440,
+                             onDismiss: onDismiss, footer: AnyView(
+            Button(action: onDismiss) {
+                Text(L10n.format("format_help_close"))
+                    .foregroundColor(style == .liquidGlass ? colors.onPrimary : colors.primary)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+            }
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: true))
+            .tint(colors.primary)
+            .accessibilityIdentifier("format_help_close")
+        )) {
+            VStack(alignment: .leading, spacing: 16) {
                     Text(format.whenText)
                         .font(.system(size: 14))
                         .foregroundColor(colors.onSurfaceVariant)
-                        .listRowBackground(colors.surfaceContainer)
                         .accessibilityIdentifier("format_help_when")
-                }
-                Section(L10n.format("format_help_spec")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L10n.format("format_help_spec")).font(SleepyTypography.titleSmall)
                     ForEach(format.specItems, id: \.self) { item in
                         HStack(alignment: .top, spacing: 8) {
                             Text("•")
@@ -1024,18 +1037,17 @@ private struct FormatDetailDialog: View {
                                 .font(.system(size: 12)) // ← 原 bodySmall 12
                                 .foregroundColor(colors.onSurface)
                         }
-                        .listRowBackground(colors.surfaceContainer)
                     }
                 }
-                Section(L10n.format("format_help_example")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L10n.format("format_help_example")).font(SleepyTypography.titleSmall)
                     Text(format.exampleText)
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundColor(colors.onSurface)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .listRowBackground(colors.surfaceContainer)
+                        .padding(12).background(colors.surfaceContainer).cornerRadius(12)
                 }
                 if format == .plain {
-                    Section {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(L10n.format("ai_prompt_title"))
                                 .font(.system(size: 14, weight: .semibold))
@@ -1073,42 +1085,24 @@ private struct FormatDetailDialog: View {
                             .frame(maxWidth: .infinity, minHeight: 48)
                             .accessibilityIdentifier("import_copy_prompt")
                         }
-                        .listRowBackground(colors.primaryContainer)
-                    }
+                        .padding(12).background(colors.primaryContainer).cornerRadius(12)
                 }
             }
-            .listStyle(.insetGrouped)
-            .background(colors.surface)
-            // ← 原版本 行763 title = titleRes(格式名, 如 format_plain);
-            //   旧版误用 format_detail_content_desc「查看格式说明」当标题
-            .navigationTitle(L10n.format("format_\(format.l10nKey)"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    // ← 原版本 行884-886 关闭按钮 = format_help_close「知道了」(旧版误用 cancel「取消」)
-                    Button(L10n.format("format_help_close")) { dismiss() }
-                        .foregroundColor(colors.primary)
-                        .accessibilityIdentifier("format_help_close")
-                }
-            }
+            .foregroundColor(colors.onSurface)
         }
-        .navigationViewStyle(.stack)
         .accessibilityIdentifier("format_help_dialog")
     }
 }
 
-// ← ImportPreviewDialog
-//   iOS 原生化: NavigationView + List(.insetGrouped) 替代裸 ScrollView → 系统原生导航栏 +
-//   系统原生分隔线 + 系统原生 inset 分组, 安全区适配自动处理。底部按钮组保留纯色块(危险动作风格统一)
+// Preview details scroll independently from the import choices.
 struct ImportPreviewDialog: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.sleepyUIStyle) private var style
     let preview: ImportPreview
     var courseDecision = false
+    var isApplying = false
     var onCourseApply: (CourseImportDecision) -> Void = { _ in }
     @State private var decision = CourseImportDecision()
-    /// ← 原版本: 预览 Dialog 不关, 确认 Dialog 作为第二个 Dialog 叠在上面。
-    ///   iOS 用同一 presented surface 内的 overlay 层实现(嵌套 .sheet 会被丢弃)。
     var showConfirm: Bool = false
     var onConfirmDismiss: () -> Void = {}
     var confirmContent: () -> AnyView = { AnyView(EmptyView()) }
@@ -1116,287 +1110,194 @@ struct ImportPreviewDialog: View {
     let onApply: (ImportApplyMode) -> Void
 
     var body: some View {
-        NavigationView {
-            ZStack {
-            // ★ v1.0.62 对齐(结构修复): 原版本 的 ImportPreviewDialog 是 Material3
-            //   AlertDialog,模式按钮在 dialog 自带的底部动作容器里(真实布局容器,
-            //   永远在屏内)。iOS 之前用 ZStack(alignment:.bottom) 把按钮组浮在 List 之上,
-            //   键盘未收时 sheet 内容容器被下移 → 按钮 frame 落到屏幕外。
-            //   改为 VStack { List; 按钮组 } 的真实流内容器,与 原版本 容器语义一致。
-            VStack(spacing: 0) {
-                List {
-                    Section {
-                        VStack(alignment: .leading, spacing: 6) {
-                            if preview.targetTableId == 0 {
-                                Text(L10n.format("import_new_table_hint"))
-                                    .font(.system(size: 12)) // ← 原 bodySmall 12
-                                    .foregroundColor(colors.primary)
-                            } else {
-                                Text(L10n.format("import_target_table", preview.targetTableName))
-                                    .font(.system(size: 12)) // ← 原 bodySmall 12
-                                    .foregroundColor(colors.onSurfaceVariant)
-                            }
+        ZStack {
+            CenteredPickerDialog(title: L10n.format("import_preview_title"), titleIdentifier: "import_preview_title", maxContentHeight: 440,
+                                 onDismiss: { if !isApplying { onDismiss() } },
+                                 footer: AnyView(previewActions.disabled(isApplying))) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(preview.targetTableId == 0
+                         ? L10n.format("import_new_table_hint")
+                         : L10n.format("import_target_table", preview.targetTableName))
+                        .font(.system(size: 12))
+                        .foregroundColor(preview.targetTableId == 0 ? colors.primary : colors.onSurfaceVariant)
+                    HStack(spacing: 8) {
+                        PreviewMetricCard(label: L10n.format("import_courses"), value: "\(preview.incomingCount)",
+                                          bg: colors.primaryContainer, fg: colors.onPrimaryContainer)
+                        if preview.targetTableId != 0 {
+                            PreviewMetricCard(label: L10n.format("import_conflicts"), value: "\(preview.conflictCount)",
+                                              bg: preview.conflictCount > 0 ? colors.errorContainer : colors.secondaryContainer,
+                                              fg: preview.conflictCount > 0 ? colors.onErrorContainer : colors.onSecondaryContainer)
+                            PreviewMetricCard(label: L10n.format("import_appendable"), value: "\(preview.cleanCount)",
+                                              bg: colors.tertiaryContainer, fg: colors.onTertiaryContainer)
                         }
-                        .listRowBackground(colors.surfaceContainer)
                     }
-
-                    Section {
-                        HStack(spacing: 8) {
-                            PreviewMetricCard(label: L10n.format("import_courses"),
-                                              value: "\(preview.incomingCount)",
-                                              bg: colors.primaryContainer, fg: colors.onPrimaryContainer)
-                            if preview.targetTableId != 0 {
-                                PreviewMetricCard(label: L10n.format("import_conflicts"),
-                                                  value: "\(preview.conflictCount)",
-                                                  bg: preview.conflictCount > 0 ? colors.errorContainer : colors.secondaryContainer,
-                                                  fg: preview.conflictCount > 0 ? colors.onErrorContainer : colors.onSecondaryContainer)
-                                PreviewMetricCard(label: L10n.format("import_appendable"),
-                                                  value: "\(preview.cleanCount)",
-                                                  bg: colors.tertiaryContainer, fg: colors.onTertiaryContainer)
-                            }
-                        }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                    }
-
-                    Section {
+                    VStack(alignment: .leading, spacing: 8) {
                         PreviewInfoRow(label: L10n.format("import_table_name"), value: preview.parseResult.tableName)
-                            .listRowBackground(colors.surfaceContainer)
                         PreviewInfoRow(label: L10n.format("import_start_date"), value: preview.parseResult.startDate)
-                            .listRowBackground(colors.surfaceContainer)
                         if preview.targetTableId != 0 {
                             PreviewInfoRow(label: L10n.format("import_suggestion"),
-                                           value: preview.conflictCount == 0
-                                               ? L10n.format("import_no_conflict")
+                                           value: preview.conflictCount == 0 ? L10n.format("import_no_conflict")
                                                : L10n.format("import_conflict_count", preview.conflictCount))
-                                .listRowBackground(colors.surfaceContainer)
                         }
                     }
-
-                    // ← issue#22 同名课程多地点提示 (secondaryContainer 卡片, 不阻塞导入)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12).background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
                     if !preview.multiLocationWarnings.isEmpty {
-                        Section {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(L10n.format("import_multi_location_warning"))
-                                    .font(.system(size: 14, weight: .medium))   // ← titleSmall
-                                    .foregroundColor(colors.onSecondaryContainer)
-                                ForEach(preview.multiLocationWarnings.prefix(5), id: \.self) { warning in
-                                    Text("• \(warning)")
-                                        .font(.system(size: 12))   // ← bodySmall
-                                        .foregroundColor(colors.onSecondaryContainer)
-                                }
-                                if preview.multiLocationWarnings.count > 5 {
-                                    Text(L10n.format("more_unexpanded", preview.multiLocationWarnings.count - 5))
-                                        .font(.system(size: 11, weight: .medium))   // ← labelSmall
-                                        .foregroundColor(colors.onSecondaryContainer)
-                                }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(L10n.format("import_multi_location_warning")).font(.system(size: 14, weight: .medium))
+                            ForEach(preview.multiLocationWarnings.prefix(5), id: \.self) { Text("• \($0)").font(.system(size: 12)) }
+                            if preview.multiLocationWarnings.count > 5 {
+                                Text(L10n.format("more_unexpanded", preview.multiLocationWarnings.count - 5)).font(.system(size: 11))
                             }
-                            .listRowBackground(colors.secondaryContainer)
                         }
+                        .foregroundColor(colors.onSecondaryContainer)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12).background(colors.secondaryContainer).cornerRadius(SleepyShapes.large)
                     }
-
                     if !preview.conflicts.isEmpty {
-                        Section(L10n.format("import_conflicts")) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(L10n.format("import_conflicts")).font(.system(size: 14, weight: .medium))
                             ForEach(preview.conflicts.prefix(3)) { conflict in
                                 Text("• \(conflict.incoming.courseName) ↔ \(conflict.existing.courseName)（\(DateUtils.localizedDay(conflict.incoming.day)) \(conflict.incoming.nodeString(isShort: true))）")
                                     .font(.system(size: 12))
-                                    .foregroundColor(colors.onSurfaceVariant)
-                                    .listRowBackground(colors.surfaceContainer)
                             }
                             if preview.conflicts.count > 3 {
-                                Text(L10n.format("import_conflict_more", preview.conflicts.count - 3))
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(colors.onSurfaceVariant)
-                                    .listRowBackground(colors.surfaceContainer)
+                                Text(L10n.format("import_conflict_more", preview.conflicts.count - 3)).font(.system(size: 11))
                             }
                         }
+                        .foregroundColor(colors.onSurfaceVariant)
                     }
-
                     if !preview.parseResult.droppedLines.isEmpty {
-                        Section {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(L10n.format("import_dropped_title", preview.parseResult.droppedLines.count))
-                                    .font(.system(size: 14, weight: .medium))   // ← titleSmall 14sp Medium
-                                    .foregroundColor(colors.onErrorContainer)
-                                Text(L10n.format("import_dropped_hint"))
-                                    .font(.system(size: 12))
-                                    .foregroundColor(colors.onErrorContainer)
-                                ForEach(preview.parseResult.droppedLines.prefix(3), id: \.self) { line in
-                                    Text("• \(line)")
-                                        .font(.system(size: 12, design: .monospaced))
-                                        .foregroundColor(colors.onErrorContainer)
-                                }
-                                // ← 原版本 行1096-1102: 被跳过行 >3 时补「还有 N 行」溢出提示
-                                if preview.parseResult.droppedLines.count > 3 {
-                                    Text(L10n.format("import_conflict_more", preview.parseResult.droppedLines.count - 3))
-                                        .font(.system(size: 11))
-                                        .foregroundColor(colors.onErrorContainer)
-                                }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(L10n.format("import_dropped_title", preview.parseResult.droppedLines.count)).font(.system(size: 14, weight: .medium))
+                            Text(L10n.format("import_dropped_hint")).font(.system(size: 12))
+                            ForEach(preview.parseResult.droppedLines.prefix(3), id: \.self) {
+                                Text("• \($0)").font(.system(size: 12, design: .monospaced))
                             }
-                            .listRowBackground(colors.errorContainer)
+                            if preview.parseResult.droppedLines.count > 3 {
+                                Text(L10n.format("import_conflict_more", preview.parseResult.droppedLines.count - 3)).font(.system(size: 11))
+                            }
                         }
+                        .foregroundColor(colors.onErrorContainer)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12).background(colors.errorContainer).cornerRadius(SleepyShapes.large)
                     }
-
-                    // sleepy-v1 (§7.3): 表级提示(非行级) — T行钳制/节点抬升/chk不符/n=不符/二次表头
                     if !preview.parseResult.warnings.isEmpty {
-                        Section {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(L10n.format("import_warnings_title"))
-                                    .font(.system(size: 14, weight: .medium))   // ← titleSmall
-                                    .foregroundColor(colors.onSecondaryContainer)
-                                ForEach(preview.parseResult.warnings.prefix(4), id: \.self) { line in
-                                    Text("• \(line)")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(colors.onSecondaryContainer)
-                                }
-                                if preview.parseResult.warnings.count > 4 {
-                                    Text(L10n.format("import_conflict_more", preview.parseResult.warnings.count - 4))
-                                        .font(.system(size: 11))
-                                        .foregroundColor(colors.onSecondaryContainer)
-                                }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(L10n.format("import_warnings_title")).font(.system(size: 14, weight: .medium))
+                            ForEach(preview.parseResult.warnings.prefix(4), id: \.self) { Text("• \($0)").font(.system(size: 12)) }
+                            if preview.parseResult.warnings.count > 4 {
+                                Text(L10n.format("import_conflict_more", preview.parseResult.warnings.count - 4)).font(.system(size: 11))
                             }
-                            .listRowBackground(colors.secondaryContainer)
                         }
+                        .foregroundColor(colors.onSecondaryContainer)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12).background(colors.secondaryContainer).cornerRadius(SleepyShapes.large)
                     }
-
-                    // ← 底部按钮组改为 List 之后的真实流内容器, 不再需要占位行
-                }
-                .listStyle(.insetGrouped)
-                .background(colors.surface)
-
-                // 底部按钮组 - List 之下的真实容器(AlertDialog 的 confirmButton 容器)
-                VStack(spacing: 8) {
-                    if courseDecision {
-                        Toggle(isOn: $decision.backupOriginal) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.format("import_backup_original")).font(.system(size: 14, weight: .medium))
-                                Text(L10n.format("import_backup_original_sub")).font(.system(size: 11)).foregroundColor(colors.onSurfaceVariant)
-                            }
-                        }
-                        .toggleStyle(SleepyToggleStyle(showsLabel: true))
-                        .tint(colors.primary)
-                        .accessibilityIdentifier("import_preview_backup")
-                        Toggle(isOn: $decision.appendConflicts) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.format("import_append_conflicts_option")).font(.system(size: 14, weight: .medium))
-                                Text(L10n.format("import_append_conflicts_option_sub")).font(.system(size: 11)).foregroundColor(colors.onSurfaceVariant)
-                            }
-                        }
-                        .toggleStyle(SleepyToggleStyle(showsLabel: true))
-                        .tint(colors.primary)
-                        .accessibilityIdentifier("import_preview_append")
-                        PrimaryDialogButton(L10n.format("import_confirm"), identifier: "import_preview_apply") {
-                            onCourseApply(decision)
-                        }
-                    } else {
-                    HStack(spacing: 8) {
-                        if preview.targetTableId == 0 {
-                            PrimaryDialogButton(L10n.format("import_as_new"), identifier: "import_mode_as_new") {
-                                onApply(.importAsNew)
-                            }
-                        } else {
-                            PrimaryDialogButton(L10n.format("import_append_only"), identifier: "import_mode_append_only") {
-                                onApply(.appendNonConflict)
-                            }
-                            PrimaryDialogButton(L10n.format("import_as_new"), identifier: "import_mode_as_new") {
-                                onApply(.importAsNew)
-                            }
-                        }
-                    }
-                    if preview.targetTableId != 0 {
-                        HStack(spacing: 8) {
-                            Button {
-                                onApply(.appendAll)
-                            } label: {
-                                Text(L10n.format("import_append_conflict"))
-                                    .font(.system(size: 14, weight: .medium))
-                                    .lineLimit(1)   // ← 原 maxLines = 1
-                                    .foregroundColor(colors.onErrorContainer)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: style == .liquidGlass ? nil : 40)
-                                    .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.errorContainer, prominent: true)
-                            }
-                            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
-                            .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
-                            .tint(colors.errorContainer)
-                            .accessibilityIdentifier("import_mode_append_conflict")
-                            PrimaryDialogButton(L10n.format("import_append_as_new"), identifier: "import_mode_append_as_new") {
-                                onApply(.appendAsNew)
-                            }
-                        }
-                        Button {
-                            onApply(.replaceCurrent)
-                        } label: {
-                            Text(L10n.format("import_overwrite"))
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(colors.onErrorContainer)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: style == .liquidGlass ? nil : 40)
-                                .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.errorContainer, prominent: true)
-                        }
-                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
-                        .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
-                        .tint(colors.errorContainer)
-                        .accessibilityIdentifier("import_mode_overwrite")
-                    }
-                    }
-                    // ← 原版本 TextButton: 纯文字 40dp, onSurfaceVariant
-                    Button(action: onDismiss) {
-                        Text(L10n.format("cancel"))
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(colors.onSurfaceVariant)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: style == .liquidGlass ? nil : 40)
-                    }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: SleepyShapes.medium))
-                    .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
-                    .accessibilityIdentifier("import_preview_cancel")
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-                .padding(.top, 8)
-                .background(
-                    VStack(spacing: 0) {
-                        Rectangle()
-                            .fill(colors.outlineVariant)
-                            .frame(height: 0.5)
-                        colors.surface
-                    }
-                    .ignoresSafeArea(edges: .bottom)
-                )
-            }
-            .navigationTitle(L10n.format("import_preview_title"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(L10n.format("cancel")) { onDismiss() }
-                        .foregroundColor(colors.primary)
-                        .accessibilityIdentifier("import_preview_close")
                 }
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("import_preview_title")
-
-            // ← 原版本: 第二个 Dialog(ImportConfirmDialog)叠在预览 Dialog 之上。
-            //   iOS: 同一 presented surface 内的 overlay 层。遮罩 + 全屏内容,
-            //   与 M3 AlertDialog 的 scrim + 卡片观感一致。
-            //   ⚠️ 必须是**独立**的兄弟节点, 不能被预览层的
-            //   .accessibilityElement(children:.contain) 吞掉 —— 否则确认框的
-            //   import_confirm_title 标题在 AX 树里消失, XCUITest 找不到。
+            .accessibilityHidden(showConfirm)
+            .allowsHitTesting(!showConfirm)
             if showConfirm {
-                ZStack {
-                    // scrim(点外部 = 取消确认, ← 原版本 onDismissRequest)
-                    Color.black.opacity(0.4)
-                        .ignoresSafeArea()
-                        .onTapGesture { onConfirmDismiss() }
-
-                    confirmContent()
-                }
-                .accessibilityIdentifier("import_confirm_overlay")
-            }
+                confirmContent()
+                    .accessibilityIdentifier("import_confirm_overlay")
             }
         }
-        .navigationViewStyle(.stack)
+    }
+
+    private var previewActions: some View {
+        VStack(spacing: 12) {
+            if courseDecision {
+                Toggle(isOn: $decision.backupOriginal) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.format("import_backup_original")).font(.system(size: 16))
+                        Text(L10n.format("import_backup_original_sub")).font(.system(size: 12)).foregroundColor(colors.onSurfaceVariant)
+                    }
+                }
+                .toggleStyle(SleepyToggleStyle(showsLabel: true)).tint(colors.primary)
+                .accessibilityIdentifier("import_preview_backup")
+                Toggle(isOn: $decision.appendConflicts) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.format("import_append_conflicts_option")).font(.system(size: 16))
+                        Text(L10n.format("import_append_conflicts_option_sub")).font(.system(size: 12)).foregroundColor(colors.onSurfaceVariant)
+                    }
+                }
+                .toggleStyle(SleepyToggleStyle(showsLabel: true)).tint(colors.primary)
+                .accessibilityIdentifier("import_preview_append")
+                HStack(spacing: 8) {
+                    cancelButton
+                    PrimaryDialogButton(L10n.format("import_confirm"), identifier: "import_preview_apply") {
+                        onCourseApply(decision)
+                    }
+                }
+            } else {
+        HStack(spacing: 8) {
+            if preview.targetTableId == 0 {
+                PrimaryDialogButton(L10n.format("import_as_new"), identifier: "import_mode_as_new") {
+                    onApply(.importAsNew)
+                }
+            } else {
+                PrimaryDialogButton(L10n.format("import_append_only"), identifier: "import_mode_append_only") {
+                    onApply(.appendNonConflict)
+                }
+                PrimaryDialogButton(L10n.format("import_as_new"), identifier: "import_mode_as_new") {
+                    onApply(.importAsNew)
+                }
+            }
+        }
+        if preview.targetTableId != 0 {
+            HStack(spacing: 8) {
+                Button {
+                    onApply(.appendAll)
+                } label: {
+                    Text(L10n.format("import_append_conflict"))
+                        .font(.system(size: 14, weight: .medium))
+                        .lineLimit(1)   // ← 原 maxLines = 1
+                        .foregroundColor(colors.onErrorContainer)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: style == .liquidGlass ? nil : 40)
+                        .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.errorContainer, prominent: true)
+                }
+                .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
+                .tint(colors.errorContainer)
+                .accessibilityIdentifier("import_mode_append_conflict")
+                PrimaryDialogButton(L10n.format("import_append_as_new"), identifier: "import_mode_append_as_new") {
+                    onApply(.appendAsNew)
+                }
+            }
+            Button {
+                onApply(.replaceCurrent)
+            } label: {
+                Text(L10n.format("import_overwrite"))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onErrorContainer)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: style == .liquidGlass ? nil : 40)
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.errorContainer, prominent: true)
+            }
+            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+            .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
+            .tint(colors.errorContainer)
+            .accessibilityIdentifier("import_mode_overwrite")
+        }
+                cancelButton
+            }
+        }
+        .foregroundColor(colors.onSurface)
+    }
+
+    private var cancelButton: some View {
+        Button(action: onDismiss) {
+            Text(L10n.format("cancel"))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(colors.onSurfaceVariant)
+                .frame(maxWidth: .infinity)
+                .frame(height: style == .classic ? 40 : nil)
+        }
+        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: SleepyShapes.medium))
+        .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
+        .accessibilityIdentifier("import_preview_cancel")
     }
 }
 
@@ -1499,6 +1400,9 @@ private struct ImportConfirmDialog: View {
     @State var tableName: String
     @State var timeJson: String
     var courses: [CourseEntity] = []
+    var droppedLines: [String] = []
+    var warnings: [String] = []
+    var isApplying = false
     var showTableName: Bool = true
     let onTableNameChange: (String) -> Void
     let onStartDateChange: (String) -> Void
@@ -1525,23 +1429,38 @@ private struct ImportConfirmDialog: View {
     @State private var smartConfig = SmartPeriodConfig()
 
     var body: some View {
-        ScrollView {
+        CenteredPickerDialog(title: L10n.format("import_confirm_title"), titleIdentifier: "import_confirm_title", maxContentHeight: 560,
+                             onDismiss: { if !isApplying { onDismiss() } },
+                             footer: AnyView(DialogActionButtons(
+                                confirmText: L10n.format("import_confirm"),
+                                onConfirm: validateAndConfirm,
+                                dismissText: L10n.format("back"),
+                                onDismiss: { if !isApplying { onDismiss() } },
+                                confirmEnabled: !isApplying,
+                                confirmIdentifier: "import_dialog_confirm",
+                                dismissIdentifier: "import_dialog_back"))) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(L10n.format("import_confirm_title"))
-                    .font(.system(size: 24))   // ← M3 AlertDialog title = headlineSmall 24sp 常规
+                Text(L10n.format("export_course_count", courses.count))
+                    .font(.system(size: 14))
                     .foregroundColor(colors.onSurface)
-                    .accessibilityIdentifier("import_confirm_title")
+                    .accessibilityIdentifier("import_confirm_course_count")
+                if !droppedLines.isEmpty {
+                    Text(L10n.format("import_dropped_title", droppedLines.count))
+                        .font(.system(size: 14)).foregroundColor(colors.error)
+                        .accessibilityIdentifier("import_confirm_dropped")
+                    ForEach(droppedLines.prefix(3), id: \.self) {
+                        Text($0).font(.system(size: 12)).foregroundColor(colors.onSurfaceVariant)
+                    }
+                }
+                ForEach(warnings, id: \.self) {
+                    Text($0).font(.system(size: 12)).foregroundColor(colors.onSurfaceVariant)
+                }
                 Text(L10n.format("import_confirm_body"))
                     .font(.system(size: 14))
                     .foregroundColor(colors.onSurfaceVariant)
 
                 if showTableName {
-                    TextField(L10n.format("import_table_name"), text: $tableName)
-                        .frame(maxWidth: .infinity)   // ← 原 fillMaxWidth()
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(colors.surfaceContainerHighest)   // ← fieldColors 容器色 surfaceContainerHighest
-                        .cornerRadius(SleepyTheme.fieldShape)
+                    FieldTextField(text: $tableName, label: L10n.format("import_table_name"))
                         .onChange(of: tableName) { onTableNameChange($0) }
                 }
 
@@ -1561,6 +1480,7 @@ private struct ImportConfirmDialog: View {
                 }
 
                 if rowsLoaded {
+                    ScrollView {
                     TimeSlotEditor(rows: $rows, onRowsChange: { newRows in
                         rows = newRows
                         onTimeJsonChange(TimeTableUtils.buildTimeJsonFromRows(newRows))
@@ -1569,13 +1489,15 @@ private struct ImportConfirmDialog: View {
                        periodTableOptions: periodTableOptions,
                        selectedPeriodTableId: selectedPeriodTableId,
                        onSelectPeriodTable: onSelectPeriodTable)
+                    }
+                    .frame(height: 320)
+                    .accessibilityIdentifier("import_confirm_periods_scroll")
                 } else {
                     ProgressView()
                 }
             }
-            .padding(20)
+            .disabled(isApplying)
         }
-        .background(colors.surface)
         .onAppear {
             guard !rowsLoaded else { return }
             let initialized = TimeTableUtils.initialManualRows(timeJson: timeJson)
@@ -1594,23 +1516,11 @@ private struct ImportConfirmDialog: View {
                     totalPeriods: max(rows.count, 1))
             rowsLoaded = true
         }
-        .safeAreaInset(edge: .bottom) {
-            // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
-            DialogActionButtons(
-                confirmText: L10n.format("import_confirm"),
-                onConfirm: validateAndConfirm,
-                dismissText: L10n.format("back"),
-                onDismiss: onDismiss,
-                confirmIdentifier: "import_dialog_confirm",
-                dismissIdentifier: "import_dialog_back")
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(colors.surface)
-        }
     }
 
     // ← confirmButton 内校验链: 空日期/格式/空时间/非法时间
     private func validateAndConfirm() {
+        guard !isApplying else { return }
         if startDate.trimmingCharacters(in: .whitespaces).isEmpty {
             localError = L10n.format("import_start_date_required")
             return
@@ -1672,6 +1582,7 @@ private struct PurePeriodImportDialog: View {
     let suggestUniqueName: () -> String
     let courseTableNames: [String]
     let periodTableNames: [String]
+    var isApplying = false
     let onDismiss: () -> Void
     /// 回调入参 = 已 trim 的候选名(非空且未撞名)
     let onConfirm: (String) -> Void
@@ -1686,39 +1597,35 @@ private struct PurePeriodImportDialog: View {
     }
 
     var body: some View {
-        ScrollView {
+        CenteredPickerDialog(title: L10n.format("period_table_import_title"),
+                             titleIdentifier: "import_pure_period_title",
+                             onDismiss: { if !isApplying { onDismiss() } },
+                             footer: AnyView(DialogActionButtons(
+                                confirmText: L10n.format("period_table_import_confirm"),
+                                onConfirm: { if !isApplying { onConfirm(candidate) } },
+                                dismissText: L10n.format("cancel"),
+                                onDismiss: { if !isApplying { onDismiss() } },
+                                confirmEnabled: !isApplying && !candidate.isEmpty && !nameTaken,
+                                confirmIdentifier: "import_pure_period_confirm",
+                                dismissIdentifier: "import_pure_period_dismiss"))) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(L10n.format("period_table_import_title"))
-                    .font(.system(size: 24))
-                    .foregroundColor(colors.onSurface)
                 Text(L10n.format("period_table_import_body"))
                     .font(.system(size: 14))
                     .foregroundColor(colors.onSurfaceVariant)
                 VStack(alignment: .leading, spacing: 4) {
-                    TextField(L10n.format("period_table_name_label"), text: $name)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(colors.surfaceContainerHighest)
-                        .cornerRadius(SleepyTheme.fieldShape)
+                    FieldTextField(text: $name, label: L10n.format("period_table_name_label"))
                         .overlay(RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
                             .stroke(nameTaken ? colors.error : Color.clear, lineWidth: 1))
+                        .accessibilityIdentifier("import_pure_period_field")
                     if nameTaken {
                         Text(L10n.format("period_table_name_taken"))
                             .font(.system(size: 12))
                             .foregroundColor(colors.error)
                     }
                 }
-                DialogActionButtons(
-                    confirmText: L10n.format("period_table_import_confirm"),
-                    onConfirm: { onConfirm(candidate) },
-                    dismissText: L10n.format("cancel"),
-                    onDismiss: onDismiss,
-                    confirmEnabled: !candidate.isEmpty && !nameTaken)
             }
-            .padding(20)
+            .disabled(isApplying)
         }
-        .background(colors.surface)
         .onAppear {
             // ← 原版本 LaunchedEffect(currentPreview): 每个预览对象播一次预填名
             guard !seeded else { return }
@@ -1773,9 +1680,10 @@ extension ImportSheet {
         let repo = repository ?? ScheduleRepository(AppDatabase.getShared())
         let existingTable = effectiveTargetTable(targetTableId, repository: repo)
         let existingCourses = targetTableId == 0 ? [] : ((try? repo.getCourses(targetTableId)) ?? [])
-        let effectiveTimeJson = CourseImportPolicy.mergeTimeJson(current: existingTable?.timeJson ?? "",
+        let effectiveTimeJson = CourseImportPolicy.timeJsonForAppend(current: existingTable?.timeJson ?? "",
             incoming: parseResult.timeJson, requiredNodes: max(parseResult.nodesPerDay,
-                parseResult.courses.map { $0.startNode + $0.step - 1 }.max() ?? 0))
+                parseResult.courses.map { $0.startNode + $0.step - 1 }.max() ?? 0),
+            bound: existingTable?.periodTableId != nil)
         let conflicts = parseResult.courses.compactMap { incoming in
             existingCourses.first { CourseImportPolicy.conflicts(incoming, $0, timeJson: effectiveTimeJson) }
                 .map { CourseConflict(incoming: incoming, existing: $0) }

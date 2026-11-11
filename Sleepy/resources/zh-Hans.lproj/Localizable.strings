@@ -1387,3 +1387,5 @@
 "occurrence_direct" = "直接安排在当天";
 "occurrence_direct_anyway" = "仍然直接安排";
 "jw_thu_skipped_courses" = "有 %1$d 条清华课程安排因信息不完整或周次、时段格式不受支持而跳过。请核对教务课表并手动补录。";
+"manage_create_blank_table" = "新建空白课表";
+"create_table_title" = "创建新课表";

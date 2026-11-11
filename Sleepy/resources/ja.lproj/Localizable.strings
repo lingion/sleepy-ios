@@ -1386,3 +1386,5 @@
 "occurrence_direct" = "当日に直接配置";
 "occurrence_direct_anyway" = "それでも直接配置";
 "jw_thu_skipped_courses" = "THUの授業予定%1$d件は情報不足、または週・時間帯の形式に対応できず除外されました。教務システムの時間割を確認し、手動で追加してください。";
+"manage_create_blank_table" = "空の時間割を作成";
+"create_table_title" = "新しい時間割を作成";
