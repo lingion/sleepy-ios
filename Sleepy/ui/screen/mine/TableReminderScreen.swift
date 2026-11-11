@@ -34,9 +34,9 @@ struct TableReminderScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingsTopBar(title: L10n.format("table_reminder_title"), onBack: onDismiss)
+            SettingsTopBar(title: L10n.format("settings_table_reminder_scope"), onBack: onDismiss)
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
                     // ← 原版本 subtitle: 总开关开 → subtitle, 关 → master_off 警示文案
                     Text(L10n.format(masterEnabled ? "table_reminder_subtitle" : "table_reminder_master_off"))
                         .font(.system(size: 14))   // ← bodyMedium 14sp
@@ -64,8 +64,7 @@ struct TableReminderScreen: View {
                             .tint(colors.primary)
                             .disabled(!enabled)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
+                        .padding(16)
                         .background(colors.surfaceContainer)
                         .cornerRadius(SleepyShapes.large)
                         .contentShape(Rectangle())

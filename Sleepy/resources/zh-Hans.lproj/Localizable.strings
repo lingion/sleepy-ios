@@ -1365,3 +1365,6 @@
 "smart_period_invalid_count" = "总节数需在 1–1439 之间，并能排入当天，此次修改未应用。";
 "smart_period_invalid_duration" = "每节时长必须大于 0，课间不能小于 0，此次修改未应用。";
 "smart_period_exceeds_day" = "课程与课间必须在当天 23:59 前结束，此次修改未应用，请减少节数、时长或课间。";
+"settings_table_reminder_scope" = "需要提醒的课表";
+"settings_reminder_permissions_attention" = "提醒权限需要处理";
+"settings_reminder_permissions" = "权限与后台运行";

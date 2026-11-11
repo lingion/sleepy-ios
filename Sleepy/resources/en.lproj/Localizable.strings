@@ -1364,3 +1364,6 @@
 "smart_period_invalid_count" = "Use 1–1439 periods that fit within the day. This change was not applied.";
 "smart_period_invalid_duration" = "Period lengths must be positive and breaks cannot be negative. This change was not applied.";
 "smart_period_exceeds_day" = "Periods and breaks must finish by 23:59 on the same day. This change was not applied; reduce the count, lengths, or breaks.";
+"settings_table_reminder_scope" = "Timetables to remind";
+"settings_reminder_permissions_attention" = "Review reminder permissions";
+"settings_reminder_permissions" = "Permissions and background activity";

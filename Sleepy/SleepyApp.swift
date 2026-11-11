@@ -1534,7 +1534,7 @@ private struct PresentOverlay: ViewModifier {
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .reminder:
-            ReminderScreen(onDismiss: onDismiss)
+            ReminderScreen(onDismiss: onDismiss, viewModel: scheduleViewModel)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)

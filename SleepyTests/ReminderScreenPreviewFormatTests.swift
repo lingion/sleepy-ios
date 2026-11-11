@@ -85,4 +85,42 @@ final class ReminderScreenPreviewFormatTests: XCTestCase {
     func testCourseStartTimeUnresolvableNodeReturnsNil() {
         XCTAssertNil(ReminderPreviewLoader.courseStartTime(course(startNode: 99), nodes: []))
     }
+
+    private var previewTable: TimeTableEntity {
+        TimeTableEntity(name: "课程", startDate: "2026-11-02", maxWeek: 2, id: 1)
+    }
+
+    private func previewCourse(_ name: String, day: Int, week: Int) -> CourseEntity {
+        CourseEntity(groupId: name, tableId: 1, courseName: name, day: day,
+                     startNode: 1, step: 1, startWeek: week, endWeek: week,
+                     color: "#FF6750A4", ownTime: true, startTime: "08:00", endTime: "09:00")
+    }
+
+    private var previewTransfer: HolidayTransferEntry {
+        HolidayTransferEntry(sourceDate: CourseOccurrences.parseDate("2026-11-02")!,
+                             targetDate: CourseOccurrences.parseDate("2026-11-15")!, segmentId: "holiday")
+    }
+
+    func testMakeupDayPreviewUsesSourceWeekInsteadOfNaturalSundayCourses() {
+        let source = previewCourse("第一周周一", day: 1, week: 1)
+        let naturalSunday = previewCourse("第二周周日", day: 7, week: 2)
+        let result = ReminderPreviewLoader.coursesOn(CourseOccurrences.parseDate("2026-11-15")!,
+            table: previewTable, courses: [naturalSunday, source], transfers: [previewTransfer], nodes: [])
+        XCTAssertEqual(result.map(\.courseName), ["第一周周一"])
+    }
+
+    func testTransferredHolidayPreviewDoesNotShowMovedCourse() {
+        let result = ReminderPreviewLoader.coursesOn(CourseOccurrences.parseDate("2026-11-02")!,
+            table: previewTable, courses: [previewCourse("第一周周一", day: 1, week: 1)],
+            transfers: [previewTransfer], nodes: [])
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testOrdinaryDayPreviewKeepsNaturalWeekAndWeekday() {
+        let tuesday = previewCourse("第一周周二", day: 2, week: 1)
+        let secondWeek = previewCourse("第二周周二", day: 2, week: 2)
+        let result = ReminderPreviewLoader.coursesOn(CourseOccurrences.parseDate("2026-11-03")!,
+            table: previewTable, courses: [secondWeek, tuesday], transfers: [previewTransfer], nodes: [])
+        XCTAssertEqual(result.map(\.courseName), ["第一周周二"])
+    }
 }

@@ -1364,3 +1364,6 @@
 "smart_period_invalid_count" = "当日中に収まる 1～1439 時限を指定してください。この変更は適用されませんでした。";
 "smart_period_invalid_duration" = "授業時間は 1 分以上、休憩は 0 分以上にしてください。この変更は適用されませんでした。";
 "smart_period_exceeds_day" = "授業と休憩は当日の 23:59 までに終了する必要があります。この変更は適用されませんでした。時限数・授業時間・休憩時間を減らしてください。";
+"settings_table_reminder_scope" = "通知する時間割";
+"settings_reminder_permissions_attention" = "通知の権限を確認";
+"settings_reminder_permissions" = "権限とバックグラウンド動作";

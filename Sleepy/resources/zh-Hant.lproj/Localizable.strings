@@ -1364,3 +1364,6 @@
 "smart_period_invalid_count" = "總節數需在 1–1439 之間，並能排入當天，此次修改未套用。";
 "smart_period_invalid_duration" = "每節時長必須大於 0，課間不能小於 0，此次修改未套用。";
 "smart_period_exceeds_day" = "課程與課間必須在當天 23:59 前結束，此次修改未套用，請減少節數、時長或課間。";
+"settings_table_reminder_scope" = "需要提醒的課表";
+"settings_reminder_permissions_attention" = "提醒權限需要處理";
+"settings_reminder_permissions" = "權限與背景執行";
