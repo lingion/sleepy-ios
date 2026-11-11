@@ -140,4 +140,80 @@ final class CourseOccurrenceEditTests: XCTestCase {
         XCTAssertEqual(moved.day, 3)
         XCTAssertEqual(try repo.getCourses(table.id).count, 1)
     }
+
+    func testChangingFixedOccurrenceDateRequiresTransferDestinationAndSavesOneWeekProvenance() throws {
+        let original = try seed(fixed: "2026-09-07")
+        let selected = try XCTUnwrap(CourseOccurrences.parseDate("2026-09-20"))
+        let sourceDate = try XCTUnwrap(CourseOccurrences.parseDate("2026-09-14"))
+        let transfer = HolidayTransferEntry(sourceDate: sourceDate, targetDate: selected, segmentId: "holiday")
+        AppPrefs.shared.setHolidayTransfers(table.id, [transfer])
+        let source = try occurrence(original, "2026-09-07")
+        let replacement = try CourseOccurrences.replacementForEdit(original, occurrence: source,
+            selectedDate: selected, table: table)
+        XCTAssertNil(replacement.fixedDate, "A changed date must enter the recurring timetable destination review")
+        XCTAssertEqual(CourseOccurrences.dateApproval(originalDate: source.displayDate, selectedDate: selected,
+                                                      transfers: [transfer]), .destination)
+        XCTAssertTrue(CourseOccurrences.coursesForDate(selected, startDate: table.startDate, maxWeek: table.maxWeek,
+            courses: [replacement], transfers: [transfer]).isEmpty, "Direct scheduling is hidden by the transferred timetable")
+
+        let followed = try CourseOccurrences.atDate(replacement, date: sourceDate, table: table, fixed: false)
+        XCTAssertEqual(CourseOccurrences.coursesForDate(selected, startDate: table.startDate, maxWeek: table.maxWeek,
+            courses: [followed], transfers: [transfer]), [followed])
+        XCTAssertEqual(CourseOccurrences.dateApproval(originalDate: source.displayDate, selectedDate: sourceDate,
+                                                      transfers: [transfer]), .outgoing)
+        XCTAssertTrue(try save(source, replacement: followed))
+        let stored = try XCTUnwrap(repo.getCourses(table.id).first)
+        XCTAssertNil(stored.fixedDate)
+        XCTAssertEqual(stored.startWeek, 2)
+        XCTAssertEqual(stored.endWeek, 2)
+        XCTAssertEqual(stored.day, 1)
+        XCTAssertEqual(try occurrence(stored, "2026-09-20").sourceDate, sourceDate)
+    }
+
+    func testUnchangedFixedDateAndTransferredDateRetainTheirOriginalProvenance() throws {
+        let fixed = try seed(fixed: "2026-09-07")
+        let fixedOccurrence = try occurrence(fixed, "2026-09-07")
+        let unchanged = try CourseOccurrences.replacementForEdit(fixed, occurrence: fixedOccurrence,
+            selectedDate: fixedOccurrence.displayDate, table: table)
+        XCTAssertEqual(unchanged.fixedDate, "2026-09-07")
+        XCTAssertEqual(CourseOccurrences.dateApproval(originalDate: fixedOccurrence.displayDate,
+            selectedDate: fixedOccurrence.displayDate, transfers: []), .none)
+
+        let recurring = try seed()
+        let transfer = HolidayTransferEntry(sourceDate: fixedOccurrence.sourceDate,
+            targetDate: try XCTUnwrap(CourseOccurrences.parseDate("2026-09-20")), segmentId: "holiday")
+        AppPrefs.shared.setHolidayTransfers(table.id, [transfer])
+        let transferred = try occurrence(recurring, "2026-09-20")
+        let retained = try CourseOccurrences.replacementForEdit(recurring, occurrence: transferred,
+            selectedDate: transferred.displayDate, table: table)
+        XCTAssertNil(retained.fixedDate)
+        XCTAssertEqual(retained.startWeek, 1)
+        XCTAssertEqual(retained.day, 1)
+        XCTAssertEqual(CourseOccurrences.dateApproval(originalDate: transferred.displayDate,
+            selectedDate: transferred.displayDate, transfers: [transfer]), .none)
+    }
+
+    func testOccurrenceConflictDetailsUseProjectedDayPeriodAndWeekContext() throws {
+        let original = try seed()
+        let transfer = HolidayTransferEntry(sourceDate: try XCTUnwrap(CourseOccurrences.parseDate("2026-09-07")),
+            targetDate: try XCTUnwrap(CourseOccurrences.parseDate("2026-09-20")), segmentId: "holiday")
+        let incoming = try CourseOccurrences.atDate(original, date: transfer.sourceDate, table: table, fixed: false)
+        var existing = incoming
+        existing.courseName = "Existing class"
+        let details = CourseOccurrences.conflictDetails(drafts: [incoming], stored: [existing], table: table, transfers: [transfer])
+        let expected = "2026-09-20 · " + ConflictDetailReporter.formatDetail(
+            ConflictDetail(existingName: "Existing class", draftName: original.courseName, day: 7,
+                dayText: DateUtils.localizedDay(7), nodeRangeText: "1-2", weekText: "第2周"),
+            template: L10n.t("conflict_detail_line"))
+        XCTAssertEqual(details, [expected])
+
+        let earlyTransfer = HolidayTransferEntry(sourceDate: transfer.sourceDate,
+            targetDate: try XCTUnwrap(CourseOccurrences.parseDate("2026-09-06")), segmentId: "early")
+        let earlyExpected = "2026-09-06 · " + ConflictDetailReporter.formatDetail(
+            ConflictDetail(existingName: "Existing class", draftName: original.courseName, day: 7,
+                dayText: DateUtils.localizedDay(7), nodeRangeText: "1-2", weekText: "第1周"),
+            template: L10n.t("conflict_detail_line"))
+        XCTAssertEqual(CourseOccurrences.conflictDetails(drafts: [incoming], stored: [existing],
+            table: table, transfers: [earlyTransfer]), [earlyExpected])
+    }
 }
