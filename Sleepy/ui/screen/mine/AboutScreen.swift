@@ -25,7 +25,7 @@ struct AboutScreen: View {
 
                     Group {
                     // Version info card
-                    InfoCard {
+                    InfoCard(inset: 20) {
                         HStack(spacing: 12) {
                             AndroidSettingsIcon(name: .newReleases, size: 24)
                                 .foregroundColor(colors.primary)
@@ -44,7 +44,7 @@ struct AboutScreen: View {
 
                     // Feedback card — ← 1.0.51 反馈卡: GitHub Issue / 邮件两个入口
                     //   (FeedbackComposer 已 1:1 移植, 这里只是接上 UI)
-                    InfoCard {
+                    InfoCard(inset: 20) {
                         HStack(spacing: 12) {
                             AndroidSettingsIcon(name: .bugReport, size: 24)
                                 .foregroundColor(colors.primary)
@@ -80,7 +80,7 @@ struct AboutScreen: View {
                     Spacer().frame(height: 12)
 
                     // QQ 群入口: 点卡复制群号并拉起 QQ(群资料卡 → ALT → TIM → QQ 首页 → 加群页 五级降级) ← AboutScreen.kt joinQqGroup
-                    InfoCard {
+                    InfoCard(inset: 20) {
                         HStack(spacing: 0) {
                             Button(action: joinQqGroup) {
                                 HStack(spacing: 12) {
@@ -116,7 +116,7 @@ struct AboutScreen: View {
                     }
                     Group {
                     // Author card
-                    InfoCard {
+                    InfoCard(inset: 20) {
                         HStack(spacing: 12) {
                             AndroidSettingsIcon(name: .person, size: 24)
                                 .foregroundColor(colors.primary)
@@ -145,7 +145,7 @@ struct AboutScreen: View {
                     Spacer().frame(height: 12)
 
                     // Source code card
-                    InfoCard {
+                    InfoCard(inset: 20) {
                         HStack(spacing: 12) {
                             AndroidSettingsIcon(name: .code, size: 24)
                                 .foregroundColor(colors.primary)
@@ -181,7 +181,7 @@ struct AboutScreen: View {
 
                     // Privacy policy card — ← v1.0.62 商店审核要求: 应用内可达
                     //   https://sleepy.qdp.qzz.io/privacy (与 web 关于页同源) ← AboutScreen.kt 隐私卡
-                    InfoCard {
+                    InfoCard(inset: 20) {
                         HStack(spacing: 12) {
                             AndroidSettingsIcon(name: .shield, size: 24) // ← Icons.Outlined.Shield 24dp
                                 .foregroundColor(colors.primary)
@@ -216,7 +216,7 @@ struct AboutScreen: View {
                     Spacer().frame(height: 12)
 
                     // License 入口行(v1.0.46 用户令): 长卡拆独立二级页, 这里只留入口
-                    InfoCard {
+                    InfoCard(inset: 20) {
                         Button(action: onOpenLicense) {
                             // ← 原版本 无前导图标: 标题+副题+尾随 ChevronRight(20dp)
                             HStack(spacing: 0) {
@@ -241,7 +241,7 @@ struct AboutScreen: View {
                     Spacer().frame(height: 32)
                     }
                 }
-                .padding(.horizontal, SettingsLayout.pageInset)
+                .padding(.horizontal, 20)
             }
         }
         .background(colors.background)

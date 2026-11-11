@@ -344,13 +344,14 @@ struct SettingToggleRow: View {
 // ← AboutScreen.kt InfoCard; v7.10.18 提到 SettingsCards.swift 共享, LicenseScreen 也用。
 struct InfoCard<Content: View>: View {
     @Environment(\.localWakeUpColors) private var colors
+    var inset: CGFloat = SettingsLayout.cardInset
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             content()
         }
-        .padding(SettingsLayout.cardInset)
+        .padding(inset)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyShapes.large)
