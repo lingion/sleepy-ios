@@ -210,12 +210,16 @@ final class SheetPlatformUITests: XCTestCase {
     }
 
     private func openPeriodTables() {
+        let screen = app.descendants(matching: .any)["period_tables_screen"].firstMatch
+        if screen.exists {
+            XCTAssertTrue(screen.isHittable, "The restored bell-schedule list must be the foreground page")
+            return
+        }
         app.switchToPillTab("manage")
         let entry = app.buttons["manage_period_tables"].firstMatch
         makeHittable(entry)
         entry.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["period_tables_screen"].firstMatch
-            .waitForExistence(timeout: 10))
+        XCTAssertTrue(screen.waitForExistence(timeout: 10))
     }
 
     /// Create the source through the normal editor and its save preview. The
