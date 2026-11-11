@@ -589,6 +589,73 @@ final class UIElementAuditUITests: XCTestCase {
         captureScreenshot("A5_mine_zh-TW_light")
     }
 
+    // MARK: - A.9 Remaining schedule and widget navigation surfaces
+
+    func testA9_ScheduleViewsAndTopTablePickerCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        let gridCourse = app.descendants(matching: .any)["gridcell_1"].firstMatch
+        XCTAssertTrue(gridCourse.waitForExistence(timeout: 10))
+        captureScreenshot("A9_schedule-grid")
+        let switchTable = app.buttons["switch_table"].firstMatch
+        revealAuditControl(switchTable)
+        switchTable.tap()
+        let table = app.buttons["switch_table_1"].firstMatch
+        revealAuditControl(table)
+        XCTAssertTrue(table.label.contains("我的课表"))
+        captureScreenshot("A9_schedule-top-table-picker")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.015, dy: 0.5)).tap()
+        XCTAssertTrue(waitForAuditCondition { !table.exists && gridCourse.exists })
+        let week = app.buttons["seg_Week"].firstMatch
+        revealAuditControl(week)
+        week.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["lesson_1"].firstMatch.waitForExistence(timeout: 10))
+        captureScreenshot("A9_schedule-week-view")
+        let grid = app.buttons["seg_Grid"].firstMatch
+        revealAuditControl(grid)
+        grid.tap()
+        XCTAssertTrue(gridCourse.waitForExistence(timeout: 10))
+    }
+
+    func testA9_ScheduleSettingsMiddleAndBottomCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        openMineSetting("mine_schedule_settings", assertAnchor: "schedule_display_settings")
+        let week = app.staticTexts["Two-column week view"].firstMatch
+        revealAuditControl(week)
+        captureScreenshot("A9_schedule-settings-week-content")
+        let subInfo = app.staticTexts["Grid card sub-info"].firstMatch
+        revealAuditControl(subInfo)
+        captureScreenshot("A9_schedule-settings-grid-content")
+        let pinch = app.staticTexts["Pinch to resize rows"].firstMatch
+        revealAuditControl(pinch)
+        captureScreenshot("A9_schedule-settings-grid-advanced")
+        let conflict = app.staticTexts["Conflicting course style"].firstMatch
+        revealAuditControl(conflict)
+        captureScreenshot("A9_schedule-settings-conflicts")
+        let holiday = app.buttons["settings_holiday_entry"].firstMatch
+        revealAuditControl(holiday)
+        captureScreenshot("A9_schedule-settings-holidays-bottom")
+        tapAuditBack()
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 10))
+    }
+
+    func testA9_WidgetSettingsAndManagementEmptyStateCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        openMineSetting("mine_widget", assertAnchor: "settings_widget_manage_entry")
+        let manage = app.buttons["settings_widget_manage_entry"].firstMatch
+        revealAuditControl(manage)
+        captureScreenshot("A9_widget-settings")
+        manage.tap()
+        let add = app.buttons["widget_gallery_add"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        let empty = app.buttons["widget_empty_gallery"].firstMatch
+        revealAuditControl(empty)
+        captureScreenshot("A9_widget-management-empty-state")
+        tapAuditBack()
+        XCTAssertTrue(manage.waitForExistence(timeout: 10))
+        tapAuditBack()
+        XCTAssertTrue(app.buttons["mine_widget"].waitForExistence(timeout: 10))
+    }
+
     // MARK: - A.8 Theme and whole-course editor surfaces
 
     func testA8_CustomThemeRolesAndNativePickerCapture() {
