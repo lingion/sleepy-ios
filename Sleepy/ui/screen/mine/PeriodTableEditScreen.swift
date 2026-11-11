@@ -84,7 +84,6 @@ struct PeriodTableEditScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .accessibilityIdentifier("period_table_editor_\(periodTableId)")
         .onAppear { reloadTables() }
         // ← allPeriodTables collectAsState(ktl L91): 表列表实时刷新(同 id timeJson 外部更新
         // 时 rows/smartConfig 也经 loadIfNeeded 键控重载)。not-found 阶段尚无本表 → 只播种列表,
@@ -270,6 +269,7 @@ struct PeriodTableEditScreen: View {
             Spacer()
             Text(L10n.t("period_tables_title"))
                 .font(.headline)
+                .accessibilityIdentifier("period_table_editor_\(periodTableId)")
             Spacer()
             HStack(spacing: 0) {
                 // v1.0.56 T11: 分享作息表(原生格式 / JSON 二选一)
@@ -487,7 +487,8 @@ struct PeriodTableEditScreen: View {
                         let newId = viewModel.copyPeriodTableAs(sourceId: periodTable.id, newName: candidate)
                         if newId > 0 {
                             showCopyDialog = false
-                            onBack()
+                            unsavedNew = false
+                            (onSaved ?? onBack)()
                         }
                     },
                     dismissText: L10n.t("cancel"),
