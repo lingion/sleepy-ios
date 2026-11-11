@@ -180,6 +180,33 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         XCTFail("The real system control must be reachable; inspect the retained accessibility tree", file: file, line: line)
     }
 
+    /// Use Files' real Browse/location navigation, including a remembered subfolder.
+    private func openLocalFilesRoot(file: StaticString = #filePath, line: UInt = #line) {
+        let root = app.otherElements.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'DOC.browsingRoot Source: com.apple.FileProvider.LocalStorage, Title: On My '")).firstMatch
+        for _ in 0..<8 {
+            if root.exists { return }
+            let location = app.descendants(matching: .any).matching(NSPredicate(
+                format: "label IN {'On My iPhone', 'On My iPad'}"))
+                .allElementsBoundByIndex.first { $0.isHittable }
+            if let location {
+                location.tap()
+                if waitUntil(timeout: 3, { root.exists }) { return }
+                continue
+            }
+            let back = app.navigationBars["FullDocumentManagerViewControllerNavigationBar"]
+                .buttons["BackButton"].firstMatch
+            if back.exists && back.isHittable {
+                back.tap()
+            } else if app.tabBars.buttons["Browse"].firstMatch.isHittable {
+                app.tabBars.buttons["Browse"].firstMatch.tap()
+            } else {
+                break
+            }
+        }
+        retainFailure("secondary-backup-local-files-root-missing", file: file, line: line)
+    }
+
     private var fixtureCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
@@ -393,6 +420,75 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         XCTAssertTrue(course.waitForExistence(timeout: 8))
         XCTAssertEqual(course.label, originalCard, "Approval cancellation must not change the stored course")
         capture("secondary-holiday-occurrence-cancel-keeps-saved-course")
+    }
+
+    func testBackupRestoreModeCancelsAfterRealLocalExportWithoutChangingSchedulesCapture() throws {
+        let originalTables = savedTableRows()
+        let courseCount = app.staticTexts["mine_stat_courses_value"].firstMatch
+        let periodCount = app.staticTexts["mine_stat_period_tables_value"].firstMatch
+        XCTAssertEqual(courseCount.label, "5")
+        let originalPeriods = periodCount.label
+        let backup = app.buttons["mine_backup"].firstMatch
+        reveal(backup)
+        backup.tap()
+        let export = app.buttons["settings_migration_export_row"].firstMatch
+        reveal(export)
+        export.tap()
+        let fileName = app.textFields["DOCPicker.filenameTextField"].firstMatch
+        XCTAssertTrue(fileName.waitForExistence(timeout: 15))
+        let exportedName = try XCTUnwrap(fileName.value as? String)
+        XCTAssertNotNil(exportedName.range(of: #"^sleepy-backup-\d{8}-\d{6}(\.[A-Za-z0-9]+)?$"#,
+                                          options: .regularExpression),
+                        "Select the exact exported file rather than a truncated display label")
+        openLocalFilesRoot()
+        let save = app.buttons.matching(NSPredicate(format: "label == 'Save'")).firstMatch
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        XCTAssertTrue(save.isEnabled)
+        reveal(save)
+        capture("secondary-backup-real-local-export")
+        save.tap()
+        XCTAssertTrue(waitUntil(timeout: 15) { !save.exists && export.isHittable })
+        let toast = app.staticTexts["settings_migration_toast"].firstMatch
+        XCTAssertTrue(waitUntil { toast.exists && toast.label == ".sleepybackup exported" })
+        let restore = app.buttons["settings_migration_import_row"].firstMatch
+        reveal(restore)
+        restore.tap()
+        XCTAssertTrue(app.collectionViews["File View"].firstMatch.waitForExistence(timeout: 10))
+        openLocalFilesRoot()
+        let file = app.collectionViews["File View"].cells.matching(NSPredicate(
+            format: "label BEGINSWITH %@", exportedName)).firstMatch
+        guard file.waitForExistence(timeout: 8) else {
+            retainFailure("secondary-backup-exported-file-missing")
+            return
+        }
+        reveal(file)
+        capture("secondary-backup-select-real-export")
+        file.tap()
+        let mode = app.alerts["Import migration backup"].firstMatch
+        XCTAssertTrue(mode.waitForExistence(timeout: 10))
+        XCTAssertTrue(mode.buttons["Overwrite"].isEnabled)
+        XCTAssertTrue(mode.buttons["Merge"].isEnabled)
+        XCTAssertTrue(mode.staticTexts["Overwrite clears all local timetables and settings, then restores from the backup. Merge keeps local data and only appends backup content."].exists)
+        let cancel = mode.buttons["Cancel"].firstMatch
+        XCTAssertTrue(cancel.isHittable)
+        capture("secondary-backup-restore-mode-confirmation")
+        cancel.tap()
+        XCTAssertTrue(waitUntil { !mode.exists && export.isHittable && restore.isHittable })
+        XCTAssertFalse(toast.exists && toast.label.hasPrefix("Imported"), "Cancel must not execute migration")
+        capture("secondary-backup-restore-mode-cancelled")
+        restore.tap()
+        XCTAssertTrue(app.collectionViews["File View"].firstMatch.waitForExistence(timeout: 10),
+                      "Cancelling the mode must release the import operation")
+        cancelSystemFilesPanel()
+        XCTAssertTrue(waitUntil { !mode.exists && export.isHittable && restore.isHittable })
+        tapBack()
+        XCTAssertEqual(courseCount.label, "5")
+        XCTAssertEqual(periodCount.label, originalPeriods)
+        XCTAssertEqual(savedTableRows(), originalTables)
+        restartWithoutSeed()
+        XCTAssertEqual(courseCount.label, "5")
+        XCTAssertEqual(periodCount.label, originalPeriods)
+        XCTAssertEqual(savedTableRows(), originalTables)
     }
 
     func testHolidayMappingOtherDateAndRangeEditorCapture() {
