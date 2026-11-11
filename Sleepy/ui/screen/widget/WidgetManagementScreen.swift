@@ -52,6 +52,7 @@ func loadPlacedWidgets() async -> [PlacedWidgetItem] {
 struct WidgetManagementScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.sleepyUIStyle) private var uiStyle
+    @Environment(\.scenePhase) private var scenePhase
     let onDismiss: () -> Void
     var loadItems: () async -> [PlacedWidgetItem] = loadPlacedWidgets
 
@@ -114,6 +115,11 @@ struct WidgetManagementScreen: View {
         }
         .background(colors.background)
         .task { items = await loadItems() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                Task { items = await loadItems() }
+            }
+        }
         // ← onSelect(widgetId) 导航: fullScreenCover 叠放(manage → edit 两级)
         .fullScreenCover(item: $editTarget) { target in
             // ← family 透传 (设计 §6): 编辑页族门控 (滚动/三天窗口节) 依据
