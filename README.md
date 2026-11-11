@@ -223,8 +223,8 @@ widgets         = WidgetKit
 navigation      = SwiftUI NavigationStack
 prefs           = AppPrefs (UserDefaults)
 serialization   = Codable
-build           = XcodeGen 14.3.1
-xcode           = 14.3.1
+build           = XcodeGen
+ci_xcode        = 26.3
 ```
 
 ---
