@@ -1,0 +1,326 @@
+import XCTest
+
+/// Real settings entry points. Captures are evidence only after these tests run successfully.
+final class SecondarySettingsCaptureUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        app = XCUIApplication()
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+                               "-SLEEPY_UI_TEST_SEED", "-SLEEPY_UI_TEST_HOLIDAYS",
+                               "-ui_style", "classic"]
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 10))
+    }
+
+    override func tearDownWithError() throws {
+        app.terminate()
+        XCUIDevice.shared.orientation = .portrait
+    }
+
+    private func waitUntil(timeout: TimeInterval = 8, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        } while Date() < deadline
+        return condition()
+    }
+
+    private func capture(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// Reveal complete controls with short, reversible drags in their owning scroll area.
+    /// An expanded card uses only its header as the navigation target.
+    private func reveal(_ element: XCUIElement, headerOnly: Bool = false,
+                        file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.waitForExistence(timeout: 10), file: file, line: line)
+        func scrollArea() -> XCUIElement? {
+            let containers = app.scrollViews.allElementsBoundByIndex + app.tables.allElementsBoundByIndex
+                + app.collectionViews.allElementsBoundByIndex
+            return containers.reversed().first { container in
+                let children = container.descendants(matching: element.elementType)
+                return element.identifier.isEmpty
+                    ? children.matching(NSPredicate(format: "label == %@", element.label)).firstMatch.exists
+                    : children.matching(identifier: element.identifier).firstMatch.exists
+            }
+        }
+        func viewport() -> CGRect {
+            var area = app.windows.firstMatch.frame.insetBy(dx: 2, dy: 4)
+            if let scroll = scrollArea() { area = area.intersection(scroll.frame) }
+            if let back = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex.last(where: { $0.isHittable }),
+               back.frame.minY < area.midY {
+                let bottom = area.maxY
+                area.origin.y = max(area.minY, back.frame.maxY + 4)
+                area.size.height = max(0, bottom - area.minY)
+            }
+            let docks = ["pill_schedule", "pill_today", "pill_manage", "pill_mine"]
+                .map { app.buttons[$0].firstMatch }.filter { $0.exists && $0.isHittable }.map(\.frame)
+            if let first = docks.first {
+                let dock = docks.dropFirst().reduce(first) { $0.union($1) }
+                if dock.width > dock.height, dock.minY > area.midY {
+                    area.size.height = max(0, min(area.maxY, dock.minY - 4) - area.minY)
+                }
+            }
+            return area
+        }
+        func targetFrame() -> CGRect {
+            let frame = element.frame
+            return headerOnly ? CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: min(48, frame.height)) : frame
+        }
+        func visible() -> Bool {
+            element.exists && element.isHittable && targetFrame().width > 0 && targetFrame().height > 0
+                && viewport().contains(targetFrame())
+        }
+        for _ in 0..<16 {
+            if visible() { return }
+            let area = viewport()
+            guard area.width > 0, area.height > 0 else { break }
+            let earlier = targetFrame().minY < area.minY
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(dx: area.midX, dy: area.minY + area.height * (earlier ? 0.40 : 0.65)))
+            let end = origin.withOffset(CGVector(dx: area.midX, dy: area.minY + area.height * (earlier ? 0.58 : 0.47)))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+        XCTAssertTrue(waitUntil { visible() }, "The complete target must be visible above navigation", file: file, line: line)
+    }
+
+    private func tapBack(file: StaticString = #filePath, line: UInt = #line) {
+        let back = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex.last { $0.isHittable }
+        XCTAssertNotNil(back, file: file, line: line)
+        back?.tap()
+    }
+
+    private func openScheduleSettings() {
+        let entry = app.buttons["mine_schedule_settings"].firstMatch
+        reveal(entry)
+        entry.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["schedule_display_settings"].waitForExistence(timeout: 8))
+    }
+
+    private func tapForegroundCancel() {
+        let cancel = app.buttons.matching(NSPredicate(format: "label == 'Cancel'"))
+            .allElementsBoundByIndex.last { $0.isHittable }
+        XCTAssertNotNil(cancel, "The open editor must expose its Cancel action")
+        if let cancel {
+            reveal(cancel)
+            cancel.tap()
+        }
+    }
+
+    func testHolidayMappingOtherDateAndRangeEditorCapture() {
+        openScheduleSettings()
+        let entry = app.buttons["settings_holiday_entry"].firstMatch
+        reveal(entry)
+        entry.tap()
+        XCTAssertTrue(app.buttons["holiday_group_dates"].waitForExistence(timeout: 8))
+
+        let mappingGroup = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'holiday_group_transfer:'")).firstMatch
+        reveal(mappingGroup)
+        XCTAssertEqual(mappingGroup.value as? String, "collapsed")
+        mappingGroup.tap()
+        let mapping = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'holiday_mapping_'")).firstMatch
+        reveal(mapping)
+        XCTAssertEqual(mappingGroup.value as? String, "expanded")
+        capture("secondary-holiday-mapping-expanded")
+        // The source date occupies the left half; the real Menu chip occupies the right half.
+        mapping.coordinate(withNormalizedOffset: CGVector(dx: 0.80, dy: 0.5)).tap()
+        let otherDate = app.buttons["Other date…"].firstMatch
+        XCTAssertTrue(otherDate.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["None"].exists)
+        capture("secondary-holiday-mapping-menu")
+        otherDate.tap()
+        let dateConfirm = app.buttons["holiday_date_confirm"].firstMatch
+        XCTAssertTrue(dateConfirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.datePickers.firstMatch.waitForExistence(timeout: 5))
+        reveal(dateConfirm)
+        capture("secondary-holiday-other-date-picker")
+        tapForegroundCancel()
+        XCTAssertTrue(waitUntil { !dateConfirm.exists && mapping.isHittable })
+
+        let dates = app.buttons["holiday_group_dates"].firstMatch
+        reveal(dates)
+        dates.tap()
+        let range = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'holiday_date_edit_' AND label CONTAINS 'New Year'")).firstMatch
+        reveal(range)
+        range.tap()
+        let name = app.textFields["holiday_name_input"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertEqual(name.value as? String, "New Year")
+        XCTAssertTrue(app.staticTexts["Start date"].exists)
+        XCTAssertTrue(app.staticTexts["End date"].exists)
+        let save = app.buttons["holiday_save"].firstMatch
+        reveal(save)
+        capture("secondary-holiday-range-editor")
+        tapForegroundCancel()
+        XCTAssertTrue(waitUntil { !save.exists && range.isHittable })
+        tapBack()
+        XCTAssertTrue(app.descendants(matching: .any)["schedule_display_settings"].waitForExistence(timeout: 5))
+        tapBack()
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
+    }
+
+    func testLanguageMenuAndVisibleWeekdaysCapture() {
+        let general = app.buttons["mine_general"].firstMatch
+        reveal(general)
+        general.tap()
+        let language = app.buttons["card_language"].firstMatch
+        reveal(language)
+        language.tap()
+        let menu = app.collectionViews.containing(.button, identifier: "Español").firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        for label in ["简体中文", "繁體中文", "English", "日本語", "Español"] {
+            XCTAssertTrue(menu.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch.exists)
+        }
+        capture("secondary-language-menu")
+        let window = app.windows.firstMatch.frame
+        let candidates = [CGPoint(x: window.minX + 24, y: window.minY + 100),
+                          CGPoint(x: window.maxX - 24, y: window.minY + 100),
+                          CGPoint(x: window.minX + 24, y: window.maxY - 80)]
+        let outside = candidates.first { !menu.frame.insetBy(dx: -12, dy: -12).contains($0) }
+        XCTAssertNotNil(outside, "The native menu must leave an outside dismissal target")
+        if let outside {
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: outside.x, dy: outside.y)).tap()
+        }
+        XCTAssertTrue(waitUntil { !menu.exists && language.isHittable })
+        tapBack()
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
+
+        openScheduleSettings()
+        let days = app.descendants(matching: .any)["card_Visible Days"].firstMatch
+        reveal(days, headerOnly: true)
+        let monday = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Mon'")).firstMatch
+        if !monday.exists {
+            days.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: days.frame.width / 2, dy: 24)).tap()
+        }
+        XCTAssertTrue(monday.waitForExistence(timeout: 5))
+        for day in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] {
+            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", day)).firstMatch.exists)
+        }
+        reveal(monday)
+        capture("secondary-visible-weekdays-upper")
+        let sunday = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Sun'")).firstMatch
+        reveal(sunday)
+        capture("secondary-visible-weekdays-lower")
+        tapBack()
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
+    }
+
+    func testReminderTimetableListCapture() {
+        let reminder = app.buttons["mine_reminder"].firstMatch
+        reveal(reminder)
+        reminder.tap()
+        let scope = app.buttons["reminder_table_reminder_entry"].firstMatch
+        reveal(scope)
+        scope.tap()
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'table_reminder_row_'" )).firstMatch
+        reveal(row)
+        XCTAssertTrue(app.staticTexts["Timetables to remind"].exists)
+        XCTAssertTrue(app.staticTexts["我的课表"].exists)
+        XCTAssertTrue(app.switches.firstMatch.exists)
+        capture("secondary-reminder-timetable-list")
+        tapBack()
+        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        tapBack()
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
+    }
+
+    func testBackupExportCancelAndAboutLicenseCapture() {
+        let backup = app.buttons["mine_backup"].firstMatch
+        reveal(backup)
+        backup.tap()
+        let export = app.buttons["settings_migration_export_row"].firstMatch
+        let restore = app.buttons["settings_migration_import_row"].firstMatch
+        reveal(export)
+        reveal(restore)
+        capture("secondary-backup-main")
+        export.tap()
+
+        // fileExporter presents the system Files controller. Its English actions
+        // vary by OS; both a native Cancel action and export evidence are required.
+        let cancel = app.buttons.matching(NSPredicate(format: "label == 'Cancel'")).firstMatch
+        let fileName = app.textFields.matching(NSPredicate(
+            format: "value BEGINSWITH 'sleepy-backup' OR label BEGINSWITH 'sleepy-backup'")).firstMatch
+        let fileLabel = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'sleepy-backup'")).firstMatch
+        let save = app.buttons.matching(NSPredicate(format: "label IN {'Save', 'Move', 'Export'}")).firstMatch
+        XCTAssertTrue(waitUntil(timeout: 15) {
+            cancel.exists && cancel.isHittable && (fileName.exists || fileLabel.exists || save.exists)
+        }, "Export must present the system file-saving panel")
+        capture("secondary-backup-system-save-panel")
+        cancel.tap()
+        XCTAssertTrue(waitUntil { !cancel.exists && export.isHittable && restore.isHittable })
+        tapBack()
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
+
+        let about = app.buttons["mine_about"].firstMatch
+        reveal(about)
+        about.tap()
+        let license = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Open Source License'")).firstMatch
+        reveal(license)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == 'Privacy Policy'")).firstMatch.exists)
+        capture("secondary-about-bottom")
+        license.tap()
+        XCTAssertTrue(app.staticTexts["License & Acknowledgements"].waitForExistence(timeout: 5))
+        let licenseText = app.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS 'GNU General Public License v3.0'")).firstMatch
+        reveal(licenseText)
+        capture("secondary-open-source-license")
+        tapBack()
+        XCTAssertTrue(license.waitForExistence(timeout: 5))
+        tapBack()
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
+    }
+
+    func testNewBellScheduleManualAndAutoEditorCancelCapture() {
+        app.switchToPillTab("manage")
+        let entry = app.buttons["manage_period_tables"].firstMatch
+        reveal(entry)
+        entry.tap()
+        let create = app.buttons["period_tables_new"].firstMatch
+        reveal(create)
+        let originalRows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'period_table_edit_'"))
+            .allElementsBoundByIndex.map(\.identifier).sorted()
+        create.tap()
+        let name = app.textFields["field_Bell schedule name"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        let manual = app.buttons["seg_Manual mode"].firstMatch
+        let automatic = app.buttons["seg_Auto mode"].firstMatch
+        XCTAssertTrue(manual.isSelected)
+        let firstRow = app.descendants(matching: .any)["slot_row_1"].firstMatch
+        reveal(firstRow)
+        capture("secondary-new-bell-schedule-manual")
+        reveal(automatic)
+        automatic.tap()
+        XCTAssertTrue(waitUntil { automatic.isSelected })
+        let duration = app.textFields["number_Per-period duration"].firstMatch
+        let total = app.textFields["number_Total periods"].firstMatch
+        reveal(duration)
+        reveal(total)
+        capture("secondary-new-bell-schedule-auto-upper")
+        let preview = app.staticTexts["Preview"].firstMatch
+        reveal(preview)
+        capture("secondary-new-bell-schedule-auto-lower")
+
+        // The editor's production header uses the Back label. Returning without
+        // saving discards the newly inserted draft row through handleBack().
+        let back = app.buttons.matching(NSPredicate(format: "label == 'Back'"))
+            .allElementsBoundByIndex.last { $0.isHittable }
+        XCTAssertNotNil(back)
+        back?.tap()
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitUntil {
+            !name.exists && originalRows == self.app.buttons.matching(NSPredicate(
+                format: "identifier BEGINSWITH 'period_table_edit_'"))
+                .allElementsBoundByIndex.map(\.identifier).sorted()
+        }, "Cancel must return to the original bell-schedule list without a draft row")
+    }
+}
