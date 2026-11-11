@@ -126,13 +126,12 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         reveal(mappingGroup)
         XCTAssertEqual(mappingGroup.value as? String, "collapsed")
         mappingGroup.tap()
-        let mapping = app.descendants(matching: .any)
+        let mapping = app.buttons
             .matching(NSPredicate(format: "identifier BEGINSWITH 'holiday_mapping_'")).firstMatch
         reveal(mapping)
         XCTAssertEqual(mappingGroup.value as? String, "expanded")
         capture("secondary-holiday-mapping-expanded")
-        // The source date occupies the left half; the real Menu chip occupies the right half.
-        mapping.coordinate(withNormalizedOffset: CGVector(dx: 0.80, dy: 0.5)).tap()
+        mapping.tap()
         let otherDate = app.buttons["Other date…"].firstMatch
         XCTAssertTrue(otherDate.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["None"].exists)
