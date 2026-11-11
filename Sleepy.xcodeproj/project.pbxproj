@@ -4768,7 +4768,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy;
-				PROVISIONING_PROFILE_SPECIFIER = "Sleepy AppStore";
+				PROVISIONING_PROFILE_SPECIFIER = "Sleepy AppStore GameCenter";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

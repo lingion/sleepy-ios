@@ -2,8 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- PrivacyInfo.xcprivacy — Widget Extension Privacy Manifest (2026-10 上架补齐)
      required-reason 申报口径 (与主 app Sleepy/PrivacyInfo.xcprivacy 同审计结论):
-     - UserDefaults (CA92.1 = app 自身容器数据): widget 经 AppPrefs 读偏好 (主题/别名/
-       灰显/分隔线等), 域为本 App 自有 standard/suiteName, 从不读写他 App UserDefaults。
+     - UserDefaults: CA92.1 覆盖自身 standard 容器; 1C8F.1 覆盖同 App Group
+       的 apps/extensions 共享偏好。widget 经 AppPrefs 读主题/别名/灰显/分隔线等,
+       不读写不属于本 App Group 的其他 App UserDefaults。
      不申报 (核实后确认 extension 未触发):
      - FileTimestamp: WidgetArchiveLog 仅 attributesOfItem[.size] 读日志文件大小做裁剪,
        从不读修改时间戳 → 不属 FileTimestamp required-reason API (同主 app 结论)。
@@ -26,6 +27,7 @@
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
 				<string>CA92.1</string>
+				<string>1C8F.1</string>
 			</array>
 		</dict>
 	</array>
