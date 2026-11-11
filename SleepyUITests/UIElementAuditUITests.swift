@@ -720,6 +720,12 @@ final class UIElementAuditUITests: XCTestCase {
     func testA8_CustomThemeRolesAndNativePickerCapture() {
         launchApp(language: "en", uiStyle: "classic", extraArguments: ["-course_colorless", "NO"])
         openMineSetting("mine_appearance", assertAnchor: "theme_system_card")
+        func customThemeCardIDs() -> Set<String> {
+            Set(app.buttons.matching(NSPredicate(
+                format: "identifier BEGINSWITH 'theme_custom_' AND NOT (identifier BEGINSWITH 'theme_custom_edit_')"
+            )).allElementsBoundByIndex.map(\.identifier))
+        }
+        let initialThemeIDs = customThemeCardIDs()
         let create = app.buttons["theme_new_entry"].firstMatch
         revealAuditControl(create)
         create.tap()
@@ -747,8 +753,83 @@ final class UIElementAuditUITests: XCTestCase {
         captureScreenshot("A8_theme-primary-native-color-picker")
         pickerCancel.tap()
         XCTAssertTrue(waitForAuditCondition { !pickerCancel.exists && primary.exists })
+
+        revealAuditControl(name)
+        let oldName = name.value as? String ?? ""
+        let savedName = "Audit-\(UUID().uuidString.prefix(8))"
+        name.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldName.count))
+        app.typeText(savedName + "\n")
+        XCTAssertTrue(waitForAuditCondition { !self.app.keyboards.firstMatch.exists })
+        XCTAssertEqual(name.value as? String, savedName)
+        tapAuditBack()
+        let discard = app.alerts["Discard unsaved changes?"].firstMatch
+        guard discard.waitForExistence(timeout: 10) else {
+            XCTFail("Leaving a changed theme draft must ask before discarding it")
+            return
+        }
+        XCTAssertTrue(discard.buttons["Discard"].isHittable)
+        XCTAssertTrue(discard.buttons["Cancel"].isHittable)
+        captureScreenshot("A8_custom-theme-discard-confirmation")
+        discard.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !discard.exists && name.exists })
+        XCTAssertEqual(name.value as? String, savedName, "Cancel must preserve the unsaved theme name")
+
+        let save = app.buttons["theme_editor_save"].firstMatch
+        revealAuditControl(save)
+        guard save.isEnabled else {
+            XCTFail("The valid theme draft must be saveable")
+            return
+        }
+        save.tap()
+        guard waitForAuditCondition({ !name.exists && create.exists }) else {
+            XCTFail("Saving the theme must return to Appearance")
+            return
+        }
+        let savedThemeIDs = customThemeCardIDs()
+        let addedThemeIDs = savedThemeIDs.subtracting(initialThemeIDs)
+        XCTAssertTrue(initialThemeIDs.isSubset(of: savedThemeIDs), "Saving must retain every existing custom theme")
+        guard addedThemeIDs.count == 1, let savedCardID = addedThemeIDs.first else {
+            XCTFail("Saving a new theme must add exactly one custom theme card")
+            return
+        }
+        let savedCard = app.buttons[savedCardID].firstMatch
+        XCTAssertTrue(savedCard.label.contains(savedName))
+        let savedThemeID = String(savedCardID.dropFirst("theme_custom_".count))
+        let editSavedTheme = app.buttons["theme_custom_edit_\(savedThemeID)"].firstMatch
+        revealAuditControl(editSavedTheme)
+        editSavedTheme.tap()
+        guard name.waitForExistence(timeout: 10) else {
+            XCTFail("The saved custom theme must reopen in its editor")
+            return
+        }
+        XCTAssertEqual(name.value as? String, savedName)
+        let deleteTheme = app.buttons["theme_editor_delete"].firstMatch
+        revealAuditControl(deleteTheme)
+        deleteTheme.tap()
+        let deleteConfirmation = app.alerts["Delete this custom theme?"].firstMatch
+        guard deleteConfirmation.waitForExistence(timeout: 10) else {
+            XCTFail("Deleting a custom theme must ask for confirmation")
+            return
+        }
+        XCTAssertTrue(deleteConfirmation.buttons["Delete"].isHittable)
+        XCTAssertTrue(deleteConfirmation.buttons["Cancel"].isHittable)
+        captureScreenshot("A8_custom-theme-delete-confirmation")
+        deleteConfirmation.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !deleteConfirmation.exists && deleteTheme.exists })
+        XCTAssertEqual(name.value as? String, savedName, "Canceling deletion must preserve the saved theme name")
         tapAuditBack()
         XCTAssertTrue(create.waitForExistence(timeout: 10))
+        XCTAssertEqual(customThemeCardIDs(), savedThemeIDs, "Canceling deletion must preserve the entire custom theme collection")
+        XCTAssertTrue(savedCard.label.contains(savedName), "Canceling deletion must retain the same named theme card")
+        let defaultPreset = app.buttons["theme_preset_default"].firstMatch
+        revealAuditControl(defaultPreset)
+        defaultPreset.tap()
+        XCTAssertTrue(waitForAuditCondition {
+            defaultPreset.label.contains("Selected") || defaultPreset.descendants(matching: .any)
+                .matching(NSPredicate(format: "label == %@", "Selected")).firstMatch.exists
+        }, "The capture must finish with the default preset selected")
         let recalc = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Re-arrange all course colors")).firstMatch
         revealAuditControl(recalc)
         captureScreenshot("A8_appearance-course-colors-lower")
@@ -843,6 +924,48 @@ final class UIElementAuditUITests: XCTestCase {
         revealAuditControl(range)
         XCTAssertTrue(app.staticTexts["Import range"].exists)
         captureScreenshot("A7_calendar-range-configuration")
+        range.tap()
+        XCTAssertTrue(waitForAuditCondition { range.isSelected })
+        let selectedTarget = calendarTarget.label
+        let managedImports = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Delete Sleepy imports ("))
+        let managedImportLabels = Set(managedImports.allElementsBoundByIndex.map(\.label))
+        let preview = app.buttons["Preview import"].firstMatch
+        revealAuditControl(preview)
+        guard preview.isEnabled else {
+            XCTFail("Calendar preview must be available after choosing its target and range")
+            return
+        }
+        preview.tap()
+        let previewSummary = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "classes will be added")).firstMatch
+        let confirmImport = app.buttons["Confirm import"].firstMatch
+        guard waitForAuditCondition({ previewSummary.exists && confirmImport.exists && confirmImport.isEnabled }) else {
+            XCTFail("Calendar preview must include importable seeded courses")
+            return
+        }
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "高等数学")).firstMatch.exists)
+        let previewSummaryLabel = previewSummary.label
+        revealAuditControl(previewSummary)
+        captureScreenshot("A7_calendar-import-preview")
+        revealAuditControl(confirmImport)
+        confirmImport.tap()
+        let finalConfirmation = app.alerts["Confirm calendar changes"].firstMatch
+        guard finalConfirmation.waitForExistence(timeout: 10) else {
+            XCTFail("The calendar preview must require final confirmation before writing events")
+            return
+        }
+        XCTAssertTrue(finalConfirmation.buttons["Add classes"].isHittable)
+        XCTAssertTrue(finalConfirmation.buttons["Cancel"].isHittable)
+        captureScreenshot("A7_calendar-final-confirmation")
+        finalConfirmation.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !finalConfirmation.exists && confirmImport.isHittable })
+        XCTAssertEqual(previewSummary.label, previewSummaryLabel, "Cancel must preserve the calendar preview")
+        XCTAssertEqual(calendarTarget.label, selectedTarget, "Cancel must preserve the selected calendar")
+        XCTAssertTrue(range.isSelected, "Cancel must preserve the selected import range")
+        XCTAssertEqual(Set(managedImports.allElementsBoundByIndex.map(\.label)), managedImportLabels,
+                       "Cancel must preserve the managed import count")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(
+            format: "label BEGINSWITH 'Added ' AND label CONTAINS ', updated ' AND label CONTAINS ', unchanged '"
+        )).firstMatch.exists, "Cancel must not report a completed calendar write")
         let cancel = app.buttons["calendar_import_cancel"].firstMatch
         revealAuditControl(cancel)
         cancel.tap()
