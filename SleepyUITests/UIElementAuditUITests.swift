@@ -139,7 +139,8 @@ final class UIElementAuditUITests: XCTestCase {
     }
 
     /// Reveal the complete control inside its foreground scroll area and above the dock.
-    /// Short drags can recover in either direction without jumping past a nearby row.
+    /// Drag the empty leading gutter so sliders do not consume the scroll gesture.
+    /// Use shorter steps only when the target is already near the viewport.
     private func revealAuditControl(_ element: XCUIElement,
                                     file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(element.waitForExistence(timeout: 10), file: file, line: line)
@@ -185,8 +186,13 @@ final class UIElementAuditUITests: XCTestCase {
             let area = viewport(owningScroll())
             guard area.width > 0, area.height > 0 else { break }
             let earlier = element.frame.minY < area.minY
-            let start = CGPoint(x: area.midX, y: area.minY + area.height * (earlier ? 0.40 : 0.65))
-            let end = CGPoint(x: area.midX, y: area.minY + area.height * (earlier ? 0.58 : 0.47))
+            let distance = earlier ? area.minY - element.frame.minY : element.frame.maxY - area.maxY
+            let step = min(0.55, max(0.18, distance / area.height))
+            let dragX = area.minX + min(10, area.width * 0.05)
+            let startY = earlier ? 0.25 : 0.80
+            let endY = earlier ? startY + step : startY - step
+            let start = CGPoint(x: dragX, y: area.minY + area.height * startY)
+            let end = CGPoint(x: dragX, y: area.minY + area.height * endY)
             let origin = app.coordinate(withNormalizedOffset: .zero)
             origin.withOffset(CGVector(dx: start.x, dy: start.y)).press(forDuration: 0.05,
                 thenDragTo: origin.withOffset(CGVector(dx: end.x, dy: end.y)))
@@ -899,7 +905,8 @@ final class UIElementAuditUITests: XCTestCase {
         shared.tap()
         let display = app.descendants(matching: .any)["schedule_display_settings"].firstMatch
         XCTAssertTrue(display.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Schedule settings"].firstMatch.isHittable)
+        XCTAssertTrue(app.staticTexts.matching(identifier: "Schedule settings")
+            .allElementsBoundByIndex.contains { $0.isHittable }, "The shared page must display its own title")
         captureScreenshot("A7_widget-shared-display")
         let headers = app.buttons["settings_period_header"].firstMatch
         revealAuditControl(headers)
