@@ -468,7 +468,8 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         XCTAssertTrue(mode.waitForExistence(timeout: 10))
         XCTAssertTrue(mode.buttons["Overwrite"].isEnabled)
         XCTAssertTrue(mode.buttons["Merge"].isEnabled)
-        XCTAssertTrue(mode.staticTexts["Overwrite clears all local timetables and settings, then restores from the backup. Merge keeps local data and only appends backup content."].exists)
+        XCTAssertTrue(mode.staticTexts.matching(NSPredicate(
+            format: "label == %@", "Overwrite clears all local timetables and settings, then restores from the backup. Merge keeps local data and only appends backup content.")).firstMatch.exists)
         let cancel = mode.buttons["Cancel"].firstMatch
         XCTAssertTrue(cancel.isHittable)
         capture("secondary-backup-restore-mode-confirmation")
