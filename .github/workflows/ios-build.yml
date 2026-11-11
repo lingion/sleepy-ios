@@ -1,36 +1,35 @@
-# GitHub 托管 macOS：自动模拟器验收，手动构建无签名 IPA。
 name: iOS Build
 
 on:
-  push:
-    branches: ['integration/parity-v1063-all-prs']
   pull_request:
     branches: [master]
+    paths-ignore:
+      - '**/*.md'
+      - LICENSE
+      - .gitignore
   workflow_dispatch:
     inputs:
       ref:
-        description: "要构建的分支/标签/commit (默认 master)"
+        description: 'Branch, tag or commit to check'
+        default: master
+        required: true
+      task:
+        description: 'Run units, one UI class/method, or build an unsigned IPA'
+        type: choice
+        options: [unit, ui, ipa]
+        default: unit
+        required: true
+      ui_test:
+        description: 'For ui: SleepyUITests/Class or SleepyUITests/Class/testMethod'
         required: false
-        default: "master"
       config:
-        description: "构建配置"
-        required: false
-        default: "Release"
+        description: 'IPA build configuration'
         type: choice
-        options:
-          - Release
-          - Debug
-      tests:
-        description: "跑 iOS 模拟器测试"
-        required: false
-        default: "no"
-        type: choice
-        options:
-          - "no"
-          - "yes"
+        options: [Release, Debug]
+        default: Release
 
 concurrency:
-  group: ios-build-${{ inputs.ref || github.head_ref || github.ref_name }}
+  group: ios-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ inputs.ref }}-${{ inputs.task }}-${{ inputs.ui_test }}
   cancel-in-progress: true
 
 permissions:
@@ -38,71 +37,54 @@ permissions:
 
 env:
   DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+  TZ: Asia/Shanghai
 
 jobs:
-  unsigned-ipa:
-    if: github.event_name == 'workflow_dispatch'
-    # xcodegen 新版生成的 pbxproj 是 format 77 (Xcode 16), macos-14 镜像的
-    # Xcode 15.4 读不了 — 必须用 macos-15
+  verify:
+    name: Build and tests
+    if: github.event_name == 'pull_request' || inputs.task != 'ipa'
     runs-on: macos-15
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref }}
-      - name: Install xcodegen / xcbeautify
-        run: brew install xcodegen xcbeautify
-      - name: Build unsigned IPA
-        run: ./scripts/build-ipa.sh "${{ inputs.config }}"
-      - name: Show IPA info
-        run: ls -lh build/*.ipa
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sleepy-ios-${{ inputs.config }}-${{ github.run_number }}
-          path: build/Sleepy-*.ipa
-          if-no-files-found: error
-          retention-days: 7
-  acceptance:
-    if: github.event_name != 'workflow_dispatch' || inputs.tests == 'yes'
-    runs-on: macos-15
-    timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        suite: [unit-drag, ui-settings, ui-secondary, ui-editor, ui-workflows]
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.task == 'ui' && 45 || 20 }}
+    env:
+      CI_TASK: ${{ github.event_name == 'workflow_dispatch' && inputs.task || 'unit' }}
+      UI_TEST_SELECTOR: ${{ inputs.ui_test }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
-      - name: Install xcodegen
+      - name: Record revision and validate requested UI test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/ci
+          git rev-parse HEAD | tee build/ci/revision.txt
+          if [[ "$CI_TASK" == ui ]]; then
+            python3 scripts/select-ui-test.py "$UI_TEST_SELECTOR" > build/ci/ui-selector.txt
+          fi
+          xcodebuild -version | tee build/ci/xcode.log
+      - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project and select simulator
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build/ci
           git config --global url.https://github.com/.insteadOf https://gh.qdp.qzz.io/
-          xcodebuild -version | tee build/ci/xcode.log
           xcodegen generate --spec project.yml
-          python3 scripts/ci-ui-test-selectors.py --check | tee build/ci/ui-suite-coverage.log
-          cp Sleepy.xcodeproj/project.pbxproj build/ci/project.pbxproj
           xcrun simctl list devices available -j > build/ci/devices.json
           python3 - <<'PY'
           import json, os
-          data = json.load(open('build/ci/devices.json'))['devices']
-          runtimes = sorted((r for r in data if '.iOS-' in r),
+          devices = json.load(open('build/ci/devices.json'))['devices']
+          runtimes = sorted((r for r in devices if '.iOS-' in r),
                             key=lambda r: tuple(map(int, r.split('.iOS-')[1].split('-'))), reverse=True)
-          phones = [d for r in runtimes for d in data[r]
+          phones = [d for r in runtimes for d in devices[r]
                     if d.get('isAvailable') and d['name'].startswith('iPhone')]
           if not phones:
               raise SystemExit('No available iPhone simulator')
-          with open(os.environ['GITHUB_ENV'], 'a') as f:
-              f.write('SIMULATOR_ID=' + phones[0]['udid'] + '\n')
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('SIMULATOR_ID=' + phones[0]['udid'] + '\n')
           print(phones[0])
           PY
-      - name: Build app, extensions and test bundles
-        id: build
+      - name: Build app, extensions and test bundles once
         shell: bash
         run: |
           set -euo pipefail
@@ -111,8 +93,8 @@ jobs:
             -derivedDataPath build/DerivedData -jobs 3 \
             -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES \
             2>&1 | tee build/ci/build.log
-      - name: Run unit and integration tests
-        if: matrix.suite == 'unit-drag'
+      - name: Run all unit and integration tests
+        if: env.CI_TASK == 'unit'
         shell: bash
         run: |
           set -euo pipefail
@@ -121,38 +103,65 @@ jobs:
             -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
             -only-testing:SleepyTests -resultBundlePath build/ci/unit.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/unit.log
-      - name: Run native drag acceptance
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.suite == 'unit-drag' }}
+          xcrun xcresulttool get test-results summary --path build/ci/unit.xcresult \
+            --compact > build/ci/unit-summary.json
+          python3 -c 'import json; s=json.load(open("build/ci/unit-summary.json")); assert s["totalTestCount"] > 0, "No unit tests executed"'
+      - name: Run requested UI class or method
+        if: env.CI_TASK == 'ui'
         shell: bash
         run: |
           set -euo pipefail
+          selector=$(cat build/ci/ui-selector.txt)
           xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
-            -only-testing:SleepyUITests/CourseDragUITests \
-            -resultBundlePath build/ci/drag.xcresult \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/drag.log
-      - name: Run UI acceptance suite
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.suite != 'unit-drag' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 scripts/ci-ui-test-selectors.py "${{ matrix.suite }}" > build/ci/ui-selectors.txt
-          selectors=()
-          while IFS= read -r selector; do
-            selectors+=("$selector")
-          done < build/ci/ui-selectors.txt
-          test "${#selectors[@]}" -gt 0
-          xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
-            "${selectors[@]}" -resultBundlePath build/ci/ui.xcresult \
+            "$selector" -resultBundlePath build/ci/ui.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/ui.log
-      - name: Upload logs and result bundles
-        if: always()
+          xcrun xcresulttool get test-results summary --path build/ci/ui.xcresult \
+            --compact > build/ci/ui-summary.json
+          python3 -c 'import json; s=json.load(open("build/ci/ui-summary.json")); assert s["totalTestCount"] > 0, "No UI tests executed"'
+      - name: Upload diagnostics
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: ios-acceptance-${{ matrix.suite }}-${{ github.sha }}
+          name: ios-${{ env.CI_TASK }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/ci
+          retention-days: 7
+          if-no-files-found: warn
+
+  unsigned-ipa:
+    if: github.event_name == 'workflow_dispatch' && inputs.task == 'ipa'
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      IPA_CONFIGURATION: ${{ inputs.config }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Record revision and install XcodeGen
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          git rev-parse HEAD | tee build/revision.txt
+          git config --global url.https://github.com/.insteadOf https://gh.qdp.qzz.io/
+          brew install xcodegen
+      - name: Build unsigned IPA
+        run: ./scripts/build-ipa.sh "$IPA_CONFIGURATION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sleepy-ios-${{ inputs.config }}-${{ github.run_id }}
+          path: |
+            build/Sleepy-unsigned.ipa
+            build/revision.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sleepy-ipa-diagnostics-${{ github.run_id }}
+          path: build/ipa-build.log
           retention-days: 7
           if-no-files-found: warn
