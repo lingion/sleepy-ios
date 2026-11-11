@@ -1692,7 +1692,7 @@ private struct PurePeriodImportDialog: View {
                 VStack(alignment: .leading, spacing: 4) {
                     FieldTextField(text: $name, label: L10n.format("period_table_name_label"))
                         .overlay(RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
-                            .stroke(nameTaken ? colors.error : Color.clear, lineWidth: 1))
+                            .strokeBorder(nameTaken ? colors.error : Color.clear, lineWidth: 1))
                         .accessibilityIdentifier("import_pure_period_field")
                     if nameTaken {
                         Text(L10n.format("period_table_name_taken"))
