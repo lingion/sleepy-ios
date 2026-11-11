@@ -18,6 +18,22 @@ enum CourseImportPolicy {
         }
     }
 
+    /// Legacy import defaults can give adjacent nodes the same interval.
+    /// Confirmation validates each clock range; bell-schedule editors remain stricter.
+    static func validateConfirmationRows(_ rows: [TimeTableUtils.TimeSlotRow]) -> TimeTableUtils.PeriodValidationResult {
+        guard !rows.isEmpty else { return .empty }
+        for row in rows {
+            guard let start = TimeTableUtils.parsePeriodClock(row.start),
+                  let end = TimeTableUtils.parsePeriodClock(row.end) else {
+                return .invalidFormat(node: row.node, rawStart: row.start, rawEnd: row.end)
+            }
+            guard end > start else {
+                return .endBeforeStart(node: row.node, start: row.start, end: row.end)
+            }
+        }
+        return .valid
+    }
+
     static func mergeTimeJson(current: String, incoming: String, requiredNodes: Int) -> String {
         let currentRows = current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : TimeTableUtils.parseTimeSlotRows(current)
         let incomingRows = incoming.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : TimeTableUtils.parseTimeSlotRows(incoming)

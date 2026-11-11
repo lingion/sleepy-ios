@@ -1625,9 +1625,8 @@ private struct ImportConfirmDialog: View {
         // 旧代码无条件校验手动 rows, 解析源没回节次时间 → 误报「第 X 节时间不能为空」(用户反馈 2026-09-20)
         if let id = selectedPeriodTableId, id > 0,
            let boundJson = periodTableTimeJsonById[id] {
-            let validation = TimeTableUtils.validateTimeJson(boundJson)
-            if validation != .valid {
-                localError = validation.errorMessage
+            if TimeTableUtils.strictPeriodRows(boundJson) == nil {
+                localError = TimeTableUtils.PeriodValidationResult.invalidData.errorMessage
                 return
             }
         }
@@ -1642,7 +1641,7 @@ private struct ImportConfirmDialog: View {
             localError = L10n.format("slot_time_required", first.node)
             return
         }
-        let validation = TimeTableUtils.validatePeriodRows(effectiveRows)
+        let validation = CourseImportPolicy.validateConfirmationRows(effectiveRows)
         if validation != .valid {
             localError = validation.errorMessage
             return
