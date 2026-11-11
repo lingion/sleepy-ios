@@ -267,7 +267,7 @@ Sleepy/
 
 ### 前置
 
-安装 XcodeGen，并确保 Xcode 14.3 或更高版本：
+安装 Xcode 和 XcodeGen（CI 使用 Xcode 26.3），准备可用的 iPhone 模拟器。下面命令中的 `iPhone 14` 请替换为本机已安装的设备：
 
 ```bash
 brew install xcodegen
@@ -292,7 +292,7 @@ xcodebuild -project Sleepy.xcodeproj \
 > **没有 Mac 也能构建**：仓库配有 `iOS Build` workflow，用 GitHub Actions 免费的 macOS runner 云端出无签名 IPA（供 AltStore 重签）并可跑模拟器测试：
 >
 > ```bash
-> gh workflow run "iOS Build" -f ref=master -f config=Release
+> gh workflow run ios-build.yml -f ref=master -f task=ipa -f config=Release
 > ```
 >
 > 详见 [docs/ci-automation.md](docs/ci-automation.md)。
@@ -304,13 +304,14 @@ xcodebuild -project Sleepy.xcodeproj \
 xcodebuild -project Sleepy.xcodeproj \
   -scheme Sleepy \
   -destination 'platform=iOS Simulator,name=iPhone 14' \
+  -only-testing:SleepyTests \
   test
 
-# UI 测试
+# 按改动选择一个 UI 类或方法，以下为课程编辑返回用例
 xcodebuild -project Sleepy.xcodeproj \
   -scheme Sleepy \
   -destination 'platform=iOS Simulator,name=iPhone 14' \
-  -only-testing:SleepyUITests \
+  -only-testing:SleepyUITests/SwipeBackGestureUITests/testCourseEditorBackRestoresSchedule \
   test
 ```
 
