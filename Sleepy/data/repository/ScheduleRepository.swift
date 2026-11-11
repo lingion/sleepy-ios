@@ -1320,14 +1320,7 @@ final class ScheduleRepository {
             _ = try courseDao.insertAllInDb(db, prepared)
             _ = CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: db, dao: courseColorDao, entities: prepared)
             let count = TimeTableUtils.parseTimeSlotRows(extended).map(\.node).max() ?? effective.nodesPerDay
-            if var period {
-                if period.timeJson != extended {
-                    period.timeJson = extended
-                    period.nodesPerDay = count
-                    period.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
-                    try period.update(db)
-                }
-            } else {
+            if period == nil {
                 table.timeJson = extended
                 table.nodesPerDay = count
             }
