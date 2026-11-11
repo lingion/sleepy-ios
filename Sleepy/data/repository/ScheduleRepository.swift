@@ -215,7 +215,19 @@ final class ScheduleRepository {
                         periodTable: PeriodTableEntity?,
                         bindPeriodTableId: Int64? = nil,
                         keepGroups: Bool = false) throws -> Int64 {
-        let store = GRDBNewTableImportStore(db: db)
+        // Confirmation can become stale while another editor changes the shared bell schedule.
+        let store = GRDBNewTableImportStore(db: db) { dbw in
+            let confirmedTimeJson: String
+            if let id = bindPeriodTableId {
+                guard let shared = try PeriodTableEntity.fetchOne(dbw, key: id) else {
+                    throw NewTableImportError.selectedPeriodTableMissing
+                }
+                confirmedTimeJson = shared.timeJson
+            } else {
+                confirmedTimeJson = periodTable?.timeJson ?? table.timeJson
+            }
+            try CourseImportPolicy.requirePeriodCoverage(courses, timeJson: confirmedTimeJson)
+        }
         let id = try importNewTableAtomically(store: store,
                                               table: table,
                                               courses: courses,
@@ -1218,14 +1230,13 @@ final class ScheduleRepository {
             guard var table = try TimeTableEntity.fetchOne(db, key: tableId) else { throw ImportMutationError.tableMissing }
             let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
             if table.periodTableId != nil && period == nil { throw ImportMutationError.periodMissing }
-            let extended = TimeTableUtils.mergeMostComplete(currentJson: period?.timeJson ?? table.timeJson,
-                incomingJson: incomingTimeJson, requiredNodeCount: requiredNodeCount)
+            let extended = CourseImportPolicy.timeJsonForAppend(current: period?.timeJson ?? table.timeJson,
+                incoming: incomingTimeJson,
+                requiredNodes: max(requiredNodeCount, courses.map { $0.startNode + $0.step - 1 }.max() ?? 0),
+                bound: period != nil)
+            try CourseImportPolicy.requirePeriodCoverage(courses, timeJson: extended)
             let count = TimeTableUtils.parseTimeSlotRows(extended).map(\.node).max() ?? table.nodesPerDay
-            if var period {
-                period.timeJson = extended
-                period.nodesPerDay = count
-                try period.update(db)
-            } else {
+            if period == nil {
                 table.timeJson = extended
                 table.nodesPerDay = count
                 try table.update(db)
@@ -1262,11 +1273,12 @@ final class ScheduleRepository {
                 guard !overflow else { throw TableEditSaveError.invalidCourseDraft }
                 return end
             }.max() ?? 0
-            let extended = CourseImportPolicy.mergeTimeJson(current: effective.timeJson,
-                incoming: incomingTimeJson, requiredNodes: max(requiredNodeCount, incomingEnd))
+            let extended = CourseImportPolicy.timeJsonForAppend(current: effective.timeJson,
+                incoming: incomingTimeJson, requiredNodes: max(requiredNodeCount, incomingEnd), bound: period != nil)
             let accepted = CourseImportPolicy.selectIncoming(incoming: courses, existing: existing,
                 appendConflicts: appendConflicts, timeJson: extended)
             guard !accepted.isEmpty else { return 0 }
+            try CourseImportPolicy.requirePeriodCoverage(accepted, timeJson: extended)
 
             if backupOriginal {
                 let names = try String.fetchAll(db, sql: "SELECT name FROM time_tables")

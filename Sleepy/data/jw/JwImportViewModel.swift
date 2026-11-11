@@ -642,13 +642,14 @@ final class JwImportViewModel: ObservableObject {
                     ? Self.normalizeStartDate(startDate!) : nil)
                 ?? computeCurrentSemesterStart()
             let maxNode = nodesPerDay > 0 ? nodesPerDay : courses.map { max($0.startNode, $0.endNode) }.max() ?? 1
+            let isFirstTable = try Int.fetchOne(dbw, sql: "SELECT COUNT(*) FROM time_tables") == 0
             var newTable = TimeTableEntity(
                 name: tableName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "导入的课表" : tableName,  // ← kt ifBlank
                 startDate: resolvedStartDate,
                 maxWeek: termWeekCount > 0 ? max(termWeekCount, courses.map { $0.endWeek }.max() ?? 0) : max(20, courses.map { $0.endWeek }.max() ?? 0),
                 nodesPerDay: maxNode,
                 timeJson: timeJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? TimeTableUtils.DEFAULT_TIME_JSON : timeJson,
-                isDefault: true,  // 导入的课表设为默认,widget 直接展示
+                isDefault: isFirstTable,
                 smartConfigJson: smartConfigJson,
                 importSourceJson: importSourceJson,
                 id: 0
@@ -669,8 +670,9 @@ final class JwImportViewModel: ObservableObject {
             }
             newTable.periodTableId = autoPeriodTableId
             let generatedId = try tableDao.insertInDb(dbw, newTable)
-            // 把其他表设为非 default,确保只有当前表是 default
-            try tableDao.setDefaultInDb(dbw, generatedId)
+            if isFirstTable {
+                try tableDao.setDefaultInDb(dbw, generatedId)
+            }
 
             // 落库课程
             let defaultColor = "#FF6750A4"

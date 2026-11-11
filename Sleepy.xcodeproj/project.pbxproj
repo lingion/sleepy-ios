@@ -42,6 +42,7 @@
 		05A62A077DF65FED663AF2AF /* QuickAddCourse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F94C9337FAE9B07D58AFB88 /* QuickAddCourse.swift */; };
 		0622AA30976E2A962861F9AA /* WidgetDataLoaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = B445492F562DDC2A16B5171D /* WidgetDataLoaders.swift */; };
 		06253F54936718974B301DF0 /* SleepyClassActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC63406AEAAF714A4B360544 /* SleepyClassActivityAttributes.swift */; };
+		06761C9BF033605E81BF2B61 /* ImportedPeriodCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C41E29F5A0EA44D79D77F1 /* ImportedPeriodCoverageTests.swift */; };
 		06DA24488F81D2AD67456ED7 /* PeriodHeaderFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A77AF7764775265B10AE2B /* PeriodHeaderFormatter.swift */; };
 		06F7609D02EBEFC2BFE50CA1 /* JwQzVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A552952CA5208B8A961BF4 /* JwQzVariants.swift */; };
 		070DFF90E590E2824F02DC8C /* WeekGridWideCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D5F0E4DA7D8C70521B567C1 /* WeekGridWideCore.swift */; };
@@ -757,6 +758,7 @@
 		AB1BCBD3402EAA0AAE203590 /* SmartPeriodConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F623ECECCA2E2A91223E72C /* SmartPeriodConfig.swift */; };
 		AB4A667621ABE9585219F855 /* MigrationBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D592A336E4B87069FB2952A3 /* MigrationBackup.swift */; };
 		AB9F415EB366901354598846 /* JwNewUrpSuperParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7BDD85AA6C684A8DFCEEC5C /* JwNewUrpSuperParser.swift */; };
+		ABA1A7F51E6B93D9C442E82B /* NewTableImportDefaultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04898817A482E7E3C86126E0 /* NewTableImportDefaultTests.swift */; };
 		AC8A24352585A789CA19DB2D /* JwParity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091CF54ADE6711A4CA322D6D /* JwParity.swift */; };
 		ACC9A5D1C32A957F9070F8BA /* WidgetAddGuideSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EAED4FF0AAFA97607BEBC7 /* WidgetAddGuideSheet.swift */; };
 		AD0511066366C95F452D312F /* ConflictDetailReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31FA03F7AF7A6E296C6B4BD /* ConflictDetailReporter.swift */; };
@@ -1212,6 +1214,7 @@
 		03B9747692C02E748DAC14B1 /* SleepyNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyNavigator.swift; sourceTree = "<group>"; };
 		0425392AD82917108D3BB908 /* PlatformParityNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformParityNotes.swift; sourceTree = "<group>"; };
 		0487501ADFD3272E9D0E10E9 /* JwShsmuCaptureCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwShsmuCaptureCalendar.swift; sourceTree = "<group>"; };
+		04898817A482E7E3C86126E0 /* NewTableImportDefaultTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTableImportDefaultTests.swift; sourceTree = "<group>"; };
 		0509FB949FB47C89D3DF4D3F /* OfflineSchoolCityIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineSchoolCityIndexTests.swift; sourceTree = "<group>"; };
 		053689875E625CCE2467E4F3 /* JwZfVariantHtml.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwZfVariantHtml.swift; sourceTree = "<group>"; };
 		05A3D362C9894D69BFFCEC3F /* MineScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MineScreen.swift; sourceTree = "<group>"; };
@@ -1301,6 +1304,7 @@
 		25AC6BA5397C193730D19A1B /* LocalCalendarFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCalendarFallbackTests.swift; sourceTree = "<group>"; };
 		25FE9965C48E2F34C544D0F2 /* JwCfNewParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCfNewParser.swift; sourceTree = "<group>"; };
 		26BD5BD80898AA44B8846071 /* catalog-v1063-candidates.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "catalog-v1063-candidates.json"; sourceTree = "<group>"; };
+		26C41E29F5A0EA44D79D77F1 /* ImportedPeriodCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportedPeriodCoverageTests.swift; sourceTree = "<group>"; };
 		26CF08C9ED257788E53D0309 /* JwParserRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParserRegistry.swift; sourceTree = "<group>"; };
 		26F2D8DA1BAD4105612867AE /* CustomSchemeDeriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSchemeDeriver.swift; sourceTree = "<group>"; };
 		273D417456BBCC47D7AD2627 /* SleepyNavHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyNavHost.swift; sourceTree = "<group>"; };
@@ -2481,6 +2485,7 @@
 				4D83A7A25FAA92EB0300C64A /* Ics28NeuPeriodsTests.swift */,
 				F5FCDC93078E048057126BEF /* ImportAtomicityAuditTests.swift */,
 				A96BF262488C60DF32EE682F /* ImportDraftRepositoryTests.swift */,
+				26C41E29F5A0EA44D79D77F1 /* ImportedPeriodCoverageTests.swift */,
 				A749FCE7703D91CB5557D5A1 /* ImportedPeriodTableDraftTests.swift */,
 				FAC1404697D8FB9071C5520D /* ImportPresentationLifecycleTests.swift */,
 				71C31E898B43A5051B55B512 /* ImportPresentationTests.swift */,
@@ -2556,6 +2561,7 @@
 				CBB3F76D45AE7F613321DAFA /* MigrationV7toV10Tests.swift */,
 				D8594A29E16AA5CD4AA06BD6 /* MigrationV11Tests.swift */,
 				4184711E3032D79F5EFBB8EA /* NavStyleResolverTests.swift */,
+				04898817A482E7E3C86126E0 /* NewTableImportDefaultTests.swift */,
 				FC05E15831A481E31568369A /* NewTableImportTests.swift */,
 				46F4C75E5725D7BAF0FAB23E /* NotificationSchedulerSerializationTests.swift */,
 				DA5552387A1965D9D7A826FD /* NotificationSchedulerTests.swift */,
@@ -4001,6 +4007,7 @@
 				D71FADEBB4C6A8960896BBAA /* ImportPreviewSessionTests.swift in Sources */,
 				F909579116E3DAFE633B692D /* ImportReceiverActivityTests.swift in Sources */,
 				84FC6D0B5696C1AF3C7ED675 /* ImportRosterTests.swift in Sources */,
+				06761C9BF033605E81BF2B61 /* ImportedPeriodCoverageTests.swift in Sources */,
 				6D7127C3E45D3CDA0EF21222 /* ImportedPeriodTableDraftTests.swift in Sources */,
 				0E6BD8FBC461CB284D94BA2E /* IntRangeSliderTests.swift in Sources */,
 				48AA36E34A07C60AC998DCA9 /* IrregularOverflowTests.swift in Sources */,
@@ -4070,6 +4077,7 @@
 				63EDBE68B99F1D51360FA085 /* MigrationV11Tests.swift in Sources */,
 				448F58E97EC4E4577A6888A8 /* MigrationV7toV10Tests.swift in Sources */,
 				8F8E2B9C098E42D7DEF21A20 /* NavStyleResolverTests.swift in Sources */,
+				ABA1A7F51E6B93D9C442E82B /* NewTableImportDefaultTests.swift in Sources */,
 				8CFDB523597E9B801D140C8E /* NewTableImportTests.swift in Sources */,
 				8576D141BBF77009F22F0D93 /* NotificationSchedulerSerializationTests.swift in Sources */,
 				D6A77838155D92547C7D6395 /* NotificationSchedulerTests.swift in Sources */,

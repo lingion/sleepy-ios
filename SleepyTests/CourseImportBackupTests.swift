@@ -44,7 +44,7 @@ final class CourseImportBackupTests: XCTestCase {
     }
 
     private func course(_ table: Int64, name: String = "Incoming", day: Int = 2,
-                        node: Int = 3, endWeek: Int = 24) -> CourseEntity {
+                        node: Int = 2, endWeek: Int = 24) -> CourseEntity {
         CourseEntity(groupId: "original-group", tableId: table, courseName: name,
             day: day, startNode: node, step: 1, startWeek: 1, endWeek: endWeek, color: "#FF123456")
     }
@@ -59,6 +59,7 @@ final class CourseImportBackupTests: XCTestCase {
     func testBackupFreezesEffectiveScheduleAndImportKeepsOriginalCompatibilityColumns() throws {
         let f = try fixture()
         let original = try XCTUnwrap(f.repository.getTable(f.target))
+        let originalPeriod = try XCTUnwrap(f.repository.getPeriodTable(f.period))
         let selectedCourses = try f.repository.getCourses(f.selected)
         let backupBase = L10n.format("import_backup_name", original.name)
         _ = try f.repository.insertPeriodTable(PeriodTableEntity(name: backupBase, timeJson: oldTimes))
@@ -91,7 +92,8 @@ final class CourseImportBackupTests: XCTestCase {
         XCTAssertEqual(target.maxWeek, 24)
         let extended = try XCTUnwrap(f.repository.getPeriodTable(f.period))
         XCTAssertEqual(TimeTableUtils.parseTimeSlotRows(extended.timeJson).first?.start, "10:00")
-        XCTAssertEqual(extended.nodesPerDay, 3)
+        XCTAssertEqual(extended.nodesPerDay, 2)
+        XCTAssertEqual(extended, originalPeriod, "Appending courses must not alter the shared bell schedule")
         let imported = try f.repository.getCourses(f.target).filter { $0.courseName == "Incoming" }
         XCTAssertEqual(imported.count, 2)
         XCTAssertEqual(Set(imported.map(\.groupId)).count, 1)
@@ -127,7 +129,7 @@ final class CourseImportBackupTests: XCTestCase {
         let colors = try f.database.dbQueue.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM course_colors") }
         Sleepy.UndoManager.shared.recordRedo(UndoSnapshot(tables: beforeTables, courses: beforeCourses, defaultTableId: f.selected))
         try f.database.dbQueue.write {
-            try $0.execute(sql: "CREATE TRIGGER reject_import_schedule BEFORE UPDATE ON period_tables BEGIN SELECT RAISE(ABORT, 'injected period failure'); END")
+            try $0.execute(sql: "CREATE TRIGGER reject_import_schedule BEFORE UPDATE ON time_tables BEGIN SELECT RAISE(ABORT, 'injected timetable failure'); END")
         }
         var changed = 0
         f.repository.onDataChangedHook = { changed += 1 }
