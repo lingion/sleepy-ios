@@ -209,12 +209,14 @@ final class AppRootViewModel: ObservableObject {
     @Published var overlayScreen: OverlayScreen? = nil {
         didSet {
             recordOverlayNavigation()
+            if overlayScreen == nil { overlayParents.removeAll() }
             if overlayScreen != .addCourse {
                 initialCourseSlot = nil
                 addCourseTargetTableId = nil
             }
         }
     }
+    private var overlayParents: [OverlayScreen] = []
     @Published var editingCourse: CourseEntity? = nil {
         didSet {
             recordOverlayNavigation()
@@ -329,6 +331,17 @@ final class AppRootViewModel: ObservableObject {
         overlayDismissalState.completeDismissal(ticket, then: then)
     }
 
+    /// Keep the source page for child routes, matching Android's push/pop.
+    func pushOverlay(_ screen: OverlayScreen) {
+        guard overlayScreen != screen else { return }
+        if let parent = overlayScreen { overlayParents.append(parent) }
+        overlayScreen = screen
+    }
+
+    private func popOverlay() {
+        overlayScreen = overlayParents.popLast()
+    }
+
     // ← BackHandler: overlay 返回(pendingNewTable 丢弃链)
     func handleBack() {
         if let discardId = pendingNewTableId {
@@ -336,19 +349,18 @@ final class AppRootViewModel: ObservableObject {
             pendingNewTableId = nil
             previousDefaultTableId = nil
             scheduleViewModel.discardNewTable(discardId, fallbackId: fallback)
-            overlayScreen = nil
             editTableId = nil
         } else if let discardPeriodId = pendingNewPeriodTableId {
             // ← v1.0.60: 作息表编辑未保存返回 → 丢弃残留行(原版本 NavHost BackHandler 同语义)
             pendingNewPeriodTableId = nil
             scheduleViewModel.discardNewPeriodTable(id: discardPeriodId)
-            overlayScreen = nil
             periodEditId = nil
         } else {
-            overlayScreen = nil
             editingCourse = nil
             editTableId = nil
+            periodEditId = nil
         }
+        popOverlay()
     }
 
     // ← v1.0.60: 新建作息表 → 立即进编辑(编辑页按"未保存新表"处理,
@@ -358,14 +370,21 @@ final class AppRootViewModel: ObservableObject {
         if newId > 0 {
             pendingNewPeriodTableId = newId
             periodEditId = newId
-            overlayScreen = .periodEdit
+            pushOverlay(.periodEdit)
         }
     }
 
     func finishPeriodTableSave() {
         pendingNewPeriodTableId = nil
         periodEditId = nil
-        overlayScreen = nil
+        popOverlay()
+    }
+
+    func finishTableSave() {
+        editTableId = nil
+        pendingNewTableId = nil
+        previousDefaultTableId = nil
+        popOverlay()
     }
 
     // ← 新建空表(AllTables / Management 共用)
@@ -378,18 +397,7 @@ final class AppRootViewModel: ObservableObject {
         pendingNewTableId = newId
         editTableId = newId
 
-        // A fullScreenCover(item:) cannot swap its active item in place. All Tables
-        // is already presented when this callback fires, so close that cover first
-        // and present the editor on the next run loop after its dismissal begins.
-        if overlayScreen == .allTables {
-            overlayScreen = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
-                guard let self, self.pendingNewTableId == newId else { return }
-                self.overlayScreen = .editTable
-            }
-        } else {
-            overlayScreen = .editTable
-        }
+        pushOverlay(.editTable)
     }
 
     // ← 深链: sleepy://course/<id>
@@ -400,6 +408,7 @@ final class AppRootViewModel: ObservableObject {
         // Back from this course could discard a previous unsaved table instead.
         handleBack()
         if pendingNewPeriodTableId != nil { handleBack() }
+        overlayScreen = nil
         navigator.session.beginEditCourse(course)
         navigator.openAddCourse(courseId: course.id, editing: true)
         return true
@@ -729,35 +738,26 @@ struct AppRoot: View {
                 dailyAgendaDate: root.dailyAgendaDate,
                 onSavedPeriod: { root.finishPeriodTableSave() },
                 onOpenPeriodEdit: { periodId, isNew in
-                    root.periodEditId = periodId
-                    root.pendingNewPeriodTableId = isNew ? periodId : nil
-                    root.overlayScreen = .periodEdit
+                    root.navigator.openPeriodEdit(periodId: periodId, isNew: isNew)
                 },
                 scheduleViewModel: root.scheduleViewModel,
                 themeMode: themeMode,
-                onDismiss: { root.overlayScreen = nil; root.editingCourse = nil },
+                onDismiss: { root.handleBack() },
                 onBack: { root.handleBack() },
                 onSavedAdd: {
-                    root.overlayScreen = nil
-                    root.editingCourse = nil
+                    root.handleBack()
                     root.currentTab = .schedule
                 },
                 onSavedTable: {
-                    root.overlayScreen = nil
-                    root.editTableId = nil
-                    root.pendingNewTableId = nil
-                    root.previousDefaultTableId = nil
+                    root.finishTableSave()
                 },
                 onDeletedTable: {
-                    root.overlayScreen = nil
-                    root.editTableId = nil
+                    root.finishTableSave()
                     root.currentTab = .schedule
                 },
                 onCreateNewTable: { root.createNewTableThenEdit() },
                 onOpenEditTable: { tableId in
-                    root.editTableId = tableId
-                    root.pendingNewTableId = nil
-                    root.overlayScreen = .editTable
+                    root.navigator.openEditTable(tableId: tableId)
                 },
                 onThemeModeChange: { mode in
                     themeMode = mode
@@ -768,7 +768,8 @@ struct AppRoot: View {
                 onThemeKeyChange: {
                     themeKey = AppPrefs.shared.getThemeKey()
                 },
-                onOpenLicense: { root.overlayScreen = .license }))
+                onOpenLicense: { root.navigator.openLicense() },
+                onOpenPeriodHeaderSettings: { root.navigator.openPeriodHeaderSettings() }))
     }
 
     // ← Scaffold + PillNavigationBar + 4 Tab
@@ -1370,6 +1371,7 @@ private struct PresentOverlay: ViewModifier {
     let onThemeModeChange: (String) -> Void
     let onThemeKeyChange: () -> Void
     let onOpenLicense: () -> Void
+    let onOpenPeriodHeaderSettings: () -> Void
 
     // ← AppRoot.schemeOverride 同源: system 模式 nil = 真跟随系统
     private var schemeOverride: ColorScheme? {
@@ -1524,7 +1526,7 @@ private struct PresentOverlay: ViewModifier {
                 onThemeModeChange: onThemeModeChange,
                 onThemeKeyChange: onThemeKeyChange,
                 // ← 原版本 Appearance Section④ 节次表头入口 (默认 no-op 已解除)
-                onOpenPeriodHeaderSettings: { overlayScreen = .periodHeaderSettings })
+                onOpenPeriodHeaderSettings: onOpenPeriodHeaderSettings)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
