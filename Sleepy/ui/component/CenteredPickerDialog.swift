@@ -16,11 +16,28 @@ struct CenteredPickerDialog<Content: View>: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let desiredContentHeight = min(measuredHeight > 0 ? measuredHeight : maxContentHeight,
+                                           maxContentHeight)
+            let minimumContentHeight = min(desiredContentHeight, 56)
+            let gapCount: CGFloat = footer == nil ? 1 : 2
+            // The keyboard can leave less height than the regular outer margin,
+            // padding and gaps alone. Give those spaces up before clipping a
+            // complete field; the title and fixed actions keep their own height.
+            let regularSurroundingHeight: CGFloat = 96 + gapCount * 16
+            let availableContentHeight = max(0, geometry.size.height - titleHeight - footerHeight)
+            let availableSurroundingHeight = max(0, availableContentHeight - minimumContentHeight)
+            let surroundingScale = min(1, availableSurroundingHeight / regularSurroundingHeight)
+            let verticalPadding = 24 * surroundingScale
+            let spacing = 16 * surroundingScale
+            let outerMargin = 48 * surroundingScale
+            let contentHeight = min(desiredContentHeight,
+                                    max(min(minimumContentHeight, availableContentHeight), availableContentHeight
+                                        - verticalPadding * 2 - gapCount * spacing - outerMargin))
             ZStack {
                 Color.black.opacity(0.32).ignoresSafeArea()
                     .contentShape(Rectangle()).onTapGesture(perform: onDismiss)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: spacing) {
                     Text(title).font(SleepyTypography.titleLarge).foregroundColor(colors.onSurface)
                         .accessibilityIdentifier(titleIdentifier ?? "")
                         .fixedSize(horizontal: false, vertical: true)
@@ -39,9 +56,7 @@ struct CenteredPickerDialog<Content: View>: View {
                             })
                     }
                     .scrollDismissesKeyboardImmediatelyCompat()
-                    .frame(height: min(measuredHeight > 0 ? measuredHeight : maxContentHeight,
-                                       min(maxContentHeight, max(0, geometry.size.height - 96 - titleHeight
-                                           - (footer == nil ? 16 : 32) - footerHeight))))
+                    .frame(height: contentHeight)
                     if let footer {
                         footer.fixedSize(horizontal: false, vertical: true)
                             .background(GeometryReader { proxy in
@@ -51,7 +66,8 @@ struct CenteredPickerDialog<Content: View>: View {
                             })
                     }
                 }
-                .padding(24)
+                .padding(.horizontal, 24)
+                .padding(.vertical, verticalPadding)
                 .frame(width: min(360, max(0, geometry.size.width - 48)), alignment: .leading)
                 .background(colors.surfaceContainerHigh)
                 .cornerRadius(28)
