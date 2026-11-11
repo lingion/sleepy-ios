@@ -1012,6 +1012,7 @@ struct AppRoot: View {
                 onOpenAllTables: { root.navigator.openAllTables() },
                 onOpenCourseList: { root.navigator.openCourseList() },
                 onOpenPeriodTables: { root.navigator.openPeriodTables() },
+                onOpenScheduleDisplay: { root.navigator.openScheduleDisplay() },
                 onOpenAppearance: { root.navigator.openAppearance() },
                 onOpenGeneral: { root.navigator.openGeneral() },
                 onOpenReminder: { root.navigator.openReminder() },
@@ -1523,8 +1524,7 @@ private struct PresentOverlay: ViewModifier {
                 onThemeModeChange: onThemeModeChange,
                 onThemeKeyChange: onThemeKeyChange,
                 // ← 原版本 Appearance Section④ 节次表头入口 (默认 no-op 已解除)
-                onOpenPeriodHeaderSettings: { overlayScreen = .periodHeaderSettings },
-                onOpenScheduleDisplay: { overlayScreen = .scheduleDisplay })
+                onOpenPeriodHeaderSettings: { overlayScreen = .periodHeaderSettings })
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)

@@ -1367,3 +1367,14 @@
 "settings_table_reminder_scope" = "Timetables to remind";
 "settings_reminder_permissions_attention" = "Review reminder permissions";
 "settings_reminder_permissions" = "Permissions and background activity";
+"mine_schedule_settings" = "Schedule settings";
+"settings_appearance_workday_visible" = "Do not dim make-up workdays";
+"settings_holiday_title_rules" = "Holidays and make-up classes";
+"settings_appearance_default_view" = "Default schedule view";
+"settings_appearance_default_view_sub" = "The initial view used on a cold start and when returning to the schedule from another page.";
+"settings_appearance_header_date" = "Show dates in headers";
+"settings_appearance_header_date_sub" = "Applies to the app grid and supported widgets.";
+"settings_appearance_time_scope" = "Applies to the schedule and widgets that support course time display.";
+"settings_appearance_advanced_experimental" = "Advanced options (experimental)";
+"settings_appearance_separator_scope" = "Show grid row and column separators in the app and supported grid widgets.";
+"settings_appearance_break_scope" = "Add spacing for long midday and evening breaks in the app and supported grid widgets.";

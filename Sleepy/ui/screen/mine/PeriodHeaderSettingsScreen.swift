@@ -43,72 +43,25 @@ struct PeriodHeaderSettingsScreen: View {
                         })
 
                     // ── 布局切换(legacy / three_line) ──
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(L10n.t("appearance_header_layout"))
-                            .font(.system(size: 12, weight: .medium))   // ← labelMedium
-                            .foregroundColor(colors.onSurfaceVariant)
-                        SegmentedSwitcher(
-                            options: [
-                                ("legacy", L10n.t("appearance_layout_legacy")),
-                                ("three_line", L10n.t("appearance_layout_three_line"))
-                            ],
-                            selected: layout,
-                            onSelect: { selected in
-                                layout = selected
-                                prefs.setPeriodHeaderLayout(selected)
-                            },
-                            // ← 原 containerColor = surfaceContainerHighest
-                            //   (SettingsCards 同款: 嵌在页面背景上降一级保持对比)
-                            containerColor: colors.surfaceContainerHighest)
-                        // ← 原版本 Modifier.fillMaxWidth().height(40.dp)。
-                        //   SegmentedSwitcher.swift(共享文件, 本任务禁改)内部固定 42pt 高,
-                        //   外层压 40 布局槽: 胶囊视觉 42 上下各溢 1pt, 落在 6pt 行距内无碰撞
-                        //   (SettingsCards 36pt 槽同法)。待共享接线项(height 参数)落地后改传参。
-                        .frame(height: 40)
-                    }
+                    SettingsFlatCard(title: L10n.t("appearance_header_layout"),
+                                     options: [L10n.t("appearance_layout_legacy"), L10n.t("appearance_layout_three_line")],
+                                     selectedIndex: Binding(get: { layout == "three_line" ? 1 : 0 }, set: {
+                                         layout = $0 == 1 ? "three_line" : "legacy"
+                                         prefs.setPeriodHeaderLayout(layout)
+                                     }))
 
                     // ── 显示节号 + 三行式悬挂量 ──
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle(L10n.t("appearance_header_show_x"), isOn: Binding(
-                            get: { showX },
-                            set: { newValue in
-                                showX = newValue
-                                prefs.setPeriodHeaderShowX(newValue)
-                            }))
-                        .toggleStyle(SleepyToggleStyle(showsLabel: true))
-                        .tint(colors.primary)
+                    VStack(alignment: .leading, spacing: SettingsLayout.controlGap) {
+                        SettingToggleRow(label: L10n.t("appearance_header_show_x"), checked: showX) {
+                            showX = $0
+                            prefs.setPeriodHeaderShowX($0)
+                        }
                         // v1.0.62 B4: 隐藏时间行仅适用旧式两行表头; 三行式以时间为主体, 不适用。
                         if layout == "legacy" {
-                            if !hideTime {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(L10n.t("appearance_header_time_alignment"))
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(colors.onSurfaceVariant)
-                                    SegmentedSwitcher(
-                                        options: [
-                                            ("dash", L10n.t("appearance_header_alignment_dash")),
-                                            ("center", L10n.t("appearance_header_alignment_center"))
-                                        ],
-                                        selected: timeAlignment,
-                                        onSelect: { value in
-                                            timeAlignment = value
-                                            prefs.setPeriodHeaderTimeAlignment(value)
-                                        },
-                                        containerColor: colors.surfaceContainerHighest)
-                                }
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Toggle(L10n.t("appearance_header_hide_time"), isOn: Binding(
-                                    get: { hideTime },
-                                    set: { newValue in
-                                        hideTime = newValue
-                                        prefs.setPeriodHeaderHideTime(newValue)
-                                    }))
-                                .toggleStyle(SleepyToggleStyle(showsLabel: true))
-                                .tint(colors.primary)
-                                Text(L10n.t("appearance_header_hide_time_sub"))
-                                    .font(.system(size: 14))   // ← bodyMedium
-                                    .foregroundColor(colors.onSurfaceVariant)
+                            SettingToggleRow(label: L10n.t("appearance_header_hide_time"),
+                                             subtitle: L10n.t("appearance_header_hide_time_sub"), checked: hideTime) {
+                                hideTime = $0
+                                prefs.setPeriodHeaderHideTime($0)
                             }
                         }
                         if layout == "three_line" {
@@ -132,6 +85,19 @@ struct PeriodHeaderSettingsScreen: View {
                                     .frame(height: 44)
                             }
                         }
+                    }
+                    .padding(SettingsLayout.cardInset)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(colors.surfaceContainer)
+                    .cornerRadius(SleepyShapes.large)
+
+                    if layout == "legacy", !hideTime {
+                        SettingsFlatCard(title: L10n.t("appearance_header_time_alignment"),
+                                         options: [L10n.t("appearance_header_alignment_dash"), L10n.t("appearance_header_alignment_center")],
+                                         selectedIndex: Binding(get: { timeAlignment == "center" ? 1 : 0 }, set: {
+                                             timeAlignment = $0 == 1 ? "center" : "dash"
+                                             prefs.setPeriodHeaderTimeAlignment(timeAlignment)
+                                         }))
                     }
                 }
                 .padding(16)

@@ -1367,3 +1367,14 @@
 "settings_table_reminder_scope" = "Horarios con recordatorios";
 "settings_reminder_permissions_attention" = "Revisar permisos de recordatorios";
 "settings_reminder_permissions" = "Permisos y actividad en segundo plano";
+"mine_schedule_settings" = "Ajustes del horario";
+"settings_appearance_workday_visible" = "No atenuar los días laborables compensatorios";
+"settings_holiday_title_rules" = "Festivos y clases de recuperación";
+"settings_appearance_default_view" = "Vista predeterminada del horario";
+"settings_appearance_default_view_sub" = "Vista inicial al iniciar la aplicación desde cero y al volver al horario desde otra página.";
+"settings_appearance_header_date" = "Mostrar fechas en las cabeceras";
+"settings_appearance_header_date_sub" = "Se aplica a la cuadrícula de la aplicación y a los widgets compatibles.";
+"settings_appearance_time_scope" = "Se aplica al horario y a los widgets compatibles con la visualización de horas de clase.";
+"settings_appearance_advanced_experimental" = "Opciones avanzadas (experimentales)";
+"settings_appearance_separator_scope" = "Muestra separadores de filas y columnas en la cuadrícula de la aplicación y los widgets de cuadrícula compatibles.";
+"settings_appearance_break_scope" = "Añade espacio para los descansos largos del mediodía y la tarde en la aplicación y los widgets de cuadrícula compatibles.";

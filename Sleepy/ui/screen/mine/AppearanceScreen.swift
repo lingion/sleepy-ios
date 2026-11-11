@@ -1,4 +1,4 @@
-// Appearance groups palette, interface material, navigation shape and the schedule display entry.
+// Appearance groups palette, interface material, navigation shape and course colors.
 import SwiftUI
 import UIKit
 import WidgetKit
@@ -14,7 +14,6 @@ struct AppearanceScreen: View {
     // ← 原版本 onOpenPeriodHeaderSettings(Section④ 节次表头入口, 默认 no-op 保持 API 兼容,
     //   接线 .periodHeaderSettings 路由归共享文件 SleepyApp/SleepyNavigator, 见 needs_shared_wiring)
     var onOpenPeriodHeaderSettings: () -> Void = {}
-    var onOpenScheduleDisplay: () -> Void = {}
     @State private var uiStyle = AppPrefs.shared.getUiStyle()
     @State private var navStyleIndex = NavStyleResolver.isFloatingRequested() ? 1 : 0
 
@@ -34,14 +33,12 @@ struct AppearanceScreen: View {
          themeMode: String = AppPrefs.THEME_MODE_SYSTEM,
          onThemeModeChange: @escaping (String) -> Void = { _ in },
          onThemeKeyChange: @escaping () -> Void = {},
-         onOpenPeriodHeaderSettings: @escaping () -> Void = {},
-         onOpenScheduleDisplay: @escaping () -> Void = {}) {
+         onOpenPeriodHeaderSettings: @escaping () -> Void = {}) {
         self.onDismiss = onDismiss
         self.themeMode = themeMode
         self.onThemeModeChange = onThemeModeChange
         self.onThemeKeyChange = onThemeKeyChange
         self.onOpenPeriodHeaderSettings = onOpenPeriodHeaderSettings
-        self.onOpenScheduleDisplay = onOpenScheduleDisplay
         _currentKey = State(initialValue: AppPrefs.shared.getThemeKey())
     }
 
@@ -147,10 +144,6 @@ struct AppearanceScreen: View {
                         }
 
                     }
-                    AppearanceNavigationRow(
-                        title: L10n.format("appearance_section_schedule_display"),
-                        onClick: onOpenScheduleDisplay)
-                        .accessibilityIdentifier("appearance_schedule_display")
                 }
                 .padding(16)
             }

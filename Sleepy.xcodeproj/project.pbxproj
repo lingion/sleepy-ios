@@ -285,6 +285,7 @@
 		40061C26490E27046B141D5A /* JwWiseduParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467B034A9889202CEA76931B /* JwWiseduParser.swift */; };
 		4095057E3A76BD2C01AE6E47 /* EffectivePeriodResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5305400BEF83AA266FF32728 /* EffectivePeriodResolver.swift */; };
 		40DB9A0F170EE94649E0E59C /* CourseSelectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B372DB6508FA846C4A664C4 /* CourseSelectionSheet.swift */; };
+		416726D3B1438FBBAC98096A /* HolidayDisplaySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C19463B331356DBF81F67CFE /* HolidayDisplaySettings.swift */; };
 		41E4CB66648841DF940050C0 /* WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3C1BE11E1D3338FD98721F /* WidgetContent.swift */; };
 		41EE28379E9850F49629598C /* LocalCalendarFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25AC6BA5397C193730D19A1B /* LocalCalendarFallbackTests.swift */; };
 		41F5B59C468562763A588C8D /* CourseDisplayUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = E451AD795407D5BA73BD0A6B /* CourseDisplayUtil.swift */; };
@@ -1716,6 +1717,7 @@
 		C1362E01134FB72031611514 /* WidgetWindowCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetWindowCore.swift; sourceTree = "<group>"; };
 		C159F940014161B3F4498898 /* ShareScheduleSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareScheduleSheet.swift; sourceTree = "<group>"; };
 		C19106B8995541FFB0F73DB6 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		C19463B331356DBF81F67CFE /* HolidayDisplaySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayDisplaySettings.swift; sourceTree = "<group>"; };
 		C1B62174F45F96231028C77D /* FixedDateCourseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixedDateCourseTests.swift; sourceTree = "<group>"; };
 		C1C88AAE99D0C3CA2FCC5EAB /* RecentJwSchools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentJwSchools.swift; sourceTree = "<group>"; };
 		C1D6582A2AEB68F8E97C20FD /* JwThuparser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwThuparser.swift; sourceTree = "<group>"; };
@@ -2789,6 +2791,7 @@
 				370A630F8E293663E9B52AE2 /* EditTableScreen.swift */,
 				9275738703FAD36D408DAA49 /* ExportScreen.swift */,
 				DA6CEF27A9C39504E09D3487 /* GeneralSettingsScreen.swift */,
+				C19463B331356DBF81F67CFE /* HolidayDisplaySettings.swift */,
 				B61DF977A54A43384CB5C986 /* HolidaySettingsScreen.swift */,
 				FF4AC1BC137184D4FED2FCF3 /* LicenseScreen.swift */,
 				05A3D362C9894D69BFFCEC3F /* MineScreen.swift */,
@@ -3416,6 +3419,7 @@
 				A573D8081A5FC8074012C42A /* GeneralSettingsScreen.swift in Sources */,
 				83A4F8E096E900A4A5C045D2 /* GlobalWidgetCompatibility.swift in Sources */,
 				B871A6901CC5110E1F1A1482 /* GridSeparatorGeometry.swift in Sources */,
+				416726D3B1438FBBAC98096A /* HolidayDisplaySettings.swift in Sources */,
 				BD8246AD64E1E8441C3550BC /* HolidayManager.swift in Sources */,
 				623C798597030FE3D6129B54 /* HolidayReminderPolicy.swift in Sources */,
 				434B96F7B5B0B84E66E751F9 /* HolidayReminderPolicyAdapter.swift in Sources */,

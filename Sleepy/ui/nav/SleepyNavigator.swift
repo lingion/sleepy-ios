@@ -135,6 +135,7 @@ final class SleepyNavigator {
     func openAllTables() { push(route: .allTables) }
     func openCourseList() { push(route: .courseList) }
     func openAppearance() { push(route: .appearance) }
+    func openScheduleDisplay() { push(route: .scheduleDisplay) }
     func openPeriodHeaderSettings() { push(route: .periodHeaderSettings) }
     func openGeneral() { push(route: .general) }
     func openHoliday() { push(route: .holiday) }

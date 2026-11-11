@@ -105,6 +105,8 @@ extension AppRootViewModel {
             overlayScreen = .editTable
         case .appearance:
             overlayScreen = .theme
+        case .scheduleDisplay:
+            overlayScreen = .scheduleDisplay
         case .general:
             overlayScreen = .general
         case .export:

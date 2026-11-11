@@ -1367,3 +1367,14 @@
 "settings_table_reminder_scope" = "需要提醒的課表";
 "settings_reminder_permissions_attention" = "提醒權限需要處理";
 "settings_reminder_permissions" = "權限與背景執行";
+"mine_schedule_settings" = "課表設定";
+"settings_appearance_workday_visible" = "補班日不灰顯";
+"settings_holiday_title_rules" = "節假日與調休";
+"settings_appearance_default_view" = "預設課表檢視";
+"settings_appearance_default_view_sub" = "冷啟動和從其他頁面返回課表時，使用所選檢視作為初始檢視。";
+"settings_appearance_header_date" = "表頭顯示日期";
+"settings_appearance_header_date_sub" = "同時影響應用程式內的網格課表和支援此設定的小工具。";
+"settings_appearance_time_scope" = "同時影響課表和支援課程時間顯示的小工具。";
+"settings_appearance_advanced_experimental" = "進階選項（實驗）";
+"settings_appearance_separator_scope" = "在應用程式內的網格課表和相關網格小工具中顯示行列分隔線。";
+"settings_appearance_break_scope" = "在應用程式內的網格課表和相關網格小工具中，為較長的午間和晚間課間留白。";
