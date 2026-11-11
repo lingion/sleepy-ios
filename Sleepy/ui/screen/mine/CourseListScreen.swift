@@ -72,10 +72,6 @@ struct CourseListScreen: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        Text(L10n.t("course_list_subtitle"))
-                            .font(.system(size: 14)) // ← bodyMedium(14sp)
-                            .foregroundColor(colors.onSurfaceVariant)
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         ForEach(grouped) { group in
                             CourseGroupCard(group: group)
                         }
