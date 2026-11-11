@@ -244,7 +244,7 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         let originalMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: original))!
         let targetMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: target))!
         let months = calendar.dateComponents([.month], from: originalMonth, to: targetMonth).month!
-        XCTAssertTrue((0...5).contains(months), "The fixture must remain near the seeded semester", file: file, line: line)
+        XCTAssertTrue((0...12).contains(months), "The next-year fixture must remain within twelve calendar months", file: file, line: line)
         for _ in 0..<max(0, months) {
             let next = picker.buttons["Next Month"].firstMatch
             guard next.waitForExistence(timeout: 3), next.isHittable else {
@@ -284,8 +284,33 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         let source = try XCTUnwrap(calendar.date(from: DateComponents(year: nextYear, month: 1, day: 1)))
         let destination = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: source))
         XCTAssertGreaterThan(source, monday)
-        XCTAssertLessThan(destination, calendar.date(byAdding: .day, value: 140, to: monday)!,
-                          "This year-boundary fixture must fit the current seeded semester")
+        // Keep the next-year holiday inside the timetable in every month of the
+        // year, using the real editor rather than changing the production seed.
+        app.switchToPillTab("manage")
+        let editTable = app.buttons["manage_edit_current"].firstMatch
+        reveal(editTable)
+        editTable.tap()
+        let weeks = app.textFields["field_Total Weeks"].firstMatch
+        reveal(weeks)
+        let oldWeeks = try XCTUnwrap(weeks.value as? String)
+        weeks.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldWeeks.count))
+        app.typeText("60")
+        XCTAssertEqual(weeks.value as? String, "60")
+        let saveTable = app.buttons["edit_table_save"].firstMatch
+        reveal(saveTable)
+        saveTable.tap()
+        XCTAssertTrue(waitUntil { !saveTable.exists && editTable.isHittable })
+        editTable.tap()
+        XCTAssertTrue(weeks.waitForExistence(timeout: 5))
+        XCTAssertEqual(weeks.value as? String, "60", "Fixture setup must persist through the production save")
+        tapBack()
+        app.switchToPillTab("mine")
+        XCTAssertEqual(courseCount.label, "5")
+        XCTAssertEqual(savedTableRows(), originalTables)
+        XCTAssertLessThan(destination, calendar.date(byAdding: .day, value: 60 * 7, to: monday)!,
+                          "The year-boundary fixture must fit the saved sixty-week semester")
 
         // Both years are cached by the existing holiday seed. Add through the
         // real empty next-year page; its new range defaults to January 1.
