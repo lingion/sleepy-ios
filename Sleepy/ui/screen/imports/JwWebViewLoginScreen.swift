@@ -321,6 +321,8 @@ struct JwWebViewLoginScreen: View {
         .confirmationDialog(L10n.t("jw_sg_choose_adapter"), isPresented: $showSgAdapterChoices, titleVisibility: .visible) {
             ForEach(sgAdapterChoices) { adapter in
                 Button((adapter.adapterName?.isEmpty == false ? adapter.adapterName! : adapter.id) + " · " + adapter.importUrl) {
+                    thuCaptureToken = UUID()
+                    webViewCoordinator?.cancelFetch()
                     chosenSgAdapterId = adapter.id
                     onSgAdapterSelected?(adapter.id)
                     if let url = URL(string: adapter.importUrl), ["http", "https"].contains(url.scheme ?? "") {
@@ -704,6 +706,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
     private let onUrlChanged: (String?) -> Void
     private var lastNavUrl: String?
     private let fetchBudget = JwFetchBudget()
+    private var fetchDeliveryEpoch = UUID()
     private var fetchTimeoutWork: DispatchWorkItem?
     private var sgRequests: [[String: Any]] = []
     private var sgAttempts: [Int: Int] = [:]
@@ -849,6 +852,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
     }
 
     func cancelFetch() {
+        fetchDeliveryEpoch = UUID()
         if let id = fetchBudget.captureId,
            let quoted = try? JwSgSourceMetadata.stringify([id]) {
             webView?.evaluateJavaScript("if(window.SleepySgShim)SleepySgShim.cancelSession(" + String(quoted.dropFirst().dropLast()) + ");", completionHandler: nil)
@@ -1115,7 +1119,11 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
                 guard let payload = JwSgSourceMetadata.object(json), let id = payload["captureId"] as? String,
                       fetchBudget.complete(id: id) else { return }
                 fetchTimeoutWork?.cancel(); sgAlert?.dismiss(animated: false); sgAlert = nil; sgRequests = []
-                DispatchQueue.main.async { self.onWiseduResult(json) }
+                let epoch = fetchDeliveryEpoch
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.fetchDeliveryEpoch == epoch else { return }
+                    self.onWiseduResult(json)
+                }
             }
         case "__sleepySgInteraction":
             if let request = message.body as? [String: Any] { receiveSgInteraction(request) }

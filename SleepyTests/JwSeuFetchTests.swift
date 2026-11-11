@@ -197,3 +197,73 @@ final class JwSeuFetchTests: XCTestCase {
         }
     }
 }
+
+final class JwWebViewFetchDeliveryTests: XCTestCase {
+    private final class BridgeProbe: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        let loaded: XCTestExpectation
+        let onMessage: (WKUserContentController, WKScriptMessage) -> Void
+
+        init(loaded: XCTestExpectation,
+             onMessage: @escaping (WKUserContentController, WKScriptMessage) -> Void) {
+            self.loaded = loaded
+            self.onMessage = onMessage
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            loaded.fulfill()
+        }
+
+        func userContentController(_ userContentController: WKUserContentController,
+                                   didReceive message: WKScriptMessage) {
+            onMessage(userContentController, message)
+        }
+    }
+
+    @MainActor
+    private func bridgeResults(cancelAfterAcceptance: Bool) throws -> [String] {
+        let loaded = expectation(description: "Local capture page loaded")
+        let drained = expectation(description: "Accepted bridge delivery queue drained")
+        var results: [String] = []
+        let coordinator = WebViewCoordinator(
+            school: JwSchoolInfo(sortKey: "T", name: "测试"), desktopUa: false,
+            onProgressChange: { _ in }, onUrlChanged: { _ in },
+            onHtmlCaptured: { _ in XCTFail("Bridge capture must use its result callback") },
+            onCaptureError: { _, hint in XCTFail(hint) },
+            onWiseduResult: { results.append($0) })
+        let probe = BridgeProbe(loaded: loaded) { controller, message in
+            coordinator.userContentController(controller, didReceive: message)
+            if cancelAfterAcceptance { coordinator.cancelFetch() }
+            DispatchQueue.main.async { drained.fulfill() }
+        }
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(probe, name: "__sleepyBridge")
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = probe
+        coordinator.webView = webView
+        defer {
+            coordinator.cancelFetch()
+            coordinator.webView = nil
+            webView.stopLoading()
+            configuration.userContentController.removeScriptMessageHandler(forName: "__sleepyBridge")
+        }
+        webView.loadHTMLString("<!doctype html><html><body>Capture fixture</body></html>", baseURL: nil)
+        wait(for: [loaded], timeout: 10)
+        coordinator.evaluateFetchWithTimeout("""
+        window.webkit.messageHandlers.__sleepyBridge.postMessage({json:JSON.stringify({ok:true,data:'[]'})});
+        """, captureId: "adapter-a")
+        wait(for: [drained], timeout: 10)
+        return results
+    }
+
+    @MainActor
+    func testAcceptedBridgeResultIsDeliveredWhileCaptureRemainsCurrent() throws {
+        let results = try bridgeResults(cancelAfterAcceptance: false)
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first.flatMap(JwSgSourceMetadata.object)?["captureId"] as? String, "adapter-a")
+    }
+
+    @MainActor
+    func testCancellingFetchDropsAnAlreadyAcceptedQueuedBridgeResult() throws {
+        XCTAssertTrue(try bridgeResults(cancelAfterAcceptance: true).isEmpty)
+    }
+}
