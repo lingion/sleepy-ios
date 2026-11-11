@@ -1381,3 +1381,4 @@
 "settings_holiday_dates" = "日付の管理";
 "settings_holiday_dates_scope" = "日付の範囲はすべての時間割で共有されます。振替の設定は上で選択した時間割にのみ適用されます。";
 "settings_holiday_maintenance" = "メンテナンス";
+"period_table_delete_bound_hint" = "この時程表は %lld 件の時間割に使用されています。削除後、各時間割は同じ内容の内蔵時程表を使用します。";

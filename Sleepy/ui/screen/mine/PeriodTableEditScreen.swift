@@ -228,7 +228,7 @@ struct PeriodTableEditScreen: View {
         // 数据装载(.onAppear reloadTables + .onReceive 观察流)改挂 body 总根, 见 body 注释 —
         // 挂此处会随 not-found 分支不渲染而永不触发, 引导死锁。本函数只管渲染已解析的表。
         // 保存前预览确认弹窗(§9 决策 3): 取消 = 零写库零快照
-        .sheet(isPresented: Binding(
+        .centeredDialog(isPresented: Binding(
             get: { pendingPreview != nil && pendingSave != nil },
             set: { if !$0 { pendingPreview = nil; pendingSave = nil } }
         )) {
@@ -236,17 +236,15 @@ struct PeriodTableEditScreen: View {
                 previewDialog(periodTable: periodTable, preview: preview, toSave: toSave)
             }
         }
-        // v1.0.56 T7: 删除确认弹窗
-        .sheet(isPresented: $showDeleteConfirm) {
-            deleteConfirmDialog(periodTable: periodTable)
-        }
-        // v1.0.56 T7: 绑定拦截提示(删不掉 = 仍有课表绑着本表)
-        .sheet(isPresented: Binding(
-            get: { deleteBlockedMsg != nil },
-            set: { if !$0 { deleteBlockedMsg = nil } }
+        // Keep a failed delete in the same presentation while its message changes.
+        .centeredDialog(isPresented: Binding(
+            get: { showDeleteConfirm || deleteBlockedMsg != nil },
+            set: { if !$0 { showDeleteConfirm = false; deleteBlockedMsg = nil } }
         )) {
             if let msg = deleteBlockedMsg {
                 deleteBlockedDialog(msg: msg)
+            } else {
+                deleteConfirmDialog(periodTable: periodTable)
             }
         }
         // v1.0.56 T11: 分享格式选择底部弹窗
@@ -254,7 +252,7 @@ struct PeriodTableEditScreen: View {
             PeriodTableShareSheet(periodTable: periodTable, onDismiss: { showShareSheet = false })
         }
         // v1.0.56 T8: 复制命名弹窗
-        .sheet(isPresented: $showCopyDialog) {
+        .centeredDialog(isPresented: $showCopyDialog) {
             copyDialog(periodTable: periodTable)
         }
     }
@@ -386,13 +384,29 @@ struct PeriodTableEditScreen: View {
                                toSave: PeriodTableEntity) -> some View {
         let boundCount = viewModel.state.tables
             .filter { $0.periodTableId == periodTable.id }.count
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.t("period_table_save_preview_title"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(colors.onSurface)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
+        return CenteredPickerDialog(title: L10n.t("period_table_save_preview_title"),
+                                    onDismiss: { pendingPreview = nil; pendingSave = nil },
+                                    footer: AnyView(
+            DialogActionButtons(
+                confirmText: L10n.t("period_table_preview_confirm"),
+                onConfirm: {
+                    pendingPreview = nil
+                    pendingSave = nil
+                    viewModel.updatePeriodTableContent(toSave, onFinish: {
+                        // Only a committed save clears the unsaved-new discard marker.
+                        unsavedNew = false
+                        (onSaved ?? onBack)()
+                    }, onFailure: { error = $0 })
+                },
+                dismissText: L10n.t("cancel"),
+                onDismiss: {
+                    pendingPreview = nil
+                    pendingSave = nil
+                },
+                confirmIdentifier: "period_table_preview_confirm",
+                dismissIdentifier: "period_table_preview_cancel")
+        )) {
+            VStack(alignment: .leading, spacing: 8) {
                     Text(L10n.format("period_table_preview_summary",
                                      boundCount, preview.changedCourses.count, preview.unchangedCount))
                         .font(.system(size: 14))
@@ -413,80 +427,47 @@ struct PeriodTableEditScreen: View {
                             .font(.system(size: 12))
                             .foregroundColor(colors.onSurfaceVariant)
                     }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            Spacer().frame(height: 12)
-            // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
-            DialogActionButtons(
-                confirmText: L10n.t("period_table_preview_confirm"),
-                onConfirm: {
-                    pendingPreview = nil
-                    pendingSave = nil
-                    viewModel.updatePeriodTableContent(toSave, onFinish: {
-                        // Only a committed save clears the unsaved-new discard marker.
-                        unsavedNew = false
-                        (onSaved ?? onBack)()
-                    }, onFailure: { error = $0 })
-                },
-                dismissText: L10n.t("cancel"),
-                onDismiss: {
-                    pendingPreview = nil
-                    pendingSave = nil
-                },
-                confirmIdentifier: "period_table_preview_confirm",
-                dismissIdentifier: "period_table_preview_cancel")
         }
-        .padding(24)
-        .background(colors.surface)
     }
 
     // v1.0.56 T7: 删除确认弹窗(原管理页逻辑整体迁移, 语义不变)
     private func deleteConfirmDialog(periodTable: PeriodTableEntity) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.t("period_table_delete_confirm"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(colors.onSurface)
-            Text(L10n.format("period_table_delete_freeze", periodTable.name))
-                .font(.system(size: 14))
-                .foregroundColor(colors.onSurfaceVariant)
-            Spacer().frame(height: 12)
+        let boundCount = viewModel.state.tables.filter { $0.periodTableId == periodTable.id }.count
+        return CenteredPickerDialog(title: L10n.t("period_table_delete_confirm"),
+                                    onDismiss: { showDeleteConfirm = false }, footer: AnyView(
             DialogActionButtons(
                 confirmText: L10n.t("delete"),
                 onConfirm: {
-                    showDeleteConfirm = false
                     let ok = viewModel.deletePeriodTable(id: periodTable.id)
                     if ok {
+                        showDeleteConfirm = false
                         onBack()
                     } else {
                         deleteBlockedMsg = L10n.format("period_table_delete_failed")
+                        showDeleteConfirm = false
                     }
                 },
                 dismissText: L10n.t("cancel"),
                 onDismiss: { showDeleteConfirm = false },
                 destructive: true)
+        )) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.format("period_table_delete_msg_body", periodTable.name))
+                if boundCount > 0 { Text(L10n.format("period_table_delete_bound_hint", boundCount)) }
+            }
+            .font(.system(size: 14)).foregroundColor(colors.onSurfaceVariant)
         }
-        .padding(24)
-        .background(colors.surface)
     }
 
     // v1.0.56 T7: 绑定拦截提示(删不掉 = 仍有课表绑着本表)
     private func deleteBlockedDialog(msg: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.t("period_table_delete_confirm"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(colors.onSurface)
-            Text(msg)
-                .font(.system(size: 14))
-                .foregroundColor(colors.onSurfaceVariant)
-            Spacer().frame(height: 12)
-            DialogActionButtons(
-                confirmText: L10n.t("ok"),
-                onConfirm: { deleteBlockedMsg = nil })
+        CenteredPickerDialog(title: L10n.t("period_table_delete_confirm"),
+                             onDismiss: { deleteBlockedMsg = nil }, footer: AnyView(
+            DialogActionButtons(confirmText: L10n.t("ok"), onConfirm: { deleteBlockedMsg = nil })
+        )) {
+            Text(msg).font(.system(size: 14)).foregroundColor(colors.onSurfaceVariant)
         }
-        .padding(24)
-        .background(colors.surface)
     }
 
     // v1.0.56 T8: 复制命名弹窗
@@ -496,12 +477,25 @@ struct PeriodTableEditScreen: View {
             candidate,
             courseTableNames: viewModel.state.tables.map { $0.name },
             periodTableNames: allPeriodTables.map { $0.name })
-        return ScrollView {
+        return CenteredPickerDialog(title: L10n.t("period_table_copy_dialog_title"),
+                                    titleIdentifier: "period_table_copy_dialog",
+                                    onDismiss: { showCopyDialog = false }, footer: AnyView(
+                DialogActionButtons(
+                    confirmText: L10n.t("ok"),
+                    onConfirm: {
+                        let newId = viewModel.copyPeriodTableAs(sourceId: periodTable.id, newName: candidate)
+                        if newId > 0 {
+                            showCopyDialog = false
+                            onBack()
+                        }
+                    },
+                    dismissText: L10n.t("cancel"),
+                    onDismiss: { showCopyDialog = false },
+                    confirmEnabled: !candidate.isEmpty && !nameTaken,
+                    confirmIdentifier: "period_table_copy_confirm",
+                    dismissIdentifier: "period_table_copy_cancel")
+        )) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(L10n.t("period_table_copy_dialog_title"))
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(colors.onSurface)
-                    .accessibilityIdentifier("period_table_copy_dialog")
                 FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
                     .accessibilityIdentifier("period_table_copy_name")
                     // ← 原版本 TextField(isError = nameTaken) (ktl L494): 输入框本体错误态。
@@ -519,25 +513,8 @@ struct PeriodTableEditScreen: View {
                         .font(.system(size: 12))
                         .foregroundColor(colors.error)
                 }
-                Spacer().frame(height: 12)
-                DialogActionButtons(
-                    confirmText: L10n.t("ok"),
-                    onConfirm: {
-                        let newId = viewModel.copyPeriodTableAs(sourceId: periodTable.id, newName: candidate)
-                        if newId > 0 {
-                            showCopyDialog = false
-                            onBack()
-                        }
-                    },
-                    dismissText: L10n.t("cancel"),
-                    onDismiss: { showCopyDialog = false },
-                    confirmEnabled: !candidate.isEmpty && !nameTaken,
-                    confirmIdentifier: "period_table_copy_confirm",
-                    dismissIdentifier: "period_table_copy_cancel")
+
             }
-            .padding(24)
         }
-        .scrollDismissesKeyboardImmediatelyCompat()
-        .background(colors.surface)
     }
 }

@@ -1382,3 +1382,4 @@
 "settings_holiday_dates" = "日期管理";
 "settings_holiday_dates_scope" = "日期范围由所有课表共用；调休映射仅影响上方选择的课表。";
 "settings_holiday_maintenance" = "维护";
+"period_table_delete_bound_hint" = "该作息表仍被 %lld 张课表绑定，删除后课表将使用相同的内置作息表";

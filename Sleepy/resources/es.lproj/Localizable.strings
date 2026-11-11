@@ -1381,3 +1381,4 @@
 "settings_holiday_dates" = "Gestionar fechas";
 "settings_holiday_dates_scope" = "Los intervalos de fechas se comparten entre todos los horarios. Las asignaciones de recuperación solo se aplican al horario seleccionado arriba.";
 "settings_holiday_maintenance" = "Mantenimiento";
+"period_table_delete_bound_hint" = "Este horario de períodos sigue vinculado a %lld horario(s). Al eliminarlo, cada horario usará un horario de períodos integrado idéntico.";
