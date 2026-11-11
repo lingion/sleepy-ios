@@ -300,9 +300,36 @@ final class CourseEditorUITests: XCTestCase {
     // MARK: 编辑模式 — 删除课程(确认对话框)
 
     func testEditCourseDeleteFlow() {
-        // setUp 的 openEditor 已打开加课页 → 先返回课表(overlay 关闭 → pill 恢复)
-        let backBtn = app.descendants(matching: .any)["topbar_back"]
-        if backBtn.waitForExistence(timeout: 3) { backBtn.tap() }
+        // setUp 已打开手动加课页；逐层返回来源页、管理页，再切回课表。
+        let backButtons = app.buttons.matching(identifier: "topbar_back")
+        XCTAssertTrue(backButtons.firstMatch.waitForExistence(timeout: 3))
+        guard let backBtn = backButtons.allElementsBoundByIndex.last(where: { $0.isHittable }) else {
+            return XCTFail("前景加课页的返回按钮应可点击")
+        }
+        backBtn.tap()
+        let editorClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                                     object: app.staticTexts["Create Course"])
+        XCTAssertEqual(XCTWaiter.wait(for: [editorClosed], timeout: 5), .completed)
+        let methods = app.scrollViews["import_methods_scroll"].firstMatch
+        let manual = app.buttons["import_manual"].firstMatch
+        let methodsRestored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            methods.exists && methods.isHittable && manual.exists
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [methodsRestored], timeout: 5), .completed,
+                       "取消加课后应先恢复原来源页")
+        guard let sourceBack = backButtons.allElementsBoundByIndex.last(where: { $0.isHittable }) else {
+            return XCTFail("来源页的返回按钮应可点击")
+        }
+        sourceBack.tap()
+        let methodsClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                                      object: methods)
+        XCTAssertEqual(XCTWaiter.wait(for: [methodsClosed], timeout: 5), .completed)
+        let addCard = app.buttons["manage_add_course"].firstMatch
+        let manageRestored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            addCard.exists && addCard.isHittable
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [manageRestored], timeout: 5), .completed,
+                       "来源页返回后应恢复可操作的管理页")
         let pill = app.descendants(matching: .any)["pill_schedule"]
         XCTAssertTrue(pill.waitForExistence(timeout: 5), "返回后 pill 应恢复")
         app.switchToPillTab("schedule")   // 返回落在 manage Tab, 切回课表 Tab
