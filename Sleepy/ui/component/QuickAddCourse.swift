@@ -197,19 +197,142 @@ private struct QuickAddCourseCapsule: View {
 }
 
 /// 顶层透明命中面：胶囊内穿透，外侧按下由本 UIView 持有整次触摸。
-/// 不能用父级 onTapGesture，否则课程按钮/空格会在取消的同一次 tap 中响应。
-struct QuickAddOutsidePressShield: UIViewRepresentable {
+/// 不能用父级 onTapGesture，否则课程按钮/空格会在取消的同一次 tap 中响应；
+/// 也不能直接把拦截型 UIViewRepresentable 覆在整屏之上（iOS 15 PlatformViewHost
+/// 在子视图 hitTest 返回 nil 时仍会返回自身，导致课表滚动与点击全部被吞）。
+/// 改为不吃触摸的锚点，仅在胶囊激活时向宿主页容器挂载独立 UIView 拦截外侧按下。
+struct QuickAddOutsidePressShield: View {
     @ObservedObject var state: QuickAddCourseState
 
-    func makeUIView(context: Context) -> QuickAddOutsidePressView { QuickAddOutsidePressView() }
-    func updateUIView(_ view: QuickAddOutsidePressView, context: Context) { view.state = state }
+    var body: some View {
+        QuickAddOutsidePressAnchor(state: state, isActive: state.selection != nil)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct QuickAddOutsidePressAnchor: UIViewRepresentable {
+    let state: QuickAddCourseState
+    let isActive: Bool
+
+    func makeUIView(context: Context) -> QuickAddOutsidePressAnchorView {
+        QuickAddOutsidePressAnchorView()
+    }
+
+    func updateUIView(_ view: QuickAddOutsidePressAnchorView, context: Context) {
+        view.state = state
+        view.syncShield(isActive: isActive)
+    }
+
+    static func dismantleUIView(_ view: QuickAddOutsidePressAnchorView, coordinator: ()) {
+        view.detachShield()
+    }
+}
+
+private final class QuickAddOutsidePressAnchorView: UIView {
+    weak var state: QuickAddCourseState?
+    private var active = false
+    private let shieldView: QuickAddOutsidePressView = {
+        let view = QuickAddOutsidePressView()
+        view.backgroundColor = .clear
+        view.isAccessibilityElement = false
+        view.accessibilityElementsHidden = true
+        return view
+    }()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        syncShield(isActive: active)
+    }
+
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        syncShield(isActive: active)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        syncShield(isActive: active)
+    }
+
+    func detachShield() {
+        active = false
+        shieldView.state = nil
+        shieldView.removeFromSuperview()
+    }
+
+    func syncShield(isActive: Bool) {
+        active = isActive
+        shieldView.state = state
+        guard isActive, let window, let state, state.selection != nil, !bounds.isEmpty else {
+            shieldView.state = nil
+            shieldView.removeFromSuperview()
+            return
+        }
+        let (container, hostRoot) = resolveShieldHost(in: window)
+        let targetFrame = container.convert(bounds, from: self)
+        guard !targetFrame.isEmpty else {
+            shieldView.removeFromSuperview()
+            return
+        }
+        if shieldView.superview !== container {
+            shieldView.removeFromSuperview()
+            if let hostRoot, hostRoot.superview === container {
+                container.insertSubview(shieldView, aboveSubview: hostRoot)
+            } else {
+                container.addSubview(shieldView)
+            }
+        } else if let hostRoot, hostRoot.superview === container,
+                  let hostIndex = container.subviews.firstIndex(of: hostRoot),
+                  let shieldIndex = container.subviews.firstIndex(of: shieldView),
+                  shieldIndex < hostIndex {
+            container.insertSubview(shieldView, aboveSubview: hostRoot)
+        }
+        if shieldView.frame != targetFrame {
+            shieldView.frame = targetFrame
+        }
+        shieldView.isHidden = false
+        shieldView.isUserInteractionEnabled = true
+    }
+
+    private func resolveShieldHost(in window: UIWindow) -> (container: UIView, above: UIView?) {
+        var cur = superview
+        var vcView: UIView?
+        var highestHosting: UIView?
+        while let view = cur, view !== window {
+            if view.next is UIViewController, vcView == nil {
+                vcView = view
+            }
+            if String(describing: type(of: view)).contains("HostingView") {
+                highestHosting = view
+            }
+            cur = view.superview
+        }
+        if let vcView, let container = vcView.superview, container.isUserInteractionEnabled {
+            return (container, vcView)
+        }
+        if let highestHosting, let container = highestHosting.superview, container.isUserInteractionEnabled {
+            return (container, highestHosting)
+        }
+        return (window, nil)
+    }
 }
 
 final class QuickAddOutsidePressView: UIView {
     weak var state: QuickAddCourseState?
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        guard let state, state.selection != nil, bounds.contains(point),
+        guard !isHidden, isUserInteractionEnabled, let state, state.selection != nil,
+              bounds.contains(point),
               state.capsuleBounds?.contains(convert(point, to: nil)) != true else { return nil }
         return self
     }
