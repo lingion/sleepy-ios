@@ -1,36 +1,48 @@
-# CI 自动化 / 免费算力手册 ("CI 白嫖厨房")
+# CI 与贡献流程
 
-本仓库是 **public**,GitHub Actions 的 macOS/Linux runner 对 public 仓库免费。对本项目这条尤其关键:**开发机是 Linux,没有 Xcode/iOS SDK,iOS 构建与模拟器测试只能靠 CI 的 macOS runner**。
+日常 PR 只执行一次模拟器构建和全部 `SleepyTests` 单元／集成测试。它同时编译应用、扩展和 UI 测试代码，不启动长时间的 UI 截图或拖拽矩阵。无需签名证书、私有凭据或外部 Android 仓库，fork 也使用相同流程。
 
-## 1. 手动触发构建 ("点菜")
+| 触发 | 内容 | 硬超时 |
+| --- | --- | --- |
+| PR 打开／更新到 master | 一次构建＋全部单元／集成测试 | 20 分钟 |
+| 手动 `task=unit` | 同上，检查指定 ref | 20 分钟 |
+| 手动 `task=ui` | 一次构建＋指定一个 UI 类或方法 | 45 分钟 |
+| 手动 `task=ipa` | 无签名 IPA | 45 分钟 |
 
-### 1.1 无签名 IPA 构建
-```bash
-gh workflow run "iOS Build" -f ref=master -f config=Release
+只修改 Markdown、LICENSE 或 .gitignore 不触发构建。JSON 夹具等测试资源仍触发。没有分支 push、定时或 Gitee 自动镜像任务；同一 PR 的新提交取消旧运行，手动任务不取消 PR 检查。超时是上限，不是承诺耗时；冷启动、GitHub 排队和所选 UI 类的长度会影响实际时间。
+
+2026-11-11 的旧矩阵样本中，构建＋全量单元约 8 分钟；五个分组累计占用约 254 分钟 runner、墙钟约 107 分钟，因此已移除自动全 UI 矩阵。测试源码和业务断言保留，UI 按改动范围选择运行。PR 的 `Build and tests` 通过只表示构建与单元通过，不代表所有 UI 已验证。
+
+## 本地贡献
+
+使用 macOS 和 Xcode，安装 XcodeGen 后生成工程。CI 固定使用 Xcode 26.3；本地可用兼容工具链，运行结果应注明版本。
+
+```sh
+brew install xcodegen
+xcodegen generate --spec project.yml
+xcodebuild -list -project Sleepy.xcodeproj
 ```
-- macOS runner 上 `brew install xcodegen` 后走 `scripts/build-ipa.sh`(CODE_SIGNING_ALLOWED=NO 管线)。
-- 产物 `Sleepy-unsigned.ipa` 存 7 天,用 AltStore/Sideloadly 重签后装真机。
-- `-f config=Debug` 出 Debug 包;`-f tests=yes` 顺带跑 iPhone 15 模拟器单元测试(排队会久一些)。
 
-### 1.2 下载产物
-```bash
-gh run list --workflow "iOS Build" --limit 3   # 找 run-id
-gh run download <run-id>                        # 拉全部产物
+在 Xcode 选择 Sleepy scheme 和可用 iPhone 模拟器，按改动运行单元测试或对应 UI 用例。PR 描述写明问题、改动、真实验证和未覆盖范围。无需先跑所有截图流程，也无需配置 Gitee token。
+
+## 手动运行
+
+在 Actions → iOS Build → Run workflow 选择任务和 ref，或使用 GitHub CLI：
+
+```sh
+gh workflow run ios-build.yml -f ref=master -f task=unit
+gh workflow run ios-build.yml -f ref=your-branch -f task=ui \
+  -f ui_test=SleepyUITests/SwipeBackGestureUITests/testCourseEditorBackRestoresSchedule
+gh workflow run ios-build.yml -f ref=master -f task=ipa -f config=Release
 ```
-> 产物回传走 GitHub CDN。如果本地代理很慢,用手机浏览器开 run 页面直接下。
 
-## 2. 自动同步
-`sync-to-gitee.yml`:每次 push 任意分支/tag 自动镜像到 Gitee,无需手动操作。
+`ui_test` 必须是存在的 `SleepyUITests/类名` 或 `SleepyUITests/类名/test方法名`，构建前验证。空值、未知测试、整个 target 或多个选择器会立即失败，避免“零测试成功”和无界全量运行。长类可改选一个方法；45 分钟不够的整类应拆为相关方法分别检查，不自动重试。
 
-## 3. 限制与注意
-- 单 job 上限 6 小时;本仓库构建 job 设 45 分钟(实测 xcodegen+xcodebuild archive 约 10–15 分钟)。
-- macOS runner free plan 并发低,dispatch 任务可能要排队几分钟。
-- 签名相关:`project.yml` 里的 Personal Team 证书(7 天过期)只在本机 Xcode 有效;CI 一律走无签名管线,由用户侧 AltStore 重签——这是设计如此,不是遗漏。
+每次诊断产物保存 7 天，包含实际检出提交 `revision.txt`、Xcode 版本、构建／测试日志及 xcresult。`workflow_dispatch` 的工作流分支和被测 `ref` 可以不同，以产物中的 revision 为准。
 
-## 4. 给贡献者:加一条新能力
-1. `.github/workflows/` 新建 `*.yml`,用 `workflow_dispatch + inputs` 参数化。
-2. 加 `concurrency`、`timeout-minutes`、`permissions: contents: read`。
-3. **合进默认分支(master)**,否则 dispatch 触发不了。
-4. 回本页补一行说明。
+```sh
+gh run list --workflow ios-build.yml --limit 5
+gh run download <run-id>
+```
 
-Android 侧的对应文档在 [lingion/sleepy/docs/ci-automation.md](https://github.com/lingion/sleepy/blob/main/docs/ci-automation.md)(debug APK 参数化打包、KVM 模拟器测试、dependabot、nightly)。
+IPA 不含分发签名，需要自行重签才能安装。脚本只执行一次 archive，构建失败原样返回，不靠再次构建掩盖错误。
