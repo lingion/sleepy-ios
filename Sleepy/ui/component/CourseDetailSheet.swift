@@ -88,7 +88,7 @@ struct CourseDetailSheet: View {
                             DetailRow(key: L10n.format("course_field_note"), value: course.note)
                         }
                         if let displayDate {
-                            DetailRow(key: "本次日期", value: HolidayTransferOps.dayKey(displayDate))
+                            DetailRow(key: L10n.format("occurrence_date"), value: HolidayTransferOps.dayKey(displayDate))
                         }
 
                         if let cluster = clusterInfo {
