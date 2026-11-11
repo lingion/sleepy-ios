@@ -1063,13 +1063,18 @@ struct AppRoot: View {
     //     让 MineScreen/ManagementPage/TodayScreen/CourseTableView 自己读 →
     //     内部 padding(bottom, 16 + navExtra) 一字对齐 原版本。
     private var floatingTabs: some View {
-        ZStack(alignment: .bottom) {
-            tabContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea(edges: .bottom)
-            PillNavigationBar(items: navItems, dockStyle: .floating)
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                tabContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea(edges: .bottom)
+                PillNavigationBar(items: navItems, dockStyle: .floating)
+            }
+            // Content extends below the safe area while the capsule stays above it.
+            // Keep the final scroll row clear of both the capsule and home indicator.
+            .environment(\.localNavExtraBottomPadding,
+                         floatingScrollBottomPadding + geometry.safeAreaInsets.bottom)
         }
-        .environment(\.localNavExtraBottomPadding, floatingScrollBottomPadding)
     }
 
     // FAB 式滚动余量 = capsuleHeight(64) + bottomFloat(12) + extra(12 视觉缓冲)
