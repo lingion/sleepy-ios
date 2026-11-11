@@ -628,6 +628,36 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["mine_stat_tables_value"].firstMatch.label, "1")
     }
 
+    func testWhitespaceTextErrorDismissesToOriginalMethodsAndKeepsDraftCapture() {
+        openTables()
+        let originalTables = tableRows
+        tapBack()
+        let draft = "   "
+        openTextSource(entryID: "manage_import", text: draft)
+        let error = app.alerts["Import Problem"].firstMatch
+        XCTAssertTrue(error.waitForExistence(timeout: 8))
+        XCTAssertTrue(error.staticTexts["Content is empty"].exists)
+        let dismiss = error.buttons["Dismiss"].firstMatch
+        reveal(dismiss)
+        capture("workflow-whitespace-text-global-error")
+        dismiss.tap()
+        XCTAssertTrue(waitUntil { !error.exists })
+        assertMethodsRestored(pasteDraft: draft)
+        let input = app.descendants(matching: .any)["import_paste_input"].firstMatch
+        reveal(input)
+        XCTAssertTrue(app.buttons["import_preview_btn"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)["import_success_snackbar"].exists)
+        capture("workflow-whitespace-text-error-keeps-draft")
+        tapBack()
+        openTables()
+        XCTAssertEqual(tableRows, originalTables, "Dismissing an empty-content error must not create a timetable")
+        tapBack()
+        app.switchToPillTab("mine")
+        let courses = app.staticTexts["mine_stat_courses_value"].firstMatch
+        XCTAssertTrue(courses.waitForExistence(timeout: 8))
+        XCTAssertEqual(courses.label, "5")
+    }
+
     func testOffGridPeriodCandidateAndNewPeriodDialogsCanCancelCapture() {
         let add = app.buttons["manage_add_course"].firstMatch
         reveal(add)
