@@ -37,7 +37,7 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         add(attachment)
     }
 
-    /// Reveal complete controls with short, reversible drags in their owning scroll area.
+    /// Reveal complete controls with short, reversible drags in their owning scroll gutter.
     /// An expanded card uses only its header as the navigation target.
     private func reveal(_ element: XCUIElement, headerOnly: Bool = false,
                         file: StaticString = #filePath, line: UInt = #line) {
@@ -85,8 +85,10 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
             guard area.width > 0, area.height > 0 else { break }
             let earlier = targetFrame().minY < area.minY
             let origin = app.coordinate(withNormalizedOffset: .zero)
-            let start = origin.withOffset(CGVector(dx: area.midX, dy: area.minY + area.height * (earlier ? 0.40 : 0.65)))
-            let end = origin.withOffset(CGVector(dx: area.midX, dy: area.minY + area.height * (earlier ? 0.58 : 0.47)))
+            // The center can hit a native settings slider instead of scrolling.
+            let gutterX = min(area.maxX - 1, area.minX + 10)
+            let start = origin.withOffset(CGVector(dx: gutterX, dy: area.minY + area.height * (earlier ? 0.40 : 0.65)))
+            let end = origin.withOffset(CGVector(dx: gutterX, dy: area.minY + area.height * (earlier ? 0.58 : 0.47)))
             start.press(forDuration: 0.05, thenDragTo: end)
         }
         XCTAssertTrue(waitUntil { visible() }, "The complete target must be visible above navigation", file: file, line: line)
