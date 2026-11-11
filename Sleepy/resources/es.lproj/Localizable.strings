@@ -1385,3 +1385,4 @@
 "occurrence_adjust" = "Modificar esta sesión";
 "occurrence_direct" = "Programar directamente ese día";
 "occurrence_direct_anyway" = "Programar de todos modos";
+"jw_thu_skipped_courses" = "Se omitieron %1$d entradas de cursos de THU por datos incompletos o semanas u horarios no compatibles. Compruebe el horario oficial y añádalas manualmente.";

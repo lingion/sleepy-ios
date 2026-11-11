@@ -68,3 +68,76 @@ final class JwImportFlowTests: XCTestCase {
         }
     }
 }
+
+final class JwImportParserWarningTests: XCTestCase {
+    private func thuFixture() throws -> String {
+        let bundle = Bundle(for: Self.self)
+        let url = try XCTUnwrap(bundle.url(forResource: "thu_courses.sample", withExtension: "html")
+            ?? bundle.url(forResource: "thu_courses.sample", withExtension: "html", subdirectory: "resources"))
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    func testPartialThuImportSurfacesTheExistingSkippedDiagnostic() throws {
+        let html = try thuFixture().replacingOccurrences(of: "；前八周", with: "；待定周次")
+        let result = JwParseDispatch.parse(html, JwProtocol.TYPE_THU)
+        XCTAssertNil(result.error)
+        XCTAssertEqual(result.courses.count, 4)
+        XCTAssertEqual(JwImportParserWarnings.messages(protocolType: JwProtocol.TYPE_THU, attempts: result.attempts),
+                       [L10n.format("jw_thu_skipped_courses", 1)])
+    }
+
+    func testCompleteThuImportDoesNotShowASkippedWarning() throws {
+        let result = JwParseDispatch.parse(try thuFixture(), JwProtocol.TYPE_THU)
+        XCTAssertEqual(result.courses.count, 5)
+        XCTAssertTrue(JwImportParserWarnings.messages(protocolType: JwProtocol.TYPE_THU, attempts: result.attempts).isEmpty)
+    }
+
+    func testAllUnsupportedThuEntriesShowTheSkippedCountInsteadOfGenericEmptyDiagnosis() throws {
+        var html = try thuFixture()
+        for weeks in ["；前八周", "；全周", "；单周", "；双周", "；第3-15周（单）"] {
+            html = html.replacingOccurrences(of: weeks, with: "；待定周次")
+        }
+        let result = JwParseDispatch.parse(html, JwProtocol.TYPE_THU)
+        XCTAssertNil(result.error)
+        XCTAssertTrue(result.courses.isEmpty)
+        let school = JwSchoolInfo(sortKey: "Q", name: "清华大学",
+                                 url: "https://zhjwxk.cic.tsinghua.edu.cn",
+                                 type: JwProtocol.TYPE_THU, sortKeyFull: "qinghua")
+        XCTAssertEqual(JwImportParserWarnings.emptyResultMessage(
+            html: html, school: school, protocolType: JwProtocol.TYPE_THU, attempts: result.attempts),
+            L10n.format("jw_thu_skipped_courses", 5))
+        XCTAssertEqual(JwImportParserWarnings.emptyResultMessage(
+            html: html, school: school, protocolType: JwProtocol.TYPE_THU, attempts: []),
+            DiagMapper.diagnosis(html: html, school: school, attempts: []))
+    }
+
+    func testWarningRequiresTheThuProtocolAndAPositiveDiagnosticCount() {
+        func attempt(type: String? = JwProtocol.TYPE_THU, count: String) -> ParserAttemptSnapshot {
+            ParserAttemptSnapshot(parserName: "THU", type: type, courseCount: 1, confidence: 100,
+                                  matchedFeatures: ["thu:skipped-unsupported=\(count)"], exception: nil)
+        }
+        for count in ["0", "-1", "unknown"] {
+            XCTAssertTrue(JwImportParserWarnings.messages(protocolType: JwProtocol.TYPE_THU,
+                attempts: [attempt(count: count)]).isEmpty)
+        }
+        XCTAssertTrue(JwImportParserWarnings.messages(protocolType: JwProtocol.TYPE_UCAS,
+            attempts: [attempt(count: "2")]).isEmpty)
+        XCTAssertTrue(JwImportParserWarnings.messages(protocolType: JwProtocol.TYPE_THU,
+            attempts: [attempt(type: JwProtocol.TYPE_UCAS, count: "2")]).isEmpty)
+    }
+
+    func testAllFiveSkippedWarningTranslationsMatchAndroid1064() throws {
+        let expected = [
+            "zh-Hans": "有 %1$d 条清华课程安排因信息不完整或周次、时段格式不受支持而跳过。请核对教务课表并手动补录。",
+            "zh-Hant": "有 %1$d 條清華課程安排因資訊不完整或週次、時段格式不支援而略過。請核對教務課表並手動補錄。",
+            "en": "%1$d THU course entries were skipped because details were incomplete or the weeks or times are unsupported. Check the official timetable and add them manually.",
+            "ja": "THUの授業予定%1$d件は情報不足、または週・時間帯の形式に対応できず除外されました。教務システムの時間割を確認し、手動で追加してください。",
+            "es": "Se omitieron %1$d entradas de cursos de THU por datos incompletos o semanas u horarios no compatibles. Compruebe el horario oficial y añádalas manualmente."
+        ]
+        for (language, text) in expected {
+            let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"))
+            let bundle = try XCTUnwrap(Bundle(path: path))
+            XCTAssertEqual(NSLocalizedString("jw_thu_skipped_courses", bundle: bundle, comment: ""), text)
+        }
+    }
+}
