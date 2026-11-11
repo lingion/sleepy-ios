@@ -1142,6 +1142,7 @@
 		FFD3E75EA0497A653D055C39 /* DailySummaryNotificationMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6411E61AE08D4284100A98 /* DailySummaryNotificationMigration.swift */; };
 		1326D2054055D0599A189EDF /* SecondaryDialogParityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211921CCA47F3202EF030135 /* SecondaryDialogParityUITests.swift */; };
 		37C21D76DB2C420F9DD33276 /* SecondarySettingsCaptureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7BB1CF2B38415096643F3B /* SecondarySettingsCaptureUITests.swift */; };
+		E88CB21D0C2F42E4B59F66B3 /* SecondaryWorkflowCaptureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 922A7F7D66544907979BFB12 /* SecondaryWorkflowCaptureUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1895,6 +1896,7 @@
 		FF4AC1BC137184D4FED2FCF3 /* LicenseScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseScreen.swift; sourceTree = "<group>"; };
 		211921CCA47F3202EF030135 /* SecondaryDialogParityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryDialogParityUITests.swift; sourceTree = "<group>"; };
 		7A7BB1CF2B38415096643F3B /* SecondarySettingsCaptureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondarySettingsCaptureUITests.swift; sourceTree = "<group>"; };
+		922A7F7D66544907979BFB12 /* SecondaryWorkflowCaptureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryWorkflowCaptureUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2873,6 +2875,7 @@
 				8F320879A74F6E8825ECE3C0 /* WeekDialogLayoutUITests.swift */,
 				211921CCA47F3202EF030135 /* SecondaryDialogParityUITests.swift */,
 				7A7BB1CF2B38415096643F3B /* SecondarySettingsCaptureUITests.swift */,
+				922A7F7D66544907979BFB12 /* SecondaryWorkflowCaptureUITests.swift */,
 				3E7AD6CE77CFDEF12C064E61 /* WidgetArchivingUITests.swift */,
 			);
 			path = SleepyUITests;
@@ -3742,6 +3745,7 @@
 				588EAD2541E6364F2E80F93F /* WeekDialogLayoutUITests.swift in Sources */,
 				1326D2054055D0599A189EDF /* SecondaryDialogParityUITests.swift in Sources */,
 				37C21D76DB2C420F9DD33276 /* SecondarySettingsCaptureUITests.swift in Sources */,
+				E88CB21D0C2F42E4B59F66B3 /* SecondaryWorkflowCaptureUITests.swift in Sources */,
 				76D1F3F2759F5FBE76A9D061 /* WidgetArchivingUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
