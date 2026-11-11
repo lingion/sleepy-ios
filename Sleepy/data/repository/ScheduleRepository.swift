@@ -163,13 +163,11 @@ final class ScheduleRepository {
                 throw TableEditSaveError.missingTable
             }
             let courses = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ? ORDER BY id", arguments: [id])
-            let names = Set(try String.fetchAll(db, sql: "SELECT name FROM time_tables"))
-            var suffix = 2
-            var name = "\(source.name)\(suffix)"
-            while names.contains(name) {
-                suffix += 1
-                name = "\(source.name)\(suffix)"
-            }
+            let courseNames = try String.fetchAll(db, sql: "SELECT name FROM time_tables")
+            let periodNames = try String.fetchAll(db, sql: "SELECT name FROM period_tables")
+            let names = Set(courseNames + periodNames)
+            var name = TimeTableUtils.suggestUniqueName(source.name, courseTableNames: courseNames,
+                                                       periodTableNames: periodNames)
             var copy = source
             copy.id = 0
             if let newName {
