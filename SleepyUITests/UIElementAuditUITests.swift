@@ -1099,9 +1099,19 @@ final class UIElementAuditUITests: XCTestCase {
         revealAuditControl(savePreview)
         captureScreenshot("A7_bell-schedule-save-preview")
         savePreview.tap()
-        XCTAssertTrue(waitForAuditCondition { !savePreview.exists })
-        switchToTab("manage")
+        XCTAssertTrue(waitForAuditCondition { !savePreview.exists && !savePeriod.exists })
+        let periodList = app.staticTexts["period_tables_screen"].firstMatch
+        XCTAssertTrue(periodList.waitForExistence(timeout: 10))
+        let savedSource = app.staticTexts[sourceName].firstMatch
+        revealAuditControl(savedSource)
+        XCTAssertTrue(savedSource.identifier.hasPrefix("period_table_name_"))
+        captureScreenshot("A7_bell-schedule-saved-parent")
+        let listBack = app.buttons["period_tables_back"].firstMatch
+        XCTAssertTrue(listBack.isHittable)
+        listBack.tap()
         let edit = app.buttons["manage_edit_current"].firstMatch
+        XCTAssertTrue(waitForAuditCondition { !periodList.exists && edit.exists })
+        switchToTab("manage")
         revealAuditControl(edit)
         edit.tap()
         let tableSlots = app.buttons["edit_table_slots_header"].firstMatch
