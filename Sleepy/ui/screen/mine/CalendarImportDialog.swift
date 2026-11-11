@@ -132,6 +132,7 @@ struct CalendarImportDialog: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("calendar_target_picker")
             }
         }
     }

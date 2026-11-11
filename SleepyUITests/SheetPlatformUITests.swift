@@ -265,6 +265,7 @@ final class SheetPlatformUITests: XCTestCase {
         save.tap()
         let confirm = app.buttons["period_table_preview_confirm"].firstMatch
         makeHittable(confirm)
+        capture("bell-schedule-save-preview")
         confirm.tap()
         XCTAssertTrue(waitUntil { !confirm.exists })
         openPeriodTables()
@@ -500,6 +501,7 @@ final class SheetPlatformUITests: XCTestCase {
         course.tap()
         let edit = app.buttons["course_occurrence_actions"].firstMatch
         makeHittable(edit)
+        capture("course-detail-before-occurrence-menu")
         edit.tap()
         let adjust = app.buttons["occurrence_adjust"].firstMatch
         let delete = app.buttons["occurrence_delete"].firstMatch
@@ -508,6 +510,7 @@ final class SheetPlatformUITests: XCTestCase {
         XCTAssertFalse(app.buttons["occurrence_date"].firstMatch.exists)
         XCTAssertFalse(app.buttons["occurrence_save"].firstMatch.exists,
                        "The occurrence menu must show actions before the edit form")
+        capture("occurrence-actions-menu")
         adjust.tap()
         let cancel = app.buttons["occurrence_cancel"].firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 10))
@@ -604,8 +607,12 @@ final class SheetPlatformUITests: XCTestCase {
         let alert = app.alerts.firstMatch
         XCTAssertTrue(alert.waitForExistence(timeout: 10), "Delete must ask for confirmation")
         capture("landscape-occurrence-delete-confirmation")
-        alert.buttons["Cancel"].firstMatch.tap()
-        XCTAssertTrue(waitUntil { !alert.exists })
+        let cancelPrompt = app.buttons["occurrence_prompt_cancel"].firstMatch
+        XCTAssertTrue(cancelPrompt.waitForExistence(timeout: 10))
+        XCTAssertTrue(cancelPrompt.isEnabled)
+        cancelPrompt.tap()
+        XCTAssertTrue(waitUntil { !cancelPrompt.exists && adjust.exists },
+                      "Canceling deletion must dismiss its prompt and restore the occurrence menu")
         XCTAssertTrue(adjust.exists, "Canceling deletion must return to the occurrence menu")
         XCTAssertFalse(app.buttons["occurrence_date"].firstMatch.exists)
         adjust.tap()
