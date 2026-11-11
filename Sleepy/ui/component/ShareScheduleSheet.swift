@@ -17,7 +17,7 @@ struct ShareScheduleSheet: View {
     @State private var shareSheet: SharePayload? = nil
 
     var body: some View {
-        ScrollView {
+        ContentFittingSheet {
             VStack(spacing: 0) {
                 Text(L10n.format("share_sheet_title"))
                     .font(.system(size: headingSize, weight: .semibold))
@@ -74,7 +74,6 @@ struct ShareScheduleSheet: View {
             }
             .padding(.bottom, 24)
         }
-        .sheetDetents([.medium, .large])
         // 有意差异: 原 containerColor = colors.surface,iOS 用系统弹层背景;条目图标 Material outlined → SF Symbols
         .sheet(item: $shareSheet) { item in
             SharePayloadSheet(text: item.text, subject: item.subject, url: item.url)

@@ -38,11 +38,9 @@ struct CourseDetailSheet: View {
             // 冲突簇上下文(仅当 day 下 ≥2 课区间相交时才存在) — ← ConflictLayoutEngine.findClusters
             let clusterInfo = clusterOf(course)
 
-            // ← 原版本 rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            //   (CourseDetailSheet.kt:75): 弹层直接全高展开, 内容超长时自带滚动。
-            // iOS 此前 .sheetDetents([.medium]) 且无 ScrollView, 小屏设备"编辑课程"
-            // 按钮被裁掉不可达 — 改 .large + ScrollView 镜像该行为。
-            ScrollView {
+            // Android's expanded state still wraps short content. Cap long content
+            // at the native sheet's available height and keep all actions scrollable.
+            ContentFittingSheet {
                 VStack(alignment: .leading, spacing: 0) {
                     // Header ← SheetHeader (surface-container) — 原版本 Row verticalAlignment = Top
                     HStack(alignment: .top) {
@@ -124,10 +122,7 @@ struct CourseDetailSheet: View {
                     .padding(.bottom, 24)   // ← 原 外层 Column padding(bottom = 24.dp),此前 12 少了 12pt
                 }
             }
-            .sheetDetents([.large])
-            // 有意差异: 原 shape = RoundedCornerShape(topStart/topEnd 28dp),iOS 系统弹层自带圆角与把手交互
-            // iOS 15 无 drag indicator API,iOS 16+ 隐藏把手(iOS15 默认无把手,行为一致)
-            .modifier(HideDragIndicatorIfAvailable())
+            // The native sheet retains its rounded corners, grabber and swipe dismissal.
         }
     }
 
