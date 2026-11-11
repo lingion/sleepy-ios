@@ -1378,3 +1378,6 @@
 "settings_appearance_advanced_experimental" = "詳細設定（試験的）";
 "settings_appearance_separator_scope" = "アプリのグリッド時間割と対応するグリッドウィジェットに行と列の区切り線を表示します。";
 "settings_appearance_break_scope" = "アプリのグリッド時間割と対応するグリッドウィジェットで、昼と夕方の長い休憩に余白を追加します。";
+"settings_holiday_dates" = "日付の管理";
+"settings_holiday_dates_scope" = "日付の範囲はすべての時間割で共有されます。振替の設定は上で選択した時間割にのみ適用されます。";
+"settings_holiday_maintenance" = "メンテナンス";

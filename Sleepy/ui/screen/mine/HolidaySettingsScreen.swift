@@ -38,10 +38,6 @@ struct HolidaySettingsScreen: View {
     private let prefs = AppPrefs.shared
 
     @State private var year: Int = Calendar.gregorianCST.component(.year, from: Date())
-    @State private var holidayGrey: Bool = AppPrefs.shared.isHolidayGreyHoliday()
-    @State private var weekendGrey: Bool = AppPrefs.shared.isHolidayGreyWeekend()
-    @State private var ignoreWorkday: Bool = AppPrefs.shared.isHolidayIgnoreWorkday()
-    @State private var style: String = AppPrefs.shared.getHolidayStyle()
     @State private var state: HolidayUiState = .loading
     @State private var overrides: [HolidayRange] = AppPrefs.shared.getHolidayRanges()
     @State private var editing: EditingTarget? = nil
@@ -51,6 +47,12 @@ struct HolidaySettingsScreen: View {
     @State private var activeTableId: Int64? = nil
     @State private var transfers: [HolidayTransferEntry] = []
     @State private var tables: [TimeTableEntity] = []
+    @State private var expandedGroups: Set<String> = []
+
+    private func toggleGroup(_ key: String) {
+        if expandedGroups.contains(key) { expandedGroups.remove(key) }
+        else { expandedGroups.insert(key) }
+    }
 
     private func reload() { overrides = prefs.getHolidayRanges() }
 
@@ -73,13 +75,14 @@ struct HolidaySettingsScreen: View {
         guard let id = activeTableId else { return }
         prefs.updateHolidayTransfer(id, sourceDate: sourceDate, targetDate: targetDate, segmentId: segmentId)
         transfers = prefs.getHolidayTransfers(id)
-        // issue#44: 映射是按表存的, 只有改到当前选中的那张表才需要刷新课表页/widget/闹钟
+        // Only the foreground timetable refresh is scoped to its current table.
+        // Widgets and reminders may use another table selected in this page.
         if id == tableId {
             refreshTransfer?()
-            Task.detached(priority: .background) {
-                WidgetCenter.shared.reloadAllTimelines() // ← WidgetUpdater.notifyDataChanged
-                ReminderRescheduler.shared.request()
-            }
+        }
+        Task.detached(priority: .background) {
+            WidgetCenter.shared.reloadAllTimelines()
+            ReminderRescheduler.shared.request()
         }
     }
 
@@ -149,9 +152,7 @@ struct HolidaySettingsScreen: View {
                 VStack(spacing: 16) {
                     yearSwitcher
                     dataSourceCard
-                    togglesCard
                     makeupCard
-                    styleCard
 
                     if case .loaded(let entries) = state {
                         segmentSections(entries)
@@ -167,9 +168,16 @@ struct HolidaySettingsScreen: View {
             reloadTransfers()
             load(year)
         }
-        .onChange(of: year) { y in load(y) }
-        .onChange(of: activeTableId) { _ in reloadTransfers() }
-        .sheet(item: $editing) { t in
+        .onChange(of: year) { y in
+            expandedGroups.removeAll()
+            load(y)
+        }
+        .onChange(of: activeTableId) { _ in
+            expandedGroups.removeAll()
+            reloadTransfers()
+        }
+        .centeredDialog(isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
+            if let t = editing {
             HolidayRangeEditDialog(
                 target: t.range,
                 isNew: t.isNew,
@@ -183,7 +191,8 @@ struct HolidaySettingsScreen: View {
                     editing = nil
                 }
             )
-            .sheetDetents([.medium, .large])
+            .id(t.id)
+            }
         }
     }
 
@@ -281,42 +290,6 @@ struct HolidaySettingsScreen: View {
         .cornerRadius(SleepyShapes.large)
     }
 
-    // ← 三个灰显开关卡
-    private var togglesCard: some View {
-        VStack(spacing: 4) {
-            SettingToggleRow(
-                label: L10n.format("settings_holiday_holiday"),
-                subtitle: L10n.format("settings_holiday_holiday_sub"),
-                checked: holidayGrey
-            ) {
-                holidayGrey = $0
-                prefs.setHolidayGreyHoliday($0)
-            }
-            divider
-            SettingToggleRow(
-                label: L10n.format("settings_holiday_weekend"),
-                subtitle: L10n.format("settings_holiday_weekend_sub"),
-                checked: weekendGrey
-            ) {
-                weekendGrey = $0
-                prefs.setHolidayGreyWeekend($0)
-            }
-            divider
-            SettingToggleRow(
-                label: L10n.format("settings_holiday_workday"),
-                subtitle: L10n.format("settings_holiday_workday_sub"),
-                checked: ignoreWorkday
-            ) {
-                ignoreWorkday = $0
-                prefs.setHolidayIgnoreWorkday($0)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .background(colors.surfaceContainer)
-        .cornerRadius(SleepyShapes.large)
-    }
-
     // ← issue#44 调休说明卡: 说明 + 卡内课表切换(局部 activeTableId, 不动全局选中)
     private var makeupCard: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -348,30 +321,7 @@ struct HolidaySettingsScreen: View {
         .cornerRadius(SleepyShapes.large)
     }
 
-    // ← 灰显样式卡: 标题行右贴 segmented tabs — 与通用设置页各平铺卡同款(用户 2026-09-04)
-    private var styleCard: some View {
-        SettingsFlatCard(
-            title: L10n.format("settings_holiday_style"),
-            options: [
-                L10n.format("settings_holiday_style_grey"),
-                L10n.format("settings_holiday_style_strikethrough")
-            ],
-            selectedIndex: Binding(
-                get: { style == "strikethrough" ? 1 : 0 },
-                set: { idx in
-                    let next = idx == 1 ? "strikethrough" : "grey"
-                    guard next != style else { return }
-                    style = next
-                    prefs.setHolidayStyle(next)
-                }
-            ),
-            onSelect: { _ in }
-        )
-    }
-
-    /// 覆盖变化时基于原始网络数据即时重合并, 不重新走网络 ← Loaded 分支。
-    /// 原版本 1.0.61 不再渲染"法定节假日/补班日"两列清单 — 放假日段直接渲染
-    /// HolidayTransferCard(逐日映射行), 补班日数据只作为下拉候选; 无节卡时不显示孤儿卡。
+    /// Mapping groups belong to the selected table; date maintenance is shared by all tables.
     @ViewBuilder
     private func segmentSections(_ entries: [HolidayEntry]) -> some View {
         let merged = HolidayRangeOps.mergeSegments(entries, overrides)
@@ -382,37 +332,83 @@ struct HolidaySettingsScreen: View {
         let workdayDates = Array(Set(workdaySegments.flatMap { datesInRange($0.startDate, $0.endDate) }))
             .sorted()
 
-        if !holidaySegments.isEmpty {
-            // issue#44 第二轮: 节卡树状视图 — 每个放假日段一张卡, 每行一个放假日 → 右侧下拉选补班日。
-            ForEach(holidaySegments, id: \.id) { seg in
-                HolidayTransferCard(
-                    segment: seg,
-                    transfers: transfers,
-                    workdayDates: workdayDates,
-                    onPick: { source, target in saveTransfer(sourceDate: source, targetDate: target, segmentId: seg.id) },
-                    // 用户 2026-09-18 定稿: 每张节卡标题行最右编辑按钮 —
-                    // 国务院数据段只许编辑持续时间(段起止), 走原 HolidayRangeEditDialog
-                    onEditSegment: { editing = resolveEditTarget(seg, userRangeIds) }
-                )
+        ForEach(holidaySegments, id: \.id) { seg in
+            // Network ids are regenerated after edits. Keep expansion attached to the source.
+            let key = "transfer:" + (seg.sourceKey ?? (userRangeIds.contains(seg.id)
+                ? seg.id : networkKeyOf(seg.type, seg.startDate)))
+            HolidayCollapsibleGroup(
+                title: seg.name.isBlank ? DateUtils.shortDateSlash(seg.startDate) : seg.name,
+                subtitle: segmentDateLabel(seg),
+                identifier: "holiday_group_" + key,
+                expanded: expandedGroups.contains(key),
+                onToggle: { toggleGroup(key) }
+            ) {
+                ForEach(datesInRange(seg.startDate, seg.endDate), id: \.self) { date in
+                    HolidayTransferRow(
+                        date: date,
+                        targetDate: transfers.last { isSameDay($0.sourceDate, date) }?.targetDate,
+                        workdayDates: workdayDates,
+                        onPick: { target in saveTransfer(sourceDate: date, targetDate: target, segmentId: seg.id) }
+                    )
+                    .accessibilityIdentifier("holiday_mapping_" + HolidayTransferOps.dayKey(date))
+                }
             }
-            // 孤儿映射: sourceDate 已不在今年任何放假日段里(改年份/换数据源后残留)。
-            // 不删 — 灰卡列出, 行尾"清除"手动处理 (用户决定 C1)
-            let yearDates = Set(holidaySegments.flatMap { datesInRange($0.startDate, $0.endDate) })
-            let orphanEntries = transfers
-                .filter { HolidayTransferOps.isOrphanFor($0, yearDates) }
-                .sorted { $0.sourceDate < $1.sourceDate }
-            if !orphanEntries.isEmpty {
-                HolidayOrphanCard(
-                    entries: orphanEntries,
-                    onClear: { source in saveTransfer(sourceDate: source, targetDate: nil, segmentId: "orphan") }
-                )
-            }
-        }
-        if !merged.removed.isEmpty {
-            SectionHeader(title: L10n.format("holiday_removed_section"))
-            HolidayRemovedCard(segments: merged.removed, onRestore: restoreRange)
         }
 
+        HolidayCollapsibleGroup(
+            title: L10n.format("settings_holiday_dates"),
+            subtitle: L10n.format("settings_holiday_dates_scope"),
+            identifier: "holiday_group_dates",
+            expanded: expandedGroups.contains("dates"),
+            onToggle: { toggleGroup("dates") }
+        ) {
+            ForEach(merged.active, id: \.id) { seg in
+                Button { editing = resolveEditTarget(seg, userRangeIds) } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(seg.name.isBlank ? segmentDateLabel(seg) : seg.name)
+                                .foregroundColor(colors.onSurface)
+                            Text(segmentDateLabel(seg))
+                                .font(.system(size: 12))
+                                .foregroundColor(colors.onSurfaceVariant)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        AndroidSettingsIcon(name: .edit, size: 24)
+                            .foregroundColor(colors.onSurfaceVariant)
+                    }
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("holiday_date_edit_" + seg.id)
+            }
+            addEntryButton
+        }
+
+        let yearDates = Set(holidaySegments.flatMap { datesInRange($0.startDate, $0.endDate) })
+        let orphans = transfers.filter { HolidayTransferOps.isOrphanFor($0, yearDates) }
+            .sorted { $0.sourceDate < $1.sourceDate }
+        if !orphans.isEmpty || !merged.removed.isEmpty {
+            HolidayCollapsibleGroup(
+                title: L10n.format("settings_holiday_maintenance"),
+                identifier: "holiday_group_maintenance",
+                expanded: expandedGroups.contains("maintenance"),
+                onToggle: { toggleGroup("maintenance") }
+            ) {
+                if !orphans.isEmpty {
+                    HolidayOrphanCard(entries: orphans, onClear: { source in
+                        saveTransfer(sourceDate: source, targetDate: nil, segmentId: "orphan")
+                    })
+                }
+                if !merged.removed.isEmpty {
+                    SectionHeader(title: L10n.format("holiday_removed_section"))
+                    HolidayRemovedCard(segments: merged.removed, onRestore: restoreRange)
+                }
+            }
+        }
+    }
+
+    private var addEntryButton: some View {
         Button {
             editing = EditingTarget(
                 range: HolidayRange(
@@ -439,11 +435,7 @@ struct HolidaySettingsScreen: View {
         .accessibilityIdentifier("holiday_add_entry")
     }
 
-    private var divider: some View {
-        Rectangle()
-            .fill(colors.outlineVariant.opacity(SleepyTheme.Alpha.hairline))
-            .frame(height: 1)
-    }
+
 }
 
 /// 网络段键: "holiday:<start>"/"workday:<start>", 与 HolidayRangeOps.mergeSegments 的命中规则一致
@@ -515,56 +507,40 @@ private func isSameDay(_ a: Date, _ b: Date) -> Bool {
     return cal.isDate(a, inSameDayAs: b)
 }
 
-/**
- * issue#44 调休映射卡: 一个放假日段一张卡。每行 = 一个放假日 → 右侧灰圆角格。
- * 右侧下拉菜单固定三项: ① 当年所有官方补班日(扁平全量, 升序, 不分组/不禁用/不猜)
- * ② 无(清除)③ 其他日期…(弹系统 DatePicker)。
- * 同目标日互斥: 已在 AppPrefs.updateHolidayTransfer → withTargetExclusivity 落实。
- * UI 不禁用任何项, 不打扰用户操作。 ← HolidayTransferCard
- */
-private struct HolidayTransferCard: View {
+private struct HolidayCollapsibleGroup<Content: View>: View {
     @Environment(\.localWakeUpColors) private var colors
-    @Environment(\.sleepyUIStyle) private var uiStyle
-    let segment: HolidayRange
-    let transfers: [HolidayTransferEntry]
-    let workdayDates: [Date]
-    let onPick: (Date, Date?) -> Void
-    let onEditSegment: () -> Void
+    let title: String
+    var subtitle: String? = nil
+    let identifier: String
+    let expanded: Bool
+    let onToggle: () -> Void
+    @ViewBuilder let content: () -> Content
 
     var body: some View {
-        let dates = datesInRange(segment.startDate, segment.endDate)
         VStack(alignment: .leading, spacing: 8) {
-            // 标题行: 段名+起止日期 | 最右编辑按钮(编辑本段持续时间)
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(segment.name.isBlank ? DateUtils.shortDateSlash(segment.startDate) : segment.name)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(colors.onSurface)
-                    Text(segmentDateLabel(segment))
-                        .font(.system(size: 12))
+            Button(action: onToggle) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(colors.onSurface)
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(.system(size: 12))
+                                .foregroundColor(colors.onSurfaceVariant)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
                         .foregroundColor(colors.onSurfaceVariant)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // 标题行最右编辑按钮 — 底部"+"按钮才是新增自定义段入口
-                Button(action: onEditSegment) {
-                    AndroidSettingsIcon(name: .edit, size: 24)
-                        .foregroundColor(colors.onSurfaceVariant)
-                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
-                .frame(width: 48, height: 48)
-                .accessibilityLabel(L10n.format("holiday_transfer_edit_segment"))
+                .frame(minHeight: 48)
+                .contentShape(Rectangle())
             }
-            ForEach(dates, id: \.self) { date in
-                HolidayTransferRow(
-                    date: date,
-                    // 后选覆盖前选 ← transfers.lastOrNull { it.sourceDate == date }
-                    targetDate: transfers.last { isSameDay($0.sourceDate, date) }?.targetDate,
-                    workdayDates: workdayDates,
-                    onPick: { picked in onPick(date, picked) }
-                )
-            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(identifier)
+            .accessibilityValue(expanded ? "expanded" : "collapsed")
+            if expanded { content() }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -868,14 +844,18 @@ private struct HolidayRangeEditDialog: View {
     private var datesValid: Bool { endDate >= startDate }
 
     var body: some View {
-        // ← 原版本 AlertDialog text Column spacedBy(12)
-        ScrollView {
+        CenteredPickerDialog(title: L10n.format(isNew ? "holiday_add_title" : "holiday_edit_title"),
+                             onDismiss: onDismiss, footer: AnyView(
+            DialogActionButtons(confirmText: L10n.format("save"), onConfirm: {
+                onSave(HolidayRange(id: target.id,
+                    name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                    startDate: startDate, endDate: endDate, type: type, sourceKey: target.sourceKey))
+            }, dismissText: L10n.format("cancel"), onDismiss: onDismiss,
+               confirmEnabled: datesValid, confirmIdentifier: "holiday_save")
+        )) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(L10n.format(isNew ? "holiday_add_title" : "holiday_edit_title"))
-                    .font(.system(size: 24)) // ← 原 AlertDialog headlineSmall 24
-                    .foregroundColor(colors.onSurface)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
+                Text(L10n.format("settings_holiday_dates_scope"))
+                    .font(.system(size: 12)).foregroundColor(colors.onSurfaceVariant)
                 // ← native iOS DatePicker(.compact): 点击展开滚轮, 系统级体验
                 //   手动 HStack 替代 LabeledContent (iOS 16+), 保持 iOS 15.6 兼容。
                 //   end 不钳制下限 — 允许 end < start, 走下方 holiday_date_invalid 提示
@@ -947,40 +927,7 @@ private struct HolidayRangeEditDialog: View {
                     .tint(colors.errorContainer)
                 }
 
-                HStack(spacing: 8) {
-                    Button(action: onDismiss) {
-                        Text(L10n.format("cancel"))
-                            .font(.system(size: 14, weight: .medium)) // ← 原 TextButton labelLarge 14sp Medium
-                            .foregroundColor(colors.onSurfaceVariant)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: uiStyle == .liquidGlass ? nil : 40)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
-                    .frame(maxWidth: .infinity, minHeight: uiStyle == .liquidGlass ? 44 : 40)
-                    Button {
-                        onSave(HolidayRange(id: target.id,
-                                            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                                            startDate: startDate, endDate: endDate,
-                                            type: type, sourceKey: target.sourceKey))
-                    } label: {
-                        Text(L10n.format("save"))
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(datesValid ? colors.onPrimary : colors.onPrimary.opacity(0.4))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: uiStyle == .liquidGlass ? nil : 40)
-                            .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: datesValid ? colors.primary : colors.primary.opacity(0.3), prominent: true)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
-                    .frame(maxWidth: .infinity, minHeight: uiStyle == .liquidGlass ? 44 : 40)
-                    .tint(datesValid ? colors.primary : colors.primary.opacity(0.3))
-                    .disabled(!datesValid)
-                    .accessibilityIdentifier("holiday_save")
-                }
             }
-            .padding(20)
         }
-        .scrollDismissesKeyboardImmediatelyCompat()
     }
 }

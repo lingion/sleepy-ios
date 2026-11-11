@@ -1378,3 +1378,6 @@
 "settings_appearance_advanced_experimental" = "Opciones avanzadas (experimentales)";
 "settings_appearance_separator_scope" = "Muestra separadores de filas y columnas en la cuadrícula de la aplicación y los widgets de cuadrícula compatibles.";
 "settings_appearance_break_scope" = "Añade espacio para los descansos largos del mediodía y la tarde en la aplicación y los widgets de cuadrícula compatibles.";
+"settings_holiday_dates" = "Gestionar fechas";
+"settings_holiday_dates_scope" = "Los intervalos de fechas se comparten entre todos los horarios. Las asignaciones de recuperación solo se aplican al horario seleccionado arriba.";
+"settings_holiday_maintenance" = "Mantenimiento";

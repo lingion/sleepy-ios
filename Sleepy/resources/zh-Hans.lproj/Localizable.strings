@@ -1379,3 +1379,6 @@
 "settings_appearance_advanced_experimental" = "高级选项（实验）";
 "settings_appearance_separator_scope" = "在应用内网格课表和相关网格小组件中显示行列分隔线。";
 "settings_appearance_break_scope" = "在应用内网格课表和相关网格小组件中，为较长的午间和晚间课间留白。";
+"settings_holiday_dates" = "日期管理";
+"settings_holiday_dates_scope" = "日期范围由所有课表共用；调休映射仅影响上方选择的课表。";
+"settings_holiday_maintenance" = "维护";

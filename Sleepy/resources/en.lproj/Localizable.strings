@@ -1378,3 +1378,6 @@
 "settings_appearance_advanced_experimental" = "Advanced options (experimental)";
 "settings_appearance_separator_scope" = "Show grid row and column separators in the app and supported grid widgets.";
 "settings_appearance_break_scope" = "Add spacing for long midday and evening breaks in the app and supported grid widgets.";
+"settings_holiday_dates" = "Manage dates";
+"settings_holiday_dates_scope" = "Date ranges are shared by all timetables. Make-up mappings apply only to the timetable selected above.";
+"settings_holiday_maintenance" = "Maintenance";
