@@ -788,16 +788,30 @@ final class UIElementAuditUITests: XCTestCase {
         revealAuditControl(calendarEntry)
         calendarEntry.tap()
         let systemAlert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
-        if systemAlert.waitForExistence(timeout: 3) {
+        let calendar = app.descendants(matching: .any)["calendar_import_dialog"].firstMatch
+        // EventKit completes only after the system permission request. On a fresh
+        // simulator the alert can arrive after the entry's initial idle period.
+        let permissionDeadline = Date().addingTimeInterval(20)
+        while Date() < permissionDeadline {
+            if systemAlert.exists { break }
+            if calendar.exists { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        }
+        if systemAlert.exists {
             let allow = systemAlert.buttons.matching(NSPredicate(format: "label IN %@", [
                 "Allow Full Access", "Allow Access to All Events", "Allow", "OK",
                 "允许完全访问", "允许访问所有日程", "允许", "好"
             ])).firstMatch
-            XCTAssertTrue(allow.waitForExistence(timeout: 5), "Calendar permission must expose an explicit allow action")
+            guard allow.waitForExistence(timeout: 5) else {
+                XCTFail("Calendar permission must expose an explicit allow action: \(systemAlert.debugDescription)")
+                return
+            }
             allow.tap()
         }
-        let calendar = app.descendants(matching: .any)["calendar_import_dialog"].firstMatch
-        XCTAssertTrue(calendar.waitForExistence(timeout: 10))
+        guard calendar.waitForExistence(timeout: 10) else {
+            XCTFail("Granting calendar access must open its configuration: \(app.debugDescription)")
+            return
+        }
         let calendarTarget = app.buttons["calendar_target_picker"].firstMatch
         revealAuditControl(calendarTarget)
         captureScreenshot("A7_calendar-target-configuration")
