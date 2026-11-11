@@ -400,7 +400,7 @@ final class SystemCalendarManager {
                     record = nil
                 } else {
                     let oldReminders = readReminder(eventId: rec.eventId) ?? []
-                    if fingerprint(old!, oldReminders) != rec.fingerprint {
+                    if !matchesManagedFingerprint(old!, oldReminders, saved: rec.fingerprint) {
                         skippedEdited += 1
                         continue
                     }
@@ -491,7 +491,7 @@ final class SystemCalendarManager {
                 continue
             }
             let reminders = readReminder(eventId: event.calendarItemExternalIdentifier) ?? []
-            guard fingerprint(event, reminders) == record.fingerprint else {
+            guard matchesManagedFingerprint(event, reminders, saved: record.fingerprint) else {
                 skippedEdited += 1  // 用户改过 → 事件与记录都保留
                 continue
             }
@@ -643,6 +643,10 @@ final class SystemCalendarManager {
         parts.append(sorted.map { "\($0.method.rawValue):\($0.minutes)" }.joined(separator: ","))
         let joined = parts.joined(separator: "\u{1F}")
         return SHA256.hash(data: Data(joined.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    func matchesManagedFingerprint(_ event: EKEvent, _ reminders: [ReminderDesc], saved: String) -> Bool {
+        fingerprint(event, reminders) == saved
     }
 
     /// ← 原版本 eventMatchesSpec: 字段逐一比对(用户没改过才重挂提醒)
