@@ -617,6 +617,41 @@ final class UIElementAuditUITests: XCTestCase {
         revealAuditControl(grid)
         grid.tap()
         XCTAssertTrue(gridCourse.waitForExistence(timeout: 10))
+        let share = app.buttons["topbar_share"].firstMatch
+        revealAuditControl(share)
+        share.tap()
+        for identifier in ["share_format_json", "share_format_text", "share_format_ics", "share_format_native"] {
+            XCTAssertTrue(app.buttons[identifier].firstMatch.waitForExistence(timeout: 10))
+        }
+        revealAuditControl(app.buttons["share_format_native"].firstMatch)
+        captureScreenshot("A9_share-formats-classic")
+    }
+
+    func testA9_OccurrenceDatePickerCanCancelCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        let course = app.descendants(matching: .any)["gridcell_1"].firstMatch
+        XCTAssertTrue(course.waitForExistence(timeout: 10))
+        course.tap()
+        let actions = app.buttons["course_occurrence_actions"].firstMatch
+        revealAuditControl(actions)
+        actions.tap()
+        let adjust = app.buttons["occurrence_adjust"].firstMatch
+        revealAuditControl(adjust)
+        adjust.tap()
+        let date = app.buttons["occurrence_date"].firstMatch
+        revealAuditControl(date)
+        let original = date.label
+        date.tap()
+        let confirm = app.buttons["date_picker_confirm"].firstMatch
+        revealAuditControl(confirm)
+        let cancel = app.buttons["date_picker_cancel"].firstMatch
+        revealAuditControl(cancel)
+        captureScreenshot("A9_occurrence-date-picker")
+        cancel.tap()
+        XCTAssertTrue(waitForAuditCondition { !confirm.exists && date.exists })
+        XCTAssertEqual(date.label, original, "Canceling the date picker must preserve the occurrence draft")
+        app.buttons["occurrence_cancel"].tap()
+        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
     }
 
     func testA9_ScheduleSettingsMiddleAndBottomCapture() {
@@ -815,6 +850,7 @@ final class UIElementAuditUITests: XCTestCase {
         let tableSlots = app.buttons["edit_table_slots_header"].firstMatch
         revealAuditControl(tableSlots)
         tableSlots.tap()
+        captureScreenshot("A7_timetable-period-times-expanded")
         let bellTab = app.buttons["seg_Bell schedule"].firstMatch
         revealAuditControl(bellTab)
         bellTab.tap()
