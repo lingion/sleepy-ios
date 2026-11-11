@@ -74,10 +74,12 @@ final class SchoolSelectUITests: XCTestCase {
     }
 
     func testUnverifiedSchoolRequiresCatalogNoticeAndCloseReturnsToSelection() {
+        // The bundled catalog explicitly marks this routable entry as unverified.
+        let unverifiedSchool = "阿坝师范学院"
         let search = app.descendants(matching: .any)["school_search"]
         search.tap()
-        search.typeText("佳木斯大学")
-        let row = app.staticTexts["佳木斯大学"].firstMatch
+        search.typeText(unverifiedSchool)
+        let row = app.staticTexts[unverifiedSchool].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
         let notice = app.descendants(matching: .any)["jw_catalog_notice_dialog"].firstMatch
