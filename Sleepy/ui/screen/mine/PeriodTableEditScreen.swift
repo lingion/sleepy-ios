@@ -357,8 +357,7 @@ struct PeriodTableEditScreen: View {
             return
         }
         error = nil
-        let smartConfigJson = (try? JSONEncoder().encode(smartConfig))
-            .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let smartConfigJson = encodeMatchingSmartPeriodConfig(rows: slotRows, stored: smartConfig)
         let newTimeJson = TimeTableUtils.buildTimeJsonFromRows(slotRows)
         var updated = periodTable
         // ← ktl L299 name.ifBlank: Kotlin isBlank 覆盖 \n/\r 等全部空白符, .whitespacesAndNewlines 等价
