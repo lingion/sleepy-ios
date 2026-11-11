@@ -131,8 +131,7 @@ struct GeneralSettingsScreen: View {
                     .appendingPathComponent(fileName)
                 try result.bytes.write(to: url)
                 await MainActor.run {
-                    // migrationBusy 保持 true 直到保存面板出结果(busy 锁到
-                    // exportLauncher 回调; iOS 对「用户取消」额外解锁, 防卡死)
+                    // Keep the lock until the save panel finishes or is dismissed.
                     exportURL = url
                     showExportPicker = true
                 }
@@ -258,11 +257,16 @@ struct GeneralSettingsScreen: View {
                     case .success:
                         migrationToast = L10n.format("settings_migration_export_ok")
                     case .failure(let error):
-                        // 用户取消面板 = CancellationError(静默, ← 原版本 uri==null 早退)
+                        // Reported cancellation errors are also silent.
                         if error is CancellationError { return }
                         NSLog("SleepyMigration: export failed: %@", String(describing: error))
                         migrationToast = L10n.format("settings_migration_export_fail")
                     }
+                }
+                .onChange(of: showExportPicker) { presented in
+                    // fileExporter dismisses on cancellation without invoking
+                    // its completion handler. Release the lock in both paths.
+                    if !presented { migrationBusy = false }
                 }
                 // ← 原版本 OpenDocument(["application/zip","application/octet-stream"])
                 //   = UTType.zip + UTType.data(octet-stream); .sleepybackup 内容即 zip,
