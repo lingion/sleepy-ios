@@ -68,8 +68,9 @@ jobs:
     timeout-minutes: 120
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
-        suite: [unit-drag, ui-settings, ui-workflows]
+        suite: [unit-drag, ui-settings, ui-secondary, ui-editor, ui-workflows]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,6 +85,7 @@ jobs:
           git config --global url.https://github.com/.insteadOf https://gh.qdp.qzz.io/
           xcodebuild -version | tee build/ci/xcode.log
           xcodegen generate --spec project.yml
+          python3 scripts/ci-ui-test-selectors.py --check | tee build/ci/ui-suite-coverage.log
           cp Sleepy.xcodeproj/project.pbxproj build/ci/project.pbxproj
           xcrun simctl list devices available -j > build/ci/devices.json
           python3 - <<'PY'
@@ -130,32 +132,21 @@ jobs:
             -only-testing:SleepyUITests/CourseDragUITests \
             -resultBundlePath build/ci/drag.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/drag.log
-      - name: Run settings and control UI acceptance
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.suite == 'ui-settings' }}
+      - name: Run UI acceptance suite
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.suite != 'unit-drag' }}
         shell: bash
         run: |
           set -euo pipefail
+          python3 scripts/ci-ui-test-selectors.py "${{ matrix.suite }}" > build/ci/ui-selectors.txt
+          selectors=()
+          while IFS= read -r selector; do
+            selectors+=("$selector")
+          done < build/ci/ui-selectors.txt
+          test "${#selectors[@]}" -gt 0
           xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
-            -only-testing:SleepyUITests/MineSettingsUITests \
-            -only-testing:SleepyUITests/UIElementAuditUITests \
-            -only-testing:SleepyUITests/WatchTimeStripSettingsUITests \
-            -resultBundlePath build/ci/ui.xcresult \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/ui.log
-      - name: Run remaining UI acceptance
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.suite == 'ui-workflows' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
-            -only-testing:SleepyUITests -skip-testing:SleepyUITests/CourseDragUITests \
-            -skip-testing:SleepyUITests/MineSettingsUITests \
-            -skip-testing:SleepyUITests/UIElementAuditUITests \
-            -skip-testing:SleepyUITests/WatchTimeStripSettingsUITests \
-            -resultBundlePath build/ci/ui.xcresult \
+            "${selectors[@]}" -resultBundlePath build/ci/ui.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/ui.log
       - name: Upload logs and result bundles
         if: always()
