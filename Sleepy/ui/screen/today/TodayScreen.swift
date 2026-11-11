@@ -304,7 +304,7 @@ private struct TodayCourseCard: View {
         let isDark = CourseColorUtil.isPaletteDark(palette)
         let bg = CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: groupRows.isEmpty ? [course] : groupRows,
-            isDark: isDark, neutralColor: colors.surfaceVariant,
+            isDark: isDark, neutralColor: colors.secondaryContainer,
             colorless: AppPrefs.shared.isCourseColorless(),
             persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         let fg = CourseColorUtil.textColorOn(bg: bg, isDark: isDark, onSurface: colors.onSurface)
