@@ -33,7 +33,8 @@ final class UIElementAuditUITests: XCTestCase {
 
     // MARK: - 辅助方法
 
-    private func launchApp(language: String = "zh-Hans", appearance: String = "light", uiStyle: String? = nil) {
+    private func launchApp(language: String = "zh-Hans", appearance: String = "light", uiStyle: String? = nil,
+                           extraArguments: [String] = []) {
         app = XCUIApplication()
         // 主题: -theme_mode <light|dark> 作为 launch argument 会落入 UserDefaults.standard,
         //       AppPrefs.getThemeMode() 直接读到 → 无需触碰模拟器全局外观
@@ -46,6 +47,7 @@ final class UIElementAuditUITests: XCTestCase {
             "-theme_mode", appearance == "dark" ? "dark" : "light"
         ]
         if let uiStyle { app.launchArguments += ["-ui_style", uiStyle] }
+        app.launchArguments += extraArguments
         app.sleepyLaunch()
 
         // 等待 Pill 栏出现(种子后)
@@ -592,14 +594,15 @@ final class UIElementAuditUITests: XCTestCase {
     // MARK: - A.9 Remaining schedule and widget navigation surfaces
 
     func testA9_ScheduleViewsAndTopTablePickerCapture() {
-        launchApp(language: "en", uiStyle: "classic")
+        launchApp(language: "en", uiStyle: "classic", extraArguments: ["-show_view_switcher", "YES"])
         let gridCourse = app.descendants(matching: .any)["gridcell_1"].firstMatch
         XCTAssertTrue(gridCourse.waitForExistence(timeout: 10))
         captureScreenshot("A9_schedule-grid")
         let switchTable = app.buttons["switch_table"].firstMatch
         revealAuditControl(switchTable)
         switchTable.tap()
-        let table = app.buttons["switch_table_1"].firstMatch
+        let table = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'switch_table_' AND label CONTAINS %@", "我的课表")).firstMatch
         revealAuditControl(table)
         XCTAssertTrue(table.label.contains("我的课表"))
         captureScreenshot("A9_schedule-top-table-picker")
@@ -659,7 +662,7 @@ final class UIElementAuditUITests: XCTestCase {
     // MARK: - A.8 Theme and whole-course editor surfaces
 
     func testA8_CustomThemeRolesAndNativePickerCapture() {
-        launchApp(language: "en", uiStyle: "classic")
+        launchApp(language: "en", uiStyle: "classic", extraArguments: ["-course_colorless", "NO"])
         openMineSetting("mine_appearance", assertAnchor: "theme_system_card")
         let create = app.buttons["theme_new_entry"].firstMatch
         revealAuditControl(create)
