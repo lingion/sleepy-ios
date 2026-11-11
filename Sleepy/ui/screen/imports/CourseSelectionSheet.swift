@@ -17,42 +17,123 @@ struct CourseSelectionSheet: View {
     }
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                HStack {
-                    Text(L10n.format("select_courses_count", selected.count, groups.count))
-                        .font(.system(size: 12)).foregroundColor(colors.onSurfaceVariant)
-                    Spacer()
-                    Button(L10n.format(selected.count == groups.count ? "select_courses_none" : "select_courses_all")) {
-                        selected = selected.count == groups.count ? [] : Set(groups.map(\.id))
+        VStack(spacing: 0) {
+            selectionTopBar
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                        selectionRow(for: group)
+                        .background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
+                        .accessibilityIdentifier("select_course#\(index)")
+                        .accessibilityValue(selected.contains(group.id) ? "1" : "0")
+                        .accessibilityAddTraits(selected.contains(group.id) ? .isSelected : [])
                     }
-                    .accessibilityIdentifier("import_select_all")
                 }
-                .padding(16)
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
-                            selectionRow(for: group)
-                            .background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
-                            .accessibilityIdentifier("select_course#\(index)")
-                            .accessibilityValue(selected.contains(group.id) ? "1" : "0")
-                            .accessibilityAddTraits(selected.contains(group.id) ? .isSelected : [])
-                        }
-                    }
-                    .padding(.horizontal, 16).padding(.bottom, 16)
-                }
-                Button(L10n.format("import_confirm")) { onConfirm(selected) }
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(colors.onPrimary).frame(maxWidth: .infinity).frame(height: 48)
-                    .background(selected.isEmpty ? colors.onSurfaceVariant : colors.primary)
-                    .cornerRadius(SleepyShapes.large).padding(16)
-                    .disabled(selected.isEmpty).accessibilityIdentifier("import_select_confirm")
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
-            .background(colors.surface).navigationTitle(L10n.format("select_courses_title"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .navigationBarLeading) { Button(L10n.format("cancel"), action: onDismiss) } }
         }
-        .navigationViewStyle(.stack)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(colors.background.ignoresSafeArea())
+        .accessibilityAction(.escape, onDismiss)
+    }
+
+    private var selectionTopBar: some View {
+        Group {
+            if #available(iOS 16.0, *) {
+                ViewThatFits(in: .horizontal) {
+                    inlineSelectionTopBar
+                    stackedSelectionTopBar
+                }
+            } else {
+                stackedSelectionTopBar
+            }
+        }
+        .padding(.horizontal, 4)
+        .background(colors.background)
+    }
+
+    private var inlineSelectionTopBar: some View {
+        HStack(spacing: 0) {
+            selectionBackButton
+            selectionHeading
+                .fixedSize(horizontal: true, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 4)
+            selectionActions
+                .fixedSize(horizontal: true, vertical: true)
+        }
+        .frame(minHeight: 64)
+    }
+
+    private var stackedSelectionTopBar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                selectionBackButton
+                selectionHeading
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 4)
+            }
+            .frame(minHeight: 64)
+            selectionActions
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    private var selectionBackButton: some View {
+        Button(action: onDismiss) {
+            AndroidSettingsIcon(name: .arrowBack, size: 24)
+                .foregroundColor(colors.onBackground)
+                .frame(width: 48, height: 48)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.format("cancel"))
+        .accessibilityIdentifier("import_select_cancel")
+    }
+
+    private var selectionHeading: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.format("select_courses_title"))
+                .font(.system(size: 22))
+                .foregroundColor(colors.onBackground)
+                .accessibilityAddTraits(.isHeader)
+            Text(L10n.format("select_courses_count", selected.count, groups.count))
+                .font(.system(size: 11))
+                .foregroundColor(colors.onSurfaceVariant)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var selectionActions: some View {
+        HStack(spacing: 0) {
+            Button {
+                selected = selected.count == groups.count ? [] : Set(groups.map(\.id))
+            } label: {
+                Text(L10n.format(selected.count == groups.count ? "select_courses_none" : "select_courses_all"))
+                    .font(.system(size: 14, weight: .medium))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
+                    .frame(minWidth: 48, minHeight: 48)
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(colors.primary)
+            .accessibilityIdentifier("import_select_all")
+
+            Button { onConfirm(selected) } label: {
+                Text(L10n.format("import_confirm"))
+                    .font(.system(size: 14, weight: .medium))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
+                    .frame(minWidth: 48, minHeight: 48)
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(selected.isEmpty ? colors.onSurface.opacity(0.38) : colors.primary)
+            .disabled(selected.isEmpty)
+            .accessibilityIdentifier("import_select_confirm")
+        }
     }
 
     @ViewBuilder
@@ -94,7 +175,7 @@ struct CourseSelectionSheet: View {
                 metadata(group.teacher, icon: .person)
             }
             ForEach(group.rooms, id: \.self) { metadata($0, icon: .locationOn) }
-            Text(L10n.format("course_list_arrangements", group.rows.count)).font(.system(size: 12))
+            Text(L10n.format("course_list_arrangements", group.rows.count)).font(.system(size: 11))
         }
         .foregroundColor(colors.onSurfaceVariant)
         .frame(maxWidth: .infinity, alignment: .leading)

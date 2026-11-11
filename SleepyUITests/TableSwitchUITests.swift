@@ -1,7 +1,7 @@
 // TableSwitchUITests.swift — 表切换/新建/删除全链路测试(AllTables 深挖)
-// 导航语义(与 原版本 MainActivity.kt:220-224 一致):
-//   新建→编辑页; back=discard(pendingNewTableId); save=overlay 全关→Mine;
-//   delete=overlay 全关→Schedule 页; AllTables 行点击非当前表=切换+onBack→Mine。
+// 导航语义(与 Android v1.0.64 SleepyNavHost 的 navigator.pop() 一致):
+//   新建→编辑页; back=discard(pendingNewTableId)→AllTables; save→AllTables;
+//   delete→AllTables(根Tab切至Schedule); 行点击非当前表=留在AllTables并更新选中态。
 //   删除/切表后回退与刷新由 observeAllTables sink 驱动(异步)。
 //   因此动作后重新走 mine_all_tables 进列表复查, 不假设停留页内容。
 
@@ -36,7 +36,7 @@ final class TableSwitchUITests: XCTestCase {
                       "未进入 All Schedules 列表页")
     }
 
-    /// 在 AllTables 页新建表+命名+保存(onSaved → Mine)。
+    /// 在 AllTables 页新建表+命名+保存，并验证真实父列表及当前表保持。
     private func createNamedTable(_ name: String) {
         app.buttons["New Schedule"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Edit Schedule"].waitForExistence(timeout: 5),
@@ -48,12 +48,31 @@ final class TableSwitchUITests: XCTestCase {
         // → 先退格清空再输入, 保证表名恰为 name
         for _ in 0..<15 { nameField.typeText("\u{8}") }
         nameField.typeText(name)
+        let named = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", name),
+                                             object: nameField)
+        XCTAssertEqual(XCTWaiter.wait(for: [named], timeout: 5), .completed)
         app.swipeUp()
         let save = app.descendants(matching: .any)["edit_table_save"]
         XCTAssertTrue(save.waitForExistence(timeout: 4))
         save.tap()
-        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 6),
-                      "保存后应回 Mine 页")
+        let savedRow = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'table_select_' AND label == %@", name)).firstMatch
+        XCTAssertTrue(savedRow.waitForExistence(timeout: 6), "保存后应回到包含新课表的父列表")
+        XCTAssertFalse(app.buttons["edit_table_save"].exists)
+        assertCurrentTable("我的课表")
+        backToMine()
+    }
+
+    private func assertCurrentTable(_ name: String,
+                                    file: StaticString = #filePath, line: UInt = #line) {
+        let row = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'table_select_' AND label == %@", name)).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), file: file, line: line)
+        let current = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Current · Week'"))
+        XCTAssertTrue(current.firstMatch.waitForExistence(timeout: 5), file: file, line: line)
+        XCTAssertEqual(current.count, 1, file: file, line: line)
+        XCTAssertLessThan(abs(current.firstMatch.frame.midY - row.frame.midY), 40,
+                          "当前课表必须是指定的同一行", file: file, line: line)
     }
 
     /// 断言 AllTables 列表包含给定表名, 且恰一行是当前表(唯一 "Current · Week N" 副标题)。
@@ -68,15 +87,16 @@ final class TableSwitchUITests: XCTestCase {
             NSPredicate(format: "label BEGINSWITH 'Current · Week'"))
         XCTAssertEqual(currentSubtitles.count, 1,
                        "应恰有一个当前表副标题", file: file, line: line)
-        // 当前行 = 当前表名 + Current 副标题同屏: 用行结构验证 — 当前表行内副标题
-        // 与表名不同元素, 直接断言当前表名元素存在即可(上方已查), 这里验证
-        // 非当前表副标题形如 "Start: yyyy-MM-dd"
+        // 非当前行显示 Start，当前副标题必须落在指定课表的同一行。
         if names.count > 1 {
             let startSubs = app.staticTexts.matching(
                 NSPredicate(format: "label BEGINSWITH 'Start: '"))
             XCTAssertEqual(startSubs.count, names.count - 1,
                            "非当前表应有 Start: 副标题", file: file, line: line)
         }
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_select_'" )).count,
+                       names.count, "课表集合不得多出临时表", file: file, line: line)
+        assertCurrentTable(current, file: file, line: line)
         // 回到 Mine, 保持状态干净
         app.descendants(matching: .any)["topbar_back"].firstMatch.tap()
         XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
@@ -121,10 +141,13 @@ final class TableSwitchUITests: XCTestCase {
         openAllTables()
         app.buttons["New Schedule"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Edit Schedule"].waitForExistence(timeout: 5))
-        // handleBack: pendingNewTableId != nil → discard + overlay 关 → Mine
+        // handleBack: pendingNewTableId != nil → discard → AllTables 父列表
         app.descendants(matching: .any)["topbar_back"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 6),
-                      "discard 后应回 Mine")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'table_select_' AND label == %@", "我的课表"))
+            .firstMatch.waitForExistence(timeout: 6), "discard 后应回 AllTables 父列表")
+        XCTAssertFalse(app.buttons["edit_table_save"].exists)
+        backToMine()
         // 库中仍只有种子表
         assertList(["我的课表"], current: "我的课表")
     }
@@ -161,7 +184,7 @@ final class TableSwitchUITests: XCTestCase {
                       "切回种子表后课程应恢复")
     }
 
-    // MARK: 3. 删除非当前表 → 确认 Delete → 回 Schedule 页 + 回退默认表课程恢复
+    // MARK: 3. 删除非当前表 → 父列表 → 返回 Schedule 并验证原课程
 
     func testDeleteNonDefaultTableFallsBackToDefault() {
         openAllTables()
@@ -198,7 +221,14 @@ final class TableSwitchUITests: XCTestCase {
         let delBtn = app.buttons.matching(NSPredicate(format: "label == 'Delete'")).firstMatch
         XCTAssertTrue(delBtn.waitForExistence(timeout: 3))
         delBtn.tap()
-        // onDeleted: overlay 全关 + currentTab = .schedule → Schedule 页
+        // onDeleted: pop 回真实父列表，根Tab切至Schedule；返回后检查课程联动。
+        XCTAssertTrue(app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'table_select_' AND label == %@", "我的课表"))
+            .firstMatch.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["C表"].exists)
+        XCTAssertFalse(app.buttons["edit_table_save"].exists)
+        assertCurrentTable("我的课表")
+        app.buttons["topbar_back"].tap()
         XCTAssertTrue(courseElement("高等数学").waitForExistence(timeout: 8),
                       "删除 C表 后应回退默认表, 课程恢复")
         // 列表只剩种子表

@@ -2,6 +2,38 @@ import Foundation
 
 /// Android v1.0.63: preview and commit share the same time and conflict policy.
 enum CourseImportPolicy {
+    /// Appending courses never edits a bell schedule shared by other timetables.
+    static func timeJsonForAppend(current: String, incoming: String, requiredNodes: Int, bound: Bool) -> String {
+        bound ? current : mergeTimeJson(current: current, incoming: incoming, requiredNodes: requiredNodes)
+    }
+
+    struct MissingPeriod: LocalizedError {
+        let node: Int64
+        var errorDescription: String? { L10n.format("slot_time_required", node) }
+    }
+
+    static func requirePeriodCoverage(_ courses: [CourseEntity], timeJson: String) throws {
+        if let node = TimeTableUtils.firstMissingCourseNode(courses: courses, rows: TimeTableUtils.parseTimeSlotRows(timeJson)) {
+            throw MissingPeriod(node: node)
+        }
+    }
+
+    /// Legacy import defaults can give adjacent nodes the same interval.
+    /// Confirmation validates each clock range; bell-schedule editors remain stricter.
+    static func validateConfirmationRows(_ rows: [TimeTableUtils.TimeSlotRow]) -> TimeTableUtils.PeriodValidationResult {
+        guard !rows.isEmpty else { return .empty }
+        for row in rows {
+            guard let start = TimeTableUtils.parsePeriodClock(row.start),
+                  let end = TimeTableUtils.parsePeriodClock(row.end) else {
+                return .invalidFormat(node: row.node, rawStart: row.start, rawEnd: row.end)
+            }
+            guard end > start else {
+                return .endBeforeStart(node: row.node, start: row.start, end: row.end)
+            }
+        }
+        return .valid
+    }
+
     static func mergeTimeJson(current: String, incoming: String, requiredNodes: Int) -> String {
         let currentRows = current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : TimeTableUtils.parseTimeSlotRows(current)
         let incomingRows = incoming.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : TimeTableUtils.parseTimeSlotRows(incoming)

@@ -45,6 +45,7 @@ enum SleepyRoute: Equatable {
     case courseList
     case editTable(tableId: Int64 = SleepyRoute.NO_ID, pendingNew: Int64 = SleepyRoute.NO_ID, prevDefault: Int64 = SleepyRoute.NO_ID)
     case appearance
+    case scheduleDisplay
     case periodHeaderSettings
     case general
     case holiday
@@ -79,6 +80,8 @@ extension SleepyRoute {
             return .editTable
         case .appearance:
             return .theme
+        case .scheduleDisplay:
+            return .scheduleDisplay
         case .general:
             return .general
         case .export:
@@ -117,7 +120,7 @@ extension SleepyRoute {
     /// (by design, 非缺口).
     var isIOSPorted: Bool {
         switch self {
-        case .addCourse, .allTables, .editTable, .appearance,
+        case .addCourse, .allTables, .editTable, .appearance, .scheduleDisplay,
              .general, .export, .reminder, .about, .license,
              .courseList, .periodTables, .periodEdit, .periodHeaderSettings:
             return true

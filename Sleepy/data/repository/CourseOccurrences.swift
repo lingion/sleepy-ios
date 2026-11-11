@@ -110,6 +110,26 @@ enum CourseOccurrences {
         return row
     }
 
+    /// Keeping the displayed date preserves provenance; choosing another date starts
+    /// a one-week timetable entry whose holiday destination must be reviewed.
+    static func replacementForEdit(_ edited: CourseEntity, occurrence: CourseOccurrence,
+                                   selectedDate: Date, table: TimeTableEntity) throws -> CourseEntity {
+        let unchanged = HolidayTransferOps.dayKey(selectedDate) == HolidayTransferOps.dayKey(occurrence.displayDate)
+        return try atDate(edited, date: unchanged ? occurrence.sourceDate : selectedDate,
+                          table: table, fixed: unchanged && occurrence.course.fixedDate != nil)
+    }
+
+    enum DateApproval: Equatable { case none, destination, outgoing }
+
+    static func dateApproval(originalDate: Date, selectedDate: Date,
+                             transfers: [HolidayTransferEntry]) -> DateApproval {
+        let selected = HolidayTransferOps.dayKey(selectedDate)
+        guard selected != HolidayTransferOps.dayKey(originalDate) else { return .none }
+        if transfers.contains(where: { HolidayTransferOps.dayKey($0.targetDate) == selected }) { return .destination }
+        if transfers.contains(where: { HolidayTransferOps.dayKey($0.sourceDate) == selected }) { return .outgoing }
+        return .none
+    }
+
     static func dates(table: TimeTableEntity, transfers: [HolidayTransferEntry]) -> [Date] {
         guard table.maxWeek > 0, table.maxWeek <= 10_000 else { return [] }
         var dates: Set<Date> = []
@@ -179,23 +199,30 @@ enum CourseOccurrences {
     static func conflictDetails(drafts: [CourseEntity], stored: [CourseEntity],
                                 table: TimeTableEntity, transfers: [HolidayTransferEntry]) -> [String] {
         var details: [String] = []
+        let dayNames = (1...7).map(DateUtils.localizedDay)
+        let template = L10n.t("conflict_detail_line")
         for date in dates(table: table, transfers: transfers) {
-            let incoming = coursesForDate(date, startDate: table.startDate, maxWeek: table.maxWeek,
-                                           courses: drafts, transfers: transfers)
-            let existing = coursesForDate(date, startDate: table.startDate, maxWeek: table.maxWeek,
-                                           courses: stored, transfers: transfers)
-            for (index, row) in incoming.enumerated() {
-                for other in existing + Array(incoming.dropFirst(index + 1)) {
-                    let a = TimeTableUtils.effectiveCourseTime(isIrregularTime: row.ownTime || row.isIrregularTime,
-                        startTime: row.startTime, endTime: row.endTime, startNode: row.startNode, step: row.step, timeJson: table.timeJson)
-                    let b = TimeTableUtils.effectiveCourseTime(isIrregularTime: other.ownTime || other.isIrregularTime,
-                        startTime: other.startTime, endTime: other.endTime, startNode: other.startNode, step: other.step, timeJson: table.timeJson)
-                    guard let a, let b, let aStart = TimeTableUtils.hmToSeconds(a.0), let aEnd = TimeTableUtils.hmToSeconds(a.1),
-                          let bStart = TimeTableUtils.hmToSeconds(b.0), let bEnd = TimeTableUtils.hmToSeconds(b.1),
-                          aStart < bEnd, bStart < aEnd else { continue }
-                    let detail = "\(HolidayTransferOps.dayKey(date)) · \(row.courseName) / \(other.courseName) · \(a.0)-\(a.1)"
-                    if !details.contains(detail) { details.append(detail) }
+            let displayWeek = week(startDate: table.startDate, date: date) ?? 1
+            func projected(_ rows: [CourseEntity]) -> [CourseEntityLite] {
+                coursesForDate(date, startDate: table.startDate, maxWeek: table.maxWeek,
+                               courses: rows, transfers: transfers).map { row in
+                    CourseEntityLite(courseName: row.courseName, day: day(date),
+                        startNode: row.startNode, step: row.step, startWeek: displayWeek, endWeek: displayWeek, type: 0,
+                        ownTime: row.ownTime, startTime: row.startTime, endTime: row.endTime,
+                        isIrregularTime: row.isIrregularTime, isIrregularNode: row.isIrregularNode)
                 }
+            }
+            let incoming = projected(drafts)
+            let existing = projected(stored)
+            var conflicts = ConflictDetailReporter.draftConflictDetails(drafts: incoming, stored: existing,
+                dayNames: dayNames, timeJson: table.timeJson)
+            for (index, row) in incoming.enumerated() {
+                conflicts += ConflictDetailReporter.draftConflictDetails(drafts: [row], stored: Array(incoming.dropFirst(index + 1)),
+                    dayNames: dayNames, timeJson: table.timeJson)
+            }
+            for conflict in conflicts {
+                let detail = "\(HolidayTransferOps.dayKey(date)) · \(ConflictDetailReporter.formatDetail(conflict, template: template))"
+                if !details.contains(detail) { details.append(detail) }
             }
         }
         return details

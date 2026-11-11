@@ -10,6 +10,7 @@ struct CourseOccurrenceEditor: View {
     let onSaved: () -> Void
     let onDismiss: () -> Void
 
+    @State private var editing: Bool
     @State private var date: Date
     @State private var node: Int
     @State private var step: Int
@@ -17,7 +18,6 @@ struct CourseOccurrenceEditor: View {
     @State private var start: String
     @State private var end: String
     @State private var room: String
-    @State private var fixed: Bool
     @State private var error: String?
     @State private var busy = false
     @State private var prompt: Prompt?
@@ -26,7 +26,7 @@ struct CourseOccurrenceEditor: View {
     @State private var pickerDate = Date()
     @FocusState private var focusedTime: String?
 
-    private enum Prompt { case destination, hidden, outgoing, conflicts, delete }
+    private enum Prompt: Equatable { case destination, hidden, outgoing, conflicts, delete }
     private struct PendingSave {
         var replacement: CourseEntity?
         let courses: [CourseEntity]
@@ -36,12 +36,13 @@ struct CourseOccurrenceEditor: View {
     }
 
     init(occurrence: CourseOccurrence, table: TimeTableEntity, repository: ScheduleRepository,
-         onSaved: @escaping () -> Void, onDismiss: @escaping () -> Void) {
+         onSaved: @escaping () -> Void, onDismiss: @escaping () -> Void, startInEdit: Bool = false) {
         self.occurrence = occurrence
         self.table = table
         self.repository = repository
         self.onSaved = onSaved
         self.onDismiss = onDismiss
+        _editing = State(initialValue: startInEdit)
         let row = occurrence.course
         let range = TimeTableUtils.effectiveCourseTime(isIrregularTime: row.ownTime || row.isIrregularTime,
             startTime: row.startTime, endTime: row.endTime, startNode: row.startNode, step: row.step, timeJson: table.timeJson)
@@ -52,21 +53,65 @@ struct CourseOccurrenceEditor: View {
         _start = State(initialValue: range?.0 ?? "08:00")
         _end = State(initialValue: range?.1 ?? "09:40")
         _room = State(initialValue: row.room)
-        _fixed = State(initialValue: row.fixedDate != nil)
     }
 
     var body: some View {
+        Group {
+            if editing {
+                editForm.sheetDetents([.large])
+            } else {
+                actionMenu
+            }
+        }
+        .background(colors.surface.ignoresSafeArea())
+        .accentColor(colors.primary)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("occurrence_editor")
+        .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
+            promptButtons
+        } message: { Text(promptMessage) }
+        .sheet(isPresented: $showDatePicker) { datePickerSheet }
+    }
+
+    private var actionMenu: some View {
+        ContentFittingSheet {
+            VStack(alignment: .leading, spacing: 12) {
+                occurrenceHeading
+                actionButton("occurrence_adjust",
+                             container: colors.secondaryContainer, content: colors.onSecondaryContainer) {
+                    editing = true
+                }
+                actionButton("occurrence_delete", container: colors.errorContainer, content: colors.onErrorContainer) {
+                    prepare(delete: true)
+                }
+                if let error {
+                    Text(error).foregroundColor(colors.error).accessibilityIdentifier("occurrence_error")
+                }
+                Spacer().frame(height: 16)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .disabled(busy)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("occurrence_menu")
+        }
+    }
+
+    private var occurrenceHeading: some View {
+        Group {
+            Text(occurrence.course.courseName).font(.system(size: 22))
+            Text("\(HolidayTransferOps.dayKey(occurrence.displayDate)) · \(occurrence.course.nodeString())")
+                .font(.system(size: 16))
+        }
+    }
+
+    private var editForm: some View {
         NavigationView {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(occurrence.course.alias.isEmpty ? occurrence.course.courseName : occurrence.course.alias)
-                            .font(.system(size: 22))
-                        Text("\(HolidayTransferOps.dayKey(occurrence.displayDate)) · \(occurrence.course.nodeString())")
-                            .font(.system(size: 16))
+                        occurrenceHeading
                         dateCard
-                        Toggle(L10n.format("occurrence_fixed_date"), isOn: $fixed)
-                            .toggleStyle(OccurrenceCheckboxStyle(identifier: "occurrence_fixed_date"))
                         if hasStandardRange {
                             let shown = IntSliderRange(start: node, end: node + max(step, 1) - 1,
                                                        minimum: 1, maximum: maximumStandardNode)
@@ -106,7 +151,6 @@ struct CourseOccurrenceEditor: View {
                             Text(error).foregroundColor(colors.error).accessibilityIdentifier("occurrence_error")
                         }
                         actionButton("occurrence_save", container: colors.primary, content: colors.onPrimary) { prepare(delete: false) }
-                        actionButton("occurrence_delete", container: colors.errorContainer, content: colors.onErrorContainer) { prepare(delete: true) }
                         Spacer().frame(height: 16)
                     }
                     .padding(20)
@@ -131,15 +175,9 @@ struct CourseOccurrenceEditor: View {
                             .accessibilityIdentifier("occurrence_cancel")
                     }
                 }
-                .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
-                    promptButtons
-                } message: { Text(promptMessage) }
-                .sheet(isPresented: $showDatePicker) { datePickerSheet }
             }
         }
         .navigationViewStyle(.stack)
-        .accentColor(colors.primary)
-        .accessibilityIdentifier("occurrence_editor")
     }
     private func revealFocusedTime(using proxy: ScrollViewProxy) {
         guard let key = focusedTime else { return }
@@ -250,20 +288,20 @@ struct CourseOccurrenceEditor: View {
             .accessibilityLabel(L10n.format(key)).accessibilityIdentifier(key).id(key)
     }
     @ViewBuilder
-    private func actionButton(_ key: String, container: Color, content: Color, action: @escaping () -> Void) -> some View {
+    private func actionButton(_ key: String, identifier: String? = nil, container: Color, content: Color, action: @escaping () -> Void) -> some View {
         if style == .liquidGlass {
             Button(role: key == "occurrence_delete" ? .destructive : nil, action: action) {
-                Text(L10n.format(key)).frame(maxWidth: .infinity)
+                Text(L10n.format(key)).foregroundColor(content).frame(maxWidth: .infinity)
             }
             .buttonStyle(SleepyPlatformButtonStyle(prominent: key == "occurrence_save"))
             .controlSize(.large)
-            .tint(key == "occurrence_delete" ? colors.error : colors.primary)
-            .accessibilityIdentifier(key)
+            .tint(key == "occurrence_delete" ? colors.error : key == "occurrence_adjust" ? colors.secondary : colors.primary)
+            .accessibilityIdentifier(identifier ?? key)
         } else {
             Button(action: action) {
                 Text(L10n.format(key)).font(.system(size: 14, weight: .medium)).foregroundColor(content)
                     .frame(maxWidth: .infinity).frame(height: 48).background(container).clipShape(Capsule())
-            }.buttonStyle(SleepyButtonStyle()).accessibilityIdentifier(key)
+            }.buttonStyle(SleepyButtonStyle()).accessibilityIdentifier(identifier ?? key)
         }
     }
 
@@ -283,11 +321,15 @@ struct CourseOccurrenceEditor: View {
     }
     private var promptMessage: String {
         switch prompt {
-        case .destination: return L10n.format("occurrence_destination_message")
-        case .hidden: return L10n.format("occurrence_hidden_message")
+        case .destination, .hidden:
+            let selectedDay = HolidayTransferOps.dayKey(date)
+            let source = pending?.transfers.last { HolidayTransferOps.dayKey($0.targetDate) == selectedDay }?.sourceDate
+            return L10n.format(prompt == .destination ? "occurrence_destination_message" : "occurrence_hidden_message",
+                               occurrence.course.courseName, selectedDay, source.map(HolidayTransferOps.dayKey) ?? "")
         case .outgoing:
             let target = pending?.transfers.last { HolidayTransferOps.dayKey($0.sourceDate) == HolidayTransferOps.dayKey(date) }?.targetDate
-            return L10n.format("occurrence_outgoing_message", target.map(HolidayTransferOps.dayKey) ?? L10n.format("occurrence_transfer_day"))
+            return L10n.format("occurrence_outgoing_message", occurrence.course.courseName, HolidayTransferOps.dayKey(date),
+                               target.map(HolidayTransferOps.dayKey) ?? L10n.format("occurrence_transfer_day"))
         case .conflicts: return pending?.conflicts.joined(separator: "\n") ?? ""
         case .delete: return "\(occurrence.course.courseName)\n\(HolidayTransferOps.dayKey(occurrence.displayDate)) · \(occurrence.course.nodeString())"
         case nil: return ""
@@ -297,9 +339,9 @@ struct CourseOccurrenceEditor: View {
         switch prompt {
         case .destination:
             Button(L10n.format("occurrence_follow_transfer")) { chooseDestination(follow: true) }
-            Button(L10n.format("occurrence_keep_date")) { present(.hidden) }
+            Button(L10n.format("occurrence_direct")) { present(.hidden) }
         case .hidden:
-            Button(L10n.format("occurrence_keep_date"), role: .destructive) { checkConflicts() }
+            Button(L10n.format("occurrence_direct_anyway"), role: .destructive) { checkConflicts() }
         case .outgoing:
             Button(L10n.format("occurrence_continue")) { checkConflicts() }
         case .conflicts:
@@ -309,7 +351,7 @@ struct CourseOccurrenceEditor: View {
                 .accessibilityIdentifier("occurrence_delete_confirm")
         case nil: EmptyView()
         }
-        Button(L10n.format("cancel"), role: .cancel) { pending = nil; prompt = nil }
+        Button(L10n.format("conflict_detail_go_back"), role: .cancel) { pending = nil; prompt = nil }
             .accessibilityIdentifier("occurrence_prompt_cancel")
     }
 
@@ -340,19 +382,15 @@ struct CourseOccurrenceEditor: View {
                 edited.endTime = custom ? end.trimmingCharacters(in: .whitespacesAndNewlines) : ""
                 try CourseOccurrences.validateTime(edited, table: effective)
                 edited = edited.normalizeNode(timeJson: effective.timeJson)
-                let unchangedDate = HolidayTransferOps.dayKey(date) == HolidayTransferOps.dayKey(occurrence.displayDate)
-                let target = unchangedDate && !fixed ? occurrence.sourceDate : date
-                replacement = try CourseOccurrences.atDate(edited, date: target, table: effective, fixed: fixed)
+                replacement = try CourseOccurrences.replacementForEdit(edited, occurrence: occurrence,
+                    selectedDate: date, table: effective)
             }
             pending = PendingSave(replacement: replacement, courses: courses, transfers: transfers, table: effective)
             if delete { prompt = .delete; return }
-            if !fixed && HolidayTransferOps.dayKey(date) != HolidayTransferOps.dayKey(occurrence.displayDate) {
-                if transfers.contains(where: { HolidayTransferOps.dayKey($0.targetDate) == HolidayTransferOps.dayKey(date) }) {
-                    prompt = .destination; return
-                }
-                if transfers.contains(where: { HolidayTransferOps.dayKey($0.sourceDate) == HolidayTransferOps.dayKey(date) }) {
-                    prompt = .outgoing; return
-                }
+            switch CourseOccurrences.dateApproval(originalDate: occurrence.displayDate, selectedDate: date, transfers: transfers) {
+            case .destination: prompt = .destination; return
+            case .outgoing: prompt = .outgoing; return
+            case .none: break
             }
             checkConflicts()
         } catch { self.error = error.localizedDescription }

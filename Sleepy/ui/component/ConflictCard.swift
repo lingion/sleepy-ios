@@ -425,7 +425,7 @@ struct ConflictClusterCard: View {
             }
             .frame(width: colW, height: clusterH, alignment: .topLeading)
             .offset(y: clusterYOffset)
-            .sheet(isPresented: $showPicker) {
+            .centeredDialog(isPresented: $showPicker) {
                 ConflictCoursePickerSheet(
                     courses: drawList.map { $0.course },
                     // ← 原版本 (rotationLayerOrder ?: baselineOrderIds).first(): 轮换顶层,
@@ -446,7 +446,6 @@ struct ConflictClusterCard: View {
                             onPickTop(id)
                         }
                     })
-                    .sheetDetents([.medium])
             }
         )
     }
@@ -622,17 +621,10 @@ private struct ConflictCoursePickerSheet: View {
     let onPick: (Int64) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(L10n.format("import_conflicts"))
-                // ← 原版本 M3 AlertDialog title 默认走 titleLarge;SleepyTypography
-                //   覆写 titleLarge = 22sp(Theme.kt:268)。此前 24(headlineSmall 误标)。
-                .font(.system(size: 22))
-                .foregroundColor(colors.onSurface)
-                .padding(.bottom, 8)
-            ScrollView {
+        CenteredPickerDialog(title: L10n.format("import_conflicts"), onDismiss: onDismiss) {
                 // ← 原版本 Column .heightIn(max = 360.dp).verticalScroll(:1113-1117)
                 //   — 内容高上限 360dp,课程多时可视列表高度与原实现一致
-                VStack(spacing: 4) {
+                VStack(spacing: 8) {
                     ForEach(courses) { course in
                         Button {
                             onPick(course.id)
@@ -662,12 +654,6 @@ private struct ConflictCoursePickerSheet: View {
                         .accessibilityLabel(course.courseName)
                     }
                 }
-            }
-            // ← 原版本 .heightIn(max = 360.dp) — ScrollView 可视高度上限 360
-            .frame(maxHeight: 360, alignment: .top)
         }
-        .padding(20)
-        .background(colors.surface)
-        .modifier(SleepyThemeProvider(darkTheme: false, themeKey: ""))
     }
 }

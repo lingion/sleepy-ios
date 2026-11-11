@@ -1,4 +1,4 @@
-// Appearance groups palette, interface material, navigation shape and the schedule display entry.
+// Appearance groups palette, interface material, navigation shape and course colors.
 import SwiftUI
 import UIKit
 import WidgetKit
@@ -14,7 +14,6 @@ struct AppearanceScreen: View {
     // ← 原版本 onOpenPeriodHeaderSettings(Section④ 节次表头入口, 默认 no-op 保持 API 兼容,
     //   接线 .periodHeaderSettings 路由归共享文件 SleepyApp/SleepyNavigator, 见 needs_shared_wiring)
     var onOpenPeriodHeaderSettings: () -> Void = {}
-    var onOpenScheduleDisplay: () -> Void = {}
     @State private var uiStyle = AppPrefs.shared.getUiStyle()
     @State private var navStyleIndex = NavStyleResolver.isFloatingRequested() ? 1 : 0
 
@@ -34,14 +33,12 @@ struct AppearanceScreen: View {
          themeMode: String = AppPrefs.THEME_MODE_SYSTEM,
          onThemeModeChange: @escaping (String) -> Void = { _ in },
          onThemeKeyChange: @escaping () -> Void = {},
-         onOpenPeriodHeaderSettings: @escaping () -> Void = {},
-         onOpenScheduleDisplay: @escaping () -> Void = {}) {
+         onOpenPeriodHeaderSettings: @escaping () -> Void = {}) {
         self.onDismiss = onDismiss
         self.themeMode = themeMode
         self.onThemeModeChange = onThemeModeChange
         self.onThemeKeyChange = onThemeKeyChange
         self.onOpenPeriodHeaderSettings = onOpenPeriodHeaderSettings
-        self.onOpenScheduleDisplay = onOpenScheduleDisplay
         _currentKey = State(initialValue: AppPrefs.shared.getThemeKey())
     }
 
@@ -69,17 +66,14 @@ struct AppearanceScreen: View {
                                 guard mode != themeMode else { return }
                                 prefs.setThemeMode(mode)
                                 onThemeModeChange(mode)
+                                refreshThemeCourseColors()
                                 refreshWidgets()
-                                if courseColorMode == AppPrefs.COURSE_COLOR_MODE_FOLLOW_THEME { recalcAllCourses() }
                             }, containerColor: colors.surfaceContainerHighest)
                             .accessibilityIdentifier("settings_mode_segment")
                     }
                     SettingsSection(title: L10n.format("appearance_section_theme")) {
                     SystemThemeCard(selected: currentKey == ThemePresets.KEY_SYSTEM) {
-                        prefs.setThemeKey(ThemePresets.KEY_SYSTEM)
-                        currentKey = ThemePresets.KEY_SYSTEM
-                        onThemeKeyChange()
-                        refreshWidgets()
+                        selectThemeKey(ThemePresets.KEY_SYSTEM)
                     }
 
                     // 2 列网格:5 套预设 → 各自定义卡 → 新建入口(加号)
@@ -150,10 +144,6 @@ struct AppearanceScreen: View {
                         }
 
                     }
-                    AppearanceNavigationRow(
-                        title: L10n.format("appearance_section_schedule_display"),
-                        onClick: onOpenScheduleDisplay)
-                        .accessibilityIdentifier("appearance_schedule_display")
                 }
                 .padding(16)
             }
@@ -197,15 +187,13 @@ struct AppearanceScreen: View {
     }
 
     private func selectCourseColorMode(_ raw: Int) {
-        if raw == -1 {
-            prefs.setCourseColorless(true)
-            courseColorless = true
-        } else {
-            prefs.setCourseColorless(false)
-            prefs.setCourseColorMode(raw)
-            courseColorless = false
-            courseColorMode = raw
-        }
+        let db = AppDatabase.getShared()
+        AppearanceColorActions.selectMode(raw, primary: colors.primary, prefs: prefs,
+                                         dao: db.courseColorDao,
+                                         gids: ScheduleRepository(db).getAllGroupIds())
+        courseColorless = prefs.isCourseColorless()
+        courseColorMode = prefs.getCourseColorMode()
+        if raw == AppPrefs.COURSE_COLOR_MODE_CUSTOM { hueSession.current = prefs.getCourseColorSeedHue() }
         Task { await refreshHueStore() }
         refreshWidgets()
     }
@@ -231,10 +219,19 @@ struct AppearanceScreen: View {
     }
 
     private func selectThemeKey(_ key: String) {
+        guard key != currentKey else { return }
         prefs.setThemeKey(key)
         currentKey = key
         onThemeKeyChange()
+        refreshThemeCourseColors()
         refreshWidgets()
+    }
+
+    private func refreshThemeCourseColors() {
+        let db = AppDatabase.getShared()
+        AppearanceColorActions.themeDidChange(prefs: prefs, dao: db.courseColorDao,
+                                              gids: ScheduleRepository(db).getAllGroupIds())
+        Task { await refreshHueStore() }
     }
 
     private func openEditor(_ theme: CustomTheme?) {
@@ -252,6 +249,7 @@ struct AppearanceScreen: View {
         currentKey = savedKey
         customThemes = CustomThemeStore.getAll()
         onThemeKeyChange()
+        refreshThemeCourseColors()
         refreshWidgets()
         showEditor = false
         editingTheme = nil

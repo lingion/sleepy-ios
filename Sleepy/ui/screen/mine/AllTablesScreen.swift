@@ -18,6 +18,7 @@ struct AllTablesScreen: View {
     @State private var duplicateError: String? = nil
     @State private var updateTarget: TimeTableEntity?
     @State private var updateActive = false
+    @State private var periodTables: [PeriodTableEntity] = []
 
     var body: some View {
         let state = viewModel.state
@@ -62,6 +63,8 @@ struct AllTablesScreen: View {
             }
         }
         .background(colors.background)
+        .onAppear { periodTables = viewModel.loadAllPeriodTables() }
+        .onReceive(viewModel.$allPeriodTables) { periodTables = $0 }
         .sheet(item: $updateTarget, onDismiss: {
             updateActive = false
             viewModel.occurrenceSaved()
@@ -72,29 +75,54 @@ struct AllTablesScreen: View {
                          updateRepository: viewModel.occurrenceRepository)
                 .interactiveDismissDisabled(updateActive)
         }
-        .sheet(item: $copyTarget) { target in
-            let candidate = copyName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let valid = !candidate.isEmpty && !viewModel.state.tables.contains { $0.name == candidate }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text(L10n.t("table_copy_title")).font(.system(size: 22))
-                    FieldTextField(text: $copyName, label: L10n.t("table_name"))
-                        .accessibilityIdentifier("table_copy_name")
-                    if !candidate.isEmpty && !valid { Text(L10n.t("table_copy_duplicate")).foregroundColor(colors.error) }
-                    DialogActionButtons(confirmText: L10n.t("all_tables_duplicate"),
-                        onConfirm: {
-                            guard !copying else { return }
-                            copying = true
-                            if viewModel.duplicateTable(target.id, newName: candidate, onFailure: { duplicateError = $0 }) { copyTarget = nil }
-                            copying = false
-                        }, dismissText: L10n.t("cancel"), onDismiss: { copyTarget = nil }, confirmEnabled: valid && !copying,
-                        confirmIdentifier: "table_copy_confirm", dismissIdentifier: "table_copy_cancel")
-                }
-                .padding(24)
+        .centeredDialog(isPresented: Binding(
+            get: { copyTarget != nil },
+            set: { if !$0 { dismissCopy() } }
+        )) {
+            if let target = copyTarget {
+                copyDialog(target)
             }
-            .scrollDismissesKeyboardImmediatelyCompat()
-            .foregroundColor(colors.onSurface).background(colors.surface)
         }
+    }
+
+    private func dismissCopy() {
+        guard !copying else { return }
+        copyTarget = nil
+    }
+
+    private func copyDialog(_ target: TimeTableEntity) -> some View {
+        let candidate = copyName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let valid = !candidate.isEmpty && !TimeTableUtils.isTableNameTaken(candidate,
+            courseTableNames: viewModel.state.tables.map(\.name), periodTableNames: periodTables.map(\.name))
+        let actions = DialogActionButtons(confirmText: L10n.t("ok"), onConfirm: {
+            guard valid, !copying else { return }
+            copying = true
+            if viewModel.duplicateTable(target.id, newName: candidate, onFailure: { duplicateError = $0 }) {
+                copyTarget = nil
+            }
+            copying = false
+        }, dismissText: L10n.t("cancel"), onDismiss: dismissCopy, confirmEnabled: valid && !copying,
+            confirmIdentifier: "table_copy_confirm", dismissIdentifier: "table_copy_cancel")
+        return CenteredPickerDialog(title: L10n.t("all_tables_duplicate"), onDismiss: dismissCopy,
+                                    footer: AnyView(actions)) {
+            VStack(alignment: .leading, spacing: 20) {
+                FieldTextField(text: $copyName, label: L10n.t("edit_table_name"))
+                    .disabled(copying)
+                    .accessibilityIdentifier("table_copy_name")
+                if !candidate.isEmpty && !valid {
+                    Text(L10n.t("table_copy_duplicate"))
+                        .foregroundColor(colors.error)
+                        .accessibilityIdentifier("table_copy_name_error")
+                }
+                if let duplicateError {
+                    Text(duplicateError)
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.error)
+                        .accessibilityIdentifier("table_copy_save_error")
+                }
+            }
+        }
+        .foregroundColor(colors.onSurface)
     }
 
     private func tableCard(_ table: TimeTableEntity, availableWidth: CGFloat) -> some View {
@@ -177,10 +205,8 @@ struct AllTablesScreen: View {
             Button {
                 duplicateError = nil
                 copyTarget = table
-                let names = Set(viewModel.state.tables.map(\.name))
-                var suffix = 2
-                while names.contains(table.name + String(suffix)) { suffix += 1 }
-                copyName = table.name + String(suffix)
+                copyName = TimeTableUtils.suggestUniqueName(table.name,
+                    courseTableNames: viewModel.state.tables.map(\.name), periodTableNames: periodTables.map(\.name))
             } label: {
                 AndroidSettingsIcon(name: .contentCopy, size: 20)
                     .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)

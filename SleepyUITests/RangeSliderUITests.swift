@@ -27,8 +27,9 @@ final class RangeSliderUITests: XCTestCase {
         let name = app.textFields["field_Course Name *"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         name.typeText(courseName)
-        XCTAssertEqual(name.value as? String, courseName)
+        assertValue(name, courseName)
         let returnKey = app.keyboards.buttons["Return"]
         XCTAssertTrue(returnKey.waitForExistence(timeout: 3))
         returnKey.tap()

@@ -15,8 +15,10 @@ struct PeriodTablesScreen: View {
     var onCreateNew: (Int64) -> Void
 
     @EnvironmentObject var viewModel: ScheduleViewModel
-    @State private var periodTables: [PeriodTableEntity] = []
-    @State private var courseTables: [TimeTableEntity] = []
+    // Match collectAsState(): GRDB publishes after the copy action returns.
+    // Derive both lists from the VM so the new row and binding counts stay live.
+    private var periodTables: [PeriodTableEntity] { viewModel.allPeriodTables }
+    private var courseTables: [TimeTableEntity] { viewModel.state.tables }
     @State private var copyTarget: PeriodTableEntity?
     @State private var copyName: String = ""
 
@@ -34,9 +36,11 @@ struct PeriodTablesScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(colors.background)
         .navigationBarHidden(true)
-        .onAppear { reload() }
-        .sheet(item: $copyTarget, onDismiss: reload) { target in
-            copyDialog(target)
+        .centeredDialog(isPresented: Binding(
+            get: { copyTarget != nil },
+            set: { if !$0 { dismissCopy() } }
+        )) {
+            if let target = copyTarget { copyDialog(target) }
         }
     }
 
@@ -151,12 +155,23 @@ struct PeriodTablesScreen: View {
             courseTableNames: courseTables.map { $0.name },
             periodTableNames: periodTables.map { $0.name }
         )
-        return ScrollView {
+        return CenteredPickerDialog(title: L10n.t("period_table_copy_dialog_title"),
+                                    titleIdentifier: "period_table_copy_dialog",
+                                    onDismiss: dismissCopy, footer: AnyView(
+            DialogActionButtons(
+                confirmText: L10n.t("ok"),
+                onConfirm: {
+                    // The repository rechecks uniqueness before saving.
+                    let newId = viewModel.copyPeriodTableAs(sourceId: target.id, newName: candidate)
+                    if newId > 0 { dismissCopy() }
+                },
+                dismissText: L10n.t("cancel"),
+                onDismiss: dismissCopy,
+                confirmEnabled: !candidate.isEmpty && !nameTaken,
+                confirmIdentifier: "period_table_copy_confirm",
+                dismissIdentifier: "period_table_copy_cancel")
+        )) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(L10n.t("period_table_copy_dialog_title"))
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(colors.onSurface)
-                    .accessibilityIdentifier("period_table_copy_dialog")
                 FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
                     .disableAutocorrection(true)
                     .accessibilityIdentifier("period_table_copy_name")
@@ -165,32 +180,11 @@ struct PeriodTablesScreen: View {
                         .font(.system(size: 12))
                         .foregroundColor(colors.error)
                 }
-                Spacer().frame(height: 12)
-                // 2026-09-16 用户: 裸 TextButton 无边界无色块 — 统一色块按钮行
-                DialogActionButtons(
-                    confirmText: L10n.t("ok"),
-                    onConfirm: {
-                        // 二次查重: 列表可能在弹窗打开期间变化, 不能只信预览态
-                        let newId = viewModel.copyPeriodTableAs(sourceId: target.id, newName: candidate)
-                        if newId > 0 {
-                            copyTarget = nil
-                            reload()
-                        }
-                    },
-                    dismissText: L10n.t("cancel"),
-                    onDismiss: { copyTarget = nil },
-                    confirmEnabled: !candidate.isEmpty && !nameTaken,
-                    confirmIdentifier: "period_table_copy_confirm",
-                    dismissIdentifier: "period_table_copy_cancel")
             }
-            .padding(24)
         }
-        .scrollDismissesKeyboardImmediatelyCompat()
-        .background(colors.surface)
     }
 
-    private func reload() {
-        periodTables = viewModel.loadAllPeriodTables()
-        courseTables = viewModel.state.tables
+    private func dismissCopy() {
+        copyTarget = nil
     }
 }

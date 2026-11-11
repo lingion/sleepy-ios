@@ -10,10 +10,186 @@
 import Foundation
 import GRDB
 
-/// UserDefaults 文件访问抽象 — 便于纯单元测试注入。
-/// 协议与 原版本 MigrationPrefsStore 1:1(open(fileName: String) → UserDefaults)。
+/// Logical backup files can map to defaults domains or shared widget JSON files.
 protocol MigrationPrefsStoreProtocol {
     func open(fileName: String) -> UserDefaults
+    func collect(fileName: String) throws -> MigrationPrefsCodec.PrefsFileSnapshot
+    func validate(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String) throws
+    func apply(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String, merge: Bool) throws
+    func prepareApply(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String, merge: Bool) throws -> () throws -> Void
+}
+
+extension MigrationPrefsStoreProtocol {
+    func collect(fileName: String) throws -> MigrationPrefsCodec.PrefsFileSnapshot {
+        MigrationPrefsCodec.collect(open(fileName: fileName))
+    }
+
+    func validate(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String) throws {}
+
+    func apply(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String, merge: Bool) throws {
+        MigrationPrefsCodec.apply(open(fileName: fileName), snapshot, merge: merge)
+    }
+
+    func prepareApply(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String, merge: Bool) throws -> () throws -> Void {
+        try validate(snapshot, fileName: fileName)
+        return { try self.apply(snapshot, fileName: fileName, merge: merge) }
+    }
+
+    /// Validate and capture local bindings before database writes; imported IDs are only
+    /// known after the database merge. Keep local IDs outside that mapping unchanged.
+    func prepareWidgetBindingMerge(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot) throws -> ([Int64: Int64]) throws -> Void {
+        let fileName = "widget_bindings"
+        try validate(snapshot, fileName: fileName)
+        let local = try collect(fileName: fileName)
+        try validate(local, fileName: fileName)
+        return { tableIdMap in
+            var entries = local.entries
+            for (kind, value) in snapshot.entries {
+                // A missing imported target must not accidentally bind to a same-ID local
+                // table. Preserve an existing binding, or leave a new kind to normal fallback.
+                guard let tableId = tableIdMap[value.number] else { continue }
+                entries[kind] = .init(type: .LONG, number: tableId)
+            }
+            try self.apply(.init(entries: entries), fileName: fileName, merge: false)
+        }
+    }
+}
+
+/// The application's preference domains, shared by the backup screen and its production-storage tests.
+struct RuntimeMigrationPrefsStore: MigrationPrefsStoreProtocol {
+    func open(fileName: String) -> UserDefaults {
+        if fileName == AppPrefs.FILE { return AppPrefs.shared.sharedBackedStore }
+        return UserDefaults(suiteName: fileName) ?? .standard
+    }
+
+    func collect(fileName: String) throws -> MigrationPrefsCodec.PrefsFileSnapshot {
+        if widgetFiles.contains(fileName) { return try collectWidget(fileName) }
+        var snapshot = MigrationPrefsCodec.collect(open(fileName: fileName))
+        if fileName == AppPrefs.FILE {
+            // iOS stores themes with AppPrefs; the package retains Android's logical file boundary.
+            snapshot.entries.removeValue(forKey: CustomThemeCore.KEY_THEMES)
+        } else if fileName == CustomThemeCore.PREFS_NAME {
+            snapshot.entries.removeValue(forKey: CustomThemeCore.KEY_THEMES)
+            if let themes = CustomThemeStore.defaults.string(forKey: CustomThemeCore.KEY_THEMES) {
+                snapshot.entries[CustomThemeCore.KEY_THEMES] = .init(type: .STRING, string: themes)
+            }
+        }
+        return snapshot
+    }
+
+    func validate(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String) throws {
+        if widgetFiles.contains(fileName) {
+            for (key, value) in snapshot.entries {
+                switch fileName {
+                case "widget_bindings", "widget_today_nav":
+                    guard value.type == .LONG || value.type == .INT else { throw invalid(fileName, key) }
+                case "widget_scroll_prefs", "widget_compact_window_prefs":
+                    guard value.type == .BOOL else { throw invalid(fileName, key) }
+                default:
+                    if key.hasPrefix("mode_") {
+                        guard value.type == .STRING, WeekGridWideMode(rawValue: value.string.lowercased()) != nil else {
+                            throw invalid(fileName, key)
+                        }
+                    } else if key.hasPrefix("side_") {
+                        guard value.type == .STRING, WeekGridWideLabelSide(rawValue: value.string.lowercased()) != nil else {
+                            throw invalid(fileName, key)
+                        }
+                    }
+                }
+            }
+        }
+        if (fileName == CustomThemeCore.PREFS_NAME || fileName == AppPrefs.FILE),
+           let themes = snapshot.entries[CustomThemeCore.KEY_THEMES], themes.type != .STRING {
+            throw invalid(fileName, CustomThemeCore.KEY_THEMES)
+        }
+    }
+
+    func apply(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String, merge: Bool) throws {
+        try prepareApply(snapshot, fileName: fileName, merge: merge)()
+    }
+
+    func prepareApply(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String, merge: Bool) throws -> () throws -> Void {
+        try validate(snapshot, fileName: fileName)
+        if widgetFiles.contains(fileName) {
+            var entries = merge ? try collectWidget(fileName).entries : [:]
+            entries.merge(snapshot.entries, uniquingKeysWith: { _, incoming in incoming })
+            let data: Data
+            switch fileName {
+            case "widget_bindings", "widget_today_nav":
+                data = try JSONEncoder().encode(entries.mapValues(\.number))
+            case "widget_scroll_prefs", "widget_compact_window_prefs":
+                data = try JSONEncoder().encode(entries.mapValues(\.bool))
+            default:
+                var root: [String: [String: String]] = [:]
+                for (key, value) in entries {
+                    if key.hasPrefix("mode_") { root[String(key.dropFirst(5)), default: [:]]["mode"] = value.string.lowercased() }
+                    else if key.hasPrefix("side_") { root[String(key.dropFirst(5)), default: [:]]["labelSide"] = value.string.lowercased() }
+                }
+                data = try JSONEncoder().encode(root)
+            }
+            let url = widgetURL(fileName)
+            return { try data.write(to: url, options: .atomic) }
+        }
+        return { self.applyDefaults(snapshot, fileName: fileName, merge: merge) }
+    }
+
+    private func applyDefaults(_ snapshot: MigrationPrefsCodec.PrefsFileSnapshot, fileName: String, merge: Bool) {
+        if fileName == AppPrefs.FILE {
+            let previousTheme = CustomThemeStore.defaults.object(forKey: CustomThemeCore.KEY_THEMES)
+            MigrationPrefsCodec.apply(open(fileName: fileName), snapshot, merge: merge)
+            // An absent logical custom_themes file must not be erased by replacing sleepy_prefs.
+            if snapshot.entries[CustomThemeCore.KEY_THEMES] == nil, let previousTheme {
+                CustomThemeStore.defaults.set(previousTheme, forKey: CustomThemeCore.KEY_THEMES)
+            }
+        } else {
+            MigrationPrefsCodec.apply(open(fileName: fileName), snapshot, merge: merge)
+            if fileName == CustomThemeCore.PREFS_NAME {
+                if let theme = snapshot.entries[CustomThemeCore.KEY_THEMES] {
+                    CustomThemeStore.defaults.set(theme.string, forKey: CustomThemeCore.KEY_THEMES)
+                } else if !merge {
+                    CustomThemeStore.defaults.removeObject(forKey: CustomThemeCore.KEY_THEMES)
+                }
+            }
+        }
+    }
+
+    private var widgetFiles: Set<String> {
+        ["widget_bindings", "widget_scroll_prefs", "widget_compact_window_prefs", "widget_today_nav", "widget_wide_grid"]
+    }
+
+    private func widgetURL(_ name: String) -> URL {
+        AppGroupResolver.sharedDirectory().appendingPathComponent(name + ".json")
+    }
+
+    private func invalid(_ file: String, _ key: String) -> MigrationPackageException {
+        MigrationPackageException(message: "invalid \(file) backup value: \(key)")
+    }
+
+    private func collectWidget(_ name: String) throws -> MigrationPrefsCodec.PrefsFileSnapshot {
+        let url = widgetURL(name)
+        guard FileManager.default.fileExists(atPath: url.path) else { return .init() }
+        let data = try Data(contentsOf: url)
+        let entries: [String: MigrationPrefsCodec.PrefValue]
+        switch name {
+        case "widget_bindings", "widget_today_nav":
+            entries = try JSONDecoder().decode([String: Int64].self, from: data)
+                .mapValues { .init(type: .LONG, number: $0) }
+        case "widget_scroll_prefs", "widget_compact_window_prefs":
+            entries = try JSONDecoder().decode([String: Bool].self, from: data)
+                .mapValues { .init(type: .BOOL, bool: $0) }
+        default:
+            let root = try JSONDecoder().decode([String: [String: String]].self, from: data)
+            var values: [String: MigrationPrefsCodec.PrefValue] = [:]
+            for (kind, settings) in root {
+                if let mode = settings["mode"] { values["mode_" + kind] = .init(type: .STRING, string: mode.uppercased()) }
+                if let side = settings["labelSide"] { values["side_" + kind] = .init(type: .STRING, string: side.uppercased()) }
+            }
+            entries = values
+        }
+        let snapshot = MigrationPrefsCodec.PrefsFileSnapshot(entries: entries)
+        try validate(snapshot, fileName: name)
+        return snapshot
+    }
 }
 
 /// 全量迁移编排 — 与 原版本 MigrationExecutor.kt 1:1。
@@ -97,26 +273,12 @@ enum MigrationExecutor {
         // 不需 dbQueue.write — 参数忽略即可。
     }
 
-    private static func collectPrefs(_ store: MigrationPrefsStoreProtocol, module: MigrationModule) -> MigrationPrefsCodec.PrefsSnapshot {
+    private static func collectPrefs(_ store: MigrationPrefsStoreProtocol, module: MigrationModule) throws -> MigrationPrefsCodec.PrefsSnapshot {
         var files: [String: MigrationPrefsCodec.PrefsFileSnapshot] = [:]
         for fileName in MigrationPrefsFileMap.files(of: module) {
-            // 空 prefs 文件不进包: 无信息量, 且让接收端保留自有设置 (设备设置优先于默认)。
-            // 原版本 判据 prefs.all.isNotEmpty() 中 prefs.all == "真正写进该文件" 的键,
-            // 且 原版本 SharedPreferences 只允许 collect 全认识的类型 →
-            // "该文件的导出快照 entries 非空" 与 "prefs.all 非空" 对 原版本 可表示的
-            // 数据严格等价, 故 iOS 直接以 collect 结果为唯一判据。
-            // 不能用 dictionaryRepresentation() 弱过滤(NS/Apple 前缀)判非空: 它为
-            // UserDefaults(suiteName:) 实例合并全局域, 本机探测空 suite 也带 41 个
-            // com.apple.*/AK*/KB_*/Country/646F6E7A_* 全局键存活弱过滤 — 空文件会
-            // 被当非空进包, OVERWRITE 导入即误清接收端自有数据 (原版本 从不进空文件),
-            // 且 prefFiles/prefKeys 计数虚高。
-            // suiteName 一律传 nil (原版本 collect(prefs) 不传任何域名): 执行器拿到
-            // 的只是不透明 UserDefaults 实例, 文件名 ≠ 实例真实域名 (Fake store 用
-            // "prefix.fileName", 生产用裸 fileName) — 传 fileName 会让
-            // CFPreferencesCopyKeyList(裸名) 命中另一条真实域 (生产运行残留的
-            // widget_bindings 等), 把别处的键当本文件导出/清空。standard 主 prefs
-            // 实例在 nil 下仍自动回落 app 域精确键清单, 与 原版本 prefs.all 等价。
-            let snapshot = MigrationPrefsCodec.collect(store.open(fileName: fileName))
+            // Empty logical files stay absent so older backups preserve receiver-owned settings.
+            // The store resolves the actual domain/file; the executor never guesses a defaults suite.
+            let snapshot = try store.collect(fileName: fileName)
             if !snapshot.entries.isEmpty {
                 files[fileName] = snapshot
             }
@@ -140,15 +302,46 @@ enum MigrationExecutor {
     ) throws -> ImportReport {
         // 先完整校验并解码, 任何坏包都在触碰本机数据之前失败
         let content = try MigrationPackageCodec.read(bytes)
+        // Decode and validate every module before the first database/defaults/file write.
+        var databaseSnapshot: MigrationDatabaseCodec.DatabaseSnapshot?
+        var preferenceSnapshots: [MigrationModule: MigrationPrefsCodec.PrefsSnapshot] = [:]
+        var preferenceWrites: [MigrationModule: [([Int64: Int64]) throws -> Void]] = [:]
+        let remapWidgetBindings = mode == .MERGE && content.modules[.DATABASE] != nil
+        for (module, payload) in content.modules {
+            switch module {
+            case .DATABASE:
+                databaseSnapshot = try MigrationDatabaseCodec.decode(payload)
+            case .PREFERENCES, .WIDGETS, .PERSISTED_STATE:
+                let snapshot = try MigrationPrefsCodec.decode(payload)
+                // Main-domain themes came from older iOS packages. The dedicated logical file
+                // takes precedence if a package contains both locations.
+                let names = snapshot.files.keys.sorted { left, right in
+                    if left == AppPrefs.FILE { return right != AppPrefs.FILE }
+                    if right == AppPrefs.FILE { return false }
+                    if left == CustomThemeCore.PREFS_NAME { return false }
+                    if right == CustomThemeCore.PREFS_NAME { return true }
+                    return left < right
+                }
+                preferenceWrites[module] = try names.map { name in
+                    if remapWidgetBindings, module == .WIDGETS, name == "widget_bindings" {
+                        return try prefsStore.prepareWidgetBindingMerge(snapshot.files[name]!)
+                    }
+                    let write = try prefsStore.prepareApply(snapshot.files[name]!, fileName: name, merge: mode == .MERGE)
+                    return { _ in try write() }
+                }
+                preferenceSnapshots[module] = snapshot
+            case .CREDENTIALS: break
+            }
+        }
         var counts = ImportCounts()
         var applied: [MigrationModule] = []
+        var tableIdMap: [Int64: Int64] = [:]
 
         let sorted = content.modules.keys.sorted()
         for module in sorted {
-            guard let payload = content.modules[module] else { continue }
             switch module {
             case .DATABASE:
-                let snapshot = try MigrationDatabaseCodec.decode(payload)
+                guard let snapshot = databaseSnapshot else { continue }
                 switch mode {
                 case .OVERWRITE:
                     try MigrationDatabaseCodec.applyOverwrite(
@@ -157,7 +350,7 @@ enum MigrationExecutor {
                         dbQueue: dbQueue
                     )
                 case .MERGE:
-                    try MigrationDatabaseCodec.applyMerge(
+                    tableIdMap = try MigrationDatabaseCodec.applyMerge(
                         snapshot, courseDao: courseDao, timeTableDao: timeTableDao,
                         periodTableDao: periodTableDao, importDraftDao: importDraftDao,
                         dbQueue: dbQueue
@@ -174,20 +367,10 @@ enum MigrationExecutor {
                 applied.append(module)
 
             case .PREFERENCES, .WIDGETS, .PERSISTED_STATE:
-                let snapshot = try MigrationPrefsCodec.decode(payload)
-                // 包内缺失的 prefs 文件不动本机; 包内文件按 mode 决定整文件替换或同名覆盖。
-                // suiteName 一律省略 (原版本 apply(prefs, snapshot, merge) 不传域名):
-                // 执行器只见不透明实例, 文件名 ≠ 实例真实域名 — 传裸文件名会让
-                // CFPreferencesCopyKeyList 命中另一条真实域(生产残留同名 suite),
-                // OVERWRITE 清错键、漏清本域键 (per-suite vs global 语义错位)。
-                // nil 解析见 MigrationPrefsCodec.persistedKeys 三层路径: standard
-                // 实例回落 app 域精确清单; 其余实例走对照域差分, 只清该实例本域
-                // 真正写过的键 — 全局域经弱合并带出的键既不删除、也不影响其全局值,
-                // 与 原版本 "editor.clear() 只清本文件" 等价。
-                for (fileName, fileSnapshot) in snapshot.files {
-                    let defaults = prefsStore.open(fileName: fileName)
-                    MigrationPrefsCodec.apply(defaults, fileSnapshot, merge: mode == .MERGE)
-                }
+                guard let snapshot = preferenceSnapshots[module] else { continue }
+                // Missing files stay untouched. Each prepared write already validated both
+                // the incoming snapshot and any local file needed for a merge.
+                for write in preferenceWrites[module] ?? [] { try write(tableIdMap) }
                 let newPrefFiles = counts.prefFiles + snapshot.files.count
                 let newPrefKeys = counts.prefKeys + snapshot.files.values.reduce(0) { $0 + $1.entries.count }
                 counts = ImportCounts(

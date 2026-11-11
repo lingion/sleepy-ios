@@ -117,7 +117,6 @@ final class DeviceAdaptationUITests: XCTestCase {
             // padding does not reliably participate in ScrollView hit testing.
             let candidates = [app.buttons["occurrence_date"].firstMatch,
                               app.staticTexts["occurrence_nodes_summary"].firstMatch, element,
-                              app.descendants(matching: .any)["occurrence_fixed_date"].firstMatch,
                               app.descendants(matching: .any)["occurrence_custom_time"].firstMatch]
             let dragFrame = candidates.filter { $0.exists }.map { $0.frame.intersection(visible) }
                 .first { !$0.isNull && $0.height >= 16 && $0.width > 40 } ?? visible
@@ -371,6 +370,9 @@ final class DeviceAdaptationUITests: XCTestCase {
             }
             makeHittable(edit)
             edit.tap()
+            let adjust = app.buttons["occurrence_adjust"].firstMatch
+            XCTAssertTrue(adjust.waitForExistence(timeout: 10))
+            adjust.tap()
             XCTAssertTrue(cancel.waitForExistence(timeout: 10))
             revealOccurrenceControl(customRow)
             XCTAssertTrue(custom.waitForExistence(timeout: 3))

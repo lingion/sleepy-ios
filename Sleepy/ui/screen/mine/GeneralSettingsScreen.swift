@@ -25,7 +25,7 @@ struct GeneralSettingsScreen: View {
     private var pageTitle: String {
         switch section {
         case .general: return L10n.format("mine_general")
-        case .display: return L10n.format("appearance_section_schedule_display")
+        case .display: return L10n.format("mine_schedule_settings")
         case .backup: return L10n.format("settings_backup")
         }
     }
@@ -71,17 +71,6 @@ struct GeneralSettingsScreen: View {
     }
 
     // ── 数据迁移(runMigrationImport / onMigrationExportClick / launchers) ──
-
-    /// 原 prefs store: context.getSharedPreferences(name) →
-    /// iOS 同名 suite(AppPrefs.standardUserDefaults() 的 sleepy_prefs 主文件按
-    /// suiteName "sleepy_prefs" 打开即同一存储; 二级文件走各自 suiteName —
-    /// 与 MigrationExecutorTests 的 FakeMigrationPrefsStore 同构)。
-    private struct RuntimeMigrationPrefsStore: MigrationPrefsStoreProtocol {
-        func open(fileName: String) -> UserDefaults {
-            if fileName == AppPrefs.FILE { return AppPrefs.shared.sharedBackedStore }
-            return UserDefaults(suiteName: fileName) ?? .standard
-        }
-    }
 
     private func runMigrationImport(_ mode: MigrationExecutor.ImportMode) {
         guard let bytes = pendingImportBytes else { return }
@@ -142,8 +131,7 @@ struct GeneralSettingsScreen: View {
                     .appendingPathComponent(fileName)
                 try result.bytes.write(to: url)
                 await MainActor.run {
-                    // migrationBusy 保持 true 直到保存面板出结果(busy 锁到
-                    // exportLauncher 回调; iOS 对「用户取消」额外解锁, 防卡死)
+                    // Keep the lock until the save panel finishes or is dismissed.
                     exportURL = url
                     showExportPicker = true
                 }
@@ -269,11 +257,16 @@ struct GeneralSettingsScreen: View {
                     case .success:
                         migrationToast = L10n.format("settings_migration_export_ok")
                     case .failure(let error):
-                        // 用户取消面板 = CancellationError(静默, ← 原版本 uri==null 早退)
+                        // Reported cancellation errors are also silent.
                         if error is CancellationError { return }
                         NSLog("SleepyMigration: export failed: %@", String(describing: error))
                         migrationToast = L10n.format("settings_migration_export_fail")
                     }
+                }
+                .onChange(of: showExportPicker) { presented in
+                    // fileExporter dismisses on cancellation without invoking
+                    // its completion handler. Release the lock in both paths.
+                    if !presented { migrationBusy = false }
                 }
                 // ← 原版本 OpenDocument(["application/zip","application/octet-stream"])
                 //   = UTType.zip + UTType.data(octet-stream); .sleepybackup 内容即 zip,
@@ -291,37 +284,47 @@ struct GeneralSettingsScreen: View {
 
     private var displaySettings: some View {
         VStack(spacing: SettingsLayout.cardGap) {
-            ScheduleSettingsPreview(viewModel: viewModel)
             SettingsSection(title: L10n.format("settings_appearance_common"), first: true) {
-                startViewCard
-                displayModeCard
-                visibleDaysCard
-                commonDisplayToggles
+                VStack(spacing: SettingsLayout.cardGap) {
+                    startViewCard
+                    commonDisplayToggles
+                }
             }
             SettingsSection(title: L10n.format("settings_start_view_full")) {
                 pillCard
-                ScheduleDisplayContent(section: .week)
             }
             SettingsSection(title: L10n.format("settings_start_view_cards")) {
-                gridSubInfoCard
-                gridAliasCard
-                LabSection(refreshWidgets: refreshWidgets)
-                ScheduleDisplayContent(section: .grid)
-                AppearanceNavigationRow(title: L10n.format("appearance_period_header"),
-                                        onClick: { showPeriodHeaders = true })
-                    .accessibilityIdentifier("settings_period_header")
+                ScheduleDisplayGroup {
+                    ScheduleDisplayContent(section: .grid)
+                    gridSubInfoCard
+                    gridAliasCard
+                    Divider()
+                    Text(L10n.format("settings_appearance_advanced_experimental"))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(colors.onSurface)
+                    LabSection(refreshWidgets: refreshWidgets)
+                }
             }
+            AppearanceNavigationRow(title: L10n.format("appearance_period_header"),
+                                    onClick: { showPeriodHeaders = true })
+                .accessibilityIdentifier("settings_period_header")
             SettingsSection(title: L10n.format("settings_conflict_style")) {
-                ScheduleDisplayContent(section: .conflict)
+                ScheduleDisplayGroup {
+                    ScheduleDisplayContent(section: .conflict)
+                }
             }
             SettingsSection(title: L10n.format("settings_appearance_holidays")) {
+                HolidayDisplaySettings()
                 holidayEntryCard
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("schedule_display_settings")
     }
 
     private var startViewCard: some View {
-        SettingsFlatCard(title: L10n.format("settings_start_view"),
+        SettingsFlatCard(title: L10n.format("settings_appearance_default_view"),
+                         subtitle: L10n.format("settings_appearance_default_view_sub"),
                          options: [L10n.format("settings_start_view_full"), L10n.format("settings_start_view_cards")],
                          selectedIndex: Binding(get: { startView == "cards" ? 1 : 0 }, set: {
                              startView = $0 == 1 ? "cards" : "full"
@@ -330,32 +333,40 @@ struct GeneralSettingsScreen: View {
     }
 
     private var commonDisplayToggles: some View {
-        VStack(spacing: 8) {
-            SettingToggleRow(label: L10n.format("settings_nearest_busy_day"),
-                             subtitle: L10n.format("settings_nearest_busy_day_sub"), checked: nearestBusyDay) {
-                nearestBusyDay = $0; prefs.setNearestBusyDay($0); refreshWidgets()
+        VStack(spacing: SettingsLayout.cardGap) {
+            ScheduleDisplayGroup {
+                SettingToggleRow(label: L10n.format("settings_show_view_switcher"), checked: showViewSwitcher) {
+                    showViewSwitcher = $0; prefs.setShowViewSwitcher($0)
+                }
             }
-            SettingToggleRow(label: L10n.format("settings_show_date"), checked: showDate) {
-                showDate = $0; prefs.setShowDate($0); refreshWidgets()
+            visibleDaysCard
+            ScheduleDisplayGroup {
+                SettingToggleRow(label: L10n.format("settings_appearance_header_date"),
+                                 subtitle: L10n.format("settings_appearance_header_date_sub"), checked: showDate) {
+                    showDate = $0; prefs.setShowDate($0); refreshWidgets()
+                }
             }
-            SettingToggleRow(label: L10n.format("settings_show_view_switcher"), checked: showViewSwitcher) {
-                showViewSwitcher = $0; prefs.setShowViewSwitcher($0)
+            displayModeCard
+            ScheduleDisplayGroup {
+                SettingToggleRow(label: L10n.format("settings_nearest_busy_day"),
+                                 subtitle: L10n.format("settings_nearest_busy_day_sub"), checked: nearestBusyDay) {
+                    nearestBusyDay = $0; prefs.setNearestBusyDay($0); refreshWidgets()
+                }
             }
         }
-        .padding(16).background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
     }
 
     private var gridAliasCard: some View {
         SettingToggleRow(label: L10n.format("settings_grid_alias"), checked: gridUseAlias) {
             gridUseAlias = $0; prefs.setGridUseAlias($0)
         }
-        .padding(16).background(colors.surfaceContainer).cornerRadius(SleepyShapes.large)
     }
 
     // 课程时间显示: 节次 / 时间 — ← 原版本 SettingsFlatCard(标题行右侧 tab)
     private var displayModeCard: some View {
         SettingsFlatCard(
             title: L10n.format("settings_display_mode"),
+            subtitle: L10n.format("settings_appearance_time_scope"),
             options: [
                 L10n.format("settings_display_node"),
                 L10n.format("settings_display_time")
@@ -374,33 +385,26 @@ struct GeneralSettingsScreen: View {
         )
     }
 
-    // 网格卡片副信息: 教室 / 教师 / 无 — ← 原版本 SettingsFlatCard
+    // Grid display group embeds its subtitle selector without another card.
     private var gridSubInfoCard: some View {
-        SettingsFlatCard(
-            title: L10n.format("settings_grid_sub_info"),
-            options: [
-                L10n.format("settings_grid_sub_room"),
-                L10n.format("settings_grid_sub_teacher"),
-                L10n.format("settings_grid_sub_none")
-            ],
-            selectedIndex: Binding(
-                get: {
-                    switch gridSubInfo {
-                    case "room": return 0
-                    case "teacher": return 1
-                    default: return 2
-                    }
-                },
-                set: { idx in
-                    let v = ["room", "teacher", "none"][idx]
+        VStack(alignment: .leading, spacing: SettingsLayout.controlGap) {
+            Text(L10n.format("settings_grid_sub_info"))
+                .font(SettingsLayout.itemStyle)
+                .foregroundColor(colors.onSurface)
+            SegmentedSwitcher(
+                options: [("room", L10n.format("settings_grid_sub_room")),
+                          ("teacher", L10n.format("settings_grid_sub_teacher")),
+                          ("none", L10n.format("settings_grid_sub_none"))],
+                selected: gridSubInfo,
+                onSelect: { v in
                     guard v != gridSubInfo else { return }
                     gridSubInfo = v
                     prefs.setGridSubInfo(v)
                     refreshWidgets()
-                }
-            ),
-            onSelect: { _ in }
-        )
+                },
+                containerColor: colors.surfaceContainerHighest,
+                accessibilityTitle: L10n.format("settings_grid_sub_info"))
+        }
     }
 
     // 显示星期: 周一~周日多选(至少留 1 天)
@@ -423,55 +427,33 @@ struct GeneralSettingsScreen: View {
         }
     }
 
-    // 主页显示(SettingsCard "settings_pill" 2026-09-21 定稿):
-    // 样式参数(缩放/圆角)已迁外观与主题页(ScheduleDisplayScreen), 这里只保留内容/可见性参数 —
-    // 两栏 → 分栏标准(条件) → 隐藏无课日 → 周/网格别名 → 表头日期 → 视图切换栏。
+    // Week scale and content settings share one noncollapsible surface.
     private var pillCard: some View {
-        SettingsCard(title: L10n.format("settings_start_view_full"),
-                     expanded: expandedSections.contains("gridScale"),
-                     onToggle: { toggleSection("gridScale") }) {
-            // 内容 14 条 — 拆两 Group(ViewBuilder 10 项上限)
-            Group {
-                SubDivider()
-                SettingToggleRow(label: L10n.format("settings_week_two_column"),
-                                 subtitle: "",
-                                 checked: weekTwoColumn) {
-                    weekTwoColumn = $0
-                    prefs.setWeekTwoColumn($0)
+        ScheduleDisplayGroup {
+            ScheduleDisplayContent(section: .week)
+            SettingToggleRow(label: L10n.format("settings_week_two_column"), checked: weekTwoColumn) {
+                weekTwoColumn = $0
+                prefs.setWeekTwoColumn($0)
+            }
+            if weekTwoColumn {
+                DisplayModeOption(label: L10n.format("settings_week_two_column_days"),
+                                  subtitle: "", selected: weekTwoColumnMode == "days") {
+                    weekTwoColumnMode = "days"
+                    prefs.setWeekTwoColumnMode("days")
                 }
-                // 分栏标准 — 两栏开启时才需要选
-                if weekTwoColumn {
-                    SubDivider()
-                    DisplayModeOption(label: L10n.format("settings_week_two_column_days"),
-                                      subtitle: "",
-                                      selected: weekTwoColumnMode == "days") {
-                        weekTwoColumnMode = "days"
-                        prefs.setWeekTwoColumnMode("days")
-                    }
-                    SubDivider()
-                    DisplayModeOption(label: L10n.format("settings_week_two_column_balance"),
-                                      subtitle: "",
-                                      selected: weekTwoColumnMode == "balance") {
-                        weekTwoColumnMode = "balance"
-                        prefs.setWeekTwoColumnMode("balance")
-                    }
+                DisplayModeOption(label: L10n.format("settings_week_two_column_balance"),
+                                  subtitle: "", selected: weekTwoColumnMode == "balance") {
+                    weekTwoColumnMode = "balance"
+                    prefs.setWeekTwoColumnMode("balance")
                 }
-                // 隐藏无课日 — 与两栏无关, 单栏/两栏都生效(单栏按安卓语义不分栏不过滤)
-                SubDivider()
-                SettingToggleRow(label: L10n.format("settings_week_hide_empty"),
-                                 subtitle: "",
-                                 checked: weekHideEmptyDays) {
-                    weekHideEmptyDays = $0
-                    prefs.setWeekHideEmptyDays($0)
-                }
-                // issue#26 课程别名: 周视图/网格场景 原名/别名 二选一, 关=原名 开=别名(自独立卡挪入, 行为零变化)
-                SubDivider()
-                SettingToggleRow(label: L10n.format("settings_week_alias"),
-                                 subtitle: "",
-                                 checked: weekUseAlias) {
-                    weekUseAlias = $0
-                    prefs.setWeekUseAlias($0)
-                }
+            }
+            SettingToggleRow(label: L10n.format("settings_week_hide_empty"), checked: weekHideEmptyDays) {
+                weekHideEmptyDays = $0
+                prefs.setWeekHideEmptyDays($0)
+            }
+            SettingToggleRow(label: L10n.format("settings_week_alias"), checked: weekUseAlias) {
+                weekUseAlias = $0
+                prefs.setWeekUseAlias($0)
             }
         }
     }
@@ -480,7 +462,7 @@ struct GeneralSettingsScreen: View {
     private var holidayEntryCard: some View {
         Button { holidaySettingsItem = HolidaySettingsItem() } label: {
             HStack {
-                Text(L10n.format("settings_holiday_title"))
+                Text(L10n.format("settings_holiday_title_rules"))
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.onSurface)
                 Spacer()
@@ -560,14 +542,10 @@ private struct VisibleDayRow: View {
 //   偏好键零迁移: settings_widget_colorless / separator / nearest_busy_day 三开关
 //   与「管理桌面小组件」入口行现宿主于 ui/screen/mine/WidgetSettingsScreen.swift。
 
-// ← 分组④ 语言 (v1.0.56 T4: 折叠卡 — 收起只显当前语言值 + 展开箭头, 点开展开 5 项;
-//   2026-09-21: 组标题已示「语言」, 卡标题禁两遍, 改显当前值)
+// Language choices open an anchored native menu in both appearances.
 private struct LanguageSection: View {
     @Environment(\.localWakeUpColors) private var colors
-    @Environment(\.sleepyUIStyle) private var style
     @State private var language: String = AppPrefs.shared.getLanguage()
-    // ← 原 languageExpanded 默认 false(会话态足够: 选择语言即重建)
-    @State private var expanded = false
 
     private let languages: [(String, String)] = [
         ("zh-CN", "简体中文"),
@@ -577,18 +555,10 @@ private struct LanguageSection: View {
         ("es", "Español")
     ]
 
-    // ← 原版本 AnimatedVisibility expandVertically+fadeIn 默认 spec → 同 SettingsCards.swift
-    //   sleepySettingsExpand(NoBouncy, response≈0.31)
-    private let expandAnimation = Animation.spring(response: 0.31, dampingFraction: 1.0)
-
     var body: some View {
         let currentLabel = languages.first { $0.0 == language }?.1 ?? language
         SettingsSection(title: L10n.format("settings_language"), first: true) {
-            if style == .liquidGlass {
-                nativeLanguageMenu(currentLabel: currentLabel)
-            } else {
-                classicLanguageCard(currentLabel: currentLabel)
-            }
+            nativeLanguageMenu(currentLabel: currentLabel)
         }
     }
 
@@ -638,70 +608,25 @@ private struct LanguageSection: View {
         .accessibilityValue(currentLabel)
     }
 
-    private func classicLanguageCard(currentLabel: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // 折叠头: 当前语言值 + 展开箭头 — padding(16)
-            Button {
-                withAnimation(expandAnimation) { expanded.toggle() }
-            } label: {
-                HStack {
-                    Text(currentLabel)
-                        .font(.system(size: 16, weight: .semibold)) // ← titleMedium(16) SemiBold
-                        .foregroundColor(colors.onSurface)
-                    Spacer()
-                    AndroidSettingsIcon(name: .expandMore, size: 20)
-                        .foregroundColor(colors.onSurfaceVariant)
-                        .rotationEffect(.degrees(expanded ? 180 : 0))
-                }
-                .padding(16)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(SleepyButtonStyle())
-            .accessibilityIdentifier("card_language")
-            // 展开体: 5 项列表, spacedBy 4, padding(start/end/bottom 16)
-            if expanded {
-                VStack(spacing: 4) {
-                    ForEach(languages, id: \.0) { code, label in
-                        let selected = language == code
-                        Button {
-                            language = code
-                            AppPrefs.shared.setLanguage(code)
-                            // Activity.recreate() → applyLanguage(重设 bundle + AppleLanguages)
-                            LocaleHelper.applyLanguage(code)
-                        } label: {
-                            HStack {
-                                Text(label)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(selected ? colors.primary : colors.onSurface)
-                                Spacer()
-                                if selected {
-                                    AndroidMaterialIcon(name: .check, size: 20)
-                                        .foregroundColor(colors.primary)
-                                }
-                            }
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 4)
-                        }
-                        .buttonStyle(SleepyButtonStyle())
-                        if code != languages.last!.0 { SubDivider() }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+}
+
+// Display groups share Android's surface treatment without another card header.
+private struct ScheduleDisplayGroup<Content: View>: View {
+    @Environment(\.localWakeUpColors) private var colors
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SettingsLayout.controlGap) {
+            content()
         }
+        .padding(SettingsLayout.cardInset)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(colors.surfaceContainer)
         .cornerRadius(SleepyShapes.large)
-        .animation(expandAnimation, value: expanded)
     }
 }
 
-// ← 分组⑤ 实验室 (2026-09-16 用户令): 实验性功能默认全关, 可能随版本调整。
-// 非折叠平铺卡(Column clip+surfaceContainer padding horizontal 16):
-// 自适应行高 / 双指捏放 / 自动收起空白晚间(+晚间起始时间条件行) / 竖排标点 /
-// 网格分隔线 / 长课间留白。
+// Advanced grid preferences remain inside the grid display group.
 private struct LabSection: View {
     @Environment(\.localWakeUpColors) private var colors
     let refreshWidgets: () -> Void
@@ -717,74 +642,56 @@ private struct LabSection: View {
     private let prefs = AppPrefs.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                // 内容 12 条 — 拆两 Group(ViewBuilder 10 项上限)
-                Group {
-                    SettingToggleRow(label: L10n.format("settings_grid_adaptive_height"),
-                                     subtitle: L10n.format("settings_grid_adaptive_height_sub"),
-                                     checked: gridAdaptiveHeight) {
-                        gridAdaptiveHeight = $0
-                        prefs.setGridAdaptiveHeight($0)
-                    }
-                    SubDivider()
-                    // v1.0.56 T3: 双指捏放行高 — 默认关, 关=网格视图捏不动
-                    SettingToggleRow(label: L10n.format("settings_grid_pinch_zoom"),
-                                     subtitle: L10n.format("settings_grid_pinch_zoom_sub"),
-                                     checked: gridPinchZoom) {
-                        gridPinchZoom = $0
-                        prefs.setGridPinchZoom($0)
-                    }
-                    SubDivider()
-                    SettingToggleRow(label: L10n.format("settings_grid_auto_hide_evening"),
-                                     subtitle: L10n.format("settings_grid_auto_hide_evening_sub"),
-                                     checked: autoHideEmptyEvening) {
-                        autoHideEmptyEvening = $0
-                        prefs.setGridAutoHideEmptyEvening($0)
-                    }
-                    if autoHideEmptyEvening {
-                        SubDivider()
-                        HStack(spacing: 12) {
-                            Text(L10n.format("settings_grid_evening_start"))
-                                .font(.system(size: 16))
-                                .foregroundColor(colors.onSurface)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            TimePickerField(
-                                value: eveningStart,
-                                onValueChange: {
-                                    eveningStart = $0
-                                    prefs.setGridEveningStart($0)
-                                },
-                                label: ""
-                            )
-                            .frame(width: 150) // ← 原 modifier=width(150.dp)
-                        }
-                        .padding(.vertical, 10)
-                    }
-                }
-                Group {
-                    SubDivider()
-                    SettingToggleRow(label: L10n.format("settings_grid_show_separators"),
-                                     subtitle: L10n.format("settings_grid_show_separators_sub"),
-                                     checked: gridShowSeparators) {
-                        gridShowSeparators = $0
-                        prefs.setGridShowSeparators($0)
-                        refreshWidgets()
-                    }
-                    SubDivider()
-                    SettingToggleRow(label: L10n.format("settings_grid_long_break_spacing"),
-                                     subtitle: L10n.format("settings_grid_long_break_spacing_sub"),
-                                     checked: gridLongBreakSpacing) {
-                        gridLongBreakSpacing = $0
-                        prefs.setGridLongBreakSpacing($0)
-                        refreshWidgets()
-                    }
+        VStack(alignment: .leading, spacing: SettingsLayout.controlGap) {
+            SettingToggleRow(label: L10n.format("settings_grid_adaptive_height"),
+                             subtitle: L10n.format("settings_grid_adaptive_height_sub"),
+                             checked: gridAdaptiveHeight) {
+                gridAdaptiveHeight = $0
+                prefs.setGridAdaptiveHeight($0)
+            }
+            SettingToggleRow(label: L10n.format("settings_grid_pinch_zoom"),
+                             subtitle: L10n.format("settings_grid_pinch_zoom_sub"),
+                             checked: gridPinchZoom) {
+                gridPinchZoom = $0
+                prefs.setGridPinchZoom($0)
+            }
+            SettingToggleRow(label: L10n.format("settings_grid_auto_hide_evening"),
+                             subtitle: L10n.format("settings_grid_auto_hide_evening_sub"),
+                             checked: autoHideEmptyEvening) {
+                autoHideEmptyEvening = $0
+                prefs.setGridAutoHideEmptyEvening($0)
+            }
+            if autoHideEmptyEvening {
+                HStack(spacing: 12) {
+                    Text(L10n.format("settings_grid_evening_start"))
+                        .font(SettingsLayout.itemStyle)
+                        .foregroundColor(colors.onSurface)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    TimePickerField(
+                        value: eveningStart,
+                        onValueChange: {
+                            eveningStart = $0
+                            prefs.setGridEveningStart($0)
+                        },
+                        label: ""
+                    )
+                    .frame(width: 150)
                 }
             }
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(colors.surfaceContainer)
-            .cornerRadius(SleepyShapes.large)
+            SettingToggleRow(label: L10n.format("settings_grid_show_separators"),
+                             subtitle: L10n.format("settings_appearance_separator_scope"),
+                             checked: gridShowSeparators) {
+                gridShowSeparators = $0
+                prefs.setGridShowSeparators($0)
+                refreshWidgets()
+            }
+            SettingToggleRow(label: L10n.format("settings_grid_long_break_spacing"),
+                             subtitle: L10n.format("settings_appearance_break_scope"),
+                             checked: gridLongBreakSpacing) {
+                gridLongBreakSpacing = $0
+                prefs.setGridLongBreakSpacing($0)
+                refreshWidgets()
+            }
         }
     }
 }

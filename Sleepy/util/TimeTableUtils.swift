@@ -193,10 +193,42 @@ enum TimeTableUtils {
     /// 节点编号在删除时会重新 1..N 连续编号。
     struct TimeSlotRow: Codable, Equatable {
         var node: Int
-        var start: String
-        var end: String
+        var start: String { didSet { finishValidManualInput() } }
+        var end: String { didSet { finishValidManualInput() } }
         /// Non-null only for nodes created by the manual-course edge controls.
         var edgeClass: EdgeClass? = nil
+        /// Draft-only lifecycle: clear after the first complete valid time input.
+        var pendingManualInsertion: Bool
+
+        init(node: Int, start: String, end: String, edgeClass: EdgeClass? = nil,
+             pendingManualInsertion: Bool? = nil) {
+            self.node = node
+            self.start = start
+            self.end = end
+            self.edgeClass = edgeClass
+            self.pendingManualInsertion = pendingManualInsertion
+                ?? (start.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || end.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+
+        enum CodingKeys: String, CodingKey { case node, start, end, edgeClass, pendingManualInsertion }
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            node = try values.decode(Int.self, forKey: .node)
+            start = try values.decode(String.self, forKey: .start)
+            end = try values.decode(String.self, forKey: .end)
+            edgeClass = try values.decodeIfPresent(EdgeClass.self, forKey: .edgeClass)
+            pendingManualInsertion = try values.decodeIfPresent(Bool.self, forKey: .pendingManualInsertion)
+                ?? (start.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || end.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+
+        private mutating func finishValidManualInput() {
+            guard pendingManualInsertion, let startMinute = TimeTableUtils.parsePeriodClock(start),
+                  let endMinute = TimeTableUtils.parsePeriodClock(end), endMinute > startMinute else { return }
+            pendingManualInsertion = false
+        }
     }
 
     /**
@@ -414,17 +446,57 @@ enum TimeTableUtils {
         return out
     }
 
-    /// 删除某 node 后**重新编号**为 1..N (用户友好)，返回新 list。
-    static func removeAndRenumber(_ rows: [TimeSlotRow], node: Int) -> [TimeSlotRow] {
-        rows.filter { $0.node != node }.enumerated().map { idx, r in
-            var copy = r; copy.node = idx + 1; return copy
+    /// Retain Before identities and number After rows beyond every standard draft.
+    static func renumberManualRows(_ rows: [TimeSlotRow]) -> [TimeSlotRow] {
+        let standards = rows.filter { $0.edgeClass == nil }.enumerated().map { index, row -> TimeSlotRow in
+            var numbered = row
+            numbered.node = index + 1
+            return numbered
         }
+        let before = rows.filter { $0.edgeClass == .before }.sorted { $0.node < $1.node }
+        let after = rows.filter { $0.edgeClass == .after }.sorted { $0.node < $1.node }.enumerated().map { index, row -> TimeSlotRow in
+            var numbered = row
+            numbered.node = standards.count + index + 1
+            return numbered
+        }
+        return before + standards.filter { !$0.pendingManualInsertion } + after
+            + standards.filter { $0.pendingManualInsertion }
     }
 
-    /// 追加一节 (node = max + 1)，时间留空让用户填。
+    /// Delete one row while preserving edge direction and standard draft lifecycle.
+    static func removeAndRenumber(_ rows: [TimeSlotRow], node: Int) -> [TimeSlotRow] {
+        renumberManualRows(rows.filter { $0.node != node })
+    }
+
+    /// Append the unfinished card after edges; its eventual identity is a standard period.
     static func appendEmptyRow(_ rows: [TimeSlotRow]) -> [TimeSlotRow] {
-        let nextNode = (rows.map { $0.node }.max() ?? 0) + 1
-        return rows + [TimeSlotRow(node: nextNode, start: "", end: "")]
+        let nextNode = rows.filter { $0.edgeClass == nil }.count + 1
+        return renumberManualRows(rows + [TimeSlotRow(node: nextNode, start: "", end: "")])
+    }
+
+    /// Insert only a newly completed manual draft. Established rows never move on clock edits.
+    static func updateManualRowTime(_ rows: [TimeSlotRow], node: Int,
+                                    start: String? = nil, end: String? = nil) -> [TimeSlotRow] {
+        guard let index = rows.firstIndex(where: { $0.node == node }) else { return rows }
+        let previous = rows[index]
+        var edited = previous
+        if let start { edited.start = start }
+        if let end { edited.end = end }
+        var updated = rows
+        updated[index] = edited
+        guard previous.edgeClass == nil, previous.pendingManualInsertion,
+              let startMinute = parsePeriodClock(edited.start), let endMinute = parsePeriodClock(edited.end),
+              endMinute > startMinute else { return updated }
+        edited.pendingManualInsertion = false
+        let otherStandards = updated.enumerated().filter { $0.offset != index && $0.element.edgeClass == nil }.map(\.element)
+        var established = otherStandards.filter { !$0.pendingManualInsertion }
+        let destination = established.firstIndex { row in
+            guard let minute = parsePeriodClock(row.start) else { return false }
+            return minute > startMinute
+        } ?? established.endIndex
+        established.insert(edited, at: destination)
+        return renumberManualRows(updated.filter { $0.edgeClass != nil } + established
+                                  + otherStandards.filter { $0.pendingManualInsertion })
     }
 
     /// Reorder standard periods while retaining edge anchors and their physical slots.
@@ -843,18 +915,27 @@ extension TimeTableUtils {
         var unchanged = 0
         let oldNodes = parseNodes(oldTimeJson)
         let newNodes = parseNodes(newTimeJson)
+        let migratedCourses = remapRenumberedEdgeCourses(courses, oldTimeJson: oldTimeJson, newTimeJson: newTimeJson)
 
         func nodeTime(_ nodes: [NodeTime], _ n: Int) -> (String, String)? {
             nodes.first { $0.node == n }.map { (formatTime($0.start), formatTime($0.end)) }
         }
 
-        for c in courses {
+        for (c, migrated) in zip(courses, migratedCourses) {
             if c.ownTime || c.isIrregularTime { continue }  // 自定义时间: 起止照旧, 不参与解释
-            let endNode = c.startNode + c.step - 1
+            if migrated.ownTime || migrated.isIrregularTime {
+                // A deleted edge retains its old clock as an explicit course time.
+                unchanged += 1
+                continue
+            }
+            guard c.step > 0 else { continue }
+            let (endNode, overflow) = c.startNode.addingReportingOverflow(c.step - 1)
+            guard !overflow else { continue }
             var changedNodes: [Int] = []
-            for n in c.startNode...max(endNode, c.startNode) {
+            for n in c.startNode...endNode {
                 let o = nodeTime(oldNodes, n)
-                let w = nodeTime(newNodes, n)
+                let (destinationNode, destinationOverflow) = migrated.startNode.addingReportingOverflow(n - c.startNode)
+                let w = destinationOverflow ? nil : nodeTime(newNodes, destinationNode)
                 // 元组无 Equatable — 逐分量对比(← Kotlin Pair ==)
                 let differs: Bool
                 switch (o, w) {
@@ -865,7 +946,7 @@ extension TimeTableUtils {
                 if differs { changedNodes.append(n) }
             }
             let oldParts = courseTimeParts(courseStartNode: c.startNode, courseStep: c.step, timeJson: oldTimeJson)
-            let newParts = courseTimeParts(courseStartNode: c.startNode, courseStep: c.step, timeJson: newTimeJson)
+            let newParts = courseTimeParts(courseStartNode: migrated.startNode, courseStep: c.step, timeJson: newTimeJson)
             if changedNodes.isEmpty {
                 unchanged += 1
             } else {

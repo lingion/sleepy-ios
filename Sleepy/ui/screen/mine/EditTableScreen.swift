@@ -41,6 +41,7 @@ struct EditTableScreen: View {
     @State private var timeSlotsExpanded = false
     @State private var error: String? = nil
     @State private var showDeleteConfirm = false
+    @State private var showHolidaySettings = false
     @State private var slotRows: [TimeTableUtils.TimeSlotRow] = []
     @State private var smartConfig = SmartPeriodConfig()
     @State private var reorderCourses: [CourseEntity]? = nil
@@ -260,6 +261,10 @@ struct EditTableScreen: View {
                     .background(colors.surfaceContainer)
                     .cornerRadius(SleepyShapes.extraLarge)
 
+                    AppearanceNavigationRow(title: L10n.format("settings_holiday_title_rules"),
+                                            onClick: { showHolidaySettings = true })
+                        .accessibilityIdentifier("edit_table_holiday")
+
                     if let error = error {
                         Text(error)
                             .font(.system(size: 14))
@@ -327,6 +332,12 @@ struct EditTableScreen: View {
         //   时仅重播选择器初值 pendingBind, 不重建整个会话
         .onChange(of: table.periodTableId) { _ in pendingBind = table.periodTableId }
         .onChange(of: scheduleKey) { _ in reloadSchedule(table: table, effective: effective) }
+        .sheet(isPresented: $showHolidaySettings) {
+            HolidaySettingsScreen(onDismiss: { showHolidaySettings = false },
+                                  tableId: viewModel.state.selectedTableId,
+                                  initialTableId: table.id,
+                                  refreshTransfer: { viewModel.refreshTransfer() })
+        }
         .alert(L10n.format("edit_table_delete_confirm"), isPresented: $showDeleteConfirm) {
             Button(L10n.format("delete"), role: .destructive) {
                 showDeleteConfirm = false
@@ -607,9 +618,7 @@ struct EditTableScreen: View {
 
     /// ← 原 runCatching { Json.encodeToString(cfg) }.getOrDefault("")
     private func encodeSmartConfig(_ cfg: SmartPeriodConfig) -> String {
-        guard let data = try? JSONEncoder().encode(cfg),
-              let json = String(data: data, encoding: .utf8) else { return "" }
-        return json
+        encodeMatchingSmartPeriodConfig(rows: slotRows, stored: cfg)
     }
 }
 

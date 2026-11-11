@@ -294,9 +294,8 @@ extension MigrationPrefsCodec.PrefsSnapshot {
     }
 }
 
-/// 各模块覆盖的 prefs 文件清单 (debug_import 为调试通道, 永不迁移)。
-/// iOS: 大多数 prefs 走 UserDefaults.standard(主文件 sleepy_prefs 直接复用);
-/// 二级文件 (custom_themes / widget_bindings / ...) 走 suiteName。
+/// Logical backup file names. RuntimeMigrationPrefsStore maps them to production storage.
+/// debug_import is a debug channel and is never migrated.
 enum MigrationPrefsFileMap {
     static let PREFERENCES: [String] = [
         "sleepy_prefs",     // AppPrefs 主文件(212+ 键)
@@ -307,6 +306,7 @@ enum MigrationPrefsFileMap {
         "widget_scroll_prefs",
         "widget_compact_window_prefs",
         "widget_today_nav",
+        "widget_wide_grid",
     ]
     static let PERSISTED_STATE: [String] = []   // iOS 端当前无独立持久态; 预留给未来扩展
 

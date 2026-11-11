@@ -18,6 +18,30 @@ final class JwWebViewConfigBuilderTests: XCTestCase {
         JwSchoolInfo(sortKey: "T", name: "测试大学", url: url, type: "zf_new")
     }
 
+    @MainActor
+    func testCreatingWebViewDefersURLStateUntilAfterFactoryReturns() async throws {
+        let requested = URL(string: "about:blank")!
+        let delivered = expectation(description: "The requested URL reaches the screen")
+        var creating = true
+        var urls: [String?] = []
+        var fulfilled = false
+        let coordinator = WebViewCoordinator(school: school(requested.absoluteString),
+            desktopUa: false, onProgressChange: { _ in }, onUrlChanged: { url in
+                XCTAssertFalse(creating, "A URL callback must not mutate screen state inside makeUIView")
+                urls.append(url)
+                if url == requested.absoluteString, !fulfilled {
+                    fulfilled = true
+                    delivered.fulfill()
+                }
+            }, onHtmlCaptured: { _ in }, onCaptureError: { _, _ in }, onWiseduResult: { _ in })
+        let webView = coordinator.makeWebView(url: requested)
+        creating = false
+        XCTAssertTrue(urls.isEmpty, "The WebView factory runs inside a SwiftUI view update")
+        await fulfillment(of: [delivered], timeout: 5)
+        XCTAssertEqual(urls.last ?? nil, requested.absoluteString)
+        webView.stopLoading()
+    }
+
     // MARK: - SslBypassRegistry.registrableDomain(同算法契约)
 
     func testRegistrableDomainSubdomainsCollapse() {

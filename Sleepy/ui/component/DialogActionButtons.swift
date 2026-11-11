@@ -18,16 +18,10 @@
 // 长键(「导出排查全量包」)多占, 每键 ≥ 必需宽。
 //
 // 可用宽度 = 容器实际宽度 (↔ 原版本 BoxWithConstraints maxWidth.value; iOS 以
-// PreferenceKey 测量, 首帧未测得前按屏幕宽 - 弹窗左右 padding(24×2) 估计兜底),
+// GeometryReader 测量, 首帧未测得前按屏幕宽 - 弹窗左右 padding(24×2) 估计兜底),
 // 因此也可独立用于 BottomSheet 等非 AlertDialog 容器。
 
 import SwiftUI
-
-/// ↔ 原版本 BoxWithConstraints: 按钮行所在容器的实际宽度。
-private struct DialogContainerWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
 
 struct DialogActionButtons: View {
     @Environment(\.localWakeUpColors) private var colors
@@ -122,13 +116,19 @@ struct DialogActionButtons: View {
         }
         // ↔ 原版本 BoxWithConstraints(modifier.fillMaxWidth()): 先填满容器给出的宽度,
         // 再经 background 测得自身 = 容器实际宽度(非贪心时测到的是键总宽, 不收敛)
-        .frame(maxWidth: .infinity)
+        .frame(minWidth: 0, maxWidth: .infinity)
         .background(
             GeometryReader { geo in
-                Color.clear.preference(key: DialogContainerWidthKey.self, value: geo.size.width)
+                Color.clear
+                    .onAppear { updateWidth(geo.size.width) }
+                    .onChange(of: geo.size.width, perform: updateWidth)
             }
         )
-        .onPreferenceChange(DialogContainerWidthKey.self) { measuredWidth = $0 }
+    }
+
+    private func updateWidth(_ width: CGFloat) {
+        guard width.isFinite, width > 0, abs(width - measuredWidth) > 0.5 else { return }
+        measuredWidth = width
     }
 
     // 2026-09-18 用户: 文字必须完整展示 — 横排按必需宽比例分配(每键 ≥ 文字宽),

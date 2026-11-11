@@ -17,7 +17,7 @@
 //   原版本 仅在 METHOD_ALARM 插入失败且 METHOD_ALERT 兜底插入成功时计数; iOS EKAlarm 为单阶段写入、
 //   不存在两阶段兜底 → 写入成功即视为期望 method 生效(insertReminder(method) 成功分支),
 //   写入失败返回 nil 计 errors(两阶段均失败分支)。成功路径 alarmFallback 不增长, 与原实现一致。
-// - 事件时区 EKEvent 无公开 API → 指纹恒以 TimeZone.current.identifier 固定(与 原版本 ZoneId.systemDefault().id 同位)
+// - 指纹以 EKCalendarItem.timeZone 为准；v2 保留 nil，并兼容旧设备时区指纹。
 // - EventKit 无"导入历史"原生概念 → 仓内 CalendarImportRecordDao/Entity (calendar_import_records 表) 承担记录职责
 // - v1.0.62 B6 调休口径(SystemCalendarManager.kt v1.0.62):
 //   导入日期范围纳入调休目标日(源日在学期内的 targetDate 可把区间撑出学期末);
@@ -383,6 +383,7 @@ final class SystemCalendarManager {
             }
 
         var inserted = 0, updated = 0, unchanged = 0, skippedEdited = 0, alarmFallback = 0, errors = 0
+        var legacyTimeZone: String?
         let skippedInvalid = invalid
 
         for spec in specs {
@@ -400,12 +401,19 @@ final class SystemCalendarManager {
                     record = nil
                 } else {
                     let oldReminders = readReminder(eventId: rec.eventId) ?? []
-                    if fingerprint(old!, oldReminders) != rec.fingerprint {
+                    if !matchesManagedFingerprint(old!, oldReminders, saved: rec.fingerprint,
+                                                   preferredLegacyTimeZone: &legacyTimeZone) {
                         skippedEdited += 1
                         continue
                     }
                     if eventMatchesSpec(old!, spec: spec, calendarId: options.calendarId)
                         && remindersMatch(oldReminders, expectedMethod: desiredMethod, expectedMinutes: desiredMinutes, allowAlarmFallback: wantsAlarm) {
+                        let currentFingerprint = fingerprint(old!, oldReminders)
+                        if rec.fingerprint != currentFingerprint {
+                            var migrated = rec
+                            migrated.fingerprint = currentFingerprint
+                            try db.calendarImportRecordDao.upsert(migrated)
+                        }
                         unchanged += 1
                         continue
                     }
@@ -483,6 +491,7 @@ final class SystemCalendarManager {
         guard hasCalendarPermissions() else { return (0, 0, 0) }
         let db = AppDatabase.getShared()
         var deleted = 0, skippedEdited = 0, missing = 0
+        var legacyTimeZone: String?
         for record in (try? db.calendarImportRecordDao.forTable(tableId)) ?? [] {
             if let cid = calendarId, record.calendarId != cid { continue }
             guard let event = readEvent(eventId: record.eventId) else {
@@ -491,7 +500,8 @@ final class SystemCalendarManager {
                 continue
             }
             let reminders = readReminder(eventId: event.calendarItemExternalIdentifier) ?? []
-            guard fingerprint(event, reminders) == record.fingerprint else {
+            guard matchesManagedFingerprint(event, reminders, saved: record.fingerprint,
+                                            preferredLegacyTimeZone: &legacyTimeZone) else {
                 skippedEdited += 1  // 用户改过 → 事件与记录都保留
                 continue
             }
@@ -628,6 +638,10 @@ final class SystemCalendarManager {
 
     /// SHA-256 hex of [calendarId, title, location, notes, startMs, endMs, tz, 排序 "method:minutes"] (分隔符 \u{1F})
     func fingerprint(_ event: EKEvent, _ reminders: [ReminderDesc]) -> String {
+        "v2:" + fingerprintDigest(event, reminders, timeZoneIdentifier: event.timeZone?.identifier ?? "")
+    }
+
+    private func fingerprintDigest(_ event: EKEvent, _ reminders: [ReminderDesc], timeZoneIdentifier: String) -> String {
         var parts: [String] = []
         parts.append(event.calendar?.calendarIdentifier ?? "")
         parts.append(event.title ?? "")
@@ -635,7 +649,7 @@ final class SystemCalendarManager {
         parts.append(event.notes ?? "")
         parts.append(Int64(event.startDate.timeIntervalSince1970 * 1000).description)
         parts.append(Int64(event.endDate.timeIntervalSince1970 * 1000).description)
-        parts.append(TimeZone.current.identifier)
+        parts.append(timeZoneIdentifier)
         let sorted = reminders.sorted {
             if $0.method != $1.method { return $0.method.rawValue < $1.method.rawValue }
             return $0.minutes < $1.minutes
@@ -643,6 +657,33 @@ final class SystemCalendarManager {
         parts.append(sorted.map { "\($0.method.rawValue):\($0.minutes)" }.joined(separator: ","))
         let joined = parts.joined(separator: "\u{1F}")
         return SHA256.hash(data: Data(joined.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    func matchesManagedFingerprint(_ event: EKEvent, _ reminders: [ReminderDesc], saved: String) -> Bool {
+        var legacyTimeZone: String?
+        return matchesManagedFingerprint(event, reminders, saved: saved, preferredLegacyTimeZone: &legacyTimeZone)
+    }
+
+    private static let legacyTimeZoneIdentifiers = TimeZone.knownTimeZoneIdentifiers
+
+    private func matchesManagedFingerprint(_ event: EKEvent, _ reminders: [ReminderDesc], saved: String,
+                                          preferredLegacyTimeZone: inout String?) -> Bool {
+        if saved.hasPrefix("v2:") { return fingerprint(event, reminders) == saved }
+        guard saved.count == 64, saved.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else {
+            return false
+        }
+        // Old hashes stored the device zone without recording its identifier.
+        // Only accept a complete legacy hash match; changed event fields remain
+        // protected. Reuse the matched zone within this import/delete operation.
+        let preferred = [preferredLegacyTimeZone, event.timeZone?.identifier, TimeZone.current.identifier].compactMap { $0 }
+        var tried = Set<String>()
+        for zone in preferred + Self.legacyTimeZoneIdentifiers where tried.insert(zone).inserted {
+            if fingerprintDigest(event, reminders, timeZoneIdentifier: zone) == saved {
+                preferredLegacyTimeZone = zone
+                return true
+            }
+        }
+        return false
     }
 
     /// ← 原版本 eventMatchesSpec: 字段逐一比对(用户没改过才重挂提醒)

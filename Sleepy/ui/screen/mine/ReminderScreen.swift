@@ -83,8 +83,9 @@ struct ReminderScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("reminder_title"), onBack: onDismiss)
+            ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: SettingsLayout.cardGap) {
                     // Master toggle card
                     ReminderCard {
                         MasterToggleRow(masterEnabled: $masterEnabled) { on in
@@ -98,12 +99,29 @@ struct ReminderScreen: View {
                         }
                     }
 
+                    if let snapshot = reliabilitySnapshot,
+                       !snapshot.notificationPermissionGranted || !snapshot.timeSensitiveAllowed {
+                        Button {
+                            withAnimation { proxy.scrollTo("reminder_permissions", anchor: .bottom) }
+                        } label: {
+                            Text(L10n.t("settings_reminder_permissions_attention"))
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(colors.onSecondaryContainer)
+                                .frame(maxWidth: .infinity, minHeight: 40)
+                                .sleepyControlSurface(cornerRadius: SleepyShapes.large,
+                                                      tint: colors.secondaryContainer, prominent: true)
+                        }
+                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .tint(colors.secondaryContainer)
+                        .accessibilityIdentifier("reminder_permissions_attention")
+                    }
+
                     // v1.0.62 B3 课表提醒入口 — ← 原版本 ReminderScreen item:
                     // title+subtitle 两行 + 尾随 ChevronRight, surfaceContainer 卡底。
                     Button { showTableReminder = true } label: {
                         HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.format("table_reminder_title"))
+                            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
+                                Text(L10n.format("settings_table_reminder_scope"))
                                     .font(.system(size: 14, weight: .medium))   // ← titleSmall
                                     .foregroundColor(colors.onSurface)
                                 Text(L10n.format("table_reminder_subtitle"))
@@ -123,17 +141,29 @@ struct ReminderScreen: View {
                     .buttonStyle(SleepyButtonStyle())
                     .accessibilityIdentifier("reminder_table_reminder_entry")
 
+                    // Sub-settings — only visible when master is on
+                    if masterEnabled {
+                        beforeClassCard
+                        dailyCard
+                    }
+
                     // Date-based reminder rules remain independent from the general reminder master.
                     dateRulesCard
 
-                    // Sub-settings — only visible when master is on
                     if masterEnabled {
-                        dailyCard
-                        beforeClassCard
                         classDndCard
                     }
+
+                    ReminderCard {
+                        Text(L10n.t("settings_reminder_permissions"))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(colors.onSurface)
+                        reliabilityBlock
+                    }
+                    .id("reminder_permissions")
                 }
                 .padding(16)
+            }
             }
         }
         .background(colors.background)
@@ -191,9 +221,9 @@ struct ReminderScreen: View {
         ReminderCard {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                         Text(L10n.format("reminder_date_rules_title"))
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(colors.onSurface)
                         Text(L10n.format("reminder_date_rules_subtitle"))
                             .font(.system(size: 12))
@@ -213,39 +243,43 @@ struct ReminderScreen: View {
                     .labelsHidden()
                     .accessibilityIdentifier("reminder_date_rules_toggle")
                 }
-                .padding(4)
+                .frame(minHeight: SettingsLayout.minRowHeight)
+                .padding(.vertical, 4)
                 if !dateRulesEnabled {
                     Text(L10n.format("reminder_date_rules_inactive"))
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
-                        .padding(.horizontal, 4)
                         .padding(.vertical, 4)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     SubDivider()
+                    Text(L10n.format("reminder_date_rules_advanced_subtitle"))
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .padding(4)
                     ReminderToggleRow(title: L10n.format("reminder_date_rules_public_holiday"),
-                                      subtitle: L10n.format("reminder_date_rules_advanced_subtitle"),
+                                      subtitle: "",
                                       checked: $publicHolidayReminder) {
                         publicHolidayReminder = $0
                         prefs.setHolidayReminderPublicHolidayEnabled($0)
                         ReminderRescheduler.shared.request()
                     }
                     ReminderToggleRow(title: L10n.format("reminder_date_rules_transfer_holiday"),
-                                      subtitle: L10n.format("reminder_date_rules_advanced_subtitle"),
+                                      subtitle: "",
                                       checked: $transferHolidayReminder) {
                         transferHolidayReminder = $0
                         prefs.setHolidayReminderTransferHolidayEnabled($0)
                         ReminderRescheduler.shared.request()
                     }
                     ReminderToggleRow(title: L10n.format("reminder_date_rules_makeup_workday"),
-                                      subtitle: L10n.format("reminder_date_rules_advanced_subtitle"),
+                                      subtitle: "",
                                       checked: $makeupWorkdayReminder) {
                         makeupWorkdayReminder = $0
                         prefs.setHolidayReminderMakeupWorkdayEnabled($0)
                         ReminderRescheduler.shared.request()
                     }
                     ReminderToggleRow(title: L10n.format("reminder_date_rules_ordinary_weekend"),
-                                      subtitle: L10n.format("reminder_date_rules_advanced_subtitle"),
+                                      subtitle: "",
                                       checked: $ordinaryWeekendReminder) {
                         ordinaryWeekendReminder = $0
                         prefs.setHolidayReminderOrdinaryWeekendEnabled($0)
@@ -403,19 +437,15 @@ struct ReminderScreen: View {
                     }
                     .frame(width: 120)
                     .padding(.vertical, 8)
-                    .background(colors.surfaceContainerLowest)
+                    .background(colors.surfaceContainerHighest)
                     .cornerRadius(SleepyTheme.fieldShape)
                 }
                 .padding(.vertical, 8)
-                .padding(.horizontal, 4)
                 SubDivider()
                 Text(beforeClassPreviewText)
                     .font(.system(size: 12))
                     .foregroundColor(colors.onSurfaceVariant)
-                    .padding(.leading, 52)   // ← 原 课前示例唯一用 52dp 起缩进
-                    .padding(.top, 8)
-                    .padding(.bottom, 8)
-                    .padding(.trailing, 4)
+                    .padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SubDivider()
                 ReminderToggleRow(title: L10n.format("reminder_mode_banner"),
@@ -467,7 +497,6 @@ struct ReminderScreen: View {
                             .accessibilityIdentifier("reminder_live_activity_settings")
                     }
                 }
-                reliabilityBlock
             }
         }
     }
@@ -478,10 +507,6 @@ struct ReminderScreen: View {
     private var reliabilityBlock: some View {
         if let snapshot = reliabilitySnapshot {
             VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.format("reminder_reliability_title"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(colors.onSurface)
-                    .padding(.top, 10)
                 // 通知权限 ← snapshot.notificationPermissionGranted
                 Text(L10n.format("reminder_reliability_notification",
                                  snapshot.notificationPermissionGranted
@@ -531,6 +556,10 @@ struct ReminderScreen: View {
                     .accessibilityIdentifier("reminder_reliability_battery")
                 // widgetBound/liveCardState/promotedOngoingAllowed: no-analog 行不渲染
             }
+        } else {
+            Text(L10n.t("loading"))
+                .font(.system(size: 12))
+                .foregroundColor(colors.onSurfaceVariant)
         }
     }
 
@@ -750,7 +779,7 @@ struct ReminderSchedulePreview {
 }
 
 /// ← loadReminderSchedulePreview + buildDailyPreviewText + buildBeforeClassPreviewText
-/// (ReminderScreen.kt 顶层私有函数; 提为 internal 供 SleepyTests/ReminderSchedulePreviewTests 直测)
+/// (ReminderScreen.kt 顶层私有函数; 提为 internal 供 ReminderScreenPreviewFormatTests 直测)
 enum ReminderPreviewLoader {
 
     /// ← courseStartTime(course, nodes): ownTime 且 startTime 可解析("H:mm")优先,
@@ -782,6 +811,24 @@ enum ReminderPreviewLoader {
         return h * 3600 + m * 60
     }
 
+    /// 今日、次日和下节课示例共用调休感知取课；按源日周次投影到补班日。
+    static func coursesOn(_ date: Date, table: TimeTableEntity, courses: [CourseEntity],
+                          transfers: [HolidayTransferEntry], nodes: [TimeTableUtils.NodeTime]) -> [CourseEntity] {
+        HolidayTransferOps.coursesForDate(date, startDate: table.startDate, maxWeek: table.maxWeek,
+                                         courses: courses, transfers: transfers)
+            .sorted { a, b in
+                let sa = courseStartTime(a, nodes: nodes)
+                let sb = courseStartTime(b, nodes: nodes)
+                switch (sa, sb) {
+                case (nil, nil): return a.startNode < b.startNode
+                case (nil, .some): return false
+                case (.some, nil): return true
+                case let (.some(x), .some(y)) where x == y: return a.startNode < b.startNode
+                case let (.some(x), .some(y)): return x < y
+                }
+            }
+    }
+
     /// ← loadReminderSchedulePreview(): 只读当前表; 任何失败 → nil(回退通用示例)。
     static func load() async -> ReminderSchedulePreview? {
         let repo = ScheduleRepository(AppDatabase.getShared())
@@ -792,26 +839,10 @@ enum ReminderPreviewLoader {
         let cal = DateUtils.isoCalendar
         let now = Date()
         let todayDay = cal.startOfDay(for: now)
+        let transfers = AppPrefs.shared.getHolidayTransfers(table.id)
 
         func coursesOn(_ date: Date) -> [CourseEntity] {
-            if DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: date) != .inRange {
-                return []
-            }
-            let week = DateUtils.currentWeek(startDate: table.startDate, today: date)
-            let dow = DateUtils.todayDayOfWeek(today: date)
-            return courses
-                .filter { $0.day == dow && $0.inWeek(week) }
-                .sorted { a, b in
-                    let sa = courseStartTime(a, nodes: nodes)
-                    let sb = courseStartTime(b, nodes: nodes)
-                    switch (sa, sb) {
-                    case (nil, nil): return a.startNode < b.startNode
-                    case (nil, .some): return false   // ← ?: LocalTime.MAX 落最后
-                    case (.some, nil): return true
-                    case let (.some(x), .some(y)) where x == y: return a.startNode < b.startNode
-                    case let (.some(x), .some(y)): return x < y
-                    }
-                }
+            Self.coursesOn(date, table: table, courses: courses, transfers: transfers, nodes: nodes)
         }
 
         func dayPreview(_ date: Date) -> ReminderDayPreview {
@@ -956,9 +987,9 @@ private struct MasterToggleRow: View {
     var body: some View {
         HStack(spacing: 12) {
             IconBox(icon: .notifications)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                 Text(L10n.format("reminder_master_title"))
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(colors.onSurface)
                 Text(L10n.format("reminder_master_sub"))
                     .font(.system(size: 12))
@@ -975,7 +1006,6 @@ private struct MasterToggleRow: View {
             .accessibilityIdentifier("reminder_master_toggle")
         }
         .padding(.vertical, 4)
-        .padding(.horizontal, 4)
     }
 }
 
@@ -992,9 +1022,9 @@ private struct SubToggleRow: View {
     var body: some View {
         HStack(spacing: 12) {
             IconBox(icon: icon)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(colors.onSurface)
                 Text(subtitle)
                     .font(.system(size: 12))
@@ -1010,7 +1040,8 @@ private struct SubToggleRow: View {
             .labelsHidden()
             .modifier(OptionalToggleId(id: toggleId))
         }
-        .padding(4)
+        .frame(minHeight: SettingsLayout.minRowHeight)
+        .padding(.vertical, 4)
     }
 }
 
@@ -1045,8 +1076,7 @@ private struct ReminderTimeRow: View {
                     .foregroundColor(colors.primary)
             }
             .padding(.vertical, 12)
-            .padding(.horizontal, 4)
-            .contentShape(Rectangle())
+                .contentShape(Rectangle())
         }
         .buttonStyle(SleepyButtonStyle())
         .modifier(OptionalToggleId(id: rowId))
@@ -1067,10 +1097,10 @@ private struct ReminderToggleRow: View {
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                 HStack(spacing: 6) {   // ← 原 Spacer(6.dp) 标题与 tag 间距
                     Text(title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 14))
                         .foregroundColor(colors.onSurface)
                     if let tag = tag {
                         Text(tag)
@@ -1083,9 +1113,11 @@ private struct ReminderToggleRow: View {
                             .clipShape(Capsule())   // ← RoundedCornerShape(50)
                     }
                 }
-                Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(colors.onSurfaceVariant)
+                if !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.onSurfaceVariant)
+                }
             }
             Spacer()
             if let identifier {
@@ -1095,7 +1127,6 @@ private struct ReminderToggleRow: View {
             }
         }
         .padding(.vertical, 8)
-        .padding(.horizontal, 4)
     }
 
     private var toggle: some View {
@@ -1114,7 +1145,7 @@ private struct NotifDeniedRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
                 Text(L10n.format("reminder_notif_denied_title"))
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
@@ -1182,6 +1213,5 @@ private struct SubDivider: View {
         Rectangle()
             .fill(colors.outline.opacity(SleepyTheme.Alpha.hairline))
             .frame(height: 1)
-            .padding(.leading, 52)
     }
 }

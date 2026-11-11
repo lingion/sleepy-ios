@@ -163,13 +163,11 @@ final class ScheduleRepository {
                 throw TableEditSaveError.missingTable
             }
             let courses = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ? ORDER BY id", arguments: [id])
-            let names = Set(try String.fetchAll(db, sql: "SELECT name FROM time_tables"))
-            var suffix = 2
-            var name = "\(source.name)\(suffix)"
-            while names.contains(name) {
-                suffix += 1
-                name = "\(source.name)\(suffix)"
-            }
+            let courseNames = try String.fetchAll(db, sql: "SELECT name FROM time_tables")
+            let periodNames = try String.fetchAll(db, sql: "SELECT name FROM period_tables")
+            let names = Set(courseNames + periodNames)
+            var name = TimeTableUtils.suggestUniqueName(source.name, courseTableNames: courseNames,
+                                                       periodTableNames: periodNames)
             var copy = source
             copy.id = 0
             if let newName {
@@ -215,7 +213,19 @@ final class ScheduleRepository {
                         periodTable: PeriodTableEntity?,
                         bindPeriodTableId: Int64? = nil,
                         keepGroups: Bool = false) throws -> Int64 {
-        let store = GRDBNewTableImportStore(db: db)
+        // Confirmation can become stale while another editor changes the shared bell schedule.
+        let store = GRDBNewTableImportStore(db: db) { dbw in
+            let confirmedTimeJson: String
+            if let id = bindPeriodTableId {
+                guard let shared = try PeriodTableEntity.fetchOne(dbw, key: id) else {
+                    throw NewTableImportError.selectedPeriodTableMissing
+                }
+                confirmedTimeJson = shared.timeJson
+            } else {
+                confirmedTimeJson = periodTable?.timeJson ?? table.timeJson
+            }
+            try CourseImportPolicy.requirePeriodCoverage(courses, timeJson: confirmedTimeJson)
+        }
         let id = try importNewTableAtomically(store: store,
                                               table: table,
                                               courses: courses,
@@ -362,7 +372,7 @@ final class ScheduleRepository {
             try next.update(db)
             var stamped = periodTable
             stamped.updatedAt = now
-            try stamped.update(db)
+            try updatePeriodTableWithEdgeMigrationInDb(db, table: stamped)
             return true
         }
         if changed { onDataChanged() }
@@ -415,12 +425,13 @@ final class ScheduleRepository {
                 merged.smartConfigJson = table.smartConfigJson
                 merged.nodesPerDay = table.nodesPerDay
             }
-            try merged.update(db)
             if let pc = periodContent {
                 var stamped = pc
                 stamped.updatedAt = now
-                try stamped.update(db)
+                try updatePeriodTableWithEdgeMigrationInDb(db, table: stamped)
             }
+            // Existing owners use the target's old identities; the new binding does not.
+            try merged.update(db)
             return true
         }
         if changed { onDataChanged() }
@@ -479,7 +490,7 @@ final class ScheduleRepository {
                 var synced = draft
                 synced.id = boundID
                 synced.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
-                try synced.update(db)
+                try updatePeriodTableWithEdgeMigrationInDb(db, table: synced)
                 var next = editedTable
                 next.periodTableId = current.periodTableId
                 next.preBindSnapshotJson = current.preBindSnapshotJson
@@ -500,8 +511,13 @@ final class ScheduleRepository {
             try table.update(db)
             guard destinationTimeJson != oldTimeJson else { return }
             let courses = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ?", arguments: [table.id])
-            let remapped = courses.map { c -> CourseEntity in
-                if c.ownTime {
+            let edgeRemapped = remapRenumberedEdgeCourses(courses, oldTimeJson: oldTimeJson,
+                                                        newTimeJson: destinationTimeJson)
+            let remapped = zip(courses, edgeRemapped).map { c, edge -> CourseEntity in
+                // Shared edge identity takes precedence over absolute-clock remapping.
+                if c.isIrregularNode {
+                    return edge
+                } else if c.ownTime {
                     if let mapped = TimeTableUtils.timeToNode(c.startTime, c.endTime, destinationTimeJson) {
                         var copy = c
                         copy.startNode = mapped.0
@@ -521,9 +537,27 @@ final class ScheduleRepository {
                     return copy
                 }
             }
-            let changed = zip(remapped, courses).filter { $0.0.id != $0.1.id || $0.0.startNode != $0.1.startNode || $0.0.step != $0.1.step }
+            let changed = zip(remapped, courses).filter { $0.0 != $0.1 }
                 .map { $0.0 }
             for course in changed { try course.update(db) }
+    }
+
+    /// Shared saves retain standard course ordinals and migrate only edge identities.
+    /// Called inside the enclosing save transaction so all owners and Undo change together.
+    private func updatePeriodTableWithEdgeMigrationInDb(_ db: Database, table: PeriodTableEntity) throws {
+        guard let previous = try PeriodTableEntity.fetchOne(db, key: table.id) else {
+            throw TableEditSaveError.missingPeriodTable
+        }
+        try table.update(db)
+        guard previous.timeJson != table.timeJson else { return }
+        let owners = try Int64.fetchAll(db, sql: "SELECT id FROM time_tables WHERE periodTableId = ?", arguments: [table.id])
+        for owner in owners {
+            let courses = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ?", arguments: [owner])
+            let migrated = remapRenumberedEdgeCourses(courses, oldTimeJson: previous.timeJson, newTimeJson: table.timeJson)
+            for (old, next) in zip(courses, migrated) where old != next {
+                try next.update(db)
+            }
+        }
     }
 
     /// issue#28 P3: 作息表变更后的课程节次自适应(TimeTableUtils.remapCourseNodes)。
@@ -661,7 +695,7 @@ final class ScheduleRepository {
     func updatePeriodTable(_ table: PeriodTableEntity) throws {
         var stamped = table
         stamped.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
-        try writeWithUndo { db in try stamped.update(db) }
+        try writeWithUndo { db in try updatePeriodTableWithEdgeMigrationInDb(db, table: stamped) }
         onDataChanged()
     }
 
@@ -673,7 +707,7 @@ final class ScheduleRepository {
             let bound = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM time_tables WHERE periodTableId = ?", arguments: [table.id]) ?? 0
             var stamped = table
             stamped.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
-            try stamped.update(db)
+            try updatePeriodTableWithEdgeMigrationInDb(db, table: stamped)
             return bound
         }
         guard let bound else { return 0 }
@@ -1194,14 +1228,13 @@ final class ScheduleRepository {
             guard var table = try TimeTableEntity.fetchOne(db, key: tableId) else { throw ImportMutationError.tableMissing }
             let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
             if table.periodTableId != nil && period == nil { throw ImportMutationError.periodMissing }
-            let extended = TimeTableUtils.mergeMostComplete(currentJson: period?.timeJson ?? table.timeJson,
-                incomingJson: incomingTimeJson, requiredNodeCount: requiredNodeCount)
+            let extended = CourseImportPolicy.timeJsonForAppend(current: period?.timeJson ?? table.timeJson,
+                incoming: incomingTimeJson,
+                requiredNodes: max(requiredNodeCount, courses.map { $0.startNode + $0.step - 1 }.max() ?? 0),
+                bound: period != nil)
+            try CourseImportPolicy.requirePeriodCoverage(courses, timeJson: extended)
             let count = TimeTableUtils.parseTimeSlotRows(extended).map(\.node).max() ?? table.nodesPerDay
-            if var period {
-                period.timeJson = extended
-                period.nodesPerDay = count
-                try period.update(db)
-            } else {
+            if period == nil {
                 table.timeJson = extended
                 table.nodesPerDay = count
                 try table.update(db)
@@ -1238,11 +1271,12 @@ final class ScheduleRepository {
                 guard !overflow else { throw TableEditSaveError.invalidCourseDraft }
                 return end
             }.max() ?? 0
-            let extended = CourseImportPolicy.mergeTimeJson(current: effective.timeJson,
-                incoming: incomingTimeJson, requiredNodes: max(requiredNodeCount, incomingEnd))
+            let extended = CourseImportPolicy.timeJsonForAppend(current: effective.timeJson,
+                incoming: incomingTimeJson, requiredNodes: max(requiredNodeCount, incomingEnd), bound: period != nil)
             let accepted = CourseImportPolicy.selectIncoming(incoming: courses, existing: existing,
                 appendConflicts: appendConflicts, timeJson: extended)
             guard !accepted.isEmpty else { return 0 }
+            try CourseImportPolicy.requirePeriodCoverage(accepted, timeJson: extended)
 
             if backupOriginal {
                 let names = try String.fetchAll(db, sql: "SELECT name FROM time_tables")
@@ -1286,14 +1320,7 @@ final class ScheduleRepository {
             _ = try courseDao.insertAllInDb(db, prepared)
             _ = CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: db, dao: courseColorDao, entities: prepared)
             let count = TimeTableUtils.parseTimeSlotRows(extended).map(\.node).max() ?? effective.nodesPerDay
-            if var period {
-                if period.timeJson != extended {
-                    period.timeJson = extended
-                    period.nodesPerDay = count
-                    period.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
-                    try period.update(db)
-                }
-            } else {
+            if period == nil {
                 table.timeJson = extended
                 table.nodesPerDay = count
             }

@@ -4,13 +4,12 @@ import Foundation
 //
 // 原版本 侧: 官方 NavBackStack 的极薄封装, 栈意图封成命名方法, 不暴露栈内部形态:
 //   push (连续同路由去重) / pop (size<=1 → false) / popToMain / 16 个 openXxx.
-// iOS 侧导航态 = AppRootViewModel (currentTab + overlayScreen + 参数). 本 facade
+// iOS 侧导航态 = AppRootViewModel (currentTab + overlayScreen + 父页面 + 参数). 本 facade
 // 保留同一命名意图面, push 单点委托 vm.navigate(to:) (SleepyNavHost.swift 尾扩展,
 // 与生产路径同一真源), 仅在 vm.navigate 尚未收编的路由上做等价桥接 (见各 case 注释),
 // 🚫不复制整张映射表。
 //
-// push 去重语义: iOS overlay 是单值 (同屏重复置位 = 无操作), 天然等价
-// "连续同路由不二次 push".
+// pushOverlay 保留父页面并对连续同屏去重；pop 先清理当前编辑状态，再恢复父页面。
 //
 // v1.0.61 差量 (F071 对齐):
 //   • .addCourse(courseId, editing) 参数不再丢: editing=true 时先把课程绑定进
@@ -100,7 +99,7 @@ final class SleepyNavigator {
         }
     }
 
-    /// 原版本 pop(): size<=1 → false. iOS: 清 overlay + 走既有 handleBack
+    /// 原版本 pop(): size<=1 → false. iOS: 恢复父 overlay + 走既有 handleBack
     /// (EditTable pendingNew 丢弃链). 无 overlay 可退 → false.
     @discardableResult
     func pop() -> Bool {
@@ -135,6 +134,7 @@ final class SleepyNavigator {
     func openAllTables() { push(route: .allTables) }
     func openCourseList() { push(route: .courseList) }
     func openAppearance() { push(route: .appearance) }
+    func openScheduleDisplay() { push(route: .scheduleDisplay) }
     func openPeriodHeaderSettings() { push(route: .periodHeaderSettings) }
     func openGeneral() { push(route: .general) }
     func openHoliday() { push(route: .holiday) }

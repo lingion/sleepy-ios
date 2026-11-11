@@ -22,6 +22,7 @@ struct WidgetSettingsScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     // ★ v7.10.18 原生化: onDismiss(由 MineScreen fullScreenCover 关闭)
     let onDismiss: () -> Void
+    var viewModel: ScheduleViewModel? = nil
 
     // ← expanded rememberSaveable 默认 true(会话态足够, 与通用页折叠卡同精神)
     @State private var expanded = true
@@ -56,7 +57,7 @@ struct WidgetSettingsScreen: View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("mine_widget"), onBack: onDismiss)
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 12) {
                     manageEntry
 
                     SettingsCard(title: L10n.format("settings_widget_global_appearance"),
@@ -89,7 +90,7 @@ struct WidgetSettingsScreen: View {
                             refreshWidgets()
                         }
                     }
-                    .padding(8)
+                    .padding(16)
                     .background(colors.surfaceContainer)
                     .cornerRadius(SleepyShapes.large)
 
@@ -138,7 +139,7 @@ struct WidgetSettingsScreen: View {
             if phase == .active { reloadPlaced() }
         }
         .sheet(isPresented: $showSharedDisplay) {
-            ScheduleDisplayScreen(onDismiss: { showSharedDisplay = false })
+            ScheduleDisplayScreen(onDismiss: { showSharedDisplay = false }, viewModel: viewModel)
         }
         .fullScreenCover(isPresented: $showManage) {
             WidgetManagementScreen(onDismiss: {
@@ -217,8 +218,7 @@ struct WidgetSettingsScreen: View {
                 AndroidMaterialIcon(name: .chevronRight, size: 20)
                     .foregroundColor(colors.onSurfaceVariant)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(colors.surfaceContainer)
             .cornerRadius(SleepyShapes.large)

@@ -23,6 +23,7 @@ protocol NewTableImportStore {
     /// 事务边界 — block 内所有方法调用共用同一 dbw(GRDB 禁重入, 句柄必须下传)。
     func atomic(_ block: (Database) throws -> Int64) throws -> Int64
     func periodExists(_ id: Int64, in dbw: Database) throws -> Bool
+    func tableCount(in dbw: Database) throws -> Int
     /// 撤回快照 — 原版本 在事务内拍(require 之后、首写之前); iOS 用 dbw 直读同序。
     func captureUndo(in dbw: Database) throws
     func insertPeriod(_ period: PeriodTableEntity, in dbw: Database) throws -> Int64
@@ -46,19 +47,28 @@ extension NewTableImportStore {
 /// (ScheduleRepository.importNewTable 的匿名 NewTableImportStore)
 final class GRDBNewTableImportStore: NewTableImportStore {
     private let db: AppDatabase
+    private let validateImport: ((Database) throws -> Void)?
 
-    init(db: AppDatabase) {
+    init(db: AppDatabase, validateImport: ((Database) throws -> Void)? = nil) {
         self.db = db
+        self.validateImport = validateImport
     }
 
     func atomic(_ block: (Database) throws -> Int64) throws -> Int64 {
-        try db.dbQueue.write { dbw in try block(dbw) }
+        try db.dbQueue.write { dbw in
+            try validateImport?(dbw)
+            return try block(dbw)
+        }
     }
 
     func periodExists(_ id: Int64, in dbw: Database) throws -> Bool {
         // ← periodTableDao.getById(id) != null — 事务内直查(DAO 的 db.read 会重入死锁)
         try PeriodTableEntity.fetchOne(
             dbw, sql: "SELECT * FROM period_tables WHERE id = ? LIMIT 1", arguments: [id]) != nil
+    }
+
+    func tableCount(in dbw: Database) throws -> Int {
+        try Int.fetchOne(dbw, sql: "SELECT COUNT(*) FROM time_tables") ?? 0
     }
 
     func captureUndo(in dbw: Database) throws {
@@ -122,6 +132,7 @@ func importNewTableAtomically(store: NewTableImportStore,
             }
         }
         try store.captureUndo(in: dbw)
+        let isFirst = try store.tableCount(in: dbw) == 0
         // 选中既有作息表 → 共享(不新建不覆盖); 否则确认行 owns 新作息表。
         let periodId: Int64?
         if let bindingId = bindingId {
@@ -135,7 +146,7 @@ func importNewTableAtomically(store: NewTableImportStore,
         var newTable = table
         newTable.id = 0
         newTable.periodTableId = periodId
-        newTable.isDefault = false
+        newTable.isDefault = isFirst
         let tableId = try store.insertTable(newTable, in: dbw)
         var rows = courses
         for i in rows.indices {
@@ -147,7 +158,7 @@ func importNewTableAtomically(store: NewTableImportStore,
             : ImportRoster.normalizedImportGroups(rows, knownNameToGroup: try store.knownNameRoster(in: dbw))
         try store.insertCourses(grouped, in: dbw)
         try store.persistNewGroupColors(grouped, in: dbw)
-        try store.setDefault(tableId, in: dbw)
+        if isFirst { try store.setDefault(tableId, in: dbw) }
         return tableId
     }
 }

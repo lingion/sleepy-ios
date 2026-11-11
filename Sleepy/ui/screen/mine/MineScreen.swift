@@ -12,6 +12,7 @@ struct MineScreen: View {
     var onOpenAllTables: () -> Void = {}
     var onOpenCourseList: () -> Void = {}
     var onOpenPeriodTables: () -> Void = {}
+    var onOpenScheduleDisplay: () -> Void = {}
     var onOpenAppearance: () -> Void = {}
     var onOpenGeneral: () -> Void = {}
     var onOpenReminder: () -> Void = {}
@@ -53,7 +54,8 @@ struct MineScreen: View {
 
                 // 设置项 (导航项扁平列表) — 抽出子视图(类型推断上限 workaround)
                 SettingsNavList(onOpenAllTables: onOpenAllTables, onOpenPeriodTables: onOpenPeriodTables,
-                                onOpenReminder: onOpenReminder, onOpenAppearance: onOpenAppearance,
+                                onOpenReminder: onOpenReminder, onOpenScheduleDisplay: onOpenScheduleDisplay,
+                                onOpenAppearance: onOpenAppearance,
                                 onOpenGeneral: onOpenGeneral, onOpenAbout: onOpenAbout,
                                 onOpenWidgetSettings: { showWidgetSettings = true },
                                 onOpenHoliday: { settingsSheet = .holiday },
@@ -87,7 +89,7 @@ struct MineScreen: View {
             }
         }
         .fullScreenCover(isPresented: $showWidgetSettings) {
-            WidgetSettingsScreen(onDismiss: { showWidgetSettings = false })
+            WidgetSettingsScreen(onDismiss: { showWidgetSettings = false }, viewModel: viewModel)
         }
     }
 
@@ -119,6 +121,7 @@ private struct StatsCard: View {
             }
             .buttonStyle(SleepyButtonStyle())
             .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("mine_stat_tables")
             VDivider()
             Button(action: onOpenCourses) {
                 StatItem(value: "\(courseCount)", label: L10n.format("mine_stat_courses"),
@@ -126,6 +129,7 @@ private struct StatsCard: View {
             }
             .buttonStyle(SleepyButtonStyle())
             .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("mine_stat_courses")
             VDivider()
             Button(action: onOpenPeriodTables) {
                 StatItem(value: "\(periodTableCount)", label: L10n.format("mine_stat_period_tables"),
@@ -133,6 +137,7 @@ private struct StatsCard: View {
             }
             .buttonStyle(SleepyButtonStyle())
             .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("mine_stat_period_tables")
         }
         .padding(.vertical, 18)
         .padding(.horizontal, 8)
@@ -227,6 +232,7 @@ private struct SettingsNavList: View {
     let onOpenAllTables: () -> Void
     let onOpenPeriodTables: () -> Void
     let onOpenReminder: () -> Void
+    let onOpenScheduleDisplay: () -> Void
     let onOpenAppearance: () -> Void
     let onOpenGeneral: () -> Void
     let onOpenAbout: () -> Void
@@ -254,6 +260,9 @@ private struct SettingsNavList: View {
                 HDivider()
                 SettingsItem(icon: .palette, label: L10n.format("mine_appearance"),
                              identifier: "mine_appearance", onClick: onOpenAppearance)
+                HDivider()
+                SettingsItem(icon: .dateRange, label: L10n.format("mine_schedule_settings"),
+                             identifier: "mine_schedule_settings", onClick: onOpenScheduleDisplay)
                 HDivider()
                 SettingsItem(icon: .tune, label: L10n.format("mine_general"),
                              identifier: "mine_general", onClick: onOpenGeneral)

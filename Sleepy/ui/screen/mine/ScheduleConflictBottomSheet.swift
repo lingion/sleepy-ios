@@ -1,8 +1,8 @@
 // ScheduleConflictBottomSheet.swift — ← ui/screen/mine/ScheduleConflictBottomSheet.kt
 // 甲案 (设计文档 §4.1) 三选项 BottomSheet — 绑定了共享作息表时改作息内容, 弹窗决定写入作用域。
 //
-// 平台映射: Material3 ModalBottomSheet(skipPartiallyExpanded=true) → SwiftUI .sheet
-//   (iOS sheet 本就全高展开, 等价 skipPartiallyExpanded; 下拉手势关闭 = onDismissRequest)。
+// Material3 BottomSheet wraps its content; the iOS host measures the same content.
+// 下拉手势关闭 = onDismissRequest。
 //
 // 不变量 (§2.2/§3.4):
 //  - 三个选项始终显示(影响数量仅提示, 不改变可选项)
@@ -44,7 +44,7 @@ struct ScheduleConflictBottomSheet: View {
 
     var body: some View {
         // ← Column.padding(horizontal 16).padding(bottom 32), 无内建 spacing(Spacer 手排)
-        VStack(spacing: 0) {
+        ContentFittingSheet {
             VStack(alignment: .leading, spacing: 0) {
                 headerSection
                 optionList

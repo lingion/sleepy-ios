@@ -209,12 +209,14 @@ final class AppRootViewModel: ObservableObject {
     @Published var overlayScreen: OverlayScreen? = nil {
         didSet {
             recordOverlayNavigation()
+            if overlayScreen == nil { overlayParents.removeAll() }
             if overlayScreen != .addCourse {
                 initialCourseSlot = nil
                 addCourseTargetTableId = nil
             }
         }
     }
+    private var overlayParents: [OverlayScreen] = []
     @Published var editingCourse: CourseEntity? = nil {
         didSet {
             recordOverlayNavigation()
@@ -329,6 +331,17 @@ final class AppRootViewModel: ObservableObject {
         overlayDismissalState.completeDismissal(ticket, then: then)
     }
 
+    /// Keep the source page for child routes, matching Android's push/pop.
+    func pushOverlay(_ screen: OverlayScreen) {
+        guard overlayScreen != screen else { return }
+        if let parent = overlayScreen { overlayParents.append(parent) }
+        overlayScreen = screen
+    }
+
+    private func popOverlay() {
+        overlayScreen = overlayParents.popLast()
+    }
+
     // ← BackHandler: overlay 返回(pendingNewTable 丢弃链)
     func handleBack() {
         if let discardId = pendingNewTableId {
@@ -336,19 +349,18 @@ final class AppRootViewModel: ObservableObject {
             pendingNewTableId = nil
             previousDefaultTableId = nil
             scheduleViewModel.discardNewTable(discardId, fallbackId: fallback)
-            overlayScreen = nil
             editTableId = nil
         } else if let discardPeriodId = pendingNewPeriodTableId {
             // ← v1.0.60: 作息表编辑未保存返回 → 丢弃残留行(原版本 NavHost BackHandler 同语义)
             pendingNewPeriodTableId = nil
             scheduleViewModel.discardNewPeriodTable(id: discardPeriodId)
-            overlayScreen = nil
             periodEditId = nil
         } else {
-            overlayScreen = nil
             editingCourse = nil
             editTableId = nil
+            periodEditId = nil
         }
+        popOverlay()
     }
 
     // ← v1.0.60: 新建作息表 → 立即进编辑(编辑页按"未保存新表"处理,
@@ -358,38 +370,34 @@ final class AppRootViewModel: ObservableObject {
         if newId > 0 {
             pendingNewPeriodTableId = newId
             periodEditId = newId
-            overlayScreen = .periodEdit
+            pushOverlay(.periodEdit)
         }
     }
 
     func finishPeriodTableSave() {
         pendingNewPeriodTableId = nil
         periodEditId = nil
-        overlayScreen = nil
+        popOverlay()
+    }
+
+    func finishTableSave() {
+        editTableId = nil
+        pendingNewTableId = nil
+        previousDefaultTableId = nil
+        popOverlay()
     }
 
     // ← 新建空表(AllTables / Management 共用)
     func createNewTableThenEdit() {
         let previousId = scheduleViewModel.state.currentTable?.id
-        // Select immediately so the editor has a synchronous currentTable while the
-        // GRDB observation catches up; handleBack() still rolls it back if discarded.
-        let newId = scheduleViewModel.createEmptyTable(commitSelection: true)
+        // The editor resolves the explicit new ID from the synchronously inserted
+        // table list. Creating a draft must preserve the current schedule.
+        let newId = scheduleViewModel.createEmptyTable(commitSelection: false)
         previousDefaultTableId = previousId
         pendingNewTableId = newId
         editTableId = newId
 
-        // A fullScreenCover(item:) cannot swap its active item in place. All Tables
-        // is already presented when this callback fires, so close that cover first
-        // and present the editor on the next run loop after its dismissal begins.
-        if overlayScreen == .allTables {
-            overlayScreen = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
-                guard let self, self.pendingNewTableId == newId else { return }
-                self.overlayScreen = .editTable
-            }
-        } else {
-            overlayScreen = .editTable
-        }
+        pushOverlay(.editTable)
     }
 
     // ← 深链: sleepy://course/<id>
@@ -400,6 +408,7 @@ final class AppRootViewModel: ObservableObject {
         // Back from this course could discard a previous unsaved table instead.
         handleBack()
         if pendingNewPeriodTableId != nil { handleBack() }
+        overlayScreen = nil
         navigator.session.beginEditCourse(course)
         navigator.openAddCourse(courseId: course.id, editing: true)
         return true
@@ -460,8 +469,6 @@ struct AppRoot: View {
     @State private var showImportSheet = false
     @State private var importTargetTableId: Int64? = nil
     @State private var importInitialText: String?
-    @State private var manualAddTargetAfterImportDismiss: Int64? = nil
-    @State private var createTableAfterImportDismiss = false
     @State private var jwImportActive = false
     // 直接/外部草稿入口独立呈现，不伪造导入方式页作为返回目标。
     @State private var jwReturn = JwImportReturnState(origin: .direct)
@@ -549,18 +556,9 @@ struct AppRoot: View {
             if requested { presentRequestedImport() }
         }
         .sheet(isPresented: $showImportSheet, onDismiss: {
-            let manualTarget = manualAddTargetAfterImportDismiss
-            let createTable = createTableAfterImportDismiss
-            manualAddTargetAfterImportDismiss = nil
-            createTableAfterImportDismiss = false
             importTargetTableId = nil
             importInitialText = nil
             importPresentation.didDismiss(.methods)
-            if let manualTarget {
-                root.openManualAddCourse(targetTableId: manualTarget)
-            } else if createTable {
-                root.createNewTableThenEdit()
-            }
             drainRequestedImportsAfterDismissal()
         }) {
             let targetTableId = importTargetTableId
@@ -570,18 +568,10 @@ struct AppRoot: View {
                         drafts: root.importDrafts,
                         onDeleteDraft: { root.deleteDraft($0) },
                         onJwDismissed: { root.refreshDrafts() },
-                        onCreateNewTable: {
-                            createTableAfterImportDismiss = true
-                            showImportSheet = false
-                        },
+                        canCreateNewTable: true,
                         targetTableId: targetTableId,
                         initialImportText: importInitialText,
-                        onManualAddCourse: targetTableId.map { target in
-                            {
-                                manualAddTargetAfterImportDismiss = target
-                                showImportSheet = false
-                            }
-                        })
+                        onManualCourseSaved: { root.currentTab = .schedule })
                 .id(targetTableId)
                 .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                               customThemeVersion: customThemesJson))
@@ -729,35 +719,26 @@ struct AppRoot: View {
                 dailyAgendaDate: root.dailyAgendaDate,
                 onSavedPeriod: { root.finishPeriodTableSave() },
                 onOpenPeriodEdit: { periodId, isNew in
-                    root.periodEditId = periodId
-                    root.pendingNewPeriodTableId = isNew ? periodId : nil
-                    root.overlayScreen = .periodEdit
+                    root.navigator.openPeriodEdit(periodId: periodId, isNew: isNew)
                 },
                 scheduleViewModel: root.scheduleViewModel,
                 themeMode: themeMode,
-                onDismiss: { root.overlayScreen = nil; root.editingCourse = nil },
+                onDismiss: { root.handleBack() },
                 onBack: { root.handleBack() },
                 onSavedAdd: {
-                    root.overlayScreen = nil
-                    root.editingCourse = nil
+                    root.handleBack()
                     root.currentTab = .schedule
                 },
                 onSavedTable: {
-                    root.overlayScreen = nil
-                    root.editTableId = nil
-                    root.pendingNewTableId = nil
-                    root.previousDefaultTableId = nil
+                    root.finishTableSave()
                 },
                 onDeletedTable: {
-                    root.overlayScreen = nil
-                    root.editTableId = nil
+                    root.finishTableSave()
                     root.currentTab = .schedule
                 },
                 onCreateNewTable: { root.createNewTableThenEdit() },
                 onOpenEditTable: { tableId in
-                    root.editTableId = tableId
-                    root.pendingNewTableId = nil
-                    root.overlayScreen = .editTable
+                    root.navigator.openEditTable(tableId: tableId)
                 },
                 onThemeModeChange: { mode in
                     themeMode = mode
@@ -768,7 +749,8 @@ struct AppRoot: View {
                 onThemeKeyChange: {
                     themeKey = AppPrefs.shared.getThemeKey()
                 },
-                onOpenLicense: { root.overlayScreen = .license }))
+                onOpenLicense: { root.navigator.openLicense() },
+                onOpenPeriodHeaderSettings: { root.navigator.openPeriodHeaderSettings() }))
     }
 
     // ← Scaffold + PillNavigationBar + 4 Tab
@@ -955,7 +937,7 @@ struct AppRoot: View {
                 .tabItem { Image(uiImage: AndroidMaterialIcon.navigationImage(for: "mine")); Text(L10n.t("tab_mine")) }
                 .tag(AppRootViewModel.Tab.mine)
         }
-        .modifier(ThemePrimaryTint())
+        .modifier(NativeTabSelectionTint())
         // ★ 视口直通屏底(2026-10-26 实机): 每屏子级 ignoresSafeArea 在 iOS26
         // TabView 内被系统重新钳回安全区 → 提到 TabView 层打穿, 内容容器
         // 铺到玻璃 dock 正下方(与 原版本 edge-to-edge 一致)。
@@ -1012,6 +994,7 @@ struct AppRoot: View {
                 onOpenAllTables: { root.navigator.openAllTables() },
                 onOpenCourseList: { root.navigator.openCourseList() },
                 onOpenPeriodTables: { root.navigator.openPeriodTables() },
+                onOpenScheduleDisplay: { root.navigator.openScheduleDisplay() },
                 onOpenAppearance: { root.navigator.openAppearance() },
                 onOpenGeneral: { root.navigator.openGeneral() },
                 onOpenReminder: { root.navigator.openReminder() },
@@ -1080,13 +1063,18 @@ struct AppRoot: View {
     //     让 MineScreen/ManagementPage/TodayScreen/CourseTableView 自己读 →
     //     内部 padding(bottom, 16 + navExtra) 一字对齐 原版本。
     private var floatingTabs: some View {
-        ZStack(alignment: .bottom) {
-            tabContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea(edges: .bottom)
-            PillNavigationBar(items: navItems, dockStyle: .floating)
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                tabContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea(edges: .bottom)
+                PillNavigationBar(items: navItems, dockStyle: .floating)
+            }
+            // Content extends below the safe area while the capsule stays above it.
+            // Keep the final scroll row clear of both the capsule and home indicator.
+            .environment(\.localNavExtraBottomPadding,
+                         floatingScrollBottomPadding + geometry.safeAreaInsets.bottom)
         }
-        .environment(\.localNavExtraBottomPadding, floatingScrollBottomPadding)
     }
 
     // FAB 式滚动余量 = capsuleHeight(64) + bottomFloat(12) + extra(12 视觉缓冲)
@@ -1151,16 +1139,64 @@ struct AppRoot: View {
 /// 内容直通屏底(玻璃下透出课表背景), 并注入滚动底部余量(与自绘 floating 同
 /// 一点位 .localNavExtraBottomPadding, CourseTableView/Today/Mine/Management
 /// 已统一读该 env) → 最后一行可滚离玻璃遮挡。
-private struct NativeScreenModifier: ViewModifier {
+struct NativeScreenModifier: ViewModifier {
+    @Environment(\.localWakeUpColors) private var colors
     let extraBottom: CGFloat
+
+    init(extraBottom: CGFloat) { self.extraBottom = extraBottom }
+
     func body(content: Content) -> some View {
         content
+            .tint(colors.primary)
             .ignoresSafeArea(.container, edges: .bottom)
             .environment(\.localNavExtraBottomPadding, extraBottom)
             // overlay 全屏坐标挂载(2026-10-26): background 探针被压缩 0×0 停在
             // 视口底, 爬到的链不完整 → 改 overlay + ignoresSafeArea 让探针
             // 铺满真实全屏 frame, 链 dump 才有意义。
-            .overlay(TabBarTransparentProbe().allowsHitTesting(false).ignoresSafeArea())
+            .overlay(TabBarTransparentProbe(colors: colors).allowsHitTesting(false).ignoresSafeArea())
+    }
+}
+
+/// SwiftUI reapplies TabView's tint when selection changes. Give that native
+/// layer the selection foreground; individual screens retain their primary tint.
+struct NativeTabSelectionTint: ViewModifier {
+    @Environment(\.localWakeUpColors) private var colors
+    func body(content: Content) -> some View { content.tint(colors.onSecondaryContainer) }
+}
+
+/// Keep the system TabView and its indicator while applying the same Material
+/// selection roles as the other navigation and segmented controls.
+@MainActor
+enum NativeTabBarTheme {
+    static func apply(_ colors: WakeUpColorScheme, to tabBar: UITabBar) {
+        let selectedBackground = UIColor(colors.secondaryContainer)
+        let selectedContent = UIColor(colors.onSecondaryContainer)
+        let unselectedContent = UIColor(colors.onSurfaceVariant)
+
+        func themed(_ source: UITabBarAppearance) -> UITabBarAppearance {
+            let appearance = source.copy() as! UITabBarAppearance
+            appearance.selectionIndicatorTintColor = selectedBackground
+            for item in [appearance.stackedLayoutAppearance,
+                         appearance.inlineLayoutAppearance,
+                         appearance.compactInlineLayoutAppearance] {
+                item.selected.iconColor = selectedContent
+                var selectedTitle = item.selected.titleTextAttributes
+                selectedTitle[.foregroundColor] = selectedContent
+                item.selected.titleTextAttributes = selectedTitle
+                item.normal.iconColor = unselectedContent
+                var normalTitle = item.normal.titleTextAttributes
+                normalTitle[.foregroundColor] = unselectedContent
+                item.normal.titleTextAttributes = normalTitle
+            }
+            return appearance
+        }
+
+        let standard = themed(tabBar.standardAppearance)
+        let scrollEdge = themed(tabBar.scrollEdgeAppearance ?? tabBar.standardAppearance)
+        tabBar.standardAppearance = standard
+        tabBar.scrollEdgeAppearance = scrollEdge
+        tabBar.tintColor = selectedContent
+        tabBar.unselectedItemTintColor = unselectedContent
     }
 }
 
@@ -1174,17 +1210,26 @@ private struct NativeScreenModifier: ViewModifier {
 ///    把视口推回真屏底(edge-to-edge, 与原实现一致; 玻璃 bar 悬浮其上,
 ///    滚动余量经 .localNavExtraBottomPadding=92pt 让最后一行可滚离遮挡)。
 private struct TabBarTransparentProbe: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIView {
-        let v = UIView(frame: .zero)
+    let colors: WakeUpColorScheme
+
+    func makeUIView(context: Context) -> TabBarProbeView {
+        let v = TabBarProbeView(frame: .zero)
         v.isUserInteractionEnabled = false
         v.backgroundColor = .clear
-        DispatchQueue.main.async { Self.apply(from: v) }
+        configure(v)
         return v
     }
-    func updateUIView(_ uiView: UIView, context: Context) {
-        DispatchQueue.main.async { Self.apply(from: uiView) }
+    func updateUIView(_ uiView: TabBarProbeView, context: Context) {
+        configure(uiView)
     }
-    static func apply(from v: UIView) {
+    private func configure(_ view: TabBarProbeView) {
+        // Read the latest theme when the queued hierarchy pass runs. A theme
+        // update can arrive before the probe is attached to a window.
+        view.applyToHierarchy = { Self.apply(from: $0, colors: colors) }
+        view.scheduleApply()
+    }
+
+    static func apply(from v: UIView, colors: WakeUpColorScheme) {
         var cur = v.superview
         var fixedVC = false
         var lines: [String] = ["probe frame=\(v.frame) win=\(String(describing: v.window?.frame))"]
@@ -1200,6 +1245,7 @@ private struct TabBarTransparentProbe: UIViewRepresentable {
             // (TabView 重钳), 不打。
             if !fixedVC, let tbc = c.next as? UITabBarController {
                 fixedVC = true
+                NativeTabBarTheme.apply(colors, to: tbc.tabBar)
                 // ★ 打的是 tab 子 VC(2026-10-26 三次修正): iOS26 玻璃 bar 把
                 // 自身高度(49pt)作为 safe area 注入每个 tab 内容 VC → 视口
                 // 死锁 bar 上沿, 内容滚不到屏底。TBC.additionalSafeAreaInsets
@@ -1222,6 +1268,32 @@ private struct TabBarTransparentProbe: UIViewRepresentable {
         // TEMP DEBUG: dump chain to app Documents (simulator FS shared with Mac)
         if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("chain.txt"), atomically: true, encoding: .utf8)
+        }
+    }
+}
+
+private final class TabBarProbeView: UIView {
+    var applyToHierarchy: ((UIView) -> Void)?
+    private var applyIsScheduled = false
+
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        scheduleApply()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        scheduleApply()
+    }
+
+    func scheduleApply() {
+        guard !applyIsScheduled else { return }
+        applyIsScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.applyIsScheduled = false
+            guard self.window != nil else { return }
+            self.applyToHierarchy?(self)
         }
     }
 }
@@ -1285,6 +1357,7 @@ private struct PresentOverlay: ViewModifier {
     let onThemeModeChange: (String) -> Void
     let onThemeKeyChange: () -> Void
     let onOpenLicense: () -> Void
+    let onOpenPeriodHeaderSettings: () -> Void
 
     // ← AppRoot.schemeOverride 同源: system 模式 nil = 真跟随系统
     private var schemeOverride: ColorScheme? {
@@ -1439,8 +1512,7 @@ private struct PresentOverlay: ViewModifier {
                 onThemeModeChange: onThemeModeChange,
                 onThemeKeyChange: onThemeKeyChange,
                 // ← 原版本 Appearance Section④ 节次表头入口 (默认 no-op 已解除)
-                onOpenPeriodHeaderSettings: { overlayScreen = .periodHeaderSettings },
-                onOpenScheduleDisplay: { overlayScreen = .scheduleDisplay })
+                onOpenPeriodHeaderSettings: onOpenPeriodHeaderSettings)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
@@ -1450,7 +1522,7 @@ private struct PresentOverlay: ViewModifier {
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
         case .reminder:
-            ReminderScreen(onDismiss: onDismiss)
+            ReminderScreen(onDismiss: onDismiss, viewModel: scheduleViewModel)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
                 .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)

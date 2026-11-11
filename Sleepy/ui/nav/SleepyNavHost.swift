@@ -42,7 +42,7 @@
 //
 // 每路由返回不变量 (与 原版本 BackHandler 契约一致):
 //   • EditTable + pendingNew: 返回/侧滑 → 丢弃新表, 回退到 previousDefault (handleBack 已实现)
-//   • 已落地路由: 单值 overlay, 返回 = overlayScreen = nil, 无栈深
+//   • 已落地路由: pushOverlay 记录来源, 返回弹出当前页并恢复父 overlay
 //   • 连续同路由去重由单值语义天然保证 (无二次 push)
 
 import SwiftUI
@@ -95,38 +95,40 @@ extension AppRootViewModel {
             break
         case .addCourse:
             initialCourseSlot = nil
-            overlayScreen = .addCourse
+            pushOverlay(.addCourse)
         case .allTables:
-            overlayScreen = .allTables
+            pushOverlay(.allTables)
         case .editTable(let tableId, let pendingNew, let prevDefault):
             editTableId = (tableId == SleepyRoute.NO_ID) ? nil : tableId
             pendingNewTableId = (pendingNew == SleepyRoute.NO_ID) ? nil : pendingNew
             previousDefaultTableId = (prevDefault == SleepyRoute.NO_ID) ? nil : prevDefault
-            overlayScreen = .editTable
+            pushOverlay(.editTable)
         case .appearance:
-            overlayScreen = .theme
+            pushOverlay(.theme)
+        case .scheduleDisplay:
+            pushOverlay(.scheduleDisplay)
         case .general:
-            overlayScreen = .general
+            pushOverlay(.general)
         case .export:
-            overlayScreen = .export
+            pushOverlay(.export)
         case .reminder:
-            overlayScreen = .reminder
+            pushOverlay(.reminder)
         case .about:
-            overlayScreen = .about
+            pushOverlay(.about)
         case .license:
-            overlayScreen = .license
+            pushOverlay(.license)
         case .courseList:
-            overlayScreen = .courseList
+            pushOverlay(.courseList)
         case .periodTables:
-            overlayScreen = .periodTables
+            pushOverlay(.periodTables)
         case .periodEdit(let periodId, let isNew):
             // 绑定 = 生产 onOpenPeriodEdit 同式 (SleepyApp PresentOverlay 接线) —
             // facade 桥接收编于此, 单一真源恢复。
             periodEditId = periodId
             pendingNewPeriodTableId = isNew ? periodId : nil
-            overlayScreen = .periodEdit
+            pushOverlay(.periodEdit)
         case .periodHeaderSettings:
-            overlayScreen = .periodHeaderSettings
+            pushOverlay(.periodHeaderSettings)
         default:
             return false
         }

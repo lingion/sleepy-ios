@@ -8,6 +8,7 @@ struct SmartPeriodEditor: View {
     @Environment(\.localWakeUpColors) private var colors
     let config: SmartPeriodConfig
     let onConfigChange: (SmartPeriodConfig) -> Void
+    @State private var rejectedChange: SmartPeriodValidationError?
 
     var body: some View {
         let assigns = config.effectiveAssignments()
@@ -27,29 +28,38 @@ struct SmartPeriodEditor: View {
                 NumberField(label: L10n.format("edit_period_duration_label"),
                             unit: L10n.format("unit_minutes"),
                             value: config.periodMinutes) { newVal in
-                    onConfigChange({ var c = config; c.periodMinutes = max(newVal, 1); return c }())
+                    updateConfig({ var c = config; c.periodMinutes = newVal; return c }())
                 }
                 NumberField(label: L10n.format("edit_period_total_label"),
                             unit: L10n.format("unit_periods"),
                             value: config.totalPeriods) { newN in
-                    onConfigChange({ var c = config; c.totalPeriods = max(newN, 1); return c }())
+                    updateConfig({ var c = config; c.totalPeriods = newN; return c }())
                 }
             }
             .padding(.bottom, 6)
 
             // 第一节开始时间
             TimePickerField(value: config.startTime,
-                            onValueChange: { newTime in onConfigChange({ var c = config; c.startTime = newTime; return c }()) },
+                            onValueChange: { newTime in updateConfig({ var c = config; c.startTime = newTime; return c }()) },
                             label: L10n.format("edit_period_first_start"), fillsWidth: true)
                 .padding(.bottom, 12)
+
+            if let validation = rejectedChange ?? config.validationError() {
+                Text(L10n.t(validation.messageKey))
+                    .font(SleepyTypography.bodySmall)
+                    .foregroundColor(colors.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 12)
+                    .accessibilityIdentifier("smart_period_validation_error")
+            }
 
             // 添加 duration ← 原版本 L116-133(短课时 tertiary / 长课时 primary)
             HStack(spacing: 8) {
                 AddBreakChip(id: "duration_short", label: L10n.format("short_duration"), color: colors.tertiary) {
-                    onConfigChange({ var c = config; c.durations = config.durations + [DurationOption(minutes: 30, isLong: false)]; return c }())
+                    updateConfig({ var c = config; c.durations = config.durations + [DurationOption(minutes: 30, isLong: false)]; return c }())
                 }
                 AddBreakChip(id: "duration_long", label: L10n.format("long_duration"), color: colors.primary) {
-                    onConfigChange({ var c = config; c.durations = config.durations + [DurationOption(minutes: 60, isLong: true)]; return c }())
+                    updateConfig({ var c = config; c.durations = config.durations + [DurationOption(minutes: 60, isLong: true)]; return c }())
                 }
             }
             .padding(.bottom, 12)
@@ -72,20 +82,20 @@ struct SmartPeriodEditor: View {
                         onMinuteChange: { newMin in
                             var durations = config.durations
                             durations[groupIdx].minutes = newMin
-                            onConfigChange({ var c = config; c.durations = durations; return c }())
+                            updateConfig({ var c = config; c.durations = durations; return c }())
                         },
                         onToggle: { posIdx in
                             var newAssigns = durationAssigns
                             let currentlySelected = newAssigns[posIdx] == groupIdx
                             newAssigns[posIdx] = currentlySelected ? nil : groupIdx
-                            onConfigChange({ var c = config; c.periodAssignments = newAssigns; return c }())
+                            updateConfig({ var c = config; c.periodAssignments = newAssigns; return c }())
                         },
                         onDelete: {
                             // ← 原版本 L166-172: 删除组后索引重映射
                             let newAssigns = remapDurationAssignmentsAfterDeletion(assignments: durationAssigns, deletedIndex: groupIdx)
                             var durations = config.durations
                             durations.remove(at: groupIdx)
-                            onConfigChange({ var c = config; c.durations = durations; c.periodAssignments = newAssigns; return c }())
+                            updateConfig({ var c = config; c.durations = durations; c.periodAssignments = newAssigns; return c }())
                         })
                 }
             }
@@ -93,10 +103,10 @@ struct SmartPeriodEditor: View {
             // 添加 break
             HStack(spacing: 8) {
                 AddBreakChip(id: "break_short", label: L10n.format("short_break"), color: colors.tertiary) {
-                    onConfigChange({ var c = config; c.breaks = config.breaks + [BreakOption(minutes: 10, isLong: false)]; return c }())
+                    updateConfig({ var c = config; c.breaks = config.breaks + [BreakOption(minutes: 10, isLong: false)]; return c }())
                 }
                 AddBreakChip(id: "break_long", label: L10n.format("long_break"), color: colors.primary) {
-                    onConfigChange({ var c = config; c.breaks = config.breaks + [BreakOption(minutes: 30, isLong: true)]; return c }())
+                    updateConfig({ var c = config; c.breaks = config.breaks + [BreakOption(minutes: 30, isLong: true)]; return c }())
                 }
             }
             .padding(.bottom, 12)
@@ -119,13 +129,13 @@ struct SmartPeriodEditor: View {
                         onMinuteChange: { newMin in
                             var breaks = config.breaks
                             breaks[groupIdx].minutes = newMin
-                            onConfigChange({ var c = config; c.breaks = breaks; return c }())
+                            updateConfig({ var c = config; c.breaks = breaks; return c }())
                         },
                         onToggle: { posIdx in
                             var newAssigns = assigns
                             let currentlySelected = newAssigns[posIdx] == groupIdx
                             newAssigns[posIdx] = currentlySelected ? nil : groupIdx
-                            onConfigChange({ var c = config; c.transitionAssignments = newAssigns; return c }())
+                            updateConfig({ var c = config; c.transitionAssignments = newAssigns; return c }())
                         },
                         onDelete: {
                             // ★ 删除组后索引重映射: 被删组清空 + 大于被删索引的全部减 1
@@ -136,7 +146,7 @@ struct SmartPeriodEditor: View {
                             }
                             var breaks = config.breaks
                             breaks.remove(at: groupIdx)
-                            onConfigChange({ var c = config; c.breaks = breaks; c.transitionAssignments = newAssigns; return c }())
+                            updateConfig({ var c = config; c.breaks = breaks; c.transitionAssignments = newAssigns; return c }())
                         })
                 }
             }
@@ -150,6 +160,22 @@ struct SmartPeriodEditor: View {
                 .padding(.leading, 4)
                 .padding(.bottom, 6)
             PreviewList(config: config, assigns: assigns)
+        }
+    }
+
+    private func updateConfig(_ candidate: SmartPeriodConfig) {
+        rejectedChange = candidate.validationError()
+        if rejectedChange == nil { onConfigChange(candidate) }
+    }
+}
+
+private extension SmartPeriodValidationError {
+    var messageKey: String {
+        switch self {
+        case .startTime: return "smart_period_invalid_start"
+        case .periodCount: return "smart_period_invalid_count"
+        case .duration: return "smart_period_invalid_duration"
+        case .exceedsDay: return "smart_period_exceeds_day"
         }
     }
 }
@@ -169,7 +195,7 @@ private struct BreakGroupSection: View {
         AssignmentGroupSection(
             headerText: breakOption.displayLabel(index: groupIdx),
             groupColor: breakOption.isLong ? colors.primary : colors.tertiary,
-            slotCount: max(totalPeriods - 1, 0),
+            slotCount: max(min(max(totalPeriods, 0), SmartPeriodConfig.maxPeriodsPerDay) - 1, 0),
             assigns: assigns,
             groupIdx: groupIdx,
             labelFor: { posIdx in "\(posIdx + 1).5" },
@@ -196,7 +222,7 @@ private struct DurationGroupSection: View {
         AssignmentGroupSection(
             headerText: durationOption.displayLabel(index: groupIdx),
             groupColor: durationOption.isLong ? colors.primary : colors.tertiary,
-            slotCount: max(totalPeriods, 0),
+            slotCount: min(max(totalPeriods, 0), SmartPeriodConfig.maxPeriodsPerDay),
             assigns: assigns,
             groupIdx: groupIdx,
             labelFor: { posIdx in "\(posIdx + 1)" },
@@ -243,7 +269,8 @@ private struct AssignmentGroupSection: View {
                 // ← 原版本 Text 与 NumberField 之间无 spacer(weight 1f 吸收全部 slack),不另加间距
                 NumberField(label: "", unit: L10n.format("unit_minutes"),
                             value: minuteValue, onValueChange: onMinuteChange)
-                    .frame(width: 110)
+                    .frame(minWidth: 110)
+                    .fixedSize(horizontal: true, vertical: false)
                 Button(action: onDelete) {
                     AndroidSettingsIcon(name: .close, size: 18)
                         .foregroundColor(colors.onSurfaceVariant)
@@ -430,6 +457,7 @@ private struct NumberField: View {
                     Text(label)
                         .font(.system(size: 12))
                         .foregroundColor(colors.onSurfaceVariant)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 TextField("", text: Binding(
                     get: { text.isEmpty ? "\(value)" : text },
@@ -445,10 +473,13 @@ private struct NumberField: View {
                 .accessibilityIdentifier("number_\(label)")   // ← G5: 数字字段锚点
                 .font(.system(size: 16))
             }
+            .frame(minWidth: 40, alignment: .leading)
             if !unit.isEmpty {
                 Text(unit)
                     .font(.system(size: 16))
                     .foregroundColor(colors.onSurfaceVariant)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
         .padding(.horizontal, 12)

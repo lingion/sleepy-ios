@@ -41,6 +41,10 @@ final class NewTableImportTests: XCTestCase {
             try base.periodExists(id, in: dbw)
         }
 
+        func tableCount(in dbw: Database) throws -> Int {
+            try base.tableCount(in: dbw)
+        }
+
         func captureUndo(in dbw: Database) throws {
             captured = true
             try base.captureUndo(in: dbw)
@@ -152,7 +156,7 @@ final class NewTableImportTests: XCTestCase {
 
     func testRollbackAfterEveryWritePreservesAllTablesAndDefault() throws {
         try seed()
-        for stage in [FailStage.period, .table, .courses, .default] {
+        for stage in [FailStage.period, .table, .courses] {
             let store = FailingImportStore(db: db, failAt: stage)
             XCTAssertThrowsError(try apply(store: store), "Expected failure at \(stage)")
             XCTAssertEqual(1, try scalarCount("SELECT COUNT(*) FROM period_tables"))
@@ -160,6 +164,13 @@ final class NewTableImportTests: XCTestCase {
             XCTAssertEqual(1, try scalarCount("SELECT COUNT(*) FROM courses"))
             XCTAssertEqual(1, try scalarCount("SELECT id FROM time_tables WHERE isDefault = 1"))
         }
+        // Only the first import changes the default; its final write must still roll back atomically.
+        let empty = try AppDatabase.inMemory()
+        let firstStore = FailingImportStore(db: empty, failAt: .default)
+        XCTAssertThrowsError(try apply(store: firstStore))
+        XCTAssertTrue(try empty.timeTableDao.getAll().isEmpty)
+        XCTAssertTrue(try empty.periodTableDao.getAll().isEmpty)
+        XCTAssertTrue(try empty.courseDao.getAllCourses().isEmpty)
     }
 
     // ───────── 3. explicitBindingIsNotCopiedOrOverwritten ─────────
@@ -180,7 +191,7 @@ final class NewTableImportTests: XCTestCase {
         let defId = try db.dbQueue.read {
             try Int64.fetchOne($0, sql: "SELECT id FROM time_tables WHERE isDefault = 1")
         }
-        XCTAssertEqual(id, defId)
+        XCTAssertEqual(1, defId)
     }
 
     // ───────── 4. confirmedPrivateScheduleAndGroupPolicyArePreserved ─────────
@@ -226,13 +237,15 @@ final class NewTableImportTests: XCTestCase {
         let id = try repo.importNewTable(
             table: TimeTableEntity(name: "repo-new", startDate: "2026-09-07"),
             courses: [course("a")],
-            periodTable: PeriodTableEntity(name: "repo-period", timeJson: "confirmed"),
+            periodTable: PeriodTableEntity(name: "repo-period", nodesPerDay: 1,
+                timeJson: #"[{"node":1,"start":"08:00","end":"08:45"}]"#),
             bindPeriodTableId: nil,
             keepGroups: false)
         XCTAssertEqual(1, notified)
         let table = try repo.getTable(id)
         XCTAssertNotNil(table)
-        XCTAssertEqual(true, table?.isDefault)
+        XCTAssertEqual(false, table?.isDefault)
+        XCTAssertEqual(1, try repo.getDefaultTable()?.id)
         XCTAssertEqual(2, try scalarCount("SELECT COUNT(*) FROM period_tables"))
         // 悬空绑定 → 抛错且不通知
         XCTAssertThrowsError(try repo.importNewTable(

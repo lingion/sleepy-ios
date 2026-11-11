@@ -120,7 +120,28 @@ final class SleepyUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["mine_all_tables"]
                           .waitForExistence(timeout: 5))
 
-        app.descendants(matching: .any)["mine_general"].tap()
+        let general = app.buttons["mine_general"].firstMatch
+        for _ in 0..<8 {
+            let window = app.windows.firstMatch.frame.insetBy(dx: 2, dy: 4)
+            let docks = ["pill_schedule", "pill_today", "pill_manage", "pill_mine"]
+                .map { app.buttons[$0].firstMatch }.filter { $0.exists && $0.isHittable }.map(\.frame)
+            let bottom = docks.map(\.minY).filter { $0 > window.midY }.min() ?? window.maxY
+            let viewport = CGRect(x: window.minX, y: window.minY,
+                                  width: window.width, height: max(0, bottom - 4 - window.minY))
+            if general.isHittable && viewport.contains(general.frame) { break }
+            let scroll = app.scrollViews.allElementsBoundByIndex.last { $0.isHittable && $0.buttons["mine_general"].exists }
+            guard let scroll else { break }
+            scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.65))
+                .press(forDuration: 0.05, thenDragTo:
+                    scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.40)))
+        }
+        XCTAssertTrue(general.isHittable, "General must be reachable before opening it")
+        let bottom = ["pill_schedule", "pill_today", "pill_manage", "pill_mine"]
+            .map { app.buttons[$0].firstMatch }.filter { $0.exists && $0.isHittable }
+            .map { $0.frame.minY }.filter { $0 > app.frame.midY }.min() ?? app.frame.maxY
+        XCTAssertLessThanOrEqual(general.frame.maxY, bottom - 4,
+                                 "The complete General entry must be above navigation")
+        general.tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 3),
                       "General 设置页未出现")
     }

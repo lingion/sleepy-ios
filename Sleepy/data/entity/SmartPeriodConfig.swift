@@ -24,6 +24,8 @@ import Foundation
 /// 解码：各字段缺省走默认值（对齐 原版本 @Serializable 默认值，旧 JSON 无
 /// durations/periodAssignments 也能解码）。
 struct SmartPeriodConfig: Codable, Equatable {
+    static let lastMinuteOfDay = 23 * 60 + 59
+    static let maxPeriodsPerDay = lastMinuteOfDay
     var startTime: String = "08:00"
     var periodMinutes: Int = 45
     var totalPeriods: Int = 12
@@ -68,7 +70,7 @@ struct SmartPeriodConfig: Codable, Equatable {
     /// null 或越界表示使用主课程时长 periodMinutes。
     /// 长度 = max(0, totalPeriods)
     func effectivePeriodAssignments() -> [Int?] {
-        let n = max(totalPeriods, 0)
+        let n = min(max(totalPeriods, 0), Self.maxPeriodsPerDay)
         let base = Array(periodAssignments.prefix(n))
         let mapped: [Int?] = base.map { value in
             (value != nil && value! >= 0 && value! < durations.count) ? value : nil
@@ -87,7 +89,7 @@ struct SmartPeriodConfig: Codable, Equatable {
     /// 长度 = max(0, totalPeriods - 1)
     /// 未填的位置默认 null（0 分钟连续）
     func effectiveAssignments() -> [Int?] {
-        let n = max(totalPeriods - 1, 0)
+        let n = max(min(max(totalPeriods, 0), Self.maxPeriodsPerDay) - 1, 0)
         let base = Array(transitionAssignments.prefix(n))
         var result = base.map { v -> Int? in
             (v != nil && v! >= 0 && v! < breaks.count) ? v : nil
@@ -99,43 +101,66 @@ struct SmartPeriodConfig: Codable, Equatable {
     /// 推导所有 transition 的实际分钟数
     /// 默认（null 或越界）= 0 分钟
     func effectiveTransitionMinutes() -> [Int] {
-        let n = max(totalPeriods - 1, 0)
         let assigns = effectiveAssignments()
-        return (0..<n).map { i in
+        return assigns.indices.map { i in
             let idx = assigns[i]
             return (idx != nil && idx! >= 0 && idx! < breaks.count) ? breaks[idx!].minutes : 0
         }
     }
 
-    /// 推导节次（不含 transition，仅节本身）
+    /// Check the whole candidate before allocating a preview or adding imported durations.
+    func validationError() -> SmartPeriodValidationError? {
+        guard let start = startMinute() else { return .startTime }
+        guard (1...Self.maxPeriodsPerDay).contains(totalPeriods) else { return .periodCount }
+        guard periodMinutes > 0, durations.allSatisfy({ $0.minutes > 0 }),
+              breaks.allSatisfy({ $0.minutes >= 0 }) else { return .duration }
+        var minute = start
+        for index in 0..<totalPeriods {
+            let assigned = periodAssignments.indices.contains(index) ? periodAssignments[index] : nil
+            let duration = assigned.flatMap { durations.indices.contains($0) ? durations[$0].minutes : nil } ?? periodMinutes
+            // Comparing against the remaining budget avoids overflow even for Int.max imports.
+            guard duration <= Self.lastMinuteOfDay - minute else { return .exceedsDay }
+            minute += duration
+            if index < totalPeriods - 1 {
+                let assignedBreak = transitionAssignments.indices.contains(index) ? transitionAssignments[index] : nil
+                let pause = assignedBreak.flatMap { breaks.indices.contains($0) ? breaks[$0].minutes : nil } ?? 0
+                guard pause <= Self.lastMinuteOfDay - minute else { return .exceedsDay }
+                minute += pause
+            }
+        }
+        return nil
+    }
+
+    /// Invalid configurations never generate a partial schedule or clocks beyond 23:59.
     func derive() -> [TimeTableUtils.TimeSlotRow] {
+        guard validationError() == nil, let firstMinute = startMinute() else { return [] }
         var rows: [TimeTableUtils.TimeSlotRow] = []
         let transMins = effectiveTransitionMinutes()
         let periodMins = effectivePeriodMinutes()
-        let (h0, m0) = parseStart()
-        var curH = h0
-        var curM = m0
-        // totalPeriods <= 0 时返回空列表（对齐 Kotlin "0 until n"，避免 Swift 半开区间崩溃）
-        for i in 0..<max(totalPeriods, 0) {
-            let startStr = String(format: "%02d:%02d", curH, curM)
-            curM += periodMins[i]
-            curH += curM / 60
-            curM %= 60
-            let endStr = String(format: "%02d:%02d", curH, curM)
+        var minute = firstMinute
+        for i in 0..<totalPeriods {
+            let startStr = String(format: "%02d:%02d", minute / 60, minute % 60)
+            minute += periodMins[i]
+            let endStr = String(format: "%02d:%02d", minute / 60, minute % 60)
             rows.append(TimeTableUtils.TimeSlotRow(node: i + 1, start: startStr, end: endStr))
-            if i < transMins.count {
-                curM += transMins[i]
-                curH += curM / 60
-                curM %= 60
-            }
+            if i < transMins.count { minute += transMins[i] }
         }
         return rows
     }
 
-    private func parseStart() -> (Int, Int) {
-        let parts = startTime.split(separator: ":").map { Int($0) }
-        return parts.count == 2 ? (parts[0] ?? 8, parts[1] ?? 0) : (8, 0)
+    private func startMinute() -> Int? {
+        let bytes = Array(startTime.utf8)
+        guard bytes.count == 5, bytes[2] == 58,
+              [0, 1, 3, 4].allSatisfy({ (48...57).contains(bytes[$0]) }) else { return nil }
+        let hour = Int(bytes[0] - 48) * 10 + Int(bytes[1] - 48)
+        let minute = Int(bytes[3] - 48) * 10 + Int(bytes[4] - 48)
+        guard hour < 24, minute < 60 else { return nil }
+        return hour * 60 + minute
     }
+}
+
+enum SmartPeriodValidationError: Equatable {
+    case startTime, periodCount, duration, exceedsDay
 }
 
 /// Break 模板（用于"智慧节次"自动模式 UI）

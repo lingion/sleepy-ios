@@ -43,4 +43,36 @@ final class CourseImportPolicyTests: XCTestCase {
         XCTAssertEqual(result.first { $0.node == 2 }?.start, "10:55")
         XCTAssertEqual(CourseImportPolicy.mergeTimeJson(current: current, incoming: "", requiredNodes: 1), current)
     }
+
+    func testNoTimesJsonConfirmsWithLegacyMergedDefaults() throws {
+        let json = """
+        {"name":"测试导入表","startDate":"2026-08-24","courses":[{"name":"编译原理","teacher":"陈老师","position":"教3-401","day":4,"startNode":7,"step":2,"startWeek":1,"endWeek":16,"type":0}]}
+        """
+        let parsed = try ScheduleParser.parse(json, defaultTableId: 0).get()
+        XCTAssertTrue(parsed.timeJson.isEmpty)
+        XCTAssertEqual(parsed.nodesPerDay, 8)
+        let merged = TimeTableUtils.mergeMostComplete(currentJson: "", incomingJson: parsed.timeJson,
+            requiredNodeCount: max(parsed.nodesPerDay, parsed.courses.map { $0.startNode + $0.step - 1 }.max() ?? 0))
+        let rows = TimeTableUtils.initialManualRows(timeJson: merged).rows
+        XCTAssertEqual(rows.count, 8)
+        XCTAssertEqual(rows[0].start, "08:00")
+        XCTAssertEqual(rows[0].end, "09:40")
+        XCTAssertEqual(rows[1].start, rows[0].start)
+        XCTAssertEqual(rows[1].end, rows[0].end)
+        XCTAssertNil(TimeTableUtils.firstMissingCourseNode(courses: parsed.courses, rows: rows))
+        XCTAssertTrue(rows.allSatisfy { !$0.start.isBlank && !$0.end.isBlank })
+        XCTAssertEqual(CourseImportPolicy.validateConfirmationRows(rows), .valid)
+        XCTAssertEqual(TimeTableUtils.validatePeriodRows(rows),
+                       .overlap(prevNode: 1, prevEnd: "09:40", nextNode: 2, nextStart: "08:00"),
+                       "Bell-schedule editing must retain its strict overlap check")
+    }
+
+    func testConfirmationRejectsOutOfDayAndReversedClocks() {
+        XCTAssertEqual(CourseImportPolicy.validateConfirmationRows([
+            .init(node: 1, start: "23:00", end: "24:00")]),
+            .invalidFormat(node: 1, rawStart: "23:00", rawEnd: "24:00"))
+        XCTAssertEqual(CourseImportPolicy.validateConfirmationRows([
+            .init(node: 1, start: "09:40", end: "08:00")]),
+            .endBeforeStart(node: 1, start: "09:40", end: "08:00"))
+    }
 }

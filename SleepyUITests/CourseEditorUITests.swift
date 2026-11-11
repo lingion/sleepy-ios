@@ -28,7 +28,7 @@ final class CourseEditorUITests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 5), file: file, line: line)
         var previousFrame = CGRect.zero
         var stableSince = Date()
-        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+        func hasSettled() -> Bool {
             guard element.exists && element.isHittable else {
                 stableSince = Date()
                 return false
@@ -41,9 +41,16 @@ final class CourseEditorUITests: XCTestCase {
             if frame != previousFrame { stableSince = Date() }
             previousFrame = frame
             return Date().timeIntervalSince(stableSince) >= 0.3
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed,
-                       "The complete action must settle before its single tap", file: file, line: line)
+        }
+        // A CI accessibility sample can take four seconds; allow two complete samples on this test thread.
+        let deadline = Date().addingTimeInterval(15)
+        var settled = false
+        repeat {
+            if hasSettled() { settled = true; break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        } while Date() < deadline
+        XCTAssertTrue(settled, "The complete action must settle before its single tap", file: file, line: line)
+        guard settled else { return }
         element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
@@ -120,6 +127,18 @@ final class CourseEditorUITests: XCTestCase {
             if toggle.isHittable && app.frame.contains(toggle.frame) { break }
             app.swipeDown()
         }
+        let beforeCollapse = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        beforeCollapse.name = "glass-course-range-before-collapse"
+        beforeCollapse.lifetime = .keepAlways
+        add(beforeCollapse)
+        let foregroundScroll = app.scrollViews.allElementsBoundByIndex.last(where: { $0.isHittable })
+        let collapseGeometry = XCTAttachment(string:
+            "toggle.frame=\(toggle.frame) app.frame=\(app.frame) " +
+            "scroll.frame=\(String(describing: foregroundScroll?.frame)) " +
+            "toggle.exists=\(toggle.exists) toggle.isHittable=\(toggle.isHittable)")
+        collapseGeometry.name = "glass-course-range-before-collapse-geometry"
+        collapseGeometry.lifetime = .keepAlways
+        add(collapseGeometry)
         tapSettled(toggle)
         expectLabel("Expand period", on: toggle)
         let collapsed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: start)
@@ -281,9 +300,36 @@ final class CourseEditorUITests: XCTestCase {
     // MARK: 编辑模式 — 删除课程(确认对话框)
 
     func testEditCourseDeleteFlow() {
-        // setUp 的 openEditor 已打开加课页 → 先返回课表(overlay 关闭 → pill 恢复)
-        let backBtn = app.descendants(matching: .any)["topbar_back"]
-        if backBtn.waitForExistence(timeout: 3) { backBtn.tap() }
+        // setUp 已打开手动加课页；逐层返回来源页、管理页，再切回课表。
+        let backButtons = app.buttons.matching(identifier: "topbar_back")
+        XCTAssertTrue(backButtons.firstMatch.waitForExistence(timeout: 3))
+        guard let backBtn = backButtons.allElementsBoundByIndex.last(where: { $0.isHittable }) else {
+            return XCTFail("前景加课页的返回按钮应可点击")
+        }
+        backBtn.tap()
+        let editorClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                                     object: app.staticTexts["Create Course"])
+        XCTAssertEqual(XCTWaiter.wait(for: [editorClosed], timeout: 5), .completed)
+        let methods = app.scrollViews["import_methods_scroll"].firstMatch
+        let manual = app.buttons["import_manual"].firstMatch
+        let methodsRestored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            methods.exists && methods.isHittable && manual.exists
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [methodsRestored], timeout: 5), .completed,
+                       "取消加课后应先恢复原来源页")
+        guard let sourceBack = backButtons.allElementsBoundByIndex.last(where: { $0.isHittable }) else {
+            return XCTFail("来源页的返回按钮应可点击")
+        }
+        sourceBack.tap()
+        let methodsClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                                      object: methods)
+        XCTAssertEqual(XCTWaiter.wait(for: [methodsClosed], timeout: 5), .completed)
+        let addCard = app.buttons["manage_add_course"].firstMatch
+        let manageRestored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            addCard.exists && addCard.isHittable
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [manageRestored], timeout: 5), .completed,
+                       "来源页返回后应恢复可操作的管理页")
         let pill = app.descendants(matching: .any)["pill_schedule"]
         XCTAssertTrue(pill.waitForExistence(timeout: 5), "返回后 pill 应恢复")
         app.switchToPillTab("schedule")   // 返回落在 manage Tab, 切回课表 Tab

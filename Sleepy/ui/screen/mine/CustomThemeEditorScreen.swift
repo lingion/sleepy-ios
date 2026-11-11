@@ -13,11 +13,7 @@
 //   2. 返回拦截:原版本 BackHandler 分层(删除确认 > 取色器 > 编辑器)→ iOS
 //      .interactiveDismissDisabled(dirty) 挡住下滑手势 + 顶栏返回键在 dirty 时弹确认,
 //      绝静默丢弃(95c1dab3 语义)。
-//   3. 表面倾向:原版本 只能靠取色器改色相(chroma 钳 4-12),iOS 另给色相/饱和度
-//      两个滑杆 —— 滑杆只是同一 surfaceHue/surfaceChroma 的另一种输入法,取值区间
-//      与派生引擎的 SURFACE_CHROMA_MAX=48 对齐,不引入新语义。
-//   4. 「从主色生成整套 / 逐角色手选」在 原版本 是两个入口(ROLE_SEED_PRIMARY 与
-//      ROLE_PRIMARY 两条分支),iOS 用 fromSeedMode 开关表达同一对分支,两条都可达。
+//   3. 「从主色生成整套」与「逐角色手选」是独立入口;手选主色只更新主色。
 
 import SwiftUI
 import UIKit
@@ -43,8 +39,6 @@ struct CustomThemeEditorScreen: View {
     @State private var showDeleteConfirm = false
     @State private var showDiscardConfirm = false
     @State private var manualExpanded = false
-    /// true = 选主色时整套生成(邻近色 + 表面同相);false = 只改主色
-    @State private var fromSeedMode = true
 
     init(editing: CustomTheme?,
          nextThemeNumber: Int,
@@ -126,33 +120,15 @@ struct CustomThemeEditorScreen: View {
                         )
                     }
 
-                    // ── 逐角色手选(展开后:模式开关 + 四个角色行 + 表面两滑杆)──
+                    // ── 逐角色手选(展开后四个角色行)──
                     if manualExpanded {
-                        VStack(spacing: 4) {
-                            Toggle(isOn: $fromSeedMode) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(L10n.format("theme_editor_from_seed"))
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(colors.onSurface)
-                                    Text(L10n.format("theme_editor_from_seed_desc"))
-                                        .font(.system(size: 12))
-                                        .foregroundColor(colors.onSurfaceVariant)
-                                }
-                            }
-                            .toggleStyle(SleepyToggleStyle(showsLabel: true))
-                            .tint(colors.primary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(colors.surfaceContainer)
-                            .cornerRadius(SleepyShapes.medium)
-
+                        VStack(spacing: SettingsLayout.cardGap) {
                             EditorRoleRow(
                                 title: L10n.format("theme_role_primary"),
                                 desc: L10n.format("theme_role_primary_desc"),
                                 swatchHex: draft.primary,
                                 isValid: CustomSchemeDeriver.parseHex(draft.primary) != nil
-                            ) { pickingRole = fromSeedMode ? .seedPrimary : .primary }
+                            ) { pickingRole = .primary }
 
                             EditorRoleRow(
                                 title: L10n.format("theme_role_secondary"),
@@ -175,21 +151,6 @@ struct CustomThemeEditorScreen: View {
                                 isValid: true
                             ) { pickingRole = .surface }
 
-                            // 表面倾向滑杆(见文件头 iOS 适配 ③)
-                            EditorSliderRow(
-                                label: L10n.t("theme_editor_surface_hue"),
-                                value: Binding(get: { draft.surfaceHue },
-                                               set: { draft = draft.copy(surfaceHue: $0) }),
-                                range: 0...360, step: 1,
-                                display: String(format: "%.0f°", draft.surfaceHue)
-                            )
-                            EditorSliderRow(
-                                label: L10n.t("theme_editor_surface_chroma"),
-                                value: Binding(get: { draft.surfaceChroma },
-                                               set: { draft = draft.copy(surfaceChroma: $0) }),
-                                range: 0...CustomSchemeDeriver.SURFACE_CHROMA_MAX, step: 0.5,
-                                display: String(format: "%.1f", draft.surfaceChroma)
-                            )
                         }
                     }
 
@@ -265,9 +226,9 @@ struct CustomThemeEditorScreen: View {
         onSaved(CustomTheme(
             id: id,
             name: draft.name,   // ← 原 kt:214-217 原样保存 draft.name(仅 id 补 UUID),不 trim
-            primary: normalizedHex(draft.primary),
-            secondary: normalizedHex(draft.secondary),
-            tertiary: normalizedHex(draft.tertiary),
+            primary: Self.normalizedHex(draft.primary),
+            secondary: Self.normalizedHex(draft.secondary),
+            tertiary: Self.normalizedHex(draft.tertiary),
             surfaceHue: draft.surfaceHue,
             surfaceChroma: draft.surfaceChroma,
             createdAt: draft.createdAt
@@ -286,25 +247,30 @@ struct CustomThemeEditorScreen: View {
 
     /// 取色器确认 → 按角色写草稿(逐分支对齐 原 onConfirm when(role))
     private func applyPicked(hex rawHex: String, role: Role) {
+        draft = Self.applyingPickedColor(hex: rawHex, role: role, to: draft)
+    }
+
+    /// Manual edits preserve every other role; only the explicit seed action generates a palette.
+    static func applyingPickedColor(hex rawHex: String, role: ThemeEditorRole, to draft: CustomTheme) -> CustomTheme {
         let hex = normalizedHex(rawHex)
-        guard let color = CustomSchemeDeriver.parseHex(hex) else { return }
+        guard let color = CustomSchemeDeriver.parseHex(hex) else { return draft }
         let rgb = CustomSchemeDeriver.rgb(of: color)
         let seedHue = Double(CustomSchemeDeriver.normalizeHue(
             Double(CustomSchemeDeriver.rgbToHsv(r: rgb.r, g: rgb.g, b: rgb.b).h)))
 
         switch role {
         case .primary:
-            draft = draft.copy(primary: hex)
+            return draft.copy(primary: hex)
         case .secondary:
-            draft = draft.copy(secondary: hex)
+            return draft.copy(secondary: hex)
         case .tertiary:
-            draft = draft.copy(tertiary: hex)
+            return draft.copy(tertiary: hex)
         case .surface:
             // 表面中性色:只取色相,chroma 钳回低饱和推荐区间(4-12)
-            draft = draft.copy(surfaceHue: seedHue, surfaceChroma: min(max(draft.surfaceChroma, 4.0), 12.0))
+            return draft.copy(surfaceHue: seedHue, surfaceChroma: min(max(draft.surfaceChroma, 4.0), 12.0))
         case .seedPrimary:
             // 选主色生成整套:secondary 色相 +40°、tertiary 色相 −40°(M3 邻近色)
-            draft = draft.copy(
+            return draft.copy(
                 primary: hex,
                 secondary: Self.hexAtHue(hue: seedHue + 40.0, s: 0.45, v: 0.45),
                 tertiary: Self.hexAtHue(hue: seedHue - 40.0, s: 0.55, v: 0.50),
@@ -315,7 +281,7 @@ struct CustomThemeEditorScreen: View {
     }
 
     /// 取色器回 "#AARRGGBB" → 统一 "#RRGGBB"(存储形状与原实现一致)
-    private func normalizedHex(_ hex: String) -> String {
+    private static func normalizedHex(_ hex: String) -> String {
         let s = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         guard s.hasPrefix("#") else { return s }
         let body = String(s.dropFirst())
@@ -439,37 +405,6 @@ private struct EditorRoleRow: View {
         }
         .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("theme_role_\(title)")
-    }
-}
-
-/// 数值滑杆行(表面色相 / 饱和度)
-private struct EditorSliderRow: View {
-    @Environment(\.localWakeUpColors) private var colors
-    let label: String
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-    let display: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(colors.onSurface)
-                Spacer()
-                Text(display)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundColor(colors.onSurfaceVariant)
-            }
-            Slider(value: $value, in: range, step: step)
-                .accentColor(colors.primary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(colors.surfaceContainer)
-        .cornerRadius(SleepyShapes.medium)
     }
 }
 

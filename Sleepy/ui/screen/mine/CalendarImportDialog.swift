@@ -31,8 +31,8 @@ struct CalendarImportDialog: View {
     private var prefs: AppPrefs { AppPrefs.shared }
 
     var body: some View {
-        NavigationView {
-            ScrollView {
+        CenteredPickerDialog(title: L10n.t("calendar_import_title"), maxContentHeight: 560,
+                             onDismiss: onDismiss, footer: AnyView(doneButtons)) {
                 VStack(spacing: 10) {
                     if calendars.isEmpty {
                         Text(L10n.t("calendar_no_writable_calendar"))
@@ -62,14 +62,9 @@ struct CalendarImportDialog: View {
                         deleteManagedButton
                     }
                     if busy { ProgressView() }
-                    doneButtons
                 }
-                .padding(20)
-            }
-            .navigationTitle(L10n.t("calendar_import_title"))
-            .navigationBarTitleDisplayMode(.inline)
         }
-        .navigationViewStyle(.stack)
+        .accessibilityIdentifier("calendar_import_dialog")
         .onAppear(perform: loadState)
         .confirmationDialog(L10n.t("calendar_choose_target"), isPresented: $calendarMenu, titleVisibility: .visible) {
             ForEach(calendars) { cal in
@@ -137,6 +132,7 @@ struct CalendarImportDialog: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("calendar_target_picker")
             }
         }
     }
@@ -404,7 +400,9 @@ struct CalendarImportDialog: View {
             confirmText: L10n.t("ok"),
             onConfirm: onDismiss,
             dismissText: L10n.t("cancel"),
-            onDismiss: onDismiss
+            onDismiss: onDismiss,
+            confirmIdentifier: "calendar_import_done",
+            dismissIdentifier: "calendar_import_cancel"
         )
     }
 

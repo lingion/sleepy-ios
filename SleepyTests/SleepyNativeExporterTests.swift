@@ -6,6 +6,32 @@ import XCTest
 
 final class SleepyNativeExporterTests: XCTestCase {
 
+    func testFileExportKeepsScheduleNamesWithinTheTemporaryDirectory() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for name in ["2026/27秋", "周表\\第二版", "上午:课表\n\u{0}下午"] {
+            for ext in ["sleepy", "json", "ics"] {
+                let url = ExportScreen.temporaryExportURL(displayName: name, ext: ext, directory: directory)
+                XCTAssertEqual(url.deletingLastPathComponent().standardizedFileURL, directory.standardizedFileURL)
+                XCTAssertFalse(url.lastPathComponent.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) })
+                XCTAssertFalse(url.lastPathComponent.contains("\\"))
+                XCTAssertFalse(url.lastPathComponent.contains(":"))
+                XCTAssertEqual(url.pathExtension, ext)
+                let bytes = Data("课程内容".utf8)
+                XCTAssertNoThrow(try bytes.write(to: url))
+                if FileManager.default.fileExists(atPath: url.path) {
+                    XCTAssertEqual(try Data(contentsOf: url), bytes)
+                }
+            }
+        }
+    }
+
+    func testFileExportPreservesOrdinaryUnicodeDisplayNames() {
+        let url = ExportScreen.temporaryExportURL(displayName: "春季课表 🌸", ext: "sleepy")
+        XCTAssertTrue(url.lastPathComponent.hasPrefix("sleepy_春季课表 🌸_"))
+    }
+
     private func parse(_ text: String) throws -> ScheduleParser.ParseResult {
         switch ScheduleParser.parse(text, defaultTableId: 1) {
         case .success(let r): return r

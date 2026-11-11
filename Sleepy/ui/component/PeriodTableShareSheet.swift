@@ -15,7 +15,8 @@ struct PeriodTableShareSheet: View {
     @State private var shareSheet: ShareTextPayload? = nil
 
     var body: some View {
-        VStack(spacing: 0) {
+        ContentFittingSheet {
+            VStack(spacing: 0) {
             Text(L10n.t("period_table_share_sheet_title"))
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(colors.onSurface)
@@ -42,7 +43,7 @@ struct PeriodTableShareSheet: View {
             }
         }
         .padding(.bottom, 24)
-        .sheetDetents([.medium])
+        }
         .sheet(item: $shareSheet) { payload in
             ShareTextPayloadSheet(text: payload.text, subject: payload.subject)
         }

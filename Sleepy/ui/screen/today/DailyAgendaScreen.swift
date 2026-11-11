@@ -49,21 +49,21 @@ struct DailyAgendaScreen: View {
 
     /// ← DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL) — 跟随 app 内语言
     /// (LocaleHelper.locale(for:)), 日期锚定 Asia/Shanghai (DateUtils 同口径)。
-    private static let fullDateFormatter: DateFormatter = {
+    private var fullDateFormatter: DateFormatter {
         let f = DateFormatter()
         f.dateStyle = .full
         f.timeStyle = .none
         f.locale = LocaleHelper.locale(for: AppPrefs.shared.getLanguage())
         f.timeZone = TimeZone(identifier: "Asia/Shanghai")
         return f
-    }()
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.t("agenda_title"), onBack: onBack)
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    Text(Self.fullDateFormatter.string(from: date))
+                    Text(fullDateFormatter.string(from: date))
                         .font(.system(size: 16, weight: .medium)) // ← titleMedium
                         .foregroundColor(colors.onSurface)
                         .frame(maxWidth: .infinity, alignment: .leading)

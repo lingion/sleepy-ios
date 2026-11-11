@@ -107,7 +107,7 @@ struct WidgetEditScreen: View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("widget_edit_title"), onBack: onDismiss)
             ScrollView {
-                LazyVStack(spacing: 16) {
+                LazyVStack(spacing: SettingsLayout.sectionGap) {
                     if let s = scope {
                         // 仅呈现 WidgetKit 渲染实际消费的设置。
                         WidgetEditScheduleSection(scope: s)
@@ -116,8 +116,7 @@ struct WidgetEditScreen: View {
                         WidgetEditWideGridSection(scope: s)
                     }
                 }
-                .padding(.horizontal, 16)
-                // ← 原版本 WidgetEditScreen.kt L92 仅 horizontal 16, 无纵向 padding
+                .padding(SettingsLayout.pageInset)
             }
         }
         .background(colors.background)
@@ -393,7 +392,7 @@ struct WidgetEditCompactWindowSection: View {
                 Text(label)
                     .font(.system(size: 16))
                     .foregroundColor(colors.onSurface)
-                    .padding(.leading, 4)
+                    .padding(.leading, SettingsLayout.controlGap)
                 Spacer()
             }
             .padding(.horizontal, 16)

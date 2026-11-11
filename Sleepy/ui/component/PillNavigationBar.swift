@@ -184,16 +184,16 @@ private struct NativePillBar: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
-            .foregroundColor(item.selected ? colors.primary : colors.onSurfaceVariant)
+            .foregroundColor(item.selected ? colors.onSecondaryContainer : colors.onSurfaceVariant)
             .frame(width: seatWidth - 4, height: DockSpec.thumbHeight)
             .sleepyNativeGlassSelection(item.selected, cornerRadius: 28,
-                                       tint: colors.primary.opacity(0.12), namespace: selectionNamespace)
+                                       tint: colors.secondaryContainer, namespace: selectionNamespace)
             .frame(width: seatWidth, height: DockSpec.capsuleHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .androidNavigationIconPress(id: item.id)
-        .tint(colors.primary)
+        .tint(item.selected ? colors.onSecondaryContainer : colors.onSurfaceVariant)
         .frame(width: seatWidth, height: DockSpec.capsuleHeight)
         .accessibilityIdentifier("pill_\(item.id)")
         .accessibilityLabel(item.label)

@@ -55,16 +55,16 @@ final class ManageImportUITests: XCTestCase {
                       "管理页应显示当前表名")
     }
 
-    // MARK: Import 卡 → ImportSheet 弹出 + 3 入口行存在
+    // MARK: Import 卡 → ImportSheet 弹出 + 4 入口行存在
 
     func testImportSheetOpensWithThreeMethods() {
         app.descendants(matching: .any)["manage_import"].tap()
-        // 管理页入口带 onCreateNewTable → 方式页标题取 manage_add_table(Add Timetable),
-        // 不再是 import_title(Import Schedule)。
-        XCTAssertTrue(app.staticTexts["Add Timetable"].waitForExistence(timeout: 5),
+        // 管理页入口带 onCreateNewTable → 方式页标题取 create_table_title。
+        XCTAssertTrue(app.staticTexts["Create New Timetable"].waitForExistence(timeout: 5),
                       "导入弹窗未打开")
         XCTAssertTrue(app.staticTexts["Connect to School"].exists, "教务直连行缺失")
         XCTAssertTrue(app.staticTexts["Paste Text"].exists, "文本导入行缺失")
+        XCTAssertTrue(app.staticTexts["Create Blank Timetable"].exists, "空白课表行缺失")
         XCTAssertTrue(app.staticTexts["Import from File"].exists, "文件导入行缺失")
     }
 
@@ -180,34 +180,49 @@ final class ManageImportUITests: XCTestCase {
             confirmBtn.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
         sleep(2)
-        // 导入完成 → 原版本 行为(ImportSheet.kt v1.0.56 删跳编辑页 + NavHost onImported
-        // =「留在管理页, 摘要卡就地刷新」): 确认 sheet 关闭后 ImportSheet 仍开着(其
-        // importJustApplied 只弹 snackbar, 不关自己)→ 断言成功条 import_success_snackbar,
-        // 下滑关 sheet 回 Manage; 新表落库经 observeAllTables 反应流成当前表
-        // (applyImportPreview .importAsNew 走 setDefault)→ 摘要卡即显示导入表名。
-        // ★ 修复: snackbar 停留 2.5s, 用 descendants 锚点(与 ImportSheet.import_success_snackbar 对齐)
+        // 导入成功保留方式页和 snackbar；已有默认表时，新表只落库，默认表不变。
         let snackbar = app.descendants(matching: .any)["import_success_snackbar"]
         XCTAssertTrue(snackbar.waitForExistence(timeout: 5),
                       "导入成功应弹 snackbar(import_success)")
-        // 关 ImportSheet: 循环 swipeDown 实测不可靠(2026-10-25 eprobe: 6 次全被
-        // sheet 内 ScrollView/文本区吞掉, 标题恒在)。改走确定性路径: 摘要卡断言
-        // 透过 sheet 树即可成立(exists 含遮挡元素), 末尾用「重启 App」验证导入
-        // 持久生效 —— 冷启动无 sheet 遮挡, 默认表=setDefault(导入表) → 课表 Tab
-        // 必渲染编译原理, 同时锁住"导入落库+设为默认+重启仍在"三件事。
+        let importBack = app.buttons["topbar_back"].firstMatch
+        XCTAssertTrue(importBack.waitForExistence(timeout: 5))
+        importBack.tap()
         XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 5),
                       "导入后应留在管理页(不跳编辑页)")
-        // 摘要卡刷新: 表名 = 导入表名(唯一名顺延仅撞名时加后缀, 种子表名不同 → 原名)
-        XCTAssertTrue(app.staticTexts["测试导入表"].waitForExistence(timeout: 8),
-                      "管理页摘要卡应刷新为导入的课表")
+        XCTAssertTrue(app.staticTexts["我的课表"].waitForExistence(timeout: 8),
+                      "导入新表应保留原默认课表")
         app.terminate()
-        // 重启不带种子参数: 带 -SLEEPY_UI_TEST_SEED 会重跑 seeder 清库,
-        // 把刚导入的表删掉 → 这里要验证的恰是"导入持久化", 用裸参数重启。
+        // 不带种子参数重启，验证默认表保留和导入表落库，而非内存中的选中状态。
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.sleepyLaunch()
+        XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 20))
+        app.switchToPillTab("manage")
+        XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["我的课表"].waitForExistence(timeout: 8),
+                      "导入后冷启动仍应选中原默认课表")
+        let allTables = app.buttons["manage_all_tables"].firstMatch
+        XCTAssertTrue(allTables.waitForExistence(timeout: 5))
+        allTables.tap()
+        let originalTable = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'table_select_' AND label == %@", "我的课表")).firstMatch
+        let importedTable = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'table_select_' AND label == %@", "测试导入表")).firstMatch
+        XCTAssertTrue(originalTable.waitForExistence(timeout: 5), "原课表应保留在全部课表列表中")
+        XCTAssertTrue(importedTable.waitForExistence(timeout: 5), "新导入课表应在冷启动后仍然存在")
+        XCTAssertTrue(importedTable.isHittable)
+        importedTable.tap()
+        let tablesBack = app.buttons["topbar_back"].firstMatch
+        XCTAssertTrue(tablesBack.waitForExistence(timeout: 5), "显式切表后应留在全部课表页")
+        tablesBack.tap()
+        XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["测试导入表"].waitForExistence(timeout: 8),
+                      "显式切表后管理页应显示导入课表")
+        app.terminate()
         app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS '编译原理'")).firstMatch
-            .waitForExistence(timeout: 8), "导入后课表应含编译原理")
+            .waitForExistence(timeout: 8), "显式切到导入表后冷启动应含编译原理")
     }
 
     // MARK: 教务直连入口(弹 SchoolSelect — 不实际登录)

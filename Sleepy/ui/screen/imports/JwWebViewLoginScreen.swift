@@ -133,7 +133,7 @@ struct JwWebViewLoginScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             // TopBar(校名 + 实时 URL / 地址栏编辑态)
-            HStack {
+            HStack(spacing: 0) {
                 // ← navigationIcon IconButton: editingUrl 退编辑, 否则 onBack
                 Button(action: {
                     if editingUrl { editingUrl = false } else { backOrDismiss() }
@@ -210,6 +210,19 @@ struct JwWebViewLoginScreen: View {
                 .accessibilityLabel(L10n.format(editingUrl ? "jw_url_submit" : "jw_edit_url"))
                 .accessibilityIdentifier("jw_edit_url")
                 if !editingUrl {
+                    if sgAdapterChoices.count > 1 {
+                        Button { showSgAdapterChoices = true } label: {
+                            AndroidSettingsIcon(name: .school, size: 24)
+                                .foregroundColor(colors.onBackground)
+                                .frame(width: style == .classic ? 48 : nil,
+                                       height: style == .classic ? 48 : nil)
+                        }
+                        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                        .frame(width: 48, height: 48)
+                        .disabled(webViewCoordinator == nil)
+                        .accessibilityLabel(L10n.t("jw_sg_choose_adapter"))
+                        .accessibilityIdentifier("jw_select_adapter")
+                    }
                     // ← actions UA IconButton(#18): 部分门户手机 UA 下无"个人课表"入口。
                     // 图标随状态切换: 手机 UA → Computer(点了变桌面), 桌面 UA → PhoneMobile
                     // (点了回手机); enabled = webViewRef != null
@@ -249,8 +262,8 @@ struct JwWebViewLoginScreen: View {
                     .accessibilityIdentifier("jw_refresh")
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 4)
+            .frame(height: 64)
             .background(colors.background)
 
             ZStack(alignment: .top) {
@@ -321,6 +334,8 @@ struct JwWebViewLoginScreen: View {
         .confirmationDialog(L10n.t("jw_sg_choose_adapter"), isPresented: $showSgAdapterChoices, titleVisibility: .visible) {
             ForEach(sgAdapterChoices) { adapter in
                 Button((adapter.adapterName?.isEmpty == false ? adapter.adapterName! : adapter.id) + " · " + adapter.importUrl) {
+                    thuCaptureToken = UUID()
+                    webViewCoordinator?.cancelFetch()
                     chosenSgAdapterId = adapter.id
                     onSgAdapterSelected?(adapter.id)
                     if let url = URL(string: adapter.importUrl), ["http", "https"].contains(url.scheme ?? "") {
@@ -704,6 +719,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
     private let onUrlChanged: (String?) -> Void
     private var lastNavUrl: String?
     private let fetchBudget = JwFetchBudget()
+    private var fetchDeliveryEpoch = UUID()
     private var fetchTimeoutWork: DispatchWorkItem?
     private var sgRequests: [[String: Any]] = []
     private var sgAttempts: [Int: Int] = [:]
@@ -849,6 +865,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
     }
 
     func cancelFetch() {
+        fetchDeliveryEpoch = UUID()
         if let id = fetchBudget.captureId,
            let quoted = try? JwSgSourceMetadata.stringify([id]) {
             webView?.evaluateJavaScript("if(window.SleepySgShim)SleepySgShim.cancelSession(" + String(quoted.dropFirst().dropLast()) + ");", completionHandler: nil)
@@ -1115,7 +1132,11 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageH
                 guard let payload = JwSgSourceMetadata.object(json), let id = payload["captureId"] as? String,
                       fetchBudget.complete(id: id) else { return }
                 fetchTimeoutWork?.cancel(); sgAlert?.dismiss(animated: false); sgAlert = nil; sgRequests = []
-                DispatchQueue.main.async { self.onWiseduResult(json) }
+                let epoch = fetchDeliveryEpoch
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.fetchDeliveryEpoch == epoch else { return }
+                    self.onWiseduResult(json)
+                }
             }
         case "__sleepySgInteraction":
             if let request = message.body as? [String: Any] { receiveSgInteraction(request) }

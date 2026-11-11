@@ -329,7 +329,10 @@ final class JwWebViewNavigationDelegate: NSObject, WKNavigationDelegate {
     /// 消费方(coordinator)接线时调用并**持有**返回的 observation, 销毁时释放。
     func observeUrlChanges(of webView: WKWebView) -> NSKeyValueObservation {
         webView.observe(\.url, options: [.new]) { [weak self] wv, _ in
-            self?.onUrlChanged(wv.url?.absoluteString)
+            // The initial load can notify synchronously inside makeUIView.
+            // Capture this navigation's URL, then update screen state after that render pass.
+            let url = wv.url?.absoluteString
+            DispatchQueue.main.async { [weak self] in self?.onUrlChanged(url) }
         }
     }
 

@@ -33,7 +33,8 @@ final class UIElementAuditUITests: XCTestCase {
 
     // MARK: - 辅助方法
 
-    private func launchApp(language: String = "zh-Hans", appearance: String = "light") {
+    private func launchApp(language: String = "zh-Hans", appearance: String = "light", uiStyle: String? = nil,
+                           extraArguments: [String] = []) {
         app = XCUIApplication()
         // 主题: -theme_mode <light|dark> 作为 launch argument 会落入 UserDefaults.standard,
         //       AppPrefs.getThemeMode() 直接读到 → 无需触碰模拟器全局外观
@@ -45,6 +46,8 @@ final class UIElementAuditUITests: XCTestCase {
             "-UILaunchScreen_Generation", "YES", // 防止首屏黑屏
             "-theme_mode", appearance == "dark" ? "dark" : "light"
         ]
+        if let uiStyle { app.launchArguments += ["-ui_style", uiStyle] }
+        app.launchArguments += extraArguments
         app.sleepyLaunch()
 
         // 等待 Pill 栏出现(种子后)
@@ -126,12 +129,99 @@ final class UIElementAuditUITests: XCTestCase {
 
     // MARK: - 导航到子页面
 
+    private func waitForAuditCondition(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        } while Date() < deadline
+        return condition()
+    }
+
+    private func assertNativeColorPickerContent(file: StaticString = #filePath, line: UInt = #line) {
+        let modes = app.descendants(matching: .any).matching(NSPredicate(format: "label IN %@", [
+            "Grid", "Spectrum", "Sliders", "网格", "光谱", "滑块", "網格", "滑桿"
+        ]))
+        XCTAssertTrue(waitForAuditCondition {
+            modes.allElementsBoundByIndex.contains { $0.isHittable }
+        }, "The native picker must render its color controls before capture", file: file, line: line)
+    }
+
+    /// Reveal the complete control inside its foreground scroll area and above the dock.
+    /// Drag the empty leading gutter so sliders do not consume the scroll gesture.
+    /// Use shorter steps only when the target is already near the viewport.
+    private func revealAuditControl(_ element: XCUIElement,
+                                    file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.waitForExistence(timeout: 10), file: file, line: line)
+        func owningScroll() -> XCUIElement? {
+            let containers = app.scrollViews.allElementsBoundByIndex + app.tables.allElementsBoundByIndex
+                + app.collectionViews.allElementsBoundByIndex
+            return containers.reversed().first { container in
+                guard container.exists else { return false }
+                let query = container.descendants(matching: element.elementType)
+                return element.identifier.isEmpty
+                    ? query.matching(NSPredicate(format: "label == %@", element.label)).firstMatch.exists
+                    : query.matching(identifier: element.identifier).firstMatch.exists
+            }
+        }
+        func viewport(_ scroll: XCUIElement?) -> CGRect {
+            var frame = app.windows.firstMatch.frame.insetBy(dx: 2, dy: 4)
+            if let scroll { frame = frame.intersection(scroll.frame) }
+            if let back = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex.last(where: { $0.isHittable }),
+               back.frame.minY < frame.midY {
+                let bottom = frame.maxY
+                frame.origin.y = max(frame.minY, back.frame.maxY + 4)
+                frame.size.height = max(0, bottom - frame.minY)
+            }
+            let dockFrames = ["pill_schedule", "pill_today", "pill_manage", "pill_mine"]
+                .map { app.buttons[$0].firstMatch }.filter { $0.exists && $0.isHittable }.map(\.frame)
+            if let first = dockFrames.first {
+                let dock = dockFrames.dropFirst().reduce(first) { $0.union($1) }
+                if dock.width > dock.height, dock.minY > frame.midY {
+                    frame.size.height = max(0, min(frame.maxY, dock.minY - 4) - frame.minY)
+                }
+            }
+            if let keyboard = app.keyboards.allElementsBoundByIndex.first {
+                frame.size.height = max(0, min(frame.maxY, keyboard.frame.minY - 44) - frame.minY)
+            }
+            return frame
+        }
+        func visible() -> Bool {
+            element.exists && element.isHittable && element.frame.width > 0 && element.frame.height > 0
+                && viewport(owningScroll()).contains(element.frame)
+        }
+        for _ in 0..<16 {
+            if visible() { return }
+            let area = viewport(owningScroll())
+            guard area.width > 0, area.height > 0 else { break }
+            let earlier = element.frame.minY < area.minY
+            let distance = earlier ? area.minY - element.frame.minY : element.frame.maxY - area.maxY
+            let step = min(0.55, max(0.18, distance / area.height))
+            let dragX = area.minX + min(10, area.width * 0.05)
+            let startY = earlier ? 0.25 : 0.80
+            let endY = earlier ? startY + step : startY - step
+            let start = CGPoint(x: dragX, y: area.minY + area.height * startY)
+            let end = CGPoint(x: dragX, y: area.minY + area.height * endY)
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: start.x, dy: start.y)).press(forDuration: 0.05,
+                thenDragTo: origin.withOffset(CGVector(dx: end.x, dy: end.y)))
+        }
+        XCTAssertTrue(waitForAuditCondition { visible() },
+                      "The complete control must be visible above navigation and keyboard", file: file, line: line)
+    }
+
+    private func tapAuditBack(file: StaticString = #filePath, line: UInt = #line) {
+        let back = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex.last { $0.isHittable }
+        XCTAssertNotNil(back, "The foreground page must expose its back action", file: file, line: line)
+        back?.tap()
+    }
+
     /// 点 Mine 设置项(SettingsItem 是 Button,identifier 前缀 mine_)并断言子页真实打开。
-    private func openMineSetting(_ itemId: String, assertAnchor anchorId: String, scroll: Bool = true) {
+    private func openMineSetting(_ itemId: String, assertAnchor anchorId: String, scroll _: Bool = true) {
         switchToTab("mine")
-        if scroll { app.swipeUp() }
         let item = app.buttons[itemId].firstMatch
         XCTAssertTrue(item.waitForExistence(timeout: 5), "Mine 设置项 \(itemId) 未找到")
+        revealAuditControl(item)
         item.tap()
         let anchor = app.descendants(matching: .any)[anchorId].firstMatch
         XCTAssertTrue(anchor.waitForExistence(timeout: 5), "点击 \(itemId) 后子页锚点 \(anchorId) 未出现")
@@ -514,6 +604,574 @@ final class UIElementAuditUITests: XCTestCase {
         launchApp(language: "zh-Hant", appearance: "light")
         switchToTab("mine")
         captureScreenshot("A5_mine_zh-TW_light")
+    }
+
+    // MARK: - A.9 Remaining schedule and widget navigation surfaces
+
+    func testA9_ScheduleViewsAndTopTablePickerCapture() {
+        launchApp(language: "en", uiStyle: "classic", extraArguments: ["-show_view_switcher", "YES"])
+        let gridCourse = app.descendants(matching: .any)["gridcell_1"].firstMatch
+        XCTAssertTrue(gridCourse.waitForExistence(timeout: 10))
+        captureScreenshot("A9_schedule-grid")
+        let switchTable = app.buttons["switch_table"].firstMatch
+        revealAuditControl(switchTable)
+        switchTable.tap()
+        let table = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'switch_table_' AND label CONTAINS %@", "我的课表")).firstMatch
+        revealAuditControl(table)
+        XCTAssertTrue(table.label.contains("我的课表"))
+        captureScreenshot("A9_schedule-top-table-picker")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.015, dy: 0.5)).tap()
+        XCTAssertTrue(waitForAuditCondition { !table.exists && gridCourse.exists })
+        let week = app.buttons["seg_Week"].firstMatch
+        revealAuditControl(week)
+        week.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["lesson_1"].firstMatch.waitForExistence(timeout: 10))
+        captureScreenshot("A9_schedule-week-view")
+        let grid = app.buttons["seg_Grid"].firstMatch
+        revealAuditControl(grid)
+        grid.tap()
+        XCTAssertTrue(gridCourse.waitForExistence(timeout: 10))
+        let share = app.buttons["topbar_share"].firstMatch
+        revealAuditControl(share)
+        share.tap()
+        for identifier in ["share_format_json", "share_format_text", "share_format_ics", "share_format_native"] {
+            XCTAssertTrue(app.buttons[identifier].firstMatch.waitForExistence(timeout: 10))
+        }
+        revealAuditControl(app.buttons["share_format_native"].firstMatch)
+        captureScreenshot("A9_share-formats-classic")
+    }
+
+    func testA9_OccurrenceDatePickerCanCancelCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        let course = app.descendants(matching: .any)["gridcell_1"].firstMatch
+        XCTAssertTrue(course.waitForExistence(timeout: 10))
+        course.tap()
+        let actions = app.buttons["course_occurrence_actions"].firstMatch
+        revealAuditControl(actions)
+        actions.tap()
+        let adjust = app.buttons["occurrence_adjust"].firstMatch
+        revealAuditControl(adjust)
+        adjust.tap()
+        let date = app.buttons["occurrence_date"].firstMatch
+        revealAuditControl(date)
+        let original = date.label
+        date.tap()
+        let confirm = app.buttons["date_picker_confirm"].firstMatch
+        revealAuditControl(confirm)
+        let cancel = app.buttons["date_picker_cancel"].firstMatch
+        revealAuditControl(cancel)
+        captureScreenshot("A9_occurrence-date-picker")
+        cancel.tap()
+        XCTAssertTrue(waitForAuditCondition { !confirm.exists && date.exists })
+        XCTAssertEqual(date.label, original, "Canceling the date picker must preserve the occurrence draft")
+        app.buttons["occurrence_cancel"].tap()
+        let detailActions = app.buttons["course_occurrence_actions"].firstMatch
+        XCTAssertTrue(waitForAuditCondition {
+            !self.app.buttons["occurrence_cancel"].exists && detailActions.isHittable
+        }, "Cancel closes the occurrence sheet and returns to its course detail")
+        captureScreenshot("A9_occurrence-cancel-returned-to-detail")
+        detailActions.tap()
+        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
+    }
+
+    func testA9_ScheduleSettingsMiddleAndBottomCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        openMineSetting("mine_schedule_settings", assertAnchor: "schedule_display_settings")
+        let week = app.staticTexts["Two-column week view"].firstMatch
+        revealAuditControl(week)
+        captureScreenshot("A9_schedule-settings-week-content")
+        let subInfo = app.staticTexts["Grid card sub-info"].firstMatch
+        revealAuditControl(subInfo)
+        captureScreenshot("A9_schedule-settings-grid-content")
+        let pinch = app.staticTexts["Pinch to resize rows"].firstMatch
+        revealAuditControl(pinch)
+        captureScreenshot("A9_schedule-settings-grid-advanced")
+        let conflict = app.staticTexts["Conflicting course style"].firstMatch
+        revealAuditControl(conflict)
+        captureScreenshot("A9_schedule-settings-conflicts")
+        let holiday = app.buttons["settings_holiday_entry"].firstMatch
+        revealAuditControl(holiday)
+        captureScreenshot("A9_schedule-settings-holidays-bottom")
+        tapAuditBack()
+        XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 10))
+    }
+
+    func testA9_WidgetSettingsAndManagementEmptyStateCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        openMineSetting("mine_widget", assertAnchor: "settings_widget_manage_entry")
+        let manage = app.buttons["settings_widget_manage_entry"].firstMatch
+        revealAuditControl(manage)
+        captureScreenshot("A9_widget-settings")
+        manage.tap()
+        let add = app.buttons["widget_gallery_add"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        let empty = app.buttons["widget_empty_gallery"].firstMatch
+        revealAuditControl(empty)
+        captureScreenshot("A9_widget-management-empty-state")
+        tapAuditBack()
+        XCTAssertTrue(manage.waitForExistence(timeout: 10))
+        tapAuditBack()
+        XCTAssertTrue(app.buttons["mine_widget"].waitForExistence(timeout: 10))
+    }
+
+    // MARK: - A.8 Theme and whole-course editor surfaces
+
+    func testA8_CustomThemeRolesAndNativePickerCapture() {
+        launchApp(language: "en", uiStyle: "classic", extraArguments: ["-course_colorless", "NO"])
+        openMineSetting("mine_appearance", assertAnchor: "theme_system_card")
+        func customThemeCardIDs() -> Set<String> {
+            Set(app.buttons.matching(NSPredicate(
+                format: "identifier BEGINSWITH 'theme_custom_' AND NOT (identifier BEGINSWITH 'theme_custom_edit_')"
+            )).allElementsBoundByIndex.map(\.identifier))
+        }
+        let initialThemeIDs = customThemeCardIDs()
+        let create = app.buttons["theme_new_entry"].firstMatch
+        revealAuditControl(create)
+        create.tap()
+        let name = app.descendants(matching: .any)["field_Theme name"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        captureScreenshot("A8_custom-theme-editor")
+        let seed = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Build from a primary color")).firstMatch
+        revealAuditControl(seed)
+        seed.tap()
+        let pickerCancel = app.navigationBars.buttons["Cancel"].firstMatch
+        XCTAssertTrue(pickerCancel.waitForExistence(timeout: 10))
+        assertNativeColorPickerContent()
+        captureScreenshot("A8_theme-seed-native-color-picker")
+        pickerCancel.tap()
+        XCTAssertTrue(waitForAuditCondition { !pickerCancel.exists && name.exists })
+        let manual = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Pick roles manually")).firstMatch
+        revealAuditControl(manual)
+        manual.tap()
+        let primary = app.buttons["theme_role_Primary"].firstMatch
+        revealAuditControl(primary)
+        captureScreenshot("A8_custom-theme-role-colors")
+        primary.tap()
+        XCTAssertTrue(pickerCancel.waitForExistence(timeout: 10))
+        assertNativeColorPickerContent()
+        captureScreenshot("A8_theme-primary-native-color-picker")
+        pickerCancel.tap()
+        XCTAssertTrue(waitForAuditCondition { !pickerCancel.exists && primary.exists })
+
+        revealAuditControl(name)
+        let oldName = name.value as? String ?? ""
+        let savedName = "Audit-\(UUID().uuidString.prefix(8))"
+        name.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldName.count))
+        app.typeText(savedName + "\n")
+        XCTAssertTrue(waitForAuditCondition { !self.app.keyboards.firstMatch.exists })
+        XCTAssertEqual(name.value as? String, savedName)
+        tapAuditBack()
+        let discard = app.alerts["Discard unsaved changes?"].firstMatch
+        guard discard.waitForExistence(timeout: 10) else {
+            XCTFail("Leaving a changed theme draft must ask before discarding it")
+            return
+        }
+        XCTAssertTrue(discard.buttons["Discard"].isHittable)
+        XCTAssertTrue(discard.buttons["Cancel"].isHittable)
+        captureScreenshot("A8_custom-theme-discard-confirmation")
+        discard.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !discard.exists && name.exists })
+        XCTAssertEqual(name.value as? String, savedName, "Cancel must preserve the unsaved theme name")
+
+        let save = app.buttons["theme_editor_save"].firstMatch
+        revealAuditControl(save)
+        guard save.isEnabled else {
+            XCTFail("The valid theme draft must be saveable")
+            return
+        }
+        save.tap()
+        guard waitForAuditCondition({ !name.exists && create.exists }) else {
+            XCTFail("Saving the theme must return to Appearance")
+            return
+        }
+        let savedThemeIDs = customThemeCardIDs()
+        let addedThemeIDs = savedThemeIDs.subtracting(initialThemeIDs)
+        XCTAssertTrue(initialThemeIDs.isSubset(of: savedThemeIDs), "Saving must retain every existing custom theme")
+        guard addedThemeIDs.count == 1, let savedCardID = addedThemeIDs.first else {
+            XCTFail("Saving a new theme must add exactly one custom theme card")
+            return
+        }
+        let savedCard = app.buttons[savedCardID].firstMatch
+        XCTAssertTrue(savedCard.label.contains(savedName))
+        let savedThemeID = String(savedCardID.dropFirst("theme_custom_".count))
+        let editSavedTheme = app.buttons["theme_custom_edit_\(savedThemeID)"].firstMatch
+        revealAuditControl(editSavedTheme)
+        editSavedTheme.tap()
+        guard name.waitForExistence(timeout: 10) else {
+            XCTFail("The saved custom theme must reopen in its editor")
+            return
+        }
+        XCTAssertEqual(name.value as? String, savedName)
+        let deleteTheme = app.buttons["theme_editor_delete"].firstMatch
+        revealAuditControl(deleteTheme)
+        deleteTheme.tap()
+        let deleteConfirmation = app.alerts["Delete this custom theme?"].firstMatch
+        guard deleteConfirmation.waitForExistence(timeout: 10) else {
+            XCTFail("Deleting a custom theme must ask for confirmation")
+            return
+        }
+        XCTAssertTrue(deleteConfirmation.buttons["Delete"].isHittable)
+        XCTAssertTrue(deleteConfirmation.buttons["Cancel"].isHittable)
+        captureScreenshot("A8_custom-theme-delete-confirmation")
+        deleteConfirmation.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !deleteConfirmation.exists && deleteTheme.exists })
+        XCTAssertEqual(name.value as? String, savedName, "Canceling deletion must preserve the saved theme name")
+        tapAuditBack()
+        XCTAssertTrue(create.waitForExistence(timeout: 10))
+        XCTAssertEqual(customThemeCardIDs(), savedThemeIDs, "Canceling deletion must preserve the entire custom theme collection")
+        XCTAssertTrue(savedCard.label.contains(savedName), "Canceling deletion must retain the same named theme card")
+        let defaultPreset = app.buttons["theme_preset_default"].firstMatch
+        revealAuditControl(defaultPreset)
+        defaultPreset.tap()
+        XCTAssertTrue(waitForAuditCondition {
+            defaultPreset.label.contains("Selected") || defaultPreset.descendants(matching: .any)
+                .matching(NSPredicate(format: "label == %@", "Selected")).firstMatch.exists
+        }, "The capture must finish with the default preset selected")
+        let recalc = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Re-arrange all course colors")).firstMatch
+        revealAuditControl(recalc)
+        captureScreenshot("A8_appearance-course-colors-lower")
+    }
+
+    func testA8_ExistingCourseFieldsColorAndDeleteCancelCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        let course = app.descendants(matching: .any)["gridcell_1"].firstMatch
+        XCTAssertTrue(course.waitForExistence(timeout: 10))
+        course.tap()
+        let edit = app.buttons["detail_edit"].firstMatch
+        revealAuditControl(edit)
+        captureScreenshot("A8_course-detail-portrait")
+        edit.tap()
+        XCTAssertTrue(app.staticTexts["Edit Course"].firstMatch.waitForExistence(timeout: 10))
+        captureScreenshot("A8_existing-course-editor-top")
+        let groupColor = app.buttons["Change group color"].firstMatch
+        revealAuditControl(groupColor)
+        groupColor.tap()
+        let cancelColor = app.navigationBars.buttons["Cancel"].firstMatch
+        XCTAssertTrue(cancelColor.waitForExistence(timeout: 10))
+        assertNativeColorPickerContent()
+        captureScreenshot("A8_existing-course-group-color-picker")
+        cancelColor.tap()
+        XCTAssertTrue(waitForAuditCondition { !cancelColor.exists && groupColor.exists })
+        let addSlot = app.buttons["course_add_slot"].firstMatch
+        revealAuditControl(addSlot)
+        captureScreenshot("A8_existing-course-editor-slots")
+        let delete = app.buttons["course_delete"].firstMatch
+        revealAuditControl(delete)
+        captureScreenshot("A8_existing-course-editor-bottom")
+        delete.tap()
+        let confirmation = app.alerts["Confirm Delete"].firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 10))
+        XCTAssertTrue(confirmation.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "高等数学")).firstMatch.exists)
+        captureScreenshot("A8_existing-course-delete-confirmation")
+        confirmation.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !confirmation.exists && delete.exists })
+        tapAuditBack()
+        XCTAssertTrue(course.waitForExistence(timeout: 10), "Canceling deletion must retain the existing course")
+    }
+
+    // MARK: - A.7 Secondary surfaces captured through their production routes
+
+    func testA7_ExportTargetAndCalendarConfigurationCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        navigateToExport()
+        let targetCard = app.buttons["export_table_card"].firstMatch
+        revealAuditControl(targetCard)
+        targetCard.tap()
+        let tableRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'export_table_row_'"))
+            .firstMatch
+        revealAuditControl(tableRow)
+        XCTAssertTrue(tableRow.label.contains("我的课表"))
+        captureScreenshot("A7_export-target-picker")
+        // The picker dismisses on its scrim; no export target is changed.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.015, dy: 0.5)).tap()
+        XCTAssertTrue(waitForAuditCondition { !tableRow.exists })
+
+        let calendarEntry = app.buttons["export_calendar_import_row"].firstMatch
+        revealAuditControl(calendarEntry)
+        calendarEntry.tap()
+        let systemAlert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+        let calendar = app.descendants(matching: .any)["calendar_import_dialog"].firstMatch
+        // EventKit completes only after the system permission request. On a fresh
+        // simulator the alert can arrive after the entry's initial idle period.
+        let permissionDeadline = Date().addingTimeInterval(20)
+        while Date() < permissionDeadline {
+            if systemAlert.exists { break }
+            if calendar.exists { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        }
+        if systemAlert.exists {
+            let allow = systemAlert.buttons.matching(NSPredicate(format: "label IN %@", [
+                "Allow Full Access", "Allow Access to All Events", "Allow", "OK",
+                "允许完全访问", "允许访问所有日程", "允许", "好"
+            ])).firstMatch
+            guard allow.waitForExistence(timeout: 5) else {
+                XCTFail("Calendar permission must expose an explicit allow action: \(systemAlert.debugDescription)")
+                return
+            }
+            allow.tap()
+        }
+        guard calendar.waitForExistence(timeout: 10) else {
+            XCTFail("Granting calendar access must open its configuration: \(app.debugDescription)")
+            return
+        }
+        let calendarTarget = app.buttons["calendar_target_picker"].firstMatch
+        revealAuditControl(calendarTarget)
+        captureScreenshot("A7_calendar-target-configuration")
+        let range = app.buttons["calendar_range_NEXT_WEEK"].firstMatch
+        revealAuditControl(range)
+        XCTAssertTrue(app.staticTexts["Import range"].exists)
+        captureScreenshot("A7_calendar-range-configuration")
+        range.tap()
+        XCTAssertTrue(waitForAuditCondition { range.isSelected })
+        let selectedTarget = calendarTarget.label
+        let managedImports = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Delete Sleepy imports ("))
+        let managedImportLabels = Set(managedImports.allElementsBoundByIndex.map(\.label))
+        let preview = app.buttons["Preview import"].firstMatch
+        revealAuditControl(preview)
+        guard preview.isEnabled else {
+            XCTFail("Calendar preview must be available after choosing its target and range")
+            return
+        }
+        preview.tap()
+        let previewSummary = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "classes will be added")).firstMatch
+        let confirmImport = app.buttons["Confirm import"].firstMatch
+        guard waitForAuditCondition({ previewSummary.exists && confirmImport.exists && confirmImport.isEnabled }) else {
+            XCTFail("Calendar preview must include importable seeded courses")
+            return
+        }
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "高等数学")).firstMatch.exists)
+        let previewSummaryLabel = previewSummary.label
+        revealAuditControl(previewSummary)
+        captureScreenshot("A7_calendar-import-preview")
+        revealAuditControl(confirmImport)
+        confirmImport.tap()
+        let finalConfirmation = app.alerts["Confirm calendar changes"].firstMatch
+        guard finalConfirmation.waitForExistence(timeout: 10) else {
+            XCTFail("The calendar preview must require final confirmation before writing events")
+            return
+        }
+        XCTAssertTrue(finalConfirmation.buttons["Add classes"].isHittable)
+        XCTAssertTrue(finalConfirmation.buttons["Cancel"].isHittable)
+        captureScreenshot("A7_calendar-final-confirmation")
+        finalConfirmation.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !finalConfirmation.exists && confirmImport.isHittable })
+        XCTAssertEqual(previewSummary.label, previewSummaryLabel, "Cancel must preserve the calendar preview")
+        XCTAssertEqual(calendarTarget.label, selectedTarget, "Cancel must preserve the selected calendar")
+        XCTAssertTrue(range.isSelected, "Cancel must preserve the selected import range")
+        XCTAssertEqual(Set(managedImports.allElementsBoundByIndex.map(\.label)), managedImportLabels,
+                       "Cancel must preserve the managed import count")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(
+            format: "label BEGINSWITH 'Added ' AND label CONTAINS ', updated ' AND label CONTAINS ', unchanged '"
+        )).firstMatch.exists, "Cancel must not report a completed calendar write")
+        let cancel = app.buttons["calendar_import_cancel"].firstMatch
+        revealAuditControl(cancel)
+        cancel.tap()
+        XCTAssertTrue(waitForAuditCondition { !calendar.exists })
+        XCTAssertTrue(calendarEntry.exists, "Cancel must return to export without writing events")
+        XCTAssertTrue(calendarEntry.isHittable)
+    }
+
+    func testA7_CalendarManagedDeletionConfirmsCancelsAndCleansFixtureCapture() throws {
+        continueAfterFailure = false
+        #if !targetEnvironment(simulator)
+        throw XCTSkip("Calendar round trip is confined to the isolated simulator fixture")
+        #endif
+        launchApp(language: "en", uiStyle: "classic")
+        navigateToExport()
+        let calendarEntry = app.buttons["export_calendar_import_row"].firstMatch
+        revealAuditControl(calendarEntry)
+        calendarEntry.tap()
+        let systemAlert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+        let calendar = app.descendants(matching: .any)["calendar_import_dialog"].firstMatch
+        // EventKit completes only after the system permission request. On a fresh
+        // simulator the alert can arrive after the entry's initial idle period.
+        let permissionDeadline = Date().addingTimeInterval(20)
+        while Date() < permissionDeadline {
+            if systemAlert.exists { break }
+            if calendar.exists { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        }
+        if systemAlert.exists {
+            let allow = systemAlert.buttons.matching(NSPredicate(format: "label IN %@", [
+                "Allow Full Access", "Allow Access to All Events", "Allow", "OK",
+                "允许完全访问", "允许访问所有日程", "允许", "好"
+            ])).firstMatch
+            guard allow.waitForExistence(timeout: 5) else {
+                XCTFail("Calendar permission must expose an explicit allow action: \(systemAlert.debugDescription)")
+                return
+            }
+            allow.tap()
+        }
+        guard calendar.waitForExistence(timeout: 10) else {
+            XCTFail("Granting calendar access must open its configuration: \(app.debugDescription)")
+            return
+        }
+        let calendarTarget = app.buttons["calendar_target_picker"].firstMatch
+        revealAuditControl(calendarTarget)
+        captureScreenshot("A7_calendar-target-configuration")
+        let managed = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Delete Sleepy imports ("))
+        XCTAssertEqual(managed.count, 0, "A fresh seeded timetable must have no managed event records")
+        let range = app.buttons["calendar_range_NEXT_WEEK"].firstMatch
+        revealAuditControl(range)
+        range.tap()
+        let preview = app.buttons["Preview import"].firstMatch
+        revealAuditControl(preview)
+        XCTAssertTrue(preview.isEnabled)
+        preview.tap()
+        let summary = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "classes will be added")).firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 10))
+        let count = try XCTUnwrap(Int(summary.label.split(separator: " ").first.map(String.init) ?? ""))
+        XCTAssertGreaterThan(count, 0)
+        let confirm = app.buttons["Confirm import"].firstMatch
+        revealAuditControl(confirm)
+        confirm.tap()
+        let final = app.alerts["Confirm calendar changes"].firstMatch
+        XCTAssertTrue(final.waitForExistence(timeout: 10))
+        final.buttons["Add classes"].tap()
+        let result = app.staticTexts.matching(NSPredicate(
+            format: "label BEGINSWITH 'Added ' AND label CONTAINS ', updated ' AND label CONTAINS ', unchanged '"
+        )).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 20))
+        XCTAssertEqual(result.label, "Added \(count), updated 0, unchanged 0, edited skipped 0, invalid skipped 0, alarm fallbacks 0, failed 0")
+        let delete = app.buttons["Delete Sleepy imports (\(count))"].firstMatch
+        revealAuditControl(delete)
+        captureScreenshot("A7_calendar-managed-import-result")
+        delete.tap()
+        let deletion = app.alerts["Delete Sleepy imports?"].firstMatch
+        XCTAssertTrue(deletion.waitForExistence(timeout: 10))
+        XCTAssertTrue(deletion.staticTexts["Sleepy will verify and delete imported events for this timetable. Events you edited will be kept."].exists)
+        XCTAssertTrue(deletion.buttons["Delete imported events"].isHittable)
+        XCTAssertTrue(deletion.buttons["Cancel"].isHittable)
+        captureScreenshot("A7_calendar-managed-delete-confirmation")
+        deletion.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !deletion.exists && delete.isHittable })
+        XCTAssertEqual(managed.count, 1)
+        XCTAssertEqual(managed.firstMatch.label, "Delete Sleepy imports (\(count))")
+        XCTAssertEqual(result.label, "Added \(count), updated 0, unchanged 0, edited skipped 0, invalid skipped 0, alarm fallbacks 0, failed 0")
+        captureScreenshot("A7_calendar-managed-delete-cancel-keeps-count")
+
+        // Cleanup uses the production table-scoped managed-record deletion only.
+        // It neither queries nor deletes unrelated calendar events.
+        delete.tap()
+        XCTAssertTrue(deletion.waitForExistence(timeout: 10))
+        deletion.buttons["Delete imported events"].tap()
+        let cleaned = app.staticTexts["Deleted \(count), kept after edits 0, already missing 0"].firstMatch
+        XCTAssertTrue(cleaned.waitForExistence(timeout: 20))
+        XCTAssertTrue(waitForAuditCondition { managed.count == 0 })
+        revealAuditControl(cleaned)
+        captureScreenshot("A7_calendar-managed-fixture-cleaned")
+        let cancel = app.buttons["calendar_import_cancel"].firstMatch
+        revealAuditControl(cancel)
+        cancel.tap()
+        XCTAssertTrue(waitForAuditCondition { !calendar.exists && calendarEntry.isHittable })
+    }
+
+    func testA7_BellScheduleRebindPreviewCanCancelCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        switchToTab("manage")
+        let periods = app.buttons["manage_period_tables"].firstMatch
+        revealAuditControl(periods)
+        periods.tap()
+        let newPeriod = app.buttons["period_tables_new"].firstMatch
+        revealAuditControl(newPeriod)
+        newPeriod.tap()
+        let name = app.descendants(matching: .any)["field_Bell schedule name"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        let slots = app.buttons["period_table_slots_header"].firstMatch
+        revealAuditControl(slots)
+        slots.tap()
+        revealAuditControl(name)
+        let oldName = name.value as? String ?? ""
+        let sourceName = "Capture bell \(UUID().uuidString.prefix(8))"
+        name.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldName.count))
+        app.typeText(sourceName + "\n")
+        XCTAssertTrue(waitForAuditCondition { !self.app.keyboards.firstMatch.exists })
+        XCTAssertEqual(name.value as? String, sourceName)
+        let savePeriod = app.buttons["period_table_save"].firstMatch
+        revealAuditControl(savePeriod)
+        savePeriod.tap()
+        let savePreview = app.buttons["period_table_preview_confirm"].firstMatch
+        revealAuditControl(savePreview)
+        captureScreenshot("A7_bell-schedule-save-preview")
+        savePreview.tap()
+        XCTAssertTrue(waitForAuditCondition { !savePreview.exists && !savePeriod.exists })
+        let periodList = app.staticTexts["period_tables_screen"].firstMatch
+        XCTAssertTrue(periodList.waitForExistence(timeout: 10))
+        let savedSource = app.staticTexts[sourceName].firstMatch
+        revealAuditControl(savedSource)
+        XCTAssertTrue(savedSource.identifier.hasPrefix("period_table_name_"))
+        captureScreenshot("A7_bell-schedule-saved-parent")
+        let listBack = app.buttons["period_tables_back"].firstMatch
+        XCTAssertTrue(listBack.isHittable)
+        listBack.tap()
+        let edit = app.buttons["manage_edit_current"].firstMatch
+        XCTAssertTrue(waitForAuditCondition { !periodList.exists && edit.exists })
+        switchToTab("manage")
+        revealAuditControl(edit)
+        edit.tap()
+        let tableSlots = app.buttons["edit_table_slots_header"].firstMatch
+        revealAuditControl(tableSlots)
+        tableSlots.tap()
+        captureScreenshot("A7_timetable-period-times-expanded")
+        let bellTab = app.buttons["seg_Bell schedule"].firstMatch
+        revealAuditControl(bellTab)
+        bellTab.tap()
+        let source = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", sourceName)).firstMatch
+        revealAuditControl(source)
+        source.tap()
+        let saveTable = app.buttons["edit_table_save"].firstMatch
+        revealAuditControl(saveTable)
+        saveTable.tap()
+        let rebind = app.alerts["Confirm rebind"].firstMatch
+        XCTAssertTrue(rebind.waitForExistence(timeout: 10))
+        XCTAssertTrue(rebind.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS 'custom-time courses are unaffected'")).firstMatch.exists)
+        captureScreenshot("A7_bell-schedule-rebind-preview")
+        rebind.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !rebind.exists })
+        revealAuditControl(saveTable)
+        // A canceled rebind is still pending; saving again must ask before any commit.
+        saveTable.tap()
+        XCTAssertTrue(rebind.waitForExistence(timeout: 10), "A canceled rebind must ask again before saving")
+        rebind.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !rebind.exists })
+        tapAuditBack()
+        XCTAssertTrue(edit.waitForExistence(timeout: 10))
+    }
+
+    func testA7_WidgetSharedDisplayAndPeriodHeadersCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        openMineSetting("mine_widget", assertAnchor: "settings_widget_manage_entry")
+        let shared = app.buttons["settings_widget_shared_display"].firstMatch
+        revealAuditControl(shared)
+        shared.tap()
+        let display = app.descendants(matching: .any)["schedule_display_settings"].firstMatch
+        XCTAssertTrue(display.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(identifier: "Schedule settings")
+            .allElementsBoundByIndex.contains { $0.isHittable }, "The shared page must display its own title")
+        captureScreenshot("A7_widget-shared-display")
+        let headers = app.buttons["settings_period_header"].firstMatch
+        revealAuditControl(headers)
+        captureScreenshot("A7_shared-display-period-header-entry")
+        headers.tap()
+        XCTAssertTrue(app.staticTexts["Period headers"].firstMatch.waitForExistence(timeout: 10))
+        let preview = app.staticTexts["Live preview"].firstMatch
+        revealAuditControl(preview)
+        captureScreenshot("A7_period-headers-live-preview")
+        let layout = app.staticTexts["Layout"].firstMatch
+        revealAuditControl(layout)
+        captureScreenshot("A7_period-headers-layout")
+        tapAuditBack()
+        XCTAssertTrue(display.waitForExistence(timeout: 10))
+        tapAuditBack()
+        XCTAssertTrue(shared.waitForExistence(timeout: 10))
+        tapAuditBack()
+        XCTAssertTrue(app.buttons["mine_widget"].waitForExistence(timeout: 10))
     }
 
 }

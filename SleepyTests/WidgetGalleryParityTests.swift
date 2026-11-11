@@ -4,6 +4,35 @@ import WidgetKit
 @testable import Sleepy
 
 final class WidgetGalleryParityTests: XCTestCase {
+    @MainActor
+    func testManagementReloadsPlacedWidgetsWhenReturningFromTheHomeScreen() async {
+        let initial = expectation(description: "Initial management load")
+        let resumed = expectation(description: "Reload after returning from the Home Screen")
+        let phase = WidgetManagementTestPhase()
+        var loads = 0
+        let screen = WidgetManagementScreen(onDismiss: {}, loadItems: {
+            loads += 1
+            if loads == 1 { initial.fulfill() }
+            if loads == 2 { resumed.fulfill() }
+            return []
+        })
+        let host = UIHostingController(rootView: WidgetManagementTestHost(phase: phase, screen: screen))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        await fulfillment(of: [initial], timeout: 3)
+        phase.value = .background
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(loads, 1, "Backgrounding must not request widget configuration")
+        phase.value = .active
+        await fulfillment(of: [resumed], timeout: 3)
+        XCTAssertEqual(loads, 2, "Returning must discover the current desktop configurations")
+    }
+
     private func card(_ family: WidgetFamily, kind: String) -> WidgetGalleryCard {
         WidgetGalleryCard(variant: WidgetVariantInfo(kind: kind, displayNameKey: "widget_today_label"),
                           previewFamily: family)
@@ -220,5 +249,19 @@ final class WidgetGalleryParityTests: XCTestCase {
             add(attachment)
             NSLog("WIDGET_GALLERY_PREVIEW_WRITTEN %@", path.path)
         }
+    }
+}
+
+@MainActor
+private final class WidgetManagementTestPhase: ObservableObject {
+    @Published var value: ScenePhase = .inactive
+}
+
+private struct WidgetManagementTestHost: View {
+    @ObservedObject var phase: WidgetManagementTestPhase
+    let screen: WidgetManagementScreen
+
+    var body: some View {
+        screen.environment(\.scenePhase, phase.value)
     }
 }
