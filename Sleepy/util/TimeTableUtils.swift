@@ -915,18 +915,27 @@ extension TimeTableUtils {
         var unchanged = 0
         let oldNodes = parseNodes(oldTimeJson)
         let newNodes = parseNodes(newTimeJson)
+        let migratedCourses = remapRenumberedEdgeCourses(courses, oldTimeJson: oldTimeJson, newTimeJson: newTimeJson)
 
         func nodeTime(_ nodes: [NodeTime], _ n: Int) -> (String, String)? {
             nodes.first { $0.node == n }.map { (formatTime($0.start), formatTime($0.end)) }
         }
 
-        for c in courses {
+        for (c, migrated) in zip(courses, migratedCourses) {
             if c.ownTime || c.isIrregularTime { continue }  // 自定义时间: 起止照旧, 不参与解释
-            let endNode = c.startNode + c.step - 1
+            if migrated.ownTime || migrated.isIrregularTime {
+                // A deleted edge retains its old clock as an explicit course time.
+                unchanged += 1
+                continue
+            }
+            guard c.step > 0 else { continue }
+            let (endNode, overflow) = c.startNode.addingReportingOverflow(c.step - 1)
+            guard !overflow else { continue }
             var changedNodes: [Int] = []
-            for n in c.startNode...max(endNode, c.startNode) {
+            for n in c.startNode...endNode {
                 let o = nodeTime(oldNodes, n)
-                let w = nodeTime(newNodes, n)
+                let (destinationNode, destinationOverflow) = migrated.startNode.addingReportingOverflow(n - c.startNode)
+                let w = destinationOverflow ? nil : nodeTime(newNodes, destinationNode)
                 // 元组无 Equatable — 逐分量对比(← Kotlin Pair ==)
                 let differs: Bool
                 switch (o, w) {

@@ -362,7 +362,7 @@ final class ScheduleRepository {
             try next.update(db)
             var stamped = periodTable
             stamped.updatedAt = now
-            try stamped.update(db)
+            try updatePeriodTableWithEdgeMigrationInDb(db, table: stamped)
             return true
         }
         if changed { onDataChanged() }
@@ -415,12 +415,13 @@ final class ScheduleRepository {
                 merged.smartConfigJson = table.smartConfigJson
                 merged.nodesPerDay = table.nodesPerDay
             }
-            try merged.update(db)
             if let pc = periodContent {
                 var stamped = pc
                 stamped.updatedAt = now
-                try stamped.update(db)
+                try updatePeriodTableWithEdgeMigrationInDb(db, table: stamped)
             }
+            // Existing owners use the target's old identities; the new binding does not.
+            try merged.update(db)
             return true
         }
         if changed { onDataChanged() }
@@ -479,7 +480,7 @@ final class ScheduleRepository {
                 var synced = draft
                 synced.id = boundID
                 synced.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
-                try synced.update(db)
+                try updatePeriodTableWithEdgeMigrationInDb(db, table: synced)
                 var next = editedTable
                 next.periodTableId = current.periodTableId
                 next.preBindSnapshotJson = current.preBindSnapshotJson
@@ -500,8 +501,13 @@ final class ScheduleRepository {
             try table.update(db)
             guard destinationTimeJson != oldTimeJson else { return }
             let courses = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ?", arguments: [table.id])
-            let remapped = courses.map { c -> CourseEntity in
-                if c.ownTime {
+            let edgeRemapped = remapRenumberedEdgeCourses(courses, oldTimeJson: oldTimeJson,
+                                                        newTimeJson: destinationTimeJson)
+            let remapped = zip(courses, edgeRemapped).map { c, edge -> CourseEntity in
+                // Shared edge identity takes precedence over absolute-clock remapping.
+                if c.isIrregularNode {
+                    return edge
+                } else if c.ownTime {
                     if let mapped = TimeTableUtils.timeToNode(c.startTime, c.endTime, destinationTimeJson) {
                         var copy = c
                         copy.startNode = mapped.0
@@ -521,9 +527,27 @@ final class ScheduleRepository {
                     return copy
                 }
             }
-            let changed = zip(remapped, courses).filter { $0.0.id != $0.1.id || $0.0.startNode != $0.1.startNode || $0.0.step != $0.1.step }
+            let changed = zip(remapped, courses).filter { $0.0 != $0.1 }
                 .map { $0.0 }
             for course in changed { try course.update(db) }
+    }
+
+    /// Shared saves retain standard course ordinals and migrate only edge identities.
+    /// Called inside the enclosing save transaction so all owners and Undo change together.
+    private func updatePeriodTableWithEdgeMigrationInDb(_ db: Database, table: PeriodTableEntity) throws {
+        guard let previous = try PeriodTableEntity.fetchOne(db, key: table.id) else {
+            throw TableEditSaveError.missingPeriodTable
+        }
+        try table.update(db)
+        guard previous.timeJson != table.timeJson else { return }
+        let owners = try Int64.fetchAll(db, sql: "SELECT id FROM time_tables WHERE periodTableId = ?", arguments: [table.id])
+        for owner in owners {
+            let courses = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ?", arguments: [owner])
+            let migrated = remapRenumberedEdgeCourses(courses, oldTimeJson: previous.timeJson, newTimeJson: table.timeJson)
+            for (old, next) in zip(courses, migrated) where old != next {
+                try next.update(db)
+            }
+        }
     }
 
     /// issue#28 P3: 作息表变更后的课程节次自适应(TimeTableUtils.remapCourseNodes)。
@@ -661,7 +685,7 @@ final class ScheduleRepository {
     func updatePeriodTable(_ table: PeriodTableEntity) throws {
         var stamped = table
         stamped.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
-        try writeWithUndo { db in try stamped.update(db) }
+        try writeWithUndo { db in try updatePeriodTableWithEdgeMigrationInDb(db, table: stamped) }
         onDataChanged()
     }
 
@@ -673,7 +697,7 @@ final class ScheduleRepository {
             let bound = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM time_tables WHERE periodTableId = ?", arguments: [table.id]) ?? 0
             var stamped = table
             stamped.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
-            try stamped.update(db)
+            try updatePeriodTableWithEdgeMigrationInDb(db, table: stamped)
             return bound
         }
         guard let bound else { return 0 }
