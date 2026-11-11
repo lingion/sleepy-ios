@@ -1388,3 +1388,4 @@
 "jw_thu_skipped_courses" = "有 %1$d 條清華課程安排因資訊不完整或週次、時段格式不支援而略過。請核對教務課表並手動補錄。";
 "manage_create_blank_table" = "新增空白課表";
 "create_table_title" = "建立新課表";
+"jw_dated_calendar_rebase_hint" = "修改第一週日期會重新計算這些課程的週次，實際授課日期保持不變。";

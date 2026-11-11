@@ -133,7 +133,7 @@ struct JwWebViewLoginScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             // TopBar(校名 + 实时 URL / 地址栏编辑态)
-            HStack {
+            HStack(spacing: 0) {
                 // ← navigationIcon IconButton: editingUrl 退编辑, 否则 onBack
                 Button(action: {
                     if editingUrl { editingUrl = false } else { backOrDismiss() }
@@ -210,6 +210,19 @@ struct JwWebViewLoginScreen: View {
                 .accessibilityLabel(L10n.format(editingUrl ? "jw_url_submit" : "jw_edit_url"))
                 .accessibilityIdentifier("jw_edit_url")
                 if !editingUrl {
+                    if sgAdapterChoices.count > 1 {
+                        Button { showSgAdapterChoices = true } label: {
+                            AndroidSettingsIcon(name: .school, size: 24)
+                                .foregroundColor(colors.onBackground)
+                                .frame(width: style == .classic ? 48 : nil,
+                                       height: style == .classic ? 48 : nil)
+                        }
+                        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                        .frame(width: 48, height: 48)
+                        .disabled(webViewCoordinator == nil)
+                        .accessibilityLabel(L10n.t("jw_sg_choose_adapter"))
+                        .accessibilityIdentifier("jw_select_adapter")
+                    }
                     // ← actions UA IconButton(#18): 部分门户手机 UA 下无"个人课表"入口。
                     // 图标随状态切换: 手机 UA → Computer(点了变桌面), 桌面 UA → PhoneMobile
                     // (点了回手机); enabled = webViewRef != null
@@ -249,8 +262,8 @@ struct JwWebViewLoginScreen: View {
                     .accessibilityIdentifier("jw_refresh")
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 4)
+            .frame(height: 64)
             .background(colors.background)
 
             ZStack(alignment: .top) {

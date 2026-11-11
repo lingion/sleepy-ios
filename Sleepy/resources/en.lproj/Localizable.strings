@@ -1388,3 +1388,4 @@
 "jw_thu_skipped_courses" = "%1$d THU course entries were skipped because details were incomplete or the weeks or times are unsupported. Check the official timetable and add them manually.";
 "manage_create_blank_table" = "Create Blank Timetable";
 "create_table_title" = "Create New Timetable";
+"jw_dated_calendar_rebase_hint" = "Changing the date for week one recalculates course weeks and preserves the actual lesson dates.";

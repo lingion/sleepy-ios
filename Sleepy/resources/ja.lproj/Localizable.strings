@@ -1388,3 +1388,4 @@
 "jw_thu_skipped_courses" = "THUの授業予定%1$d件は情報不足、または週・時間帯の形式に対応できず除外されました。教務システムの時間割を確認し、手動で追加してください。";
 "manage_create_blank_table" = "空の時間割を作成";
 "create_table_title" = "新しい時間割を作成";
+"jw_dated_calendar_rebase_hint" = "第1週の日付を変更すると授業の週数を再計算し、実際の授業日は維持します。";

@@ -247,7 +247,7 @@ struct JwImportFlow: View {
     @State private var reportDialogSchool: JwSchoolInfo? = nil
 
     private var requiresDraftExitConfirmation: Bool {
-        targetTableId == nil || incomingDraftId != nil
+        incomingDraftId != nil
     }
 
     private var locksDismissal: Bool {
@@ -522,6 +522,8 @@ struct JwImportFlow: View {
 
     private func requestExit() {
         if isApplying { return }
+        // 固定 Android：新导入直接退出；仅旧 incoming 草稿保留退出选择。
+        guard incomingDraftId != nil else { finishFlow(); return }
         let result = reduceExitDraftState(exitDraftState, .requestExit)
         exitDraftState = result.state
         if result.outcome == .finishDirectly { finishFlow() }
@@ -842,36 +844,11 @@ struct JwImportFlow: View {
                 startTime: newRows.first.map { jwIsBlank($0.start) ? "08:00" : $0.start } ?? "08:00",
                 totalPeriods: max(newRows.count, 1))
         configSmartConfig = inferredSmartConfig
-        // 解析成功即建草稿(sourceType=jw), 后续编辑 checkpoint, 完成/删除时清。
-        let snapshot = JwImportDraftSnapshot(
-            school: sch,
-            courses: courses,
-            periods: configRows.map { JwImportDraftPeriod(node: $0.node, start: $0.start, end: $0.end) },
-            termStartDate: configStartDate,
-            tableName: configTableName,
-            smartConfigJson: encodeSmartConfigJson(inferredSmartConfig),
-            usedDefaultTimes: configUsedDefaultTimes,
-            termWeekCount: Int(configTermWeekText) ?? 0,
-            datedCourseOrigin: datedCourseOrigin,
-            importSourceJson: importSourceJson,
-            selectedSgAdapterId: selectedSgAdapterId,
-            termWeekText: configTermWeekText)
-        if targetTableId == nil {
-            guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else { return }
-            let repo = draftRepository
-            let savedId = await Task.detached(priority: .userInitiated) {
-                try? repo.save(snapshot, sourceType: "jw", sourceUrl: sch.url)
-            }.value
-            guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else {
-                if let savedId, parseLifecycle.shouldDeleteLateSave(savedId, retainedDraftId: draftId) {
-                    try? repo.delete(savedId)
-                }
-                return
-            }
-            draftId = savedId
-        }
+        // 固定 Android 1.0.64：新解析不自动建草稿；旧 incoming 草稿继续 checkpoint。
         guard parseLifecycle.accepts(epoch, didFinishFlow: didFinishFlow) else { return }
-        navigateToStage(newTableOnly ? .configureConfirm : .preview)
+        checkpointDraft()
+        let goesDirectlyToConfiguration = newTableOnly || (incomingDraftId == nil && targetTableId == nil)
+        navigateToStage(goesDirectlyToConfiguration ? .configureConfirm : .preview)
         // v1.0.56 T10: 默认选中「本次导入自动建作息表」(合成 id=-1)
         configBindPeriodTableId = -1
         statusMsg = nil
@@ -1124,6 +1101,18 @@ struct JwImportFlow: View {
                                     (jwIsBlank(configStartDate) ||
                                      !jwMatchesFull(jwDateRegex, configStartDate)),
                                 fillsWidth: true)
+                if !datedCourseOrigin.isEmpty {
+                    Text(L10n.t("jw_dated_calendar_rebase_hint"))
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.onSurfaceVariant)
+                }
+                TextField(L10n.t("jw_semester_weeks_label"), text: $configTermWeekText)
+                    .keyboardType(.numberPad)
+                    .onChange(of: configTermWeekText) { _ in checkpointDraft() }
+                    .padding(12)
+                    .background(colors.surfaceContainer)
+                    .cornerRadius(SleepyTheme.fieldShape)
+                    .accessibilityIdentifier("jw_config_term_weeks")
                 TextField(L10n.format("jw_table_name_label"), text: $configTableName)
                     .onChange(of: configTableName) { _ in checkpointDraft() }
                     .frame(maxWidth: .infinity)   // ← 原 fillMaxWidth()
@@ -1132,20 +1121,13 @@ struct JwImportFlow: View {
                     .background(colors.surfaceContainer)
                     .cornerRadius(SleepyTheme.fieldShape)
                     .accessibilityIdentifier("jw_config_table_name")
-                TextField(L10n.t("jw_semester_weeks_label"), text: $configTermWeekText)
-                    .keyboardType(.numberPad)
-                    .onChange(of: configTermWeekText) { _ in checkpointDraft() }
-                    .padding(12)
-                    .background(colors.surfaceContainer)
-                    .cornerRadius(SleepyTheme.fieldShape)
-                    .accessibilityIdentifier("jw_config_term_weeks")
-                JwSourceSuggestions(importSourceJson: importSourceJson)
                 // ← confirmError 内联展示(不上全局横幅): error 色 bodySmall
                 if let confirmError = confirmError {
                     Text(confirmError)
                         .font(.system(size: 12))   // ← MaterialTheme.typography.bodySmall
                         .foregroundColor(colors.error)
                 }
+                JwSourceSuggestions(importSourceJson: importSourceJson)
                 TimeSlotEditor(rows: $configRows,
                                onRowsChange: { newRows in
                     configRows = newRows
@@ -1166,13 +1148,13 @@ struct JwImportFlow: View {
                                onSelectPeriodTable: { configBindPeriodTableId = $0 })
 
                 HStack {
-                    // ← 原版本 TextButton 默认色 = primary, labelLarge 14sp Medium, 高 40dp;
-                    //   dismissButton = importPreview=null; stage=Preview — 保留已解析课程回预览
-                    Button(L10n.format("back")) {
-                        if newTableOnly { requestExit() }
-                        else {
+                    let returnsToPreview = incomingDraftId != nil && !newTableOnly
+                    Button(L10n.format(returnsToPreview ? "back" : "cancel")) {
+                        if returnsToPreview {
                             importPreview = nil
                             navigateToStage(.preview)
+                        } else {
+                            requestExit()
                         }
                     }
                     .font(.system(size: 14, weight: .medium))
