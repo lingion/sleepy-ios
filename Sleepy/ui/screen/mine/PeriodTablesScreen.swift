@@ -15,8 +15,10 @@ struct PeriodTablesScreen: View {
     var onCreateNew: (Int64) -> Void
 
     @EnvironmentObject var viewModel: ScheduleViewModel
-    @State private var periodTables: [PeriodTableEntity] = []
-    @State private var courseTables: [TimeTableEntity] = []
+    // Match collectAsState(): GRDB publishes after the copy action returns.
+    // Derive both lists from the VM so the new row and binding counts stay live.
+    private var periodTables: [PeriodTableEntity] { viewModel.allPeriodTables }
+    private var courseTables: [TimeTableEntity] { viewModel.state.tables }
     @State private var copyTarget: PeriodTableEntity?
     @State private var copyName: String = ""
 
@@ -34,7 +36,6 @@ struct PeriodTablesScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(colors.background)
         .navigationBarHidden(true)
-        .onAppear { reload() }
         .centeredDialog(isPresented: Binding(
             get: { copyTarget != nil },
             set: { if !$0 { dismissCopy() } }
@@ -185,11 +186,5 @@ struct PeriodTablesScreen: View {
 
     private func dismissCopy() {
         copyTarget = nil
-        reload()
-    }
-
-    private func reload() {
-        periodTables = viewModel.loadAllPeriodTables()
-        courseTables = viewModel.state.tables
     }
 }
