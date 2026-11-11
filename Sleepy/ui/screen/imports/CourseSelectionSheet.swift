@@ -40,31 +40,73 @@ struct CourseSelectionSheet: View {
     }
 
     private var selectionTopBar: some View {
+        Group {
+            if #available(iOS 16.0, *) {
+                ViewThatFits(in: .horizontal) {
+                    inlineSelectionTopBar
+                    stackedSelectionTopBar
+                }
+            } else {
+                stackedSelectionTopBar
+            }
+        }
+        .padding(.horizontal, 4)
+        .background(colors.background)
+    }
+
+    private var inlineSelectionTopBar: some View {
         HStack(spacing: 0) {
-            Button(action: onDismiss) {
-                AndroidSettingsIcon(name: .arrowBack, size: 24)
-                    .foregroundColor(colors.onBackground)
-                    .frame(width: 48, height: 48)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L10n.format("cancel"))
-            .accessibilityIdentifier("import_select_cancel")
+            selectionBackButton
+            selectionHeading
+                .fixedSize(horizontal: true, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 4)
+            selectionActions
+                .fixedSize(horizontal: true, vertical: true)
+        }
+        .frame(minHeight: 64)
+    }
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text(L10n.format("select_courses_title"))
-                    .font(.system(size: 22))
-                    .foregroundColor(colors.onBackground)
-                    .accessibilityAddTraits(.isHeader)
-                Text(L10n.format("select_courses_count", selected.count, groups.count))
-                    .font(.system(size: 11))
-                    .foregroundColor(colors.onSurfaceVariant)
+    private var stackedSelectionTopBar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                selectionBackButton
+                selectionHeading
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 4)
             }
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 4)
-            .layoutPriority(1)
+            .frame(minHeight: 64)
+            selectionActions
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
 
+    private var selectionBackButton: some View {
+        Button(action: onDismiss) {
+            AndroidSettingsIcon(name: .arrowBack, size: 24)
+                .foregroundColor(colors.onBackground)
+                .frame(width: 48, height: 48)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.format("cancel"))
+        .accessibilityIdentifier("import_select_cancel")
+    }
+
+    private var selectionHeading: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.format("select_courses_title"))
+                .font(.system(size: 22))
+                .foregroundColor(colors.onBackground)
+                .accessibilityAddTraits(.isHeader)
+            Text(L10n.format("select_courses_count", selected.count, groups.count))
+                .font(.system(size: 11))
+                .foregroundColor(colors.onSurfaceVariant)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var selectionActions: some View {
+        HStack(spacing: 0) {
             Button {
                 selected = selected.count == groups.count ? [] : Set(groups.map(\.id))
             } label: {
@@ -92,9 +134,6 @@ struct CourseSelectionSheet: View {
             .disabled(selected.isEmpty)
             .accessibilityIdentifier("import_select_confirm")
         }
-        .padding(.horizontal, 4)
-        .frame(height: 64)
-        .background(colors.background)
     }
 
     @ViewBuilder
