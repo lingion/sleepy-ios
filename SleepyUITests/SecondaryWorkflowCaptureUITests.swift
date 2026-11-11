@@ -39,6 +39,7 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
     /// Reveal complete controls with short, reversible drags in their owning scroll area.
     /// An expanded card uses only its header as the navigation target.
     private func reveal(_ element: XCUIElement, headerOnly: Bool = false,
+                        failureCaptureName: String? = nil,
                         file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(element.waitForExistence(timeout: 10), file: file, line: line)
         func scrollArea() -> XCUIElement? {
@@ -91,7 +92,45 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
             let end = origin.withOffset(CGVector(dx: area.minX + 16, dy: area.minY + area.height * (earlier ? 0.58 : 0.47)))
             start.press(forDuration: 0.05, thenDragTo: end)
         }
-        XCTAssertTrue(waitUntil { visible() }, "The complete target must be visible above navigation", file: file, line: line)
+        let fullyVisible = waitUntil { visible() }
+        var failureGeometry = ""
+        if !fullyVisible, let failureCaptureName {
+            func bounds(_ frame: CGRect) -> String {
+                String(format: "x=%.12f y=%.12f width=%.12f height=%.12f maxX=%.12f maxY=%.12f",
+                       Double(frame.minX), Double(frame.minY), Double(frame.width), Double(frame.height),
+                       Double(frame.maxX), Double(frame.maxY))
+            }
+            func describe(_ candidate: XCUIElement) -> String {
+                "type=\(candidate.elementType.rawValue) id=\(candidate.identifier) label=\(candidate.label) "
+                    + "exists=\(candidate.exists) enabled=\(candidate.isEnabled) hittable=\(candidate.isHittable) "
+                    + bounds(candidate.frame)
+            }
+            let area = viewport()
+            let target = targetFrame()
+            let scroll = scrollArea()
+            let backs = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex
+            let docks = ["pill_schedule", "pill_today", "pill_manage", "pill_mine"]
+                .flatMap { app.buttons.matching(identifier: $0).allElementsBoundByIndex }
+            failureGeometry = ([
+                "target: \(bounds(target))",
+                "element: \(describe(element))",
+                "viewport: \(bounds(area)) containsTarget=\(area.contains(target))",
+                "window: \(describe(app.windows.firstMatch))",
+                "owningScroll: \(scroll.map(describe) ?? "none")"
+            ] + backs.map { "back: \(describe($0))" }
+                + docks.map { "dock: \(describe($0))" }
+                + app.keyboards.allElementsBoundByIndex.map { "keyboard: \(describe($0))" })
+                .joined(separator: "\n")
+            capture(failureCaptureName)
+            let geometry = XCTAttachment(string: failureGeometry + "\n\n" + app.debugDescription)
+            geometry.name = failureCaptureName + "-geometry-and-accessibility"
+            geometry.lifetime = .keepAlways
+            add(geometry)
+        }
+        XCTAssertTrue(fullyVisible,
+                      "The complete target must be visible above navigation"
+                        + (failureGeometry.isEmpty ? "" : "\n" + failureGeometry),
+                      file: file, line: line)
     }
 
     private func tapBack(file: StaticString = #filePath, line: UInt = #line) {
@@ -139,8 +178,9 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
     }
 
     private func replaceText(_ field: XCUIElement, with text: String,
+                             failureCaptureName: String? = nil,
                              file: StaticString = #filePath, line: UInt = #line) {
-        reveal(field, file: file, line: line)
+        reveal(field, failureCaptureName: failureCaptureName, file: file, line: line)
         let oldValue = field.value as? String ?? ""
         field.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), file: file, line: line)
@@ -387,7 +427,7 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
         capture("workflow-pure-period-duplicate-name")
 
         let discarded = "Workflow Bell " + String(UUID().uuidString.prefix(8))
-        replaceText(name, with: discarded)
+        replaceText(name, with: discarded, failureCaptureName: "workflow-pure-period-reveal-failure")
         XCTAssertTrue(waitUntil { confirm.isEnabled && !duplicate.exists })
         let cancel = app.buttons["import_pure_period_dismiss"].firstMatch
         reveal(cancel)
