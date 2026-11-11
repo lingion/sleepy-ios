@@ -83,17 +83,10 @@ final class SheetPlatformUITests: XCTestCase {
             // 56pt scroll viewport. Its actual edges remain visible; adding
             // artificial insets makes full visibility impossible at any offset.
             viewport = viewport.intersection(scroll.frame)
-            // The scroll bar provides a conservative bottom boundary. Its
-            // automatic top inset can exclude a visible custom sheet header;
-            // use the actual navigation bar below for top occlusion instead.
-            let verticalBars = scroll.descendants(matching: .any)
-                .matching(NSPredicate(format: "label BEGINSWITH %@", "Vertical scroll bar"))
-                .allElementsBoundByIndex.map { $0.frame }
-                .filter { $0.width > 0 && $0.height > $0.width && $0.intersects(scroll.frame) }
-            if let bar = verticalBars.max(by: { $0.height < $1.height }) {
-                let bottom = min(viewport.maxY, bar.maxY)
-                viewport.size.height = max(0, bottom - viewport.minY)
-            }
+            // Indicator insets do not define the visible content boundary.
+            // In landscape the indicator ends at y340 while the complete
+            // occurrence action remains visible through y346 in a 402pt sheet.
+            // Clip to the real scroll view, then actual navigation and keyboard.
         }
         if scroll != nil, occurrenceForm != nil {
             let navigation = app.descendants(matching: .any)["occurrence_editor"].firstMatch.navigationBars.firstMatch
