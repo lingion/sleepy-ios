@@ -589,6 +589,79 @@ final class UIElementAuditUITests: XCTestCase {
         captureScreenshot("A5_mine_zh-TW_light")
     }
 
+    // MARK: - A.8 Theme and whole-course editor surfaces
+
+    func testA8_CustomThemeRolesAndNativePickerCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        openMineSetting("mine_appearance", assertAnchor: "theme_system_card")
+        let create = app.buttons["theme_new_entry"].firstMatch
+        revealAuditControl(create)
+        create.tap()
+        let name = app.descendants(matching: .any)["field_Theme name"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        captureScreenshot("A8_custom-theme-editor")
+        let seed = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Build from a primary color")).firstMatch
+        revealAuditControl(seed)
+        seed.tap()
+        let pickerCancel = app.navigationBars.buttons["Cancel"].firstMatch
+        XCTAssertTrue(pickerCancel.waitForExistence(timeout: 10))
+        captureScreenshot("A8_theme-seed-native-color-picker")
+        pickerCancel.tap()
+        XCTAssertTrue(waitForAuditCondition { !pickerCancel.exists && name.exists })
+        let manual = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Pick roles manually")).firstMatch
+        revealAuditControl(manual)
+        manual.tap()
+        let primary = app.buttons["theme_role_Primary"].firstMatch
+        revealAuditControl(primary)
+        captureScreenshot("A8_custom-theme-role-colors")
+        primary.tap()
+        XCTAssertTrue(pickerCancel.waitForExistence(timeout: 10))
+        captureScreenshot("A8_theme-primary-native-color-picker")
+        pickerCancel.tap()
+        XCTAssertTrue(waitForAuditCondition { !pickerCancel.exists && primary.exists })
+        tapAuditBack()
+        XCTAssertTrue(create.waitForExistence(timeout: 10))
+        let recalc = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Re-arrange all course colors")).firstMatch
+        revealAuditControl(recalc)
+        captureScreenshot("A8_appearance-course-colors-lower")
+    }
+
+    func testA8_ExistingCourseFieldsColorAndDeleteCancelCapture() {
+        launchApp(language: "en", uiStyle: "classic")
+        let course = app.descendants(matching: .any)["gridcell_1"].firstMatch
+        XCTAssertTrue(course.waitForExistence(timeout: 10))
+        course.tap()
+        let edit = app.buttons["detail_edit"].firstMatch
+        revealAuditControl(edit)
+        captureScreenshot("A8_course-detail-portrait")
+        edit.tap()
+        XCTAssertTrue(app.staticTexts["Edit Course"].firstMatch.waitForExistence(timeout: 10))
+        captureScreenshot("A8_existing-course-editor-top")
+        let groupColor = app.buttons["Change group color"].firstMatch
+        revealAuditControl(groupColor)
+        groupColor.tap()
+        let cancelColor = app.navigationBars.buttons["Cancel"].firstMatch
+        XCTAssertTrue(cancelColor.waitForExistence(timeout: 10))
+        captureScreenshot("A8_existing-course-group-color-picker")
+        cancelColor.tap()
+        XCTAssertTrue(waitForAuditCondition { !cancelColor.exists && groupColor.exists })
+        let addSlot = app.buttons["course_add_slot"].firstMatch
+        revealAuditControl(addSlot)
+        captureScreenshot("A8_existing-course-editor-slots")
+        let delete = app.buttons["course_delete"].firstMatch
+        revealAuditControl(delete)
+        captureScreenshot("A8_existing-course-editor-bottom")
+        delete.tap()
+        let confirmation = app.alerts["Confirm Delete"].firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 10))
+        XCTAssertTrue(confirmation.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "高等数学")).firstMatch.exists)
+        captureScreenshot("A8_existing-course-delete-confirmation")
+        confirmation.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !confirmation.exists && delete.exists })
+        tapAuditBack()
+        XCTAssertTrue(course.waitForExistence(timeout: 10), "Canceling deletion must retain the existing course")
+    }
+
     // MARK: - A.7 Secondary surfaces captured through their production routes
 
     func testA7_ExportTargetAndCalendarConfigurationCapture() {
