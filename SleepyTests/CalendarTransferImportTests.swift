@@ -8,9 +8,82 @@
 //      补班日上源日的课), 显示落位按目标日; 周次标签跟源日走。
 
 import XCTest
+import EventKit
+import CryptoKit
+import Darwin
 @testable import Sleepy
 
 final class CalendarTransferImportTests: XCTestCase {
+
+    func testManagedEventFingerprintDoesNotChangeWithTheDeviceTimeZone() {
+        let original = getenv("TZ").map { String(cString: $0) }
+        defer {
+            if let original { setenv("TZ", original, 1) } else { unsetenv("TZ") }
+            tzset()
+            NSTimeZone.resetSystemTimeZone()
+        }
+        func deviceZone(_ name: String) {
+            setenv("TZ", name, 1)
+            tzset()
+            NSTimeZone.resetSystemTimeZone()
+            XCTAssertEqual(TimeZone.current.identifier, name)
+        }
+        let event = EKEvent(eventStore: EKEventStore())
+        event.title = "高等数学"
+        event.startDate = Date(timeIntervalSince1970: 1_794_268_800)
+        event.endDate = event.startDate.addingTimeInterval(3600)
+        event.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        deviceZone("Asia/Shanghai")
+        let saved = SystemCalendarManager.shared.fingerprint(event, [])
+        deviceZone("America/Los_Angeles")
+        XCTAssertEqual(SystemCalendarManager.shared.fingerprint(event, []), saved)
+        event.timeZone = nil
+        let floating = SystemCalendarManager.shared.fingerprint(event, [])
+        deviceZone("Europe/London")
+        XCTAssertEqual(SystemCalendarManager.shared.fingerprint(event, []), floating)
+        event.title = "用户更改的课程"
+        XCTAssertNotEqual(SystemCalendarManager.shared.fingerprint(event, []), floating)
+    }
+
+    func testLegacyCalendarFingerprintAcceptsUneditedEventsFromAnotherDeviceTimeZone() {
+        let original = getenv("TZ").map { String(cString: $0) }
+        defer {
+            if let original { setenv("TZ", original, 1) } else { unsetenv("TZ") }
+            tzset()
+            NSTimeZone.resetSystemTimeZone()
+        }
+        setenv("TZ", "America/Los_Angeles", 1)
+        tzset()
+        NSTimeZone.resetSystemTimeZone()
+        XCTAssertEqual(TimeZone.current.identifier, "America/Los_Angeles")
+        let event = EKEvent(eventStore: EKEventStore())
+        event.title = "高等数学"
+        event.location = "A305"
+        event.notes = "Sleepy import key: 1:7:2026-11-11"
+        event.startDate = Date(timeIntervalSince1970: 1_794_268_800)
+        event.endDate = event.startDate.addingTimeInterval(3600)
+        event.timeZone = nil
+        let parts = ["", event.title!, event.location!, event.notes!,
+                     "1794268800000", "1794272400000", "Asia/Shanghai", ""]
+        let legacy = SHA256.hash(data: Data(parts.joined(separator: "\u{1F}").utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        let manager = SystemCalendarManager.shared
+        XCTAssertTrue(manager.matchesManagedFingerprint(event, [], saved: legacy))
+        event.location = "用户移动了教室"
+        XCTAssertFalse(manager.matchesManagedFingerprint(event, [], saved: legacy))
+        event.location = "A305"
+        event.endDate = event.endDate.addingTimeInterval(60)
+        XCTAssertFalse(manager.matchesManagedFingerprint(event, [], saved: legacy))
+        event.endDate = event.endDate.addingTimeInterval(-60)
+        XCTAssertFalse(manager.matchesManagedFingerprint(event, [], saved: "invalid"))
+        XCTAssertFalse(manager.matchesManagedFingerprint(event, [], saved: "v3:" + legacy))
+        XCTAssertFalse(manager.matchesManagedFingerprint(event, [.init(method: .alert, minutes: 10)], saved: legacy))
+        let current = manager.fingerprint(event, [])
+        XCTAssertTrue(current.hasPrefix("v2:"))
+        event.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        XCTAssertFalse(manager.matchesManagedFingerprint(event, [], saved: current),
+                       "A new fingerprint must protect explicit event timezone edits")
+    }
 
     // 学期: 2026-09-07(周一) 起 18 周 → 学期末 2027-01-11
     private func table() -> TimeTableEntity {
