@@ -946,7 +946,7 @@ extension TimeTableUtils {
                 if differs { changedNodes.append(n) }
             }
             let oldParts = courseTimeParts(courseStartNode: c.startNode, courseStep: c.step, timeJson: oldTimeJson)
-            let newParts = courseTimeParts(courseStartNode: c.startNode, courseStep: c.step, timeJson: newTimeJson)
+            let newParts = courseTimeParts(courseStartNode: migrated.startNode, courseStep: c.step, timeJson: newTimeJson)
             if changedNodes.isEmpty {
                 unchanged += 1
             } else {
