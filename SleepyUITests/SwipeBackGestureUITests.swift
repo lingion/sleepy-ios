@@ -46,6 +46,8 @@ final class SwipeBackGestureUITests: XCTestCase {
         let generalEntry = app.descendants(matching: .any)["mine_general"].firstMatch
         XCTAssertTrue(generalEntry.waitForExistence(timeout: 5),
                       "mine_general 入口必须存在")
+        XCTAssertTrue(scrollEntryIntoView(generalEntry),
+                      "The complete General entry must be visible above navigation")
         generalEntry.tap()
 
         // Debug dump: 列出所有可识别的 accessibilityIdentifier + 顶层按钮
