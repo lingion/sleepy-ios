@@ -95,6 +95,7 @@
 		12A3FB8A2D5619B9E47D97DF /* MealBreakDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A1DB6476DB4970E3D39BFC5 /* MealBreakDetector.swift */; };
 		12AA1EE2639A0CDE304AEFA7 /* WatchTransferDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D660584E46CD4DB05E5FAC /* WatchTransferDeletionTests.swift */; };
 		12DBE6652FBE52B549CD4A6E /* SleepyClassActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC63406AEAAF714A4B360544 /* SleepyClassActivityAttributes.swift */; };
+		131C2D55356534427B7BD940 /* MigrationThemeStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE4EA0D1EB77BDF4C97D3AC2 /* MigrationThemeStorageTests.swift */; };
 		13249C9BC99FC76CDAE4FE1E /* SleepyMarkerTimeBlockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D55DCE880E3E0DCD8FC3892 /* SleepyMarkerTimeBlockTests.swift */; };
 		13454E93C683699412725790 /* UndoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D5816F5C0F382110A910D43 /* UndoManager.swift */; };
 		1359BA5B59555988AB6494CF /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D79D23433FE386230D5AB1 /* DateUtils.swift */; };
@@ -682,6 +683,7 @@
 		9AE0AA1B40B5D911BF950E89 /* JwCfNewHtmlParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217A689AE3ADDAFA3B7B755B /* JwCfNewHtmlParser.swift */; };
 		9AE93BE5648E919A1752C588 /* CourseDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D3AA9F8B115E2B804EBDA31 /* CourseDao.swift */; };
 		9B9D3517FEE37311F47168DD /* SleepyUITestSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA7389DF46C926458122F39 /* SleepyUITestSeeder.swift */; };
+		9BAA5F42CD122FB11D11524B /* WidgetBackupProductionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5947D443DB6E62C7E59122EC /* WidgetBackupProductionTests.swift */; };
 		9BDBBCA50972C67AC052EA46 /* SleepyNativeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831838316873C50C42AC649A /* SleepyNativeFormat.swift */; };
 		9BE945CC3CC02808DB5938B1 /* BackgroundReliabilitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B212788C9D9EE211D730AB /* BackgroundReliabilitySnapshot.swift */; };
 		9BEEC5940AC82BDA1B6A1107 /* JwBoyaPpParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6267C653C62742958073FDD7 /* JwBoyaPpParser.swift */; };
@@ -1422,6 +1424,7 @@
 		56B94B595CC8F831AE5AE3BC /* SleepyUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SleepyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		58603B4EDA2A13DB3DE29C0F /* WidgetManagementScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManagementScreen.swift; sourceTree = "<group>"; };
 		58F06A7C136B2FD5AA2AEB0B /* CourseOccurrenceDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseOccurrenceDestination.swift; sourceTree = "<group>"; };
+		5947D443DB6E62C7E59122EC /* WidgetBackupProductionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetBackupProductionTests.swift; sourceTree = "<group>"; };
 		5ACF85CE927A56FE05B7CABB /* WidgetCourseCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCourseCard.swift; sourceTree = "<group>"; };
 		5B51026659FD36F62B0A0281 /* ManagementPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementPage.swift; sourceTree = "<group>"; };
 		5C1D8BD48F149CE16160CE84 /* JwNewZfParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwNewZfParser.swift; sourceTree = "<group>"; };
@@ -1688,6 +1691,7 @@
 		BCF9EC856471726DFD200E17 /* TodayDateNavStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayDateNavStore.swift; sourceTree = "<group>"; };
 		BD9335FB877A756E309CDAB6 /* JwWebViewFrameCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWebViewFrameCapture.swift; sourceTree = "<group>"; };
 		BDCCC29AE87D5DD8869EEF6E /* Jw1064NativeContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Jw1064NativeContractTests.swift; sourceTree = "<group>"; };
+		BE4EA0D1EB77BDF4C97D3AC2 /* MigrationThemeStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationThemeStorageTests.swift; sourceTree = "<group>"; };
 		BE73F6BDFFBFCC715682503D /* JwUndergradBHtmlParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwUndergradBHtmlParser.swift; sourceTree = "<group>"; };
 		BF141C267F6FA2738F222C5D /* SleepyPeriodTableParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyPeriodTableParserTests.swift; sourceTree = "<group>"; };
 		BFACA50D352562FF20977FF4 /* UndoRepositoryHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoRepositoryHistoryTests.swift; sourceTree = "<group>"; };
@@ -2558,6 +2562,7 @@
 				9E6CB586F190F0EA3694BDFB /* MigrationExecutorTests.swift */,
 				AEFC664B409C5D002D0209CE /* MigrationPackageCodecTests.swift */,
 				533E6E3F3AB73AFB11C872D9 /* MigrationPrefsCodecTests.swift */,
+				BE4EA0D1EB77BDF4C97D3AC2 /* MigrationThemeStorageTests.swift */,
 				CBB3F76D45AE7F613321DAFA /* MigrationV7toV10Tests.swift */,
 				D8594A29E16AA5CD4AA06BD6 /* MigrationV11Tests.swift */,
 				4184711E3032D79F5EFBB8EA /* NavStyleResolverTests.swift */,
@@ -2638,6 +2643,7 @@
 				93D947CE36AC71405BBBA282 /* WatchTimeStripPreferencesTests.swift */,
 				F7D660584E46CD4DB05E5FAC /* WatchTransferDeletionTests.swift */,
 				EAA351FA5E1B5313277092F1 /* WebViewNavigationPolicyTests.swift */,
+				5947D443DB6E62C7E59122EC /* WidgetBackupProductionTests.swift */,
 				13B8CED7D99053497F027E7A /* WidgetCompactWindowParityTests.swift */,
 				E4B703E488C1622E9C0C3D7D /* WidgetFaceGeometryTests.swift */,
 				E6E2CACF90523B6C85277004 /* WidgetGalleryParityTests.swift */,
@@ -4074,6 +4080,7 @@
 				981E448A8906E8D0718C4F4C /* MigrationExecutorTests.swift in Sources */,
 				DA9389509ABBA583F7531D11 /* MigrationPackageCodecTests.swift in Sources */,
 				65B1F40F4C6052E987E212A9 /* MigrationPrefsCodecTests.swift in Sources */,
+				131C2D55356534427B7BD940 /* MigrationThemeStorageTests.swift in Sources */,
 				63EDBE68B99F1D51360FA085 /* MigrationV11Tests.swift in Sources */,
 				448F58E97EC4E4577A6888A8 /* MigrationV7toV10Tests.swift in Sources */,
 				8F8E2B9C098E42D7DEF21A20 /* NavStyleResolverTests.swift in Sources */,
@@ -4153,6 +4160,7 @@
 				F3E65F811B012B5B6CA5F01F /* WatchTimeStripPreferencesTests.swift in Sources */,
 				12AA1EE2639A0CDE304AEFA7 /* WatchTransferDeletionTests.swift in Sources */,
 				71CF8D75E142FF4C91354E7B /* WebViewNavigationPolicyTests.swift in Sources */,
+				9BAA5F42CD122FB11D11524B /* WidgetBackupProductionTests.swift in Sources */,
 				36BA9BE151E32CB11CDD5072 /* WidgetCompactWindowParityTests.swift in Sources */,
 				B2B9418F697E739AC7D63A22 /* WidgetFaceGeometryTests.swift in Sources */,
 				391A6A963C54E3206D3DA02A /* WidgetGalleryParityTests.swift in Sources */,

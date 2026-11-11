@@ -246,6 +246,8 @@ enum MigrationDatabaseCodec {
     /// 合并导入: 保留本机数据, 追加包内数据。
     /// 表/课以新自增 ID 落库并重映射 FK(不与本地 ID 冲突);
     /// 草稿主键是业务字符串 ID, 同 ID 视为同一草稿 → upsert。
+    /// 返回课表 ID 映射, 供同批导入的小组件绑定使用。
+    @discardableResult
     static func applyMerge(
         _ snapshot: DatabaseSnapshot,
         courseDao: CourseDao,
@@ -253,7 +255,7 @@ enum MigrationDatabaseCodec {
         periodTableDao: PeriodTableDao,
         importDraftDao: ImportDraftDao,
         dbQueue: DatabaseQueue
-    ) throws {
+    ) throws -> [Int64: Int64] {
         try dbQueue.write { db in
             let hasLocalTables = try TimeTableEntity.fetchCount(db) > 0
             var periodIdMap: [Int64: Int64] = [:]
@@ -280,6 +282,7 @@ enum MigrationDatabaseCodec {
             for row in snapshot.importDrafts {
                 try importDraftDao.upsertInDb(db, toEntity(row))
             }
+            return tableIdMap
         }
     }
 }
