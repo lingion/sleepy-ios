@@ -298,6 +298,16 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldWeeks.count))
         app.typeText("60")
         XCTAssertEqual(weeks.value as? String, "60")
+        // Number-pad editing has no Return key. Use the existing name field's
+        // standard keyboard to finish editing before revealing the lower Save.
+        let tableName = app.textFields["field_Schedule Name"].firstMatch
+        reveal(tableName)
+        let savedName = try XCTUnwrap(tableName.value as? String)
+        tableName.tap()
+        app.typeText("\n")
+        XCTAssertTrue(waitUntil { !self.app.keyboards.firstMatch.exists })
+        XCTAssertEqual(tableName.value as? String, savedName)
+        XCTAssertEqual(weeks.value as? String, "60")
         let saveTable = app.buttons["edit_table_save"].firstMatch
         reveal(saveTable)
         saveTable.tap()
