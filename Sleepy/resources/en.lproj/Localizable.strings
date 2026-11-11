@@ -1291,7 +1291,7 @@
 "settings_appearance_navigation" = "Bottom navigation";
 "settings_appearance_holidays" = "Holiday display";
 "appearance_section_dock_theme" = "Interface style";
-"dock_theme_classic" = "Classic";
+"dock_theme_classic" = "Material Design";
 "dock_theme_liquid_glass" = "Liquid Glass";
 "settings_ios_refresh_policy" = "iOS adjusts refresh rate for the device, battery and animation needs.";
 

@@ -1292,7 +1292,7 @@
 "settings_appearance_navigation" = "底部导航";
 "settings_appearance_holidays" = "节假日显示";
 "appearance_section_dock_theme" = "界面风格";
-"dock_theme_classic" = "经典";
+"dock_theme_classic" = "Material Design";
 "dock_theme_liquid_glass" = "液态玻璃";
 "settings_ios_refresh_policy" = "刷新率由 iOS 按设备、电量与动画需求调度。";
 

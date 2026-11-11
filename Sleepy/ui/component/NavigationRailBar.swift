@@ -130,15 +130,15 @@ private struct CombinedRailItemView: View {
                                    activationID: item.id)
                         .frame(width: 28, height: 28)
                 }
-                .foregroundColor(item.selected ? colors.primary : colors.onSurfaceVariant)
+                .foregroundColor(item.selected ? colors.onPrimaryContainer : colors.onSurfaceVariant)
                 .frame(width: 56, height: 68)
                 .sleepyNativeGlassSelection(item.selected, cornerRadius: 28,
-                                           tint: colors.primary.opacity(0.12), namespace: selectionNamespace)
+                                           tint: colors.primaryContainer, namespace: selectionNamespace)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .androidNavigationIconPress(id: item.id)
-            .tint(colors.primary)
+            .tint(item.selected ? colors.onPrimaryContainer : colors.onSurfaceVariant)
             .frame(width: 56, height: 68)
             .accessibilityIdentifier("rail_schedule_\(item.id)")
             .accessibilityLabel("\(L10n.t("tab_schedule")), \(item.label)")
@@ -216,15 +216,15 @@ private struct RailItemView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                 }
-                .foregroundColor(item.selected ? colors.primary : colors.onSurfaceVariant)
+                .foregroundColor(item.selected ? colors.onPrimaryContainer : colors.onSurfaceVariant)
                 .frame(width: 56, height: 54)
                 .sleepyNativeGlassSelection(item.selected, cornerRadius: 27,
-                                           tint: colors.primary.opacity(0.12), namespace: selectionNamespace)
+                                           tint: colors.primaryContainer, namespace: selectionNamespace)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .androidNavigationIconPress(id: item.id)
-            .tint(colors.primary)
+            .tint(item.selected ? colors.onPrimaryContainer : colors.onSurfaceVariant)
             .frame(width: 56, height: 54)
             .accessibilityIdentifier("rail_\(item.id)")
             .accessibilityLabel(item.label)

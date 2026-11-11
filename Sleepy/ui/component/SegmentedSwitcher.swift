@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Liquid Glass uses the system segmented control; Classic keeps the Material track.
 struct SegmentedSwitcher<T: Hashable>: View {
@@ -19,22 +20,9 @@ struct SegmentedSwitcher<T: Hashable>: View {
     var body: some View {
         Group {
             if style == .liquidGlass {
-                Picker(accessibilityTitle, selection: Binding(
-                    get: { selected },
-                    set: { value in
-                        guard isEnabled else { return }
-                        onSelect(value)
-                    }
-                )) {
-                    ForEach(Array(options.enumerated()), id: \.offset) { _, pair in
-                        Text(pair.1)
-                            .tag(pair.0)
-                            .accessibilityIdentifier("seg_\(pair.1)")
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .tint(colors.primary)
+                NativeSegmentedSwitcher(options: options, selected: selected, onSelect: onSelect,
+                                        colors: colors, direction: direction, isEnabled: isEnabled,
+                                        accessibilityTitle: accessibilityTitle)
                 .frame(minHeight: height)
             } else {
                 materialSwitcher
@@ -86,5 +74,117 @@ struct SegmentedSwitcher<T: Hashable>: View {
             .opacity(isEnabled ? 1 : 0.45)
         }
         .frame(height: height)
+    }
+}
+
+/// UIKit owns segment layout, tracking, selection animation, and accessibility traits.
+private struct NativeSegmentedSwitcher<T: Hashable>: UIViewRepresentable {
+    let options: [(T, String)]
+    let selected: T
+    let onSelect: (T) -> Void
+    let colors: WakeUpColorScheme
+    let direction: LayoutDirection
+    let isEnabled: Bool
+    let accessibilityTitle: String
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> NativeThemedSegmentedControl {
+        let control = NativeThemedSegmentedControl(items: options.map { $0.1 })
+        control.addTarget(context.coordinator, action: #selector(Coordinator.selectionChanged(_:)),
+                          for: .valueChanged)
+        return control
+    }
+
+    func updateUIView(_ control: NativeThemedSegmentedControl, context: Context) {
+        context.coordinator.parent = self
+        if control.numberOfSegments != options.count {
+            control.removeAllSegments()
+            for (index, pair) in options.enumerated() {
+                control.insertSegment(withTitle: pair.1, at: index, animated: false)
+            }
+        } else {
+            for (index, pair) in options.enumerated() where control.titleForSegment(at: index) != pair.1 {
+                control.setTitle(pair.1, forSegmentAt: index)
+            }
+        }
+        control.segmentTitles = options.map { $0.1 }
+        control.selectedSegmentIndex = options.firstIndex(where: { $0.0 == selected }) ?? UISegmentedControl.noSegment
+        control.isEnabled = isEnabled
+        control.semanticContentAttribute = direction == .rightToLeft ? .forceRightToLeft : .forceLeftToRight
+        control.selectedSegmentTintColor = UIColor(colors.secondaryContainer)
+        control.setTitleTextAttributes([.foregroundColor: UIColor(colors.onSecondaryContainer)], for: .selected)
+        control.setTitleTextAttributes([.foregroundColor: UIColor(colors.onSurfaceVariant)], for: .normal)
+        control.accessibilityLabel = accessibilityTitle.isEmpty ? nil : accessibilityTitle
+        control.refreshSegmentIdentifiers()
+    }
+
+    final class Coordinator: NSObject {
+        var parent: NativeSegmentedSwitcher
+
+        init(_ parent: NativeSegmentedSwitcher) { self.parent = parent }
+
+        @objc func selectionChanged(_ control: UISegmentedControl) {
+            guard control.isEnabled, parent.options.indices.contains(control.selectedSegmentIndex) else { return }
+            parent.onSelect(parent.options[control.selectedSegmentIndex].0)
+        }
+    }
+}
+
+/// Public accessibility elements provide stable logical identities in every UIKit version.
+private final class NativeThemedSegmentedControl: UISegmentedControl {
+    var segmentTitles: [String] = []
+    private var segments: [NativeSegmentAccessibilityElement] = []
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        refreshSegmentIdentifiers()
+    }
+
+    override func accessibilityElementCount() -> Int { segments.count }
+    override func accessibilityElement(at index: Int) -> Any? {
+        guard segments.indices.contains(index) else { return nil }
+        return segments[index]
+    }
+    override func index(ofAccessibilityElement element: Any) -> Int {
+        segments.firstIndex { $0 === (element as AnyObject) } ?? NSNotFound
+    }
+
+    func refreshSegmentIdentifiers() {
+        isAccessibilityElement = false
+        if segments.count != segmentTitles.count {
+            segments = segmentTitles.indices.map { NativeSegmentAccessibilityElement(control: self, index: $0) }
+        }
+        let width = bounds.width / CGFloat(max(numberOfSegments, 1))
+        let rtl = effectiveUserInterfaceLayoutDirection == .rightToLeft
+        for (index, segment) in segments.enumerated() {
+            segment.accessibilityLabel = segmentTitles[index]
+            segment.accessibilityIdentifier = "seg_\(segmentTitles[index])"
+            segment.accessibilityTraits = [.button]
+            if index == selectedSegmentIndex { segment.accessibilityTraits.insert(.selected) }
+            if !isEnabled { segment.accessibilityTraits.insert(.notEnabled) }
+            let physicalIndex = rtl ? numberOfSegments - index - 1 : index
+            segment.accessibilityFrameInContainerSpace = CGRect(x: CGFloat(physicalIndex) * width,
+                y: 0, width: width, height: bounds.height)
+        }
+        accessibilityElements = segments
+    }
+}
+
+private final class NativeSegmentAccessibilityElement: UIAccessibilityElement {
+    weak var control: UISegmentedControl?
+    let index: Int
+
+    init(control: UISegmentedControl, index: Int) {
+        self.control = control
+        self.index = index
+        super.init(accessibilityContainer: control)
+    }
+
+    override func accessibilityActivate() -> Bool {
+        guard let control, control.isEnabled else { return false }
+        control.selectedSegmentIndex = index
+        control.sendActions(for: .valueChanged)
+        return true
     }
 }

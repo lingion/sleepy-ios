@@ -1291,7 +1291,7 @@
 "settings_appearance_navigation" = "底部導覽";
 "settings_appearance_holidays" = "節假日顯示";
 "appearance_section_dock_theme" = "介面風格";
-"dock_theme_classic" = "經典";
+"dock_theme_classic" = "Material Design";
 "dock_theme_liquid_glass" = "液態玻璃";
 "settings_ios_refresh_policy" = "更新頻率由 iOS 依裝置、電量與動畫需求調度。";
 

@@ -1291,7 +1291,7 @@
 "settings_appearance_navigation" = "下部ナビゲーション";
 "settings_appearance_holidays" = "祝日の表示";
 "appearance_section_dock_theme" = "インターフェーススタイル";
-"dock_theme_classic" = "クラシック";
+"dock_theme_classic" = "Material Design";
 "dock_theme_liquid_glass" = "リキッドガラス";
 "settings_ios_refresh_policy" = "リフレッシュレートは、端末・バッテリー・アニメーションに応じて iOS が調整します。";
 

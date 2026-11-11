@@ -1291,7 +1291,7 @@
 "settings_appearance_navigation" = "Navegación inferior";
 "settings_appearance_holidays" = "Visualización de festivos";
 "appearance_section_dock_theme" = "Estilo de interfaz";
-"dock_theme_classic" = "Clásico";
+"dock_theme_classic" = "Material Design";
 "dock_theme_liquid_glass" = "Cristal líquido";
 "settings_ios_refresh_policy" = "iOS ajusta la frecuencia según el dispositivo, la batería y las animaciones.";
 
