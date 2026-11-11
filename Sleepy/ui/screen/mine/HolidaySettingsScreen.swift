@@ -32,6 +32,8 @@ struct HolidaySettingsScreen: View {
     /// 进入本页时全局选中的课表 id ← 原版本 tableId: Long? = null;
     /// nil = 无课表(调休映射不落盘, 说明卡提示"请先创建课表")。
     var tableId: Int64? = nil
+    /// The timetable being edited can differ from the foreground timetable.
+    var initialTableId: Int64? = nil
     /// 当前选中表映射变化后的课表页刷新回调 ← viewModel.refreshTransfer(); 接线归集成者。
     var refreshTransfer: (() -> Void)? = nil
 
@@ -164,7 +166,7 @@ struct HolidaySettingsScreen: View {
         .background(colors.background)
         .onAppear {
             loadTablesOnce()
-            if activeTableId == nil { activeTableId = tableId }
+            if activeTableId == nil { activeTableId = initialTableId ?? tableId }
             reloadTransfers()
             load(year)
         }
@@ -296,18 +298,18 @@ struct HolidaySettingsScreen: View {
             Text(L10n.format("holiday_makeup_title"))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(colors.onSurface)
-            Text(L10n.format(tableId == nil ? "holiday_makeup_no_table" : "holiday_makeup_subtitle"))
+            Text(L10n.format(activeTableId == nil ? "holiday_makeup_no_table" : "holiday_makeup_subtitle"))
                 .font(.system(size: 12))
                 .foregroundColor(colors.onSurfaceVariant)
             Text(L10n.format("holiday_mapping_explanation"))
                 .font(.system(size: 12))
                 .foregroundColor(colors.onSurfaceVariant)
-            // 只有带着已选课表进入且存在多张表才渲染切换器 — 与 原版本 条件一致
-            if tableId != nil && tables.count > 1 {
+            // The picker changes only the locally edited timetable.
+            if activeTableId != nil && tables.count > 1 {
                 Spacer().frame(height: 4)
                 SegmentedSwitcher(
                     options: tables.map { ($0.id, $0.name) },
-                    selected: activeTableId ?? tableId ?? 0,
+                    selected: activeTableId ?? 0,
                     onSelect: { activeTableId = $0 },
                     // 嵌进 surfaceContainer 卡片同色隐形 → 降一级(共享组件注释同款)
                     containerColor: colors.surfaceContainerHighest
