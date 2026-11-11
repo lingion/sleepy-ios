@@ -153,7 +153,7 @@ struct ImportSheet: View {
     var drafts: [ImportDraftRowModel] = []
     var onDeleteDraft: (String) -> Void = { _ in }
     var onJwDismissed: () -> Void = {}
-    var onCreateNewTable: (() -> Void)? = nil
+    var canCreateNewTable = false
     var targetTableId: Int64? = nil
     var initialImportText: String? = nil
     var onManualAddCourse: (() -> Void)? = nil
@@ -183,6 +183,7 @@ struct ImportSheet: View {
     @State private var pendingSelection: ImportPreview? = nil
     @State private var selectedPreview: ImportPreview? = nil
     @State private var preparationId = UUID()
+    @State private var manualTableEditor: ManualTableEditorSession?
 
     private var canImport: Bool {
         !isLoading && (targetTableId == nil || viewModel.state.tables.contains { $0.id == targetTableId })
@@ -281,9 +282,9 @@ struct ImportSheet: View {
                     ImportMethodRow(id: "import_manual", icon: "plus",
                                     label: L10n.format("add_course_manual"), onClick: onManualAddCourse)
                         .disabled(!canImport)
-                } else if let onCreateNewTable {
+                } else if canCreateNewTable {
                     ImportMethodRow(id: "manage_new_table", icon: "plus",
-                                    label: L10n.format("manage_create_blank_table"), onClick: onCreateNewTable)
+                                    label: L10n.format("manage_create_blank_table"), onClick: beginManualTable)
                         .disabled(!canImport)
                 }
 
@@ -468,7 +469,7 @@ struct ImportSheet: View {
                         // ← 原版本 importJustApplied=true → snackbar 明示已落库
                         showSuccess(L10n.format("import_success"))
                     })
-            } else if onCreateNewTable != nil && targetTableId == nil {
+            } else if canCreateNewTable && targetTableId == nil {
                 confirmDialogContent
             } else {
             ImportPreviewDialog(preview: box.preview,
@@ -574,11 +575,30 @@ struct ImportSheet: View {
                 jwPresentation = nil
             }, incomingDraftId: presentation.draftId,
                onActiveImportChanged: { jwActiveImport = $0 },
-               targetTableId: targetTableId, newTableOnly: onCreateNewTable != nil && targetTableId == nil)
+               targetTableId: targetTableId, newTableOnly: canCreateNewTable && targetTableId == nil)
                 .environment(\.localWakeUpColors, colors)
                 .environment(\.localCoursePalette, palette)
                 .preferredColorScheme(colorScheme)
                 .interactiveDismissDisabled(jwActiveImport)
+                .sheetDragIndicator(.visible)
+        }
+        // Keep this methods instance and its paste/preview draft below the editor.
+        // Interactive dismissal and the editor's Back action share one discard path.
+        .sheet(item: Binding(
+            get: { manualTableEditor },
+            set: { if $0 == nil { discardManualTable() } }
+        )) { session in
+            EditTableScreen(viewModel: viewModel,
+                            tableId: session.id,
+                            pendingNewTableId: session.id,
+                            onDismiss: discardManualTable,
+                            onDiscardPending: discardManualTable,
+                            onSaved: finishManualTable,
+                            onDeleted: finishManualTable)
+                .environment(\.localWakeUpColors, colors)
+                .environment(\.localCoursePalette, palette)
+                .environment(\.sleepyUIStyle, style)
+                .preferredColorScheme(colorScheme)
                 .sheetDragIndicator(.visible)
         }
         // 格式详情弹窗 ("支持格式"每行 ⓘ 点开)
@@ -590,6 +610,27 @@ struct ImportSheet: View {
         }
         }
         .background(colors.background)
+    }
+
+    private func beginManualTable() {
+        guard manualTableEditor == nil, canCreateNewTable, targetTableId == nil, canImport else { return }
+        inputFocused = false
+        Self.dismissKeyboard()
+        let fallbackId = viewModel.state.currentTable?.id
+        let tableId = viewModel.createEmptyTable(commitSelection: false)
+        guard tableId != 0 else { return }
+        manualTableEditor = ManualTableEditorSession(id: tableId, fallbackId: fallbackId)
+    }
+
+    private func discardManualTable() {
+        guard let session = manualTableEditor else { return }
+        manualTableEditor = nil
+        viewModel.discardNewTable(session.id, fallbackId: session.fallbackId)
+    }
+
+    private func finishManualTable() {
+        // Saving resolves the pending table before SwiftUI dismisses its child sheet.
+        manualTableEditor = nil
     }
 
     private func updateImportInputViewport(_ size: CGSize) {
@@ -683,7 +724,7 @@ struct ImportSheet: View {
             onTimeJsonChange: { previewSession.confirmedTimeJson = $0 },
             onDismiss: {
                 guard !isLoading else { return }
-                if onCreateNewTable != nil && targetTableId == nil { previewSession.replacePreview(nil) }
+                if canCreateNewTable && targetTableId == nil { previewSession.replacePreview(nil) }
                 else { previewSession.pendingMode = nil }
             },
             // v1.0.56 T6: 第三 Tab「作息表」
@@ -770,7 +811,7 @@ struct ImportSheet: View {
                 previewSession.replacePreview(preview)
                 // Prepare before SwiftUI constructs the dialog's @State values.
                 // An onAppear callback runs after its initial date/name were captured.
-                if onCreateNewTable != nil { configureNewTableConfirmation(preview) }
+                if canCreateNewTable { configureNewTableConfirmation(preview) }
             }
         } catch { errorMsg = error.localizedDescription }
     }
@@ -887,6 +928,11 @@ struct ImportSheet: View {
         return TimeTableUtils.suggestUniqueName(
             pt.name, courseTableNames: courseNames, periodTableNames: periodNames)
     }
+}
+
+private struct ManualTableEditorSession: Identifiable {
+    let id: Int64
+    let fallbackId: Int64?
 }
 
 // Identifiable 包装(sheet(item:) 需要)

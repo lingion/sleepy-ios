@@ -470,7 +470,6 @@ struct AppRoot: View {
     @State private var importTargetTableId: Int64? = nil
     @State private var importInitialText: String?
     @State private var manualAddTargetAfterImportDismiss: Int64? = nil
-    @State private var createTableAfterImportDismiss = false
     @State private var jwImportActive = false
     // 直接/外部草稿入口独立呈现，不伪造导入方式页作为返回目标。
     @State private var jwReturn = JwImportReturnState(origin: .direct)
@@ -559,16 +558,12 @@ struct AppRoot: View {
         }
         .sheet(isPresented: $showImportSheet, onDismiss: {
             let manualTarget = manualAddTargetAfterImportDismiss
-            let createTable = createTableAfterImportDismiss
             manualAddTargetAfterImportDismiss = nil
-            createTableAfterImportDismiss = false
             importTargetTableId = nil
             importInitialText = nil
             importPresentation.didDismiss(.methods)
             if let manualTarget {
                 root.openManualAddCourse(targetTableId: manualTarget)
-            } else if createTable {
-                root.createNewTableThenEdit()
             }
             drainRequestedImportsAfterDismissal()
         }) {
@@ -579,10 +574,7 @@ struct AppRoot: View {
                         drafts: root.importDrafts,
                         onDeleteDraft: { root.deleteDraft($0) },
                         onJwDismissed: { root.refreshDrafts() },
-                        onCreateNewTable: {
-                            createTableAfterImportDismiss = true
-                            showImportSheet = false
-                        },
+                        canCreateNewTable: true,
                         targetTableId: targetTableId,
                         initialImportText: importInitialText,
                         onManualAddCourse: targetTableId.map { target in
