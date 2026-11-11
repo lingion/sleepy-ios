@@ -186,6 +186,7 @@ struct SettingsFlatCard<Content: View>: View {
                                         selectedIndex = index
                                         onSelect?(index)
                                     }
+                                    .accessibilityIdentifier("seg_\(label)")
                                 }
                             }
                         }

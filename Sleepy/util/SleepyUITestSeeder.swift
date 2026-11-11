@@ -61,6 +61,23 @@ enum SleepyUITestSeeder {
         table.id = (try? database.timeTableDao.getAll().first?.id) ?? 0
         guard table.id > 0 else { return }
 
+        // Explicit fixture for holiday UI scenarios; never depends on a live holiday feed.
+        if ProcessInfo.processInfo.arguments.contains("-SLEEPY_UI_TEST_HOLIDAYS") {
+            let year = Calendar.gregorianCST.component(.year, from: Date())
+            func date(_ suffix: String) -> Date { DateUtils.parseDate("\(year)-\(suffix)")! }
+            HolidayManager.replaceDiskYears([
+                year: "[{\"date\":\"\(year)-01-01\",\"name\":\"New Year\",\"type\":\"public_holiday\"},{\"date\":\"\(year)-01-04\",\"name\":\"Make-up\",\"type\":\"transfer_workday\"}]",
+                year + 1: "[]"
+            ])
+            AppPrefs.shared.setHolidayRanges([
+                HolidayRange(id: "ui-removed", name: "Removed holiday", startDate: date("02-01"),
+                             endDate: date("02-01"), type: HolidayRangeOps.REMOVED, sourceKey: nil)
+            ])
+            AppPrefs.shared.setHolidayTransfers(table.id, [
+                HolidayTransferEntry(sourceDate: date("03-01"), targetDate: date("03-02"), segmentId: "orphan")
+            ])
+        }
+
         // 4 门课: 周一1-2 高数 / 周二3-4 英语 / 周三5-6 物理 / 周五1-2 体育
         // ★ 固定 id 1..4: sleepy://course/N 深链测试需确定性定位(自增 id 跨种子漂移)
         // 2026-10-29: 显式非哨兵色 → 走自定义色路径(不经黄金角派生), 截图配色确定且多样

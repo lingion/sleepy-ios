@@ -79,7 +79,10 @@ final class SheetPlatformUITests: XCTestCase {
     private func visibleViewport(in scroll: XCUIElement?) -> CGRect {
         var viewport = app.frame.insetBy(dx: 2, dy: 4)
         if let scroll {
-            viewport = viewport.intersection(scroll.frame.insetBy(dx: 2, dy: 4))
+            // A naturally sized dialog may contain a single 56pt field in a
+            // 56pt scroll viewport. Its actual edges remain visible; adding
+            // artificial insets makes full visibility impossible at any offset.
+            viewport = viewport.intersection(scroll.frame)
             // The scroll bar provides a conservative bottom boundary. Its
             // automatic top inset can exclude a visible custom sheet header;
             // use the actual navigation bar below for top occlusion instead.
@@ -149,7 +152,6 @@ final class SheetPlatformUITests: XCTestCase {
             // this ScrollView rather than its transparent padding.
             let candidates = [app.buttons["occurrence_date"].firstMatch,
                               app.staticTexts["occurrence_nodes_summary"].firstMatch, element,
-                              app.descendants(matching: .any)["occurrence_fixed_date"].firstMatch,
                               app.descendants(matching: .any)["occurrence_custom_time"].firstMatch]
             let dragFrame = candidates.filter { $0.exists }.map { $0.frame.intersection(viewport) }
                 .first { !$0.isNull && $0.height >= 16 && $0.width > 40 } ?? viewport
@@ -445,9 +447,17 @@ final class SheetPlatformUITests: XCTestCase {
         let edit = app.buttons["course_occurrence_actions"].firstMatch
         makeHittable(edit)
         edit.tap()
+        let adjust = app.buttons["occurrence_adjust"].firstMatch
+        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["occurrence_delete"].firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any)["occurrence_room"].firstMatch.exists,
+                       "The occurrence menu must not expose the edit form")
+        adjust.tap()
         XCUIDevice.shared.orientation = .landscapeLeft
         let field = app.descendants(matching: .any)["occurrence_room"].firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["occurrence_delete"].firstMatch.exists,
+                       "Delete belongs to the occurrence menu")
         let original = field.value as? String ?? ""
         replaceText(field, with: "Discarded room")
         let cancel = app.buttons["occurrence_cancel"].firstMatch
@@ -456,6 +466,8 @@ final class SheetPlatformUITests: XCTestCase {
         XCTAssertTrue(waitUntil { !cancel.exists })
         makeHittable(edit)
         edit.tap()
+        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
+        adjust.tap()
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         XCTAssertEqual(field.value as? String, original)
         let replacement = "Studio-\(UUID().uuidString.prefix(6))"
@@ -489,8 +501,19 @@ final class SheetPlatformUITests: XCTestCase {
         let edit = app.buttons["course_occurrence_actions"].firstMatch
         makeHittable(edit)
         edit.tap()
+        let adjust = app.buttons["occurrence_adjust"].firstMatch
+        let delete = app.buttons["occurrence_delete"].firstMatch
+        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
+        XCTAssertTrue(delete.exists)
+        XCTAssertFalse(app.buttons["occurrence_date"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["occurrence_save"].firstMatch.exists,
+                       "The occurrence menu must show actions before the edit form")
+        adjust.tap()
         let cancel = app.buttons["occurrence_cancel"].firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 10))
+        XCTAssertFalse(delete.exists, "Delete belongs to the occurrence menu")
+        XCTAssertFalse(app.descendants(matching: .any)["occurrence_fixed_date"].firstMatch.exists,
+                       "Editing one occurrence must preserve its original fixed-date provenance")
         XCUIDevice.shared.orientation = .landscapeLeft
         assertInteractiveInWindow(cancel)
         let customRow = app.descendants(matching: .any)["occurrence_custom_time"].firstMatch
@@ -508,17 +531,26 @@ final class SheetPlatformUITests: XCTestCase {
         XCTAssertEqual(rangeStart.value as? String, "1")
         XCTAssertEqual(rangeEnd.value as? String, "2")
         let editorControls = [app.buttons["occurrence_date"].firstMatch,
-                              app.descendants(matching: .any)["occurrence_fixed_date"].firstMatch,
                               app.staticTexts["occurrence_nodes_summary"].firstMatch,
                               rangeStart, rangeEnd, custom,
-                              app.buttons["occurrence_save"].firstMatch,
-                              app.buttons["occurrence_delete"].firstMatch]
+                              app.buttons["occurrence_save"].firstMatch]
         let allControlsFit = editorControls.allSatisfy { fullyVisible($0) }
         let previousY = custom.frame.minY
         let origin = app.coordinate(withNormalizedOffset: .zero)
         let sliderPoint = CGPoint(x: (rangeStart.frame.midX + rangeEnd.frame.midX) / 2, y: rangeStart.frame.midY)
+        let viewport = visibleViewport(in: owningScrollView(rangeStart))
+        let forwardBudget = max(0, app.buttons["occurrence_save"].firstMatch.frame.maxY - viewport.maxY)
+        let backwardBudget = max(0, viewport.minY - app.buttons["occurrence_date"].firstMatch.frame.minY)
+        // Revealing the slider may already have scrolled this short form to
+        // its bottom. Exercise the direction that still has scrollable content.
+        let scrollForward = forwardBudget > 1
+        let scrollBudget = scrollForward ? forwardBudget : backwardBudget
+        let availableDrag = scrollForward ? sliderPoint.y - viewport.minY - 4 : viewport.maxY - sliderPoint.y - 4
+        let dragDistance = min(80, max(0, availableDrag))
+        XCTAssertTrue(viewport.contains(sliderPoint), "The drag must begin on the visible slider")
         origin.withOffset(CGVector(dx: sliderPoint.x, dy: sliderPoint.y)).press(forDuration: 0.05,
-            thenDragTo: origin.withOffset(CGVector(dx: sliderPoint.x, dy: sliderPoint.y - 80)),
+            thenDragTo: origin.withOffset(CGVector(dx: sliderPoint.x,
+                dy: sliderPoint.y + (scrollForward ? -dragDistance : dragDistance))),
             withVelocity: XCUIGestureVelocity(rawValue: 300), thenHoldForDuration: 0.15)
         if allControlsFit {
             // A tall tablet sheet has no scroll budget when every control fits.
@@ -526,7 +558,13 @@ final class SheetPlatformUITests: XCTestCase {
             XCTAssertTrue(waitUntil { editorControls.allSatisfy { fullyVisible($0) } },
                           "A vertical drag must keep a fully visible editor usable")
         } else {
-            XCTAssertTrue(waitUntil { custom.frame.minY <= previousY - 20 },
+            XCTAssertGreaterThan(scrollBudget, 1, "Clipped form content must provide a measurable scroll budget")
+            let expectedMovement = min(20, scrollBudget * 0.8, max(0, dragDistance - 8))
+            XCTAssertGreaterThan(expectedMovement, 0)
+            XCTAssertTrue(waitUntil {
+                scrollForward ? custom.frame.minY <= previousY - expectedMovement
+                    : custom.frame.minY >= previousY + expectedMovement
+            },
                           "A vertical drag on the period slider must scroll the editor")
         }
         XCTAssertEqual(rangeStart.value as? String, "1", "Vertical scrolling must not edit the range")
@@ -548,12 +586,18 @@ final class SheetPlatformUITests: XCTestCase {
         XCTAssertTrue(waitUntil { !cancel.exists })
         makeHittable(edit)
         edit.tap()
+        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
+        adjust.tap()
         XCTAssertTrue(cancel.waitForExistence(timeout: 10))
         makeHittable(customRow)
         XCTAssertTrue(custom.waitForExistence(timeout: 3))
         makeHittable(custom)
         XCTAssertEqual(custom.value as? String, "0", "Cancel must discard the custom-time draft")
-        let delete = app.buttons["occurrence_delete"].firstMatch
+        cancel.tap()
+        XCTAssertTrue(waitUntil { !cancel.exists })
+        makeHittable(edit)
+        edit.tap()
+        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
         makeHittable(delete)
         assertInteractiveInWindow(delete)
         delete.tap()
@@ -562,6 +606,10 @@ final class SheetPlatformUITests: XCTestCase {
         capture("landscape-occurrence-delete-confirmation")
         alert.buttons["Cancel"].firstMatch.tap()
         XCTAssertTrue(waitUntil { !alert.exists })
+        XCTAssertTrue(adjust.exists, "Canceling deletion must return to the occurrence menu")
+        XCTAssertFalse(app.buttons["occurrence_date"].firstMatch.exists)
+        adjust.tap()
+        XCTAssertTrue(cancel.waitForExistence(timeout: 10))
         assertInteractiveInWindow(cancel)
         cancel.tap()
         XCTAssertTrue(waitUntil { !cancel.exists })

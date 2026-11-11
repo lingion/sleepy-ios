@@ -1140,6 +1140,7 @@
 		FF84CF257457FE11AE076C92 /* JwAhmuParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CA66E1307394991DA8C595 /* JwAhmuParser.swift */; };
 		FFC43A2C3EFA9EBBDCAA4E63 /* ScheduleRenderingB5Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A03D757CF35EDB5E0D85E4F5 /* ScheduleRenderingB5Tests.swift */; };
 		FFD3E75EA0497A653D055C39 /* DailySummaryNotificationMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6411E61AE08D4284100A98 /* DailySummaryNotificationMigration.swift */; };
+		1326D2054055D0599A189EDF /* SecondaryDialogParityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211921CCA47F3202EF030135 /* SecondaryDialogParityUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1891,6 +1892,7 @@
 		FEFE0F382E2D42F640D9689F /* RowKeyDifferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowKeyDifferTests.swift; sourceTree = "<group>"; };
 		FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDatabase.swift; sourceTree = "<group>"; };
 		FF4AC1BC137184D4FED2FCF3 /* LicenseScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseScreen.swift; sourceTree = "<group>"; };
+		211921CCA47F3202EF030135 /* SecondaryDialogParityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryDialogParityUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2867,6 +2869,7 @@
 				A7FEE8627F23A972326DD0C3 /* UITestLaunch.swift */,
 				3CCF650CBCA0D0B5B19251A0 /* WatchTimeStripSettingsUITests.swift */,
 				8F320879A74F6E8825ECE3C0 /* WeekDialogLayoutUITests.swift */,
+				211921CCA47F3202EF030135 /* SecondaryDialogParityUITests.swift */,
 				3E7AD6CE77CFDEF12C064E61 /* WidgetArchivingUITests.swift */,
 			);
 			path = SleepyUITests;
@@ -3734,6 +3737,7 @@
 				E0C79D8919C1E4EE10294597 /* UITestLaunch.swift in Sources */,
 				FB209E5C6CE38B6D3F97529A /* WatchTimeStripSettingsUITests.swift in Sources */,
 				588EAD2541E6364F2E80F93F /* WeekDialogLayoutUITests.swift in Sources */,
+				1326D2054055D0599A189EDF /* SecondaryDialogParityUITests.swift in Sources */,
 				76D1F3F2759F5FBE76A9D061 /* WidgetArchivingUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
