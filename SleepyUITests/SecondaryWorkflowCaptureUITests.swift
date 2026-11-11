@@ -115,6 +115,17 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
             .firstMatch.waitForExistence(timeout: 8))
     }
 
+    private func openPeriodTables() {
+        let screen = app.staticTexts["period_tables_screen"].firstMatch
+        if !screen.exists {
+            let entry = app.buttons["manage_period_tables"].firstMatch
+            reveal(entry)
+            entry.tap()
+        }
+        XCTAssertTrue(screen.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["period_tables_back"].firstMatch.isHittable)
+    }
+
     private func replaceText(_ field: XCUIElement, with text: String,
                              file: StaticString = #filePath, line: UInt = #line) {
         reveal(field, file: file, line: line)
@@ -389,6 +400,140 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
         tapBack()
         openTables()
         XCTAssertEqual(tableRows, originalTables, "Cancelling pure-period naming must preserve the course timetable list")
+    }
+
+    func testSharedSchedulePolicyRegistersThenCancelsWithoutSavingDraftCapture() throws {
+        openTables()
+        let originalTables = tableRows
+        let originalName = try XCTUnwrap(originalTables.first?.value)
+        tapBack()
+        app.switchToPillTab("mine")
+        let periodCount = app.staticTexts["mine_stat_period_tables_value"].firstMatch
+        XCTAssertTrue(periodCount.waitForExistence(timeout: 8))
+        let originalPeriodCount = try XCTUnwrap(Int(periodCount.label))
+        app.switchToPillTab("manage")
+
+        // Save one real source and bind it once. A single owner still exposes all three policies.
+        openPeriodTables()
+        let create = app.buttons["period_tables_new"].firstMatch
+        reveal(create)
+        create.tap()
+        let sourceName = "Workflow Shared Bell " + String(UUID().uuidString.prefix(8))
+        let sourceField = app.descendants(matching: .any)["field_Bell schedule name"].firstMatch
+        let sourceSlots = app.buttons["period_table_slots_header"].firstMatch
+        reveal(sourceSlots)
+        sourceSlots.tap()
+        replaceText(sourceField, with: sourceName)
+        app.typeText("\n")
+        XCTAssertTrue(waitUntil { !self.app.keyboards.firstMatch.exists })
+        let saveSource = app.buttons["period_table_save"].firstMatch
+        reveal(saveSource)
+        saveSource.tap()
+        let sourceConfirm = app.buttons["period_table_preview_confirm"].firstMatch
+        reveal(sourceConfirm)
+        sourceConfirm.tap()
+        XCTAssertTrue(waitUntil { !sourceConfirm.exists && !saveSource.exists })
+        openPeriodTables()
+        let sourceLabel = app.staticTexts[sourceName].firstMatch
+        reveal(sourceLabel)
+        XCTAssertTrue(sourceLabel.identifier.hasPrefix("period_table_name_"))
+        app.buttons["period_tables_back"].tap()
+
+        let edit = app.buttons["manage_edit_current"].firstMatch
+        reveal(edit)
+        edit.tap()
+        let slots = app.buttons["edit_table_slots_header"].firstMatch
+        reveal(slots)
+        slots.tap()
+        let bellTab = app.buttons["seg_Bell schedule"].firstMatch
+        reveal(bellTab)
+        bellTab.tap()
+        let source = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", sourceName)).firstMatch
+        reveal(source)
+        source.tap()
+        let saveTable = app.buttons["edit_table_save"].firstMatch
+        reveal(saveTable)
+        saveTable.tap()
+        let rebind = app.alerts["Confirm rebind"].firstMatch
+        XCTAssertTrue(rebind.waitForExistence(timeout: 8))
+        let bind = rebind.buttons["Save"].firstMatch
+        reveal(bind)
+        bind.tap()
+        XCTAssertTrue(waitUntil { !rebind.exists && !saveTable.exists && edit.isHittable })
+
+        reveal(edit)
+        edit.tap()
+        let tableName = app.textFields["field_Schedule Name"].firstMatch
+        XCTAssertTrue(tableName.waitForExistence(timeout: 8))
+        XCTAssertEqual(tableName.value as? String, originalName)
+        let draftName = "Uncommitted Policy " + String(UUID().uuidString.prefix(8))
+        replaceText(tableName, with: draftName)
+        app.typeText("\n")
+        XCTAssertTrue(waitUntil { !self.app.keyboards.firstMatch.exists })
+        reveal(slots)
+        slots.tap()
+        // Remove the unused final period to change valid schedule content without a system time picker.
+        let lastPeriod = app.buttons["slot_row_delete_12"].firstMatch
+        reveal(lastPeriod)
+        lastPeriod.tap()
+        XCTAssertTrue(waitUntil { !lastPeriod.exists })
+        reveal(saveTable)
+        saveTable.tap()
+        let policyTitle = app.staticTexts["Where should this schedule change go?"].firstMatch
+        reveal(policyTitle)
+        XCTAssertTrue(app.staticTexts["Current schedule: \(sourceName) (only this timetable uses it)"].exists)
+        let optionTitles = ["Only this timetable", "Create a new schedule and bind", "Sync changes to period table “\(sourceName)”"]
+        let options = optionTitles.map { title in
+            app.buttons.matching(NSPredicate(format: "identifier == 'schedule_conflict_option' AND label BEGINSWITH %@", title)).firstMatch
+        }
+        XCTAssertEqual(app.buttons.matching(identifier: "schedule_conflict_option").count, 3)
+        for option in options { reveal(option); XCTAssertTrue(option.isEnabled) }
+        let cancel = app.buttons["schedule_conflict_cancel"].firstMatch
+        reveal(cancel)
+        capture("workflow-shared-schedule-three-policies")
+
+        options[0].tap()
+        let pending = app.staticTexts["Pending: Only this timetable · takes effect on next save"].firstMatch
+        reveal(pending)
+        XCTAssertFalse(policyTitle.exists)
+        XCTAssertFalse(lastPeriod.exists, "Registering a policy must preserve the changed draft")
+        let change = app.buttons["Change"].firstMatch
+        reveal(change)
+        capture("workflow-shared-schedule-pending-policy")
+        change.tap()
+        reveal(cancel)
+        XCTAssertTrue(policyTitle.exists)
+        cancel.tap()
+        XCTAssertTrue(waitUntil { !cancel.exists && !pending.exists })
+        reveal(lastPeriod)
+        reveal(tableName)
+        XCTAssertEqual(tableName.value as? String, draftName, "Cancelling the policy restores schedule content while retaining ordinary field drafts")
+        capture("workflow-shared-schedule-cancel-restores-draft")
+        tapBack()
+        XCTAssertTrue(edit.waitForExistence(timeout: 8))
+
+        // A normal restart proves the registered strategy and metadata were never committed.
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        XCTAssertTrue(periodCount.waitForExistence(timeout: 8))
+        XCTAssertEqual(periodCount.label, String(originalPeriodCount + 1), "Only the intentionally saved fixture may add a bell schedule")
+        XCTAssertEqual(app.staticTexts["mine_stat_courses_value"].firstMatch.label, "5")
+        app.switchToPillTab("manage")
+        openTables()
+        XCTAssertEqual(tableRows, originalTables)
+        tapBack()
+        reveal(edit)
+        edit.tap()
+        XCTAssertTrue(tableName.waitForExistence(timeout: 8))
+        XCTAssertEqual(tableName.value as? String, originalName)
+        reveal(slots)
+        slots.tap()
+        reveal(lastPeriod)
+        XCTAssertFalse(pending.exists)
+        capture("workflow-shared-schedule-cancel-keeps-saved-values")
+        tapBack()
     }
 
     func testOffGridPeriodCandidateAndNewPeriodDialogsCanCancelCapture() {
