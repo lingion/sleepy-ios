@@ -36,27 +36,54 @@ final class MineSettingsUITests: XCTestCase {
     @discardableResult
     private func scrollUntil(_ element: XCUIElement, maxSwipes: Int = 6,
                              reservedBottomInset: CGFloat = 110) -> Bool {
-        let screenH = app.windows.firstMatch.frame.height
-        // 底部再排除 110pt = 悬浮/贴底药丸导航栏占位区(capsule 64 + float 12 + 缓冲):
-        // 元素"在屏"但落进 bar 区时, tap 会被 bar 拦截(2026-10-24 testGeneralToggles
-        // 实证: switch hit y=790 ∈ bar 区 y742-806, 连点不翻转)。
-        let usableBottom = screenH - reservedBottomInset
+        func owningScroll() -> XCUIElement? {
+            let candidates = app.scrollViews.allElementsBoundByIndex
+                + app.tables.allElementsBoundByIndex + app.collectionViews.allElementsBoundByIndex
+            return candidates.reversed().first { scroll in
+                guard scroll.exists && scroll.isHittable else { return false }
+                let descendants = scroll.descendants(matching: element.elementType)
+                return element.identifier.isEmpty
+                    ? descendants.matching(NSPredicate(format: "label == %@", element.label)).firstMatch.exists
+                    : descendants.matching(identifier: element.identifier).firstMatch.exists
+            }
+        }
+        func viewport(_ scroll: XCUIElement?) -> CGRect {
+            let window = app.windows.firstMatch.frame
+            var area = window.insetBy(dx: 2, dy: 4)
+            if let scroll { area = area.intersection(scroll.frame) }
+            let bottom = min(area.maxY, window.maxY - reservedBottomInset)
+            if let back = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex
+                .last(where: { $0.isHittable }), back.frame.minY < area.midY {
+                area.origin.y = max(area.minY, back.frame.maxY + 4)
+            }
+            area.size.height = max(0, bottom - area.minY)
+            return area
+        }
         func visible() -> Bool {
-            guard element.exists else { return false }
-            let f = element.frame
-            return f.minY >= 0 && f.maxY <= usableBottom
+            guard element.exists && element.isHittable else { return false }
+            let frame = element.frame
+            return frame.width > 0 && frame.height > 0 && viewport(owningScroll()).contains(frame)
         }
         for _ in 0...maxSwipes {
             if visible() { return true }
-            let scroll = app.scrollViews.firstMatch
-            let surface = scroll.exists ? scroll : app.windows.firstMatch
-            let needsEarlierContent = element.exists && element.frame.minY < 0
-            let from = needsEarlierContent ? 0.40 : 0.65
-            let to = needsEarlierContent ? 0.58 : 0.47
-            surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: from))
-                .press(forDuration: 0.05, thenDragTo: surface.coordinate(
-                    withNormalizedOffset: CGVector(dx: 0.5, dy: to)))
+            guard let scroll = owningScroll() else { break }
+            let area = viewport(scroll)
+            guard !area.isNull && area.width > 0 && area.height > 0 else { break }
+            let earlier = element.frame.minY < area.minY
+            let distance = earlier ? area.minY - element.frame.minY : element.frame.maxY - area.maxY
+            let step = min(0.55, max(0.18, distance / area.height))
+            // The first scroll view can be the disabled, scaled Mine page
+            // beneath an overlay. Drag inside this control's foreground card,
+            // before its sliders, rather than that unrelated page or a slider.
+            let x = area.minX + min(24, area.width * 0.08)
+            let startY = earlier ? 0.25 : 0.80
+            let endY = earlier ? startY + step : startY - step
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: x, dy: area.minY + area.height * startY))
+                .press(forDuration: 0.05, thenDragTo:
+                    origin.withOffset(CGVector(dx: x, dy: area.minY + area.height * endY)))
         }
+        if !visible() { retainHierarchy("settings-control-not-visible") }
         return visible()
     }
 
@@ -523,7 +550,9 @@ final class MineSettingsUITests: XCTestCase {
     // MARK: General — Widget 设置组(widgetcolorless/separator/vertPunct)
 
     func testGeneralKeepsLanguageAndEditingSettings() {
-        app.descendants(matching: .any)["mine_general"].tap()
+        let general = app.buttons["mine_general"].firstMatch
+        XCTAssertTrue(scrollUntil(general), "通用设置入口应完整显示在底部导航上方")
+        general.tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["card_language"].firstMatch.exists)
         XCTAssertTrue(scrollUntil(app.textFields["general_undo_depth_field"].firstMatch))
@@ -585,7 +614,9 @@ final class MineSettingsUITests: XCTestCase {
 
     func testGeneralLanguageSwitch() {
         relaunchWithNativeControls()
-        app.descendants(matching: .any)["mine_general"].tap()
+        let general = app.buttons["mine_general"].firstMatch
+        XCTAssertTrue(scrollUntil(general), "通用设置入口应完整显示在底部导航上方")
+        general.tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
         tapLanguageOption("English")
         // 切日语验证多语切换(标题随之变 "一般")
@@ -604,7 +635,9 @@ final class MineSettingsUITests: XCTestCase {
     //   选项在折叠卡 card_language 内 → 重建后回到收起态, 每项经 tapLanguageOption。
     func testLanguageSwitchAppliesImmediately() {
         relaunchWithNativeControls()
-        app.descendants(matching: .any)["mine_general"].tap()
+        let general = app.buttons["mine_general"].firstMatch
+        XCTAssertTrue(scrollUntil(general), "通用设置入口应完整显示在底部导航上方")
+        general.tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
         tapLanguageOption("简体中文")
 
