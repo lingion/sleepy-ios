@@ -118,23 +118,32 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
     }
 
     private func cancelSystemFilesPanel(file: StaticString = #filePath, line: UInt = #line) {
-        var cancel: XCUIElement?
-        let hasCancel = waitUntil(timeout: 3) {
-            cancel = self.app.buttons.matching(NSPredicate(format: "label == 'Cancel'"))
-                .allElementsBoundByIndex.last { $0.isHittable }
-            return cancel != nil
+        for step in 0...8 {
+            var cancel: XCUIElement?
+            if waitUntil(timeout: 3, {
+                cancel = self.app.buttons.matching(NSPredicate(format: "label == 'Cancel'"))
+                    .allElementsBoundByIndex.last { $0.isHittable }
+                return cancel != nil
+            }), let cancel {
+                cancel.tap()
+                return
+            }
+            // Run19 AX: On My iPhone exposes BackButton / Browse in this
+            // native bar. Return through Files navigation to its actual Cancel.
+            let navigation = app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].firstMatch
+            let back = navigation.buttons["BackButton"].firstMatch
+            guard step < 8, navigation.exists && back.exists && back.isHittable,
+                  navigation.frame.contains(back.frame) else { break }
+            capture("secondary-backup-system-before-navigation-back")
+            back.tap()
         }
-        guard hasCancel, let cancel else {
-            capture("secondary-backup-system-cancel-missing")
-            let snapshot = app.debugDescription
-            let attachment = XCTAttachment(string: snapshot)
-            attachment.name = "secondary-backup-system-cancel-missing-ax"
-            attachment.lifetime = .keepAlways
-            add(attachment)
-            XCTFail("The open Files panel must expose its actual Cancel action.\n\(snapshot)", file: file, line: line)
-            return
-        }
-        cancel.tap()
+        capture("secondary-backup-system-cancel-missing")
+        let snapshot = app.debugDescription
+        let attachment = XCTAttachment(string: snapshot)
+        attachment.name = "secondary-backup-system-cancel-missing-ax"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTFail("The open Files panel must expose its actual Cancel action.\n\(snapshot)", file: file, line: line)
     }
 
     func testHolidayMappingOtherDateAndRangeEditorCapture() {
