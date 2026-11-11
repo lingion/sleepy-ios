@@ -341,54 +341,58 @@ struct AddCourseScreen: View {
         } message: {
             Text(conflictDetailMessage)
         }
-        // ── issue#23 逐卡: 候选弹层 / 新建槽位弹窗 / 槽位默认时间编辑弹窗 ──
-        .sheet(item: $edgePickTarget) { _ in
-            EdgeCandidatePickerDialog(
-                candidates: TimeTableUtils.edgeCandidates(effectiveTimeJson),
-                onPickExisting: { node in
-                    if let i = edgePickTargetIndex, meetingBlocks.indices.contains(i) {
-                        meetingBlocks[i].isIrregularNode = true
-                        meetingBlocks[i].selectedEdgeNode = node
-                    }
-                    edgePickTarget = nil
-                },
-                onPickNew: { candidate in
-                    edgePickTarget = nil
-                    newSlotTarget = NewSlotTarget(blockIndex: edgePickTargetIndex ?? 0, candidate: candidate)
-                },
-                onDismiss: { edgePickTarget = nil })
-        }
-        .sheet(item: $newSlotTarget) { target in
-            NewEdgeSlotDialog(candidate: target.candidate,
-                onConfirm: { start, end in
-                    let c = target.candidate
-                    pendingEdgeInserts.append(PendingEdgeInsert(
-                        edgeClass: c.edgeClass, node: c.node, start: start, end: end,
-                        ownerBlockId: meetingBlocks.indices.contains(target.blockIndex)
-                            ? meetingBlocks[target.blockIndex].id : 0))
-                    if meetingBlocks.indices.contains(target.blockIndex) {
-                        meetingBlocks[target.blockIndex].isIrregularNode = true
-                        meetingBlocks[target.blockIndex].selectedEdgeNode = c.node
-                    }
-                    newSlotTarget = nil
-                },
-                onDismiss: { newSlotTarget = nil })
-        }
-        .sheet(item: $slotEditTarget) { target in
-            SlotEditDialog(node: target.node, initialStart: target.start, initialEnd: target.end,
-                onConfirm: { s, e in
-                    // 同节点旧编辑项覆盖 (最新一次编辑为准)
-                    pendingEdgeEdits.removeAll { $0.node == target.node }
-                    pendingEdgeEdits.append(EdgeSlotEdit(node: target.node, start: s, end: e))
-                    slotEditTarget = nil
-                },
-                onDismiss: { slotEditTarget = nil })
+        // A single presenter keeps the candidate → new-slot transition inside the same dialog.
+        .centeredDialog(isPresented: Binding(
+            get: { edgePickTargetIndex != nil || newSlotTarget != nil || slotEditTarget != nil },
+            set: { if !$0 {
+                edgePickTargetIndex = nil
+                newSlotTarget = nil
+                slotEditTarget = nil
+            } }
+        )) {
+            if let target = newSlotTarget {
+                NewEdgeSlotDialog(candidate: target.candidate,
+                    onConfirm: { start, end in
+                        let c = target.candidate
+                        pendingEdgeInserts.append(PendingEdgeInsert(
+                            edgeClass: c.edgeClass, node: c.node, start: start, end: end,
+                            ownerBlockId: meetingBlocks.indices.contains(target.blockIndex)
+                                ? meetingBlocks[target.blockIndex].id : 0))
+                        if meetingBlocks.indices.contains(target.blockIndex) {
+                            meetingBlocks[target.blockIndex].isIrregularNode = true
+                            meetingBlocks[target.blockIndex].selectedEdgeNode = c.node
+                        }
+                        newSlotTarget = nil
+                    },
+                    onDismiss: { newSlotTarget = nil })
+                    .id(target.id)
+            } else if let target = slotEditTarget {
+                SlotEditDialog(node: target.node, initialStart: target.start, initialEnd: target.end,
+                    onConfirm: { s, e in
+                        pendingEdgeEdits.removeAll { $0.node == target.node }
+                        pendingEdgeEdits.append(EdgeSlotEdit(node: target.node, start: s, end: e))
+                        slotEditTarget = nil
+                    },
+                    onDismiss: { slotEditTarget = nil })
+                    .id(target.id)
+            } else if let index = edgePickTargetIndex {
+                EdgeCandidatePickerDialog(
+                    candidates: TimeTableUtils.edgeCandidates(effectiveTimeJson),
+                    onPickExisting: { node in
+                        if meetingBlocks.indices.contains(index) {
+                            meetingBlocks[index].isIrregularNode = true
+                            meetingBlocks[index].selectedEdgeNode = node
+                        }
+                        edgePickTargetIndex = nil
+                    },
+                    onPickNew: { candidate in
+                        newSlotTarget = NewSlotTarget(blockIndex: index, candidate: candidate)
+                        edgePickTargetIndex = nil
+                    },
+                    onDismiss: { edgePickTargetIndex = nil })
+            }
         }
     }
-
-    // 候选弹层目标需要 Identifiable 包装(sheet(item:))
-    private struct EdgePickTarget: Identifiable { let id = UUID() }
-    @State private var edgePickTarget: EdgePickTarget? = nil
 
     /// §2.3 槽位复用: 关闭非常规节次时, 无他卡引用的 owned 暂存槽位回收
     private func deselectEdge(from index: Int, released: Int) {
@@ -1775,19 +1779,16 @@ struct NumberStepperField: View {
 /// 「新建」候选点击后进入 NewEdgeSlotDialog 填时间
 private struct EdgeCandidatePickerDialog: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyUIStyle) private var style
     let candidates: [TimeTableUtils.EdgeCandidate]
     let onPickExisting: (Int) -> Void
     let onPickNew: (TimeTableUtils.EdgeCandidate) -> Void
     let onDismiss: () -> Void
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.format("irregular_node_pick"))
-                // ← AlertDialog title = headlineSmall 24sp regular
-                .font(.system(size: 24))
-                .foregroundColor(colors.onSurface)
-            ScrollView {
+        CenteredPickerDialog(title: L10n.format("irregular_node_pick"), maxContentHeight: 360,
+                             onDismiss: onDismiss) {
+            VStack(alignment: .leading, spacing: 16) {
                 VStack(spacing: 4) {
                     ForEach(candidates, id: \.self) { c in
                         Button {
@@ -1807,25 +1808,28 @@ private struct EdgeCandidatePickerDialog: View {
                         .buttonStyle(SleepyButtonStyle())
                     }
                 }
-            }
-            HStack {
-                Spacer()
-                // ← AlertDialog confirmButton(cancel): labelLarge 14sp Medium, 右对齐
-                Button(L10n.format("cancel")) { onDismiss() }
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(colors.primary)
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+                HStack {
+                    Spacer()
+                    Button(action: onDismiss) {
+                        Text(L10n.format("cancel"))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(colors.onSecondaryContainer)
+                            .padding(.horizontal, 24)
+                            .frame(height: style == .classic ? 48 : nil)
+                            .sleepyControlSurface(cornerRadius: SleepyShapes.large,
+                                                  tint: colors.secondaryContainer, prominent: true)
+                    }
+                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .frame(minHeight: style == .liquidGlass ? 48 : nil)
+                    .tint(colors.secondaryContainer)
+                }
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(colors.background)
     }
 }
 
 /// issue#23: 新建槽位 — 输入起止时间后加入 pendingEdgeInserts (保存时写回课表)
 private struct NewEdgeSlotDialog: View {
-    @Environment(\.localWakeUpColors) private var colors
     let candidate: TimeTableUtils.EdgeCandidate
     let onConfirm: (_ start: String, _ end: String) -> Void
     let onDismiss: () -> Void
@@ -1837,38 +1841,24 @@ private struct NewEdgeSlotDialog: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.format("irregular_node_new_title", candidate.node))
-                // ← AlertDialog title = headlineSmall 24sp regular
-                .font(.system(size: 24))
-                .foregroundColor(colors.onSurface)
-            TimePickerField(value: start, onValueChange: { start = $0 },
-                            label: L10n.format("edge_insert_start_label"))
-            TimePickerField(value: end, onValueChange: { end = $0 },
-                            label: L10n.format("edge_insert_end_label"))
-            // ← AlertDialog 动作区: dismissButton(cancel) 在左, confirmButton(ok) 在右, 右对齐, labelLarge 14 Medium
-            HStack {
-                Spacer()
-                Button(L10n.format("cancel")) { onDismiss() }
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(colors.primary)
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
-                Button(L10n.format("edge_insert_ok")) { onConfirm(start, end) }
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(colors.primary)
-                    .disabled(!valid)
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+        CenteredPickerDialog(title: L10n.format("irregular_node_new_title", candidate.node),
+                             onDismiss: onDismiss) {
+            VStack(alignment: .leading, spacing: 12) {
+                TimePickerField(value: start, onValueChange: { start = $0 },
+                                label: L10n.format("edge_insert_start_label"))
+                TimePickerField(value: end, onValueChange: { end = $0 },
+                                label: L10n.format("edge_insert_end_label"))
+                DialogActionButtons(confirmText: L10n.format("edge_insert_ok"),
+                                    onConfirm: { onConfirm(start, end) },
+                                    dismissText: L10n.format("cancel"), onDismiss: onDismiss,
+                                    confirmEnabled: valid)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(colors.background)
     }
 }
 
 /// issue#23 §2.5: 已有槽位默认时间编辑 — 全局生效于所有引用该槽位的课程
 private struct SlotEditDialog: View {
-    @Environment(\.localWakeUpColors) private var colors
     let node: Int
     let initialStart: String
     let initialEnd: String
@@ -1893,32 +1883,18 @@ private struct SlotEditDialog: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.format("irregular_slot_edit_title", node))
-                // ← AlertDialog title = headlineSmall 24sp regular
-                .font(.system(size: 24))
-                .foregroundColor(colors.onSurface)
-            TimePickerField(value: start, onValueChange: { start = $0 },
-                            label: L10n.format("edge_insert_start_label"))
-            TimePickerField(value: end, onValueChange: { end = $0 },
-                            label: L10n.format("edge_insert_end_label"))
-            // ← AlertDialog 动作区: dismissButton(cancel) 在左, confirmButton(ok) 在右, 右对齐, labelLarge 14 Medium
-            HStack {
-                Spacer()
-                Button(L10n.format("cancel")) { onDismiss() }
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(colors.primary)
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
-                Button(L10n.format("edge_insert_ok")) { onConfirm(start, end) }
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(colors.primary)
-                    .disabled(!valid)
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+        CenteredPickerDialog(title: L10n.format("irregular_slot_edit_title", node), onDismiss: onDismiss) {
+            VStack(alignment: .leading, spacing: 12) {
+                TimePickerField(value: start, onValueChange: { start = $0 },
+                                label: L10n.format("edge_insert_start_label"))
+                TimePickerField(value: end, onValueChange: { end = $0 },
+                                label: L10n.format("edge_insert_end_label"))
+                DialogActionButtons(confirmText: L10n.format("edge_insert_ok"),
+                                    onConfirm: { onConfirm(start, end) },
+                                    dismissText: L10n.format("cancel"), onDismiss: onDismiss,
+                                    confirmEnabled: valid)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(colors.background)
     }
 }
 
