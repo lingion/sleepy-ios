@@ -974,6 +974,101 @@ final class UIElementAuditUITests: XCTestCase {
         XCTAssertTrue(calendarEntry.isHittable)
     }
 
+    func testA7_CalendarManagedDeletionConfirmsCancelsAndCleansFixtureCapture() throws {
+        continueAfterFailure = false
+        #if !targetEnvironment(simulator)
+        throw XCTSkip("Calendar round trip is confined to the isolated simulator fixture")
+        #endif
+        launchApp(language: "en", uiStyle: "classic")
+        navigateToExport()
+        let calendarEntry = app.buttons["export_calendar_import_row"].firstMatch
+        revealAuditControl(calendarEntry)
+        calendarEntry.tap()
+        let systemAlert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+        let calendar = app.descendants(matching: .any)["calendar_import_dialog"].firstMatch
+        // EventKit completes only after the system permission request. On a fresh
+        // simulator the alert can arrive after the entry's initial idle period.
+        let permissionDeadline = Date().addingTimeInterval(20)
+        while Date() < permissionDeadline {
+            if systemAlert.exists { break }
+            if calendar.exists { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        }
+        if systemAlert.exists {
+            let allow = systemAlert.buttons.matching(NSPredicate(format: "label IN %@", [
+                "Allow Full Access", "Allow Access to All Events", "Allow", "OK",
+                "允许完全访问", "允许访问所有日程", "允许", "好"
+            ])).firstMatch
+            guard allow.waitForExistence(timeout: 5) else {
+                XCTFail("Calendar permission must expose an explicit allow action: \(systemAlert.debugDescription)")
+                return
+            }
+            allow.tap()
+        }
+        guard calendar.waitForExistence(timeout: 10) else {
+            XCTFail("Granting calendar access must open its configuration: \(app.debugDescription)")
+            return
+        }
+        let calendarTarget = app.buttons["calendar_target_picker"].firstMatch
+        revealAuditControl(calendarTarget)
+        captureScreenshot("A7_calendar-target-configuration")
+        let managed = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Delete Sleepy imports ("))
+        XCTAssertEqual(managed.count, 0, "A fresh seeded timetable must have no managed event records")
+        let range = app.buttons["calendar_range_NEXT_WEEK"].firstMatch
+        revealAuditControl(range)
+        range.tap()
+        let preview = app.buttons["Preview import"].firstMatch
+        revealAuditControl(preview)
+        XCTAssertTrue(preview.isEnabled)
+        preview.tap()
+        let summary = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "classes will be added")).firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 10))
+        let count = try XCTUnwrap(Int(summary.label.split(separator: " ").first.map(String.init) ?? ""))
+        XCTAssertGreaterThan(count, 0)
+        let confirm = app.buttons["Confirm import"].firstMatch
+        revealAuditControl(confirm)
+        confirm.tap()
+        let final = app.alerts["Confirm calendar changes"].firstMatch
+        XCTAssertTrue(final.waitForExistence(timeout: 10))
+        final.buttons["Add classes"].tap()
+        let result = app.staticTexts.matching(NSPredicate(
+            format: "label BEGINSWITH 'Added ' AND label CONTAINS ', updated ' AND label CONTAINS ', unchanged '"
+        )).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 20))
+        XCTAssertEqual(result.label, "Added \(count), updated 0, unchanged 0, edited skipped 0, invalid skipped 0, alarm fallbacks 0, failed 0")
+        let delete = app.buttons["Delete Sleepy imports (\(count))"].firstMatch
+        revealAuditControl(delete)
+        captureScreenshot("A7_calendar-managed-import-result")
+        delete.tap()
+        let deletion = app.alerts["Delete Sleepy imports?"].firstMatch
+        XCTAssertTrue(deletion.waitForExistence(timeout: 10))
+        XCTAssertTrue(deletion.staticTexts["Sleepy will verify and delete imported events for this timetable. Events you edited will be kept."].exists)
+        XCTAssertTrue(deletion.buttons["Delete imported events"].isHittable)
+        XCTAssertTrue(deletion.buttons["Cancel"].isHittable)
+        captureScreenshot("A7_calendar-managed-delete-confirmation")
+        deletion.buttons["Cancel"].tap()
+        XCTAssertTrue(waitForAuditCondition { !deletion.exists && delete.isHittable })
+        XCTAssertEqual(managed.count, 1)
+        XCTAssertEqual(managed.firstMatch.label, "Delete Sleepy imports (\(count))")
+        XCTAssertEqual(result.label, "Added \(count), updated 0, unchanged 0, edited skipped 0, invalid skipped 0, alarm fallbacks 0, failed 0")
+        captureScreenshot("A7_calendar-managed-delete-cancel-keeps-count")
+
+        // Cleanup uses the production table-scoped managed-record deletion only.
+        // It neither queries nor deletes unrelated calendar events.
+        delete.tap()
+        XCTAssertTrue(deletion.waitForExistence(timeout: 10))
+        deletion.buttons["Delete imported events"].tap()
+        let cleaned = app.staticTexts["Deleted \(count), kept after edits 0, already missing 0"].firstMatch
+        XCTAssertTrue(cleaned.waitForExistence(timeout: 20))
+        XCTAssertTrue(waitForAuditCondition { managed.count == 0 })
+        revealAuditControl(cleaned)
+        captureScreenshot("A7_calendar-managed-fixture-cleaned")
+        let cancel = app.buttons["calendar_import_cancel"].firstMatch
+        revealAuditControl(cancel)
+        cancel.tap()
+        XCTAssertTrue(waitForAuditCondition { !calendar.exists && calendarEntry.isHittable })
+    }
+
     func testA7_BellScheduleRebindPreviewCanCancelCapture() {
         launchApp(language: "en", uiStyle: "classic")
         switchToTab("manage")
