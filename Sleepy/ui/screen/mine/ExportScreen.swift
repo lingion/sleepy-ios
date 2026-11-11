@@ -244,7 +244,7 @@ struct ExportScreen: View {
         .onChange(of: exportTableId) { _ in reloadPinnedCourses(viewModel.state) }
         .onChange(of: exportPeriodTableId) { _ in reloadPinnedCourses(viewModel.state) }
         // ← 导出目标课表/作息表选择弹层 — 行样式对齐 ScheduleScreen TableSwitcherSheet(用户定版视觉)
-        .sheet(isPresented: $showTablePicker) {
+        .centeredDialog(isPresented: $showTablePicker) {
             ExportTablePickerSheet(
                 tables: state.tables,
                 periodTables: allPeriodTables,
@@ -265,7 +265,7 @@ struct ExportScreen: View {
         }
         // ← 系统日历导入配置弹窗(CalendarImportDialog):
         // 仅已授权 + hydratedTable 非空时呈现; 传入绑定作息水合后的表 + 目标表课程。
-        .fullScreenCover(isPresented: $showCalendarImport) {
+        .centeredDialog(isPresented: $showCalendarImport) {
             let state = viewModel.state
             let effectiveId = exportPeriodTableId != nil ? nil : (exportTableId ?? state.selectedTableId)
             let table = state.tables.first { $0.id == effectiveId } ?? state.currentTable
@@ -379,12 +379,7 @@ private struct ExportTablePickerSheet: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text(L10n.format("export_pick_table"))
-                .font(.system(size: 24)) // ← 原 AlertDialog 默认标题 headlineSmall 24 Regular
-                .foregroundColor(colors.onSurface)
-                .padding(.top, 16)
-            ScrollView {
+        CenteredPickerDialog(title: L10n.format("export_pick_table"), maxContentHeight: 480, onDismiss: onDismiss) {
                 VStack(spacing: 4) {
                     // ---- 上半: 全部课表 ----
                     ForEach(tables) { table in
@@ -417,12 +412,7 @@ private struct ExportTablePickerSheet: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-            }
-            .frame(maxHeight: 480)
         }
-        .padding(.bottom, 16)
-        .sheetDetents([.medium])
     }
 }
 
