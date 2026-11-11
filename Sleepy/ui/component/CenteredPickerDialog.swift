@@ -106,6 +106,7 @@ private struct CenteredDialogModifier<Dialog: View>: ViewModifier {
             dialog()
                 .environment(\.localWakeUpColors, colors)
                 .environment(\.sleepyUIStyle, style)
+                .tint(colors.primary)
                 .environment(\.layoutDirection, direction)
                 .environment(\.sizeCategory, sizeCategory)
                 .environment(\.locale, locale)
