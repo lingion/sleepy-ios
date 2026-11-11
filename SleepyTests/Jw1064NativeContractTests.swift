@@ -382,7 +382,12 @@ final class Jw1064NativeContractTests: XCTestCase {
     func testZptcHeaderMappingAndDhuOccupiedColumns() throws {
         let zptc = "<table id=kb><tr><th>时间</th><th>周日</th><th>周二</th><th>周一</th></tr><tr><td>说明</td><td><div class=pbtd id=x1_1>奇数课/单周/第3-4节[教学班][1-7]【张老师】【A101】</div><div class=pbtd id=x2_1>每周课/每周/第5-6节【李老师】【B202】[教学班][2-4]</div></td></tr></table>"
         try verify(JwZptcParser(zptc),expected("奇数课","张老师","A101",7,[3,4],[1,3,5,7])+expected("每周课","李老师","B202",2,[5,6],[2,3,4]))
-        let dhu = "<table><tr><td>节次</td>"+(1...7).map { "<td>星期\($0)</td>" }.joined()+"</tr><tr><td>三节</td><td rowspan=2></td><td colspan=2></td><td rowspan=2>设计 2周 陈 D</td>"+String(repeating:"<td></td>",count:3)+"</tr><tr><td>四节</td><td>材料 7周 刘 E</td><td></td>"+String(repeating:"<td></td>",count:3)+"</tr></table>"
+        let dhuWeekdayCells: [String] = (1...7).map { (day: Int) -> String in "<td>星期\(day)</td>" }
+        let dhuHeader: String = "<table><tr><td>节次</td>" + dhuWeekdayCells.joined() + "</tr>"
+        let dhuEmptyCells: String = String(repeating: "<td></td>", count: 3)
+        let dhuThirdPeriodRow: String = "<tr><td>三节</td><td rowspan=2></td><td colspan=2></td><td rowspan=2>设计 2周 陈 D</td>" + dhuEmptyCells + "</tr>"
+        let dhuFourthPeriodRow: String = "<tr><td>四节</td><td>材料 7周 刘 E</td><td></td>" + dhuEmptyCells + "</tr>"
+        let dhu: String = [dhuHeader, dhuThirdPeriodRow, dhuFourthPeriodRow, "</table>"].joined()
         try verify(JwDhuParser(dhu),expected("设计","陈","D",4,[3,4],[2])+expected("材料","刘","E",2,[4],[7]))
     }
     func testGzhuyjsMergedEmptyColumnsAndCdutWeekRows() throws {
