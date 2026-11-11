@@ -464,6 +464,7 @@
 		675948B576189464B48322ED /* JwCfNewFetchJs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D91020B7AECA19BEC7D1A96 /* JwCfNewFetchJs.swift */; };
 		681AC5A2C9A44C84E305E5A2 /* RowKeyDiffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C14C917D9FFF63F1BDA1150 /* RowKeyDiffer.swift */; };
 		68D4D89C50CA5A3EEB078BFD /* JwUndergradLegacyParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3959A2A9AA52FF79ADDDD3B /* JwUndergradLegacyParser.swift */; };
+		69AB25EC6B2CA8FCD9B5AEC0 /* CenteredPickerDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F146F2F86CEAFF5C16E9329F /* CenteredPickerDialog.swift */; };
 		69C8DEDC024CFA09E8F873DD /* CourseDragUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6B4F03212F282C9C164DDF /* CourseDragUITests.swift */; };
 		69FE60FF295F9F5E64767937 /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2B16F1E64028F96C4B5AD5 /* AppDatabase.swift */; };
 		6A146A0A07E98B39A265A340 /* ReminderScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D8DF7E3509AC5B4147E75C8 /* ReminderScreen.swift */; };
@@ -1844,6 +1845,7 @@
 		EF312CEED47850FE3DAC81F4 /* GridPinchAttachmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridPinchAttachmentTests.swift; sourceTree = "<group>"; };
 		EFA83C4C6953AC1887DC5C65 /* JwParseDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParseDiagnosticsTests.swift; sourceTree = "<group>"; };
 		F073CC96AA4F3E04325AF65E /* ExcelFramesetHtmlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExcelFramesetHtmlTests.swift; sourceTree = "<group>"; };
+		F146F2F86CEAFF5C16E9329F /* CenteredPickerDialog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CenteredPickerDialog.swift; sourceTree = "<group>"; };
 		F1944FA7DBE0C9A170FCA773 /* PurePeriodImportFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurePeriodImportFailureTests.swift; sourceTree = "<group>"; };
 		F23A2B4444411C710BF3C0B2 /* ImportDraftSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportDraftSheet.swift; sourceTree = "<group>"; };
 		F2485B45D8DC0E014282ACEB /* EducationalImportModalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EducationalImportModalUITests.swift; sourceTree = "<group>"; };
@@ -2060,6 +2062,7 @@
 				EE1DE2FF5CE5C12E87423907 /* AndroidMaterialIcon.swift */,
 				F5E8696F85A93B49654F9BD1 /* AndroidSettingsIcon.swift */,
 				ABE252B61C7FCF90C9B8574B /* AnimatedNavigationIcon.swift */,
+				F146F2F86CEAFF5C16E9329F /* CenteredPickerDialog.swift */,
 				C08F572C4049C60A80884CCF /* ColorPickerDialog.swift */,
 				B31ED92C2240B798F37A4F8A /* ConflictCard.swift */,
 				F5B788EE6CCD9F5CA3A6A120 /* ContentFittingSheet.swift */,
@@ -3358,6 +3361,7 @@
 				9CAC4760300910C8EB6BB8EA /* CalendarImportDialog.swift in Sources */,
 				93F1C8A6717A8342C06F9832 /* CalendarImportRecordDao.swift in Sources */,
 				57E26289B688726AD9BC1472 /* CalendarImportRecordEntity.swift in Sources */,
+				69AB25EC6B2CA8FCD9B5AEC0 /* CenteredPickerDialog.swift in Sources */,
 				B7BC3D3BC0FC4E11AFA46E7E /* ClassDayActivityCore.swift in Sources */,
 				8D16F5FEE0BAA61E94ACB83E /* ClassDayActivityManager.swift in Sources */,
 				AE905A7E772B9E13ED0B4C06 /* ClassDndScheduler.swift in Sources */,
