@@ -390,9 +390,9 @@ final class AppRootViewModel: ObservableObject {
     // ← 新建空表(AllTables / Management 共用)
     func createNewTableThenEdit() {
         let previousId = scheduleViewModel.state.currentTable?.id
-        // Select immediately so the editor has a synchronous currentTable while the
-        // GRDB observation catches up; handleBack() still rolls it back if discarded.
-        let newId = scheduleViewModel.createEmptyTable(commitSelection: true)
+        // The editor resolves the explicit new ID from the synchronously inserted
+        // table list. Creating a draft must preserve the current schedule.
+        let newId = scheduleViewModel.createEmptyTable(commitSelection: false)
         previousDefaultTableId = previousId
         pendingNewTableId = newId
         editTableId = newId

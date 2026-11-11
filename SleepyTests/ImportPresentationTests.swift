@@ -59,6 +59,37 @@ final class OverlayParentNavigationTests: XCTestCase {
     }
 
     @MainActor
+    func testNewTableSaveKeepsCurrentTableAndReturnsToItsParentList() async throws {
+        let repository = ScheduleRepository(try AppDatabase.inMemory())
+        let sourceID = try repository.insertTable(TimeTableEntity(
+            name: "Current source", startDate: "2026-09-07", isDefault: true))
+        let root = AppRootViewModel(repository: repository)
+        let deadline = Date().addingTimeInterval(3)
+        while root.scheduleViewModel.state.currentTable?.id != sourceID, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(root.scheduleViewModel.state.currentTable?.id, sourceID)
+        root.navigator.openAllTables()
+        root.createNewTableThenEdit()
+        let newID = try XCTUnwrap(root.pendingNewTableId)
+        XCTAssertNotEqual(newID, sourceID)
+        XCTAssertEqual(root.scheduleViewModel.state.selectedTableId, sourceID,
+                       "Opening an unsaved table must not replace the current schedule")
+        var saved = try XCTUnwrap(repository.getTable(newID))
+        saved.name = "Saved draft"
+        XCTAssertTrue(root.scheduleViewModel.updateTableRemappingCourses(saved, onFinish: {
+            root.finishTableSave()
+        }))
+        XCTAssertEqual(root.overlayScreen, .allTables)
+        XCTAssertNil(root.pendingNewTableId)
+        XCTAssertNil(root.editTableId)
+        XCTAssertEqual(root.scheduleViewModel.state.selectedTableId, sourceID)
+        XCTAssertEqual(Set(try repository.getAllTables().map(\.id)), [sourceID, newID])
+        XCTAssertEqual(try repository.getTable(newID)?.name, "Saved draft")
+        XCTAssertEqual(try repository.getAllTables().filter(\.isDefault).map(\.id), [sourceID])
+    }
+
+    @MainActor
     func testTableEditorBackRestoresAllTablesBeforeReturningToMain() throws {
         let (root, _) = try makeRoot()
         root.navigator.openAllTables()
