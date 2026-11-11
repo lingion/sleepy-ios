@@ -341,8 +341,8 @@ struct ExportScreen: View {
 
     // ← exportAndShare: 写临时文件 + 分享(课表/作息表共用, 文件名 sleepy_<目标名>_<stamp>_<ext>)
     private func exportFile(displayName: String, ext: String, mime: String, content: String) {
-        let fileName = "sleepy_\(displayName)_\(Self.stamp()).\(ext)"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        let url = Self.temporaryExportURL(displayName: displayName, ext: ext)
+        let fileName = url.lastPathComponent
         do {
             try content.data(using: .utf8)?.write(to: url)
             shareSheet = ShareItem(text: nil, subject: displayName, url: url)
@@ -352,6 +352,11 @@ struct ExportScreen: View {
         } catch {
             snackMessage = L10n.format("export_failed")
         }
+    }
+
+    static func temporaryExportURL(displayName: String, ext: String,
+                                   directory: URL = FileManager.default.temporaryDirectory) -> URL {
+        directory.appendingPathComponent("sleepy_\(displayName)_\(stamp()).\(ext)")
     }
 
     private static func stamp() -> String {
