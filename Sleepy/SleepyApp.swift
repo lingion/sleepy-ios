@@ -469,7 +469,6 @@ struct AppRoot: View {
     @State private var showImportSheet = false
     @State private var importTargetTableId: Int64? = nil
     @State private var importInitialText: String?
-    @State private var manualAddTargetAfterImportDismiss: Int64? = nil
     @State private var jwImportActive = false
     // 直接/外部草稿入口独立呈现，不伪造导入方式页作为返回目标。
     @State private var jwReturn = JwImportReturnState(origin: .direct)
@@ -557,14 +556,9 @@ struct AppRoot: View {
             if requested { presentRequestedImport() }
         }
         .sheet(isPresented: $showImportSheet, onDismiss: {
-            let manualTarget = manualAddTargetAfterImportDismiss
-            manualAddTargetAfterImportDismiss = nil
             importTargetTableId = nil
             importInitialText = nil
             importPresentation.didDismiss(.methods)
-            if let manualTarget {
-                root.openManualAddCourse(targetTableId: manualTarget)
-            }
             drainRequestedImportsAfterDismissal()
         }) {
             let targetTableId = importTargetTableId
@@ -577,12 +571,7 @@ struct AppRoot: View {
                         canCreateNewTable: true,
                         targetTableId: targetTableId,
                         initialImportText: importInitialText,
-                        onManualAddCourse: targetTableId.map { target in
-                            {
-                                manualAddTargetAfterImportDismiss = target
-                                showImportSheet = false
-                            }
-                        })
+                        onManualCourseSaved: { root.currentTab = .schedule })
                 .id(targetTableId)
                 .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                               customThemeVersion: customThemesJson))

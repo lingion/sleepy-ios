@@ -156,7 +156,7 @@ struct ImportSheet: View {
     var canCreateNewTable = false
     var targetTableId: Int64? = nil
     var initialImportText: String? = nil
-    var onManualAddCourse: (() -> Void)? = nil
+    var onManualCourseSaved: () -> Void = {}
 
     @State private var consumedInitialImport = false
     @State private var jwPresentation: JwImportPresentation? = nil
@@ -183,7 +183,7 @@ struct ImportSheet: View {
     @State private var pendingSelection: ImportPreview? = nil
     @State private var selectedPreview: ImportPreview? = nil
     @State private var preparationId = UUID()
-    @State private var manualTableEditor: ManualTableEditorSession?
+    @State private var manualEditor: ManualEditorSession?
 
     private var canImport: Bool {
         !isLoading && (targetTableId == nil || viewModel.state.tables.contains { $0.id == targetTableId })
@@ -278,9 +278,9 @@ struct ImportSheet: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                if targetTableId != nil, let onManualAddCourse {
+                if targetTableId != nil {
                     ImportMethodRow(id: "import_manual", icon: "plus",
-                                    label: L10n.format("add_course_manual"), onClick: onManualAddCourse)
+                                    label: L10n.format("add_course_manual"), onClick: beginManualCourse)
                         .disabled(!canImport)
                 } else if canCreateNewTable {
                     ImportMethodRow(id: "manage_new_table", icon: "plus",
@@ -585,16 +585,10 @@ struct ImportSheet: View {
         // Keep this methods instance and its paste/preview draft below the editor.
         // Interactive dismissal and the editor's Back action share one discard path.
         .sheet(item: Binding(
-            get: { manualTableEditor },
-            set: { if $0 == nil { discardManualTable() } }
+            get: { manualEditor },
+            set: { if $0 == nil { dismissManualEditor() } }
         )) { session in
-            EditTableScreen(viewModel: viewModel,
-                            tableId: session.id,
-                            pendingNewTableId: session.id,
-                            onDismiss: discardManualTable,
-                            onDiscardPending: discardManualTable,
-                            onSaved: finishManualTable,
-                            onDeleted: finishManualTable)
+            manualEditorContent(session)
                 .environment(\.localWakeUpColors, colors)
                 .environment(\.localCoursePalette, palette)
                 .environment(\.sleepyUIStyle, style)
@@ -612,25 +606,55 @@ struct ImportSheet: View {
         .background(colors.background)
     }
 
+    @ViewBuilder
+    private func manualEditorContent(_ session: ManualEditorSession) -> some View {
+        switch session {
+        case .newTable(let tableId, _):
+            EditTableScreen(viewModel: viewModel,
+                            tableId: tableId,
+                            pendingNewTableId: tableId,
+                            onDismiss: dismissManualEditor,
+                            onDiscardPending: dismissManualEditor,
+                            onSaved: finishManualEditor,
+                            onDeleted: finishManualEditor)
+        case .course(let tableId):
+            AddCourseScreen(viewModel: viewModel,
+                            onDismiss: dismissManualEditor,
+                            onSaved: finishManualEditor,
+                            targetTableId: tableId)
+        }
+    }
+
     private func beginManualTable() {
-        guard manualTableEditor == nil, canCreateNewTable, targetTableId == nil, canImport else { return }
+        guard manualEditor == nil, canCreateNewTable, targetTableId == nil, canImport else { return }
         inputFocused = false
         Self.dismissKeyboard()
         let fallbackId = viewModel.state.currentTable?.id
         let tableId = viewModel.createEmptyTable(commitSelection: false)
         guard tableId != 0 else { return }
-        manualTableEditor = ManualTableEditorSession(id: tableId, fallbackId: fallbackId)
+        manualEditor = .newTable(id: tableId, fallbackId: fallbackId)
     }
 
-    private func discardManualTable() {
-        guard let session = manualTableEditor else { return }
-        manualTableEditor = nil
-        viewModel.discardNewTable(session.id, fallbackId: session.fallbackId)
+    private func beginManualCourse() {
+        guard manualEditor == nil, let targetTableId, canImport else { return }
+        inputFocused = false
+        Self.dismissKeyboard()
+        manualEditor = .course(targetTableId: targetTableId)
     }
 
-    private func finishManualTable() {
-        // Saving resolves the pending table before SwiftUI dismisses its child sheet.
-        manualTableEditor = nil
+    private func dismissManualEditor() {
+        guard let session = manualEditor else { return }
+        manualEditor = nil
+        if case .newTable(let tableId, let fallbackId) = session {
+            viewModel.discardNewTable(tableId, fallbackId: fallbackId)
+        }
+    }
+
+    private func finishManualEditor() {
+        guard let session = manualEditor else { return }
+        // Resolve the pending editor before SwiftUI dismisses its child sheet.
+        manualEditor = nil
+        if case .course = session { onManualCourseSaved() }
     }
 
     private func updateImportInputViewport(_ size: CGSize) {
@@ -930,9 +954,16 @@ struct ImportSheet: View {
     }
 }
 
-private struct ManualTableEditorSession: Identifiable {
-    let id: Int64
-    let fallbackId: Int64?
+private enum ManualEditorSession: Identifiable {
+    case newTable(id: Int64, fallbackId: Int64?)
+    case course(targetTableId: Int64)
+
+    var id: String {
+        switch self {
+        case .newTable(let id, _): return "table:\(id)"
+        case .course(let targetTableId): return "course:\(targetTableId)"
+        }
+    }
 }
 
 // Identifiable 包装(sheet(item:) 需要)
