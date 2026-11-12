@@ -8,13 +8,54 @@ final class RangeSliderUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-SLEEPY_UI_TEST_SEED"]
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+                               "-SLEEPY_UI_TEST_SEED", "-ui_style", "classic"]
         app.sleepyLaunch()
         XCTAssertTrue(pager.waitForExistence(timeout: 15))
         waitForWeek(1)
     }
 
     override func tearDown() { app.terminate() }
+
+    func testLiquidGlassKeepsBothEndpointsOnOneTrack() throws {
+        app.terminate()
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+                               "-SLEEPY_UI_TEST_SEED", "-ui_style", "liquid_glass"]
+        app.sleepyLaunch()
+        XCTAssertTrue(pager.waitForExistence(timeout: 15))
+        app.buttons["topbar_add"].tap()
+        XCTAssertTrue(app.staticTexts["Create Course"].waitForExistence(timeout: 5))
+
+        let form = try formScrollView()
+        let start = element("course_week_range_start")
+        let end = element("course_week_range_end")
+        let summary = element("course_week_range_summary")
+        let startField = app.textFields["Start Week"]
+        let endField = app.textFields["End Week"]
+        try reveal([summary, start, end, startField, endField], in: form)
+        XCTAssertEqual(start.frame.midY, end.frame.midY, accuracy: 1,
+                       "A course range must show both handles on the same track in Liquid Glass")
+
+        let firstCenter = CGPoint(x: start.frame.midX, y: start.frame.midY)
+        let lastCenter = CGPoint(x: end.frame.midX, y: end.frame.midY)
+        let weekPitch = (lastCenter.x - firstCenter.x) / 15
+        XCTAssertGreaterThan(weekPitch, 0)
+        coordinate(firstCenter).press(forDuration: 0.1, thenDragTo:
+            coordinate(CGPoint(x: firstCenter.x + 2 * weekPitch, y: firstCenter.y)))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "glass-range-after-start-drag"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        assertValue(start, "3")
+        assertValue(end, "16")
+        assertValue(startField, "3")
+        coordinate(lastCenter).press(forDuration: 0.1, thenDragTo:
+            coordinate(CGPoint(x: firstCenter.x + 7 * weekPitch, y: lastCenter.y)))
+        assertValue(start, "3")
+        assertValue(end, "8")
+        assertValue(endField, "8")
+        wait(summary, predicate: "label == %@", argument: "Weeks 3–8")
+    }
 
     // R1–R3: real thumb drags, field synchronization, Apply, save and persisted week boundaries.
     func testBothWeekThumbsSynchronizeFieldsAndPersistAppliedRange() throws {
@@ -157,7 +198,9 @@ final class RangeSliderUITests: XCTestCase {
                       file: StaticString = #filePath, line: UInt = #line) {
         let condition = argument.map { NSPredicate(format: predicate, $0) } ?? NSPredicate(format: predicate)
         let expectation = XCTNSPredicateExpectation(predicate: condition, object: item)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, file: file, line: line)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed,
+                       "Expected \(predicate) \(argument ?? ""); label=\(item.label), value=\(String(describing: item.value))",
+                       file: file, line: line)
     }
 
     private func assertValue(_ item: XCUIElement, _ value: String,

@@ -94,28 +94,42 @@ final class CourseEditorUITests: XCTestCase {
         XCTAssertTrue(nodeSlider.waitForExistence(timeout: 5), "Expanding restores the period controls")
     }
 
-    func testGlassMeetingRangeUsesNativeSlidersAndRetainsValuesAfterCollapse() {
+    func testGlassMeetingRangeUsesOneTrackAndRetainsValuesAfterCollapse() {
         app.terminate()
         app.launchArguments += ["-ui_style", "liquid_glass"]
         app.sleepyLaunch()
         openEditor()
-        let start = app.sliders.matching(NSPredicate(format:
+        let start = app.descendants(matching: .any).matching(NSPredicate(format:
             "identifier BEGINSWITH 'course_slot_' AND identifier ENDSWITH '_nodes_start'")).firstMatch
-        let end = app.sliders.matching(NSPredicate(format:
+        let end = app.descendants(matching: .any).matching(NSPredicate(format:
             "identifier BEGINSWITH 'course_slot_' AND identifier ENDSWITH '_nodes_end'")).firstMatch
         for _ in 0..<10 {
             if end.exists && end.isHittable { break }
             app.swipeUp()
         }
-        XCTAssertTrue(start.exists && end.exists, "Both endpoints must expose native adjustable sliders")
+        XCTAssertTrue(start.exists && end.exists, "Both range handles must be adjustable")
         XCTAssertTrue(end.isHittable)
-        end.adjust(toNormalizedSliderPosition: 0.8)
-        for _ in 0..<5 {
-            if start.isHittable { break }
-            app.swipeDown()
-        }
         XCTAssertTrue(start.isHittable)
-        start.adjust(toNormalizedSliderPosition: 0.4)
+        XCTAssertEqual(start.frame.midY, end.frame.midY, accuracy: 1,
+                       "The two range handles must share one track")
+        guard let initialFirst = Int(start.value as? String ?? ""),
+              let initialLast = Int(end.value as? String ?? ""), initialLast > initialFirst else {
+            return XCTFail("The new course must start with a nonempty period interval")
+        }
+        let pitch = (end.frame.midX - start.frame.midX) / CGFloat(initialLast - initialFirst)
+        XCTAssertGreaterThan(pitch, 0)
+        end.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.1,
+            thenDragTo: end.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .withOffset(CGVector(dx: 4 * pitch, dy: 0)))
+        let expanded = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", String(initialLast + 4)), object: end)
+        XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed)
+        start.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.1,
+            thenDragTo: start.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .withOffset(CGVector(dx: 2 * pitch, dy: 0)))
+        let advanced = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", String(initialFirst + 2)), object: start)
+        XCTAssertEqual(XCTWaiter.wait(for: [advanced], timeout: 5), .completed)
         guard let first = Int(start.value as? String ?? ""), let last = Int(end.value as? String ?? "") else {
             return XCTFail("The endpoint accessibility values must retain their integer semantics")
         }
@@ -151,7 +165,7 @@ final class CourseEditorUITests: XCTestCase {
         XCTAssertEqual(start.value as? String, String(first))
         XCTAssertEqual(end.value as? String, String(last))
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = "native-glass-course-range"
+        attachment.name = "glass-course-range-two-handles"
         attachment.lifetime = .keepAlways
         add(attachment)
     }

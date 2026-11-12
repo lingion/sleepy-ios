@@ -40,7 +40,6 @@ struct IntSliderRange: Equatable {
 
 /// Two independently adjustable thumbs. The original range is decoration only.
 struct IntRangeSlider: View {
-    @Environment(\.sleepyUIStyle) private var style
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.isEnabled) private var isEnabled
@@ -77,14 +76,7 @@ struct IntRangeSlider: View {
                 .foregroundColor(colors.onSurface)
                 .accessibilityIdentifier(identifier + "_summary")
             if upper > minValue {
-                if style == .liquidGlass {
-                    VStack(alignment: .leading, spacing: 8) {
-                        nativeEndpoint(.start)
-                        nativeEndpoint(.end)
-                    }
-                } else {
-                    classicSlider
-                }
+                rangeSlider
             }
         }
         .opacity(isEnabled ? 1 : 0.45)
@@ -92,33 +84,9 @@ struct IntRangeSlider: View {
         .onDisappear(perform: resetDrag)
     }
 
-    private func nativeEndpoint(_ thumb: Thumb) -> some View {
-        let start = thumb == .start
-        let value = start ? range.start : range.end
-        let label = start ? startLabel : endLabel
-        return VStack(alignment: .leading, spacing: 0) {
-            Text("\(label)  \(value)")
-                .font(.system(size: 14))
-                .foregroundColor(colors.onSurfaceVariant)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityHidden(true)
-            NativeBaselineSlider(value: Double(value), range: Double(minValue)...Double(upper),
-                baseline: ghost.map { Double(start ? $0.start : $0.end) },
-                label: label, valueText: String(value),
-                onValueChange: { proposed in
-                    let updated = start
-                        ? range.movingStart(to: Int(proposed.rounded()), minimum: minValue)
-                        : range.movingEnd(to: Int(proposed.rounded()), maximum: upper)
-                    onValueChange(updated.start, updated.end)
-                }, onFinished: {},
-                allowedRange: start ? Double(minValue)...Double(range.end) : Double(range.start)...Double(upper),
-                step: 1, baselineTolerance: 0,
-                identifier: identifier + (start ? "_start" : "_end"))
-                .frame(height: 44)
-        }
-    }
-
-    private var classicSlider: some View {
+    // A range is one shared track in both themes. Two stacked UISliders hide
+    // the selected interval and turn the range into unrelated endpoint fields.
+    private var rangeSlider: some View {
         GeometryReader { geometry in
             let width = max(1, geometry.size.width - 44)
             let first = position(range.start, width: width)
