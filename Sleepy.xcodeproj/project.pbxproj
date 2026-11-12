@@ -324,6 +324,7 @@
 		493CAC2EAAFAC9013C62D538 /* CourseRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 294E4802305814CD4DB358BA /* CourseRowView.swift */; };
 		496DF2875E115783B5201D7F /* ConflictLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4045004893D9AB9C079A3CF /* ConflictLayoutEngine.swift */; };
 		49AD0C477477A5A542A79564 /* JwQzTimetableParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 014C8A3CE9CB621A080B9335 /* JwQzTimetableParser.swift */; };
+		49DA4B9A37E648DE21B3E9E4 /* NavigationTransitionCanvasUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9129C88AA1917B0C61A1EC8 /* NavigationTransitionCanvasUITests.swift */; };
 		49F6DE480603AA9970381146 /* TimeTableValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FBCDC0D6D4C72569B6B45B0 /* TimeTableValidation.swift */; };
 		4ADBE56C6B4087A04783AC85 /* CustomSchemeDeriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F2D8DA1BAD4105612867AE /* CustomSchemeDeriver.swift */; };
 		4AE70CB674F0E57B96A92C94 /* WidgetScrollStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E863D5E148DA13657A66F19F /* WidgetScrollStore.swift */; };
@@ -1798,6 +1799,7 @@
 		D81A47CC19CD103543B9322D /* CourseColorWriteGlueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseColorWriteGlueTests.swift; sourceTree = "<group>"; };
 		D8586C130A8636DBE2C68C55 /* HolidayReminderPolicyAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayReminderPolicyAdapter.swift; sourceTree = "<group>"; };
 		D8594A29E16AA5CD4AA06BD6 /* MigrationV11Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationV11Tests.swift; sourceTree = "<group>"; };
+		D9129C88AA1917B0C61A1EC8 /* NavigationTransitionCanvasUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationTransitionCanvasUITests.swift; sourceTree = "<group>"; };
 		D9D08D0F2D4A4985859EFCC8 /* WidgetGlassPreviewRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGlassPreviewRenderTests.swift; sourceTree = "<group>"; };
 		D9E65E0A96D2A5C25FB4B455 /* SmartPeriodBoundaryParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPeriodBoundaryParityTests.swift; sourceTree = "<group>"; };
 		DA5552387A1965D9D7A826FD /* NotificationSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSchedulerTests.swift; sourceTree = "<group>"; };
@@ -2855,6 +2857,7 @@
 				F8A0EF2E319E98B292C560CE /* JwWebViewBlankTargetUITests.swift */,
 				C2F2A17F12A54A7F6392BA2C /* ManageImportUITests.swift */,
 				AD3F0EE026CF01741657A7AD /* MineSettingsUITests.swift */,
+				D9129C88AA1917B0C61A1EC8 /* NavigationTransitionCanvasUITests.swift */,
 				B242D6295A73E40C47DC92F3 /* NewScreensWiringUITests.swift */,
 				88D31DA87EF81F618A3A6438 /* QuickAddCourseUITests.swift */,
 				9782D58A3B421E8D061161A4 /* RangeSliderUITests.swift */,
@@ -3726,6 +3729,7 @@
 				488B6FCD75861629BFB511C2 /* JwWebViewBlankTargetUITests.swift in Sources */,
 				5BB9CEB5499F051A3EE0F4D2 /* ManageImportUITests.swift in Sources */,
 				5A08679A20DB96F3A56D5DBB /* MineSettingsUITests.swift in Sources */,
+				49DA4B9A37E648DE21B3E9E4 /* NavigationTransitionCanvasUITests.swift in Sources */,
 				DF925D4C6706D4F3113C9F4C /* NewScreensWiringUITests.swift in Sources */,
 				425CF43B8F788D34E9402CDB /* QuickAddCourseUITests.swift in Sources */,
 				70A4B70CF4D6EA633D3E8F84 /* RangeSliderUITests.swift in Sources */,
