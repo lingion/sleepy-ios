@@ -11,7 +11,7 @@
 //   1. 取色器:原版本 ColorPickerDialog → 本仓 NativeColorPicker(UIColorPickerViewController)。
 //      它回 "#AARRGGBB"(9 位),落库前统一裁成 "#RRGGBB",保持与 原版本 同一存储形状。
 //   2. 返回拦截:原版本 BackHandler 分层(删除确认 > 取色器 > 编辑器)→ iOS
-//      .interactiveDismissDisabled(dirty) 挡住下滑手势 + 顶栏返回键在 dirty 时弹确认,
+//      草稿未保存时禁用原生交互返回, 顶栏返回键弹出丢弃确认,
 //      绝静默丢弃(95c1dab3 语义)。
 //   3. 「从主色生成整套」与「逐角色手选」是独立入口;手选主色只更新主色。
 
@@ -214,6 +214,7 @@ struct CustomThemeEditorScreen: View {
             Button(L10n.format("cancel"), role: .cancel) {}
         }
         .interactiveDismissDisabled(isDirty)
+        .sleepyNavigationBackDisabled(isDirty)
     }
 
     private func requestBack() {

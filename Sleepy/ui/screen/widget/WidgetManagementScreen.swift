@@ -130,24 +130,21 @@ struct WidgetManagementScreen: View {
                 Task { items = await loadItems() }
             }
         }
-        // ← onSelect(widgetId) 导航: fullScreenCover 叠放(manage → edit 两级)
-        .fullScreenCover(item: $editTarget) { target in
+        .sleepyNavigationPage(item: $editTarget, onDismiss: {
+            Task { items = await loadItems() }
+        }, canvas: {
+            colors.background.ignoresSafeArea()
+        }) { target in
             // ← family 透传 (设计 §6): 编辑页族门控 (滚动/三天窗口节) 依据
             WidgetEditScreen(kind: target.kind, family: target.family,
-                             onDismiss: {
-                                 editTarget = nil
-                                 // ← 原版本 ON_RESUME 重扫: 编辑绑定改课后回列表重扫
-                                 Task { items = await loadItems() }
-                             })
+                             onDismiss: { editTarget = nil })
         }
-        // v1.0.62 B4: 右上「＋」→ 画廊页(第三级叠放)
-        .fullScreenCover(isPresented: $showGallery) {
-            WidgetGalleryScreen(onDismiss: {
-                showGallery = false
-                // ← 画廊 pin → 返回本页: 重扫已放置实例(单一真源 = WidgetCenter),
-                //    新卡片即时可见, 无需手动刷新(原版本 ON_RESUME 重扫同义)
-                Task { items = await loadItems() }
-            })
+        .sleepyNavigationPage(isPresented: $showGallery, onDismiss: {
+            Task { items = await loadItems() }
+        }, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
+            WidgetGalleryScreen(onDismiss: { showGallery = false })
         }
     }
 }

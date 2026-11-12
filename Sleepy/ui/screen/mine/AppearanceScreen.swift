@@ -150,9 +150,10 @@ struct AppearanceScreen: View {
         }
         .background(colors.background)
         .onReceive(prefs.uiStylePublisher) { uiStyle = $0 }
-        // 自定义主题编辑器 ← 原版本 全屏 overlay;iOS 用 sheet 承载,
-        // 这样编辑器内部的 .interactiveDismissDisabled(dirty) 才真正挡住下滑手势。
-        .sheet(isPresented: $showEditor, onDismiss: { editingTheme = nil }) {
+        .sleepyNavigationPage(isPresented: $showEditor,
+                             onDismiss: { editingTheme = nil }, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
             CustomThemeEditorScreen(
                 editing: editingTheme,
                 nextThemeNumber: customThemes.count + 1,
@@ -160,7 +161,6 @@ struct AppearanceScreen: View {
                 onSaved: saveTheme,
                 onDeleted: deleteTheme
             )
-            // sheet 内容不保证继承宿主 environment,显式把当前主题色带进去
             .environment(\.localWakeUpColors, colors)
         }
     }

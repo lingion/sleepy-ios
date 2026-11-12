@@ -319,7 +319,9 @@ struct EditTableScreen: View {
         //   时仅重播选择器初值 pendingBind, 不重建整个会话
         .onChange(of: table.periodTableId) { _ in pendingBind = table.periodTableId }
         .onChange(of: scheduleKey) { _ in reloadSchedule(table: table, effective: effective) }
-        .sheet(isPresented: $showHolidaySettings) {
+        .sleepyNavigationPage(isPresented: $showHolidaySettings, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
             HolidaySettingsScreen(onDismiss: { showHolidaySettings = false },
                                   tableId: viewModel.state.selectedTableId,
                                   initialTableId: table.id,

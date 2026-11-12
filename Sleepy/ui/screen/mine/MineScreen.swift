@@ -18,8 +18,7 @@ struct MineScreen: View {
     var onOpenReminder: () -> Void = {}
     var onOpenAbout: () -> Void = {}
 
-    // v1.0.62 B4: 「小组件」入口 → WidgetSettingsScreen(内嵌 cover 链,
-    //   与 holiday/widgetManagement 同款惯例, 无根 overlay 承载)
+    // Complete settings pages share the app's native navigation stack.
     @State private var showWidgetSettings = false
     @State private var settingsSheet: SettingsSheet?
     private enum SettingsSheet: String, Identifiable {
@@ -77,8 +76,9 @@ struct MineScreen: View {
             .padding(.bottom, navExtra)
         }
         .background(colors.background)
-        // v1.0.62 B4: 小组件设置页 cover(与 GeneralSettings→WidgetManagement 链同款惯例)
-        .sheet(item: $settingsSheet) { sheet in
+        .sleepyNavigationPage(item: $settingsSheet, canvas: {
+            colors.background.ignoresSafeArea()
+        }) { sheet in
             switch sheet {
             case .holiday:
                 HolidaySettingsScreen(onDismiss: { settingsSheet = nil },
@@ -88,7 +88,9 @@ struct MineScreen: View {
                 GeneralSettingsScreen(onDismiss: { settingsSheet = nil }, viewModel: viewModel, section: .backup)
             }
         }
-        .fullScreenCover(isPresented: $showWidgetSettings) {
+        .sleepyNavigationPage(isPresented: $showWidgetSettings, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
             WidgetSettingsScreen(onDismiss: { showWidgetSettings = false }, viewModel: viewModel)
         }
     }

@@ -9,7 +9,7 @@
 // 偏好存储键零迁移 — 与 GeneralSettingsScreen 时代完全一致。
 //
 // ★ 平台差异(差异表#8 附注): 原版本 ON_RESUME 重扫桌面实例; iOS 无 lifecycle
-//   等价 → 管理页 fullScreenCover 关闭回调处 reload(去画廊/桌面增删小组件后
+//   等价 → 管理页返回回调处 reload(去画廊/桌面增删小组件后
 //   回本页, 刷新按钮出现/消失态不滞留), 首次进入走 .task。
 
 import SwiftUI
@@ -20,7 +20,6 @@ struct WidgetSettingsScreen: View {
     @Environment(\.sleepyUIStyle) private var style
     @Environment(\.localNavExtraBottomPadding) private var navExtra
     @Environment(\.scenePhase) private var scenePhase
-    // ★ v7.10.18 原生化: onDismiss(由 MineScreen fullScreenCover 关闭)
     let onDismiss: () -> Void
     var viewModel: ScheduleViewModel? = nil
 
@@ -141,16 +140,17 @@ struct WidgetSettingsScreen: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active { reloadPlaced() }
         }
-        .fullScreenCover(isPresented: $showSharedDisplay) {
+        .sleepyNavigationPage(isPresented: $showSharedDisplay, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
             ScheduleDisplayScreen(onDismiss: { showSharedDisplay = false }, viewModel: viewModel)
         }
-        .fullScreenCover(isPresented: $showManage) {
-            WidgetManagementScreen(onDismiss: {
-                showManage = false
-                // ← 原版本 ON_RESUME 重扫: 画廊 pin/编辑绑定后回本页重扫,
-                //    刷新按钮出现/消失态不滞留
-                reloadPlaced()
-            })
+        .sleepyNavigationPage(isPresented: $showManage, onDismiss: {
+            reloadPlaced()
+        }, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
+            WidgetManagementScreen(onDismiss: { showManage = false })
         }
     }
 
