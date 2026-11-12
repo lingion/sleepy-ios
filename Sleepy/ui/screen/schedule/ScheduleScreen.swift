@@ -10,6 +10,13 @@ enum ViewMode: Hashable {
     case cards  // ← ViewMode.Cards (网格)
 }
 
+private enum WeekPageMotion {
+    static var animation: Animation {
+        UIAccessibility.isReduceMotionEnabled ? .easeOut(duration: 0.15)
+            : .timingCurve(0.1, 0.1, 0, 1, duration: 0.3)
+    }
+}
+
 /// Keep the selected occurrence and its display context together across layout changes.
 struct ScheduleCourseDetailRequest: Identifiable {
     let id = UUID()
@@ -145,15 +152,15 @@ struct ScheduleScreen: View {
                     // actualWeek/semesterStatus 优先取 VM 展示上下文(最近有课日逻辑),
                     // 表头不再与 VM 判定分叉(issue F106-8)
                     displayContext: state.weekDisplayContext,
-                    onPrevWeek: { viewModel.changeWeek(state.selectedWeek - 1) },
+                    onPrevWeek: { selectWeek(state.selectedWeek - 1) },
                     onNextWeek: {
-                        viewModel.changeWeek(state.selectedWeek + 1)
+                        selectWeek(state.selectedWeek + 1)
                     },
                     onJumpToActual: {
                         guard let start = state.currentTable?.startDate else { return }
-                        viewModel.changeWeek(DateUtils.currentWeek(startDate: start))
+                        selectWeek(DateUtils.currentWeek(startDate: start))
                     },
-                    onSelectWeek: { week in viewModel.changeWeek(week) },
+                    onSelectWeek: selectWeek,
                     onUndo: {
                         // v7.10.16: 任何课表数据改动可一键撤销一次
                         if !viewModel.undoLastChange() { showToast(L10n.format("schedule_undo_none")) }
@@ -298,7 +305,7 @@ struct ScheduleScreen: View {
                 WeekJumpMenu(currentWeek: state.selectedWeek,
                              maxWeek: state.displayMaxWeek,
                              onSelect: { week in
-                                 viewModel.changeWeek(week)
+                                 selectWeek(week)
                                  showWeekJumpMenu = false
                              },
                              onDismiss: { showWeekJumpMenu = false })
@@ -341,6 +348,12 @@ struct ScheduleScreen: View {
     private func showToast(_ message: String) {
         toastMessage = message
         toastToken += 1   // 单调 token: 同款文案连点也能重启消失计时
+    }
+
+    private func selectWeek(_ week: Int) {
+        // TabView's page selection is bridged to UIKit. Put the mutation in
+        // the animation transaction; animating only its content does not slide pages.
+        withAnimation(WeekPageMotion.animation) { viewModel.changeWeek(week) }
     }
 }
 
@@ -497,15 +510,21 @@ private struct WeekPager: View {
     var body: some View {
         dragPager
             .onReceive(drag.$source.map { $0?.displayWeek }.removeDuplicates()) { sourceWeek in
-                var transaction = Transaction(animation: nil)
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    if let hostWeek = dragHostWeek, sourceWeek == nil,
-                       hostWeek != viewModel.state.selectedWeek {
-                        // Start at the final week; the old pinned pager can report intermediate pages.
-                        pagerEpoch &+= 1
+                // CurrentValuePublisher can emit while SwiftUI installs this
+                // subscription. Apply the host change after that render, and
+                // discard an event superseded by a newer lift/dismissal.
+                DispatchQueue.main.async {
+                    guard drag.source?.displayWeek == sourceWeek, sourceWeek != dragHostWeek else { return }
+                    var transaction = Transaction(animation: nil)
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        if let hostWeek = dragHostWeek, sourceWeek == nil,
+                           hostWeek != viewModel.state.selectedWeek {
+                            // Start at the final week; the old pinned pager can report intermediate pages.
+                            pagerEpoch &+= 1
+                        }
+                        dragHostWeek = sourceWeek
                     }
-                    dragHostWeek = sourceWeek
                 }
             }
             .onChange(of: viewModel.state.selectedTableId) { _ in drag.end(); viewModel.cancelPendingCourseMove() }
@@ -523,12 +542,28 @@ private struct WeekPager: View {
                 Button(L10n.t("ok"), role: .cancel) {}
             }
             .alert(viewModel.pendingCourseMove?.confirmationTitle ?? "",
-                   isPresented: Binding(get: { viewModel.pendingCourseMove != nil }, set: { _ in }),
-                   presenting: viewModel.pendingCourseMove) { _ in
-                Button(L10n.t("ok")) {
-                    if !viewModel.confirmPendingCourseMove() { dragError = true }
+                   isPresented: Binding(get: { viewModel.courseMovePromptPresented }, set: { _ in }),
+                   presenting: viewModel.pendingCourseMove) { request in
+                let respond: (CourseDragMoveChoice) -> Void = { choice in
+                    switch viewModel.advancePendingCourseMove(choice) {
+                    case .awaitingApproval: break
+                    case .saved: drag.resolveConfirmation(saved: true)
+                    case .canceled: drag.resolveConfirmation(saved: false)
+                    case .failed:
+                        drag.resolveConfirmation(saved: false)
+                        DispatchQueue.main.async { dragError = true }
+                    }
+                }
+                Button(request.confirmationAction, role: request.confirmationIsDestructive ? .destructive : nil) {
+                    respond(.confirm)
                 }.accessibilityIdentifier("course_move_confirm")
-                Button(L10n.t("cancel"), role: .cancel) { viewModel.cancelPendingCourseMove() }
+                if request.prompt == .destination {
+                    Button(L10n.t("occurrence_direct")) { respond(.direct) }
+                        .accessibilityIdentifier("course_move_direct")
+                }
+                Button(L10n.t("conflict_detail_go_back"), role: .cancel) {
+                    respond(.cancel)
+                }
                     .accessibilityIdentifier("course_move_cancel")
             } message: { request in
                 Text(request.confirmationMessage)
@@ -558,30 +593,37 @@ private struct WeekPager: View {
             }
         )) {
             ForEach(1...pagerMaxWeek, id: \.self) { page in
-                ZStack {
+                GeometryReader { geometry in
                     weekPage(page, renderSelectedWeek: dragHostWeek ?? state.selectedWeek,
                              publishesDropGrid: dragHostWeek == nil || page == dragHostWeek)
-                        .opacity(dragHostWeek == nil || page == state.selectedWeek ? 1 : 0)
+                        .offset(x: dragHostWeek == nil ? 0 : CGFloat(page - state.selectedWeek) * geometry.size.width)
                     if dragHostWeek == page {
-                        dragTargetPages
+                        dragTargetPages(width: geometry.size.width)
                     }
                 }
+                .clipped()
+                .animation(weekPageAnimation, value: state.selectedWeek)
                 .tag(page)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tabViewStyle(.page(indexDisplayMode: .never))
+        .animation(dragHostWeek == nil ? weekPageAnimation : nil, value: state.selectedWeek)
         .id(epoch)
     }
 
-    private var dragTargetPages: some View {
+    private var weekPageAnimation: Animation {
+        WeekPageMotion.animation
+    }
+
+    private func dragTargetPages(width: CGFloat) -> some View {
         let state = viewModel.state
         return ForEach(1...pagerMaxWeek, id: \.self) { page in
             if page != dragHostWeek,
                TimetableViewportPolicy.shouldRenderWeek(page, selectedWeek: state.selectedWeek,
                                                          dragHostWeek: nil) {
                 weekPage(page, renderSelectedWeek: state.selectedWeek, publishesDropGrid: true)
-                    .opacity(page == state.selectedWeek ? 1 : 0)
+                    .offset(x: CGFloat(page - state.selectedWeek) * width)
                     .allowsHitTesting(page == state.selectedWeek)
             }
         }
@@ -667,24 +709,22 @@ private struct WeekPager: View {
     private var dragPager: some View {
         let state = viewModel.state
         return pages
-        .blur(radius: drag.source == nil ? 0 : 6)
-        .overlay {
-            if drag.source != nil { Color.black.opacity(0.15).allowsHitTesting(false) }
-        }
+        .modifier(CourseDragBackdrop(drag: drag))
         .onPreferenceChange(CourseDropGridKey.self) { drag.grids = $0 }
         .background(NativeCourseDropTarget(drag: drag, week: state.selectedWeek, maxWeek: pagerMaxWeek,
             table: state.effectiveCurrentTable, allCourses: state.courses, transfers: state.transfers,
             enabled: dragEnabled && viewMode == .cards && !dragError && quickAdd.selection == nil
                 && viewModel.pendingCourseMove == nil,
             onChangeWeek: { week in
-                // 拖动驻边直接换周，避免横移动画把落点网格带出手指位置。
-                var transaction = Transaction(animation: nil)
-                transaction.disablesAnimations = true
-                withTransaction(transaction) { viewModel.changeWeek(week) }
+                // The preview lives in UIWindow; only the pinned page stack moves.
+                // Hit testing uses the target week's measured grid in the viewport.
+                withAnimation(weekPageAnimation) { viewModel.changeWeek(week) }
             },
-            onMove: { source, week, day, node, startTime, step in
+            onMove: { source, week, day, node, startTime, step, resizeOnly in
                 let success = viewModel.stageDraggedOccurrence(source: source, targetWeek: week,
-                    displayDay: day, targetNode: node, targetStartTime: startTime, targetStep: step)
+                    displayDay: day, targetNode: node, targetStartTime: startTime, targetStep: step,
+                    resizeOnly: resizeOnly)
+                if success && viewModel.pendingCourseMove == nil { drag.resolveConfirmation(saved: true) }
                 if !success { dragError = true }
                 return success
             }, onOccurrenceAction: { source, editing in
@@ -701,6 +741,7 @@ private struct WeekPager: View {
                     table: table, startInEdit: editing, startWithDelete: !editing)
             }))
         .overlay(CourseDragProjection(drag: drag))
+        .overlay(CourseDragEdgePeek(drag: drag))
         .accessibilityIdentifier("schedule_week_pager")
     }
 

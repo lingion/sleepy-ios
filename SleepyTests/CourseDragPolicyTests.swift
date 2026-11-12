@@ -154,6 +154,14 @@ final class CourseDragPolicyTests: XCTestCase {
         XCTAssertNil(grid.target(at: CGPoint(x: 150, y: 260), step: 2))
     }
 
+    func testDropRejectsSpanAcrossAMissingMiddleNode() {
+        let grid = CourseDropGrid(frame: CGRect(x: 0, y: 100, width: 300, height: 200),
+            days: [2, 4], timeWidth: 40, columnWidth: 100, gap: 4,
+            rows: [.init(node: 1, top: 0, bottom: 45), .init(node: 3, top: 100, bottom: 145)])
+        XCTAssertNil(grid.target(at: CGPoint(x: 90, y: 105), step: 3))
+        XCTAssertEqual(grid.target(at: CGPoint(x: 90, y: 105), step: 1)?.node, 1)
+    }
+
     func testDwellRepeatsEveryHalfSecondAndResetsOnExit() {
         var paging = CourseDragEdgePaging()
         XCTAssertNil(paging.update(direction: 1, now: 0, week: 1, maxWeek: 20))
@@ -163,6 +171,41 @@ final class CourseDragPolicyTests: XCTestCase {
         XCTAssertNil(paging.update(direction: 0, now: 1.1, week: 3, maxWeek: 20))
         XCTAssertNil(paging.update(direction: 1, now: 2, week: 3, maxWeek: 20))
         XCTAssertEqual(paging.update(direction: 1, now: 2.5, week: 3, maxWeek: 20), 4)
+    }
+
+    func testEdgePreviewFadesAfter35PercentAndResetsAfterEachPage() {
+        var paging = CourseDragEdgePaging()
+        XCTAssertNil(paging.update(direction: 1, now: 10, week: 2, maxWeek: 4))
+        XCTAssertEqual(paging.feedback(direction: 1, now: 10.1, week: 2, maxWeek: 4).opacity, 0)
+        let visible = paging.feedback(direction: 1, now: 10.3, week: 2, maxWeek: 4)
+        XCTAssertEqual(visible.targetWeek, 3)
+        XCTAssertEqual(visible.progress, 0.6, accuracy: 0.001)
+        XCTAssertGreaterThan(visible.opacity, 0)
+        XCTAssertGreaterThan(visible.scale, 1)
+        XCTAssertEqual(paging.update(direction: 1, now: 10.5, week: 2, maxWeek: 4), 3)
+        XCTAssertEqual(paging.feedback(direction: 1, now: 10.5, week: 3, maxWeek: 4).opacity, 0)
+        XCTAssertNil(paging.update(direction: 0, now: 10.6, week: 3, maxWeek: 4))
+        XCTAssertEqual(paging.feedback(direction: 0, now: 10.6, week: 3, maxWeek: 4), .init())
+        let blocked = paging.feedback(direction: 1, now: 11, week: 4, maxWeek: 4)
+        XCTAssertTrue(blocked.blocked)
+        XCTAssertEqual(blocked.targetWeek, 4)
+        XCTAssertEqual(blocked.opacity, 0.35)
+        XCTAssertEqual(blocked.scale, 1)
+        XCTAssertEqual(CourseDragEdgePaging.direction(centerX: 395, fingerX: 395,
+            originX: 387, width: 400), 1, "Android uses an 8pt movement guard")
+    }
+
+    func testFloatingResizeIncludesConsecutiveEdgePeriodsButCannotCrossMissingNodes() {
+        let rows: [QuickAddRow] = [1, 2, 3, 4, 8].enumerated().map {
+            .init(node: $0.element, top: CGFloat($0.offset * 50), bottom: CGFloat($0.offset * 50 + 46))
+        }
+        let initial = QuickAddRange(day: 2, startNode: 2, endNode: 3)
+        let extended = CourseFloatResizePolicy.resized(initial, top: false, position: 300, rows: rows)
+        XCTAssertEqual(extended, .init(day: 2, startNode: 2, endNode: 4))
+        XCTAssertEqual(CourseFloatResizePolicy.resized(extended, top: true, position: 0, rows: rows),
+            .init(day: 2, startNode: 1, endNode: 4))
+        XCTAssertEqual(CourseFloatResizePolicy.resized(.init(day: 2, startNode: 8, endNode: 8),
+            top: true, position: 0, rows: rows), .init(day: 2, startNode: 8, endNode: 8))
     }
 
     func testUnmeasuredDestinationWaitsWithoutConsumingTheDwell() {

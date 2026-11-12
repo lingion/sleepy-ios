@@ -88,6 +88,7 @@ struct ScheduleState {
 final class ScheduleViewModel: ObservableObject {
     @Published private(set) var state = ScheduleState()
     @Published private(set) var pendingCourseMove: CourseDragMoveRequest?
+    @Published private(set) var courseMovePromptPresented = false
 
     /// issue#40: 全部独立时间节次表(管理页列表) — 实时发布, 库内变化即刷新列表。
     /// ← 原版本 repo.observeAllPeriodTables().stateIn(WhileSubscribed(5000));
@@ -464,101 +465,165 @@ final class ScheduleViewModel: ObservableObject {
         recalculateWeekDisplay()
     }
 
-    /// A drop only stages a snapshot. The confirmation button is the sole writer.
+    /// Capture the displayed destination without silently choosing a holiday policy.
+    /// Every approval belongs to this immutable database/period/transfer snapshot.
     func stageDraggedOccurrence(source: CourseDragContext.Source, targetWeek: Int,
                                 displayDay: Int, targetNode: Int, targetStartTime: String? = nil,
-                                targetStep: Int? = nil) -> Bool {
+                                targetStep: Int? = nil, resizeOnly: Bool? = nil) -> Bool {
         guard pendingCourseMove == nil, source.course.tableId == state.selectedTableId,
               let table = state.effectiveCurrentTable,
               let original = try? repo.getCourse(source.course.id), original == source.course,
               source.occurrence.matches(original, startDate: table.startDate),
-              let destination = CourseOccurrenceIdentity.destination(course: original,
-                startDate: table.startDate, maxWeek: table.maxWeek, displayWeek: targetWeek,
-                displayDay: displayDay, transfers: state.transfers),
+              targetWeek >= 1, targetWeek <= state.displayMaxWeek,
+              CourseOccurrences.date(startDate: table.startDate, week: targetWeek, day: displayDay) != nil,
+              let displayDate = CourseOccurrences.date(startDate: table.startDate,
+                week: source.displayWeek, day: source.displayDay),
+              let occurrence = CourseOccurrences.resolve(course: original, displayDate: displayDate,
+                table: table, transfers: state.transfers),
+              CourseOccurrences.week(startDate: table.startDate, date: occurrence.sourceDate) == source.occurrence.week,
+              CourseOccurrences.day(occurrence.sourceDate) == source.occurrence.day,
               let courses = try? repo.getCourses(table.id) else { return false }
-        if let targetStep {
-            let nodes = Set(TimeTableUtils.parseTimeSlotRows(table.timeJson).map(\.node))
-            guard targetStep > 0, targetStep <= 10_000, targetNode > 0,
-                  targetNode <= Int.max - targetStep,
-                  (targetNode..<(targetNode + targetStep)).allSatisfy(nodes.contains) else { return false }
-        } else if (try? CourseOccurrenceDestination.resolve(source: original, targetNode: targetNode,
-                       table: table, targetStartTime: targetStartTime)) == nil { return false }
-        let sameTime = targetStartTime == nil || targetStartTime == original.startTime
-        if destination == source.occurrence,
-           targetNode == source.renderedCourse.startNode,
-           targetStep == nil || targetStep == source.renderedCourse.step, sameTime { return true }
+        let step = targetStep ?? source.renderedCourse.step
+        let nodes = Set(TimeTableUtils.parseTimeSlotRows(table.timeJson).map(\.node))
+        guard step > 0, step <= nodes.count, targetNode > 0, targetNode <= Int.max - step,
+              (targetNode..<(targetNode + step)).allSatisfy(nodes.contains) else { return false }
+        let sameDate = source.displayWeek == targetWeek && source.displayDay == displayDay
+        if sameDate, targetNode == source.renderedCourse.startNode,
+           step == source.renderedCourse.step { return true }
+        let spanConfirm = source.displayWeek == targetWeek &&
+            (resizeOnly == true || (source.displayDay == displayDay && targetNode == source.renderedCourse.startNode))
         pendingCourseMove = CourseDragMoveRequest(source: source, targetWeek: targetWeek,
-            displayDay: displayDay, targetNode: targetNode, targetStartTime: targetStartTime,
-            targetStep: targetStep, table: table, courses: courses, transfers: state.transfers)
+            displayDay: displayDay, targetNode: targetNode,
+            targetStep: step, table: table, courses: courses, transfers: state.transfers,
+            resizeOnly: spanConfirm)
+        courseMovePromptPresented = true
         return true
     }
 
-    func cancelPendingCourseMove() { pendingCourseMove = nil }
-
-    @discardableResult
-    func confirmPendingCourseMove() -> Bool {
-        guard let request = pendingCourseMove else { return false }
+    func cancelPendingCourseMove() {
+        courseMovePromptPresented = false
         pendingCourseMove = nil
+    }
+
+    /// One button advances one approval. Only the final stage may write the occurrence.
+    @discardableResult
+    func advancePendingCourseMove(_ choice: CourseDragMoveChoice = .confirm) -> CourseDragMoveAdvance {
+        guard var request = pendingCourseMove else { return .failed }
+        courseMovePromptPresented = false
+        if case .cancel = choice {
+            cancelPendingCourseMove()
+            return .canceled
+        }
         do {
-            guard state.selectedTableId == request.table.id,
-                  let stored = try repo.getTable(request.table.id),
-                  try repo.getCourses(request.table.id).sorted(by: { $0.id < $1.id })
-                    == request.courses.sorted(by: { $0.id < $1.id }),
-                  AppPrefs.shared.getHolidayTransfers(request.table.id) == request.transfers else { return false }
-            let table = stored.hydratedWith(try repo.effectivePeriodTable(tableId: stored.id))
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = .sortedKeys
-            guard try encoder.encode(table) == encoder.encode(request.table) else { return false }
-            if let step = request.targetStep {
-                guard let displayDate = DateUtils.dateOfWeek(startDate: table.startDate,
-                    week: request.source.displayWeek, dayOfWeek: request.source.displayDay),
-                      let occurrence = CourseOccurrences.resolve(course: request.source.course,
-                        displayDate: displayDate, table: table, transfers: request.transfers) else { return false }
+            switch request.prompt {
+            case .change:
+                guard case .confirm = choice, let step = request.targetStep,
+                      let occurrence = courseMoveOccurrence(request), let targetDate = request.targetDate else {
+                    throw CourseOccurrences.ValidationError.invalidOccurrence
+                }
                 var edited = request.source.course
                 edited.startNode = request.targetNode
                 edited.step = step
-                let rows = TimeTableUtils.parseTimeSlotRows(table.timeJson)
-                if edited.ownTime || edited.isIrregularTime {
+                let rows = TimeTableUtils.parseTimeSlotRows(request.table.timeJson)
+                let custom = edited.ownTime || edited.isIrregularTime
+                edited.ownTime = custom
+                edited.isIrregularTime = custom
+                if custom {
                     guard let start = rows.first(where: { $0.node == edited.startNode })?.start,
-                          let end = rows.first(where: { $0.node == edited.startNode + step - 1 })?.end else { return false }
+                          let end = rows.first(where: { $0.node == edited.startNode + step - 1 })?.end else {
+                        throw CourseOccurrences.ValidationError.invalidNodes
+                    }
                     edited.startTime = start
                     edited.endTime = end
+                } else {
+                    edited.startTime = ""
+                    edited.endTime = ""
                 }
                 edited.isIrregularNode = rows.contains { $0.node == edited.startNode && $0.edgeClass != nil }
-                let replacement = try CourseOccurrences.atDate(edited, date: occurrence.sourceDate,
-                    table: table, fixed: edited.fixedDate != nil)
-                let saved = try repo.saveOccurrence(occurrence, replacement: replacement,
-                    expectedCourses: request.courses, expectedTable: table, expectedTransfers: request.transfers)
-                if saved { onWidgetsNeedReload() }
-                return saved
+                try CourseOccurrences.validateTime(edited, table: request.table)
+                edited = edited.normalizeNode(timeJson: request.table.timeJson)
+                request.replacement = try CourseOccurrences.replacementForEdit(edited, occurrence: occurrence,
+                    selectedDate: targetDate, table: request.table)
+                switch CourseOccurrences.dateApproval(originalDate: occurrence.displayDate,
+                    selectedDate: targetDate, transfers: request.transfers) {
+                case .destination: request.prompt = .destination; return presentCourseMoveApproval(request)
+                case .outgoing: request.prompt = .outgoing; return presentCourseMoveApproval(request)
+                case .none: break
+                }
+            case .destination:
+                if case .direct = choice {
+                    request.prompt = .hidden
+                    return presentCourseMoveApproval(request)
+                }
+                guard case .confirm = choice, let replacement = request.replacement,
+                      let targetDate = request.targetDate,
+                      let incoming = request.transfers.last(where: {
+                          HolidayTransferOps.dayKey($0.targetDate) == HolidayTransferOps.dayKey(targetDate)
+                      }) else { throw CourseOccurrences.ValidationError.invalidDate }
+                // Follow the incoming transfer's source date exactly, including its week.
+                request.replacement = try CourseOccurrences.atDate(replacement, date: incoming.sourceDate,
+                    table: request.table, fixed: false)
+            case .hidden, .outgoing:
+                guard case .confirm = choice else { throw CourseOccurrences.ValidationError.invalidOccurrence }
+            case .conflicts:
+                guard case .confirm = choice else { throw CourseOccurrences.ValidationError.invalidOccurrence }
+                return commitPendingCourseMove(request)
             }
-            return moveDraggedOccurrence(source: request.source, targetWeek: request.targetWeek,
-                displayDay: request.displayDay, targetNode: request.targetNode,
-                targetStartTime: request.targetStartTime)
-        } catch { return false }
+            guard let occurrence = courseMoveOccurrence(request), let replacement = request.replacement else {
+                throw CourseOccurrences.ValidationError.invalidOccurrence
+            }
+            let remaining = try CourseOccurrences.without(occurrence.course,
+                sourceDate: occurrence.sourceDate, startDate: request.table.startDate)
+            request.conflicts = CourseOccurrences.conflictDetails(drafts: [replacement],
+                stored: request.courses.filter { $0.id != occurrence.course.id } + remaining,
+                table: request.table, transfers: request.transfers)
+            if !request.conflicts.isEmpty {
+                request.prompt = .conflicts
+                return presentCourseMoveApproval(request)
+            }
+            return commitPendingCourseMove(request)
+        } catch {
+            cancelPendingCourseMove()
+            return .failed
+        }
     }
 
-    func moveDraggedOccurrence(source: CourseDragContext.Source, targetWeek: Int,
-                               displayDay: Int, targetNode: Int, targetStartTime: String? = nil) -> Bool {
-        guard source.course.tableId == state.selectedTableId,
-              let table = state.effectiveCurrentTable, table.id == source.course.tableId,
-              table.maxWeek > 0, (1...table.maxWeek).contains(source.occurrence.week) else { return false }
-        do {
-            guard let original = try repo.getCourse(source.course.id),
-                   original.tableId == source.course.tableId,
-                   source.occurrence.matches(original, startDate: table.startDate),
-                   let target = CourseOccurrenceIdentity.destination(course: original, startDate: table.startDate,
-                       maxWeek: table.maxWeek, displayWeek: targetWeek, displayDay: displayDay,
-                       transfers: state.transfers) else { return false }
-            // 仓库统一判断真实位置/时刻 no-op，不能提前按展示坐标吞掉一次显式改时刻。
-            let changed = try repo.moveCourseOccurrence(courseId: original.id,
-                sourceWeek: source.occurrence.week, targetWeek: target.week,
-                targetDay: target.day, targetNode: targetNode, targetStartTime: targetStartTime)
-            if changed { onWidgetsNeedReload() }
-            return true
-        } catch {
-            return false
+    /// Compatibility for callers confirming a simple, single-stage move.
+    /// A subsequent holiday/conflict question remains pending instead of being bypassed.
+    @discardableResult
+    func confirmPendingCourseMove() -> Bool { advancePendingCourseMove() == .saved }
+
+    private func presentCourseMoveApproval(_ request: CourseDragMoveRequest) -> CourseDragMoveAdvance {
+        pendingCourseMove = request
+        // SwiftUI first dismisses the alert whose button was pressed, then presents the next one.
+        DispatchQueue.main.async { [weak self] in
+            guard self?.pendingCourseMove?.id == request.id,
+                  self?.pendingCourseMove?.prompt == request.prompt else { return }
+            self?.courseMovePromptPresented = true
         }
+        return .awaitingApproval
+    }
+
+    private func courseMoveOccurrence(_ request: CourseDragMoveRequest) -> CourseOccurrence? {
+        guard let displayDate = CourseOccurrences.date(startDate: request.table.startDate,
+                week: request.source.displayWeek, day: request.source.displayDay),
+              let occurrence = CourseOccurrences.resolve(course: request.source.course, displayDate: displayDate,
+                table: request.table, transfers: request.transfers),
+              CourseOccurrences.week(startDate: request.table.startDate, date: occurrence.sourceDate) == request.source.occurrence.week,
+              CourseOccurrences.day(occurrence.sourceDate) == request.source.occurrence.day else { return nil }
+        return occurrence
+    }
+
+    private func commitPendingCourseMove(_ request: CourseDragMoveRequest) -> CourseDragMoveAdvance {
+        defer { cancelPendingCourseMove() }
+        guard state.selectedTableId == request.table.id,
+              let occurrence = courseMoveOccurrence(request), let replacement = request.replacement else { return .failed }
+        do {
+            let saved = try repo.saveOccurrence(occurrence, replacement: replacement,
+                expectedCourses: request.courses, expectedTable: request.table, expectedTransfers: request.transfers)
+            if saved { onWidgetsNeedReload() }
+            return saved ? .saved : .failed
+        } catch { return .failed }
     }
 
     /// issue#44: 设置页保存调休映射后, 通知 VM 重新拉当前表的映射。

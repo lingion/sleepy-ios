@@ -836,6 +836,7 @@ struct CardsGridView: View {
                                     eveningStartMinutes: eveningStart))
                         ] : [:])
                     })
+                    .background(CourseDragScrollProbe().allowsHitTesting(false))
                     // 双指纵向缩放行高(实验室开关默认关 = 手势不挂) ← verticalResizeGesture
                     .background(GridPinchResizer(
                         enabled: pinchZoomEnabled,
@@ -1101,7 +1102,7 @@ private struct TapExpandModifier: ViewModifier {
 
 // MARK: - CourseOverlayCard ← CourseOverlayCard
 
-private struct CourseOverlayCard: View {
+struct CourseOverlayCard: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.courseDragContext) private var drag
     let course: CourseEntity
@@ -1186,7 +1187,7 @@ private struct CourseOverlayCard: View {
         .background(effectiveBg)
         .cornerRadius(12 * scale * cornerRatio)
         .padding(2 * scale)
-        .modifier(CourseDragSource(course: course))
+        .modifier(CourseDragSource(course: course, isGrey: isGrey))
     }
 }
 
