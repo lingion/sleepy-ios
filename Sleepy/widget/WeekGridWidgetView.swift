@@ -696,18 +696,21 @@ private struct WeekGridColorBandColumn: View {
                 let barH = ctx.spanH(startIdx, step)
                 let laneX = ctx.dayW * CGFloat(rect.laneStartFraction)
                 let laneW = ctx.dayW * CGFloat(rect.laneWidthFraction)
-                // iOS 26 「透明/着色」样式: 课程色被整组染白 → 直接白底, 保留
-                // 灰显/正常两档 alpha (120/200), 玻璃上仍可读 (← WidgetBackgroundCompat)
+                // iOS 26 「透明/着色」样式保留白色阶梯；普通模式的统一底色
+                // 与 Android 同用主题 secondaryContainer，正常不再叠加淡化透明度。
                 let baseColor = scheme.isGlass ? Color.white
                     : CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
                     course,
                     groupRows: allCourses.filter { $0.groupId == course.groupId }.isEmpty
                         ? [course] : allCourses.filter { $0.groupId == course.groupId },
-                    isDark: scheme.isDark, neutralColor: scheme.surfaceVariant,
+                    isDark: scheme.isDark, neutralColor: scheme.secondaryContainer,
                     colorless: colorless,
                     persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
+                let fillAlpha = !scheme.isGlass && colorless
+                    ? (dayData.isGrey ? 153.0 : 255.0)
+                    : (dayData.isGrey ? 120.0 : 200.0)
                 RoundedRectangle(cornerRadius: min(4, barH / 2))
-                    .fill(baseColor.opacity(dayData.isGrey ? 120.0 / 255.0 : 200.0 / 255.0))
+                    .fill(baseColor.opacity(fillAlpha / 255.0))
                     .frame(width: laneW, height: barH)
                     .offset(x: laneX, y: top)
             }
@@ -793,7 +796,7 @@ private struct WeekGridCourseCard: View {
     var isGrey: Bool = false
 
     var body: some View {
-        // 卡片背景色 — 统一入口 CourseColorUtil (决策 D3); colorless 灰底传 surfaceVariant
+        // 卡片背景色 — 统一入口 CourseColorUtil；统一底色与 Android 同用主题 secondaryContainer。
         // issue#22: 改走 *WithGroupRows 三态入口
         // iOS 26 「透明/着色」样式 (scheme.isGlass): 系统把所有不透明内容整组染白、仅保
         // alpha → 课程色失去区分且深底白字判白与卡面同色。玻璃档改白 alpha 阶梯:
@@ -801,13 +804,14 @@ private struct WeekGridCourseCard: View {
         let glass = scheme.isGlass
         let baseColor = glass ? Color.white : CourseColorUtil.pickCourseColorSwiftUIWithGroupRows(
             course, groupRows: groupRows.isEmpty ? [course] : groupRows,
-            isDark: scheme.isDark, neutralColor: scheme.surfaceVariant, colorless: colorless,
+            isDark: scheme.isDark, neutralColor: scheme.secondaryContainer, colorless: colorless,
             persistedHue: CourseHueStore.hueFor(groupId: course.groupId))
         // 文字色: 深底白字 / 浅底近黑 (isDarkOn); 灰显文字 alpha ← 原版本 :740
         let textColor = glass ? scheme.onSurface
             : (Self.isDarkOn(baseColor) ? Color.white : Color(0xFF1D1B20))
         // ← WidgetBitmapRenderers drawCourse :741: 灰显 × 「删除线」样式 → 删线
         let strike = isGrey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
+        let fillAlpha = colorless ? (isGrey ? 153.0 : 255.0) : (isGrey ? 120.0 : 200.0)
 
         ZStack(alignment: .topLeading) {
             // Android resets Paint.alpha to 255 before the token draw loop.
@@ -828,11 +832,11 @@ private struct WeekGridCourseCard: View {
         }
         .frame(width: cardW, height: cardH, alignment: .topLeading)
         .background(
-            // 卡底 alpha ← 原版本 :723: 灰显列 120, 正常 200;
+            // Android 统一底色正常 255、灰显 153；彩色课程正常 200、灰显 120。
             // 玻璃档 = secondaryContainer (白 30%, 文字白 100% 对比足够)
             RoundedRectangle(cornerRadius: 10)
                 .fill(glass ? scheme.secondaryContainer
-                            : baseColor.opacity((isGrey ? 120.0 : 200.0) / 255.0))
+                            : baseColor.opacity(fillAlpha / 255.0))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
@@ -1130,14 +1134,15 @@ private struct WeekGridMinimumTodayFace: View {
 }
 
 struct WeekGridWidget: Widget {
+    static let supportedFamilies: [WidgetFamily] = [.systemSmall, .systemLarge]
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "WeekGridWidgetV19", provider: WeekGridWidgetProvider()) { entry in
             WeekGridWidgetEntryView(entry: entry)
         }
         .configurationDisplayName(L10n.format("widget_week_grid_label"))
-        // 三档全开: 原版本 13 变体是「放置预设」(S/M/L),且全部 minResize 40dp + 自由拖拽,
-        // 任何 widget 都能被拖成任意档 → iOS 三 family 全支持,档位由 WidgetLayoutTier 换算
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        // The two independent wide kinds own the medium (4×2) grid family.
+        .supportedFamilies(Self.supportedFamilies)
         // iOS 17+ 系统边距关闭, 维持既有自管 padding 布局 (iOS 16 及以下 no-op)
         .contentMarginsDisabled()
     }
