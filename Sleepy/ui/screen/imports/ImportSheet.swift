@@ -428,14 +428,14 @@ struct ImportSheet: View {
         .centeredDialog(isPresented: $showExistingTables) {
             existingTablesDialog
         }
-        .fullScreenCover(item: Binding(
+        .sleepyNavigationPage(item: Binding(
             get: { pendingSelection.map { PreviewBox(preview: $0) } },
             set: { if $0 == nil { pendingSelection = nil } }
         ), onDismiss: {
             guard let selected = selectedPreview else { return }
             selectedPreview = nil
             previewSession.replacePreview(selected)
-        }) { box in
+        }, canvas: { colors.background.ignoresSafeArea() }) { box in
             CourseSelectionSheet(parseResult: box.preview.parseResult, onConfirm: { keys in
                 guard pendingSelection?.id == box.preview.id else { return }
                 do {
