@@ -182,4 +182,110 @@ final class ThemeCacheProbeTests: XCTestCase {
         XCTAssertEqual(computations, 4)
     }
 
+    // Diagnostic timing is opt-in; correctness tests above run by default.
+    // Fixed iteration counts; no absolute timing assertion in correctness CI.
+    // Report 7 independent batches after a 32-call warmup, retaining every result via checksum.
+    private func benchmark(_ label: String, iterations: Int = 1_000,
+                           _ operation: (Int) -> Color) {
+        var checksum = 0
+        for index in 0..<32 { checksum = checksum &+ operation(index).hashValue }
+        var samples: [Double] = []
+        for _ in 0..<7 {
+            let start = DispatchTime.now().uptimeNanoseconds
+            for index in 0..<iterations { checksum = checksum &+ operation(index).hashValue }
+            let end = DispatchTime.now().uptimeNanoseconds
+            samples.append(Double(end - start) / Double(iterations) / 1_000)
+        }
+        let sorted = samples.sorted()
+        print("THEME_BENCH \(label) us_per_operation=\(samples) median=\(sorted[3]) max=\(sorted[6]) checksum=\(checksum)")
+    }
+
+    func testBenchmarkSystemWarmSingleEndpoint() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLEEPY_RUN_PERFORMANCE_TESTS"] == "1")
+        let input = snapshot(0)
+        benchmark("system_warm_single") { _ in
+            SystemColorScheme.resolve(snapshot: input, dark: false, increasedContrast: false).primary
+        }
+    }
+
+    func testBenchmarkSystemFourAppearanceEndpoints() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLEEPY_RUN_PERFORMANCE_TESTS"] == "1")
+        let input = snapshot(0)
+        benchmark("system_appearance_4") { index in
+            SystemColorScheme.resolve(snapshot: input, dark: index % 2 == 1,
+                increasedContrast: index % 4 >= 2).primary
+        }
+    }
+
+    func testBenchmarkSystemChurnBeyondCacheCapacity() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLEEPY_RUN_PERFORMANCE_TESTS"] == "1")
+        let inputs = (0..<64).map { snapshot($0) }
+        benchmark("system_churn_64") { index in
+            SystemColorScheme.resolve(snapshot: inputs[index % inputs.count], dark: false,
+                increasedContrast: false).primary
+        }
+    }
+
+    func testBenchmarkProviderSystemAndPresetResolution() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLEEPY_RUN_PERFORMANCE_TESTS"] == "1")
+        let input = snapshot(0)
+        for key in [ThemePresets.KEY_SYSTEM, ThemePresets.KEY_OCEAN] {
+            benchmark("provider_\(key)") { _ in
+                SleepyThemeProvider.resolve(themeKey: key, dark: false, snapshot: input,
+                    increasedContrast: false).primary
+            }
+        }
+    }
+
+    func testBenchmarkUncachedVectorConversionContext() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLEEPY_RUN_PERFORMANCE_TESTS"] == "1")
+        let scheme = lightScheme
+        benchmark("vector_constructor_context") { _ in
+            ThemeColorVector(scheme: scheme, dark: false, increasedContrast: false).scheme.primary
+        }
+    }
+
+    func testBenchmarkProviderTerminalVectorAgainstConstructorPath() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLEEPY_RUN_PERFORMANCE_TESTS"] == "1")
+        let input = snapshot(0)
+        for key in [ThemePresets.KEY_SYSTEM, ThemePresets.KEY_OCEAN] {
+            // Both paths use the current scheme resolver. This comparison isolates
+            // terminal-vector reuse; the recorded pre-change binary measures total gain.
+            benchmark("provider_vector_constructor_\(key)") { _ in
+                let scheme = SleepyThemeProvider.resolve(themeKey: key, dark: false,
+                    snapshot: input, increasedContrast: false)
+                return ThemeColorVector(scheme: scheme, dark: false, increasedContrast: false).scheme.primary
+            }
+            benchmark("provider_vector_terminal_\(key)") { _ in
+                SleepyThemeProvider.terminalVector(themeKey: key, dark: false,
+                    snapshot: input, increasedContrast: false).scheme.primary
+            }
+        }
+    }
+
+    func testBenchmarkCustomProviderAgainstOriginalDerivationPath() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLEEPY_RUN_PERFORMANCE_TESTS"] == "1")
+        let defaults = CustomThemeStore.defaults
+        let documentKey = CustomThemeCore.KEY_THEMES
+        let originalDocument = defaults.object(forKey: documentKey)
+        defer {
+            if let originalDocument { defaults.set(originalDocument, forKey: documentKey) }
+            else { defaults.removeObject(forKey: documentKey) }
+        }
+        let theme = SleepyThemeProvider.defaultSeedTheme.copy(id: "theme-cache-benchmark", name: "Probe")
+        defaults.set(CustomThemeCore.toJson([theme]), forKey: documentKey)
+        let key = ThemePresets.CUSTOM_KEY_PREFIX + theme.id
+        let input = snapshot(0)
+        // This is the exact former custom-provider path: fresh document decode,
+        // fresh derivation, then the ordinary vector constructor.
+        benchmark("provider_vector_custom_original") { _ in
+            let seed = CustomThemeStore.getById(theme.id) ?? SleepyThemeProvider.defaultSeedTheme
+            let scheme = CustomSchemeDeriver.derive(theme: seed, isDark: false)
+            return ThemeColorVector(scheme: scheme, dark: false, increasedContrast: false).scheme.primary
+        }
+        benchmark("provider_vector_custom_terminal") { _ in
+            SleepyThemeProvider.terminalVector(themeKey: key, dark: false,
+                snapshot: input, increasedContrast: false).scheme.primary
+        }
+    }
 }
