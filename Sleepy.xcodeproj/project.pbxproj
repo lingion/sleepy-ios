@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		77C739ED61984303806A16C9 /* NativeWeekPagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF66D9356309E878974BB167 /* NativeWeekPagerTests.swift */; };
+		E8F35CD36E8C05BF4545DE52 /* NativeWeekPager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5B2F801EC60490DF71D936 /* NativeWeekPager.swift */; };
 		0029AD53D40B8B9A0848363D /* QqJoin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7453815E27C3A0269EAA730D /* QqJoin.swift */; };
 		003679E74521CD360B6C8FD6 /* AddCourseEditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0368F806C26524593AA0FA86 /* AddCourseEditTests.swift */; };
 		0061BF9B6753422634DBF086 /* SleepyWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87411070D5476B65081E829B /* SleepyWidgetBundle.swift */; };
@@ -1231,6 +1233,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		DF66D9356309E878974BB167 /* NativeWeekPagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeWeekPagerTests.swift; sourceTree = "<group>"; };
+		BE5B2F801EC60490DF71D936 /* NativeWeekPager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeWeekPager.swift; sourceTree = "<group>"; };
 		0019194E612B127ADA12CF26 /* SchoolLocationLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolLocationLookupTests.swift; sourceTree = "<group>"; };
 		0065E95035CABC67A250D189 /* JwCcibeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCcibeParser.swift; sourceTree = "<group>"; };
 		00FB175FBA39DA589A632600 /* DailyAgenda.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyAgenda.swift; sourceTree = "<group>"; };
@@ -2110,6 +2114,7 @@
 				82FFCD708C68F726D87F6B54 /* NativeBaselineSlider.swift */,
 				9103FA65945B83156A93E926 /* NativeColorPicker.swift */,
 				52E3A127E5A807424565EB70 /* NativeCourseDrag.swift */,
+				BE5B2F801EC60490DF71D936 /* NativeWeekPager.swift */,
 				2D5BFC656D3F3C24D3651480 /* NavigationRailBar.swift */,
 				2140942FC998369FA6029236 /* PeriodHeaderCellContent.swift */,
 				D2A030E63E72EF0BC18A2CE2 /* PeriodTableShareSheet.swift */,
@@ -2625,6 +2630,7 @@
 				D8594A29E16AA5CD4AA06BD6 /* MigrationV11Tests.swift */,
 				0CF6DBD75F2787CB9A0679BC /* NativeSelectionThemeParityTests.swift */,
 				6691CEFFDD5A1B6125F0D479 /* NativeTabThemeUpdateTests.swift */,
+				DF66D9356309E878974BB167 /* NativeWeekPagerTests.swift */,
 				4184711E3032D79F5EFBB8EA /* NavStyleResolverTests.swift */,
 				04898817A482E7E3C86126E0 /* NewTableImportDefaultTests.swift */,
 				FC05E15831A481E31568369A /* NewTableImportTests.swift */,
@@ -3606,6 +3612,7 @@
 				24A06FBF45F482026005A959 /* NativeBaselineSlider.swift in Sources */,
 				861AB6B5478DB2423D1323C2 /* NativeColorPicker.swift in Sources */,
 				0DAD4E04D2C6C8A448349C53 /* NativeCourseDrag.swift in Sources */,
+				E8F35CD36E8C05BF4545DE52 /* NativeWeekPager.swift in Sources */,
 				DE47CE18A06D7D5C6E17F2AE /* NavStyleResolver.swift in Sources */,
 				F88DECDC5844B50BB54A2770 /* NavigationRailBar.swift in Sources */,
 				D431AB4C1EFC59B24DCAD842 /* NewTableImport.swift in Sources */,
@@ -4176,6 +4183,7 @@
 				448F58E97EC4E4577A6888A8 /* MigrationV7toV10Tests.swift in Sources */,
 				9E198A9D7FD73D16F9C4C054 /* NativeSelectionThemeParityTests.swift in Sources */,
 				CDFE2EDA097705BF66AD825A /* NativeTabThemeUpdateTests.swift in Sources */,
+				77C739ED61984303806A16C9 /* NativeWeekPagerTests.swift in Sources */,
 				8F8E2B9C098E42D7DEF21A20 /* NavStyleResolverTests.swift in Sources */,
 				ABA1A7F51E6B93D9C442E82B /* NewTableImportDefaultTests.swift in Sources */,
 				8CFDB523597E9B801D140C8E /* NewTableImportTests.swift in Sources */,

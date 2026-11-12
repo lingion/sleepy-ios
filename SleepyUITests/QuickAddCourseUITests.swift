@@ -2,7 +2,7 @@ import XCTest
 
 final class QuickAddCourseUITests: XCTestCase {
     private var app: XCUIApplication!
-    private var pager: XCUIElement { app.collectionViews["schedule_week_pager"] }
+    private var pager: XCUIElement { app.scheduleWeekPager }
     private var capsule: XCUIElement { app.buttons["quick-add-capsule"] }
     private func cell(_ day: Int, _ node: Int) -> XCUIElement { pager.buttons["add-course-\(day)-\(node)"] }
 

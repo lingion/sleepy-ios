@@ -11,7 +11,7 @@ final class GridPinchRowHeightUITests: XCTestCase {
         app.sleepyLaunch()
         XCTAssertTrue(app.descendants(matching: .any)["pill_schedule"]
                         .waitForExistence(timeout: 10), "课表 tab 应出现")
-        let pager = app.collectionViews["schedule_week_pager"]
+        let pager = app.scheduleWeekPager
         XCTAssertTrue(pager.waitForExistence(timeout: 10))
         let card = pager.buttons["gridcell_1"]
         XCTAssertTrue(card.waitForExistence(timeout: 10))
@@ -52,7 +52,7 @@ final class GridPinchRowHeightUITests: XCTestCase {
         app.terminate()
         app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
         app.sleepyLaunch()
-        let restored = app.collectionViews["schedule_week_pager"].buttons["gridcell_1"]
+        let restored = app.scheduleWeekPager.buttons["gridcell_1"]
         XCTAssertTrue(restored.waitForExistence(timeout: 15))
         XCTAssertEqual(restored.frame.height, committedHeight, accuracy: 1)
         XCTAssertGreaterThan(abs(restored.frame.height - beforeHeight), 4)

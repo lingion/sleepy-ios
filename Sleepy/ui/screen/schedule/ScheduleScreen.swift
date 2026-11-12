@@ -1,6 +1,6 @@
 // ScheduleScreen.swift — ← ui/screen/schedule/ScheduleScreen.kt
 // 课表页: TopBar(周导航+跳周菜单+撤回/取消撤回胶囊+行高缩放 tick) + 视图切换(周视图/网格, 可隐藏) +
-// 左右滑翻周(TabView pager, 含 issue#44 调休渲染期换日) + 详情 BottomSheet。
+// 左右滑翻周(原生分页容器, 含 issue#44 调休渲染期换日) + 详情 BottomSheet。
 // 空态两分支: 无表 → EmptyState; 有表无课 → NoCourseState。
 
 import SwiftUI
@@ -206,7 +206,7 @@ struct ScheduleScreen: View {
                         .padding(.bottom, 8)
                 }
 
-                // 主体视图 — 左右滑动切换周次(TabView pager)
+                // 主体视图 — 原生分页容器切换周次
                 // v1.0.62 B5b: 翻页页数并入调休目标周 ← 原 pagerMaxWeek = state.displayMaxWeek
                 let pagerMaxWeek = max(state.displayMaxWeek, 1)
                 WeekPager(viewModel: viewModel, viewMode: viewMode, pagerMaxWeek: pagerMaxWeek,
@@ -351,8 +351,7 @@ struct ScheduleScreen: View {
     }
 
     private func selectWeek(_ week: Int) {
-        // TabView's page selection is bridged to UIKit. Put the mutation in
-        // the animation transaction; animating only its content does not slide pages.
+        // Animate the header state alongside the native pager's explicit transition.
         withAnimation(WeekPageMotion.animation) { viewModel.changeWeek(week) }
     }
 }
@@ -429,7 +428,7 @@ private struct UndoRedoCapsule: View {
     }
 }
 
-// HorizontalPager → TabView(.page): 双向同步(手势→VM / VM→pager)
+// NativeWeekPager: 双向同步(手势→VM / VM→pager)
 // Cards 网格的 TimeSlot: 每节一行(node/nodeStart 单节, 原版本 同为逐节行)
 // ← 原版本 TimeTableUtils.timeSlotsFor(state.effectiveCurrentTable): 时间域真源=水合表,
 //   表为 nil → 空表(禁 DEFAULT_TIME_JSON 兜底 — 有表无课才进得本页, 语义与 原版本 对齐)
@@ -478,6 +477,7 @@ private struct WeekPager: View {
     @State private var dragError = false
     @State private var dragHostWeek: Int?
     @State private var pagerEpoch: UInt = 0
+    @State private var gridContributions = WeekGridContributions()
     @State private var floatingOccurrence: FloatingOccurrenceRequest?
     let viewMode: ViewMode
     let pagerMaxWeek: Int
@@ -553,12 +553,18 @@ private struct WeekPager: View {
                            hostWeek != viewModel.state.selectedWeek {
                             // Start at the final week; the old pinned pager can report intermediate pages.
                             pagerEpoch &+= 1
+                            gridContributions.reset(drag: drag)
                         }
                         dragHostWeek = sourceWeek
+                        gridContributions.selectHost(sourceWeek, drag: drag)
                     }
                 }
             }
-            .onChange(of: viewModel.state.selectedTableId) { _ in drag.end(); viewModel.cancelPendingCourseMove() }
+            .onChange(of: viewModel.state.selectedTableId) { _ in
+                drag.end()
+                gridContributions.reset(drag: drag)
+                viewModel.cancelPendingCourseMove()
+            }
             .onChange(of: viewModel.state.selectedWeek) { week in
                 if !drag.isHolding, let source = drag.source, source.displayWeek != week { drag.end() }
             }
@@ -619,18 +625,22 @@ private struct WeekPager: View {
     private var pages: some View {
         let state = viewModel.state
         let epoch = pagerEpoch
-        // Keep TabView's source subtree alive, including its scroll and expanded rows.
-        // Target pages are measured alongside it instead of waiting for lazy page hosts.
-        return TabView(selection: Binding(
-            get: { min(max(dragHostWeek ?? state.selectedWeek, 1), pagerMaxWeek) },
-            set: { newWeek in
-                guard epoch == pagerEpoch, dragHostWeek == nil else { return }
-                viewModel.changeWeek(newWeek)
-            }
-        )) {
-            ForEach(1...pagerMaxWeek, id: \.self) { page in
+        let tableID = state.selectedTableId
+        // The native page controller explicitly animates programmatic selection.
+        // A held course keeps its source host alive while the existing page stack moves.
+        return NativeWeekPager(selection: min(max(dragHostWeek ?? state.selectedWeek, 1), pagerMaxWeek),
+                               maxWeek: pagerMaxWeek,
+                               animationsEnabled: dragHostWeek == nil,
+                               onSelect: { newWeek in
+            guard epoch == pagerEpoch, tableID == viewModel.state.selectedTableId,
+                  dragHostWeek == nil, (1...pagerMaxWeek).contains(newWeek) else { return }
+            viewModel.changeWeek(newWeek)
+        }) { page in
+            WeekPageGridReader(week: page, contributions: gridContributions, drag: drag,
+                               isCurrent: { epoch == pagerEpoch && tableID == viewModel.state.selectedTableId }) {
                 GeometryReader { geometry in
-                    weekPage(page, renderSelectedWeek: dragHostWeek ?? state.selectedWeek,
+                    // Native hosts are bounded. Keep the outgoing host rendered even on a far jump.
+                    weekPage(page, renderSelectedWeek: page,
                              publishesDropGrid: dragHostWeek == nil || page == dragHostWeek)
                         .offset(x: dragHostWeek == nil ? 0 : CGFloat(page - state.selectedWeek) * geometry.size.width)
                     if dragHostWeek == page {
@@ -639,13 +649,10 @@ private struct WeekPager: View {
                 }
                 .clipped()
                 .animation(weekPageAnimation, value: state.selectedWeek)
-                .tag(page)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .animation(dragHostWeek == nil ? weekPageAnimation : nil, value: state.selectedWeek)
-        .id(epoch)
+        .id(WeekPagerIdentity(tableID: tableID, epoch: epoch))
     }
 
     private var weekPageAnimation: Animation {
@@ -745,7 +752,6 @@ private struct WeekPager: View {
         let state = viewModel.state
         return pages
         .modifier(CourseDragBackdrop(drag: drag))
-        .onPreferenceChange(CourseDropGridKey.self) { drag.grids = $0 }
         .background(NativeCourseDropTarget(drag: drag, week: state.selectedWeek, maxWeek: pagerMaxWeek,
             table: state.effectiveCurrentTable, allCourses: state.courses, transfers: state.transfers,
             enabled: dragEnabled && viewMode == .cards && !dragError && quickAdd.selection == nil
@@ -777,7 +783,6 @@ private struct WeekPager: View {
             }))
         .overlay(CourseDragProjection(drag: drag))
         .overlay(CourseDragEdgePeek(drag: drag))
-        .accessibilityIdentifier("schedule_week_pager")
     }
 
     private func openWeekOccurrence(_ projected: CourseEntity, displayWeek: Int) {
@@ -826,6 +831,77 @@ private struct WeekPager: View {
         if greyCache?.context != request.context || greyCache?.daysByWeek != daysByWeek {
             greyCache = GreyCache(context: request.context, daysByWeek: daysByWeek)
         }
+    }
+}
+
+private struct WeekPagerIdentity: Hashable {
+    let tableID: Int64?
+    let epoch: UInt
+}
+
+/// Preferences stop at a hosting-controller boundary. Each host replaces its
+/// entire contribution so hidden/removed pages cannot leave stale drop targets.
+@MainActor
+private final class WeekGridContributions {
+    private var values: [UUID: (week: Int, grids: [Int: CourseDropGrid])] = [:]
+    private var activeHost: Int?
+
+    func update(_ id: UUID, week: Int, grids: [Int: CourseDropGrid], drag: CourseDragContext) {
+        values[id] = (week, grids)
+        publish(to: drag)
+    }
+
+    func remove(_ id: UUID, drag: CourseDragContext) {
+        values.removeValue(forKey: id)
+        publish(to: drag)
+    }
+
+    func selectHost(_ week: Int?, drag: CourseDragContext) {
+        activeHost = week
+        publish(to: drag)
+    }
+
+    func reset(drag: CourseDragContext) {
+        values.removeAll()
+        activeHost = nil
+        drag.grids = [:]
+    }
+
+    private func publish(to drag: CourseDragContext) {
+        drag.grids = values.values
+            .filter { activeHost == nil || $0.week == activeHost }
+            .reduce(into: [:]) { result, value in result.merge(value.grids) { _, new in new } }
+    }
+}
+
+private struct WeekPageGridReader<Content: View>: View {
+    let week: Int
+    let contributions: WeekGridContributions
+    let drag: CourseDragContext
+    let isCurrent: () -> Bool
+    @ViewBuilder let content: () -> Content
+    @State private var contribution = Contribution()
+
+    private final class Contribution {
+        let id = UUID()
+        var grids: [Int: CourseDropGrid] = [:]
+    }
+
+    var body: some View {
+        content()
+            .onPreferenceChange(CourseDropGridKey.self) { grids in
+                guard isCurrent() else { return }
+                contribution.grids = grids
+                contributions.update(contribution.id, week: week, grids: grids, drag: drag)
+            }
+            .onAppear {
+                guard isCurrent() else { return }
+                contributions.update(contribution.id, week: week, grids: contribution.grids, drag: drag)
+            }
+            .onDisappear {
+                guard isCurrent() else { return }
+                contributions.remove(contribution.id, drag: drag)
+            }
     }
 }
 

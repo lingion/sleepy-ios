@@ -353,7 +353,7 @@ final class DeviceAdaptationUITests: XCTestCase {
     func testOccurrenceDraftSurvivesNativeAndRailRotation() {
         XCTAssertTrue(nativeTab("Schedule").waitForExistence(timeout: 10),
                       "Start with the production native navigation")
-        let course = app.collectionViews["schedule_week_pager"].buttons["gridcell_1"].firstMatch
+        let course = app.scheduleWeekPager.buttons["gridcell_1"].firstMatch
         let cancel = app.buttons["occurrence_cancel"].firstMatch
         let customRow = app.descendants(matching: .any)["occurrence_custom_time"].firstMatch
         // The styled Toggle exposes one actionable accessibility element,

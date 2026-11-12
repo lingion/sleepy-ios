@@ -109,7 +109,7 @@ final class DeepLinkUITests: XCTestCase {
         XCTAssertTrue(share.isEnabled && share.isHittable,
                       "空载荷后课表操作必须仍可交互")
         XCTAssertTrue(app.buttons["topbar_add"].firstMatch.isHittable)
-        XCTAssertTrue(app.collectionViews["schedule_week_pager"].exists)
+        XCTAssertTrue(app.scheduleWeekPager.exists)
         XCTAssertFalse(app.descendants(matching: .any)["manage_page_title"].exists,
                        "空文本不应切换到管理页")
         for id in ["import_confirm_title", "import_preview_title", "import_text"] {

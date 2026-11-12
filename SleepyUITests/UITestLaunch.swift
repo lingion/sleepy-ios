@@ -11,6 +11,11 @@
 import XCTest
 
 extension XCUIApplication {
+    /// Match the public pager identifier independently of its UIKit container type.
+    var scheduleWeekPager: XCUIElement {
+        descendants(matching: .any).matching(identifier: "schedule_week_pager").firstMatch
+    }
+
     private static let forcePillArg = "-SLEEPY_FORCE_PILL_NAV"
 
     /// 追加钉死参数后启动(幂等: 重复调用不会重复追加)。
