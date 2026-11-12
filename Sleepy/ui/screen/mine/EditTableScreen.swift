@@ -32,6 +32,8 @@ struct EditTableScreen: View {
         self.onDeleted = onDeleted
     }
 
+    // Keep the outgoing editor intact while discarding its pending table.
+    @State private var closingTable: TimeTableEntity? = nil
     @State private var loadedTableId: Int64? = nil
     @State private var loadedScheduleKey: String? = nil
     @State private var name = ""
@@ -98,6 +100,11 @@ struct EditTableScreen: View {
         // 新建场景不兜底到首张表(createEmptyTable 已同步补入 state.tables, 按 id 必命中),
         // 显式 id 查不到就是查不到 — 编辑错表(首张表)比短暂 not-found 严重。
         let resolved: TimeTableEntity? = {
+            if let closingTable {
+                // Never borrow another table after a pending draft is removed.
+                if let tableId, closingTable.id != tableId { return nil }
+                return closingTable
+            }
             if let tableId = tableId {
                 return state.tables.first { $0.id == tableId }
             }
@@ -109,11 +116,14 @@ struct EditTableScreen: View {
         if let table = resolved {
             content(table: table, effective: effectivePeriodTable)
         } else {
-            VStack {
+            VStack(spacing: 0) {
+                SettingsTopBar(title: L10n.format("edit_table_title"), onBack: handleBack)
                 Text(L10n.format("edit_table_not_found"))
                     .foregroundColor(colors.onBackground)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(colors.background)
         }
     }
 
@@ -135,7 +145,7 @@ struct EditTableScreen: View {
         let scheduleKey = "\(table.id)|\(effective?.id ?? -1)|\(timeJson)|\(scheduleEpoch)"
 
         return VStack(spacing: 0) {
-            SettingsTopBar(title: L10n.format("edit_table_title"), onBack: handleBack)
+            SettingsTopBar(title: L10n.format("edit_table_title"), onBack: { handleBack(table: table) })
             ScrollView {
                 VStack(spacing: 14) {
                     Spacer().frame(height: 2)
@@ -380,6 +390,12 @@ struct EditTableScreen: View {
                     })
             }
         }
+    }
+
+    private func handleBack(table: TimeTableEntity) {
+        guard closingTable == nil else { return }
+        closingTable = table
+        handleBack()
     }
 
     private func handleBack() {
