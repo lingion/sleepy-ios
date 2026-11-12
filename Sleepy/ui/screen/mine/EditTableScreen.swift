@@ -629,6 +629,7 @@ struct FieldTextField: View {
     let label: String
     var placeholder: String = ""
     var keyboardType: UIKeyboardType = .default
+    var identifier: String? = nil
     @FocusState private var focused: Bool
 
     private var floatingLabelVisible: Bool { focused || !text.isEmpty || !placeholder.isEmpty }
@@ -646,7 +647,7 @@ struct FieldTextField: View {
                 .foregroundColor(colors.onSurface)
                 .focused($focused)
                 .accessibilityLabel(label)
-                .accessibilityIdentifier("field_\(label)")
+                .accessibilityIdentifier(identifier ?? "field_\(label)")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

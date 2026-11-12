@@ -152,10 +152,9 @@ struct CourseOccurrenceEditor: View {
                                 timeInput("occurrence_end_time", text: $end)
                             }
                         }
-                        FieldTextField(text: $room, label: L10n.format("course_room"))
+                        FieldTextField(text: $room, label: L10n.format("course_room"), identifier: "occurrence_room")
                             .focused($focusedTime, equals: "occurrence_room")
                             .id("occurrence_room")
-                            .accessibilityIdentifier("occurrence_room")
                         if let error {
                             Text(error).foregroundColor(colors.error).accessibilityIdentifier("occurrence_error")
                         }
