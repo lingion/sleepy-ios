@@ -615,6 +615,7 @@
 		8671CB01D75A76AD4B3C81DD /* ImportReceiverActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BB9A3170E31D64A578F3B56 /* ImportReceiverActivity.swift */; };
 		869D1AA60751414B1311B556 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B945AD465F81AFC535B658B /* NotificationScheduler.swift */; };
 		86CFC59FB91BFA3DCEEF2B7B /* TimeTableValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FBCDC0D6D4C72569B6B45B0 /* TimeTableValidation.swift */; };
+		86F5BBF113AAFE4FF174F843 /* WeekCourseProjectionCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F6616DAF451A912638BF75 /* WeekCourseProjectionCache.swift */; };
 		86FF163341AEE46A2552EE51 /* WeekViewWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804FD9B63BCC3C1726B9CAFF /* WeekViewWidgetView.swift */; };
 		876ED70CEEEF70194B99CFC3 /* JwImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B413E30FAD9261068960FC5F /* JwImportViewModel.swift */; };
 		87748876653D7029B041AF5C /* WidgetVariantInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B140E2A80329256048C9082 /* WidgetVariantInfo.swift */; };
@@ -1134,6 +1135,7 @@
 		FCEAAD16BE0FCE77B9587220 /* EffectivePeriodResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5305400BEF83AA266FF32728 /* EffectivePeriodResolver.swift */; };
 		FCFC8D9C91623FDC6FEB6802 /* JwNuitParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC294FCD0137EEE4504AB607 /* JwNuitParser.swift */; };
 		FD778CB2D0438982E115BDE8 /* JwShsmuCaptureCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0487501ADFD3272E9D0E10E9 /* JwShsmuCaptureCalendar.swift */; };
+		FD97A79CCCA775EA4EC06180 /* WeekProjectionCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082EDE5B09399BDD271591C2 /* WeekProjectionCacheTests.swift */; };
 		FE008EF09FC4046CBF8D0AD8 /* JwShtu2024Parser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA8BD9D90CB20C306172296 /* JwShtu2024Parser.swift */; };
 		FE3F3F116C8AC1DD82608A7E /* TimeTableDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5DE7210118C9EC520F007E /* TimeTableDao.swift */; };
 		FE4E4D40AD63C27EA27A06DC /* JwHomeParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C4F0122B013F0C9601D7DB /* JwHomeParser.swift */; };
@@ -1246,6 +1248,7 @@
 		0657E1EA84B2DCFB4AAFD489 /* SleepyControlsGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyControlsGeometryTests.swift; sourceTree = "<group>"; };
 		0718B20F0D0233CEBDC569F8 /* ImportAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAuditUITests.swift; sourceTree = "<group>"; };
 		074F625FD0B2ACC854A21C67 /* ScheduleStateDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleStateDeliveryTests.swift; sourceTree = "<group>"; };
+		082EDE5B09399BDD271591C2 /* WeekProjectionCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekProjectionCacheTests.swift; sourceTree = "<group>"; };
 		089AF7B5A308D8889ABF3C6A /* SchoolSearchIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolSearchIndex.swift; sourceTree = "<group>"; };
 		091CF54ADE6711A4CA322D6D /* JwParity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParity.swift; sourceTree = "<group>"; };
 		0A2BF8A206E24DEB9B0ADCAB /* Jw1064UndergradFixturesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Jw1064UndergradFixturesTests.swift; sourceTree = "<group>"; };
@@ -1750,6 +1753,7 @@
 		C3454051E6DC5AF797F4FF45 /* JwEcuplScriptParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwEcuplScriptParserTests.swift; sourceTree = "<group>"; };
 		C3D5DF561527924EA3250B0F /* CourseOccurrenceEditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseOccurrenceEditTests.swift; sourceTree = "<group>"; };
 		C4AD798EE56D6A6A6BD66287 /* Sleepy.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sleepy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C4F6616DAF451A912638BF75 /* WeekCourseProjectionCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekCourseProjectionCache.swift; sourceTree = "<group>"; };
 		C52425C86328D20E90B769E6 /* JwDiagnosticJs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwDiagnosticJs.swift; sourceTree = "<group>"; };
 		C59FDFBF7ACB7D4CC1761F68 /* JwKingoHTMLRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwKingoHTMLRegressionTests.swift; sourceTree = "<group>"; };
 		C5AEAFDEB677B24D52535603 /* SecondaryDialogParityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryDialogParityUITests.swift; sourceTree = "<group>"; };
@@ -2044,6 +2048,7 @@
 				DD3F20A29E3326DA08E439B4 /* ScheduleEditPolicyState.swift */,
 				449BD8236BF9A935B646F5F3 /* ScheduleScreen.swift */,
 				B676529801720CE8A47480B3 /* ScheduleViewModel.swift */,
+				C4F6616DAF451A912638BF75 /* WeekCourseProjectionCache.swift */,
 			);
 			path = schedule;
 			sourceTree = "<group>";
@@ -2693,6 +2698,7 @@
 				93D947CE36AC71405BBBA282 /* WatchTimeStripPreferencesTests.swift */,
 				F7D660584E46CD4DB05E5FAC /* WatchTransferDeletionTests.swift */,
 				EAA351FA5E1B5313277092F1 /* WebViewNavigationPolicyTests.swift */,
+				082EDE5B09399BDD271591C2 /* WeekProjectionCacheTests.swift */,
 				5947D443DB6E62C7E59122EC /* WidgetBackupProductionTests.swift */,
 				13B8CED7D99053497F027E7A /* WidgetCompactWindowParityTests.swift */,
 				E4B703E488C1622E9C0C3D7D /* WidgetFaceGeometryTests.swift */,
@@ -3688,6 +3694,7 @@
 				799157EED3EEFCA74C65EA68 /* WatchSyncSnapshot.swift in Sources */,
 				2350DA7F035167D5A6F56DC9 /* WatchTimeStripCore.swift in Sources */,
 				AD3A94B923E9CB968FE2D01A /* WatchTimeStripPreferences.swift in Sources */,
+				86F5BBF113AAFE4FF174F843 /* WeekCourseProjectionCache.swift in Sources */,
 				DE54D9ABD789E271BD9CEB33 /* WeekDisplayResolver.swift in Sources */,
 				5E1171D0F0675877134E44CD /* WeekGridWideCore.swift in Sources */,
 				EB7310EE323D9422C26B62DC /* WeekGridWideWidgetView.swift in Sources */,
@@ -4237,6 +4244,7 @@
 				F3E65F811B012B5B6CA5F01F /* WatchTimeStripPreferencesTests.swift in Sources */,
 				12AA1EE2639A0CDE304AEFA7 /* WatchTransferDeletionTests.swift in Sources */,
 				71CF8D75E142FF4C91354E7B /* WebViewNavigationPolicyTests.swift in Sources */,
+				FD97A79CCCA775EA4EC06180 /* WeekProjectionCacheTests.swift in Sources */,
 				9BAA5F42CD122FB11D11524B /* WidgetBackupProductionTests.swift in Sources */,
 				36BA9BE151E32CB11CDD5072 /* WidgetCompactWindowParityTests.swift in Sources */,
 				B2B9418F697E739AC7D63A22 /* WidgetFaceGeometryTests.swift in Sources */,

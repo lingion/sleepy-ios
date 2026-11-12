@@ -448,20 +448,25 @@ func renderCoursesForWeek(_ table: TimeTableEntity,
                           transfers: [HolidayTransferEntry],
                           timeJson: String?,
                           calendar: Calendar? = nil) -> [CourseEntity] {
-    return (1...7).flatMap { day -> [CourseEntity] in
-        guard let date = CourseOccurrences.date(startDate: table.startDate, week: week, day: day, calendar: calendar) else {
-            return []
-        }
-        return HolidayTransferOps.coursesForDate(
-            date, startDate: table.startDate, maxWeek: table.maxWeek,
-            courses: courses, transfers: transfers
-        ).map { c -> CourseEntity in
-            var projected = c
-            projected.day = day
-            if let tj = timeJson {
-                projected = projected.normalizeNode(timeJson: tj)
+    let input = WeekCourseProjectionCache.Input(tableId: table.id, startDate: table.startDate,
+        maxWeek: table.maxWeek, week: week, courses: courses, transfers: transfers,
+        timeJson: timeJson, calendar: calendar)
+    return WeekCourseProjectionCache.shared.value(for: input) {
+        (1...7).flatMap { day -> [CourseEntity] in
+            guard let date = CourseOccurrences.date(startDate: table.startDate, week: week, day: day, calendar: calendar) else {
+                return []
             }
-            return projected
+            return HolidayTransferOps.coursesForDate(
+                date, startDate: table.startDate, maxWeek: table.maxWeek,
+                courses: courses, transfers: transfers
+            ).map { c -> CourseEntity in
+                var projected = c
+                projected.day = day
+                if let tj = timeJson {
+                    projected = projected.normalizeNode(timeJson: tj)
+                }
+                return projected
+            }
         }
     }
 }
@@ -636,20 +641,19 @@ private struct WeekPager: View {
                TimetableViewportPolicy.shouldRenderWeek(page, selectedWeek: renderSelectedWeek,
                                                          dragHostWeek: dragHostWeek) {
                 // page 是 1-based 周索引,独立于 state.currentWeek 过滤课程
-                let weekCourses: [CourseEntity] = {
+                // The fallback is lazy: a real table uses the daily projection,
+                // so it must not also normalize and discard a second course list.
+                let renderCourses = state.currentTable.map {
+                    renderCoursesForWeek($0, week: page, courses: state.courses,
+                                         transfers: state.transfers,
+                                         timeJson: state.effectiveRenderTimeJson)
+                } ?? {
                     let list = state.courses.filter { $0.inWeek(page) }
                     // issue#40: normalizeNode 时间域真源 = 水合表 effectiveCurrentTable
                     // (绑定作息表编辑后立即生效), 不得再读 currentTable.timeJson 旧兼容列
                     guard let tj = state.effectiveRenderTimeJson else { return list }
                     return list.map { $0.normalizeNode(timeJson: tj) }
                 }()
-                // v1.0.62 B5b: 调休渲染改 coursesForDate 逐日投影 ← ScheduleScreen.kt L290-300
-                // (表缺省回落 weekCourses 原路径; 投影内部已含 normalizeNode 时间域归一)
-                let renderCourses = state.currentTable.map {
-                    renderCoursesForWeek($0, week: page, courses: state.courses,
-                                         transfers: state.transfers,
-                                         timeJson: state.effectiveRenderTimeJson)
-                } ?? weekCourses
                 Group {
                     switch viewMode {
                     case .full:
