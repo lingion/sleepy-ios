@@ -204,6 +204,7 @@ enum CustomThemeStore {
 
     private static func saveAll(_ themes: [CustomTheme], _ d: UserDefaults) {
         d.set(CustomThemeCore.toJson(themes), forKey: CustomThemeCore.KEY_THEMES)
+        if d === AppPrefs.shared.sharedBackedStore { AppPrefs.shared.syncWidgetPreferences() }
     }
 
     /// ← CustomThemeStore.kt:150 `fun changes(ctx): Flow<String>` 的 Combine 等价。

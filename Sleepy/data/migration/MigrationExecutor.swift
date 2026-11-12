@@ -87,7 +87,8 @@ struct RuntimeMigrationPrefsStore: MigrationPrefsStoreProtocol {
                     guard value.type == .BOOL else { throw invalid(fileName, key) }
                 default:
                     if key.hasPrefix("mode_") {
-                        guard value.type == .STRING, WeekGridWideMode(rawValue: value.string.lowercased()) != nil else {
+                        guard value.type == .STRING,
+                              WeekGridWideMode(rawValue: value.string.lowercased()) != nil || value.string.lowercased() == "original" else {
                             throw invalid(fileName, key)
                         }
                     } else if key.hasPrefix("side_") {
@@ -141,6 +142,7 @@ struct RuntimeMigrationPrefsStore: MigrationPrefsStoreProtocol {
             if snapshot.entries[CustomThemeCore.KEY_THEMES] == nil, let previousTheme {
                 CustomThemeStore.defaults.set(previousTheme, forKey: CustomThemeCore.KEY_THEMES)
             }
+            AppPrefs.shared.syncWidgetPreferences(replacingMissing: true)
         } else {
             MigrationPrefsCodec.apply(open(fileName: fileName), snapshot, merge: merge)
             if fileName == CustomThemeCore.PREFS_NAME {
@@ -149,6 +151,7 @@ struct RuntimeMigrationPrefsStore: MigrationPrefsStoreProtocol {
                 } else if !merge {
                     CustomThemeStore.defaults.removeObject(forKey: CustomThemeCore.KEY_THEMES)
                 }
+                AppPrefs.shared.syncWidgetPreferences(replacingMissing: true)
             }
         }
     }
