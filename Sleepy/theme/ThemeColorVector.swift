@@ -12,6 +12,8 @@ struct ThemeColorVector: VectorArithmetic {
         self.components = components
     }
 
+    // Keep arbitrary dynamic Color inputs fresh. The provider caches only its
+    // fully keyed terminal vector, never this initializer or animation values.
     init(scheme: WakeUpColorScheme, dark: Bool, increasedContrast: Bool) {
         let traits = UITraitCollection(traitsFrom: [
             UITraitCollection(userInterfaceStyle: dark ? .dark : .light),
