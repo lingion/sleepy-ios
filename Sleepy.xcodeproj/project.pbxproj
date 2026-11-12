@@ -302,7 +302,6 @@
 		439C831701E3575274373F5D /* IntRangeSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FACA59D1864026CB372D576 /* IntRangeSlider.swift */; };
 		43C0F07B4289C14C9A853761 /* JwSgAssetParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1BAF18FCDF8AFA664D4D37 /* JwSgAssetParserTests.swift */; };
 		4420E4767B9C50B2D7DBE242 /* WeekRangeOverlap.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8C75554581BE8C26C81B68 /* WeekRangeOverlap.swift */; };
-		442FCED3B9D4F3245E587DF3 /* SleepyMaterialTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1EF1B2C5CAED6827418503 /* SleepyMaterialTransition.swift */; };
 		448F58E97EC4E4577A6888A8 /* MigrationV7toV10Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB3F76D45AE7F613321DAFA /* MigrationV7toV10Tests.swift */; };
 		44A1131C0E95B20A67FD5E33 /* JwHnustParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3205A634D1395324ABDEB /* JwHnustParserTests.swift */; };
 		45AEF9E916D677DD8D7029F0 /* SchoolSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089AF7B5A308D8889ABF3C6A /* SchoolSearchIndex.swift */; };
@@ -1304,7 +1303,6 @@
 		19EB2EA5882A1102A65170A9 /* TableSwitchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableSwitchUITests.swift; sourceTree = "<group>"; };
 		1A1C33090A09C0E1868CAEA5 /* JwCaptureDump.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwCaptureDump.swift; sourceTree = "<group>"; };
 		1AEFC2A0E1B4E3D771CDD8C2 /* JwWebViewFrameCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwWebViewFrameCaptureTests.swift; sourceTree = "<group>"; };
-		1B1EF1B2C5CAED6827418503 /* SleepyMaterialTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyMaterialTransition.swift; sourceTree = "<group>"; };
 		1B372DB6508FA846C4A664C4 /* CourseSelectionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseSelectionSheet.swift; sourceTree = "<group>"; };
 		1B5DF4A9257B7E6ED5AA44C8 /* QuickAddPrefillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddPrefillTests.swift; sourceTree = "<group>"; };
 		1BCB8B72B49233D52340AB7A /* ParserAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParserAuditTests.swift; sourceTree = "<group>"; };
@@ -2029,7 +2027,6 @@
 			children = (
 				8757495E2BB19FE10C500671 /* ImportPresentationState.swift */,
 				F97DFC0DF4503BF8A91DB528 /* OverlayDismissalState.swift */,
-				1B1EF1B2C5CAED6827418503 /* SleepyMaterialTransition.swift */,
 				273D417456BBCC47D7AD2627 /* SleepyNavHost.swift */,
 				03B9747692C02E748DAC14B1 /* SleepyNavigator.swift */,
 				C278B59F722968BA27789DDB /* SleepyRoutes.swift */,
@@ -3665,7 +3662,6 @@
 				862CC2DE902FFABC92F04206 /* SleepyApp.swift in Sources */,
 				12DBE6652FBE52B549CD4A6E /* SleepyClassActivityAttributes.swift in Sources */,
 				D2FD74720AC498F6EB67C091 /* SleepyControls.swift in Sources */,
-				442FCED3B9D4F3245E587DF3 /* SleepyMaterialTransition.swift in Sources */,
 				257CCF8C472254DB357EF25D /* SleepyMotion.swift in Sources */,
 				BD2E2F4B39BDE6C575B0D41A /* SleepyNativeExporter.swift in Sources */,
 				78B5EBC1FA2060A28A7EC364 /* SleepyNativeFormat.swift in Sources */,

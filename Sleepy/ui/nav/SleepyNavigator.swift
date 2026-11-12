@@ -112,8 +112,9 @@ final class SleepyNavigator {
     /// 底栏 tab 是 Main 内部状态(非栈元素), "回到 Main" 只意味着撤掉其上浮层。
     /// iOS 等价 = handleBack (丢弃链) + 清 overlay; currentTab 原样保留。
     func popToMain() {
-        vm.handleBack()
-        vm.overlayScreen = nil
+        while vm.overlayScreen != nil || vm.editingCourse != nil {
+            vm.handleBack()
+        }
     }
 
     // ── 16 个 openXxx 意图 (原版本 命名 1:1) ──

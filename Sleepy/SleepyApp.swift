@@ -157,10 +157,7 @@ struct ScheduleShareRequest: Identifiable {
 @MainActor
 final class AppRootViewModel: ObservableObject {
     enum Tab: Hashable { case schedule, today, manage, mine }
-    // ★ OverlayScreen: 根浮层容器(自绘 ZStack)驱动; 右滑转场 + 跟手侧滑返回
-    //   一处适配所有页——新增 case 自动获得同一套手势/转场, 无需逐页挂 recognizer。
-    //   GeneralSettingsScreen 内嵌 NavigationView 容纳 HolidaySettings 嵌套跳转,
-    //   其原生 pop 识别器按 UIKit 独占规则优先于容器侧滑。
+    // Full pages use a native UINavigationController; route state owns each entry.
     enum OverlayScreen: String, Identifiable {
         case addCourse, allTables, editTable, theme, general, export, reminder, about, license
         // ← v1.0.60 新屏(原版本 SleepyNavHost push 路由的 overlay 等价物)
@@ -174,6 +171,21 @@ final class AppRootViewModel: ObservableObject {
         case dailyAgenda             // DailyAgendaScreen(每日议程)
         // holiday 由 GeneralSettings 内部 sheet 呈现,不再出现在根 enum
         var id: String { rawValue }
+    }
+
+    /// Snapshot route arguments so a child page cannot overwrite its parent's editor.
+    struct OverlayEntry: Identifiable {
+        let id: UUID
+        let screen: OverlayScreen
+        let editingCourse: CourseEntity?
+        let initialCourseSlot: CourseAddSlot?
+        let addCourseTargetTableId: Int64?
+        let editTableId: Int64?
+        let pendingNewTableId: Int64?
+        let previousDefaultTableId: Int64?
+        let periodEditId: Int64?
+        let pendingNewPeriodTableId: Int64?
+        let dailyAgendaDate: Date?
     }
 
     @Published var currentTab: Tab = .schedule
@@ -207,6 +219,7 @@ final class AppRootViewModel: ObservableObject {
     @Published var overlayScreen: OverlayScreen? = nil {
         didSet {
             recordOverlayNavigation()
+            if overlayScreen != oldValue { overlayEntryID = UUID() }
             if overlayScreen == nil { overlayParents.removeAll() }
             if overlayScreen != .addCourse {
                 initialCourseSlot = nil
@@ -214,7 +227,23 @@ final class AppRootViewModel: ObservableObject {
             }
         }
     }
-    private var overlayParents: [OverlayScreen] = []
+    private var overlayEntryID = UUID()
+    private var overlayParents: [OverlayEntry] = []
+
+    var overlayNavigationEntries: [OverlayEntry] {
+        guard let screen = overlayScreen ?? (editingCourse == nil ? nil : .addCourse) else { return [] }
+        return overlayParents + [overlayEntry(screen)]
+    }
+
+    private func overlayEntry(_ screen: OverlayScreen) -> OverlayEntry {
+        OverlayEntry(id: overlayEntryID, screen: screen,
+                     editingCourse: editingCourse, initialCourseSlot: initialCourseSlot,
+                     addCourseTargetTableId: addCourseTargetTableId,
+                     editTableId: editTableId, pendingNewTableId: pendingNewTableId,
+                     previousDefaultTableId: previousDefaultTableId,
+                     periodEditId: periodEditId, pendingNewPeriodTableId: pendingNewPeriodTableId,
+                     dailyAgendaDate: dailyAgendaDate)
+    }
     @Published var editingCourse: CourseEntity? = nil {
         didSet {
             recordOverlayNavigation()
@@ -332,31 +361,57 @@ final class AppRootViewModel: ObservableObject {
     /// Keep the source page for child routes, matching Android's push/pop.
     func pushOverlay(_ screen: OverlayScreen) {
         guard overlayScreen != screen else { return }
-        if let parent = overlayScreen { overlayParents.append(parent) }
+        if let parent = overlayScreen { overlayParents.append(overlayEntry(parent)) }
         overlayScreen = screen
     }
 
     private func popOverlay() {
-        overlayScreen = overlayParents.popLast()
+        let parent = overlayParents.popLast()
+        overlayScreen = parent?.screen
+        guard let parent else { return }
+        overlayEntryID = parent.id
+        switch parent.screen {
+        case .addCourse:
+            editingCourse = parent.editingCourse
+            initialCourseSlot = parent.initialCourseSlot
+            addCourseTargetTableId = parent.addCourseTargetTableId
+        case .editTable:
+            editTableId = parent.editTableId
+            pendingNewTableId = parent.pendingNewTableId
+            previousDefaultTableId = parent.previousDefaultTableId
+        case .periodEdit:
+            periodEditId = parent.periodEditId
+            pendingNewPeriodTableId = parent.pendingNewPeriodTableId
+        case .dailyAgenda:
+            dailyAgendaDate = parent.dailyAgendaDate
+        default:
+            break
+        }
     }
 
     // ← BackHandler: overlay 返回(pendingNewTable 丢弃链)
     func handleBack() {
-        if let discardId = pendingNewTableId {
-            let fallback = previousDefaultTableId
+        let screen = overlayScreen ?? (editingCourse == nil ? nil : .addCourse)
+        switch screen {
+        case .editTable:
+            if let discardId = pendingNewTableId {
+                scheduleViewModel.discardNewTable(discardId, fallbackId: previousDefaultTableId)
+            }
             pendingNewTableId = nil
             previousDefaultTableId = nil
-            scheduleViewModel.discardNewTable(discardId, fallbackId: fallback)
             editTableId = nil
-        } else if let discardPeriodId = pendingNewPeriodTableId {
-            // ← v1.0.60: 作息表编辑未保存返回 → 丢弃残留行(原版本 NavHost BackHandler 同语义)
+        case .periodEdit:
+            if let discardId = pendingNewPeriodTableId {
+                scheduleViewModel.discardNewPeriodTable(id: discardId)
+            }
             pendingNewPeriodTableId = nil
-            scheduleViewModel.discardNewPeriodTable(id: discardPeriodId)
             periodEditId = nil
-        } else {
+        case .addCourse:
             editingCourse = nil
-            editTableId = nil
-            periodEditId = nil
+            initialCourseSlot = nil
+            addCourseTargetTableId = nil
+        default:
+            break
         }
         popOverlay()
     }
@@ -405,9 +460,7 @@ final class AppRootViewModel: ObservableObject {
         guard let course = try? repository.getCourse(id) else { return false }
         // Use the existing discard path before replacing the route. Otherwise
         // Back from this course could discard a previous unsaved table instead.
-        handleBack()
-        if pendingNewPeriodTableId != nil { handleBack() }
-        overlayScreen = nil
+        while overlayScreen != nil || editingCourse != nil { handleBack() }
         navigator.session.beginEditCourse(course)
         navigator.openAddCourse(courseId: course.id, editing: true)
         return true
@@ -417,6 +470,7 @@ final class AppRootViewModel: ObservableObject {
     //   日期经 DailyAgendaRoute 严格解析后在此落位; 重复打开同日不重触发转场。
     func openDailyAgenda(_ date: Date) {
         if overlayScreen == .dailyAgenda && dailyAgendaDate == date { return }
+        while overlayScreen != nil || editingCourse != nil { handleBack() }
         dailyAgendaDate = date
         overlayScreen = .dailyAgenda
     }
@@ -477,15 +531,7 @@ struct AppRoot: View {
     @State private var jwActiveImport = false
 
     var body: some View {
-        // iOS 15 兼容(6s Plus 真机 = 15.8.8):此处仅作容器,无 NavigationLink 压栈,
-        // 旧 API 行为等价(NavigationStack 是 iOS16+ API)。
-        // ★ v7.10.17 6sp 空白修复 v2: NavigationView 即使 .navigationBarHidden(true)
-        //   在 iOS 15.6 stack 风格仍预占约 88pt 透明 navbar 区域(.navigationBarHidden
-        //   在 16+ 才稳定生效,15 上是 best-effort) → 所有页面顶栏上方 112pt 纯空白。
-        //   AppRoot 没有 NavigationLink 需求 → 直接 root,不要 NavigationView 壳。
-        //   JwImportFlow 内部仍保留 NavigationView(那里有真正的 nav stack 行为)。
-        // ★ 键盘避让只在 tab 层忽略(旧 fullScreenCover 时代对整个 mainContent 忽略);
-        //   浮层走自绘 ZStack 容器, 保留键盘避让 → AddCourse 输入框自动避开键盘。
+        // The native navigation host retains the tab root and each pushed page.
         mainContent
         .background(WindowGeometryProbe(onChange: { root.updateWindowSize($0) }))
         // ← Activity.recreate(): 语言切换 → L10n.didChange → languageReload+1 → 全树重建
@@ -553,33 +599,6 @@ struct AppRoot: View {
         }
         .onChange(of: root.importRequested) { requested in
             if requested { presentRequestedImport() }
-        }
-        .sleepyNavigationPage(isPresented: $showImportSheet, onDismiss: {
-            importTargetTableId = nil
-            importInitialText = nil
-            importPresentation.didDismiss(.methods)
-            drainRequestedImportsAfterDismissal()
-        }, canvas: {
-            OverlayCanvasBackground().ignoresSafeArea()
-                .themedOverlay(isDark: isDark, themeKey: themeKey,
-                               schemeOverride: schemeOverride, customThemeVersion: customThemesJson)
-        }) {
-            let targetTableId = importTargetTableId
-            ImportSheet(viewModel: root.scheduleViewModel,
-                        onDismiss: { showImportSheet = false },
-                        onImported: importDidFinish,
-                        drafts: root.importDrafts,
-                        onDeleteDraft: { root.deleteDraft($0) },
-                        onJwDismissed: { root.refreshDrafts() },
-                        canCreateNewTable: true,
-                        targetTableId: targetTableId,
-                        initialImportText: importInitialText,
-                        onManualCourseSaved: { root.currentTab = .schedule })
-                .id(targetTableId)
-                .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
-                                              customThemeVersion: customThemesJson))
-                .environment(\.systemColorSnapshot, systemColorSnapshot)
-                .preferredColorScheme(schemeOverride)
         }
         .sheet(item: $root.shareRequest) { request in
             ShareScheduleSheet(table: request.table, courses: request.courses,
@@ -694,32 +713,50 @@ struct AppRoot: View {
         themeMode == AppPrefs.THEME_MODE_SYSTEM ? nil : (isDark ? .dark : .light)
     }
 
+    private var importableTabs: some View {
+        tabs
+        .sleepyNavigationPage(isPresented: $showImportSheet, onDismiss: {
+            importTargetTableId = nil
+            importInitialText = nil
+            importPresentation.didDismiss(.methods)
+            drainRequestedImportsAfterDismissal()
+        }, canvas: {
+            OverlayCanvasBackground().ignoresSafeArea()
+                .themedOverlay(isDark: isDark, themeKey: themeKey,
+                               schemeOverride: schemeOverride, customThemeVersion: customThemesJson)
+        }) {
+            let targetTableId = importTargetTableId
+            ImportSheet(viewModel: root.scheduleViewModel,
+                        onDismiss: { showImportSheet = false },
+                        onImported: importDidFinish,
+                        drafts: root.importDrafts,
+                        onDeleteDraft: { root.deleteDraft($0) },
+                        onJwDismissed: { root.refreshDrafts() },
+                        canCreateNewTable: true,
+                        targetTableId: targetTableId,
+                        initialImportText: importInitialText,
+                        onManualCourseSaved: { root.currentTab = .schedule })
+                .id(targetTableId)
+                .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                              customThemeVersion: customThemesJson))
+                .environment(\.systemColorSnapshot, systemColorSnapshot)
+                .preferredColorScheme(schemeOverride)
+        }
+    }
+
     @ViewBuilder
     private var mainContent: some View {
-        // ★ 根浮层 = 自绘 ZStack 容器(PresentOverlay):
-        //   - 所有 OverlayScreen 页共用一份右滑转场 + 跟手侧滑返回驱动
-        //   - 状态机(handleBack/pendingNewTable 丢弃链/深链)时序不变
-        //   - holiday 子页由 GeneralSettings 内部 NavigationView 承载,不再列根
-        // ★ type-check: 浮层内容仍走单一 PresentOverlay ViewModifier, 子树独立推导
-        tabs
+        importableTabs
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .modifier(PresentOverlay(
                 isDark: isDark,
                 themeKey: themeKey,
                 customThemeVersion: customThemesJson,
-                overlayScreen: $root.overlayScreen,
-                resolvedScreen: root.overlayScreen ?? (root.editingCourse == nil ? nil : .addCourse),
-                navigationRevision: root.overlayNavigationRevision,
-                beginDismissal: { root.beginOverlayDismissal() },
-                completeDismissal: { ticket, action in root.completeOverlayDismissal(ticket, then: action) },
-                editingCourse: root.editingCourse,
-                initialCourseSlot: root.initialCourseSlot,
-                addCourseTargetTableId: root.addCourseTargetTableId,
-                editTableId: root.editTableId,
-                pendingNewTableId: root.pendingNewTableId,
-                periodEditId: root.periodEditId,
-                pendingNewPeriodTableId: root.pendingNewPeriodTableId,
-                dailyAgendaDate: root.dailyAgendaDate,
+                entries: root.overlayNavigationEntries,
+                onPopEntry: { id in
+                    guard root.overlayNavigationEntries.last?.id == id else { return }
+                    root.handleBack()
+                },
                 onSavedPeriod: { root.finishPeriodTableSave() },
                 onOpenPeriodEdit: { periodId, isNew in
                     root.navigator.openPeriodEdit(periodId: periodId, isNew: isNew)
@@ -1334,21 +1371,8 @@ private struct PresentOverlay: ViewModifier {
     let themeKey: String
     // ← AppRoot.customThemesJson 同源下发: 浮层页在自定义主题就地编辑后也要重跑 provider
     var customThemeVersion: String = ""
-    @Binding var overlayScreen: AppRootViewModel.OverlayScreen?
-    let resolvedScreen: AppRootViewModel.OverlayScreen?
-    let navigationRevision: UInt64
-    let beginDismissal: () -> OverlayDismissalState.Ticket
-    let completeDismissal: (OverlayDismissalState.Ticket, @escaping () -> Void) -> Void
-    let editingCourse: CourseEntity?
-    let initialCourseSlot: CourseAddSlot?
-    let addCourseTargetTableId: Int64?
-    let editTableId: Int64?
-    let pendingNewTableId: Int64?
-    // ← v1.0.60 作息表编辑路由参数(镜像 editTable 的 pending 丢弃链)
-    let periodEditId: Int64?
-    let pendingNewPeriodTableId: Int64?
-    // ← v1.0.62 B5: 议程页路由参数(通知点击/深链共用; openDailyAgenda 单一入口落位)
-    let dailyAgendaDate: Date?
+    let entries: [AppRootViewModel.OverlayEntry]
+    let onPopEntry: (UUID) -> Void
     let onSavedPeriod: () -> Void
     let onOpenPeriodEdit: (Int64, _ isNew: Bool) -> Void
     let scheduleViewModel: ScheduleViewModel
@@ -1370,113 +1394,29 @@ private struct PresentOverlay: ViewModifier {
         themeMode == AppPrefs.THEME_MODE_SYSTEM ? nil : (isDark ? .dark : .light)
     }
 
-    // 浮层容器状态: shownScreen 镜像 activeScreen(带转场生命周期),
-    // dragX = 侧滑跟手位移; the window owner invalidates stale dismissal tickets.
-    @State private var shownScreen: AppRootViewModel.OverlayScreen?
-    @State private var dragX: CGFloat = 0
-
-    private struct NavigationSnapshot: Equatable {
-        let screen: AppRootViewModel.OverlayScreen?
-        let revision: UInt64
-    }
-
-    private var navigationSnapshot: NavigationSnapshot {
-        NavigationSnapshot(screen: resolvedScreen, revision: navigationRevision)
-    }
-
     func body(content: Content) -> some View {
-        // ★ 系统性手势适配: 所有 overlay 页共用一个自绘容器, 右滑转场 + 跟手侧滑返回。
-        //   不再逐页挂 recognizer——以后新增 OverlayScreen case 自动获得同一套手势。
-        ZStack {
-            content.modifier(SleepyNavigationUnderlay(covered: shownScreen != nil))
-            if let screen = shownScreen {
-                overlayContent(screen)
-                    .offset(x: dragX)
-                    // 容器级不透明底 ← 原版本 SleepyNavHost 每个 composable 自带
-                    // Scaffold(containerColor)。旧行为: 浮层零背景 → 直接透出下层
-                    // tab 页, 深色模式下 = 白屏 (真机报告 "我的→设置页 全白")。
-                    // 必须 ignoresSafeArea — 与 TabsCanvasBackground 挂载点(479)同款,
-                    // 否则状态栏/底部 home indicator 区仍透底。
-                    // ★ 必须独立子 View 在 provider 子树内解析 env: PresentOverlay
-                    // 整体挂在根 SleepyThemeProvider 之外, 直接读环境拿到的是
-                    // WakeUpColorsKey.defaultValue = lightScheme (白) 而非当前主题。
+        SleepyNativeNavigationHost(pages: entries.map { entry in
+            SleepyNativeNavigationEntry(id: AnyHashable(entry.id), content: AnyView(
+                overlayContent(entry)
                     .background(OverlayCanvasBackground().ignoresSafeArea())
-                    // A route replacement must remove the old page and insert the
-                    // new one; changing only the switch's input reuses its host.
-                    .id(screen)
-                    // Android forward and pop both use the shared centered
-                    // content motion. Keep outgoing pages above the root canvas.
-                    .transition(SleepyMaterialTransition.forwardTransform)
-                    .zIndex(1)
-            }
-        }
-        // Pages scale and fade independently. Keep a full-screen themed canvas
-        // outside both transitions so their uncovered edges never reveal UIWindow.
-        .background(
-            OverlayCanvasBackground()
-                .ignoresSafeArea()
-                .themedOverlay(isDark: isDark, themeKey: themeKey,
-                               schemeOverride: schemeOverride,
-                               customThemeVersion: customThemeVersion)
-        )
-        // Read route and revision from the same parent-rendered value. Re-reading
-        // the live Binding in a revision callback can combine a cleared route
-        // with the previous editing record and reopen an empty course editor.
-        // One observer also prevents route and revision callbacks from issuing
-        // opposing close/open decisions during the same navigation change.
-        .onChange(of: navigationSnapshot) { syncPresentation($0.screen) }
-        .onAppear {
-            // 语言切换 → .id(languageReload) 整树重建 → 本修饰器 @State 复位 nil,
-            // 但 VM.overlayScreen 仍持页 → 不恢复会把用户弹回根页
-            // (原版本 Activity.recreate 保留当前页, 此处对齐)
-            if shownScreen == nil, let screen = resolvedScreen { shownScreen = screen }
+            ), onPop: { onPopEntry(entry.id) })
+        }) {
+            content
         }
     }
-
-    private func syncPresentation(_ active: AppRootViewModel.OverlayScreen?) {
-        if let screen = active {
-            guard shownScreen != screen else { return }
-            // Root entry, child push and return to a parent all consume the
-            // same content transition, matching Android's forward/pop pair.
-            dragX = 0
-            withAnimation(SleepyMaterialTransition.forwardAnimation) { shownScreen = screen }
-        } else if shownScreen != nil {
-            // 关闭路径①: 程序化关闭(✕ 按钮/保存/删除) → 右滑出动画后移除
-            if dragX > 60 {
-                shownScreen = nil
-                dragX = 0
-            } else {
-                animateOutThen(then: {})
-            }
-        }
-    }
-
-    /// 关闭路径②: 侧滑过阈值 → 页面跟手滑出全程, 动画结束才回调 onBack(保持
-    /// handleBack/createNewTableThenEdit 的状态机时序不变)。
-    private func commitGestureDismiss(_ then: @escaping () -> Void) {
-        animateOutThen(then: then)
-    }
-
-    // 关闭通路 ← F069 Option A: 出页交给 forwardTransform 的 removal(forwardExit =
-    //   淡出 + 缩向 0.92, 220ms, 原 sleepyPopExit 同形态), 不再把 dragX 推到屏外
-    //   滑出 —— 滑出与 forwardExit 叠加 = 页面既滑走又缩放(双演)。dragX 只保留
-    //   手势跟手 + 释放后 commit/cancel 的职责, 复位挪到移除完成后(此时已不可见, 无回弹)。
-    private func animateOutThen(then: @escaping () -> Void) {
-        let ticket = beginDismissal()
-        withAnimation(SleepyMaterialTransition.forwardAnimation) { shownScreen = nil }
-        DispatchQueue.main.asyncAfter(deadline: .now() + SleepyMaterialTransition.forwardDuration) {
-            completeDismissal(ticket) {
-                dragX = 0
-                then()
-            }
-        }
-    }
-
 
     @ViewBuilder
     @MainActor
-    private func overlayContent(_ screen: AppRootViewModel.OverlayScreen) -> some View {
-        switch screen {
+    private func overlayContent(_ entry: AppRootViewModel.OverlayEntry) -> some View {
+        let editingCourse = entry.editingCourse
+        let initialCourseSlot = entry.initialCourseSlot
+        let addCourseTargetTableId = entry.addCourseTargetTableId
+        let editTableId = entry.editTableId
+        let pendingNewTableId = entry.pendingNewTableId
+        let periodEditId = entry.periodEditId
+        let pendingNewPeriodTableId = entry.pendingNewPeriodTableId
+        let dailyAgendaDate = entry.dailyAgendaDate
+        switch entry.screen {
         case .addCourse:
             AddCourseScreen(
                 viewModel: scheduleViewModel,
@@ -1489,7 +1429,7 @@ private struct PresentOverlay: ViewModifier {
                                          targetTableId: addCourseTargetTableId))
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .allTables:
             AllTablesScreen(
                 viewModel: scheduleViewModel,
@@ -1498,7 +1438,7 @@ private struct PresentOverlay: ViewModifier {
                 onOpenEditTable: onOpenEditTable)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .editTable:
             EditTableScreen(
                 viewModel: scheduleViewModel,
@@ -1510,12 +1450,12 @@ private struct PresentOverlay: ViewModifier {
                 onDeleted: onDeletedTable)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onBack, onCommit: commitGestureDismiss)
+
         case .general:
             GeneralSettingsScreen(onDismiss: onDismiss, viewModel: scheduleViewModel)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .theme:
             AppearanceScreen(
                 onDismiss: onDismiss,
@@ -1526,33 +1466,33 @@ private struct PresentOverlay: ViewModifier {
                 onOpenPeriodHeaderSettings: onOpenPeriodHeaderSettings)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .export:
             ExportScreen(viewModel: scheduleViewModel, onDismiss: onDismiss)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .reminder:
             ReminderScreen(onDismiss: onDismiss, viewModel: scheduleViewModel)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .about:
             AboutScreen(onDismiss: onDismiss, onOpenLicense: onOpenLicense)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .license:
             LicenseScreen(onDismiss: onDismiss)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .courseList:
             CourseListScreen(onBack: onDismiss)
                 .environmentObject(scheduleViewModel)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .periodTables:
             PeriodTablesScreen(
                 onBack: onDismiss,
@@ -1566,14 +1506,14 @@ private struct PresentOverlay: ViewModifier {
                 .environmentObject(scheduleViewModel)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .periodHeaderSettings:
             // ← 原版本 PeriodHeaderSettingsScreen(外观页 Section④ 节次表头入口)
             //   屏自身直读 AppPrefs, 无需 VM 参数 (F087/F088 路由接线)
             PeriodHeaderSettingsScreen(onBack: onDismiss)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .periodEdit:
             PeriodTableEditScreen(
                 viewModel: scheduleViewModel,
@@ -1583,18 +1523,18 @@ private struct PresentOverlay: ViewModifier {
                 onSaved: onSavedPeriod)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onBack, onCommit: commitGestureDismiss)
+
         case .scheduleDisplay:
             ScheduleDisplayScreen(onBack: onDismiss, viewModel: scheduleViewModel)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         case .dailyAgenda:
             // ← v1.0.62 B5: 每日议程页(通知点击/深链落地; 日期经 DailyAgendaRoute 严格解析)
             DailyAgendaScreen(date: dailyAgendaDate ?? Date(), onBack: onDismiss)
                 .themedOverlay(isDark: isDark, themeKey: themeKey, schemeOverride: schemeOverride,
                                customThemeVersion: customThemeVersion)
-                .edgeBackGesture(dragX: $dragX, onBack: onDismiss, onCommit: commitGestureDismiss)
+
         }
     }
 }
@@ -1605,127 +1545,5 @@ private extension View {
         modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                      customThemeVersion: customThemeVersion))
             .preferredColorScheme(schemeOverride)
-    }
-}
-// ★ 系统性侧滑返回驱动: 一个 UIKit 边缘 pan 识别器桥接 SwiftUI 容器位移。
-//   页面跟手移动、可取消;内层 UINavigationController(HolidaySettings)的
-//   原生 pop 识别器按 UIKit 独占规则优先, 本识别器自动失败, 无双重返回。
-private struct OverlayBackDriver: UIViewControllerRepresentable {
-    @Environment(\.isEnabled) private var isEnabled
-    var enabled = true
-    let onProgress: (CGFloat) -> Void
-    let onFinish: (Bool) -> Void
-
-    func makeUIViewController(context: Context) -> EdgeBackDriverVC {
-        let controller = EdgeBackDriverVC(onProgress: onProgress, onFinish: onFinish)
-        controller.navigationEnabled = enabled && isEnabled
-        return controller
-    }
-
-    func updateUIViewController(_ controller: EdgeBackDriverVC, context: Context) {
-        controller.onProgress = onProgress
-        controller.onFinish = onFinish
-        controller.navigationEnabled = enabled && isEnabled
-    }
-}
-
-private final class EdgeBackDriverVC: UIViewController, UIGestureRecognizerDelegate {
-    var onProgress: (CGFloat) -> Void
-    var onFinish: (Bool) -> Void
-    var navigationEnabled = true
-    private weak var installedView: UIView?
-    private var committed = false
-
-    init(onProgress: @escaping (CGFloat) -> Void, onFinish: @escaping (Bool) -> Void) {
-        self.onProgress = onProgress
-        self.onFinish = onFinish
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        committed = false
-        installRecognizerIfNeeded()
-    }
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        installedView?.gestureRecognizers?.removeAll(where: { $0.delegate === self })
-        installedView = nil
-    }
-
-    private func installRecognizerIfNeeded() {
-        guard installedView == nil else { return }
-        let hostView: UIView = parent?.view ?? self.view
-        let recognizer = UIPanGestureRecognizer(target: self,
-                                                action: #selector(handleEdgePan(_:)))
-        recognizer.maximumNumberOfTouches = 1
-        recognizer.cancelsTouchesInView = false
-        recognizer.delegate = self
-        hostView.addGestureRecognizer(recognizer)
-        installedView = hostView
-    }
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                           shouldReceive touch: UITouch) -> Bool {
-        let point = touch.location(in: gestureRecognizer.view)
-        return navigationEnabled && point.x <= 30
-    }
-
-    // 独占: 内层原生 pop(HolidaySettings)先 begin 则本识别器失败, 避免双重返回
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                           shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-        false
-    }
-
-    @objc private func handleEdgePan(_ recognizer: UIPanGestureRecognizer) {
-        switch recognizer.state {
-        case .changed:
-            guard !committed else { return }
-            onProgress(recognizer.translation(in: recognizer.view).x)
-        case .ended:
-            guard !committed else { return }
-            let translation = recognizer.translation(in: recognizer.view)
-            let velocity = recognizer.velocity(in: recognizer.view)
-            let width = max(recognizer.view?.bounds.width ?? 1, 1)
-            let commit = translation.x / width > 0.25 || velocity.x > 600
-            committed = commit
-            onFinish(commit)
-        case .cancelled, .failed:
-            if !committed { onFinish(false) }
-        default:
-            break
-        }
-    }
-}
-
-extension View {
-    /// 浮层页统一接入: 跟手位移写入容器 dragX, 过阈值由容器滑出后回调 onBack。
-    func edgeBackGesture(dragX: Binding<CGFloat>, enabled: Bool = true,
-                         onBack: @escaping () -> Void,
-                         onCommit: @escaping (@escaping () -> Void) -> Void) -> some View {
-        overlay {
-            OverlayBackDriver(
-                enabled: enabled,
-                onProgress: { translation in
-                    guard translation > 0 else { return }
-                    dragX.wrappedValue = translation
-                },
-                onFinish: { commit in
-                    if commit {
-                        onCommit(onBack)
-                    } else {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
-                            dragX.wrappedValue = 0
-                        }
-                    }
-                })
-                .allowsHitTesting(false)
-        }
     }
 }
