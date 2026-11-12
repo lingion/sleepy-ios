@@ -1176,6 +1176,16 @@ enum NativeTabBarTheme {
         let selectedContent = UIColor(colors.onSecondaryContainer)
         let unselectedContent = UIColor(colors.onSurfaceVariant)
 
+        func matches(_ appearance: UITabBarAppearance) -> Bool {
+            guard appearance.selectionIndicatorTintColor == selectedBackground else { return false }
+            return [appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance,
+                    appearance.compactInlineLayoutAppearance].allSatisfy { item in
+                item.selected.iconColor == selectedContent && item.normal.iconColor == unselectedContent &&
+                item.selected.titleTextAttributes[.foregroundColor] as? UIColor == selectedContent &&
+                item.normal.titleTextAttributes[.foregroundColor] as? UIColor == unselectedContent
+            }
+        }
+
         func themed(_ source: UITabBarAppearance) -> UITabBarAppearance {
             let appearance = source.copy() as! UITabBarAppearance
             appearance.selectionIndicatorTintColor = selectedBackground
@@ -1194,12 +1204,12 @@ enum NativeTabBarTheme {
             return appearance
         }
 
-        let standard = themed(tabBar.standardAppearance)
-        let scrollEdge = themed(tabBar.scrollEdgeAppearance ?? tabBar.standardAppearance)
-        tabBar.standardAppearance = standard
-        tabBar.scrollEdgeAppearance = scrollEdge
-        tabBar.tintColor = selectedContent
-        tabBar.unselectedItemTintColor = unselectedContent
+        if !matches(tabBar.standardAppearance) { tabBar.standardAppearance = themed(tabBar.standardAppearance) }
+        if tabBar.scrollEdgeAppearance.map(matches) != true {
+            tabBar.scrollEdgeAppearance = themed(tabBar.scrollEdgeAppearance ?? tabBar.standardAppearance)
+        }
+        if tabBar.tintColor != selectedContent { tabBar.tintColor = selectedContent }
+        if tabBar.unselectedItemTintColor != unselectedContent { tabBar.unselectedItemTintColor = unselectedContent }
     }
 }
 
@@ -1235,11 +1245,8 @@ private struct TabBarTransparentProbe: UIViewRepresentable {
     static func apply(from v: UIView, colors: WakeUpColorScheme) {
         var cur = v.superview
         var fixedVC = false
-        var lines: [String] = ["probe frame=\(v.frame) win=\(String(describing: v.window?.frame))"]
         while let c = cur, let w = c.window, c !== w {
-            c.backgroundColor = .clear
-            let vc = c.next as? UIViewController
-            lines.append("\(String(describing: type(of: c))) frame=\(c.frame) saBottom=\(c.safeAreaInsets.bottom) vc=\(vc.map { String(describing: type(of: $0)) } ?? "-") addSA=\(vc?.additionalSafeAreaInsets.bottom.description ?? "-")")
+            if c.backgroundColor != .clear { c.backgroundColor = .clear }
             // ★ 目标 = UITabBarController 本体(2026-10-26 二次修正): iOS26 的
             // 玻璃 bar 给其 view 注入 ~85pt bottom safe area, 子 tab 内容全部
             // 继承该 inset → 视口死锁 bar 上沿。给 bar 自己加负 additional →
@@ -1263,14 +1270,9 @@ private struct TabBarTransparentProbe: UIViewRepresentable {
                         i.bottom = target
                         child.additionalSafeAreaInsets = i
                     }
-                    lines.append("child \(String(describing: type(of: child))) saBottom=\(child.view.safeAreaInsets.bottom) → addSA=\(target)")
                 }
             }
             cur = c.superview
-        }
-        // TEMP DEBUG: dump chain to app Documents (simulator FS shared with Mac)
-        if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("chain.txt"), atomically: true, encoding: .utf8)
         }
     }
 }
