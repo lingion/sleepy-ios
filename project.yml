@@ -147,7 +147,6 @@ targets:
       # 门户 Sleepy Schedule=com.lingion.sleepy / Sleepy Shared=group.com.lingion.sleepy
       # (旧 .ios 后缀 ID 被他人团队占用)。AltStore 侧载路径不受影响(重签自注入 group + ALTAppGroups)
       properties:
-        com.apple.developer.game-center: true
         com.apple.security.application-groups: [group.com.lingion.sleepy]
     settings:
       base:
@@ -160,7 +159,7 @@ targets:
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Apple Distribution"
-          PROVISIONING_PROFILE_SPECIFIER: "Sleepy AppStore GameCenter"
+          PROVISIONING_PROFILE_SPECIFIER: "Sleepy AppStore"
 
   SleepyWidget:
     type: app-extension

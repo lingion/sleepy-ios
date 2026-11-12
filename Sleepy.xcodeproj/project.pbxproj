@@ -120,7 +120,6 @@
 		1722F2A7F63DD3D95936EF3E /* LocalCalendarFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76708A287EC92FBF4F4CFB0A /* LocalCalendarFallback.swift */; };
 		17809CF81E27E75E798A6667 /* LocalCalendarFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76708A287EC92FBF4F4CFB0A /* LocalCalendarFallback.swift */; };
 		17A84AD014348D32E55F64EC /* ReminderModeAndTableReminderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F4B12CD9D528D4AAFC6E454 /* ReminderModeAndTableReminderTests.swift */; };
-		17EC679A6415C65B16A566E0 /* GameCenterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD297194CEB475DC1282D725 /* GameCenterManager.swift */; };
 		1803ADD2723B46DFC45BD03B /* CourseColorDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B5BC8D8EB2555CCEC70675 /* CourseColorDao.swift */; };
 		1832C71748A7A6836AE7C626 /* SchoolLocationLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131D314570395796E5D7505F /* SchoolLocationLookup.swift */; };
 		1838AAC5D3E893EA083F3EF6 /* JwImportDraftCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547FA015C2ED83C464E4A228 /* JwImportDraftCodecTests.swift */; };
@@ -1765,7 +1764,6 @@
 		CBB3F76D45AE7F613321DAFA /* MigrationV7toV10Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationV7toV10Tests.swift; sourceTree = "<group>"; };
 		CC7E2B7A13FAED53DC01A04A /* DailyAgendaScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyAgendaScreen.swift; sourceTree = "<group>"; };
 		CCED2D91CAE0B76EBA3C86BC /* JwImportReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwImportReport.swift; sourceTree = "<group>"; };
-		CD297194CEB475DC1282D725 /* GameCenterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCenterManager.swift; sourceTree = "<group>"; };
 		CD353A49838BDA61A2D6C1C3 /* WidgetEditScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetEditScreen.swift; sourceTree = "<group>"; };
 		CD7BE85E89F587BECC23CE86 /* XiaoaiPresetDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XiaoaiPresetDataTests.swift; sourceTree = "<group>"; };
 		CECC23172C2178F89295FDE7 /* WakeUpShareClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeUpShareClientTests.swift; sourceTree = "<group>"; };
@@ -2823,7 +2821,6 @@
 			isa = PBXGroup;
 			children = (
 				0D9A15A23C92B7CD36FB9D42 /* AchievementTracker.swift */,
-				CD297194CEB475DC1282D725 /* GameCenterManager.swift */,
 			);
 			path = gamecenter;
 			sourceTree = "<group>";
@@ -3430,7 +3427,6 @@
 				C7E1B6270651CCFDB000813D /* ExportScreen.swift in Sources */,
 				990AB2AAF76FD0526908555A /* FeedbackComposer.swift in Sources */,
 				ADA1BC83653DD79633C7D2B2 /* FixedDateCourseField.swift in Sources */,
-				17EC679A6415C65B16A566E0 /* GameCenterManager.swift in Sources */,
 				A573D8081A5FC8074012C42A /* GeneralSettingsScreen.swift in Sources */,
 				83A4F8E096E900A4A5C045D2 /* GlobalWidgetCompatibility.swift in Sources */,
 				B871A6901CC5110E1F1A1482 /* GridSeparatorGeometry.swift in Sources */,
@@ -4768,7 +4764,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy;
-				PROVISIONING_PROFILE_SPECIFIER = "Sleepy AppStore GameCenter";
+				PROVISIONING_PROFILE_SPECIFIER = "Sleepy AppStore";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
