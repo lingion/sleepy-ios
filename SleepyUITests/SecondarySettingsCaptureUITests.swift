@@ -378,13 +378,10 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         let course = app.collectionViews["schedule_week_pager"].buttons["gridcell_1"].firstMatch
         XCTAssertTrue(course.waitForExistence(timeout: 8))
         let originalCard = course.label
-        course.tap()
-        let actions = app.buttons["course_occurrence_actions"].firstMatch
-        reveal(actions)
-        actions.tap()
-        let adjust = app.buttons["occurrence_adjust"].firstMatch
-        XCTAssertTrue(adjust.waitForExistence(timeout: 5))
-        adjust.tap()
+        course.press(forDuration: 1)
+        let edit = app.buttons["course_float_edit"].firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
         let date = app.buttons["occurrence_date"].firstMatch
         XCTAssertTrue(date.waitForExistence(timeout: 5))
         let originalDateLabel = date.label
@@ -439,20 +436,16 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         let cancel = app.buttons["occurrence_cancel"].firstMatch
         reveal(cancel)
         cancel.tap()
-        XCTAssertTrue(waitUntil { !cancel.exists && actions.exists })
-        reveal(actions)
-        actions.tap()
-        XCTAssertTrue(adjust.waitForExistence(timeout: 5))
-        adjust.tap()
+        XCTAssertTrue(waitUntil { !cancel.exists && course.isHittable })
+        course.press(forDuration: 1)
+        reveal(edit)
+        edit.tap()
         XCTAssertTrue(date.waitForExistence(timeout: 5))
         XCTAssertEqual(date.label, originalDateLabel)
         XCTAssertEqual(room.value as? String, originalRoom)
         reveal(cancel)
         cancel.tap()
-        let close = app.buttons["detail_close"].firstMatch
-        reveal(close)
-        close.tap()
-        XCTAssertTrue(course.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitUntil { !cancel.exists && course.isHittable })
         XCTAssertEqual(course.label, originalCard)
         app.switchToPillTab("mine")
         XCTAssertEqual(courseCount.label, "5")

@@ -1389,3 +1389,9 @@
 "manage_create_blank_table" = "Create Blank Timetable";
 "create_table_title" = "Create New Timetable";
 "jw_dated_calendar_rebase_hint" = "Changing the date for week one recalculates course weeks and preserves the actual lesson dates.";
+
+"occurrence_move_confirm_title" = "Move this class?";
+
+"occurrence_span_confirm_title" = "Change this class's length?";
+
+"occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";

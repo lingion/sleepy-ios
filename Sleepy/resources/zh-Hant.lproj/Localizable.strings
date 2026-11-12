@@ -1389,3 +1389,9 @@
 "manage_create_blank_table" = "新增空白課表";
 "create_table_title" = "建立新課表";
 "jw_dated_calendar_rebase_hint" = "修改第一週日期會重新計算這些課程的週次，實際授課日期保持不變。";
+
+"occurrence_move_confirm_title" = "是否挪動這次課程?";
+
+"occurrence_span_confirm_title" = "是否調整持續節次?";
+
+"occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";

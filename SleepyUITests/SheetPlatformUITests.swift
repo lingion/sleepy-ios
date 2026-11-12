@@ -473,16 +473,13 @@ final class SheetPlatformUITests: XCTestCase {
         let pager = app.collectionViews["schedule_week_pager"]
         let course = pager.buttons["gridcell_1"].firstMatch
         XCTAssertTrue(course.waitForExistence(timeout: 10))
-        course.tap()
-        let edit = app.buttons["course_occurrence_actions"].firstMatch
+        course.press(forDuration: 1)
+        let edit = app.buttons["course_float_edit"].firstMatch
         makeHittable(edit)
-        edit.tap()
-        let adjust = app.buttons["occurrence_adjust"].firstMatch
-        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["occurrence_delete"].firstMatch.exists)
+        XCTAssertTrue(app.buttons["course_float_delete"].firstMatch.exists)
         XCTAssertFalse(app.descendants(matching: .any)["occurrence_room"].firstMatch.exists,
-                       "The occurrence menu must not expose the edit form")
-        adjust.tap()
+                       "The floating course must not expose the edit form")
+        edit.tap()
         XCUIDevice.shared.orientation = .landscapeLeft
         let field = app.descendants(matching: .any)["occurrence_room"].firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10))
@@ -494,10 +491,10 @@ final class SheetPlatformUITests: XCTestCase {
         assertInteractiveInWindow(cancel)
         cancel.tap()
         XCTAssertTrue(waitUntil { !cancel.exists })
+        makeHittable(course)
+        course.press(forDuration: 1)
         makeHittable(edit)
         edit.tap()
-        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
-        adjust.tap()
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         XCTAssertEqual(field.value as? String, original)
         let replacement = "Studio-\(UUID().uuidString.prefix(6))"
@@ -527,20 +524,16 @@ final class SheetPlatformUITests: XCTestCase {
     func testLandscapeOccurrenceEditorValidatesSaveAndCancelsDelete() {
         let course = app.collectionViews["schedule_week_pager"].buttons["gridcell_1"].firstMatch
         XCTAssertTrue(course.waitForExistence(timeout: 10))
-        course.tap()
-        let edit = app.buttons["course_occurrence_actions"].firstMatch
+        course.press(forDuration: 1)
+        let edit = app.buttons["course_float_edit"].firstMatch
+        let delete = app.buttons["course_float_delete"].firstMatch
         makeHittable(edit)
-        capture("course-detail-before-occurrence-menu")
-        edit.tap()
-        let adjust = app.buttons["occurrence_adjust"].firstMatch
-        let delete = app.buttons["occurrence_delete"].firstMatch
-        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
         XCTAssertTrue(delete.exists)
         XCTAssertFalse(app.buttons["occurrence_date"].firstMatch.exists)
         XCTAssertFalse(app.buttons["occurrence_save"].firstMatch.exists,
-                       "The occurrence menu must show actions before the edit form")
-        capture("occurrence-actions-menu")
-        adjust.tap()
+                       "The floating course must show actions before the edit form")
+        capture("floating-course-actions")
+        edit.tap()
         let cancel = app.buttons["occurrence_cancel"].firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 10))
         XCTAssertFalse(delete.exists, "Delete belongs to the occurrence menu")
@@ -616,10 +609,10 @@ final class SheetPlatformUITests: XCTestCase {
         capture("landscape-occurrence-validation")
         cancel.tap()
         XCTAssertTrue(waitUntil { !cancel.exists })
+        makeHittable(course)
+        course.press(forDuration: 1)
         makeHittable(edit)
         edit.tap()
-        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
-        adjust.tap()
         XCTAssertTrue(cancel.waitForExistence(timeout: 10))
         makeHittable(customRow)
         XCTAssertTrue(custom.waitForExistence(timeout: 3))
@@ -627,9 +620,8 @@ final class SheetPlatformUITests: XCTestCase {
         XCTAssertEqual(custom.value as? String, "0", "Cancel must discard the custom-time draft")
         cancel.tap()
         XCTAssertTrue(waitUntil { !cancel.exists })
-        makeHittable(edit)
-        edit.tap()
-        XCTAssertTrue(adjust.waitForExistence(timeout: 10))
+        makeHittable(course)
+        course.press(forDuration: 1)
         makeHittable(delete)
         assertInteractiveInWindow(delete)
         delete.tap()
@@ -640,6 +632,7 @@ final class SheetPlatformUITests: XCTestCase {
         XCTAssertTrue(cancelPrompt.waitForExistence(timeout: 10))
         XCTAssertTrue(cancelPrompt.isEnabled)
         cancelPrompt.tap()
+        let adjust = app.buttons["occurrence_adjust"].firstMatch
         XCTAssertTrue(waitUntil { !cancelPrompt.exists && adjust.exists },
                       "Canceling deletion must dismiss its prompt and restore the occurrence menu")
         XCTAssertTrue(adjust.exists, "Canceling deletion must return to the occurrence menu")
@@ -649,9 +642,6 @@ final class SheetPlatformUITests: XCTestCase {
         assertInteractiveInWindow(cancel)
         cancel.tap()
         XCTAssertTrue(waitUntil { !cancel.exists })
-        let detailClose = app.buttons["detail_close"].firstMatch
-        assertInteractiveInWindow(detailClose)
-        detailClose.tap()
         XCTAssertTrue(course.waitForExistence(timeout: 10), "Canceling deletion must keep the original course")
     }
 }

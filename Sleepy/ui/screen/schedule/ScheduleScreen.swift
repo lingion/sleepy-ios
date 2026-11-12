@@ -460,6 +460,7 @@ private struct WeekPager: View {
     @State private var dragError = false
     @State private var dragHostWeek: Int?
     @State private var pagerEpoch: UInt = 0
+    @State private var floatingOccurrence: FloatingOccurrenceRequest?
     let viewMode: ViewMode
     let pagerMaxWeek: Int
     let displayMode: String
@@ -485,6 +486,14 @@ private struct WeekPager: View {
     // 灰显缓存失效闸 ← produceState 键含 state.transfers: 调休映射变 → 全周重算
     @State private var greyCacheSignature = ""
 
+    private struct FloatingOccurrenceRequest: Identifiable {
+        let id = UUID()
+        let occurrence: CourseOccurrence
+        let table: TimeTableEntity
+        let startInEdit: Bool
+        var startWithDelete = false
+    }
+
     var body: some View {
         dragPager
             .onReceive(drag.$source.map { $0?.displayWeek }.removeDuplicates()) { sourceWeek in
@@ -499,16 +508,37 @@ private struct WeekPager: View {
                     dragHostWeek = sourceWeek
                 }
             }
-            .onChange(of: viewModel.state.selectedTableId) { _ in drag.end() }
-            .onChange(of: viewMode) { _ in drag.end() }
-            .onChange(of: dragEnabled) { if !$0 { drag.end(); quickAdd.dismiss() } }
+            .onChange(of: viewModel.state.selectedTableId) { _ in drag.end(); viewModel.cancelPendingCourseMove() }
+            .onChange(of: viewModel.state.selectedWeek) { week in
+                if !drag.isHolding, let source = drag.source, source.displayWeek != week { drag.end() }
+            }
+            .onChange(of: viewMode) { _ in drag.end(); viewModel.cancelPendingCourseMove() }
+            .onChange(of: dragEnabled) { if !$0 { drag.end(); quickAdd.dismiss(); viewModel.cancelPendingCourseMove() } }
             .onChange(of: quickAddEnabled) { if !$0 { quickAdd.dismiss() } }
             .onChange(of: scenePhase) { phase in
-                if phase != .active { drag.end(); quickAdd.dismiss() }
+                if phase != .active { drag.end(); quickAdd.dismiss(); viewModel.cancelPendingCourseMove() }
             }
-            .onDisappear { drag.end() }
+            .onDisappear { drag.end(); viewModel.cancelPendingCourseMove() }
             .alert(L10n.t("schedule_drag_failed"), isPresented: $dragError) {
                 Button(L10n.t("ok"), role: .cancel) {}
+            }
+            .alert(viewModel.pendingCourseMove?.confirmationTitle ?? "",
+                   isPresented: Binding(get: { viewModel.pendingCourseMove != nil }, set: { _ in }),
+                   presenting: viewModel.pendingCourseMove) { _ in
+                Button(L10n.t("ok")) {
+                    if !viewModel.confirmPendingCourseMove() { dragError = true }
+                }.accessibilityIdentifier("course_move_confirm")
+                Button(L10n.t("cancel"), role: .cancel) { viewModel.cancelPendingCourseMove() }
+                    .accessibilityIdentifier("course_move_cancel")
+            } message: { request in
+                Text(request.confirmationMessage)
+            }
+            .sheet(item: $floatingOccurrence) { request in
+                CourseOccurrenceEditor(occurrence: request.occurrence, table: request.table,
+                    repository: viewModel.occurrenceRepository,
+                    onSaved: { floatingOccurrence = nil; viewModel.occurrenceSaved() },
+                    onDismiss: { floatingOccurrence = nil }, startInEdit: request.startInEdit,
+                    startWithDelete: request.startWithDelete)
             }
             .task(id: "\(viewModel.state.currentTable?.startDate ?? "")-\(viewModel.state.selectedWeek)-\(pagerMaxWeek)") {
                 await refreshGreyDays()
@@ -588,7 +618,8 @@ private struct WeekPager: View {
                                      timeJson: state.effectiveRenderTimeJson ?? "",
                                      startDate: state.currentTable?.startDate ?? "",
                                      currentWeek: page,
-                                       onCourseClick: { onCourseClick($0, page) },
+                                     onCourseClick: { onCourseClick($0, page) },
+                                     onCourseLongClick: { openWeekOccurrence($0, displayWeek: page) },
                                      greyDays: greyDaysByWeek[page] ?? [],
                                      // v1.0.62 B5b: 周视图日期「·M月d日」← 原版本 FullWeekView(showDate = showDate)
                                      showDate: showDate)
@@ -636,24 +667,61 @@ private struct WeekPager: View {
     private var dragPager: some View {
         let state = viewModel.state
         return pages
+        .blur(radius: drag.source == nil ? 0 : 6)
+        .overlay {
+            if drag.source != nil { Color.black.opacity(0.15).allowsHitTesting(false) }
+        }
         .onPreferenceChange(CourseDropGridKey.self) { drag.grids = $0 }
         .background(NativeCourseDropTarget(drag: drag, week: state.selectedWeek, maxWeek: pagerMaxWeek,
             table: state.effectiveCurrentTable, allCourses: state.courses, transfers: state.transfers,
-            enabled: dragEnabled && viewMode == .cards && !dragError && quickAdd.selection == nil,
+            enabled: dragEnabled && viewMode == .cards && !dragError && quickAdd.selection == nil
+                && viewModel.pendingCourseMove == nil,
             onChangeWeek: { week in
                 // 拖动驻边直接换周，避免横移动画把落点网格带出手指位置。
                 var transaction = Transaction(animation: nil)
                 transaction.disablesAnimations = true
                 withTransaction(transaction) { viewModel.changeWeek(week) }
             },
-            onMove: { source, week, day, node, startTime in
-                let success = viewModel.moveDraggedOccurrence(source: source, targetWeek: week,
-                    displayDay: day, targetNode: node, targetStartTime: startTime)
+            onMove: { source, week, day, node, startTime, step in
+                let success = viewModel.stageDraggedOccurrence(source: source, targetWeek: week,
+                    displayDay: day, targetNode: node, targetStartTime: startTime, targetStep: step)
                 if !success { dragError = true }
                 return success
+            }, onOccurrenceAction: { source, editing in
+                guard let table = viewModel.state.effectiveCurrentTable,
+                      table.id == source.course.tableId,
+                      let displayDate = DateUtils.dateOfWeek(startDate: table.startDate,
+                        week: source.displayWeek, dayOfWeek: source.displayDay),
+                      let occurrence = CourseOccurrences.resolve(course: source.course,
+                        displayDate: displayDate, table: table, transfers: viewModel.state.transfers) else {
+                    dragError = true
+                    return
+                }
+                floatingOccurrence = FloatingOccurrenceRequest(occurrence: occurrence,
+                    table: table, startInEdit: editing, startWithDelete: !editing)
             }))
         .overlay(CourseDragProjection(drag: drag))
         .accessibilityIdentifier("schedule_week_pager")
+    }
+
+    private func openWeekOccurrence(_ projected: CourseEntity, displayWeek: Int) {
+        guard dragEnabled, floatingOccurrence == nil,
+              projected.tableId == viewModel.state.selectedTableId else { return }
+        do {
+            let repository = viewModel.occurrenceRepository
+            guard let stored = try repository.getTable(projected.tableId),
+                  let original = try repository.getCourse(projected.id), original.tableId == stored.id,
+                  let displayDate = CourseOccurrences.date(startDate: stored.startDate,
+                    week: displayWeek, day: projected.day) else {
+                throw CourseOccurrences.ValidationError.invalidOccurrence
+            }
+            let table = stored.hydratedWith(try repository.effectivePeriodTable(tableId: stored.id))
+            guard let occurrence = CourseOccurrences.resolve(course: original, displayDate: displayDate,
+                table: table, transfers: AppPrefs.shared.getHolidayTransfers(stored.id)) else {
+                throw CourseOccurrences.ValidationError.invalidOccurrence
+            }
+            floatingOccurrence = FloatingOccurrenceRequest(occurrence: occurrence, table: table, startInEdit: false)
+        } catch { dragError = true }
     }
 
     // 每页独立计算灰显星期(节假日/周末)。

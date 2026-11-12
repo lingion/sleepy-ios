@@ -362,17 +362,12 @@ final class DeviceAdaptationUITests: XCTestCase {
         let start = app.textFields["occurrence_start_time"].firstMatch
 
         func enterDraft(_ text: String) {
-            let edit = app.buttons["course_occurrence_actions"].firstMatch
-            for _ in 0..<3 {
-                makeHittable(course)
-                course.tap()
-                if edit.waitForExistence(timeout: 3) { break }
-            }
+            makeHittable(course)
+            course.press(forDuration: 1)
+            let edit = app.buttons["course_float_edit"].firstMatch
+            XCTAssertTrue(edit.waitForExistence(timeout: 10))
             makeHittable(edit)
             edit.tap()
-            let adjust = app.buttons["occurrence_adjust"].firstMatch
-            XCTAssertTrue(adjust.waitForExistence(timeout: 10))
-            adjust.tap()
             XCTAssertTrue(cancel.waitForExistence(timeout: 10))
             revealOccurrenceControl(customRow)
             XCTAssertTrue(custom.waitForExistence(timeout: 3))

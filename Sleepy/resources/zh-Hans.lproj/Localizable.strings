@@ -1390,3 +1390,9 @@
 "manage_create_blank_table" = "新建空白课表";
 "create_table_title" = "创建新课表";
 "jw_dated_calendar_rebase_hint" = "修改第一周日期会重新计算这些课程的周次，实际授课日期保持不变。";
+
+"occurrence_move_confirm_title" = "是否挪动这次课程?";
+
+"occurrence_span_confirm_title" = "是否调整持续节次?";
+
+"occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
