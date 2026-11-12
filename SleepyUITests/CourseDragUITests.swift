@@ -5,7 +5,7 @@ final class CourseDragUITests: XCTestCase {
     private let mathName = "高等数学"
 
     // 日志确认同一 identifier 同时出现在 Other 和 CollectionView；限定真实 pager 类型。
-    private var pager: XCUIElement { app.collectionViews["schedule_week_pager"] }
+    private var pager: XCUIElement { app.scheduleWeekPager }
     private var originalCard: XCUIElement { pager.buttons["gridcell_1"] }
 
     override func setUpWithError() throws {
@@ -214,7 +214,7 @@ final class CourseDragUITests: XCTestCase {
     }
 
     func testStationaryRightEdgeContinuesPagingAndMovingOccurrence() throws {
-        XCTAssertEqual(app.collectionViews.matching(identifier: "schedule_week_pager").count, 1)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "schedule_week_pager").count, 1)
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let target = coordinate(at: CGPoint(x: pager.frame.maxX - 9, y: originalCard.frame.midY))
         // The recorded 0.85s hold left 0.472s from the first native edge sample

@@ -7,8 +7,6 @@ import UniformTypeIdentifiers
 struct GeneralSettingsScreen: View {
     enum Section { case general, display, backup }
     @Environment(\.localWakeUpColors) private var colors
-    // ★ v7.10.18 原生化: onBack → onDismiss(由 fullScreenCover / sheet 关闭)
-    //   holiday 子页由本屏内 NavigationView + NavigationLink 承载, 不再走 AppRoot enum
     let onDismiss: () -> Void
 
     /// issue#44 调休映射接线 ← 原版本 SleepyNavHost.kt:299-303(`tableId = currentTableId,
@@ -20,7 +18,7 @@ struct GeneralSettingsScreen: View {
     /// { viewModel?.refreshTransfer() } 的 Void? 闭包在 () -> Void 槽位写法同 JwWebViewLoginScreen:191 先例。
     var viewModel: ScheduleViewModel? = nil
     var section: Section = .general
-    @State private var showPeriodHeaders = false
+    @SleepyNavigationState private var showPeriodHeaders = false
 
     private var pageTitle: String {
         switch section {
@@ -56,8 +54,7 @@ struct GeneralSettingsScreen: View {
     @State private var showImportPicker = false
     @State private var exportURL: URL? = nil
     @State private var migrationToast: String? = nil
-    // ★ v7.10.18: HolidaySettings 在本屏内 sheet 弹出,无需走 root enum
-    @State private var holidaySettingsItem: HolidaySettingsItem? = nil
+    @SleepyNavigationState private var holidaySettingsItem: HolidaySettingsItem? = nil
     private struct HolidaySettingsItem: Identifiable { let id = UUID() }
 
     private func toggleSection(_ key: String) {
@@ -167,118 +164,120 @@ struct GeneralSettingsScreen: View {
     }
 
     var body: some View {
-        // ★ v7.10.18 原生化: NavigationView 内嵌 + NavigationLink 跳 HolidaySettings
-        //   - iOS 16+: NavigationLink 推入栈,免费 swipe-back 手势
-        //   - iOS 15: NavigationView stack 风格 + NavigationLink 正常工作,带原生 back 按钮
-        //   - 6sp 空白: NavigationView 在此内嵌(非 root),子屏 navbar 是合法 UX 预期
-        NavigationView {
-                VStack(spacing: 0) {
-                    SettingsTopBar(title: pageTitle, onBack: onDismiss)
-                    ScrollView {
-                        VStack(spacing: SettingsLayout.cardGap) {
-                            if section == .general {
-                                LanguageSection()
-                                SettingsSection(title: L10n.format("settings_performance")) {
-                                InfoCard {
-                                    Text(L10n.format("settings_ios_refresh_policy"))
-                                        .font(.system(size: 14))
-                                        .foregroundColor(colors.onSurfaceVariant)
-                                }
-                                }
-                                SettingsSection(title: L10n.format("settings_editing")) {
-                                UndoDepthSettingsRow()
-                                    .padding(.horizontal, 16)
-                                    .background(colors.surfaceContainer)
-                                    .cornerRadius(SleepyShapes.large)
-                                }
-                            } else if section == .display {
-                                displaySettings
-                            } else {
-                                MigrationSection(busy: migrationBusy,
-                                                 onExport: onMigrationExportClick,
-                                                 onImport: { if !migrationBusy { showImportPicker = true } })
+        VStack(spacing: 0) {
+            SettingsTopBar(title: pageTitle, onBack: onDismiss)
+            ScrollView {
+                VStack(spacing: SettingsLayout.cardGap) {
+                    if section == .general {
+                        LanguageSection()
+                        SettingsSection(title: L10n.format("settings_performance")) {
+                            InfoCard {
+                                Text(L10n.format("settings_ios_refresh_policy"))
+                                    .font(.system(size: 14))
+                                    .foregroundColor(colors.onSurfaceVariant)
                             }
                         }
-                        .padding(16)
+                        SettingsSection(title: L10n.format("settings_editing")) {
+                            UndoDepthSettingsRow()
+                                .padding(.horizontal, 16)
+                                .background(colors.surfaceContainer)
+                                .cornerRadius(SleepyShapes.large)
+                        }
+                    } else if section == .display {
+                        displaySettings
+                    } else {
+                        MigrationSection(busy: migrationBusy,
+                                         onExport: onMigrationExportClick,
+                                         onImport: { if !migrationBusy { showImportPicker = true } })
                     }
                 }
-                .background(colors.background)
-                // ← 原版本 rememberSaveable(expandedSections): AppRoot 状态恢复时折叠
-                //   展开集保真。iOS 等价 = 变更即落 sleepy_prefs, 页面重建(load())回填。
-                //   单一收口挂在父级 State 上。
-                .onChange(of: expandedSections) { SettingsExpandedSectionsStore.save($0) }
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationBarHidden(true)
-                // ← 原版本 Toast(迁移结果) → 底部胶囊浮层(仓库同款, 1.8s 自动消失)
-                .overlay(alignment: .bottom) {
-                    if let msg = migrationToast {
-                        Text(msg)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(colors.onSurface)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(colors.surfaceContainerHigh)
-                            .cornerRadius(SleepyShapes.large)
-                            .padding(.bottom, 24)
-                            .transition(.opacity)
-                            .task(id: msg) {
-                                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                                guard !Task.isCancelled else { return }
-                                withAnimation { migrationToast = nil }
-                            }
-                            .accessibilityIdentifier("settings_migration_toast")
-                    }
-                }
-                // ← 原版本 AlertDialog(导入模式选择): 标题/正文/覆盖·合并/取消
-                .alert(L10n.format("settings_migration_import_dialog_title"),
-                       isPresented: $showImportDialog) {
-                    Button(L10n.format("settings_migration_import_overwrite")) {
-                        runMigrationImport(.OVERWRITE)
-                    }
-                    Button(L10n.format("settings_migration_import_merge")) {
-                        runMigrationImport(.MERGE)
-                    }
-                    Button(L10n.format("cancel"), role: .cancel) {
-                        pendingImportBytes = nil
-                    }
-                } message: {
-                    Text(L10n.format("settings_migration_import_dialog_text"))
-                }
-                // ← 原版本 CreateDocument("application/zip") 保存对话框 → fileExporter。
-                //   完成回调对齐 原版本 exportLauncher: 写成功 export_ok toast,
-                //   失败 export_fail toast, 取消(uri==null)静默。
-                .fileExporter(isPresented: $showExportPicker,
-                              document: ExportedBackupFile(url: exportURL),
-                              contentType: UTType.data,
-                              defaultFilename: exportURL.map { $0.deletingPathExtension().lastPathComponent } ?? "sleepy-backup") { result in
-                    migrationBusy = false
-                    switch result {
-                    case .success:
-                        migrationToast = L10n.format("settings_migration_export_ok")
-                    case .failure(let error):
-                        // Reported cancellation errors are also silent.
-                        if error is CancellationError { return }
-                        NSLog("SleepyMigration: export failed: %@", String(describing: error))
-                        migrationToast = L10n.format("settings_migration_export_fail")
-                    }
-                }
-                .onChange(of: showExportPicker) { presented in
-                    // fileExporter dismisses on cancellation without invoking
-                    // its completion handler. Release the lock in both paths.
-                    if !presented { migrationBusy = false }
-                }
-                // ← 原版本 OpenDocument(["application/zip","application/octet-stream"])
-                //   = UTType.zip + UTType.data(octet-stream); .sleepybackup 内容即 zip,
-                //   动态 extension UTType 不进 allowedContentTypes(未声明类型有崩溃风险)
-                .fileImporter(isPresented: $showImportPicker,
-                              allowedContentTypes: [.zip, .data],
-                              allowsMultipleSelection: false,
-                              onCompletion: onImportFileResult)
+                .padding(16)
+            }
         }
-        .navigationViewStyle(.stack)
-        .sheet(isPresented: $showPeriodHeaders) {
+        .background(colors.background)
+        // ← 原版本 rememberSaveable(expandedSections): AppRoot 状态恢复时折叠
+        //   展开集保真。iOS 等价 = 变更即落 sleepy_prefs, 页面重建(load())回填。
+        //   单一收口挂在父级 State 上。
+        .onChange(of: expandedSections) { SettingsExpandedSectionsStore.save($0) }
+        .navigationBarHidden(true)
+        // ← 原版本 Toast(迁移结果) → 底部胶囊浮层(仓库同款, 1.8s 自动消失)
+        .overlay(alignment: .bottom) {
+            if let msg = migrationToast {
+                Text(msg)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onSurface)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(colors.surfaceContainerHigh)
+                    .cornerRadius(SleepyShapes.large)
+                    .padding(.bottom, 24)
+                    .transition(.opacity)
+                    .task(id: msg) {
+                        try? await Task.sleep(nanoseconds: 2_500_000_000)
+                        guard !Task.isCancelled else { return }
+                        withAnimation { migrationToast = nil }
+                    }
+                    .accessibilityIdentifier("settings_migration_toast")
+            }
+        }
+        // ← 原版本 AlertDialog(导入模式选择): 标题/正文/覆盖·合并/取消
+        .alert(L10n.format("settings_migration_import_dialog_title"),
+               isPresented: $showImportDialog) {
+            Button(L10n.format("settings_migration_import_overwrite")) {
+                runMigrationImport(.OVERWRITE)
+            }
+            Button(L10n.format("settings_migration_import_merge")) {
+                runMigrationImport(.MERGE)
+            }
+            Button(L10n.format("cancel"), role: .cancel) {
+                pendingImportBytes = nil
+            }
+        } message: {
+            Text(L10n.format("settings_migration_import_dialog_text"))
+        }
+        // ← 原版本 CreateDocument("application/zip") 保存对话框 → fileExporter。
+        //   完成回调对齐 原版本 exportLauncher: 写成功 export_ok toast,
+        //   失败 export_fail toast, 取消(uri==null)静默。
+        .fileExporter(isPresented: $showExportPicker,
+                      document: ExportedBackupFile(url: exportURL),
+                      contentType: UTType.data,
+                      defaultFilename: exportURL.map { $0.deletingPathExtension().lastPathComponent } ?? "sleepy-backup") { result in
+            migrationBusy = false
+            switch result {
+            case .success:
+                migrationToast = L10n.format("settings_migration_export_ok")
+            case .failure(let error):
+                // Reported cancellation errors are also silent.
+                if error is CancellationError { return }
+                NSLog("SleepyMigration: export failed: %@", String(describing: error))
+                migrationToast = L10n.format("settings_migration_export_fail")
+            }
+        }
+        .onChange(of: showExportPicker) { presented in
+            // fileExporter dismisses on cancellation without invoking
+            // its completion handler. Release the lock in both paths.
+            if !presented { migrationBusy = false }
+        }
+        // ← 原版本 OpenDocument(["application/zip","application/octet-stream"])
+        //   = UTType.zip + UTType.data(octet-stream); .sleepybackup 内容即 zip,
+        //   动态 extension UTType 不进 allowedContentTypes(未声明类型有崩溃风险)
+        .fileImporter(isPresented: $showImportPicker,
+                      allowedContentTypes: [.zip, .data],
+                      allowsMultipleSelection: false,
+                      onCompletion: onImportFileResult)
+        .sleepyNavigationPage(isPresented: $showPeriodHeaders, changes: _showPeriodHeaders.changes, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
             PeriodHeaderSettingsScreen(onBack: { showPeriodHeaders = false })
+        }
+        .sleepyNavigationPage(item: $holidaySettingsItem, changes: _holidaySettingsItem.changes, canvas: {
+            colors.background.ignoresSafeArea()
+        }) { _ in
+            HolidaySettingsScreen(
+                onDismiss: { holidaySettingsItem = nil },
+                tableId: viewModel?.state.selectedTableId,
+                refreshTransfer: { viewModel?.refreshTransfer() })
         }
     }
 
@@ -478,16 +477,6 @@ struct GeneralSettingsScreen: View {
         }
         .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("settings_holiday_entry")
-        .sheet(item: $holidaySettingsItem) { _ in
-            // issue#44 接线(F095): 传当前选中课表 id + 映射刷新回调 ← 原实现
-            // SleepyNavHost.kt:299-303 `tableId = currentTableId, viewModel = mainVm`。
-            // 不传则 HolidaySettingsScreen 的 tableId 恒 nil → 调休卡显示
-            // holiday_makeup_no_table 且 saveTransfer 在 guard let id = activeTableId 早退。
-            HolidaySettingsScreen(
-                onDismiss: { holidaySettingsItem = nil },
-                tableId: viewModel?.state.selectedTableId,
-                refreshTransfer: { viewModel?.refreshTransfer() })
-        }
     }
 }
 

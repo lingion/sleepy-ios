@@ -165,7 +165,6 @@ struct ImportSheet: View {
     @State private var textExpanded = false
     @State private var inputText = ""
     @State private var importInputHeight: CGFloat = 160
-    @State private var importInputFrame: CGRect = .zero
     @State private var inputRevealRequest = 0
     @FocusState private var inputFocused: Bool
     @State private var isLoading = false
@@ -181,10 +180,10 @@ struct ImportSheet: View {
     @State private var wakeUpShareText = ""
     @State private var pendingWakeUpJSON: String?
     @State private var showExistingTables = false
-    @State private var pendingSelection: ImportPreview? = nil
+    @SleepyNavigationState private var pendingSelection: ImportPreview? = nil
     @State private var selectedPreview: ImportPreview? = nil
     @State private var preparationId = UUID()
-    @State private var manualEditor: ManualEditorSession?
+    @SleepyNavigationState private var manualEditor: ManualEditorSession? = nil
 
     private var canImport: Bool {
         !isLoading && (targetTableId == nil || viewModel.state.tables.contains { $0.id == targetTableId })
@@ -235,10 +234,6 @@ struct ImportSheet: View {
                             // ← 原 filled TextField, 无描边
                             .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("import_paste_viewport")
-                            .background(GeometryReader { geometry in
-                                Color.clear.preference(key: ImportPasteViewportFrameKey.self,
-                                    value: geometry.frame(in: .global))
-                            })
                         Button {
                             if WakeUpShareClient.looksLikeShareCode(inputText) {
                                 presentWakeUpShare(inputText)
@@ -334,14 +329,14 @@ struct ImportSheet: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
+            .background {
+                if #unavailable(iOS 16.0) {
+                    ImportNativeKeyboardDismissal().frame(width: 0, height: 0)
+                }
+            }
         }
         .accessibilityIdentifier("import_methods_scroll")
-        .modifier(ImportMethodsKeyboardDismissal(inputFrame: importInputFrame) {
-            guard inputFocused else { return }
-            inputFocused = false
-            Self.dismissKeyboard()
-        })
-        .onPreferenceChange(ImportPasteViewportFrameKey.self) { importInputFrame = $0 }
+        .modifier(ImportMethodsKeyboardDismissal())
         .background(colors.background)
         .background(GeometryReader { geometry in
             Color.clear
@@ -428,14 +423,14 @@ struct ImportSheet: View {
         .centeredDialog(isPresented: $showExistingTables) {
             existingTablesDialog
         }
-        .fullScreenCover(item: Binding(
+        .sleepyNavigationPage(item: Binding(
             get: { pendingSelection.map { PreviewBox(preview: $0) } },
             set: { if $0 == nil { pendingSelection = nil } }
-        ), onDismiss: {
+        ), changes: _pendingSelection.changes, onDismiss: {
             guard let selected = selectedPreview else { return }
             selectedPreview = nil
             previewSession.replacePreview(selected)
-        }) { box in
+        }, canvas: { colors.background.ignoresSafeArea() }) { box in
             CourseSelectionSheet(parseResult: box.preview.parseResult, onConfirm: { keys in
                 guard pendingSelection?.id == box.preview.id else { return }
                 do {
@@ -606,7 +601,7 @@ struct ImportSheet: View {
         .sleepyNavigationPage(item: Binding(
             get: { manualEditor },
             set: { if $0 == nil { dismissManualEditor() } }
-        ), canvas: { colors.background.ignoresSafeArea() }) { session in
+        ), changes: _manualEditor.changes, canvas: { colors.background.ignoresSafeArea() }) { session in
             manualEditorContent(session)
                 .environment(\.localWakeUpColors, colors)
                 .environment(\.localCoursePalette, palette)
@@ -963,34 +958,55 @@ struct ImportSheet: View {
     }
 }
 
-/// The input's keyboard/viewport observers scroll it into view programmatically.
-/// Those scrolls must preserve focus; only a user's drag dismisses the keyboard.
+/// Use the scroll view's own drag recognizer; a full-area SwiftUI drag competes
+/// with UINavigationController's interactive return even when no keyboard is up.
 private struct ImportMethodsKeyboardDismissal: ViewModifier {
-    let inputFrame: CGRect
-    let onUserScroll: () -> Void
-
     func body(content: Content) -> some View {
         if #available(iOS 16.0, *) {
-            content
-                .scrollDismissesKeyboard(.never)
-                .simultaneousGesture(userScroll)
+            content.scrollDismissesKeyboard(.immediately)
         } else {
-            content.simultaneousGesture(userScroll)
-        }
-    }
-
-    private var userScroll: some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .global).onChanged { value in
-            // Let the text control own selection handles and its internal scrolling.
-            guard !inputFrame.contains(value.startLocation) else { return }
-            onUserScroll()
+            content
         }
     }
 }
 
-private struct ImportPasteViewportFrameKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
+/// The probe is inside the scroll content, so it configures only this ancestor.
+private struct ImportNativeKeyboardDismissal: UIViewRepresentable {
+    func makeUIView(context: Context) -> Probe { Probe() }
+    func updateUIView(_ view: Probe, context: Context) { view.configure() }
+    static func dismantleUIView(_ view: Probe, coordinator: ()) { view.restore() }
+
+    final class Probe: UIView {
+        private weak var scrollView: UIScrollView?
+        private var previousMode: UIScrollView.KeyboardDismissMode?
+
+        override func didMoveToWindow() { super.didMoveToWindow(); configure() }
+        override func didMoveToSuperview() { super.didMoveToSuperview(); configure() }
+        override func layoutSubviews() { super.layoutSubviews(); configure() }
+
+        func configure() {
+            var ancestor = superview
+            while let view = ancestor {
+                if let scroll = view as? UIScrollView {
+                    guard scroll !== scrollView else { return }
+                    restore()
+                    scrollView = scroll
+                    previousMode = scroll.keyboardDismissMode
+                    scroll.keyboardDismissMode = .onDrag
+                    return
+                }
+                ancestor = view.superview
+            }
+        }
+
+        func restore() {
+            if let scrollView, let previousMode, scrollView.keyboardDismissMode == .onDrag {
+                scrollView.keyboardDismissMode = previousMode
+            }
+            scrollView = nil
+            previousMode = nil
+        }
+    }
 }
 
 private enum ManualEditorSession: Identifiable {

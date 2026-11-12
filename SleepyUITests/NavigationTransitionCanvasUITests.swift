@@ -28,7 +28,7 @@ final class NavigationTransitionCanvasUITests: XCTestCase {
 
     func testClassicWeekButtonsAndStationaryLift() {
         launch(style: "classic", forcePill: true)
-        let pager = app.collectionViews["schedule_week_pager"]
+        let pager = app.scheduleWeekPager
         let week = app.buttons["week_label"]
         XCTAssertTrue(pager.waitForExistence(timeout: 10))
         for (button, expected) in [("week_next", 2), ("week_next", 3), ("week_prev", 2), ("week_prev", 1)] {
@@ -50,6 +50,35 @@ final class NavigationTransitionCanvasUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 5), .completed)
         XCTAssertFalse(app.buttons["course_move_confirm"].exists)
         XCTAssertFalse(app.buttons["undo_button"].exists)
+    }
+
+    func testClassicWeekJumpAndNativeSwipeStayInSync() {
+        launch(style: "classic", forcePill: true)
+        let pager = app.scheduleWeekPager
+        XCTAssertTrue(pager.waitForExistence(timeout: 10))
+        func expectWeek(_ number: Int) {
+            let changed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label == %@", "Week \(number)"),
+                object: app.buttons["week_label"].firstMatch)
+            XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 10), .completed)
+        }
+        app.buttons["week_label"].firstMatch.tap()
+        let destination = app.buttons["week_num_12"].firstMatch
+        XCTAssertTrue(destination.waitForExistence(timeout: 10))
+        destination.tap()
+        expectWeek(12)
+        capture("classic-far-week-jump")
+        pager.swipeRight()
+        expectWeek(11)
+        pager.swipeLeft()
+        expectWeek(12)
+        app.buttons["week_prev"].firstMatch.tap()
+        expectWeek(11)
+        capture("classic-native-week-swipe")
+        // Away from the actual week, the label returns directly to it.
+        app.buttons["week_label"].firstMatch.tap()
+        expectWeek(1)
+        capture("classic-far-week-return")
     }
 
     func testClassicChildPagesAndManualTableRoundTrips() {

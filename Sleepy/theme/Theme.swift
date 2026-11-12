@@ -12,6 +12,7 @@
 // SwiftUI 等价: CompositionLocal → EnvironmentValue;Color(0xFF...) → Color(uiColor:)
 
 import SwiftUI
+import Foundation
 
 // MARK: - ← WakeUpColorScheme data class
 
@@ -304,6 +305,41 @@ extension Color {
 
 // MARK: - ← SleepyThemeProvider @Composable → SwiftUI ViewModifier
 
+/// Small process-local LRU. Derivation runs outside the lock; concurrent misses may
+/// compute twice, but callers always receive a value for their immutable input.
+final class ThemeValueCache<Key: Equatable, Value> {
+    private let capacity: Int
+    private let lock = NSLock()
+    private var entries: [(key: Key, value: Value)] = []
+
+    init(capacity: Int) {
+        precondition(capacity > 0)
+        self.capacity = capacity
+    }
+
+    func value(for key: Key, create: () -> Value) -> Value {
+        lock.lock()
+        if let index = entries.firstIndex(where: { $0.key == key }) {
+            let hit = entries.remove(at: index)
+            entries.append(hit)
+            lock.unlock()
+            return hit.value
+        }
+        lock.unlock()
+        let value = create()
+        lock.lock()
+        defer { lock.unlock() }
+        if let index = entries.firstIndex(where: { $0.key == key }) {
+            let hit = entries.remove(at: index)
+            entries.append(hit)
+            return hit.value
+        }
+        entries.append((key, value))
+        if entries.count > capacity { entries.removeFirst() }
+        return value
+    }
+}
+
 /// system 使用公开窗口 tint 快照派生 HSV/M3 角色色；来源不代表壁纸或主屏幕设置。
 /// 其他 5 套用预设的 light/dark scheme。
 struct SleepyThemeProvider: ViewModifier {
@@ -315,19 +351,34 @@ struct SleepyThemeProvider: ViewModifier {
     #endif
     let darkTheme: Bool
     let themeKey: String
-    /// Invalidation token for same-id edits of the selected custom theme. The body intentionally
-    /// does not inspect it; a changed value re-runs the modifier and re-reads CustomThemeStore.getById.
+    /// Same-id edits re-run the modifier. Resolution also reads the current document,
+    /// so direct defaults writes and imports cannot leave a cached endpoint stale.
     var customThemeVersion: String = ""
+
+    private struct TerminalKey: Equatable {
+        let themeKey: String
+        let dark: Bool
+        let increasedContrast: Bool
+        let customTheme: CustomTheme?
+        let systemSeed: SystemSeedRGB?
+    }
+    private static let customTerminals = ThemeValueCache<TerminalKey, WakeUpColorScheme>(capacity: 16)
+    // The raw document is retained once, rather than in every terminal key. Large
+    // imports bypass both caches so their strings/rows do not become long-lived.
+    private static let customDocuments = ThemeValueCache<String, [CustomTheme]>(capacity: 1)
+    private static let maximumCustomDocumentBytes = 32_768
+    #if os(iOS) && !WIDGET_EXT && !WATCH_APP
+    private static let terminalVectors = ThemeValueCache<TerminalKey, ThemeColorVector>(capacity: 16)
+    #endif
 
     func body(content: Content) -> some View {
         let customThemeInvalidation = customThemeVersion
         _ = customThemeInvalidation
-        let wakeColors = Self.resolve(themeKey: themeKey, dark: darkTheme,
-            snapshot: systemSnapshot ?? SystemColorSeedStore.read(), increasedContrast: contrast == .increased)
+        let snapshot = systemSnapshot ?? SystemColorSeedStore.read()
         let palette = darkTheme ? darkCoursePalette : lightCoursePalette
         #if os(iOS) && !WIDGET_EXT && !WATCH_APP
-        let vector = ThemeColorVector(scheme: wakeColors, dark: darkTheme,
-                                      increasedContrast: contrast == .increased)
+        let vector = Self.terminalVector(themeKey: themeKey, dark: darkTheme,
+            snapshot: snapshot, increasedContrast: contrast == .increased)
 
         return content
             .modifier(InterpolatedThemeColors(vector: vector, reduceMotion: reduceMotion))
@@ -337,6 +388,8 @@ struct SleepyThemeProvider: ViewModifier {
             .toggleStyle(SleepyToggleStyle())
             .onReceive(AppPrefs.shared.uiStylePublisher) { uiStyle = SleepyUIStyle(preference: $0) }
         #else
+        let wakeColors = Self.resolve(themeKey: themeKey, dark: darkTheme,
+            snapshot: snapshot, increasedContrast: contrast == .increased)
         return content
             .environment(\.localWakeUpColors, wakeColors)
             .environment(\.localCoursePalette, palette)
@@ -346,24 +399,63 @@ struct SleepyThemeProvider: ViewModifier {
     /// 统一终值解析入口；根布局中的颜色消费者须下沉读取插值后的 environment。
     static func resolve(themeKey: String, dark: Bool, snapshot: SystemColorSnapshot,
                         increasedContrast: Bool) -> WakeUpColorScheme {
-        // "custom:<id>" 走用户自定义主题:CustomThemeStore 读种子 → CustomSchemeDeriver
-        //   派生整套深浅 scheme(与 widget resolveWidgetScheme 同一派生函数);已删 id
-        //   读不到 → 用默认淡紫种子派生(与 原版本 Theme.kt 回落语义逐字一致)。
-        let isCustom = themeKey.hasPrefix(ThemePresets.CUSTOM_KEY_PREFIX)
-        // preset==nil 仅在 "system" → dynamic 分支(原版本 preset==null 同义)
-        let preset: ThemePreset? = (isCustom || themeKey == ThemePresets.KEY_SYSTEM)
-            ? nil
-            : ThemePresets.byKey(themeKey)
-
-        if isCustom {
-            let id = String(themeKey.dropFirst(ThemePresets.CUSTOM_KEY_PREFIX.count))
-            let seed = CustomThemeStore.getById(id) ?? Self.defaultSeedTheme
-            return CustomSchemeDeriver.derive(theme: seed, isDark: dark)
-        } else if let preset = preset {
-            return dark ? preset.dark : preset.light
-        } else {
+        if themeKey == ThemePresets.KEY_SYSTEM {
             return SystemColorScheme.resolve(snapshot: snapshot, dark: dark, increasedContrast: increasedContrast)
         }
+        if !themeKey.hasPrefix(ThemePresets.CUSTOM_KEY_PREFIX) {
+            let preset = ThemePresets.byKey(themeKey)
+            return dark ? preset.dark : preset.light
+        }
+        let input = terminalInput(themeKey: themeKey, dark: dark, snapshot: snapshot,
+                                  increasedContrast: increasedContrast)
+        return resolve(input.key, cacheable: input.cacheable)
+    }
+
+    #if os(iOS) && !WIDGET_EXT && !WATCH_APP
+    /// Only provider endpoints are cached. Presentation vectors remain owned by
+    /// InterpolatedThemeColors, including retargeting and reduced-motion behavior.
+    static func terminalVector(themeKey: String, dark: Bool, snapshot: SystemColorSnapshot,
+                               increasedContrast: Bool) -> ThemeColorVector {
+        let input = terminalInput(themeKey: themeKey, dark: dark, snapshot: snapshot,
+                                  increasedContrast: increasedContrast)
+        let create = {
+            ThemeColorVector(scheme: resolve(input.key, cacheable: input.cacheable),
+                             dark: dark, increasedContrast: increasedContrast)
+        }
+        return input.cacheable ? terminalVectors.value(for: input.key, create: create) : create()
+    }
+    #endif
+
+    private static func terminalInput(themeKey: String, dark: Bool, snapshot: SystemColorSnapshot,
+                                      increasedContrast: Bool) -> (key: TerminalKey, cacheable: Bool) {
+        var customTheme: CustomTheme?
+        var cacheable = true
+        if themeKey.hasPrefix(ThemePresets.CUSTOM_KEY_PREFIX) {
+            let id = String(themeKey.dropFirst(ThemePresets.CUSTOM_KEY_PREFIX.count))
+            let raw = CustomThemeStore.defaults.string(forKey: CustomThemeCore.KEY_THEMES) ?? ""
+            cacheable = raw.utf8.count <= maximumCustomDocumentBytes
+            let themes = cacheable
+                ? customDocuments.value(for: raw) { CustomThemeCore.parse(raw) }
+                : CustomThemeCore.parse(raw)
+            customTheme = CustomThemeCore.getById(themes, id) ?? defaultSeedTheme
+        }
+        let seed: SystemSeedRGB? = themeKey == ThemePresets.KEY_SYSTEM
+            ? (snapshot.isValid ? snapshot.seed : .fallback) : nil
+        return (TerminalKey(themeKey: themeKey, dark: dark, increasedContrast: increasedContrast,
+                            customTheme: customTheme, systemSeed: seed), cacheable)
+    }
+
+    private static func resolve(_ key: TerminalKey, cacheable: Bool) -> WakeUpColorScheme {
+        if let theme = key.customTheme {
+            let create = { CustomSchemeDeriver.derive(theme: theme, isDark: key.dark) }
+            return cacheable ? customTerminals.value(for: key, create: create) : create()
+        }
+        if let seed = key.systemSeed {
+            return SystemColorScheme.resolve(seed: seed, dark: key.dark,
+                                              increasedContrast: key.increasedContrast)
+        }
+        let preset = ThemePresets.byKey(key.themeKey)
+        return key.dark ? preset.dark : preset.light
     }
 
     /// "custom:<id>" 的 id 读不到(已删/损坏)时的回落种子 = 默认淡紫。

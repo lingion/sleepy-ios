@@ -76,8 +76,12 @@ final class EditTableHolidayUITests: XCTestCase {
         let oldValue = field.value as? String ?? ""
         field.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldValue.count) + text)
-        XCTAssertEqual(field.value as? String, text)
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldValue.count))
+        XCTAssertTrue(waitUntil { (field.value as? String) == "" },
+                      "Clear the focused field before entering its replacement")
+        field.typeText(text)
+        XCTAssertTrue(waitUntil { (field.value as? String) == text },
+                      "The focused field must retain the complete replacement")
     }
 
     private func tapBack(file: StaticString = #filePath, line: UInt = #line) {
@@ -114,7 +118,7 @@ final class EditTableHolidayUITests: XCTestCase {
         let duplicate = app.buttons["table_duplicate_\(sourceID)"].firstMatch
         reveal(duplicate)
         duplicate.tap()
-        let copyName = app.descendants(matching: .any)["table_copy_name"].firstMatch
+        let copyName = app.textFields["table_copy_name"].firstMatch
         let targetName = "Holiday Target"
         replace(copyName, with: targetName)
         let confirm = app.buttons["table_copy_confirm"].firstMatch
@@ -141,7 +145,8 @@ final class EditTableHolidayUITests: XCTestCase {
         capture("edit-table-holiday-entry-\(style)")
         holiday.tap()
 
-        let title = app.staticTexts["Holidays & Make-up Days"].firstMatch
+        let title = app.staticTexts.matching(identifier: "settings_topbar_title")
+            .matching(NSPredicate(format: "label == %@", "Holidays and make-up classes")).firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 8))
         let targetSegment = app.buttons["seg_\(targetName)"].firstMatch
         let sourceSegment = app.buttons["seg_我的课表"].firstMatch
@@ -155,10 +160,17 @@ final class EditTableHolidayUITests: XCTestCase {
         targetSegment.tap()
         XCTAssertTrue(waitUntil { targetSegment.isSelected && !sourceSegment.isSelected })
         tapBack()
-        XCTAssertTrue(waitUntil { !title.exists && name.exists }, "Back must restore the schedule editor")
+        capture("edit-table-holiday-back-result-\(style)")
+        // The entry row shares the title; scope it to the toolbar and also
+        // require both child-only controls to disappear after returning.
+        XCTAssertTrue(waitUntil { !title.exists && !targetSegment.exists && !sourceSegment.exists && name.exists },
+                      "Back must remove the holiday page and restore the schedule editor")
         XCTAssertEqual(name.value as? String, draftName, "Returning must preserve the unsaved editor draft")
         reveal(holiday)
-        XCTAssertTrue(waitUntil { !title.exists && app.buttons["edit_table_holiday"].isHittable })
+        XCTAssertTrue(waitUntil {
+            !title.exists && !targetSegment.exists && !sourceSegment.exists
+                && app.buttons["edit_table_holiday"].isHittable
+        })
         reveal(name)
         XCTAssertEqual(name.value as? String, draftName, "Returning must preserve the unsaved editor draft")
         capture("edit-table-holiday-returned-draft-\(style)")

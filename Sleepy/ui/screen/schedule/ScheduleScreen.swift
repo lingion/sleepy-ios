@@ -1,6 +1,6 @@
 // ScheduleScreen.swift — ← ui/screen/schedule/ScheduleScreen.kt
 // 课表页: TopBar(周导航+跳周菜单+撤回/取消撤回胶囊+行高缩放 tick) + 视图切换(周视图/网格, 可隐藏) +
-// 左右滑翻周(TabView pager, 含 issue#44 调休渲染期换日) + 详情 BottomSheet。
+// 左右滑翻周(原生分页容器, 含 issue#44 调休渲染期换日) + 详情 BottomSheet。
 // 空态两分支: 无表 → EmptyState; 有表无课 → NoCourseState。
 
 import SwiftUI
@@ -195,9 +195,9 @@ struct ScheduleScreen: View {
                         options: [(ViewMode.full, L10n.format("view_full")),
                                   (ViewMode.cards, L10n.format("view_cards"))],
                         selected: viewMode,
-                        onSelect: { viewMode = $0 })
+                        onSelect: { viewMode = $0 }, height: 32)
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 4)
                 }
 
                 if state.hasPeriodConflict {
@@ -206,7 +206,7 @@ struct ScheduleScreen: View {
                         .padding(.bottom, 8)
                 }
 
-                // 主体视图 — 左右滑动切换周次(TabView pager)
+                // 主体视图 — 原生分页容器切换周次
                 // v1.0.62 B5b: 翻页页数并入调休目标周 ← 原 pagerMaxWeek = state.displayMaxWeek
                 let pagerMaxWeek = max(state.displayMaxWeek, 1)
                 WeekPager(viewModel: viewModel, viewMode: viewMode, pagerMaxWeek: pagerMaxWeek,
@@ -351,8 +351,7 @@ struct ScheduleScreen: View {
     }
 
     private func selectWeek(_ week: Int) {
-        // TabView's page selection is bridged to UIKit. Put the mutation in
-        // the animation transaction; animating only its content does not slide pages.
+        // Animate the header state alongside the native pager's explicit transition.
         withAnimation(WeekPageMotion.animation) { viewModel.changeWeek(week) }
     }
 }
@@ -429,7 +428,7 @@ private struct UndoRedoCapsule: View {
     }
 }
 
-// HorizontalPager → TabView(.page): 双向同步(手势→VM / VM→pager)
+// NativeWeekPager: 双向同步(手势→VM / VM→pager)
 // Cards 网格的 TimeSlot: 每节一行(node/nodeStart 单节, 原版本 同为逐节行)
 // ← 原版本 TimeTableUtils.timeSlotsFor(state.effectiveCurrentTable): 时间域真源=水合表,
 //   表为 nil → 空表(禁 DEFAULT_TIME_JSON 兜底 — 有表无课才进得本页, 语义与 原版本 对齐)
@@ -448,20 +447,25 @@ func renderCoursesForWeek(_ table: TimeTableEntity,
                           transfers: [HolidayTransferEntry],
                           timeJson: String?,
                           calendar: Calendar? = nil) -> [CourseEntity] {
-    return (1...7).flatMap { day -> [CourseEntity] in
-        guard let date = CourseOccurrences.date(startDate: table.startDate, week: week, day: day, calendar: calendar) else {
-            return []
-        }
-        return HolidayTransferOps.coursesForDate(
-            date, startDate: table.startDate, maxWeek: table.maxWeek,
-            courses: courses, transfers: transfers
-        ).map { c -> CourseEntity in
-            var projected = c
-            projected.day = day
-            if let tj = timeJson {
-                projected = projected.normalizeNode(timeJson: tj)
+    let input = WeekCourseProjectionCache.Input(tableId: table.id, startDate: table.startDate,
+        maxWeek: table.maxWeek, week: week, courses: courses, transfers: transfers,
+        timeJson: timeJson, calendar: calendar)
+    return WeekCourseProjectionCache.shared.value(for: input) {
+        (1...7).flatMap { day -> [CourseEntity] in
+            guard let date = CourseOccurrences.date(startDate: table.startDate, week: week, day: day, calendar: calendar) else {
+                return []
             }
-            return projected
+            return HolidayTransferOps.coursesForDate(
+                date, startDate: table.startDate, maxWeek: table.maxWeek,
+                courses: courses, transfers: transfers
+            ).map { c -> CourseEntity in
+                var projected = c
+                projected.day = day
+                if let tj = timeJson {
+                    projected = projected.normalizeNode(timeJson: tj)
+                }
+                return projected
+            }
         }
     }
 }
@@ -473,6 +477,7 @@ private struct WeekPager: View {
     @State private var dragError = false
     @State private var dragHostWeek: Int?
     @State private var pagerEpoch: UInt = 0
+    @State private var gridContributions = WeekGridContributions()
     @State private var floatingOccurrence: FloatingOccurrenceRequest?
     let viewMode: ViewMode
     let pagerMaxWeek: Int
@@ -494,10 +499,36 @@ private struct WeekPager: View {
     let onQuickAdd: (Int, Int, Int, Int) -> Void
     let onCourseClick: (CourseEntity, Int) -> Void
 
-    // 每个 pager 页独立缓存灰显星期 ← 原版本 produceState(greyDays, page, startDate)
-    @State private var greyDaysByWeek: [Int: Set<Int>] = [:]
-    // 灰显缓存失效闸 ← produceState 键含 state.transfers: 调休映射变 → 全周重算
-    @State private var greyCacheSignature = ""
+    @State private var greySettings = HolidayManager.greySettingsSignature()
+    @State private var greyCache: GreyCache?
+
+    private struct GreyContext: Hashable {
+        let tableId: Int64?
+        let startDate: String
+        let transfers: [Date]
+        let settings: HolidayManager.GreySettingsSignature
+    }
+    private struct GreyRequest: Hashable {
+        let context: GreyContext
+        let selectedWeek: Int
+        let maxWeek: Int
+        let sourceWeek: Int?
+    }
+    private struct GreyCache {
+        let context: GreyContext
+        let daysByWeek: [Int: Set<Int>]
+    }
+    private var greyRequest: GreyRequest {
+        let state = viewModel.state
+        return GreyRequest(context: GreyContext(tableId: state.selectedTableId,
+            startDate: state.currentTable?.startDate ?? "",
+            transfers: state.transfers.flatMap { [$0.sourceDate, $0.targetDate] }, settings: greySettings),
+            selectedWeek: state.selectedWeek, maxWeek: pagerMaxWeek, sourceWeek: dragHostWeek)
+    }
+    private func greyDays(for week: Int) -> Set<Int> {
+        guard let cache = greyCache, cache.context == greyRequest.context else { return [] }
+        return cache.daysByWeek[week] ?? []
+    }
 
     private struct FloatingOccurrenceRequest: Identifiable {
         let id = UUID()
@@ -522,12 +553,18 @@ private struct WeekPager: View {
                            hostWeek != viewModel.state.selectedWeek {
                             // Start at the final week; the old pinned pager can report intermediate pages.
                             pagerEpoch &+= 1
+                            gridContributions.reset(drag: drag)
                         }
                         dragHostWeek = sourceWeek
+                        gridContributions.selectHost(sourceWeek, drag: drag)
                     }
                 }
             }
-            .onChange(of: viewModel.state.selectedTableId) { _ in drag.end(); viewModel.cancelPendingCourseMove() }
+            .onChange(of: viewModel.state.selectedTableId) { _ in
+                drag.end()
+                gridContributions.reset(drag: drag)
+                viewModel.cancelPendingCourseMove()
+            }
             .onChange(of: viewModel.state.selectedWeek) { week in
                 if !drag.isHolding, let source = drag.source, source.displayWeek != week { drag.end() }
             }
@@ -575,26 +612,35 @@ private struct WeekPager: View {
                     onDismiss: { floatingOccurrence = nil }, startInEdit: request.startInEdit,
                     startWithDelete: request.startWithDelete)
             }
-            .task(id: "\(viewModel.state.currentTable?.startDate ?? "")-\(viewModel.state.selectedWeek)-\(pagerMaxWeek)") {
-                await refreshGreyDays()
+            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+                .receive(on: RunLoop.main)) { _ in
+                let settings = HolidayManager.greySettingsSignature()
+                if settings != greySettings { greySettings = settings }
+            }
+            .task(id: greyRequest) {
+                await refreshGreyDays(greyRequest)
             }
     }
 
     private var pages: some View {
         let state = viewModel.state
         let epoch = pagerEpoch
-        // Keep TabView's source subtree alive, including its scroll and expanded rows.
-        // Target pages are measured alongside it instead of waiting for lazy page hosts.
-        return TabView(selection: Binding(
-            get: { min(max(dragHostWeek ?? state.selectedWeek, 1), pagerMaxWeek) },
-            set: { newWeek in
-                guard epoch == pagerEpoch, dragHostWeek == nil else { return }
-                viewModel.changeWeek(newWeek)
-            }
-        )) {
-            ForEach(1...pagerMaxWeek, id: \.self) { page in
+        let tableID = state.selectedTableId
+        // The native page controller explicitly animates programmatic selection.
+        // A held course keeps its source host alive while the existing page stack moves.
+        return NativeWeekPager(selection: min(max(dragHostWeek ?? state.selectedWeek, 1), pagerMaxWeek),
+                               maxWeek: pagerMaxWeek,
+                               animationsEnabled: dragHostWeek == nil,
+                               onSelect: { newWeek in
+            guard epoch == pagerEpoch, tableID == viewModel.state.selectedTableId,
+                  dragHostWeek == nil, (1...pagerMaxWeek).contains(newWeek) else { return }
+            viewModel.changeWeek(newWeek)
+        }) { page in
+            WeekPageGridReader(week: page, contributions: gridContributions, drag: drag,
+                               isCurrent: { epoch == pagerEpoch && tableID == viewModel.state.selectedTableId }) {
                 GeometryReader { geometry in
-                    weekPage(page, renderSelectedWeek: dragHostWeek ?? state.selectedWeek,
+                    // Native hosts are bounded. Keep the outgoing host rendered even on a far jump.
+                    weekPage(page, renderSelectedWeek: page,
                              publishesDropGrid: dragHostWeek == nil || page == dragHostWeek)
                         .offset(x: dragHostWeek == nil ? 0 : CGFloat(page - state.selectedWeek) * geometry.size.width)
                     if dragHostWeek == page {
@@ -603,13 +649,10 @@ private struct WeekPager: View {
                 }
                 .clipped()
                 .animation(weekPageAnimation, value: state.selectedWeek)
-                .tag(page)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .animation(dragHostWeek == nil ? weekPageAnimation : nil, value: state.selectedWeek)
-        .id(epoch)
+        .id(WeekPagerIdentity(tableID: tableID, epoch: epoch))
     }
 
     private var weekPageAnimation: Animation {
@@ -636,20 +679,19 @@ private struct WeekPager: View {
                TimetableViewportPolicy.shouldRenderWeek(page, selectedWeek: renderSelectedWeek,
                                                          dragHostWeek: dragHostWeek) {
                 // page 是 1-based 周索引,独立于 state.currentWeek 过滤课程
-                let weekCourses: [CourseEntity] = {
+                // The fallback is lazy: a real table uses the daily projection,
+                // so it must not also normalize and discard a second course list.
+                let renderCourses = state.currentTable.map {
+                    renderCoursesForWeek($0, week: page, courses: state.courses,
+                                         transfers: state.transfers,
+                                         timeJson: state.effectiveRenderTimeJson)
+                } ?? {
                     let list = state.courses.filter { $0.inWeek(page) }
                     // issue#40: normalizeNode 时间域真源 = 水合表 effectiveCurrentTable
                     // (绑定作息表编辑后立即生效), 不得再读 currentTable.timeJson 旧兼容列
                     guard let tj = state.effectiveRenderTimeJson else { return list }
                     return list.map { $0.normalizeNode(timeJson: tj) }
                 }()
-                // v1.0.62 B5b: 调休渲染改 coursesForDate 逐日投影 ← ScheduleScreen.kt L290-300
-                // (表缺省回落 weekCourses 原路径; 投影内部已含 normalizeNode 时间域归一)
-                let renderCourses = state.currentTable.map {
-                    renderCoursesForWeek($0, week: page, courses: state.courses,
-                                         transfers: state.transfers,
-                                         timeJson: state.effectiveRenderTimeJson)
-                } ?? weekCourses
                 Group {
                     switch viewMode {
                     case .full:
@@ -662,7 +704,7 @@ private struct WeekPager: View {
                                      currentWeek: page,
                                      onCourseClick: { onCourseClick($0, page) },
                                      onCourseLongClick: { openWeekOccurrence($0, displayWeek: page) },
-                                     greyDays: greyDaysByWeek[page] ?? [],
+                                     greyDays: greyDays(for: page),
                                      // v1.0.62 B5b: 周视图日期「·M月d日」← 原版本 FullWeekView(showDate = showDate)
                                      showDate: showDate)
                     case .cards:
@@ -675,7 +717,7 @@ private struct WeekPager: View {
                                       startDate: state.currentTable?.startDate ?? "",
                                       currentWeek: page,
                                       onCourseClick: { onCourseClick($0, page) },
-                                      greyDays: greyDaysByWeek[page] ?? [],
+                                      greyDays: greyDays(for: page),
                                       // ← 原 allCourses = state.courses(晚间自动收起按全学期判)
                                       allCourses: state.courses,
                                       // 会话级置顶/轮换真相源在 ScheduleScreen — 翻页不丢(v7.10.16r)
@@ -690,8 +732,12 @@ private struct WeekPager: View {
                                       dragMaxWeek: state.currentTable?.maxWeek ?? 0,
                                       dragTransfers: state.transfers,
                                       quickAddState: quickAdd,
-                                      quickAddEnabled: quickAddEnabled && dragEnabled && page == state.selectedWeek,
-                                      onQuickAdd: { day, node, step in onQuickAdd(page, day, node, step) },
+                                      quickAddEnabled: quickAddEnabled && dragEnabled && page == state.selectedWeek
+                                        && viewModel.pendingCourseMove == nil,
+                                      onQuickAdd: { day, node, step in
+                                          guard drag.source == nil, viewModel.pendingCourseMove == nil else { return }
+                                          onQuickAdd(page, day, node, step)
+                                      },
                                       publishesDropGrid: publishesDropGrid)
                     }
                 }
@@ -710,7 +756,6 @@ private struct WeekPager: View {
         let state = viewModel.state
         return pages
         .modifier(CourseDragBackdrop(drag: drag))
-        .onPreferenceChange(CourseDropGridKey.self) { drag.grids = $0 }
         .background(NativeCourseDropTarget(drag: drag, week: state.selectedWeek, maxWeek: pagerMaxWeek,
             table: state.effectiveCurrentTable, allCourses: state.courses, transfers: state.transfers,
             enabled: dragEnabled && viewMode == .cards && !dragError && quickAdd.selection == nil
@@ -742,7 +787,6 @@ private struct WeekPager: View {
             }))
         .overlay(CourseDragProjection(drag: drag))
         .overlay(CourseDragEdgePeek(drag: drag))
-        .accessibilityIdentifier("schedule_week_pager")
     }
 
     private func openWeekOccurrence(_ projected: CourseEntity, displayWeek: Int) {
@@ -765,34 +809,103 @@ private struct WeekPager: View {
         } catch { dragError = true }
     }
 
-    // 每页独立计算灰显星期(节假日/周末)。
-    private func refreshGreyDays() async {
-        let state = viewModel.state
-        let start = state.currentTable?.startDate ?? ""
-        // issue#44: 灰显要查当前表调休映射(命中映射的放假日那天要上课, 永不灰) ← ScheduleScreen.kt:326
-        // issue F106-7: 表 ID 取水合表(effectiveCurrentTable?.id) ← 原版本 同口径
-        let tableId = state.effectiveCurrentTable?.id
-        guard !start.isEmpty else {
-            greyDaysByWeek = [:]
-            return
-        }
-        // ← produceState 键含 state.transfers: 映射变(设置页改完 refreshTransfer)缓存整体作废重算
-        let signature = state.transfers.map { DateUtils.fullDate($0.sourceDate) + ">" + DateUtils.fullDate($0.targetDate) }
-            .joined(separator: ",")
-        if signature != greyCacheSignature {
-            greyDaysByWeek = [:]
-            greyCacheSignature = signature
-        }
-        for week in 1...pagerMaxWeek where greyDaysByWeek[week] == nil {
-            var grey: Set<Int> = []
+    private func refreshGreyDays(_ request: GreyRequest) async {
+        guard !Task.isCancelled, request == greyRequest else { return }
+        guard !request.context.startDate.isEmpty else { greyCache = nil; return }
+        // Match the rendered viewport, retaining the pinned source during a drag.
+        let lastWeek = max(1, request.maxWeek)
+        let selectedWeek = min(max(1, request.selectedWeek), lastWeek)
+        var weeks = Set(max(1, selectedWeek - 1)...min(lastWeek, selectedWeek + 1))
+        if let source = request.sourceWeek { weeks.insert(source) }
+        let old = greyCache?.context == request.context ? greyCache?.daysByWeek ?? [:] : [:]
+        var daysByWeek = old.filter { weeks.contains($0.key) }
+        var cells: [(week: Int, day: Int, date: Date)] = []
+        for week in weeks.sorted() where daysByWeek[week] == nil {
+            daysByWeek[week] = []
             for day in 1...7 {
-                if let date = DateUtils.dateOfWeek(startDate: start, week: week, dayOfWeek: day),
-                   await HolidayManager.shouldGrey(date, tableId: tableId) {
-                    grey.insert(day)
+                if let date = DateUtils.dateOfWeek(startDate: request.context.startDate, week: week, dayOfWeek: day) {
+                    cells.append((week, day, date))
                 }
             }
-            greyDaysByWeek[week] = grey
         }
+        let grey = await HolidayManager.greyDates(cells.map(\.date), tableId: request.context.tableId,
+                                                   transfers: viewModel.state.transfers)
+        guard !Task.isCancelled, request == greyRequest else { return }
+        for cell in cells where grey.contains(cell.date) { daysByWeek[cell.week, default: []].insert(cell.day) }
+        if greyCache?.context != request.context || greyCache?.daysByWeek != daysByWeek {
+            greyCache = GreyCache(context: request.context, daysByWeek: daysByWeek)
+        }
+    }
+}
+
+private struct WeekPagerIdentity: Hashable {
+    let tableID: Int64?
+    let epoch: UInt
+}
+
+/// Preferences stop at a hosting-controller boundary. Each host replaces its
+/// entire contribution so hidden/removed pages cannot leave stale drop targets.
+@MainActor
+private final class WeekGridContributions {
+    private var values: [UUID: (week: Int, grids: [Int: CourseDropGrid])] = [:]
+    private var activeHost: Int?
+
+    func update(_ id: UUID, week: Int, grids: [Int: CourseDropGrid], drag: CourseDragContext) {
+        values[id] = (week, grids)
+        publish(to: drag)
+    }
+
+    func remove(_ id: UUID, drag: CourseDragContext) {
+        values.removeValue(forKey: id)
+        publish(to: drag)
+    }
+
+    func selectHost(_ week: Int?, drag: CourseDragContext) {
+        activeHost = week
+        publish(to: drag)
+    }
+
+    func reset(drag: CourseDragContext) {
+        values.removeAll()
+        activeHost = nil
+        drag.grids = [:]
+    }
+
+    private func publish(to drag: CourseDragContext) {
+        drag.grids = values.values
+            .filter { activeHost == nil || $0.week == activeHost }
+            .reduce(into: [:]) { result, value in result.merge(value.grids) { _, new in new } }
+    }
+}
+
+private struct WeekPageGridReader<Content: View>: View {
+    let week: Int
+    let contributions: WeekGridContributions
+    let drag: CourseDragContext
+    let isCurrent: () -> Bool
+    @ViewBuilder let content: () -> Content
+    @State private var contribution = Contribution()
+
+    private final class Contribution {
+        let id = UUID()
+        var grids: [Int: CourseDropGrid] = [:]
+    }
+
+    var body: some View {
+        content()
+            .onPreferenceChange(CourseDropGridKey.self) { grids in
+                guard isCurrent() else { return }
+                contribution.grids = grids
+                contributions.update(contribution.id, week: week, grids: grids, drag: drag)
+            }
+            .onAppear {
+                guard isCurrent() else { return }
+                contributions.update(contribution.id, week: week, grids: contribution.grids, drag: drag)
+            }
+            .onDisappear {
+                guard isCurrent() else { return }
+                contributions.remove(contribution.id, drag: drag)
+            }
     }
 }
 
@@ -846,20 +959,27 @@ private struct ScheduleTopBar: View {
         let textWidth = ceil((label as NSString).size(withAttributes: [.font: font]).width)
         let numberWidth = max(32, ceil((String(currentWeek) as NSString).size(withAttributes: [.font: font]).width) + 8)
         let native = style == .liquidGlass
+        // Compact home controls retain the v1.0.64 fallback order while using
+        // smaller action slots. Native glass keeps its platform-rendered surface.
+        let actionSize: CGFloat = native ? 36 : 32
+        let fullCenterWidth = 2 * actionSize + 44 + textWidth
+        let history = hasUndoSnapshot || hasRedoSnapshot
+        let normalStartWidth = actionSize + (history ? 73 : 0) + (scaleUncommitted ? actionSize + 8 : 0)
+        let tightStartWidth = actionSize + (history ? 65 : 0) + (scaleUncommitted ? actionSize : 0)
         let normalStart = nativeSizes[0]
         let tightStart = nativeSizes[4]
         let normalEnd = nativeSizes[2]
         let tightEnd = nativeSizes[5]
         let layout = ScheduleToolbarGeometry.resolve(width: max(0, barWidth),
-            fullCenterWidth: native ? nativeSizes[1]?.width ?? 140 + textWidth : 140 + textWidth,
+            fullCenterWidth: native ? nativeSizes[1]?.width ?? fullCenterWidth : fullCenterWidth,
             groupedCenterWidth: native ? nativeSizes[3]?.width ?? 66 + numberWidth : 66 + numberWidth,
-            history: hasUndoSnapshot || hasRedoSnapshot, confirm: scaleUncommitted,
-            normalStartWidth: native ? normalStart?.width : nil,
-            tightStartWidth: native ? tightStart?.width : nil,
-            normalEndWidth: native ? normalEnd?.width ?? 104 : 104,
-            tightEndWidth: native ? tightEnd?.width ?? 96 : 96,
-            sideHeight: native ? max(normalStart?.height ?? 48, normalEnd?.height ?? 48) : 48,
-            fullCenterHeight: native ? nativeSizes[1]?.height ?? 48 : 48,
+            history: history, confirm: scaleUncommitted,
+            normalStartWidth: native ? normalStart?.width ?? normalStartWidth : normalStartWidth,
+            tightStartWidth: native ? tightStart?.width ?? tightStartWidth : tightStartWidth,
+            normalEndWidth: native ? normalEnd?.width ?? 2 * actionSize + 8 : 2 * actionSize + 8,
+            tightEndWidth: native ? tightEnd?.width ?? 2 * actionSize : 2 * actionSize,
+            sideHeight: native ? max(normalStart?.height ?? actionSize, normalEnd?.height ?? actionSize) : actionSize,
+            fullCenterHeight: native ? nativeSizes[1]?.height ?? actionSize : actionSize,
             groupedCenterHeight: native ? nativeSizes[3]?.height ?? 32 : 32)
         GeometryReader { proxy in
             let fit = layout.fitScale
@@ -888,7 +1008,7 @@ private struct ScheduleTopBar: View {
             }
             .preference(key: TopBarWidthKey.self, value: proxy.size.width)
         }
-        .frame(height: barWidth > 0 ? layout.height : 48)
+        .frame(height: barWidth > 0 ? layout.height : actionSize)
         .onPreferenceChange(TopBarWidthKey.self) { barWidth = $0 }
         .padding(.vertical, 6)
         .background(colors.surface)
@@ -1053,20 +1173,23 @@ private struct WeekNavButton: View {
     }
 
     private var button: some View {
-        // v1.0.64: 32pt visual circle inside the 48pt action slot; both
-        // follow the toolbar side scale before the final narrow-window fit.
-        Button(action: onClick) {
-            AndroidMaterialIcon(name: icon, size: 20 * scale)
+        let native = style == .liquidGlass
+        let platformSize: CGFloat = native ? 44 : 32 * scale
+        let actionSize: CGFloat = (native ? 36 : 32) * scale
+        // Scale only this toolbar's native disc; compensate the icon so its
+        // final size stays 20pt. Other screens retain their normal native sizing.
+        return Button(action: onClick) {
+            AndroidMaterialIcon(name: icon, size: native ? 20 * 44 / 36 : 20 * scale)
                 .foregroundColor(colors.onSurfaceVariant)
-                .frame(width: style == .classic ? 32 * scale : nil,
-                       height: style == .classic ? 32 * scale : nil)
+                .frame(width: native ? 34 : actionSize,
+                       height: native ? 34 : actionSize)
                 .sleepyControlSurface(cornerRadius: 16 * scale, tint: colors.surfaceContainerHigh)
-                .frame(width: style == .classic ? 48 * scale : nil,
-                       height: style == .classic ? 48 * scale : nil)
                 .contentShape(Rectangle())
         }
         .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 16 * scale, compact: true, shape: .circle))
-        .frame(width: 48 * scale, height: 48 * scale)
+        .frame(width: platformSize, height: platformSize)
+        .scaleEffect(actionSize / platformSize)
+        .frame(width: actionSize, height: actionSize)
         .tint(colors.surfaceContainerHigh)
         // ← G5: 周导航箭头锚点(chevron.left → week_prev / chevron.right → week_next)
         .accessibilityIdentifier(icon == .chevronLeft ? "week_prev" : "week_next")

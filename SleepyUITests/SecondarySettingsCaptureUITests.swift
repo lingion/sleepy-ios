@@ -375,7 +375,7 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         tapBack()
 
         app.switchToPillTab("schedule")
-        let course = app.collectionViews["schedule_week_pager"].buttons["gridcell_1"].firstMatch
+        let course = app.scheduleWeekPager.buttons["gridcell_1"].firstMatch
         XCTAssertTrue(course.waitForExistence(timeout: 8))
         let originalCard = course.label
         course.press(forDuration: 1)

@@ -1,0 +1,370 @@
+{
+  "date": "2026-11-12",
+  "baseline": "2c77f5ba127ba306f82de8a0077a530df60579aa",
+  "configuration": "Debug",
+  "device": "iPhone 17 simulator / iOS 27.0",
+  "iterations": 5,
+  "fixture": "5 seeded courses, cards grid, classic style, English, Asia/Shanghai",
+  "runs": {
+    "baseline": {
+      "InteractionPerformanceUITests/testProcessLaunchToResponsive()": [
+        {
+          "metric": "Duration (ApplicationFirstFramePresentationResponsive)",
+          "unit": "s",
+          "samples": [
+            9.478965459000001,
+            12.731568625000001,
+            9.041651792,
+            10.29815025,
+            7.5325665420000005
+          ]
+        }
+      ],
+      "InteractionPerformanceUITests/testTabsAndSettingsRoundTrip()": [
+        {
+          "metric": "CPU Time (sleepy)",
+          "unit": "s",
+          "samples": [
+            1.1215258080000001,
+            1.223588748,
+            1.1578529560000002,
+            1.202169856,
+            1.1232876600000001
+          ]
+        },
+        {
+          "metric": "Memory Peak Physical (sleepy)",
+          "unit": "kB",
+          "samples": [
+            78989.856,
+            79022.624,
+            78826.016,
+            78711.328,
+            79170.08
+          ]
+        },
+        {
+          "metric": "CPU Instructions Retired (sleepy)",
+          "unit": "kI",
+          "samples": [
+            9456217.247,
+            10239239.872,
+            9991817.033,
+            9959129.305,
+            9578466.87
+          ]
+        }
+      ],
+      "InteractionPerformanceUITests/testWarmWeekPaging()": [
+        {
+          "metric": "CPU Time (sleepy)",
+          "unit": "s",
+          "samples": [
+            2.895779611,
+            2.5728754190000003,
+            2.170592972,
+            1.968290239,
+            2.09795442
+          ]
+        },
+        {
+          "metric": "Memory Peak Physical (sleepy)",
+          "unit": "kB",
+          "samples": [
+            100731.448,
+            102812.216,
+            102287.928,
+            102763.064,
+            103254.584
+          ]
+        },
+        {
+          "metric": "CPU Instructions Retired (sleepy)",
+          "unit": "kI",
+          "samples": [
+            25284805.393,
+            23683613.952,
+            23608238.52,
+            23549005.556,
+            23591767.938
+          ]
+        }
+      ]
+    },
+    "cache-only-candidate": {
+      "InteractionPerformanceUITests/testProcessLaunchToResponsive()": [
+        {
+          "metric": "Duration (ApplicationFirstFramePresentationResponsive)",
+          "unit": "s",
+          "samples": [
+            15.351637208000001,
+            13.87918325,
+            15.371052375000001,
+            35.325139,
+            16.021303791
+          ]
+        }
+      ],
+      "InteractionPerformanceUITests/testTabsAndSettingsRoundTrip()": [
+        {
+          "metric": "CPU Time (sleepy)",
+          "unit": "s",
+          "samples": [
+            1.08729622,
+            1.068040775,
+            1.039321054,
+            1.026305481,
+            1.151570854
+          ]
+        },
+        {
+          "metric": "Memory Peak Physical (sleepy)",
+          "unit": "kB",
+          "samples": [
+            79022.624,
+            78203.424,
+            78596.64,
+            78744.096,
+            76057.12
+          ]
+        },
+        {
+          "metric": "CPU Instructions Retired (sleepy)",
+          "unit": "kI",
+          "samples": [
+            8064054.292,
+            8215579.973,
+            8733685.125,
+            8212791.085,
+            8183955.592
+          ]
+        }
+      ],
+      "InteractionPerformanceUITests/testWarmWeekPaging()": [
+        {
+          "metric": "CPU Time (sleepy)",
+          "unit": "s",
+          "samples": [
+            1.749793941,
+            1.716725596,
+            1.6863201600000002,
+            1.707769638,
+            1.6983639920000002
+          ]
+        },
+        {
+          "metric": "Memory Peak Physical (sleepy)",
+          "unit": "kB",
+          "samples": [
+            101124.664,
+            102844.984,
+            100649.528,
+            102844.984,
+            101354.04
+          ]
+        },
+        {
+          "metric": "CPU Instructions Retired (sleepy)",
+          "unit": "kI",
+          "samples": [
+            21079265.757,
+            21100518.385,
+            21080653.309,
+            21106321.239,
+            21066847.682
+          ]
+        }
+      ]
+    },
+    "baseline-launch-control": {
+      "InteractionPerformanceUITests/testProcessLaunchToResponsive()": [
+        {
+          "metric": "Duration (ApplicationFirstFramePresentationResponsive)",
+          "unit": "s",
+          "samples": [
+            12.664277166000002,
+            9.464104833,
+            11.106093292,
+            13.367769083,
+            13.451489916000002
+          ]
+        }
+      ]
+    },
+    "cache-only-candidate-launch-control": {
+      "InteractionPerformanceUITests/testProcessLaunchToResponsive()": [
+        {
+          "metric": "Duration (ApplicationFirstFramePresentationResponsive)",
+          "unit": "s",
+          "samples": [
+            10.122642333,
+            10.150892125,
+            11.096597792,
+            11.482956541,
+            10.004108584
+          ]
+        }
+      ]
+    },
+    "initial-cache-candidate": {
+      "InteractionPerformanceUITests/testProcessLaunchToResponsive()": [
+        {
+          "metric": "Duration (ApplicationFirstFramePresentationResponsive)",
+          "unit": "s",
+          "samples": [
+            5.463614833,
+            8.271223416,
+            7.515529958,
+            9.245080834000001,
+            9.265612958
+          ]
+        }
+      ],
+      "InteractionPerformanceUITests/testTabsAndSettingsRoundTrip()": [
+        {
+          "metric": "CPU Time (sleepy)",
+          "unit": "s",
+          "samples": [
+            1.1401497710000001,
+            0.9496307660000001,
+            1.098803403,
+            0.90492576,
+            1.119886095
+          ]
+        },
+        {
+          "metric": "Memory Peak Physical (sleepy)",
+          "unit": "kB",
+          "samples": [
+            78154.272,
+            76401.184,
+            77204,
+            77679.136,
+            77220.384
+          ]
+        },
+        {
+          "metric": "CPU Instructions Retired (sleepy)",
+          "unit": "kI",
+          "samples": [
+            8207968.919,
+            8247856.175,
+            8101236.664,
+            8191934.62,
+            8075782.39
+          ]
+        }
+      ],
+      "InteractionPerformanceUITests/testWarmWeekPaging()": [
+        {
+          "metric": "CPU Time (sleepy)",
+          "unit": "s",
+          "samples": [
+            2.169823402,
+            2.684586438,
+            1.871055992,
+            2.037402094,
+            1.739842093
+          ]
+        },
+        {
+          "metric": "Memory Peak Physical (sleepy)",
+          "unit": "kB",
+          "samples": [
+            103778.896,
+            102746.704,
+            103467.6,
+            102320.72,
+            102976.08
+          ]
+        },
+        {
+          "metric": "CPU Instructions Retired (sleepy)",
+          "unit": "kI",
+          "samples": [
+            21194555.39,
+            21211470.731,
+            21125700.307,
+            21138048.478,
+            21116434.29
+          ]
+        }
+      ]
+    }
+  },
+  "cache_only_candidate_production": "ce102ec62ed928100999961608e5626f090dc744",
+  "measurement_scope": "Preserved historical cache-only app samples; no completed performance sample group measures the final NativeWeekPager implementation.",
+  "run_name_changes": {
+    "final": "cache-only-candidate",
+    "baseline-control": "baseline-launch-control",
+    "final-control": "cache-only-candidate-launch-control",
+    "initial-candidate": "initial-cache-candidate"
+  },
+  "final_native_pager": {
+    "implementation": "UIPageViewController with serialized latest-request transitions, at most four coordinator-cached page hosts, explicit environment forwarding and page-grid preference contributions restored on appearance",
+    "build_for_testing": "passed",
+    "unit_regression": {
+      "executed": 2655,
+      "passed": 2654,
+      "failed": 1,
+      "failure": "WebViewNavigationPolicyTests/testNormalNavigationUnaffectedByFix timed out; WebContent process later logged unresponsive",
+      "log": "final-native-regression.log"
+    },
+    "webview_class_retry": {
+      "executed": 4,
+      "passed": 4,
+      "failed": 0,
+      "log": "final-webkit-retry.log"
+    },
+    "new_pager_unit_tests": {
+      "executed": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "ordinary_ui_tests": {
+      "executed": 2,
+      "passed": 2,
+      "failed": 0,
+      "tests": [
+        "NavigationTransitionCanvasUITests/testClassicWeekButtonsAndStationaryLift",
+        "NavigationTransitionCanvasUITests/testClassicWeekJumpAndNativeSwipeStayInSync"
+      ],
+      "log": "final-native-regression.log"
+    },
+    "visual_review": {
+      "encoded_samples": 163,
+      "observed": [
+        "visible horizontal paging",
+        "bottom tabs remain fixed",
+        "no side black bands in reviewed samples"
+      ],
+      "scope": "Visual transition evidence only; not FPS or hitch-rate measurement"
+    },
+    "earlier_navigation_tests": {
+      "executed": 3,
+      "passed": 3,
+      "scope": "Intermediate implementation, not a final NativeWeekPager rerun"
+    },
+    "performance_remeasurement": {
+      "status": "stopped_at_user_request",
+      "reason": "User requested direct PR submission and local merge for Xcode testing without further tests",
+      "baseline_control": {
+        "log": "native-baseline-control.log",
+        "status": "interrupted_by_SIGINT",
+        "exit_code": 75
+      },
+      "candidate_run": {
+        "name": "native-final-metrics",
+        "status": "not_started"
+      },
+      "completed_comparison": false,
+      "final_native_improvement_percent": null
+    },
+    "launch_conclusion": "No stable launch speedup established by the preserved historical samples",
+    "retracted_experiments": [
+      "Local-selection TabView experiment without visible horizontal motion",
+      "Whole EnvironmentValues forwarding, which replayed ancestor bottom tabs in page hosts"
+    ],
+    "production_revision": "b0ef1a22c8e947234aaef45a0218d9b24f70d6e5"
+  }
+}

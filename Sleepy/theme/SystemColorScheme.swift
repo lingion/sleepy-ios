@@ -2,6 +2,13 @@ import SwiftUI
 
 /// App、全彩 Widget、课程 anchor 的 system 分支唯一解析器。
 enum SystemColorScheme {
+    private struct TerminalKey: Equatable {
+        let seed: SystemSeedRGB
+        let dark: Bool
+        let increasedContrast: Bool
+    }
+    private static let terminals = ThemeValueCache<TerminalKey, WakeUpColorScheme>(capacity: 16)
+
     static func argb(_ color: Color) -> Int {
         let rgb = CustomSchemeDeriver.rgb(of: color)
         func byte(_ value: Float) -> Int { Int((min(1, max(0, value)) * 255).rounded()) }
@@ -14,8 +21,20 @@ enum SystemColorScheme {
     static func resolve(snapshot: SystemColorSnapshot, dark: Bool,
                         increasedContrast: Bool? = nil) -> WakeUpColorScheme {
         let value = snapshot.isValid ? snapshot : .fallback(.invalidSnapshot)
-        let base = CustomSchemeDeriver.derive(systemSeed: value.seed, isDark: dark)
-        let target = (increasedContrast ?? value.increasedContrast) ? 7.0 : 4.5
+        return resolve(seed: value.seed, dark: dark,
+                       increasedContrast: increasedContrast ?? value.increasedContrast)
+    }
+
+    static func resolve(seed: SystemSeedRGB, dark: Bool, increasedContrast: Bool) -> WakeUpColorScheme {
+        let key = TerminalKey(seed: seed, dark: dark, increasedContrast: increasedContrast)
+        return terminals.value(for: key) {
+            derive(seed: seed, dark: dark, increasedContrast: increasedContrast)
+        }
+    }
+
+    private static func derive(seed: SystemSeedRGB, dark: Bool, increasedContrast: Bool) -> WakeUpColorScheme {
+        let base = CustomSchemeDeriver.derive(systemSeed: seed, isDark: dark)
+        let target = increasedContrast ? 7.0 : 4.5
         let primary = pair(base.primary, target: target)
         let secondary = pair(base.secondary, target: target)
         let tertiary = pair(base.tertiary, target: target)

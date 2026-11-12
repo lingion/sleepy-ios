@@ -68,9 +68,9 @@ struct WidgetManagementScreen: View {
     // ← vm.state (WidgetManagementViewModel)
     @State private var items: [PlacedWidgetItem] = []
     // 点击行 → 编辑页(等价 原版本 onSelect(id) 导航)
-    @State private var editTarget: PlacedWidgetItem? = nil
+    @SleepyNavigationState private var editTarget: PlacedWidgetItem? = nil
     // v1.0.62 B4: 标题栏右上「＋」进画廊页直接添加(设计 §3)
-    @State private var showGallery = false
+    @SleepyNavigationState private var showGallery = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -130,24 +130,21 @@ struct WidgetManagementScreen: View {
                 Task { items = await loadItems() }
             }
         }
-        // ← onSelect(widgetId) 导航: fullScreenCover 叠放(manage → edit 两级)
-        .fullScreenCover(item: $editTarget) { target in
+        .sleepyNavigationPage(item: $editTarget, changes: _editTarget.changes, onDismiss: {
+            Task { items = await loadItems() }
+        }, canvas: {
+            colors.background.ignoresSafeArea()
+        }) { target in
             // ← family 透传 (设计 §6): 编辑页族门控 (滚动/三天窗口节) 依据
             WidgetEditScreen(kind: target.kind, family: target.family,
-                             onDismiss: {
-                                 editTarget = nil
-                                 // ← 原版本 ON_RESUME 重扫: 编辑绑定改课后回列表重扫
-                                 Task { items = await loadItems() }
-                             })
+                             onDismiss: { editTarget = nil })
         }
-        // v1.0.62 B4: 右上「＋」→ 画廊页(第三级叠放)
-        .fullScreenCover(isPresented: $showGallery) {
-            WidgetGalleryScreen(onDismiss: {
-                showGallery = false
-                // ← 画廊 pin → 返回本页: 重扫已放置实例(单一真源 = WidgetCenter),
-                //    新卡片即时可见, 无需手动刷新(原版本 ON_RESUME 重扫同义)
-                Task { items = await loadItems() }
-            })
+        .sleepyNavigationPage(isPresented: $showGallery, changes: _showGallery.changes, onDismiss: {
+            Task { items = await loadItems() }
+        }, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
+            WidgetGalleryScreen(onDismiss: { showGallery = false })
         }
     }
 }

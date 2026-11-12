@@ -470,7 +470,7 @@ final class SheetPlatformUITests: XCTestCase {
     }
 
     func testOccurrenceRoomCancelsDraftThenSavesOnlyTheSelectedOccurrence() {
-        let pager = app.collectionViews["schedule_week_pager"]
+        let pager = app.scheduleWeekPager
         let course = pager.buttons["gridcell_1"].firstMatch
         XCTAssertTrue(course.waitForExistence(timeout: 10))
         course.press(forDuration: 1)
@@ -522,7 +522,7 @@ final class SheetPlatformUITests: XCTestCase {
     }
 
     func testLandscapeOccurrenceEditorValidatesSaveAndCancelsDelete() {
-        let course = app.collectionViews["schedule_week_pager"].buttons["gridcell_1"].firstMatch
+        let course = app.scheduleWeekPager.buttons["gridcell_1"].firstMatch
         XCTAssertTrue(course.waitForExistence(timeout: 10))
         course.press(forDuration: 1)
         let edit = app.buttons["course_float_edit"].firstMatch

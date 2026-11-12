@@ -211,6 +211,55 @@ enum HolidayManager {
         )
     }
 
+    /// One viewport shares its decoded settings and effective year sets. Avoid
+    /// rebuilding holiday ranges and decoding the table's transfers per cell.
+    static func greyDates(_ dates: [Date], tableId: Int64? = nil,
+                          transfers suppliedTransfers: [HolidayTransferEntry]? = nil) async -> Set<Date> {
+        guard !dates.isEmpty else { return [] }
+        let settings = AppPrefs.shared
+        let greyHoliday = settings.isHolidayGreyHoliday()
+        let greyWeekend = settings.isHolidayGreyWeekend()
+        let ignoreWorkday = settings.isHolidayIgnoreWorkday()
+        guard greyHoliday || greyWeekend else { return [] }
+        let ranges = settings.getHolidayRanges()
+        let transfers = suppliedTransfers ?? tableId.map { settings.getHolidayTransfers($0) } ?? []
+        let customWorkdays = Set(transfers.map(\.targetDate))
+        var result: Set<Date> = []
+        for (year, yearDates) in Dictionary(grouping: dates, by: { $0.year }) {
+            let entries = await getYearEntries(year)
+            guard !Task.isCancelled else { return [] }
+            let merged = HolidayRangeOps.mergeSegments(entries, ranges)
+            let (holidays, networkWorkdays) = HolidayRangeOps.toSets(merged.active)
+            let workdays = greyWeekend && ignoreWorkday
+                ? networkWorkdays.union(customWorkdays) : []
+            for date in yearDates where decideGrey(date: date, holidays: holidays, workdays: workdays,
+                greyHoliday: greyHoliday, greyWeekend: greyWeekend, ignoreWorkday: ignoreWorkday,
+                dateHasTransfer: HolidayTransferOps.transferFor(date, transfers) != nil) {
+                result.insert(date)
+            }
+        }
+        return result
+    }
+
+    struct GreySettingsSignature: Hashable {
+        let holiday: Bool
+        let weekend: Bool
+        let ignoreWorkday: Bool
+        let overrides: String
+        let yearDocuments: [String]
+    }
+
+    /// Read on defaults notifications, rather than invalidating the viewport for
+    /// unrelated writes (navigation, widget diagnostics, reminder bookkeeping).
+    static func greySettingsSignature() -> GreySettingsSignature {
+        let settings = AppPrefs.shared
+        let documents = prefs.dictionaryRepresentation().filter { $0.key.hasPrefix(CACHE_KEY_PREFIX) }
+        return GreySettingsSignature(holiday: settings.isHolidayGreyHoliday(),
+            weekend: settings.isHolidayGreyWeekend(), ignoreWorkday: settings.isHolidayIgnoreWorkday(),
+            overrides: prefs.string(forKey: AppPrefs.KEY_HOLIDAY_OVERRIDES) ?? "[]",
+            yearDocuments: documents.keys.sorted().map { "\($0)=\(documents[$0]!)" })
+    }
+
     /**
      * 获取某年全部原始网络条目(节假日+补班日, 带名称, 不含用户覆盖)。
      * 取数顺序: 内存缓存 → 磁盘缓存(拉成功一次即永久) → 网络。

@@ -96,7 +96,7 @@ final class SwipeBackGestureUITests: XCTestCase {
     // MARK: - 路径 C: 课程详情 → 编辑 → 课表
 
     func testCourseEditorBackRestoresSchedule() throws {
-        let pager = app.collectionViews["schedule_week_pager"]
+        let pager = app.scheduleWeekPager
         XCTAssertTrue(pager.waitForExistence(timeout: 5))
         let scheduleCell = pager.buttons["gridcell_1"]
         XCTAssertTrue(scheduleCell.waitForExistence(timeout: 5))

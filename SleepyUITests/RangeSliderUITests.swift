@@ -2,7 +2,7 @@ import XCTest
 
 final class RangeSliderUITests: XCTestCase {
     private var app: XCUIApplication!
-    private var pager: XCUIElement { app.collectionViews["schedule_week_pager"] }
+    private var pager: XCUIElement { app.scheduleWeekPager }
     private let courseName = "Range Slider Orbit"
 
     override func setUpWithError() throws {

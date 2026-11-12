@@ -32,7 +32,7 @@ struct ReminderScreen: View {
     let onDismiss: () -> Void
     /// ← 原版本 onOpenHoliday: 打开节假日高级设置。宿主接了导航就交出去;
     /// nil(当前 iOS 调用方 SleepyApp.swift 只传 onDismiss)→ 本页自带 HolidaySettings
-    /// sheet(GeneralSettings 同款组件同语义), 无需共享导航接线。
+    /// 子页(GeneralSettings 同款组件同语义), 无需共享导航接线。
     var onOpenHoliday: (() -> Void)? = nil
     /// issue#44 接线(F095-C): 课表页 VM 提供真实 selectedTableId 与 refreshTransfer
     /// 通道(SleepyNavHost.kt:299-303 的 tableId + viewModel)。
@@ -63,10 +63,10 @@ struct ReminderScreen: View {
     @State private var classDndEnabled = AppPrefs.shared.isClassDndEnabled()
     @State private var pickerTarget: DailyReminderTimeTarget? = nil
     @State private var pickerTime = Date()
-    @State private var showHolidaySettings = false
+    @SleepyNavigationState private var showHolidaySettings = false
     // v1.0.62 B3: 课表提醒独立页入口 (原版本 SleepyRoute.TableReminder push 路由;
     // iOS 内嵌 sheet = holiday/widgetManagement 同款 by design 链)。
-    @State private var showTableReminder = false
+    @SleepyNavigationState private var showTableReminder = false
     /// 通知权限 denied 态 → master 卡内手动设置引导行。
     /// iOS 语义: denied 后 requestAuthorization 不再弹系统框、静默返回 false
     /// (一次性弹窗), 唯一恢复路径 = 用户手动去系统设置。仅在用户点 master
@@ -182,16 +182,19 @@ struct ReminderScreen: View {
         .sheet(item: $pickerTarget) { target in
             timePickerSheet(target)
         }
-        // 节假日高级设置(本页内嵌 sheet — GeneralSettings 同款组件)
+        // 节假日高级设置与其他完整设置页共用系统导航。
         // ← F095-B: 传当前课表 id + 刷新回调(对应 原版本 SleepyNavHost 的 tableId+viewModel),
         // 否则 tableId=nil → 调休卡渲染 holiday_makeup_no_table 且 saveTransfer 短路, issue#44 非持久。
-        .sheet(isPresented: $showHolidaySettings) {
+        .sleepyNavigationPage(isPresented: $showHolidaySettings, changes: _showHolidaySettings.changes, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
             HolidaySettingsScreen(onDismiss: { showHolidaySettings = false },
                                   tableId: currentSelectedTableId,
                                   refreshTransfer: { viewModel?.refreshTransfer() })
         }
-        // v1.0.62 B3: 课表提醒页 (原版本 SleepyRoute.TableReminder push 等价 = 内嵌 sheet)
-        .sheet(isPresented: $showTableReminder) {
+        .sleepyNavigationPage(isPresented: $showTableReminder, changes: _showTableReminder.changes, canvas: {
+            colors.background.ignoresSafeArea()
+        }) {
             TableReminderScreen(onDismiss: { showTableReminder = false })
         }
     }

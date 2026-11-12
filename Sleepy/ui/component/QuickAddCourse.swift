@@ -70,15 +70,13 @@ struct QuickAddCourseCells: View {
     let timeWidth: CGFloat
     let columnWidth: CGFloat
     let gap: CGFloat
+    var canSelect: () -> Bool = { true }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(Array(days.enumerated()), id: \.element) { index, day in
                 ForEach(rows, id: \.node) { row in
-                    Button { state.select(day: day, node: row.node) } label: {
-                        Color.clear.contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                    QuickAddCourseCell(state: state, day: day, node: row.node, canSelect: canSelect)
                     .frame(width: columnWidth, height: max(0, row.bottom - row.top))
                     .offset(x: timeWidth + gap + CGFloat(index) * (columnWidth + gap), y: row.top)
                     .accessibilityLabel("\(L10n.t("schedule_add_course")), \(DateUtils.localizedDay(day)), \(L10n.format("period_format_node", "\(row.node)"))")
@@ -86,6 +84,40 @@ struct QuickAddCourseCells: View {
                 }
             }
         }
+    }
+}
+
+@MainActor
+private struct QuickAddCourseCell: View {
+    let state: QuickAddCourseState
+    let day: Int
+    let node: Int
+    let canSelect: () -> Bool
+    @State private var eligibleAtPressStart = false
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onLongPressGesture(minimumDuration: 0.5, maximumDistance: 10,
+                pressing: { pressing in
+                    if pressing {
+                        // A press that starts by dismissing a lifted course must
+                        // not become quick-add after that same touch clears it.
+                        eligibleAtPressStart = canSelect() && state.selection == nil
+                    }
+                }, perform: {
+                    guard eligibleAtPressStart else { return }
+                    selectIfAllowed()
+                })
+            .allowsHitTesting(canSelect())
+            .accessibilityElement()
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { selectIfAllowed() }
+    }
+
+    private func selectIfAllowed() {
+        guard canSelect(), state.selection == nil else { return }
+        state.select(day: day, node: node)
     }
 }
 

@@ -239,10 +239,21 @@ final class ScheduleViewModel: ObservableObject {
                 guard let self = self else { return }
                 if tables.isEmpty {
                     // 没有课表就老实空着,不强行造占位表
-                    self.state.tables = []
-                    self.state.selectedTableId = nil
-                    self.state.weekDisplayContext = nil
-                    self.state.weekSelectionManual = false
+                    self.coursesCancellable?.cancel()
+                    self.coursesCancellable = nil
+                    var next = self.state
+                    next.tables = []
+                    next.selectedTableId = nil
+                    next.weekDisplayContext = nil
+                    next.weekSelectionManual = false
+                    next.courses = []
+                    next.effectivePeriodTable = nil
+                    next.transfers = []
+                    next.initialWeekSettled = false
+                    next.currentWeek = 1
+                    next.selectedWeek = 1
+                    next.nodesPerDay = 12
+                    self.state = next
                     return
                 }
                 let selectedId = self.state.selectedTableId
@@ -255,8 +266,19 @@ final class ScheduleViewModel: ObservableObject {
                 } else {
                     targetId = tables[0].id
                 }
-                self.state.tables = tables
-                self.state.selectedTableId = targetId
+                var next = self.state
+                next.tables = tables
+                next.selectedTableId = targetId
+                next.transfers = AppPrefs.shared.getHolidayTransfers(targetId)
+                if selectedId != targetId {
+                    next.initialWeekSettled = false
+                    next.weekSelectionManual = false
+                    next.weekDisplayContext = nil
+                    next.courses = []
+                    next.effectivePeriodTable = nil
+                }
+                next.selectedWeek = min(max(next.selectedWeek, 1), max(next.displayMaxWeek, 1))
+                self.state = next
                 self.loadCourses(targetId)
             }
     }
@@ -264,8 +286,6 @@ final class ScheduleViewModel: ObservableObject {
     // ← loadCourses: 取消旧观察,避免多 observeCourses 同时写 state.courses 互相覆盖
     private func loadCourses(_ tableId: Int64) {
         coursesCancellable?.cancel()
-        // issue#44: 拉一次该表调休映射; 设置页改完走 refreshTransfer 主动刷
-        state.transfers = AppPrefs.shared.getHolidayTransfers(tableId)
         // issue#40: 课程流与绑定时间节次表流合并 — 时间节次表改动会 emit 新值,
         // 所有绑定课表立即按新作息解释节次(设计 §5.2 立即全部同步), 课程行不重算
         coursesCancellable = Publishers.CombineLatest(
@@ -276,10 +296,11 @@ final class ScheduleViewModel: ObservableObject {
         )
         .receive(on: DispatchQueue.main)
         .sink { [weak self] courses, periodTable in
-            guard let self = self else { return }
+            guard let self = self, self.state.selectedTableId == tableId else { return }
             let rawTable = self.state.tables.first { $0.id == tableId }
             // 水合: 绑定存在时 nodesPerDay/timeJson/smartConfigJson 以时间节次表为准
             let table = rawTable.map { $0.hydratedWith(periodTable) }
+            let transfers = AppPrefs.shared.getHolidayTransfers(tableId)
             let displayContext = table.map {
                 // v1.0.62 B5b: resolver 传入调休映射 ← 原版本 WeekDisplayResolver.resolve(transfers=...)
                 // (放假日跳最近有课日 / 补班日计入扫描终点; AppPrefs 直读 = 原版本 同源新读)
@@ -290,20 +311,26 @@ final class ScheduleViewModel: ObservableObject {
                     courses: courses,
                     timeJson: $0.timeJson,
                     enabled: AppPrefs.shared.isNearestBusyDay(),
-                    transfers: AppPrefs.shared.getHolidayTransfers(tableId)
+                    transfers: transfers
                 )
             }
             let week = displayContext?.actualWeek ?? 1
             // v7.10.16s: 只更新真实周(currentWeek, 供"回到本周"), 不再重置 selectedWeek —
             // 用户在第 x 周编辑/删课, 保存回来仍停在 x 周(此前被拽回真实周=跳回第一周体验)。
             // 首次加载(initial=true)仍落目标周, 保持原行为
-            self.state.courses = courses
-            self.state.currentWeek = week
-            self.state.selectedWeek = self.weekForNextTick(week: week, targetWeek: displayContext?.targetWeek)
-            self.state.weekDisplayContext = displayContext
-            self.state.initialWeekSettled = true
-            self.state.nodesPerDay = table?.nodesPerDay ?? 12
-            self.state.effectivePeriodTable = periodTable
+            // Publish one coherent snapshot instead of invalidating every
+            // subscriber once for each field in the same database delivery.
+            var next = self.state
+            next.courses = courses
+            next.currentWeek = week
+            next.selectedWeek = self.weekForNextTick(week: week, targetWeek: displayContext?.targetWeek)
+            next.weekDisplayContext = displayContext
+            next.initialWeekSettled = true
+            next.nodesPerDay = table?.nodesPerDay ?? 12
+            next.effectivePeriodTable = periodTable
+            next.transfers = transfers
+            next.selectedWeek = min(max(next.selectedWeek, 1), max(next.displayMaxWeek, 1))
+            self.state = next
             // 课程数据变更后刷新所有 widget
             self.onWidgetsNeedReload()
         }
@@ -323,10 +350,14 @@ final class ScheduleViewModel: ObservableObject {
     func selectTable(_ id: Int64) {
         manualSelectDone = true
         // 切表 = 新学期语境, 周选择回到该表真实周(initialWeekSettled 复位, loadCourses 重新落周)
-        state.selectedTableId = id
-        state.initialWeekSettled = false
-        state.weekSelectionManual = false
-        state.weekDisplayContext = nil
+        var next = state
+        next.selectedTableId = id
+        next.initialWeekSettled = false
+        next.weekSelectionManual = false
+        next.weekDisplayContext = nil
+        next.transfers = AppPrefs.shared.getHolidayTransfers(id)
+        next.selectedWeek = min(max(next.selectedWeek, 1), max(next.displayMaxWeek, 1))
+        state = next
         loadCourses(id)
         Task {
             try? repo.setDefault(id)
@@ -451,10 +482,13 @@ final class ScheduleViewModel: ObservableObject {
         // 防呆: 下限 1, 上限 displayMaxWeek — v1.0.62 B5b: 上限改 displayMaxWeek
         // (changeWeek: 补班日可能落在 maxWeek 之外, 翻页上限并入调休目标周)
         let maxWeek = state.displayMaxWeek
-        guard week >= 1, week <= maxWeek else { return }
+        guard week >= 1, week <= maxWeek,
+              week != state.selectedWeek || !state.weekSelectionManual else { return }
         // 甲案语境: 用户手动翻周 = 停止自动跟随 targetWeek
-        state.selectedWeek = week
-        state.weekSelectionManual = true
+        var next = state
+        next.selectedWeek = week
+        next.weekSelectionManual = true
+        state = next
     }
 
     /// 源身份在 lift 时捕获；目标按逐日投影解析，写入前回查原始行。
@@ -631,8 +665,6 @@ final class ScheduleViewModel: ObservableObject {
     /// v1.0.62 B5b: ← 原 refreshTransfer 尾部追加 recalculateWeekDisplay() —
     /// 映射变更会改变 targetWeek(放假日跳最近有课日/补班日计入), 展示周须同帧重算。
     func refreshTransfer() {
-        guard let id = state.selectedTableId else { return }
-        state.transfers = AppPrefs.shared.getHolidayTransfers(id)
         recalculateWeekDisplay()
     }
 
@@ -641,6 +673,7 @@ final class ScheduleViewModel: ObservableObject {
     func recalculateWeekDisplay() {
         guard let table = state.effectiveCurrentTable else { return }
         // v1.0.62 B5b: 传入调休映射 ← 原版本 recalculateWeekDisplay(transfers=AppPrefs 直读)
+        let transfers = AppPrefs.shared.getHolidayTransfers(table.id)
         let context = WeekDisplayResolver.resolve(
             startDate: table.startDate,
             maxWeek: table.maxWeek,
@@ -648,17 +681,23 @@ final class ScheduleViewModel: ObservableObject {
             courses: state.courses,
             timeJson: table.timeJson,
             enabled: AppPrefs.shared.isNearestBusyDay(),
-            transfers: AppPrefs.shared.getHolidayTransfers(table.id)
+            transfers: transfers
         )
         let selected = state.weekSelectionManual ? state.selectedWeek : context.targetWeek
-        state.currentWeek = context.actualWeek
-        state.weekDisplayContext = context
-        state.selectedWeek = selected
+        var next = state
+        next.currentWeek = context.actualWeek
+        next.weekDisplayContext = context
+        next.transfers = transfers
+        next.selectedWeek = selected
+        next.selectedWeek = min(max(next.selectedWeek, 1), max(next.displayMaxWeek, 1))
+        state = next
     }
 
     func openCourse(_ id: Int64) {
-        state.selectedCourseId = id
-        state.showCourseDialog = true
+        var next = state
+        next.selectedCourseId = id
+        next.showCourseDialog = true
+        state = next
     }
 
     func dismissCourseDialog() {

@@ -1,6 +1,6 @@
 // JwImportFlow.swift — ← ui/screen/imports/JwImportActivity.kt (v1.0.61, 1040 行)
 // 教务直连导入主屏: 学校选择 → WebView 登录抓 HTML → 解析 → 预览 → 配置确认 → 落库。
-// Activity+Stage sealed → NavigationStack-less 状态机 View。
+// Activity+Stage sealed → 保留导入会话的原生分层导航。
 //
 // v1.0.61 全对齐(F080): Preview stage + 追加模式(applyImportPreview)、草稿全生命周期
 // (save/update/delete + incomingDraftId 恢复 + phase 映射)、ExitDraftState 退出确认接线
@@ -115,11 +115,13 @@ struct JwCourseUpdateCommit {
     }
 }
 
-enum JwStage: Int, Comparable {
+enum JwStage: Int, Comparable, Identifiable {
     case selectSchool = 0
     case webViewLogin = 1
     case preview = 2
     case configureConfirm = 3
+
+    var id: Int { rawValue }
 
     static func < (lhs: JwStage, rhs: JwStage) -> Bool {
         lhs.rawValue < rhs.rawValue
@@ -187,8 +189,8 @@ struct JwImportFlow: View {
     private let draftRepository = ImportDraftRepository(AppDatabase.getShared())
 
     @State private var selectedSchool: JwSchoolInfo? = nil
-    @State private var stage: JwStage = .selectSchool
-    @State private var isNavigatingForward = true
+    @SleepyNavigationState private var stage: JwStage = .selectSchool
+    @State private var didStartFlow = false
     @State private var errorMsg: String? = nil
     @State private var statusMsg: String? = nil
     @State private var importFinished = false
@@ -255,11 +257,10 @@ struct JwImportFlow: View {
             isApplying: isApplying, reportVisible: reportDialogSchool != nil)
     }
 
-    var body: some View {
+    // Each native page owns the shared dialogs so they remain above the visible
+    // stage while the previous hosting controller stays alive in the back stack.
+    private var flowOverlays: some View {
         ZStack {
-            content
-                .accessibilityHidden(catalogNotice != nil)
-
             // 退出确认弹窗 ← ExitDraftConfirmationDialog(遮罩轻点 = 继续)
             if exitDraftState.confirmationVisible {
                 ExitDraftConfirmationDialog(
@@ -323,6 +324,14 @@ struct JwImportFlow: View {
                 .zIndex(1)
             }
         }
+    }
+
+    var body: some View {
+        // The sheet owns this independent navigation stack. Keep session lifetime
+        // outside its hosting controllers: pushing a stage only hides its source.
+        SleepyNativeNavigationHost(pages: []) {
+            content
+        }
         .onSheetDismissAttempt {
             handleDismissAttempt()
         }
@@ -341,6 +350,8 @@ struct JwImportFlow: View {
             }.padding(24)
         }
         .onAppear {
+            guard !didStartFlow else { return }
+            didStartFlow = true
             // F084: 流程「新进入」= Activity 重建 → saveable 状态清零。
             //   外层 ZStack 身份在 stage 切换中稳定, onAppear 每次流程呈现只跑一次,
             //   WebView 往返(不重挂外层)因此保留搜索词/展开/滚动 — 与 rememberSaveable 同语义。
@@ -368,20 +379,9 @@ struct JwImportFlow: View {
         }
     }
 
-    private var stageTransition: AnyTransition {
-        .asymmetric(
-            insertion: .opacity.combined(with: .move(edge: isNavigatingForward ? .trailing : .leading)),
-            removal: .opacity.combined(with: .move(edge: isNavigatingForward ? .leading : .trailing))
-        )
-    }
-
     private func navigateToStage(_ newStage: JwStage) {
         if newStage == .configureConfirm { loadPeriodTables() }
-        let forward = newStage >= stage
-        isNavigatingForward = forward
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
-            stage = newStage
-        }
+        stage = newStage
     }
 
     private func openSelectedSchool(_ school: JwSchoolInfo, acceptedCatalogNotice: Bool = false) {
@@ -415,92 +415,165 @@ struct JwImportFlow: View {
         }
     }
 
+    private var configurationReturnsToPreview: Bool {
+        incomingDraftId != nil && !newTableOnly
+    }
+
+    private func handleBackFromConfiguration() {
+        guard !isApplying else { return }
+        if configurationReturnsToPreview {
+            importPreview = nil
+            navigateToStage(.preview)
+        } else {
+            requestExit()
+        }
+    }
+
+    private func nativeBackDisabled(for pageStage: JwStage) -> Bool {
+        if isApplying || exitDraftState.confirmationVisible || catalogNotice != nil ||
+            reportDialogSchool != nil || errorMsg != nil {
+            return true
+        }
+        if pageStage == .configureConfirm && configurationReturnsToPreview { return false }
+        // An incoming draft must resolve its keep/delete choice before a native
+        // pop. Its toolbar still calls the existing business back action.
+        return exitDraftState.activeImport
+    }
+
+    private func flowPage<Page: View>(for pageStage: JwStage,
+                                      @ViewBuilder page: () -> Page) -> some View {
+        page()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(colors.background.ignoresSafeArea())
+            .accessibilityHidden(catalogNotice != nil)
+            .overlay { flowOverlays }
+            .sleepyNavigationBackDisabled(nativeBackDisabled(for: pageStage))
+    }
+
+    private var loginRoute: Binding<JwStage?> {
+        Binding(get: { stage >= .webViewLogin ? .webViewLogin : nil },
+                set: { if $0 == nil { handleBackFromWebView() } })
+    }
+
+    private var webChildRoute: Binding<JwStage?> {
+        Binding(get: {
+            guard stage >= .preview else { return nil }
+            return newTableOnly && stage == .configureConfirm ? .configureConfirm : .preview
+        }, set: {
+            guard $0 == nil else { return }
+            if newTableOnly && stage == .configureConfirm {
+                handleBackFromConfiguration()
+            } else {
+                requestExit()
+            }
+        })
+    }
+
+    private var configurationRoute: Binding<JwStage?> {
+        Binding(get: { stage == .configureConfirm ? .configureConfirm : nil },
+                set: { if $0 == nil { handleBackFromConfiguration() } })
+    }
+
     @ViewBuilder
     private var content: some View {
         if importFinished {
-            EmptyView()   // LaunchedEffect(finish) → onFinish 已由 onChange 触发
+            EmptyView()
         } else {
-            ZStack {
-                switch stage {
-                case .selectSchool:
-                    SchoolSelectScreen(onSchoolSelected: { school in
-                        openSelectedSchool(school)
-                    }, onDismiss: { requestExit() })
-                    .transition(stageTransition)
-                    .zIndex(stage == .selectSchool ? 1 : 0)
+            flowPage(for: .selectSchool) {
+                SchoolSelectScreen(onSchoolSelected: { school in
+                    openSelectedSchool(school)
+                }, onDismiss: { requestExit() })
+            }
+            .sleepyNavigationPage(item: loginRoute, changes: _stage.changes,
+                                  canvas: { colors.background.ignoresSafeArea() }) { _ in
+                webViewPage
+            }
+        }
+    }
 
-                case .webViewLogin:
-                    if let school = selectedSchool {
-                        JwWebViewLoginScreen(
-                            school: school,
-                            onHtmlCaptured: onHtmlCaptured,
-                            onBack: { handleBackFromWebView() },
-                            onDismiss: { requestExit() },
-                            onWebViewReady: { coordinator in
-                                // 排查包导出通道(← onWebViewReady → webViewForDump)
-                                webViewForDump = coordinator
-                            },
-                            onCaptureError: { result, hint in
-                                handleCaptureError(result, hint)
-                            }, selectedSgAdapterId: selectedSgAdapterId,
-                            onSgAdapterSelected: { selectedSgAdapterId = $0; checkpointDraft() })
-                            .transition(stageTransition)
-                            .zIndex(stage == .webViewLogin ? 1 : 0)
-                    } else {
-                        Color.clear.onAppear { navigateToStage(.selectSchool) }
-                    }
+    private var webViewPage: some View {
+        flowPage(for: .webViewLogin) {
+            if let school = selectedSchool {
+                JwWebViewLoginScreen(
+                    school: school,
+                    onHtmlCaptured: onHtmlCaptured,
+                    onBack: { handleBackFromWebView() },
+                    onDismiss: { requestExit() },
+                    onWebViewReady: { webViewForDump = $0 },
+                    onCaptureError: { result, hint in
+                        handleCaptureError(result, hint)
+                    }, selectedSgAdapterId: selectedSgAdapterId,
+                    onSgAdapterSelected: { selectedSgAdapterId = $0; checkpointDraft() })
+            } else {
+                Color.clear.onAppear { navigateToStage(.selectSchool) }
+            }
+        }
+        .sleepyNavigationPage(item: webChildRoute, changes: _stage.changes,
+                              canvas: { colors.background.ignoresSafeArea() }) { child in
+            if child == .configureConfirm {
+                configurationPage
+            } else {
+                previewPage
+            }
+        }
+    }
 
-                case .preview:
-                    if !parsedCourses.isEmpty {
-                        Group {
-                            if updateExistingCourses {
-                                manualUpdatePreview
-                            } else if let preview = importPreview {
-                                if targetTableId != nil {
-                                    if courseSelectionConfirmed {
-                                        ImportPreviewDialog(preview: preview, courseDecision: true,
-                                            onCourseApply: { decision in applySelectedCourses(preview, decision: decision) },
-                                            onDismiss: { requestExit() }, onApply: { _ in })
-                                            .disabled(isApplying)
-                                    } else {
-                                        CourseSelectionSheet(parseResult: preview.parseResult, onConfirm: { keys in
-                                            guard importPreview?.id == preview.id, !isApplying else { return }
-                                            do {
-                                                let filtered = try AddCoursesImport.filtered(preview.parseResult, selectedKeys: keys)
-                                                importPreview = ImportSheet.buildImportPreview(filtered, targetTableId: preview.targetTableId)
-                                                courseSelectionConfirmed = true
-                                            } catch { errorMsg = error.localizedDescription }
-                                        }, onDismiss: { requestExit() })
-                                    }
-                                } else {
-                                    JwImportPreviewDialog(preview: preview,
-                                                          isApplying: isApplying,
-                                                          onDismiss: { requestExit() },
-                                                          onApply: onPreviewApply)
-                                }
-                            } else {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            }
+    private var previewPage: some View {
+        flowPage(for: .preview) { previewContent }
+            .sleepyNavigationPage(item: configurationRoute, changes: _stage.changes,
+                                  canvas: { colors.background.ignoresSafeArea() }) { _ in
+                configurationPage
+            }
+    }
+
+    @ViewBuilder
+    private var previewContent: some View {
+        if !parsedCourses.isEmpty {
+            Group {
+                if updateExistingCourses {
+                    manualUpdatePreview
+                } else if let preview = importPreview {
+                    if targetTableId != nil {
+                        if courseSelectionConfirmed {
+                            ImportPreviewDialog(preview: preview, courseDecision: true,
+                                onCourseApply: { decision in applySelectedCourses(preview, decision: decision) },
+                                onDismiss: { requestExit() }, onApply: { _ in })
+                                .disabled(isApplying)
+                        } else {
+                            CourseSelectionSheet(parseResult: preview.parseResult, onConfirm: { keys in
+                                guard importPreview?.id == preview.id, !isApplying else { return }
+                                do {
+                                    let filtered = try AddCoursesImport.filtered(preview.parseResult, selectedKeys: keys)
+                                    importPreview = ImportSheet.buildImportPreview(filtered, targetTableId: preview.targetTableId)
+                                    courseSelectionConfirmed = true
+                                } catch { errorMsg = error.localizedDescription }
+                            }, onDismiss: { requestExit() })
                         }
-                        .task(id: parsedCourses.count) { rebuildPreview() }
-                        .transition(stageTransition)
-                        .zIndex(stage == .preview ? 1 : 0)
                     } else {
-                        Color.clear.onAppear { navigateToStage(.webViewLogin) }
+                        JwImportPreviewDialog(preview: preview,
+                                              isApplying: isApplying,
+                                              onDismiss: { requestExit() },
+                                              onApply: onPreviewApply)
                     }
+                } else {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .task(id: parsedCourses.count) { rebuildPreview() }
+        } else {
+            Color.clear.onAppear { navigateToStage(.webViewLogin) }
+        }
+    }
 
-                case .configureConfirm:
-                    if !parsedCourses.isEmpty && parsedSchool != nil {
-                        configureConfirmSheet
-                            .transition(stageTransition)
-                            .zIndex(stage == .configureConfirm ? 1 : 0)
-                    } else {
-                        Color.clear.onAppear {
-                            navigateToStage(.webViewLogin)
-                            parsedCourses = []
-                        }
-                    }
+    private var configurationPage: some View {
+        flowPage(for: .configureConfirm) {
+            if !parsedCourses.isEmpty && parsedSchool != nil {
+                configureConfirmSheet
+            } else {
+                Color.clear.onAppear {
+                    navigateToStage(.webViewLogin)
+                    parsedCourses = []
                 }
             }
         }
@@ -1148,14 +1221,8 @@ struct JwImportFlow: View {
                                onSelectPeriodTable: { configBindPeriodTableId = $0 })
 
                 HStack {
-                    let returnsToPreview = incomingDraftId != nil && !newTableOnly
-                    Button(L10n.format(returnsToPreview ? "back" : "cancel")) {
-                        if returnsToPreview {
-                            importPreview = nil
-                            navigateToStage(.preview)
-                        } else {
-                            requestExit()
-                        }
+                    Button(L10n.format(configurationReturnsToPreview ? "back" : "cancel")) {
+                        handleBackFromConfiguration()
                     }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(colors.primary)
