@@ -1080,10 +1080,11 @@ struct AppRoot: View {
         }
     }
 
-    // FAB 式滚动余量 = capsuleHeight(64) + bottomFloat(12) + extra(12 视觉缓冲)
+    // Floating obstruction = capsuleHeight(64) + bottomFloat(12).
+    // The caller adds the actual bottom safe area exactly once.
     // ← 原版本 ff66ddd navHeight + fabPadding + WindowInsets.navigationBars
     private var floatingScrollBottomPadding: CGFloat {
-        DockSpec.capsuleHeight + DockSpec.bottomFloat + 12
+        DockSpec.capsuleHeight + DockSpec.bottomFloat
     }
 
     // ← handleDeepLinkIntent(平台差异表#4: Intent extras → URL scheme)
