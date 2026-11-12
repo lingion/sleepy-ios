@@ -147,4 +147,42 @@ final class TopBarOverlapGlassUITests: XCTestCase {
     }
     override func tearDown() { app.terminate(); super.tearDown() }
     func testNativeGlassTopBarKeepsOneCenteredRow() { app.probeTopBarGeometry() }
+
+    func testNativeGlassRetainsFullWeekLabelAcrossTwoDigitWeeksAndRotation() {
+        let week = app.buttons["week_label"]
+        XCTAssertTrue(week.waitForExistence(timeout: 15))
+        XCTAssertGreaterThanOrEqual(app.descendants(matching: .any)["schedule_toolbar"].firstMatch.frame.width, 360)
+
+        func assertFullWeek(_ number: Int) {
+            let updated = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label == %@", "Week \(number)"), object: week)
+            XCTAssertEqual(XCTWaiter.wait(for: [updated], timeout: 5), .completed)
+            XCTAssertFalse(app.descendants(matching: .any)["week_group"].firstMatch.exists,
+                           "Keep the full week wording until margin and side-action fallbacks are exhausted")
+            XCTAssertEqual(app.buttons.matching(identifier: "week_label").count, 1,
+                           "Hidden measurement candidates must not expose duplicate controls")
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = "glass-toolbar-full-week-\(number)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+
+        assertFullWeek(1)
+        for _ in 1..<10 { app.buttons["week_next"].tap() }
+        assertFullWeek(10)
+        let toolbar = app.descendants(matching: .any)["schedule_toolbar"].firstMatch
+        let portraitWidth = toolbar.frame.width
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let wider = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            toolbar.frame.width > portraitWidth + 100
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [wider], timeout: 10), .completed)
+        assertFullWeek(10)
+        XCUIDevice.shared.orientation = .portrait
+        let narrower = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            abs(toolbar.frame.width - portraitWidth) < 1
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [narrower], timeout: 10), .completed)
+        assertFullWeek(10)
+    }
 }

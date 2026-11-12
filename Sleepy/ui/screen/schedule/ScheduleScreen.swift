@@ -804,38 +804,50 @@ private struct ScheduleTopBar: View {
         let font = UIFont.systemFont(ofSize: 14, weight: .semibold)
         let textWidth = ceil((label as NSString).size(withAttributes: [.font: font]).width)
         let numberWidth = max(32, ceil((String(currentWeek) as NSString).size(withAttributes: [.font: font]).width) + 8)
+        let native = style == .liquidGlass
+        let normalStart = nativeSizes[0]
+        let tightStart = nativeSizes[4]
+        let normalEnd = nativeSizes[2]
+        let tightEnd = nativeSizes[5]
         let layout = ScheduleToolbarGeometry.resolve(width: max(0, barWidth),
-            fullCenterWidth: 140 + textWidth, groupedCenterWidth: 66 + numberWidth,
-            history: hasUndoSnapshot || hasRedoSnapshot, confirm: scaleUncommitted)
-        Group {
-            if style == .liquidGlass {
-                nativeToolbar(isOnActual: isOnActual, label: label, description: description,
-                              numberWidth: numberWidth, fallbackCenterWidth: 140 + textWidth)
-            } else {
-                GeometryReader { proxy in
-                    let fit = layout.fitScale
-                    let leadingX = layout.inset + layout.startWidth * fit / 2
-                    let trailingX = proxy.size.width - layout.inset - layout.endWidth * fit / 2
-                    ZStack {
-                        leadingActions(scale: layout.sideScale, gap: layout.sideGap)
-                            .frame(width: layout.startWidth)
-                            .scaleEffect(fit)
-                            .position(x: direction == .leftToRight ? leadingX : proxy.size.width - leadingX, y: proxy.size.height / 2)
-                        pagerTriple(isOnActual: isOnActual, grouped: layout.grouped, label: label,
-                                    description: description, numberWidth: numberWidth)
-                            .frame(width: layout.centerWidth)
-                            .scaleEffect(fit)
-                            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                        trailingActions(scale: layout.sideScale, gap: layout.sideGap)
-                            .frame(width: layout.endWidth)
-                            .scaleEffect(fit)
-                            .position(x: direction == .leftToRight ? trailingX : proxy.size.width - trailingX, y: proxy.size.height / 2)
-                    }
-                    .preference(key: TopBarWidthKey.self, value: proxy.size.width)
-                }
-                .frame(height: barWidth > 0 ? layout.height : 48)
+            fullCenterWidth: native ? nativeSizes[1]?.width ?? 140 + textWidth : 140 + textWidth,
+            groupedCenterWidth: native ? nativeSizes[3]?.width ?? 66 + numberWidth : 66 + numberWidth,
+            history: hasUndoSnapshot || hasRedoSnapshot, confirm: scaleUncommitted,
+            normalStartWidth: native ? normalStart?.width : nil,
+            tightStartWidth: native ? tightStart?.width : nil,
+            normalEndWidth: native ? normalEnd?.width ?? 104 : 104,
+            tightEndWidth: native ? tightEnd?.width ?? 96 : 96,
+            sideHeight: native ? max(normalStart?.height ?? 48, normalEnd?.height ?? 48) : 48,
+            fullCenterHeight: native ? nativeSizes[1]?.height ?? 48 : 48,
+            groupedCenterHeight: native ? nativeSizes[3]?.height ?? 32 : 32)
+        GeometryReader { proxy in
+            let fit = layout.fitScale
+            let leadingX = layout.inset + layout.startWidth * fit / 2
+            let trailingX = proxy.size.width - layout.inset - layout.endWidth * fit / 2
+            ZStack {
+                leadingActions(scale: native ? 1 : layout.sideScale, gap: layout.sideGap)
+                    .fixedSize()
+                    .scaleEffect(fit * (native ? layout.sideScale : 1))
+                    .position(x: direction == .leftToRight ? leadingX : proxy.size.width - leadingX, y: proxy.size.height / 2)
+                pagerTriple(isOnActual: isOnActual, grouped: layout.grouped, label: label,
+                            description: description, numberWidth: numberWidth)
+                    .frame(width: layout.centerWidth)
+                    .scaleEffect(fit)
+                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                trailingActions(scale: native ? 1 : layout.sideScale, gap: layout.sideGap)
+                    .fixedSize()
+                    .scaleEffect(fit * (native ? layout.sideScale : 1))
+                    .position(x: direction == .leftToRight ? trailingX : proxy.size.width - trailingX, y: proxy.size.height / 2)
             }
+            .overlay(alignment: .topLeading) {
+                if native {
+                    nativeMeasurements(isOnActual: isOnActual, label: label,
+                                       description: description, numberWidth: numberWidth)
+                }
+            }
+            .preference(key: TopBarWidthKey.self, value: proxy.size.width)
         }
+        .frame(height: barWidth > 0 ? layout.height : 48)
         .onPreferenceChange(TopBarWidthKey.self) { barWidth = $0 }
         .padding(.vertical, 6)
         .background(colors.surface)
@@ -843,39 +855,25 @@ private struct ScheduleTopBar: View {
         .accessibilityIdentifier("schedule_toolbar")
     }
 
-    /// System buttons add their own content insets. Measure their actual groups
-    /// before fitting so native chrome cannot overflow the Material slot widths.
-    private func nativeToolbar(isOnActual: Bool, label: String, description: String,
-                               numberWidth: CGFloat, fallbackCenterWidth: CGFloat) -> some View {
-        let start = nativeSizes[0] ?? CGSize(width: hasUndoSnapshot || hasRedoSnapshot ? 173 : 68, height: 58)
-        let end = nativeSizes[2] ?? CGSize(width: 144, height: 58)
-        let fullCenter = nativeSizes[1]?.width ?? fallbackCenterWidth
-        let grouped = fullCenter + 2 * max(start.width, end.width) + 32 > barWidth
-        let centerID = grouped ? 3 : 1
-        let center = nativeSizes[centerID] ?? CGSize(width: grouped ? 66 + numberWidth : fullCenter, height: 58)
-        let required = center.width + 2 * max(start.width, end.width) + 16
-        let fit = min(1, max(0, barWidth - 16) / max(required, 1))
-        let height = max(start.height, end.height, center.height) * fit
-        return GeometryReader { proxy in
-            ZStack {
-                nativeMeasured(leadingActions(scale: 1, gap: 4), id: 0)
-                    .scaleEffect(fit)
-                    .position(x: direction == .leftToRight ? 8 + start.width * fit / 2 : proxy.size.width - 8 - start.width * fit / 2,
-                              y: proxy.size.height / 2)
-                nativeMeasured(pagerTriple(isOnActual: isOnActual, grouped: grouped, label: label,
-                                           description: description, numberWidth: numberWidth), id: centerID)
-                    .scaleEffect(fit)
-                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                nativeMeasured(trailingActions(scale: 1, gap: 8), id: 2)
-                    .scaleEffect(fit)
-                    .position(x: direction == .leftToRight ? proxy.size.width - 8 - end.width * fit / 2 : 8 + end.width * fit / 2,
-                              y: proxy.size.height / 2)
-            }
-            .preference(key: TopBarWidthKey.self, value: proxy.size.width)
+    /// Measure every current candidate, including the full week label while
+    /// grouped. Native chrome follows the same spacing/side-scale fallback as Material.
+    private func nativeMeasurements(isOnActual: Bool, label: String, description: String,
+                                    numberWidth: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            nativeMeasured(leadingActions(scale: 1, gap: 8), id: 0)
+            nativeMeasured(leadingActions(scale: 1, gap: 0), id: 4)
+            nativeMeasured(trailingActions(scale: 1, gap: 8), id: 2)
+            nativeMeasured(trailingActions(scale: 1, gap: 0), id: 5)
+            nativeMeasured(pagerTriple(isOnActual: isOnActual, grouped: false, label: label,
+                                       description: description, numberWidth: numberWidth), id: 1)
+            nativeMeasured(pagerTriple(isOnActual: isOnActual, grouped: true, label: label,
+                                       description: description, numberWidth: numberWidth), id: 3)
         }
-        .frame(height: barWidth > 0 ? height : 58)
+        .hidden()
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
         .onPreferenceChange(NativeToolbarMetricsKey.self) { sizes in
-            nativeSizes.merge(sizes, uniquingKeysWith: { _, new in new })
+            if sizes != nativeSizes { nativeSizes = sizes }
         }
     }
 
