@@ -459,6 +459,7 @@
 		65EEEE46B8DA5CA019C8FB61 /* TimetableViewportPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AD1DB72537D5FB202ADBE25 /* TimetableViewportPolicy.swift */; };
 		65F1489E9153008BDBBE50EC /* WidgetBackgroundCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF125DD0A1440952C9AB17A /* WidgetBackgroundCompat.swift */; };
 		65FF00A608624E49E2B3AA57 /* PeriodTableEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D841A747EFF33403A2C0C2C /* PeriodTableEntity.swift */; };
+		6646146B21A0094375527B76 /* DateDisplayFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AAD2255938351D413C76327 /* DateDisplayFormattingTests.swift */; };
 		667A9EB53C54336E43442489 /* ThemePresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B72E006270ED69703F906F4 /* ThemePresets.swift */; };
 		667CA00AB4F16A7952386049 /* WidgetDataLoaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = B445492F562DDC2A16B5171D /* WidgetDataLoaders.swift */; };
 		6681365B327B45F2D250BA43 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FE23E8A9E4FEBC54F0F90DF /* Theme.swift */; };
@@ -1532,6 +1533,7 @@
 		79018F3456B69D229A88C9CB /* AppClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppClock.swift; sourceTree = "<group>"; };
 		79E0C397C35B589BA063FC4D /* ImportRosterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRosterTests.swift; sourceTree = "<group>"; };
 		79F4DCCC2A6CD5809C73B1A1 /* JwChengFangParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwChengFangParser.swift; sourceTree = "<group>"; };
+		7AAD2255938351D413C76327 /* DateDisplayFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateDisplayFormattingTests.swift; sourceTree = "<group>"; };
 		7AADC4D523663B1B42026758 /* SystemColorScheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemColorScheme.swift; sourceTree = "<group>"; };
 		7B3E1AC29BB571E46B9B7476 /* SmartPeriodEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPeriodEditor.swift; sourceTree = "<group>"; };
 		7CA7389DF46C926458122F39 /* SleepyUITestSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyUITestSeeder.swift; sourceTree = "<group>"; };
@@ -2505,6 +2507,7 @@
 				3781A5F1053195DD5EC353BF /* CourseOccurrenceMoveTests.swift */,
 				D3CF772F9C5E9E9F2A0857CB /* CourseReminderPlanningTests.swift */,
 				4335B0682DC846901B8C28B4 /* CustomThemeTests.swift */,
+				7AAD2255938351D413C76327 /* DateDisplayFormattingTests.swift */,
 				15AF7FB34120128873D5A25C /* DateUtilsTests.swift */,
 				53AF3563BDB09DC9C5D951A1 /* DiagDumpProgressTests.swift */,
 				3FBD3006DFDB6AB9B0701B03 /* DialogButtonsLayoutPolicyTests.swift */,
@@ -4048,6 +4051,7 @@
 				7016A682A009D85C1E9A3364 /* CourseOccurrenceMoveTests.swift in Sources */,
 				36D8FFAD11A6DA939C1EC52F /* CourseReminderPlanningTests.swift in Sources */,
 				72450AD7A9EBD75DDDB64B35 /* CustomThemeTests.swift in Sources */,
+				6646146B21A0094375527B76 /* DateDisplayFormattingTests.swift in Sources */,
 				FB98667FC708E0C9DC47DDFE /* DateUtilsTests.swift in Sources */,
 				2C818AFA2C7B39B09A099FE4 /* DiagDumpProgressTests.swift in Sources */,
 				AE263093EC6D5060BF9303B9 /* DialogButtonsLayoutPolicyTests.swift in Sources */,

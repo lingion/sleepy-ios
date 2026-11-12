@@ -105,24 +105,32 @@ enum DateUtils {
         isoCalendar.component(.weekOfYear, from: date)
     }
 
-    private static let fmt: DateFormatter = {
+    private static func makeDisplayFormatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
         f.calendar = isoCalendar
         f.timeZone = TimeZone(identifier: "Asia/Shanghai")
         f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = format
         return f
-    }()
+    }
+
+    private static let shortDateFormatter = makeDisplayFormatter("MM-dd")
+    private static let fullDateFormatter = makeDisplayFormatter("yyyy-MM-dd")
+    private static let shortDateLock = NSLock()
+    private static let fullDateLock = NSLock()
 
     /// 短日期 (MM-dd)
     static func shortDate(_ date: Date) -> String {
-        fmt.dateFormat = "MM-dd"
-        return fmt.string(from: date)
+        shortDateLock.lock()
+        defer { shortDateLock.unlock() }
+        return shortDateFormatter.string(from: date)
     }
 
     /// 完整日期 (yyyy-MM-dd)
     static func fullDate(_ date: Date) -> String {
-        fmt.dateFormat = "yyyy-MM-dd"
-        return fmt.string(from: date)
+        fullDateLock.lock()
+        defer { fullDateLock.unlock() }
+        return fullDateFormatter.string(from: date)
     }
 
     /// 中文星期
