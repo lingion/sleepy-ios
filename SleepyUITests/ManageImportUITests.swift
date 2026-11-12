@@ -260,6 +260,250 @@ final class ManageImportUITests: XCTestCase {
                       "保存后应返回且新表生效")
     }
 
+    // MARK: Native navigation and discarded timetable regression
+
+    func testAddTimetableRepeatedBackReturnsToManageAndCanReopen() {
+        for attempt in 1...3 {
+            openImportMethods()
+            XCTAssertFalse(app.staticTexts["Schedule not found"].exists)
+            if attempt == 2 {
+                // A completed system edge-pop must update the route model once;
+                // otherwise its stale registration immediately pushes this page back.
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.001, dy: 0.15))
+                let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.15))
+                start.press(forDuration: 0.05, thenDragTo: end)
+            } else {
+                tapForegroundBack()
+            }
+            let manage = app.buttons["manage_import"].firstMatch
+            let methods = app.scrollViews["import_methods_scroll"].firstMatch
+            XCTAssertTrue(waitUntil { manage.exists && manage.isHittable && !methods.exists },
+                          "Back attempt \(attempt) must restore Manage and remove the dismissed methods page")
+            XCTAssertTrue(app.staticTexts["我的课表"].exists)
+            captureNavigation("add-timetable-return-\(attempt)")
+        }
+    }
+
+    func testRepeatedBlankTimetableCancelRestoresSameImportDraftWithoutMissingSchedule() {
+        openImportMethods()
+        let paste = app.buttons["import_text"].firstMatch
+        revealForeground(paste)
+        paste.tap()
+        let input = app.descendants(matching: .any)["import_paste_input"].firstMatch
+        revealForeground(input)
+        input.tap()
+        let retainedDraft = "Retained import draft - do not parse or discard"
+        app.typeText(retainedDraft)
+        XCTAssertEqual(input.value as? String, retainedDraft)
+
+        for attempt in 1...3 {
+            let create = app.buttons["manage_new_table"].firstMatch
+            revealForeground(create, in: app.scrollViews["import_methods_scroll"].firstMatch)
+            create.tap()
+            let name = app.textFields["field_Schedule Name"].firstMatch
+            XCTAssertTrue(name.waitForExistence(timeout: 8),
+                          "Every new blank timetable must open its live editor, including attempt \(attempt)")
+            XCTAssertFalse(app.staticTexts["Schedule not found"].exists,
+                           "A new editor must never reuse the ID of a discarded timetable")
+            revealForeground(name)
+            let discardedName = "Discarded Blank Timetable \(attempt)"
+            replaceForegroundText(name, with: discardedName)
+            tapForegroundBack()
+
+            let methods = app.scrollViews["import_methods_scroll"].firstMatch
+            XCTAssertTrue(waitUntil { methods.exists && methods.isHittable && !name.exists },
+                          "Cancelling attempt \(attempt) must pop only the blank editor")
+            XCTAssertEqual(input.value as? String, retainedDraft,
+                           "The parent methods page must retain the complete unparsed input")
+            XCTAssertTrue(app.buttons["import_preview_btn"].exists,
+                          "The text method must retain its expanded state")
+            XCTAssertFalse(app.staticTexts["Schedule not found"].exists)
+            captureNavigation("blank-timetable-cancel-\(attempt)")
+        }
+        tapForegroundBack()
+        XCTAssertTrue(waitUntil { app.buttons["manage_import"].firstMatch.isHittable })
+        openImportMethods()
+        revealForeground(app.buttons["manage_new_table"].firstMatch)
+        app.buttons["manage_new_table"].firstMatch.tap()
+        XCTAssertTrue(app.textFields["field_Schedule Name"].firstMatch.waitForExistence(timeout: 8),
+                      "Reopening the parent after all previous cancellations must create a fresh editor")
+        XCTAssertFalse(app.staticTexts["Schedule not found"].exists)
+        tapForegroundBack()
+        tapForegroundBack()
+        XCTAssertTrue(waitUntil { app.buttons["manage_import"].firstMatch.isHittable })
+    }
+
+    func testCancellingBlankTimetableKeepsExistingTablesAndCoursesAfterRestart() {
+        openManagedTableList()
+        let originalTables = visibleTableRows()
+        XCTAssertEqual(originalTables.count, 1, "The seeded scenario must contain one existing timetable")
+        XCTAssertTrue(originalTables.values.contains("我的课表"))
+        tapForegroundBack()
+        openImportMethods()
+        let create = app.buttons["manage_new_table"].firstMatch
+        revealForeground(create)
+        create.tap()
+        let name = app.textFields["field_Schedule Name"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["Schedule not found"].exists)
+        revealForeground(name)
+        let discardedName = "Cancelled table must never persist"
+        replaceForegroundText(name, with: discardedName)
+        tapForegroundBack()
+        XCTAssertTrue(waitUntil { app.scrollViews["import_methods_scroll"].firstMatch.isHittable && !name.exists })
+        tapForegroundBack()
+        XCTAssertTrue(waitUntil { app.buttons["manage_import"].firstMatch.isHittable })
+
+        // Relaunch without the seed: reseeding here would conceal an accidental
+        // deletion of the existing timetable or leave a leaked draft undetected.
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
+        app.sleepyLaunch()
+        XCTAssertTrue(app.buttons["pill_schedule"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.switchToPillTab("manage"))
+        XCTAssertTrue(app.staticTexts["我的课表"].waitForExistence(timeout: 8),
+                      "Cancelling a blank draft must preserve the original foreground timetable on disk")
+        openManagedTableList()
+        XCTAssertEqual(visibleTableRows(), originalTables,
+                       "Only the unsaved blank timetable may be discarded; no existing ID or name may change")
+        XCTAssertFalse(app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'table_select_' AND label == %@", discardedName)).firstMatch.exists)
+        tapForegroundBack()
+        XCTAssertTrue(app.switchToPillTab("mine"))
+        let courses = app.buttons["mine_stat_courses"].firstMatch
+        revealForeground(courses)
+        courses.tap()
+        let expectedNames: Set<String> = ["高等数学", "大学英语", "大学物理", "体育", "数据结构"]
+        var foundNames = Set<String>()
+        for _ in 0..<8 {
+            for courseName in expectedNames where app.staticTexts[courseName].firstMatch.exists {
+                foundNames.insert(courseName)
+            }
+            if foundNames == expectedNames { break }
+            app.swipeUp()
+        }
+        XCTAssertEqual(foundNames, expectedNames,
+                       "The original timetable's five courses must survive cancellation and a normal restart")
+        captureNavigation("blank-timetable-cancel-original-data-after-restart")
+    }
+
+    func testNativeStyleRepeatedBlankTimetableCancelReturnsToManage() {
+        app.terminate()
+        app.launchArguments += ["-ui_style", "liquid_glass"]
+        app.sleepyLaunch()
+        XCTAssertTrue(app.buttons["pill_schedule"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.switchToPillTab("manage"))
+        for attempt in 1...2 {
+            openImportMethods()
+            let create = app.buttons["manage_new_table"].firstMatch
+            revealForeground(create)
+            create.tap()
+            let name = app.textFields["field_Schedule Name"].firstMatch
+            XCTAssertTrue(name.waitForExistence(timeout: 8),
+                          "Native-style blank editor must open on attempt \(attempt)")
+            XCTAssertFalse(app.staticTexts["Schedule not found"].exists)
+            tapForegroundBack()
+            XCTAssertTrue(waitUntil { app.scrollViews["import_methods_scroll"].firstMatch.isHittable && !name.exists },
+                          "Native-style Back must restore the same import methods page")
+            tapForegroundBack()
+            XCTAssertTrue(waitUntil { app.buttons["manage_import"].firstMatch.isHittable },
+                          "Native-style methods Back must restore Manage without leaving an orphan route")
+            XCTAssertTrue(app.staticTexts["我的课表"].exists)
+            captureNavigation("native-blank-timetable-cancel-\(attempt)")
+        }
+    }
+
+    private func waitUntil(timeout: TimeInterval = 8, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return condition()
+    }
+
+    private func openImportMethods(file: StaticString = #filePath, line: UInt = #line) {
+        let entry = app.buttons["manage_import"].firstMatch
+        XCTAssertTrue(waitUntil { entry.exists && entry.isHittable }, file: file, line: line)
+        entry.tap()
+        XCTAssertTrue(app.staticTexts["Create New Timetable"].waitForExistence(timeout: 8), file: file, line: line)
+        XCTAssertTrue(waitUntil { app.scrollViews["import_methods_scroll"].firstMatch.isHittable },
+                      "The methods page must be the foreground page", file: file, line: line)
+    }
+
+    private func openManagedTableList(file: StaticString = #filePath, line: UInt = #line) {
+        let entry = app.buttons["manage_all_tables"].firstMatch
+        revealForeground(entry, file: file, line: line)
+        entry.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_select_'"))
+            .firstMatch.waitForExistence(timeout: 8), file: file, line: line)
+    }
+
+    private func visibleTableRows() -> [String: String] {
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_select_'"))
+        return Dictionary(uniqueKeysWithValues: rows.allElementsBoundByIndex.map { ($0.identifier, $0.label) })
+    }
+
+    private func tapForegroundBack(file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(waitUntil {
+            app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex.contains { $0.isHittable }
+        }, file: file, line: line)
+        let back = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex.last { $0.isHittable }
+        XCTAssertNotNil(back, "The foreground page must have a usable Back action", file: file, line: line)
+        back?.tap()
+    }
+
+    private func revealForeground(_ element: XCUIElement, in requestedScroll: XCUIElement? = nil,
+                                  file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.waitForExistence(timeout: 8), file: file, line: line)
+        for _ in 0..<10 {
+            var viewport = requestedScroll?.frame.intersection(app.frame) ?? app.frame.insetBy(dx: 2, dy: 4)
+            if let back = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex.last(where: { $0.isHittable }),
+               back.frame.minY < viewport.midY {
+                let bottom = viewport.maxY
+                viewport.origin.y = max(viewport.minY, back.frame.maxY + 4)
+                viewport.size.height = max(0, bottom - viewport.minY)
+            }
+            let keyboard = app.keyboards.firstMatch
+            if keyboard.exists && viewport.intersects(keyboard.frame) {
+                viewport.size.height = max(0, keyboard.frame.minY - viewport.minY - 12)
+            } else if requestedScroll == nil {
+                // Keep controls clear of the floating root tab bar.
+                viewport.size.height = max(0, viewport.height - 110)
+            }
+            if element.isHittable && viewport.contains(element.frame) { return }
+            guard viewport.width > 20, viewport.height > 60 else { break }
+            let earlier = element.frame.minY < viewport.minY
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let x = viewport.minX + 40
+            origin.withOffset(CGVector(dx: x, dy: viewport.minY + viewport.height * (earlier ? 0.3 : 0.8)))
+                .press(forDuration: 0.05, thenDragTo:
+                    origin.withOffset(CGVector(dx: x, dy: viewport.minY + viewport.height * (earlier ? 0.8 : 0.3))))
+        }
+        XCTAssertTrue(element.isHittable, "The foreground control must be reachable: \(element.identifier)",
+                      file: file, line: line)
+    }
+
+    private func replaceForegroundText(_ field: XCUIElement, with text: String,
+                                       file: StaticString = #filePath, line: UInt = #line) {
+        let existing = field.value as? String ?? ""
+        field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), file: file, line: line)
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count))
+        XCTAssertTrue(waitUntil { (field.value as? String) == "" },
+                      "The old timetable name must be cleared before replacement", file: file, line: line)
+        field.typeText(text)
+        XCTAssertTrue(waitUntil { (field.value as? String) == text },
+                      "The focused editor must retain the complete new name", file: file, line: line)
+    }
+
+    private func captureNavigation(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     // MARK: Edit Current 入口
 
     func testEditCurrentOpensEditTable() {
