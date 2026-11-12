@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 从详情/拖课菜单打开的单次编辑器。存储行、源日和展示日必须来自同一次解析。
+/// 从长按课程菜单打开的单次编辑器。存储行、源日和展示日必须来自同一次解析。
 struct CourseOccurrenceEditor: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.sleepyUIStyle) private var style
@@ -9,6 +9,7 @@ struct CourseOccurrenceEditor: View {
     let repository: ScheduleRepository
     let onSaved: () -> Void
     let onDismiss: () -> Void
+    private let startWithDelete: Bool
 
     @State private var editing: Bool
     @State private var date: Date
@@ -24,6 +25,7 @@ struct CourseOccurrenceEditor: View {
     @State private var pending: PendingSave?
     @State private var showDatePicker = false
     @State private var pickerDate = Date()
+    @State private var didPrepareInitialDelete = false
     @FocusState private var focusedTime: String?
 
     private enum Prompt: Equatable { case destination, hidden, outgoing, conflicts, delete }
@@ -36,12 +38,14 @@ struct CourseOccurrenceEditor: View {
     }
 
     init(occurrence: CourseOccurrence, table: TimeTableEntity, repository: ScheduleRepository,
-         onSaved: @escaping () -> Void, onDismiss: @escaping () -> Void, startInEdit: Bool = false) {
+         onSaved: @escaping () -> Void, onDismiss: @escaping () -> Void, startInEdit: Bool = false,
+         startWithDelete: Bool = false) {
         self.occurrence = occurrence
         self.table = table
         self.repository = repository
         self.onSaved = onSaved
         self.onDismiss = onDismiss
+        self.startWithDelete = startWithDelete
         _editing = State(initialValue: startInEdit)
         let row = occurrence.course
         let range = TimeTableUtils.effectiveCourseTime(isIrregularTime: row.ownTime || row.isIrregularTime,
@@ -71,6 +75,11 @@ struct CourseOccurrenceEditor: View {
             promptButtons
         } message: { Text(promptMessage) }
         .sheet(isPresented: $showDatePicker) { datePickerSheet }
+        .onAppear {
+            guard startWithDelete, !didPrepareInitialDelete else { return }
+            didPrepareInitialDelete = true
+            prepare(delete: true)
+        }
     }
 
     private var actionMenu: some View {

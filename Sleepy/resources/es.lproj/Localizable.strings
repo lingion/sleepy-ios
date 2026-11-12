@@ -1389,3 +1389,9 @@
 "manage_create_blank_table" = "Crear horario vacío";
 "create_table_title" = "Crear nuevo horario";
 "jw_dated_calendar_rebase_hint" = "Cambiar la fecha de la primera semana recalcula las semanas de las clases y conserva sus fechas reales.";
+
+"occurrence_move_confirm_title" = "¿Mover esta clase?";
+
+"occurrence_span_confirm_title" = "¿Cambiar la duración de esta clase?";
+
+"occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";

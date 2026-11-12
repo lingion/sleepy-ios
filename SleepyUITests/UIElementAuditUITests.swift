@@ -646,11 +646,8 @@ final class UIElementAuditUITests: XCTestCase {
         launchApp(language: "en", uiStyle: "classic")
         let course = app.descendants(matching: .any)["gridcell_1"].firstMatch
         XCTAssertTrue(course.waitForExistence(timeout: 10))
-        course.tap()
-        let actions = app.buttons["course_occurrence_actions"].firstMatch
-        revealAuditControl(actions)
-        actions.tap()
-        let adjust = app.buttons["occurrence_adjust"].firstMatch
+        course.press(forDuration: 1)
+        let adjust = app.buttons["course_float_edit"].firstMatch
         revealAuditControl(adjust)
         adjust.tap()
         let date = app.buttons["occurrence_date"].firstMatch
@@ -666,12 +663,11 @@ final class UIElementAuditUITests: XCTestCase {
         XCTAssertTrue(waitForAuditCondition { !confirm.exists && date.exists })
         XCTAssertEqual(date.label, original, "Canceling the date picker must preserve the occurrence draft")
         app.buttons["occurrence_cancel"].tap()
-        let detailActions = app.buttons["course_occurrence_actions"].firstMatch
         XCTAssertTrue(waitForAuditCondition {
-            !self.app.buttons["occurrence_cancel"].exists && detailActions.isHittable
-        }, "Cancel closes the occurrence sheet and returns to its course detail")
-        captureScreenshot("A9_occurrence-cancel-returned-to-detail")
-        detailActions.tap()
+            !self.app.buttons["occurrence_cancel"].exists && course.isHittable
+        }, "Cancel closes the occurrence sheet and returns to the schedule")
+        captureScreenshot("A9_occurrence-cancel-returned-to-schedule")
+        course.press(forDuration: 1)
         XCTAssertTrue(adjust.waitForExistence(timeout: 10))
     }
 

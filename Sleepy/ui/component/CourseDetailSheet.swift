@@ -87,9 +87,6 @@ struct CourseDetailSheet: View {
                         if isNotBlank(course.note) {
                             DetailRow(key: L10n.format("course_field_note"), value: course.note)
                         }
-                        if let displayDate {
-                            DetailRow(key: L10n.format("occurrence_date"), value: HolidayTransferOps.dayKey(displayDate))
-                        }
 
                         if let cluster = clusterInfo {
                             DefaultTopPickerSection(cluster: cluster,
@@ -111,10 +108,6 @@ struct CourseDetailSheet: View {
                             .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
                             .tint(colors.primary)
                             .accessibilityIdentifier("detail_edit")
-                        }
-                        if let displayDate, let table = occurrenceTable, let repository = occurrenceRepository {
-                            CourseOccurrenceActions(courseId: course.id, displayDate: displayDate, table: table,
-                                                    repository: repository, onSaved: onOccurrenceSaved)
                         }
                     }
                     .padding(.horizontal, 20)

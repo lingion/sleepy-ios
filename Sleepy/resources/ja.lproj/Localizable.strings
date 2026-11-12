@@ -1389,3 +1389,9 @@
 "manage_create_blank_table" = "空の時間割を作成";
 "create_table_title" = "新しい時間割を作成";
 "jw_dated_calendar_rebase_hint" = "第1週の日付を変更すると授業の週数を再計算し、実際の授業日は維持します。";
+
+"occurrence_move_confirm_title" = "この授業を移動しますか?";
+
+"occurrence_span_confirm_title" = "この授業の終了時限を調整しますか?";
+
+"occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";

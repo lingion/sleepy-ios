@@ -1,6 +1,36 @@
 import Foundation
 import CoreGraphics
 
+struct CourseDragMoveRequest: Identifiable {
+    let id = UUID()
+    let source: CourseDragContext.Source
+    let targetWeek: Int
+    let displayDay: Int
+    let targetNode: Int
+    let targetStartTime: String?
+    let targetStep: Int?
+    let table: TimeTableEntity
+    let courses: [CourseEntity]
+    let transfers: [HolidayTransferEntry]
+
+    var confirmationTitle: String {
+        L10n.t(targetStep == nil ? "occurrence_move_confirm_title" : "occurrence_span_confirm_title")
+    }
+
+    var confirmationMessage: String {
+        let crossWeek = source.displayWeek != targetWeek
+        func label(week: Int, day: Int, node: Int, step: Int) -> String {
+            let span = "\(DateUtils.localizedDay(day)) \(L10n.format("course_node_format", "\(node)-\(node + step - 1)"))"
+            return crossWeek ? "\(L10n.format("schedule_current_week", week)) · \(span)" : span
+        }
+        return L10n.format("occurrence_change_confirm_message", source.course.courseName,
+            label(week: source.displayWeek, day: source.displayDay,
+                  node: source.renderedCourse.startNode, step: source.renderedCourse.step),
+            label(week: targetWeek, day: displayDay, node: targetNode,
+                  step: targetStep ?? source.renderedCourse.step))
+    }
+}
+
 /// 单调时钟驱动的边缘驻留；每满 500ms 翻一周，换边/离开重新计时。
 struct CourseDragEdgePaging {
     private var heldDirection = 0

@@ -140,8 +140,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         WidgetCenter.shared.reloadAllTimelines()
         // 到货重查/00:05 载体/摘要刷新的 delegate 此前从未注册 = 死接线 (F128/F129 issue6)。
         UNUserNotificationCenter.current().delegate = SleepyNotificationDelegate.shared
-        // Game Center 认证：静默，不影响 App 正常使用
-        GameCenterManager.shared.authenticate()
         // iOS 公开 CADisplayLink.preferredFrameRateRange，但 SwiftUI/CoreAnimation
         // 由系统按需调度，不保证 120Hz；本 App 不移植 Android 窗口固定高刷开关。
         return true
@@ -1401,6 +1399,15 @@ private struct PresentOverlay: ViewModifier {
                     .transition(SleepyMaterialTransition.forwardTransform)
             }
         }
+        // Pages scale and fade independently. Keep a full-screen themed canvas
+        // outside both transitions so their uncovered edges never reveal UIWindow.
+        .background(
+            OverlayCanvasBackground()
+                .ignoresSafeArea()
+                .themedOverlay(isDark: isDark, themeKey: themeKey,
+                               schemeOverride: schemeOverride,
+                               customThemeVersion: customThemeVersion)
+        )
         // Read route and revision from the same parent-rendered value. Re-reading
         // the live Binding in a revision callback can combine a cleared route
         // with the previous editing record and reopen an empty course editor.

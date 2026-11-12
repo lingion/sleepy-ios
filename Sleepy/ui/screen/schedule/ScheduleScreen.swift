@@ -460,6 +460,7 @@ private struct WeekPager: View {
     @State private var dragError = false
     @State private var dragHostWeek: Int?
     @State private var pagerEpoch: UInt = 0
+    @State private var floatingOccurrence: FloatingOccurrenceRequest?
     let viewMode: ViewMode
     let pagerMaxWeek: Int
     let displayMode: String
@@ -485,6 +486,14 @@ private struct WeekPager: View {
     // 灰显缓存失效闸 ← produceState 键含 state.transfers: 调休映射变 → 全周重算
     @State private var greyCacheSignature = ""
 
+    private struct FloatingOccurrenceRequest: Identifiable {
+        let id = UUID()
+        let occurrence: CourseOccurrence
+        let table: TimeTableEntity
+        let startInEdit: Bool
+        var startWithDelete = false
+    }
+
     var body: some View {
         dragPager
             .onReceive(drag.$source.map { $0?.displayWeek }.removeDuplicates()) { sourceWeek in
@@ -499,16 +508,37 @@ private struct WeekPager: View {
                     dragHostWeek = sourceWeek
                 }
             }
-            .onChange(of: viewModel.state.selectedTableId) { _ in drag.end() }
-            .onChange(of: viewMode) { _ in drag.end() }
-            .onChange(of: dragEnabled) { if !$0 { drag.end(); quickAdd.dismiss() } }
+            .onChange(of: viewModel.state.selectedTableId) { _ in drag.end(); viewModel.cancelPendingCourseMove() }
+            .onChange(of: viewModel.state.selectedWeek) { week in
+                if !drag.isHolding, let source = drag.source, source.displayWeek != week { drag.end() }
+            }
+            .onChange(of: viewMode) { _ in drag.end(); viewModel.cancelPendingCourseMove() }
+            .onChange(of: dragEnabled) { if !$0 { drag.end(); quickAdd.dismiss(); viewModel.cancelPendingCourseMove() } }
             .onChange(of: quickAddEnabled) { if !$0 { quickAdd.dismiss() } }
             .onChange(of: scenePhase) { phase in
-                if phase != .active { drag.end(); quickAdd.dismiss() }
+                if phase != .active { drag.end(); quickAdd.dismiss(); viewModel.cancelPendingCourseMove() }
             }
-            .onDisappear { drag.end() }
+            .onDisappear { drag.end(); viewModel.cancelPendingCourseMove() }
             .alert(L10n.t("schedule_drag_failed"), isPresented: $dragError) {
                 Button(L10n.t("ok"), role: .cancel) {}
+            }
+            .alert(viewModel.pendingCourseMove?.confirmationTitle ?? "",
+                   isPresented: Binding(get: { viewModel.pendingCourseMove != nil }, set: { _ in }),
+                   presenting: viewModel.pendingCourseMove) { _ in
+                Button(L10n.t("ok")) {
+                    if !viewModel.confirmPendingCourseMove() { dragError = true }
+                }.accessibilityIdentifier("course_move_confirm")
+                Button(L10n.t("cancel"), role: .cancel) { viewModel.cancelPendingCourseMove() }
+                    .accessibilityIdentifier("course_move_cancel")
+            } message: { request in
+                Text(request.confirmationMessage)
+            }
+            .sheet(item: $floatingOccurrence) { request in
+                CourseOccurrenceEditor(occurrence: request.occurrence, table: request.table,
+                    repository: viewModel.occurrenceRepository,
+                    onSaved: { floatingOccurrence = nil; viewModel.occurrenceSaved() },
+                    onDismiss: { floatingOccurrence = nil }, startInEdit: request.startInEdit,
+                    startWithDelete: request.startWithDelete)
             }
             .task(id: "\(viewModel.state.currentTable?.startDate ?? "")-\(viewModel.state.selectedWeek)-\(pagerMaxWeek)") {
                 await refreshGreyDays()
@@ -588,7 +618,8 @@ private struct WeekPager: View {
                                      timeJson: state.effectiveRenderTimeJson ?? "",
                                      startDate: state.currentTable?.startDate ?? "",
                                      currentWeek: page,
-                                       onCourseClick: { onCourseClick($0, page) },
+                                     onCourseClick: { onCourseClick($0, page) },
+                                     onCourseLongClick: { openWeekOccurrence($0, displayWeek: page) },
                                      greyDays: greyDaysByWeek[page] ?? [],
                                      // v1.0.62 B5b: 周视图日期「·M月d日」← 原版本 FullWeekView(showDate = showDate)
                                      showDate: showDate)
@@ -636,24 +667,61 @@ private struct WeekPager: View {
     private var dragPager: some View {
         let state = viewModel.state
         return pages
+        .blur(radius: drag.source == nil ? 0 : 6)
+        .overlay {
+            if drag.source != nil { Color.black.opacity(0.15).allowsHitTesting(false) }
+        }
         .onPreferenceChange(CourseDropGridKey.self) { drag.grids = $0 }
         .background(NativeCourseDropTarget(drag: drag, week: state.selectedWeek, maxWeek: pagerMaxWeek,
             table: state.effectiveCurrentTable, allCourses: state.courses, transfers: state.transfers,
-            enabled: dragEnabled && viewMode == .cards && !dragError && quickAdd.selection == nil,
+            enabled: dragEnabled && viewMode == .cards && !dragError && quickAdd.selection == nil
+                && viewModel.pendingCourseMove == nil,
             onChangeWeek: { week in
                 // 拖动驻边直接换周，避免横移动画把落点网格带出手指位置。
                 var transaction = Transaction(animation: nil)
                 transaction.disablesAnimations = true
                 withTransaction(transaction) { viewModel.changeWeek(week) }
             },
-            onMove: { source, week, day, node, startTime in
-                let success = viewModel.moveDraggedOccurrence(source: source, targetWeek: week,
-                    displayDay: day, targetNode: node, targetStartTime: startTime)
+            onMove: { source, week, day, node, startTime, step in
+                let success = viewModel.stageDraggedOccurrence(source: source, targetWeek: week,
+                    displayDay: day, targetNode: node, targetStartTime: startTime, targetStep: step)
                 if !success { dragError = true }
                 return success
+            }, onOccurrenceAction: { source, editing in
+                guard let table = viewModel.state.effectiveCurrentTable,
+                      table.id == source.course.tableId,
+                      let displayDate = DateUtils.dateOfWeek(startDate: table.startDate,
+                        week: source.displayWeek, dayOfWeek: source.displayDay),
+                      let occurrence = CourseOccurrences.resolve(course: source.course,
+                        displayDate: displayDate, table: table, transfers: viewModel.state.transfers) else {
+                    dragError = true
+                    return
+                }
+                floatingOccurrence = FloatingOccurrenceRequest(occurrence: occurrence,
+                    table: table, startInEdit: editing, startWithDelete: !editing)
             }))
         .overlay(CourseDragProjection(drag: drag))
         .accessibilityIdentifier("schedule_week_pager")
+    }
+
+    private func openWeekOccurrence(_ projected: CourseEntity, displayWeek: Int) {
+        guard dragEnabled, floatingOccurrence == nil,
+              projected.tableId == viewModel.state.selectedTableId else { return }
+        do {
+            let repository = viewModel.occurrenceRepository
+            guard let stored = try repository.getTable(projected.tableId),
+                  let original = try repository.getCourse(projected.id), original.tableId == stored.id,
+                  let displayDate = CourseOccurrences.date(startDate: stored.startDate,
+                    week: displayWeek, day: projected.day) else {
+                throw CourseOccurrences.ValidationError.invalidOccurrence
+            }
+            let table = stored.hydratedWith(try repository.effectivePeriodTable(tableId: stored.id))
+            guard let occurrence = CourseOccurrences.resolve(course: original, displayDate: displayDate,
+                table: table, transfers: AppPrefs.shared.getHolidayTransfers(stored.id)) else {
+                throw CourseOccurrences.ValidationError.invalidOccurrence
+            }
+            floatingOccurrence = FloatingOccurrenceRequest(occurrence: occurrence, table: table, startInEdit: false)
+        } catch { dragError = true }
     }
 
     // 每页独立计算灰显星期(节假日/周末)。
@@ -736,38 +804,50 @@ private struct ScheduleTopBar: View {
         let font = UIFont.systemFont(ofSize: 14, weight: .semibold)
         let textWidth = ceil((label as NSString).size(withAttributes: [.font: font]).width)
         let numberWidth = max(32, ceil((String(currentWeek) as NSString).size(withAttributes: [.font: font]).width) + 8)
+        let native = style == .liquidGlass
+        let normalStart = nativeSizes[0]
+        let tightStart = nativeSizes[4]
+        let normalEnd = nativeSizes[2]
+        let tightEnd = nativeSizes[5]
         let layout = ScheduleToolbarGeometry.resolve(width: max(0, barWidth),
-            fullCenterWidth: 140 + textWidth, groupedCenterWidth: 66 + numberWidth,
-            history: hasUndoSnapshot || hasRedoSnapshot, confirm: scaleUncommitted)
-        Group {
-            if style == .liquidGlass {
-                nativeToolbar(isOnActual: isOnActual, label: label, description: description,
-                              numberWidth: numberWidth, fallbackCenterWidth: 140 + textWidth)
-            } else {
-                GeometryReader { proxy in
-                    let fit = layout.fitScale
-                    let leadingX = layout.inset + layout.startWidth * fit / 2
-                    let trailingX = proxy.size.width - layout.inset - layout.endWidth * fit / 2
-                    ZStack {
-                        leadingActions(scale: layout.sideScale, gap: layout.sideGap)
-                            .frame(width: layout.startWidth)
-                            .scaleEffect(fit)
-                            .position(x: direction == .leftToRight ? leadingX : proxy.size.width - leadingX, y: proxy.size.height / 2)
-                        pagerTriple(isOnActual: isOnActual, grouped: layout.grouped, label: label,
-                                    description: description, numberWidth: numberWidth)
-                            .frame(width: layout.centerWidth)
-                            .scaleEffect(fit)
-                            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                        trailingActions(scale: layout.sideScale, gap: layout.sideGap)
-                            .frame(width: layout.endWidth)
-                            .scaleEffect(fit)
-                            .position(x: direction == .leftToRight ? trailingX : proxy.size.width - trailingX, y: proxy.size.height / 2)
-                    }
-                    .preference(key: TopBarWidthKey.self, value: proxy.size.width)
-                }
-                .frame(height: barWidth > 0 ? layout.height : 48)
+            fullCenterWidth: native ? nativeSizes[1]?.width ?? 140 + textWidth : 140 + textWidth,
+            groupedCenterWidth: native ? nativeSizes[3]?.width ?? 66 + numberWidth : 66 + numberWidth,
+            history: hasUndoSnapshot || hasRedoSnapshot, confirm: scaleUncommitted,
+            normalStartWidth: native ? normalStart?.width : nil,
+            tightStartWidth: native ? tightStart?.width : nil,
+            normalEndWidth: native ? normalEnd?.width ?? 104 : 104,
+            tightEndWidth: native ? tightEnd?.width ?? 96 : 96,
+            sideHeight: native ? max(normalStart?.height ?? 48, normalEnd?.height ?? 48) : 48,
+            fullCenterHeight: native ? nativeSizes[1]?.height ?? 48 : 48,
+            groupedCenterHeight: native ? nativeSizes[3]?.height ?? 32 : 32)
+        GeometryReader { proxy in
+            let fit = layout.fitScale
+            let leadingX = layout.inset + layout.startWidth * fit / 2
+            let trailingX = proxy.size.width - layout.inset - layout.endWidth * fit / 2
+            ZStack {
+                leadingActions(scale: native ? 1 : layout.sideScale, gap: layout.sideGap)
+                    .fixedSize()
+                    .scaleEffect(fit * (native ? layout.sideScale : 1))
+                    .position(x: direction == .leftToRight ? leadingX : proxy.size.width - leadingX, y: proxy.size.height / 2)
+                pagerTriple(isOnActual: isOnActual, grouped: layout.grouped, label: label,
+                            description: description, numberWidth: numberWidth)
+                    .frame(width: layout.centerWidth)
+                    .scaleEffect(fit)
+                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                trailingActions(scale: native ? 1 : layout.sideScale, gap: layout.sideGap)
+                    .fixedSize()
+                    .scaleEffect(fit * (native ? layout.sideScale : 1))
+                    .position(x: direction == .leftToRight ? trailingX : proxy.size.width - trailingX, y: proxy.size.height / 2)
             }
+            .overlay(alignment: .topLeading) {
+                if native {
+                    nativeMeasurements(isOnActual: isOnActual, label: label,
+                                       description: description, numberWidth: numberWidth)
+                }
+            }
+            .preference(key: TopBarWidthKey.self, value: proxy.size.width)
         }
+        .frame(height: barWidth > 0 ? layout.height : 48)
         .onPreferenceChange(TopBarWidthKey.self) { barWidth = $0 }
         .padding(.vertical, 6)
         .background(colors.surface)
@@ -775,39 +855,25 @@ private struct ScheduleTopBar: View {
         .accessibilityIdentifier("schedule_toolbar")
     }
 
-    /// System buttons add their own content insets. Measure their actual groups
-    /// before fitting so native chrome cannot overflow the Material slot widths.
-    private func nativeToolbar(isOnActual: Bool, label: String, description: String,
-                               numberWidth: CGFloat, fallbackCenterWidth: CGFloat) -> some View {
-        let start = nativeSizes[0] ?? CGSize(width: hasUndoSnapshot || hasRedoSnapshot ? 173 : 68, height: 58)
-        let end = nativeSizes[2] ?? CGSize(width: 144, height: 58)
-        let fullCenter = nativeSizes[1]?.width ?? fallbackCenterWidth
-        let grouped = fullCenter + 2 * max(start.width, end.width) + 32 > barWidth
-        let centerID = grouped ? 3 : 1
-        let center = nativeSizes[centerID] ?? CGSize(width: grouped ? 66 + numberWidth : fullCenter, height: 58)
-        let required = center.width + 2 * max(start.width, end.width) + 16
-        let fit = min(1, max(0, barWidth - 16) / max(required, 1))
-        let height = max(start.height, end.height, center.height) * fit
-        return GeometryReader { proxy in
-            ZStack {
-                nativeMeasured(leadingActions(scale: 1, gap: 4), id: 0)
-                    .scaleEffect(fit)
-                    .position(x: direction == .leftToRight ? 8 + start.width * fit / 2 : proxy.size.width - 8 - start.width * fit / 2,
-                              y: proxy.size.height / 2)
-                nativeMeasured(pagerTriple(isOnActual: isOnActual, grouped: grouped, label: label,
-                                           description: description, numberWidth: numberWidth), id: centerID)
-                    .scaleEffect(fit)
-                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                nativeMeasured(trailingActions(scale: 1, gap: 8), id: 2)
-                    .scaleEffect(fit)
-                    .position(x: direction == .leftToRight ? proxy.size.width - 8 - end.width * fit / 2 : 8 + end.width * fit / 2,
-                              y: proxy.size.height / 2)
-            }
-            .preference(key: TopBarWidthKey.self, value: proxy.size.width)
+    /// Measure every current candidate, including the full week label while
+    /// grouped. Native chrome follows the same spacing/side-scale fallback as Material.
+    private func nativeMeasurements(isOnActual: Bool, label: String, description: String,
+                                    numberWidth: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            nativeMeasured(leadingActions(scale: 1, gap: 8), id: 0)
+            nativeMeasured(leadingActions(scale: 1, gap: 0), id: 4)
+            nativeMeasured(trailingActions(scale: 1, gap: 8), id: 2)
+            nativeMeasured(trailingActions(scale: 1, gap: 0), id: 5)
+            nativeMeasured(pagerTriple(isOnActual: isOnActual, grouped: false, label: label,
+                                       description: description, numberWidth: numberWidth), id: 1)
+            nativeMeasured(pagerTriple(isOnActual: isOnActual, grouped: true, label: label,
+                                       description: description, numberWidth: numberWidth), id: 3)
         }
-        .frame(height: barWidth > 0 ? height : 58)
+        .hidden()
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
         .onPreferenceChange(NativeToolbarMetricsKey.self) { sizes in
-            nativeSizes.merge(sizes, uniquingKeysWith: { _, new in new })
+            if sizes != nativeSizes { nativeSizes = sizes }
         }
     }
 

@@ -87,6 +87,7 @@ struct ScheduleState {
 @MainActor
 final class ScheduleViewModel: ObservableObject {
     @Published private(set) var state = ScheduleState()
+    @Published private(set) var pendingCourseMove: CourseDragMoveRequest?
 
     /// issue#40: 全部独立时间节次表(管理页列表) — 实时发布, 库内变化即刷新列表。
     /// ← 原版本 repo.observeAllPeriodTables().stateIn(WhileSubscribed(5000));
@@ -461,6 +462,80 @@ final class ScheduleViewModel: ObservableObject {
     func occurrenceSaved() {
         onWidgetsNeedReload()
         recalculateWeekDisplay()
+    }
+
+    /// A drop only stages a snapshot. The confirmation button is the sole writer.
+    func stageDraggedOccurrence(source: CourseDragContext.Source, targetWeek: Int,
+                                displayDay: Int, targetNode: Int, targetStartTime: String? = nil,
+                                targetStep: Int? = nil) -> Bool {
+        guard pendingCourseMove == nil, source.course.tableId == state.selectedTableId,
+              let table = state.effectiveCurrentTable,
+              let original = try? repo.getCourse(source.course.id), original == source.course,
+              source.occurrence.matches(original, startDate: table.startDate),
+              let destination = CourseOccurrenceIdentity.destination(course: original,
+                startDate: table.startDate, maxWeek: table.maxWeek, displayWeek: targetWeek,
+                displayDay: displayDay, transfers: state.transfers),
+              let courses = try? repo.getCourses(table.id) else { return false }
+        if let targetStep {
+            let nodes = Set(TimeTableUtils.parseTimeSlotRows(table.timeJson).map(\.node))
+            guard targetStep > 0, targetStep <= 10_000, targetNode > 0,
+                  targetNode <= Int.max - targetStep,
+                  (targetNode..<(targetNode + targetStep)).allSatisfy(nodes.contains) else { return false }
+        } else if (try? CourseOccurrenceDestination.resolve(source: original, targetNode: targetNode,
+                       table: table, targetStartTime: targetStartTime)) == nil { return false }
+        let sameTime = targetStartTime == nil || targetStartTime == original.startTime
+        if destination == source.occurrence,
+           targetNode == source.renderedCourse.startNode,
+           targetStep == nil || targetStep == source.renderedCourse.step, sameTime { return true }
+        pendingCourseMove = CourseDragMoveRequest(source: source, targetWeek: targetWeek,
+            displayDay: displayDay, targetNode: targetNode, targetStartTime: targetStartTime,
+            targetStep: targetStep, table: table, courses: courses, transfers: state.transfers)
+        return true
+    }
+
+    func cancelPendingCourseMove() { pendingCourseMove = nil }
+
+    @discardableResult
+    func confirmPendingCourseMove() -> Bool {
+        guard let request = pendingCourseMove else { return false }
+        pendingCourseMove = nil
+        do {
+            guard state.selectedTableId == request.table.id,
+                  let stored = try repo.getTable(request.table.id),
+                  try repo.getCourses(request.table.id).sorted(by: { $0.id < $1.id })
+                    == request.courses.sorted(by: { $0.id < $1.id }),
+                  AppPrefs.shared.getHolidayTransfers(request.table.id) == request.transfers else { return false }
+            let table = stored.hydratedWith(try repo.effectivePeriodTable(tableId: stored.id))
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+            guard try encoder.encode(table) == encoder.encode(request.table) else { return false }
+            if let step = request.targetStep {
+                guard let displayDate = DateUtils.dateOfWeek(startDate: table.startDate,
+                    week: request.source.displayWeek, dayOfWeek: request.source.displayDay),
+                      let occurrence = CourseOccurrences.resolve(course: request.source.course,
+                        displayDate: displayDate, table: table, transfers: request.transfers) else { return false }
+                var edited = request.source.course
+                edited.startNode = request.targetNode
+                edited.step = step
+                let rows = TimeTableUtils.parseTimeSlotRows(table.timeJson)
+                if edited.ownTime || edited.isIrregularTime {
+                    guard let start = rows.first(where: { $0.node == edited.startNode })?.start,
+                          let end = rows.first(where: { $0.node == edited.startNode + step - 1 })?.end else { return false }
+                    edited.startTime = start
+                    edited.endTime = end
+                }
+                edited.isIrregularNode = rows.contains { $0.node == edited.startNode && $0.edgeClass != nil }
+                let replacement = try CourseOccurrences.atDate(edited, date: occurrence.sourceDate,
+                    table: table, fixed: edited.fixedDate != nil)
+                let saved = try repo.saveOccurrence(occurrence, replacement: replacement,
+                    expectedCourses: request.courses, expectedTable: table, expectedTransfers: request.transfers)
+                if saved { onWidgetsNeedReload() }
+                return saved
+            }
+            return moveDraggedOccurrence(source: request.source, targetWeek: request.targetWeek,
+                displayDay: request.displayDay, targetNode: request.targetNode,
+                targetStartTime: request.targetStartTime)
+        } catch { return false }
     }
 
     func moveDraggedOccurrence(source: CourseDragContext.Source, targetWeek: Int,

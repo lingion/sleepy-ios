@@ -11,7 +11,8 @@ final class CourseDragUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-SLEEPY_UI_TEST_SEED"]
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-SLEEPY_UI_TEST_SEED",
+                               "-ui_style", "classic"]
         app.sleepyLaunch()
         XCTAssertTrue(pager.waitForExistence(timeout: 15))
         waitForWeek(1)
@@ -29,7 +30,8 @@ final class CourseDragUITests: XCTestCase {
         if label.exists && label.label == "Week \(week)" { return }
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label == %@", "Week \(week)"), object: label)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 10), .completed,
+                       "Expected week \(week), actual label: \(label.label)")
     }
 
     private func waitForHittable(_ element: XCUIElement) {
@@ -132,6 +134,8 @@ final class CourseDragUITests: XCTestCase {
         XCTAssertEqual(card.frame.midY, expected.y, accuracy: 3, "课程节次位置错误")
         card.tap()
         waitForHittable(app.buttons["detail_close"])
+        XCTAssertFalse(app.buttons["course_occurrence_actions"].exists,
+                       "普通点击详情只显示课程资料与编辑课程入口")
         XCTAssertTrue(app.staticTexts["张老师"].exists)
         XCTAssertTrue(app.staticTexts["教 1-101"].exists)
         XCTAssertTrue(app.staticTexts["Period \(startNode)-\(startNode + 1)"].exists)
@@ -158,11 +162,20 @@ final class CourseDragUITests: XCTestCase {
         waitForHittable(pager.buttons["gridcell_2"])
     }
 
+    private func confirmMove() {
+        let confirmation = app.buttons["course_move_confirm"]
+        waitForHittable(confirmation)
+        tap("course_move_confirm")
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: confirmation)
+        XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 5), .completed)
+    }
+
     func testNativeDragWithinGridPersistsAndUndoRestores() throws {
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         // 周二5–6为空，避免进入既有英语3–4的冲突卡分支。
         let destination = coordinate(at: expectedCenter(day: 2, startNode: 5))
         source.press(forDuration: 1, thenDragTo: destination, withVelocity: .slow, thenHoldForDuration: 0.75)
+        confirmMove()
         let moved = movedCard()
         assertMathCount(1)
         XCTAssertFalse(originalCard.exists && originalCard.isHittable)
@@ -194,6 +207,7 @@ final class CourseDragUITests: XCTestCase {
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let destination = coordinate(at: expectedCenter(day: 2, startNode: 5))
         source.press(forDuration: 1, thenDragTo: destination, withVelocity: .slow, thenHoldForDuration: 0.75)
+        confirmMove()
         assertMathCount(1)
         assertOccurrence(movedCard(), week: 1, day: 2, startNode: 5, firstWeek: 1, lastWeek: 1)
         XCTAssertFalse(originalCard.exists && originalCard.isHittable)
@@ -207,6 +221,7 @@ final class CourseDragUITests: XCTestCase {
         // to performDrop. Budget two 500ms pages plus that measured native tail;
         // retain the exact Week 3/drop/undo/restart assertions below.
         source.press(forDuration: 1, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 1.5)
+        confirmMove()
         waitForWeek(3)
         // 第3周原有周一课必须保留，并额外出现从第1周移来的周日单次课。
         assertMathCount(2)
@@ -249,6 +264,7 @@ final class CourseDragUITests: XCTestCase {
         // The recorded 1.2s destination hold leaves only 0.887s after UIKit's lift
         // enters the drop session. Allow two full 500ms pages; Week 1 is the boundary.
         source.press(forDuration: 1, thenDragTo: target, withVelocity: .fast, thenHoldForDuration: 1.7)
+        confirmMove()
         waitForWeek(1)
         assertMathCount(2)
         assertOccurrence(movedCard(), week: 1, day: 1, startNode: 5, firstWeek: 1, lastWeek: 1)
@@ -292,6 +308,9 @@ final class CourseDragUITests: XCTestCase {
         let original = originalCard.frame
         let center = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         center.press(forDuration: 1, thenDragTo: center, withVelocity: .slow, thenHoldForDuration: 0.2)
+        XCTAssertTrue(app.buttons["course_float_edit"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["course_move_confirm"].exists)
+        coordinate(at: CGPoint(x: pager.frame.maxX - 20, y: pager.frame.maxY - 20)).tap()
         assertMathCount(1)
         assertMathCount(0, movedOnly: true)
         XCTAssertEqual(originalCard.frame.minX, original.minX, accuracy: 3)
@@ -307,6 +326,7 @@ final class CourseDragUITests: XCTestCase {
         source.press(forDuration: 1, thenDragTo: coordinate(at:
             CGPoint(x: target.x, y: originalCard.frame.midY)),
             withVelocity: .slow, thenHoldForDuration: 0.75)
+        confirmMove()
         let moved = movedCard()
         assertMathCount(1)
         XCTAssertFalse(originalCard.exists && originalCard.isHittable)
@@ -316,6 +336,77 @@ final class CourseDragUITests: XCTestCase {
         assertOccurrence(originalCard, week: 1, day: 1, startNode: 1, firstWeek: 1, lastWeek: 20)
         tap("redo_button")
         assertOccurrence(movedCard(), week: 1, day: 2, startNode: 1, firstWeek: 1, lastWeek: 1)
+    }
+
+    func testDropCancellationPreservesOriginalAndUndoAcrossRestart() {
+        let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let destination = coordinate(at: expectedCenter(day: 2, startNode: 5))
+        source.press(forDuration: 1, thenDragTo: destination, withVelocity: .slow, thenHoldForDuration: 0.75)
+        capture("course-drop-before-confirmation")
+        waitForHittable(app.buttons["course_move_cancel"])
+        XCTAssertTrue(app.staticTexts["Move this class?"].exists)
+        capture("course-move-confirmation")
+        tap("course_move_cancel")
+        assertMathCount(1)
+        assertMathCount(0, movedOnly: true)
+        assertOccurrence(originalCard, week: 1, day: 1, startNode: 1, firstWeek: 1, lastWeek: 20)
+        assertNoUndoOrRedo()
+        restartWithoutSeed()
+        assertMathCount(1)
+        assertMathCount(0, movedOnly: true)
+        assertOccurrence(originalCard, week: 1, day: 1, startNode: 1, firstWeek: 1, lastWeek: 20)
+        assertNoUndoOrRedo()
+    }
+
+    func testFloatingTopAndBottomHandlesResizeOnlyAfterConfirmation() {
+        // Move this occurrence to periods 3–4 first so both edges can be stretched.
+        let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        source.press(forDuration: 1, thenDragTo: coordinate(at: expectedCenter(day: 1, startNode: 3)),
+            withVelocity: .slow, thenHoldForDuration: 0.75)
+        confirmMove()
+        var card = movedCard()
+        let movedFrame = card.frame
+        let periodHeight = movedFrame.height / 2
+        card.press(forDuration: 1)
+        let top = app.descendants(matching: .any)["course_float_top"]
+        XCTAssertTrue(top.waitForExistence(timeout: 5))
+        capture("course-float-blur-and-handles")
+        let topStart = top.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        topStart.press(forDuration: 0.1, thenDragTo: topStart.withOffset(CGVector(dx: 0, dy: -periodHeight)),
+            withVelocity: .slow, thenHoldForDuration: 0.1)
+        waitForHittable(app.buttons["course_move_cancel"])
+        XCTAssertTrue(app.staticTexts["Change this class's length?"].exists)
+        tap("course_move_cancel")
+        card = movedCard()
+        XCTAssertEqual(card.frame.minY, movedFrame.minY, accuracy: 3)
+        XCTAssertEqual(card.frame.height, movedFrame.height, accuracy: 3)
+
+        card.press(forDuration: 1)
+        let bottom = app.descendants(matching: .any)["course_float_bottom"]
+        XCTAssertTrue(bottom.waitForExistence(timeout: 5))
+        let bottomStart = bottom.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        bottomStart.press(forDuration: 0.1,
+            thenDragTo: bottomStart.withOffset(CGVector(dx: 0, dy: periodHeight)),
+            withVelocity: .slow, thenHoldForDuration: 0.1)
+        confirmMove()
+        card = movedCard()
+        XCTAssertEqual(card.frame.minY, movedFrame.minY, accuracy: 3)
+        XCTAssertGreaterThan(card.frame.height, movedFrame.height + periodHeight / 2)
+        card.tap()
+        waitForHittable(app.buttons["detail_close"])
+        XCTAssertTrue(app.staticTexts["Period 3-5"].exists)
+        XCTAssertFalse(app.buttons["course_occurrence_actions"].exists)
+        tap("detail_close")
+        tap("undo_button")
+        card = movedCard()
+        XCTAssertEqual(card.frame.height, movedFrame.height, accuracy: 3)
+    }
+
+    private func capture(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testDropOutsideGridLeavesOriginalAndWeekUnchanged() {

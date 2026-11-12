@@ -123,6 +123,79 @@ final class CourseDragViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testDropAndCancelLeaveDatabaseAndUndoUntouchedUntilExplicitConfirmation() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        await load(f, course: original)
+        let before = try f.snapshot()
+        let source = try f.source(original, week: 3)
+
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: source, targetWeek: 8, displayDay: 4, targetNode: 3))
+        XCTAssertNotNil(f.vm.pendingCourseMove)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertEqual(f.writes, 0)
+        XCTAssertFalse(Sleepy.UndoManager.shared.hasSnapshot)
+        f.vm.cancelPendingCourseMove()
+        XCTAssertNil(f.vm.pendingCourseMove)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertFalse(f.vm.confirmPendingCourseMove())
+
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: source, targetWeek: 8, displayDay: 4, targetNode: 3))
+        XCTAssertTrue(f.vm.confirmPendingCourseMove())
+        XCTAssertNil(f.vm.pendingCourseMove)
+        XCTAssertEqual(f.writes, 1)
+        let moved = try XCTUnwrap(try f.rows().first { $0.day == 4 })
+        XCTAssertEqual(moved.startWeek, 8)
+        XCTAssertEqual(moved.endWeek, 8)
+        XCTAssertEqual(moved.startNode, 3)
+        XCTAssertEqual(moved.step, 2)
+        XCTAssertFalse(f.vm.confirmPendingCourseMove(), "同一个确认不能重复写库")
+        XCTAssertTrue(f.vm.undoLastChange())
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertFalse(f.vm.undoLastChange())
+    }
+
+    @MainActor
+    func testPendingMoveRejectsCourseChangesMadeWhileConfirmationIsOpen() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        var original = try f.seed()
+        await load(f, course: original)
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 8, displayDay: 4, targetNode: 3))
+        original.room = "新的教室"
+        try f.repo.updateCourse(original)
+        let afterEdit = try f.snapshot()
+        XCTAssertFalse(f.vm.confirmPendingCourseMove())
+        XCTAssertEqual(try f.snapshot(), afterEdit)
+        XCTAssertEqual(f.writes, 1)
+    }
+
+    @MainActor
+    func testResizeOnlyChangesOneOccurrenceAfterConfirmationAndUndoRestores() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        await load(f, course: original)
+        let before = try f.snapshot()
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 3, displayDay: 2, targetNode: 2, targetStep: 3))
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertEqual(f.writes, 0)
+        XCTAssertTrue(f.vm.confirmPendingCourseMove())
+        let rows = try f.rows()
+        let resized = try XCTUnwrap(rows.first { $0.startWeek == 3 && $0.endWeek == 3 })
+        XCTAssertEqual(resized.startNode, 2)
+        XCTAssertEqual(resized.step, 3)
+        XCTAssertEqual(resized.room, original.room)
+        XCTAssertEqual(rows.filter { $0.startWeek != 3 }.map(\.step), [2, 2])
+        XCTAssertEqual(f.writes, 1)
+        XCTAssertTrue(f.vm.undoLastChange())
+        XCTAssertEqual(try f.snapshot(), before)
+    }
+
+    @MainActor
     func testTransferRenderCopyMovesOriginalIDAndCapturedWeekRatherThanVisibleWeek() async throws {
         let f = try Fixture()
         defer { f.close() }

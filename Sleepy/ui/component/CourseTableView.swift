@@ -1267,6 +1267,7 @@ struct FullWeekView: View {
     var startDate: String = ""
     var currentWeek: Int = 1
     let onCourseClick: (CourseEntity) -> Void
+    var onCourseLongClick: ((CourseEntity) -> Void)? = nil
     var greyDays: Set<Int> = []  // 本周应灰显的星期几 (1-7)
     var showDate: Bool = false
 
@@ -1307,6 +1308,7 @@ struct FullWeekView: View {
                             twoColumnMode: AppPrefs.shared.getWeekTwoColumnMode(),
                             hideEmptyDays: AppPrefs.shared.isWeekHideEmptyDays(),
                             onCourseClick: onCourseClick,
+                            onCourseLongClick: onCourseLongClick,
                             dayDates: dayDates)
                 // 悬浮底栏额外余量(→ 原版本 LocalNavExtraBottomPadding Spacer):
                 //   镜像 原版本 FullWeekView 末行追加 Spacer(height = navExtra),
@@ -1436,6 +1438,7 @@ private struct DetailPanel: View {
     var twoColumnMode: String = "days"
     var hideEmptyDays: Bool = false
     let onCourseClick: (CourseEntity) -> Void
+    var onCourseLongClick: ((CourseEntity) -> Void)? = nil
     var dayDates: [Int: String] = [:]
 
     var body: some View {
@@ -1470,7 +1473,8 @@ private struct DetailPanel: View {
                                 startDate: startDate, currentWeek: currentWeek,
                                 displayMode: displayMode, timeJson: timeJson,
                                 greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
-                                onCourseClick: onCourseClick, dayDates: dayDates)
+                                onCourseClick: onCourseClick, onCourseLongClick: onCourseLongClick,
+                                dayDates: dayDates)
                     .frame(maxWidth: .infinity)
                 if !split.1.isEmpty {
                     DetailDayColumn(days: split.1, byDay: byDay,
@@ -1478,7 +1482,8 @@ private struct DetailPanel: View {
                                     startDate: startDate, currentWeek: currentWeek,
                                     displayMode: displayMode, timeJson: timeJson,
                                     greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
-                                    onCourseClick: onCourseClick, dayDates: dayDates)
+                                    onCourseClick: onCourseClick, onCourseLongClick: onCourseLongClick,
+                                    dayDates: dayDates)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -1494,7 +1499,8 @@ private struct DetailPanel: View {
                                   displayMode: displayMode, timeJson: timeJson,
                                   isGrey: greyDays.contains(day),
                                   scale: scale, cornerRatio: cornerRatio,
-                                  onCourseClick: onCourseClick, dateLabel: dayDates[day])
+                                  onCourseClick: onCourseClick, onCourseLongClick: onCourseLongClick,
+                                  dateLabel: dayDates[day])
                 }
             }
             .padding(sd(12))
@@ -1519,6 +1525,7 @@ private struct DetailDayColumn: View {
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
     let onCourseClick: (CourseEntity) -> Void
+    var onCourseLongClick: ((CourseEntity) -> Void)? = nil
     var dayDates: [Int: String] = [:]
 
     var body: some View {
@@ -1531,7 +1538,8 @@ private struct DetailDayColumn: View {
                               displayMode: displayMode, timeJson: timeJson,
                               isGrey: greyDays.contains(day),
                               scale: scale, cornerRatio: cornerRatio,
-                              onCourseClick: onCourseClick, dateLabel: dayDates[day])
+                              onCourseClick: onCourseClick, onCourseLongClick: onCourseLongClick,
+                              dateLabel: dayDates[day])
             }
         }
         .padding(10 * scale)
@@ -1552,6 +1560,7 @@ private struct DetailDayCard: View {
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
     let onCourseClick: (CourseEntity) -> Void
+    var onCourseLongClick: ((CourseEntity) -> Void)? = nil
     var dateLabel: String? = nil
 
     // v7.10.4 冲突栏字体压缩: lane 实宽按内容区宽算(行满宽 → 与卡内边距对齐)
@@ -1586,7 +1595,8 @@ private struct DetailDayCard: View {
                         if row.laneCount == 1, let only = row.courses.first {
                             LessonRow(course: only, displayMode: displayMode, timeJson: timeJson,
                                       isGrey: isGrey, groupRows: courses.filter { $0.groupId == only.groupId },
-                                      scale: scale, cornerRatio: cornerRatio) {
+                                      scale: scale, cornerRatio: cornerRatio,
+                                      onLongClick: { onCourseLongClick?(only) }) {
                                 onCourseClick(only)
                             }
                         } else {
@@ -1614,7 +1624,8 @@ private struct DetailDayCard: View {
                                                       timeJson: timeJson, isGrey: isGrey,
                                                       groupRows: courses.filter { $0.groupId == laneCourse.groupId },
                                                       scale: scale, cornerRatio: cornerRatio,
-                                                      laneScale: laneScale, hideSideLabel: hideSide) {
+                                                      laneScale: laneScale, hideSideLabel: hideSide,
+                                                      onLongClick: { onCourseLongClick?(laneCourse) }) {
                                                 onCourseClick(laneCourse)
                                             }
                                         }
@@ -1682,6 +1693,7 @@ private struct LessonRow: View {
     var laneScale: Double = 1.0
     /// 极窄 lane: 侧栏节次/时间标签(42+8)挤占正文 → 隐藏(← weekLaneHideSideLabel)
     var hideSideLabel: Bool = false
+    var onLongClick: (() -> Void)? = nil
     let onClick: () -> Void
 
     var body: some View {
@@ -1765,6 +1777,18 @@ private struct LessonRow: View {
             .cornerRadius(12 * effScale * cornerRatio)
         }
         .buttonStyle(SleepyButtonStyle())
+        .highPriorityGesture(
+            LongPressGesture(minimumDuration: 0.5, maximumDistance: 10)
+                .exclusively(before: TapGesture())
+                .onEnded { result in
+                    switch result {
+                    case .first(true): onLongClick?()
+                    case .second: onClick()
+                    default: break
+                    }
+                }
+        )
+        .accessibilityAction(named: Text(L10n.t("occurrence_actions"))) { onLongClick?() }
         .accessibilityIdentifier("lesson_\(course.id)")   // ← G5: 详情锚点
     }
 }

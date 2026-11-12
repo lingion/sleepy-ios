@@ -24,6 +24,7 @@ final class CourseDragContext: ObservableObject {
     }
     @Published var source: Source?
     @Published var projection: CGRect?
+    var isHolding = false
     var sessionToken: NSObject?
     private var courseTouchDuration: TimeInterval?
     var grids: [Int: CourseDropGrid] = [:]
@@ -53,6 +54,7 @@ final class CourseDragContext: ObservableObject {
                         occurrence: occurrence, origin: origin,
                         grabOffsetY: max(0, min(frame.height, origin.y - frame.minY)),
                         snapOffsetY: origin.y - sourceRowTop, cardCenterX: frame.midX)
+        isHolding = true
         if projection != nil { projection = nil }
         traceCourseDrag("begin frame=\(frame) touch=\(String(describing: touch)) elapsed=\(ProcessInfo.processInfo.systemUptime - started)")
         return token
@@ -75,6 +77,7 @@ final class CourseDragContext: ObservableObject {
         source = nil
         if projection != nil { projection = nil }
         sessionToken = nil
+        isHolding = false
     }
 }
 
@@ -180,6 +183,7 @@ extension CourseDropGrid {
 /// 背景探针只在课程卡内识别长按；轻点和普通滚动由原视图处理。
 struct NativeCourseDropTarget: UIViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.localWakeUpColors) private var colors
     let drag: CourseDragContext
     let week: Int
     let maxWeek: Int
@@ -188,7 +192,8 @@ struct NativeCourseDropTarget: UIViewRepresentable {
     let transfers: [HolidayTransferEntry]
     let enabled: Bool
     let onChangeWeek: (Int) -> Void
-    let onMove: (CourseDragContext.Source, Int, Int, Int, String?) -> Bool
+    let onMove: (CourseDragContext.Source, Int, Int, Int, String?, Int?) -> Bool
+    let onOccurrenceAction: (CourseDragContext.Source, Bool) -> Void
 
     func makeUIView(context: Context) -> CourseDropTargetView {
         let view = CourseDropTargetView()
@@ -206,12 +211,73 @@ struct NativeCourseDropTarget: UIViewRepresentable {
         view.enabled = enabled && isEnabled
         view.onChangeWeek = onChangeWeek
         view.onMove = onMove
+        view.onOccurrenceAction = onOccurrenceAction
+        view.primaryColor = UIColor(colors.primary)
+        view.onPrimaryColor = UIColor(colors.onPrimary)
         view.releaseFinishedScrollLock()
         view.attach()
     }
 
     static func dismantleUIView(_ view: CourseDropTargetView, coordinator: ()) {
         view.detach()
+    }
+}
+
+private final class CourseFloatingRangeHandle: UIView {
+    var onAdjust: ((Int) -> Void)?
+    override func accessibilityIncrement() { onAdjust?(1) }
+    override func accessibilityDecrement() { onAdjust?(-1) }
+}
+
+private final class CourseFloatingPreviewView: UIView {
+    let snapshot: UIView
+    let topHandle = CourseFloatingRangeHandle()
+    let bottomHandle = CourseFloatingRangeHandle()
+
+    init(snapshot: UIView, primary: UIColor) {
+        self.snapshot = snapshot
+        super.init(frame: .zero)
+        accessibilityIdentifier = "course_float_card"
+        snapshot.isUserInteractionEnabled = false
+        snapshot.accessibilityElementsHidden = true
+        addSubview(snapshot)
+        for (top, handle) in [(true, topHandle), (false, bottomHandle)] {
+            handle.tag = top ? 0 : 1
+            handle.isAccessibilityElement = true
+            handle.accessibilityIdentifier = top ? "course_float_top" : "course_float_bottom"
+            handle.accessibilityLabel = top ? L10n.t("start_node")
+                : "\(L10n.t("end_label")) · \(L10n.t("step_count"))"
+            handle.accessibilityTraits = .adjustable
+            let pill = UIView()
+            pill.backgroundColor = primary
+            pill.layer.cornerRadius = 1.5
+            pill.frame = CGRect(x: 0, y: 0, width: 16, height: 3)
+            handle.addSubview(pill)
+            addSubview(handle)
+        }
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.2
+        layer.shadowRadius = 8
+        layer.shadowOffset = CGSize(width: 0, height: 5)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        snapshot.frame = bounds
+        // Keep the handles outside the card and narrow enough that even a short
+        // custom-time course still has a body area for moving it after pickup.
+        let handleWidth = min(28, bounds.width)
+        let handleX = (bounds.width - handleWidth) / 2
+        topHandle.frame = CGRect(x: handleX, y: -18, width: handleWidth, height: 24)
+        bottomHandle.frame = CGRect(x: handleX, y: bounds.height - 6, width: handleWidth, height: 24)
+        topHandle.subviews.first?.center = CGPoint(x: handleWidth / 2, y: 12)
+        bottomHandle.subviews.first?.center = CGPoint(x: handleWidth / 2, y: 12)
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.contains(point) || topHandle.frame.contains(point) || bottomHandle.frame.contains(point)
     }
 }
 
@@ -243,14 +309,25 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         }
     }
     var onChangeWeek: (Int) -> Void = { _ in }
-    var onMove: (CourseDragContext.Source, Int, Int, Int, String?) -> Bool = { _, _, _, _, _ in false }
+    var onMove: (CourseDragContext.Source, Int, Int, Int, String?, Int?) -> Bool = { _, _, _, _, _, _ in false }
+    var onOccurrenceAction: (CourseDragContext.Source, Bool) -> Void = { _, _ in }
+    var primaryColor: UIColor = .systemBlue {
+        didSet { updateFloatingColors() }
+    }
+    var onPrimaryColor: UIColor = .white {
+        didSet { updateFloatingColors() }
+    }
     private weak var host: UIView?
     private var longPress: UILongPressGestureRecognizer?
+    private var outsideTap: UITapGestureRecognizer?
     private var sourceSubscription: AnyCancellable?
     private var activeToken: NSObject?
     private var sourceFrame: CGRect?
     private var latestPoint: CGPoint?
-    private var preview: UIView?
+    private var preview: CourseFloatingPreviewView?
+    private var actions: UIStackView?
+    private var panOrigin: CGPoint?
+    private var resizeOrigin: (range: QuickAddRange, edge: CGFloat)?
     private var timer: Timer?
     private var paging = CourseDragEdgePaging()
     private var target: (day: Int, node: Int, rect: CGRect)?
@@ -288,27 +365,48 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         recognizer.isEnabled = enabled
         parent.addGestureRecognizer(recognizer)
         longPress = recognizer
+        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissFloating(_:)))
+        tap.cancelsTouchesInView = true
+        tap.delegate = self
+        parent.addGestureRecognizer(tap)
+        outsideTap = tap
         host = parent
     }
 
     func detach() {
         finishDrag(commit: false)
         if let longPress { host?.removeGestureRecognizer(longPress) }
+        if let outsideTap { host?.removeGestureRecognizer(outsideTap) }
         longPress = nil
+        outsideTap = nil
         host = nil
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        guard gestureRecognizer === longPress, let window else { return false }
+        guard let window else { return false }
         let point = touch.location(in: window)
+        if gestureRecognizer === outsideTap {
+            let inPreview = preview.map { $0.point(inside: $0.convert(point, from: window), with: nil) } ?? false
+            return activeToken != nil && !inPreview
+                && actions?.frame.contains(point) != true
+        }
+        if gestureRecognizer.view === preview {
+            guard let preview else { return false }
+            let local = touch.location(in: preview)
+            return !preview.topHandle.frame.contains(local) && !preview.bottomHandle.frame.contains(local)
+        }
+        guard gestureRecognizer === longPress else { return false }
         let eligible = eligibleCard(at: point) != nil
         if eligible { drag?.recordCourseTouchDuration(nil) }
         return eligible
     }
 
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === outsideTap { return activeToken != nil }
+        if gestureRecognizer.view === preview { return activeToken != nil }
         guard gestureRecognizer === longPress, let window else { return false }
-        return eligibleCard(at: gestureRecognizer.location(in: window)) != nil
+        let eligible = eligibleCard(at: gestureRecognizer.location(in: window)) != nil
+        return eligible
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
@@ -341,7 +439,7 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
             updateLocation()
         case .ended:
             latestPoint = point
-            finishDrag(commit: true)
+            releaseFloating()
         case .cancelled, .failed:
             finishDrag(commit: false)
         case .possible:
@@ -357,27 +455,27 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         // callback order. The next course touch resets this gate in shouldReceive.
         drag.recordCourseTouchDuration(0.5)
         let snapshot = window.resizableSnapshotView(from: card.frame, afterScreenUpdates: false,
-                                                     withCapInsets: .zero)
+                                                     withCapInsets: .zero) ?? UIView()
         guard let token = drag.begin(card.course, week: card.week, frame: card.frame, touch: point,
                                      table: table, allCourses: allCourses, transfers: transfers) else { return }
         activeToken = token
         sourceFrame = card.frame
         latestPoint = point
         lockScrolling(at: point, in: window)
-        if let snapshot {
-            snapshot.frame = card.frame
-            snapshot.isUserInteractionEnabled = false
-            snapshot.accessibilityElementsHidden = true
-            snapshot.layer.shadowColor = UIColor.black.cgColor
-            snapshot.layer.shadowOpacity = 0.2
-            snapshot.layer.shadowRadius = 8
-            snapshot.layer.shadowOffset = CGSize(width: 0, height: 5)
-            window.addSubview(snapshot)
-            preview = snapshot
-            if !UIAccessibility.isReduceMotionEnabled {
-                UIView.animate(withDuration: 0.12) { snapshot.transform = CGAffineTransform(scaleX: 1.03, y: 1.03) }
-            }
-        }
+        let floating = CourseFloatingPreviewView(snapshot: snapshot, primary: primaryColor)
+        floating.topHandle.accessibilityValue = String(card.course.startNode)
+        floating.bottomHandle.accessibilityValue = String(card.course.startNode + card.course.step - 1)
+        floating.topHandle.onAdjust = { [weak self] in self?.adjustFloating(top: true, by: $0) }
+        floating.bottomHandle.onAdjust = { [weak self] in self?.adjustFloating(top: false, by: $0) }
+        floating.frame = card.frame
+        floating.topHandle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(resizeFloating(_:))))
+        floating.bottomHandle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(resizeFloating(_:))))
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(moveFloating(_:)))
+        pan.delegate = self
+        floating.addGestureRecognizer(pan)
+        window.addSubview(floating)
+        preview = floating
+        makeFloatingActions(in: window)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         traceCourseDrag("long press began point=\(point) frame=\(card.frame)")
         startTracking()
@@ -388,6 +486,145 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         guard let point = latestPoint, let frame = sourceFrame, let source = drag?.source else { return }
         preview?.center = CGPoint(x: frame.midX + point.x - source.origin.x,
                                   y: frame.midY + point.y - source.origin.y)
+        positionActions()
+    }
+
+    private func makeFloatingActions(in window: UIWindow) {
+        let bar = UIStackView()
+        bar.axis = .horizontal
+        bar.spacing = 8
+        bar.distribution = .fillEqually
+        for (editing, key) in [(true, "occurrence_adjust"), (false, "occurrence_delete")] {
+            let button = UIButton(type: .system)
+            var configuration = UIButton.Configuration.filled()
+            configuration.title = L10n.t(key)
+            configuration.cornerStyle = .capsule
+            configuration.baseBackgroundColor = primaryColor
+            configuration.baseForegroundColor = onPrimaryColor
+            button.configuration = configuration
+            button.accessibilityIdentifier = editing ? "course_float_edit" : "course_float_delete"
+            button.addAction(UIAction { [weak self] _ in
+                guard let self, let source = self.drag?.source else { return }
+                self.finishDrag(commit: false)
+                self.onOccurrenceAction(source, editing)
+            }, for: .touchUpInside)
+            bar.addArrangedSubview(button)
+        }
+        window.addSubview(bar)
+        actions = bar
+        bar.isHidden = true
+        positionActions()
+    }
+
+    private func updateFloatingColors() {
+        preview?.topHandle.subviews.first?.backgroundColor = primaryColor
+        preview?.bottomHandle.subviews.first?.backgroundColor = primaryColor
+        for case let button as UIButton in actions?.arrangedSubviews ?? [] {
+            var configuration = button.configuration
+            configuration?.baseBackgroundColor = primaryColor
+            configuration?.baseForegroundColor = onPrimaryColor
+            button.configuration = configuration
+        }
+    }
+
+    private func positionActions() {
+        guard let window, let preview, let actions else { return }
+        let width = min(max(preview.bounds.width * 2, 240), window.bounds.width - 32)
+        actions.frame = CGRect(x: min(max(preview.frame.midX - width / 2, 16), window.bounds.width - width - 16),
+            y: max(window.safeAreaInsets.top, preview.frame.minY - 54), width: width, height: 44)
+    }
+
+    private func releaseFloating() {
+        guard let source = drag?.source else { finishDrag(commit: false); return }
+        updateLocation(allowPaging: false)
+        guard let destination = target else { finishDrag(commit: false); return }
+        if week != source.displayWeek || destination.day != source.displayDay
+            || destination.node != source.renderedCourse.startNode {
+            finishDrag(commit: true)
+        } else {
+            timer?.invalidate()
+            timer = nil
+            drag?.projection = nil
+            drag?.isHolding = false
+            actions?.isHidden = false
+        }
+    }
+
+    @objc private func dismissFloating(_ recognizer: UITapGestureRecognizer) {
+        if recognizer.state == .ended { finishDrag(commit: false) }
+    }
+
+    @objc private func moveFloating(_ recognizer: UIPanGestureRecognizer) {
+        guard let source = drag?.source, let preview else { return }
+        switch recognizer.state {
+        case .began:
+            drag?.isHolding = true
+            panOrigin = CGPoint(x: source.origin.x + preview.frame.midX - (sourceFrame?.midX ?? preview.frame.midX),
+                                y: source.origin.y + preview.frame.midY - (sourceFrame?.midY ?? preview.frame.midY))
+            actions?.isHidden = true
+            if let window { lockScrolling(at: recognizer.location(in: window), in: window) }
+            startTracking()
+        case .changed, .ended:
+            guard let panOrigin else { return }
+            let delta = recognizer.translation(in: window)
+            latestPoint = CGPoint(x: panOrigin.x + delta.x, y: panOrigin.y + delta.y)
+            updatePreview()
+            updateLocation()
+            if recognizer.state == .ended { releaseFloating(); self.panOrigin = nil }
+        case .cancelled, .failed: finishDrag(commit: false)
+        default: break
+        }
+    }
+
+    @objc private func resizeFloating(_ recognizer: UIPanGestureRecognizer) {
+        guard let source = drag?.source, let grid = drag?.grids[source.displayWeek],
+              let preview, let table else { return }
+        let top = recognizer.view?.tag == 0
+        switch recognizer.state {
+        case .began:
+            drag?.isHolding = true
+            let range = QuickAddRange(day: source.displayDay, startNode: source.renderedCourse.startNode,
+                endNode: source.renderedCourse.startNode + source.renderedCourse.step - 1)
+            resizeOrigin = (range, top ? preview.frame.minY : preview.frame.maxY)
+            actions?.isHidden = true
+            timer?.invalidate()
+            timer = nil
+        case .changed, .ended:
+            guard let origin = resizeOrigin else { return }
+            let rows = grid.rows.map { QuickAddRow(node: $0.node,
+                top: grid.frame.minY + $0.top, bottom: grid.frame.minY + $0.bottom) }
+            let position = origin.edge + recognizer.translation(in: window).y
+            let range = QuickAddCoursePolicy.resized(origin.range, top: top, position: position,
+                rows: rows, maxStandard: table.nodesPerDay)
+            guard let first = rows.first(where: { $0.node == range.startNode }),
+                  let last = rows.first(where: { $0.node == range.endNode }) else { return }
+            preview.frame = CGRect(x: preview.frame.minX, y: first.top, width: preview.frame.width,
+                height: max(last.bottom - first.top, 12))
+            positionActions()
+            if recognizer.state == .ended {
+                if range == origin.range {
+                    actions?.isHidden = false
+                    resizeOrigin = nil
+                    drag?.isHolding = false
+                    return
+                }
+                finishDrag(commit: true, resized: range)
+            }
+        case .cancelled, .failed: finishDrag(commit: false)
+        default: break
+        }
+    }
+
+    private func adjustFloating(top: Bool, by delta: Int) {
+        guard let source = drag?.source, let grid = drag?.grids[source.displayWeek], let table else { return }
+        let original = QuickAddRange(day: source.displayDay, startNode: source.renderedCourse.startNode,
+            endNode: source.renderedCourse.startNode + source.renderedCourse.step - 1)
+        let node = (top ? original.startNode : original.endNode) + delta
+        let rows = grid.rows.map { QuickAddRow(node: $0.node, top: $0.top, bottom: $0.bottom) }
+        guard let row = rows.first(where: { $0.node == node }) else { return }
+        let range = QuickAddCoursePolicy.resized(original, top: top,
+            position: top ? row.top : row.bottom, rows: rows, maxStandard: table.nodesPerDay)
+        if range != original { finishDrag(commit: true, resized: range) }
     }
 
     private func lockScrolling(at point: CGPoint, in window: UIWindow) {
@@ -476,11 +713,11 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         if drag.projection != target?.rect { drag.projection = target?.rect }
     }
 
-    private func finishDrag(commit: Bool) {
+    private func finishDrag(commit: Bool, resized: QuickAddRange? = nil) {
         guard let token = activeToken else { return }
         timer?.invalidate()
         timer = nil
-        if commit { updateLocation(allowPaging: false) }
+        if commit && resized == nil { updateLocation(allowPaging: false) }
         guard activeToken === token else { return }
         let context = drag
         let source = context?.source
@@ -492,10 +729,16 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         restoreScrolling()
         preview?.removeFromSuperview()
         preview = nil
+        actions?.removeFromSuperview()
+        actions = nil
+        resizeOrigin = nil
+        panOrigin = nil
         sourceFrame = nil
         guard context?.sessionToken === token else { return }
         if commit, let source, let destination {
-            let success = onMove(source, destinationWeek, destination.day, destination.node, startTime)
+            let success = onMove(source, resized == nil ? destinationWeek : source.displayWeek,
+                resized?.day ?? destination.day, resized?.startNode ?? destination.node,
+                resized == nil ? startTime : nil, resized?.step)
             traceCourseDrag("move sourceWeek=\(source.occurrence.week) targetWeek=\(destinationWeek) day=\(destination.day) node=\(destination.node) success=\(success)")
             UINotificationFeedbackGenerator().notificationOccurred(success ? .success : .error)
         }
