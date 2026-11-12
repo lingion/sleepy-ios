@@ -250,7 +250,7 @@ private struct SettingsNavList: View {
                 SettingsItem(icon: .schedule, label: L10n.format("mine_period_tables"),
                              identifier: "mine_period_tables", onClick: onOpenPeriodTables)
                 HDivider()
-                SettingsItem(icon: .dateRange, label: L10n.format("settings_holiday_title"),
+                SettingsItem(icon: .dateRange, label: L10n.format("settings_holidays"),
                              identifier: "mine_holiday", onClick: onOpenHoliday)
             }
             SectionHeader(title: L10n.format("settings_application"))

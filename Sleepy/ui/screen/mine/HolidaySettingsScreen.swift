@@ -149,7 +149,7 @@ struct HolidaySettingsScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingsTopBar(title: L10n.format("holiday_page_title"), onBack: onDismiss)
+            SettingsTopBar(title: L10n.format("settings_holiday_title_rules"), onBack: onDismiss)
             ScrollView {
                 VStack(spacing: 16) {
                     yearSwitcher

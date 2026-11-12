@@ -48,7 +48,7 @@
 "edit_table_start_date" = "Semester Start Date";
 "edit_table_start_date_hint" = "e.g. 2026-02-24";
 "edit_table_max_week" = "Total Weeks";
-"edit_table_time_slots" = "Class Times";
+"edit_table_time_slots" = "Bell schedule";
 "edit_table_delete" = "Delete Schedule";
 "edit_table_save" = "Save Settings";
 "edit_table_not_found" = "Schedule not found";
@@ -194,17 +194,17 @@
 "settings_grid_sub_teacher_sub" = "Show teacher under course name (hidden if empty)";
 "settings_grid_sub_none" = "None";
 "settings_grid_sub_none_sub" = "Grid cards show course name only";
-"settings_display_node" = "Show as periods";
+"settings_display_node" = "Periods";
 "settings_display_node_sub" = "All courses show as \"Period N\"";
-"settings_display_time" = "Show as times";
+"settings_display_time" = "Times";
 "settings_display_time_sub" = "All courses show as \"HH:mm–HH:mm\"";
 "settings_show_date" = "Show dates on schedule";
 "settings_show_date_sub" = "Display specific date (M/D) in each column header";
 "settings_visible_days" = "Visible Days";
-"settings_visible_days_sub" = "Unchecked days are hidden in all views";
+"settings_visible_days_sub" = "Unchecked days are hidden on the schedule page and in widgets";
 "settings_start_view" = "Startup view";
 "settings_start_view_full" = "Week view";
-"settings_start_view_cards" = "Card view";
+"settings_start_view_cards" = "Grid";
 "theme_system" = "Follow System";
 "theme_system_desc" = "Material You dynamic color from iOS system theme)";
 "view_full" = "Week";
@@ -283,7 +283,7 @@
 "day_short_7" = "S";
 "section_node_format" = "Period %1$d–%2$d";
 "section_single" = "Period %1$d";
-"mine_appearance" = "Appearance & display";
+"mine_appearance" = "Appearance & theme";
 "mine_general" = "General";
 "theme_appearance" = "Appearance";
 "theme_mode_system" = "Auto (light/dark)";
@@ -650,7 +650,7 @@
 "jw_toggle_desktop_ua" = "Toggle desktop version of website";
 "jw_toggle_mobile_ua" = "Toggle mobile version of website";
 "license_contributor_section" = "Contributors";
-"settings_grid_alias" = "Grid view course names";
+"settings_grid_alias" = "Show alias in grid view";
 "settings_name_alias" = "Alias";
 "settings_name_original" = "Original";
 "settings_pill" = "Home display";
@@ -658,7 +658,7 @@
 "settings_pill_scale" = "Grid view zoom";
 "settings_pill_week_scale" = "Week view zoom";
 "settings_start_view_sub" = "Only affects the view shown at launch; switch anytime from the schedule top bar";
-"settings_week_alias" = "Week view course names";
+"settings_week_alias" = "Show alias in week view";
 "settings_week_hide_empty" = "Hide empty days in week view";
 "settings_week_two_column" = "Two-column week view";
 "settings_week_two_column_balance" = "Balance by course count";
@@ -1395,3 +1395,5 @@
 "occurrence_span_confirm_title" = "Change this class's length?";
 
 "occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
+
+"settings_holidays" = "Holidays and makeup classes";

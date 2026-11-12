@@ -48,7 +48,7 @@
 "edit_table_start_date" = "學期開始日期";
 "edit_table_start_date_hint" = "例如 2026-02-24";
 "edit_table_max_week" = "總週數";
-"edit_table_time_slots" = "節次時間表";
+"edit_table_time_slots" = "作息表";
 "edit_table_delete" = "刪除課表";
 "edit_table_save" = "儲存課表設定";
 "edit_table_not_found" = "課表資料未找到";
@@ -193,17 +193,17 @@
 "settings_grid_sub_teacher_sub" = "課程名下方顯示授課教師（無教師則不顯示）";
 "settings_grid_sub_none" = "無";
 "settings_grid_sub_none_sub" = "網格卡片只顯示課程名";
-"settings_display_node" = "統一顯示節次";
+"settings_display_node" = "節次";
 "settings_display_node_sub" = "所有課程顯示為「第N節」";
-"settings_display_time" = "統一顯示時間";
+"settings_display_time" = "時間";
 "settings_display_time_sub" = "所有課程顯示為「HH:mm–HH:mm」";
 "settings_show_date" = "課表顯示日期";
 "settings_show_date_sub" = "在每列表頭顯示具體日期（月/日）";
 "settings_visible_days" = "顯示星期";
-"settings_visible_days_sub" = "取消勾選的星期將在所有檢視中隱藏";
+"settings_visible_days_sub" = "取消勾選的星期將在課表頁和小工具中隱藏";
 "settings_start_view" = "啟動預設檢視";
 "settings_start_view_full" = "週檢視";
-"settings_start_view_cards" = "卡片檢視";
+"settings_start_view_cards" = "網格";
 "theme_system" = "跟隨系統";
 "theme_system_desc" = "Material You dynamic color from iOS system theme）";
 "view_full" = "週檢視";
@@ -282,7 +282,7 @@
 "day_short_7" = "日";
 "section_node_format" = "第%1$d–%2$d節";
 "section_single" = "第%1$d 節";
-"mine_appearance" = "外觀與顯示";
+"mine_appearance" = "外觀與主題";
 "mine_general" = "一般";
 "theme_appearance" = "外觀";
 "theme_mode_system" = "深淺色跟隨系統";
@@ -650,7 +650,7 @@
 "jw_toggle_desktop_ua" = "切換桌面版網頁";
 "jw_toggle_mobile_ua" = "切換手機版網頁";
 "license_contributor_section" = "貢獻者";
-"settings_grid_alias" = "網格視圖課程名";
+"settings_grid_alias" = "網格視圖顯示別名";
 "settings_name_alias" = "別名";
 "settings_name_original" = "原名";
 "settings_pill" = "主頁顯示設定";
@@ -658,7 +658,7 @@
 "settings_pill_scale" = "網格檢視縮放";
 "settings_pill_week_scale" = "週檢視縮放";
 "settings_start_view_sub" = "僅影響啟動時進入的檢視，可隨時在課表頁頂部切換";
-"settings_week_alias" = "週視圖課程名";
+"settings_week_alias" = "週視圖顯示別名";
 "settings_week_hide_empty" = "週視圖隱藏無課日";
 "settings_week_two_column" = "週視圖兩欄顯示";
 "settings_week_two_column_balance" = "按課程數平衡";
@@ -1395,3 +1395,5 @@
 "occurrence_span_confirm_title" = "是否調整持續節次?";
 
 "occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
+
+"settings_holidays" = "假日與補課";

@@ -48,7 +48,7 @@
 "edit_table_start_date" = "Fecha de inicio";
 "edit_table_start_date_hint" = "Ej. 2026-02-24";
 "edit_table_max_week" = "Semanas totales";
-"edit_table_time_slots" = "Horarios de clase";
+"edit_table_time_slots" = "Horario de períodos";
 "edit_table_delete" = "Eliminar horario";
 "edit_table_save" = "Guardar ajustes";
 "edit_table_not_found" = "Horario no encontrado";
@@ -193,17 +193,17 @@
 "settings_grid_sub_teacher_sub" = "Mostrar profesor bajo el nombre (oculto si está vacío)";
 "settings_grid_sub_none" = "Ninguno";
 "settings_grid_sub_none_sub" = "Las tarjetas solo muestran el nombre";
-"settings_display_node" = "Mostrar como períodos";
+"settings_display_node" = "Períodos";
 "settings_display_node_sub" = "Todos los cursos muestran \"Período N\"";
-"settings_display_time" = "Mostrar como horas";
+"settings_display_time" = "Horas";
 "settings_display_time_sub" = "Todos los cursos muestran \"HH:mm–HH:mm\"";
 "settings_show_date" = "Mostrar fechas en el horario";
 "settings_show_date_sub" = "Mostrar fecha específica (M/D) en cada encabezado";
 "settings_visible_days" = "Días visibles";
-"settings_visible_days_sub" = "Los días desmarcados se ocultan en todas las vistas";
+"settings_visible_days_sub" = "Los días desmarcados se ocultan en la página del horario y en los widgets";
 "settings_start_view" = "Vista inicial";
 "settings_start_view_full" = "Vista semanal";
-"settings_start_view_cards" = "Vista de tarjetas";
+"settings_start_view_cards" = "Cuadrícula";
 "theme_system" = "Seguir sistema";
 "theme_system_desc" = "Material You dynamic color from iOS system theme)";
 "view_full" = "Semana";
@@ -282,7 +282,7 @@
 "day_short_7" = "D";
 "section_node_format" = "Período %1$d–%2$d";
 "section_single" = "Período %1$d";
-"mine_appearance" = "Apariencia y pantalla";
+"mine_appearance" = "Apariencia y tema";
 "mine_general" = "General";
 "theme_appearance" = "Apariencia";
 "theme_mode_system" = "Automático (claro/oscuro)";
@@ -650,7 +650,7 @@
 "jw_toggle_desktop_ua" = "Cambiar a la versión de escritorio del sitio";
 "jw_toggle_mobile_ua" = "Cambiar a la versión móvil del sitio";
 "license_contributor_section" = "Colaboradores";
-"settings_grid_alias" = "Nombres en la vista de cuadrícula";
+"settings_grid_alias" = "Mostrar alias en la vista de cuadrícula";
 "settings_name_alias" = "Alias";
 "settings_name_original" = "Original";
 "settings_pill" = "Ajustes de pantalla de inicio";
@@ -658,7 +658,7 @@
 "settings_pill_scale" = "Zoom de la vista de cuadrícula";
 "settings_pill_week_scale" = "Zoom de la vista semanal";
 "settings_start_view_sub" = "Solo afecta la vista al abrir la app; se puede cambiar en la barra superior del horario";
-"settings_week_alias" = "Nombres en la vista semanal";
+"settings_week_alias" = "Mostrar alias en la vista semanal";
 "settings_week_hide_empty" = "Ocultar días vacíos en la vista semanal";
 "settings_week_two_column" = "Vista semanal en dos columnas";
 "settings_week_two_column_balance" = "Equilibrar por cursos";
@@ -1395,3 +1395,5 @@
 "occurrence_span_confirm_title" = "¿Cambiar la duración de esta clase?";
 
 "occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
+
+"settings_holidays" = "Festivos y clases de recuperación";
