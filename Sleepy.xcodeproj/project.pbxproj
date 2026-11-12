@@ -313,6 +313,7 @@
 		477159AE23906652A7C7FEBB /* WidgetCompactHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 945AE1E7D6D417CE3FBD4C89 /* WidgetCompactHelpers.swift */; };
 		479E5C2B965DC15E08F05851 /* TodayDateNavStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF9EC856471726DFD200E17 /* TodayDateNavStore.swift */; };
 		47A68F16AF8D29100394A94A /* WidgetArchiveLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361943C96AEED91260036E34 /* WidgetArchiveLog.swift */; };
+		47AD25F0A273FFBFC56E5A58 /* ScheduleStateDeliveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074F625FD0B2ACC854A21C67 /* ScheduleStateDeliveryTests.swift */; };
 		47CEDC5F55C0F4A8F96009E9 /* AppPrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB174180E779B7796964E378 /* AppPrefs.swift */; };
 		47E9257CA8EAFC6F9D5F7280 /* PeriodTableDao.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DC15F72A71D1DC1C3370D6F /* PeriodTableDao.swift */; };
 		47F332C017748F51549D2E98 /* JwAhuSourcePeriods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9114F9ACF8664280E1722926 /* JwAhuSourcePeriods.swift */; };
@@ -1244,6 +1245,7 @@
 		05EC5FA0F37BCA99BF0D8ABE /* ExitDraftStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExitDraftStateTests.swift; sourceTree = "<group>"; };
 		0657E1EA84B2DCFB4AAFD489 /* SleepyControlsGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepyControlsGeometryTests.swift; sourceTree = "<group>"; };
 		0718B20F0D0233CEBDC569F8 /* ImportAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAuditUITests.swift; sourceTree = "<group>"; };
+		074F625FD0B2ACC854A21C67 /* ScheduleStateDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleStateDeliveryTests.swift; sourceTree = "<group>"; };
 		089AF7B5A308D8889ABF3C6A /* SchoolSearchIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolSearchIndex.swift; sourceTree = "<group>"; };
 		091CF54ADE6711A4CA322D6D /* JwParity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParity.swift; sourceTree = "<group>"; };
 		0A2BF8A206E24DEB9B0ADCAB /* Jw1064UndergradFixturesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Jw1064UndergradFixturesTests.swift; sourceTree = "<group>"; };
@@ -2648,6 +2650,7 @@
 				D0BF713C7DB0DD0CDE3F5DD2 /* SchedulePolicyEffectiveTimeTests.swift */,
 				B6DB6B0BA817C7E5B1FFCEA9 /* SchedulePolicyPrivateRetentionTests.swift */,
 				A03D757CF35EDB5E0D85E4F5 /* ScheduleRenderingB5Tests.swift */,
+				074F625FD0B2ACC854A21C67 /* ScheduleStateDeliveryTests.swift */,
 				5EF946406F0652046FD54EF6 /* ScheduleToolbarGeometryTests.swift */,
 				9C40C4ADCE11FE008C10C295 /* SchoolCityIndexTests.swift */,
 				0019194E612B127ADA12CF26 /* SchoolLocationLookupTests.swift */,
@@ -4190,6 +4193,7 @@
 				9C55A2E2A2B71AB09622B8F6 /* SchedulePolicyEffectiveTimeTests.swift in Sources */,
 				E6836C70B55F4AB5AE2A4BF2 /* SchedulePolicyPrivateRetentionTests.swift in Sources */,
 				FFC43A2C3EFA9EBBDCAA4E63 /* ScheduleRenderingB5Tests.swift in Sources */,
+				47AD25F0A273FFBFC56E5A58 /* ScheduleStateDeliveryTests.swift in Sources */,
 				2B25A1500BA9F1E70A4D164A /* ScheduleToolbarGeometryTests.swift in Sources */,
 				D84F356E4181004F28AA7F35 /* ScheduledActivitySystemTests.swift in Sources */,
 				FEB6503599B8FA2E9DB79203 /* SchoolCityIndexTests.swift in Sources */,
