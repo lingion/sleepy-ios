@@ -45,6 +45,7 @@ struct WidgetSettingsScreen: View {
     // ← 显示项变更后立即刷小组件(管线随板块自 GeneralSettingsScreen 平移)
     //   WidgetUpdater.notifyDataChanged → WidgetCenter.reloadAllTimelines
     private func refreshWidgets() {
+        prefs.syncWidgetPreferences()
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -81,18 +82,19 @@ struct WidgetSettingsScreen: View {
                     }
 
                     sharedDisplayEntry
-                    SectionHeader(title: L10n.format("settings_widget_advanced"))
-                    VStack(spacing: 0) {
-                        SettingToggleRow(label: L10n.format("settings_widget_vert_punct_experimental"),
-                            subtitle: L10n.format("settings_vert_punct_sub"), checked: vertPunct) {
-                            vertPunct = $0
-                            prefs.setVertPunctReplace($0)
-                            refreshWidgets()
+                    SettingsSection(title: L10n.format("settings_widget_advanced")) {
+                        VStack(spacing: 0) {
+                            SettingToggleRow(label: L10n.format("settings_widget_vert_punct_experimental"),
+                                subtitle: L10n.format("settings_vert_punct_sub"), checked: vertPunct) {
+                                vertPunct = $0
+                                prefs.setVertPunctReplace($0)
+                                refreshWidgets()
+                            }
                         }
+                        .padding(SettingsLayout.cardInset)
+                        .background(colors.surfaceContainer)
+                        .cornerRadius(SleepyShapes.large)
                     }
-                    .padding(16)
-                    .background(colors.surfaceContainer)
-                    .cornerRadius(SleepyShapes.large)
 
                     // 独立于桌面小组件和最近有课日选项; 不改变现有开关语义。
                     SectionHeader(title: L10n.format("settings_watch_time_strip_section"))
@@ -108,6 +110,7 @@ struct WidgetSettingsScreen: View {
                 .padding(.bottom, navExtra)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(colors.background)
         .navigationBarHidden(true)
         // ← SnackbarHost: 底部胶囊浮层(仓库同款, 与 MineScreen 同式读 DockSpec)
@@ -138,7 +141,7 @@ struct WidgetSettingsScreen: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active { reloadPlaced() }
         }
-        .sheet(isPresented: $showSharedDisplay) {
+        .fullScreenCover(isPresented: $showSharedDisplay) {
             ScheduleDisplayScreen(onDismiss: { showSharedDisplay = false }, viewModel: viewModel)
         }
         .fullScreenCover(isPresented: $showManage) {
@@ -156,9 +159,9 @@ struct WidgetSettingsScreen: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.format("settings_widget_shared_display"))
-                        .font(.system(size: 14, weight: .medium)).foregroundColor(colors.onSurface)
+                        .font(SettingsLayout.headingStyle).foregroundColor(colors.onSurface)
                     Text(L10n.format("settings_widget_shared_display_sub"))
-                        .font(.footnote).foregroundColor(colors.onSurfaceVariant)
+                        .font(SettingsLayout.descriptionStyle).foregroundColor(colors.onSurfaceVariant)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
@@ -212,7 +215,7 @@ struct WidgetSettingsScreen: View {
         Button { showManage = true } label: {
             HStack {
                 Text(L10n.format("widget_manage_entry"))
-                    .font(.system(size: 14, weight: .medium)) // ← 原 titleSmall 14sp Medium
+                    .font(SettingsLayout.headingStyle)
                     .foregroundColor(colors.onSurface)
                 Spacer()
                 AndroidMaterialIcon(name: .chevronRight, size: 20)
