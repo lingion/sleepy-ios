@@ -138,10 +138,11 @@ enum WeekGridWidgetLoader {
     }
 }
 
-/// One source is shared by all three edit previews, so their bindings and course snapshot agree.
+/// Each independent 4×2 kind resolves its own binding before selecting its fixed date window.
 enum WeekGridWideDataLoader {
-    static func load(mode: WeekGridWideMode, now: Date = Date()) async -> WeekData {
-        let source = await WidgetWeekDataLoader.resolve(WeekGridWideSettings.kind)
+    static func load(kind: String, now: Date = Date(), repository: ScheduleRepository? = nil) async -> WeekData {
+        guard let mode = WeekGridWideMode(kind: kind) else { return WeekData(days: [], hasTable: false) }
+        let source = await WidgetWeekDataLoader.resolve(kind, repository: repository, now: now)
         return await dataForSource(source, mode: mode, now: now)
     }
 

@@ -59,13 +59,17 @@ final class WidgetGalleryParityTests: XCTestCase {
         }
     }
 
-    func testAccordionGroupsEverySupportedSizeAndKeepsWideGridInItsFamily() throws {
+    func testAccordionListsBothIndependentWideKindsAlongsideTheFullGrid() throws {
+        XCTAssertEqual(WeekGridWidget.supportedFamilies, [.systemSmall, .systemLarge],
+                       "The system picker must not offer a third complete-grid 4×2 face")
         let groups = WidgetGalleryData.buildGroups()
         XCTAssertEqual(groups.count, 5)
         let grid = try XCTUnwrap(groups.first { $0.id == "WeekGridWidgetV19" })
         XCTAssertEqual(grid.primary.previewFamily, .systemLarge)
-        XCTAssertEqual(grid.cards.count, 4)
-        XCTAssertEqual(grid.cards.filter { $0.variant.kind == WeekGridWideSettings.kind }.map(\.previewFamily), [.systemMedium])
+        XCTAssertEqual(grid.cards.map(\.variant.kind),
+                       ["WeekGridWidgetV19", WeekGridWideMode.vertical.widgetKind,
+                        WeekGridWideMode.horizontal.widgetKind, "WeekGridWidgetV19"])
+        XCTAssertEqual(grid.cards.map(\.previewFamily), [.systemLarge, .systemMedium, .systemMedium, .systemSmall])
         XCTAssertEqual(Set(groups.flatMap(\.cards).map(\.id)).count, 16)
         XCTAssertTrue(groups.allSatisfy(\.isMultiSize))
         for group in groups {
@@ -219,6 +223,297 @@ final class WidgetGalleryParityTests: XCTestCase {
                 }
             }
         }
+    }
+
+    @available(iOS 16.0, *)
+    @MainActor
+    func testIndependentWideKindsRenderBoundCoursesWithDistinctAxes() async throws {
+        let cache = AppPrefs.shared.sharedBackedStore
+        let cacheKeys = ["holiday_entries_2426", "holiday_entries_2426_loaded"]
+        let previousCache = cacheKeys.map { cache.object(forKey: $0) }
+        cache.set("[]", forKey: cacheKeys[0]); cache.set(true, forKey: cacheKeys[1])
+        defer {
+            for (key, value) in zip(cacheKeys, previousCache) {
+                if let value { cache.set(value, forKey: key) } else { cache.removeObject(forKey: key) }
+            }
+        }
+        let repository = ScheduleRepository(try AppDatabase.inMemory())
+        let periods = (0..<8).map { index in
+            ["node": index + 1, "start": String(format: "%02d:00", 8 + index),
+             "end": String(format: "%02d:45", 8 + index)] as [String: Any]
+        }
+        let times = String(data: try JSONSerialization.data(withJSONObject: periods), encoding: .utf8)!
+        let periodTable = try repository.insertPeriodTable(PeriodTableEntity(name: "Eight periods",
+            nodesPerDay: 8, timeJson: times))
+        let table = try repository.insertTable(TimeTableEntity(name: "Bound render fixture",
+            startDate: "2426-11-09", nodesPerDay: 1, timeJson: "[]", periodTableId: periodTable))
+        for (day, node, step, name, room) in [(1, 1, 8, "Monday studio", "M100"),
+                                             (2, 2, 2, "Drawing", "A305"),
+                                             (3, 5, 2, "Seminar", "B406"),
+                                             (4, 7, 2, "Laboratory", "C507")] {
+            try repository.insertCourse(CourseEntity(groupId: "render-\(day)", tableId: table,
+                courseName: name, room: room, day: day, startNode: node, step: step,
+                startWeek: 1, endWeek: 16, color: "#E57D9C", colorMode: 2))
+        }
+        let kind = "widget-independent-render-\(UUID().uuidString)"
+        WidgetBindingStore.put(kind, tableId: table)
+        defer { WidgetBindingStore.remove(kind) }
+        let morning = try XCTUnwrap(DateUtils.parseDate("2426-11-10")).addingTimeInterval(7.5 * 3600)
+        let resolved = await WidgetWeekDataLoader.resolve(kind, repository: repository, now: morning)
+        let source = try XCTUnwrap(resolved)
+        XCTAssertEqual(source.table.timeJson, times, "The render must use the bound independent period table")
+        XCTAssertEqual(source.courses.count, 4)
+
+        let prefs = AppPrefs.shared
+        let oldColorless = prefs.isWidgetColorless()
+        let oldSeparators = prefs.isGridShowSeparators()
+        prefs.setWidgetColorless(false)
+        prefs.setGridShowSeparators(false)
+        defer {
+            prefs.setWidgetColorless(oldColorless)
+            prefs.setGridShowSeparators(oldSeparators)
+        }
+        let size = CGSize(width: 358, height: 169)
+        let wholeImage = CGRect(origin: .zero, size: size)
+        var images: [WeekGridWideMode: UIImage] = [:]
+        for mode in WeekGridWideMode.allCases {
+            var data = await WeekGridWideDataLoader.dataForSource(source, mode: mode, now: morning)
+            data.themeKey = ThemePresets.KEY_DEFAULT
+            data.themeMode = "light"
+            data.isDark = false
+            data.showDate = true
+            // Holiday preferences must not change the deterministic fixture's contrast.
+            data.days = data.days.map { DayData(date: $0.date, dayOfWeek: $0.dayOfWeek,
+                courses: $0.courses, timeJson: $0.timeJson) }
+            let expectedDates = mode == .horizontal
+                ? ["2426-11-10", "2426-11-11", "2426-11-12"]
+                : ["2426-11-09", "2426-11-10", "2426-11-11", "2426-11-12",
+                   "2426-11-13", "2426-11-14", "2426-11-15"]
+            XCTAssertEqual(data.days.map { HolidayTransferOps.dayKey($0.date) }, expectedDates)
+            XCTAssertTrue(data.days.allSatisfy { $0.timeJson == times })
+            XCTAssertEqual(Set(data.days.flatMap(\.courses).map(\.courseName)), mode == .horizontal
+                ? Set(["Drawing", "Seminar", "Laboratory"])
+                : Set(["Monday studio", "Drawing", "Seminar", "Laboratory"]))
+            let settings = WeekGridWideSettings(mode: mode)
+            let image = try renderWideMode(data: data, settings: settings, now: morning, size: size)
+            images[mode] = image
+            try attachWideMode(image, name: mode.rawValue)
+            XCTAssertGreaterThan(try saturatedPixelCount(image), 100,
+                                 "\(mode) must draw the real courses' custom color")
+
+            var withoutText = data
+            withoutText.days = data.days.map { day in
+                DayData(date: day.date, dayOfWeek: day.dayOfWeek, courses: day.courses.map { course in
+                    var copy = course
+                    copy.courseName = ""
+                    copy.alias = ""
+                    copy.room = ""
+                    return copy
+                }, timeJson: day.timeJson)
+            }
+            let blankCards = try renderWideMode(data: withoutText, settings: settings, now: morning, size: size)
+            XCTAssertGreaterThan(try differingPixels(image, blankCards, in: wholeImage), 20,
+                                 "\(mode) must draw course names and room text, not just colored cards")
+
+            let geometry = WeekGridWideGeometry.make(data: data, settings: settings, now: morning, size: size)
+            XCTAssertEqual(geometry.dates.count, mode == .vertical ? 7 : 3)
+            XCTAssertEqual(geometry.periods.map(\.node), Array(1...8))
+            XCTAssertFalse(geometry.cards.isEmpty)
+            XCTAssertTrue(geometry.cards.allSatisfy { geometry.body.contains($0.bounds) })
+            var empty = data
+            empty.days = data.days.map { DayData(date: $0.date, dayOfWeek: $0.dayOfWeek,
+                courses: [], timeJson: $0.timeJson) }
+            let axes = try renderWideMode(data: empty, settings: settings, now: morning, size: size)
+            for card in geometry.cards {
+                XCTAssertGreaterThan(try differingPixels(image, axes, in: card.bounds.insetBy(dx: 2, dy: 2)), 10,
+                                     "\(mode) must draw the visible card for \(card.course.courseName)")
+            }
+            if mode == .vertical {
+                XCTAssertEqual(geometry.body.minX, 28)
+                XCTAssertEqual(geometry.body.minY, 6, "Android's vertical mode has no date header")
+                XCTAssertEqual(geometry.window, WidePeriodWindow(startIndex: 0, count: 4))
+                XCTAssertGreaterThan(try darkPixelCount(axes, in: CGRect(x: 0, y: 6, width: 28, height: 157)), 15,
+                                     "Vertical must draw its left period-number axis")
+                let afternoon = morning.addingTimeInterval(5.5 * 3600)
+                let advanced = WeekGridWideGeometry.make(data: data, settings: settings, now: afternoon, size: size)
+                XCTAssertEqual(advanced.window, WidePeriodWindow(startIndex: 4, count: 4))
+                XCTAssertEqual(Set(advanced.cards.map(\.course.courseName)),
+                               ["Monday studio", "Seminar", "Laboratory"])
+                let advancedImage = try renderWideMode(data: data, settings: settings, now: afternoon, size: size)
+                XCTAssertGreaterThan(try differingPixels(image, advancedImage, in: wholeImage), 100)
+                try attachWideMode(advancedImage, name: "vertical-afternoon")
+            } else {
+                XCTAssertEqual(geometry.body.minX, 40)
+                XCTAssertEqual(geometry.body.minY, 40)
+                XCTAssertEqual(geometry.window, WidePeriodWindow(startIndex: 0, count: 8))
+                XCTAssertEqual(Set(geometry.cards.map(\.course.courseName)), ["Drawing", "Seminar", "Laboratory"])
+                XCTAssertGreaterThan(try darkPixelCount(axes, in: CGRect(x: 0, y: 40, width: 34, height: 123)), 15,
+                                     "Horizontal must draw three date rows")
+                var untimed = empty
+                let nodeOnly = String(data: try JSONSerialization.data(withJSONObject:
+                    (1...8).map { ["node": $0] }), encoding: .utf8)!
+                untimed.days = empty.days.map { DayData(date: $0.date, dayOfWeek: $0.dayOfWeek,
+                    courses: [], timeJson: nodeOnly) }
+                let untimedAxes = try renderWideMode(data: untimed, settings: settings, now: morning, size: size)
+                XCTAssertGreaterThan(try differingPixels(axes, untimedAxes,
+                    in: CGRect(x: 40, y: 17, width: 312, height: 23)), 20,
+                    "Horizontal must draw start/end clock text below its period numbers")
+                let rightSettings = WeekGridWideSettings(mode: .horizontal, labelSide: .right)
+                let right = WeekGridWideGeometry.make(data: data, settings: rightSettings, now: morning, size: size)
+                XCTAssertEqual(right.dates, geometry.dates)
+                XCTAssertEqual(right.body.minX, 6)
+                XCTAssertEqual(right.body.maxX, size.width - 40)
+                let rightImage = try renderWideMode(data: data, settings: rightSettings, now: morning, size: size)
+                XCTAssertGreaterThan(try differingPixels(image, rightImage, in: wholeImage), 100)
+                let afternoon = WeekGridWideGeometry.make(data: data, settings: settings,
+                    now: morning.addingTimeInterval(5.5 * 3600), size: size)
+                XCTAssertEqual(afternoon.window, geometry.window, "Horizontal must never advance the period window")
+                try attachWideMode(rightImage, name: "horizontal-right")
+            }
+        }
+        XCTAssertGreaterThan(try differingPixels(XCTUnwrap(images[.vertical]), XCTUnwrap(images[.horizontal]),
+            in: wholeImage), 100, "The two independent widgets must render visibly distinct layouts")
+    }
+
+    @available(iOS 16.0, *)
+    @MainActor
+    private func renderWideMode(data: WeekData, settings: WeekGridWideSettings, now: Date, size: CGSize) throws -> UIImage {
+        try renderWideContent(WeekGridWideWidgetEntryView(entry:
+            WeekGridWideWidgetEntry(date: now, data: data, settings: settings)), now: now, size: size)
+    }
+
+    @available(iOS 16.0, *)
+    @MainActor
+    private func renderWideContent<Content: View>(_ content: Content, now: Date, size: CGSize) throws -> UIImage {
+        let renderer = ImageRenderer(content: content
+            .environment(\.sleepyWidgetGalleryFamily, .systemMedium)
+            .environment(\.sleepyWidgetGalleryDate, now)
+            .environment(\.colorScheme, .light)
+            .frame(width: size.width, height: size.height))
+        renderer.proposedSize = ProposedViewSize(size)
+        renderer.scale = 2
+        return try XCTUnwrap(renderer.uiImage)
+    }
+
+    private func widePixels(_ image: UIImage, in rect: CGRect? = nil) throws -> (bytes: [UInt8], width: Int, height: Int) {
+        let original = try XCTUnwrap(image.cgImage)
+        let scale = CGFloat(original.width) / image.size.width
+        let bounds = CGRect(x: 0, y: 0, width: original.width, height: original.height)
+        let area = rect.map { $0.applying(CGAffineTransform(scaleX: scale, y: scale)).integral
+            .intersection(bounds) } ?? bounds
+        guard !area.isNull, !area.isEmpty else { return ([], 0, 0) }
+        // CGImage cropping uses image coordinates, avoiding a CGContext row-order assumption.
+        let cg = try XCTUnwrap(original.cropping(to: area))
+        var bytes = [UInt8](repeating: 0, count: cg.width * cg.height * 4)
+        try bytes.withUnsafeMutableBytes { storage in
+            let context = try XCTUnwrap(CGContext(data: storage.baseAddress, width: cg.width,
+                height: cg.height, bitsPerComponent: 8, bytesPerRow: cg.width * 4,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        }
+        return (bytes, cg.width, cg.height)
+    }
+
+    private func differingPixels(_ first: UIImage, _ second: UIImage, in rect: CGRect) throws -> Int {
+        let a = try widePixels(first, in: rect), b = try widePixels(second, in: rect)
+        XCTAssertEqual(a.width, b.width)
+        XCTAssertEqual(a.height, b.height)
+        return stride(from: 0, to: min(a.bytes.count, b.bytes.count), by: 4).filter { offset in
+            (0..<4).contains { abs(Int(a.bytes[offset + $0]) - Int(b.bytes[offset + $0])) > 8 }
+        }.count
+    }
+
+    private func saturatedPixelCount(_ image: UIImage) throws -> Int {
+        let pixels = try widePixels(image)
+        return stride(from: 0, to: pixels.bytes.count, by: 4).filter { offset in
+            let rgb = pixels.bytes[offset..<(offset + 3)]
+            return Int(rgb.max()!) - Int(rgb.min()!) > 40 && pixels.bytes[offset + 3] > 128
+        }.count
+    }
+
+    private func darkPixelCount(_ image: UIImage, in rect: CGRect) throws -> Int {
+        let pixels = try widePixels(image, in: rect)
+        return stride(from: 0, to: pixels.bytes.count, by: 4).filter { offset in
+            pixels.bytes[offset + 3] > 128 && (0..<3).allSatisfy { pixels.bytes[offset + $0] < 150 }
+        }.count
+    }
+
+    private func attachWideMode(_ image: UIImage, name: String) throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("WidgetModeVerification", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let path = directory.appendingPathComponent(name + ".png")
+        try XCTUnwrap(image.pngData()).write(to: path)
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "widget-mode-" + name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        NSLog("WIDGET_MODE_VERIFICATION_WRITTEN %@", path.path)
+    }
+
+    @available(iOS 16.0, *)
+    @MainActor
+    func testUniformColorReachesEveryColoredProductionWidgetFace() throws {
+        let sample = WidgetGallerySampleData.make()
+        var week = sample.week
+        week.themeMode = "light"
+        week.themeKey = ThemePresets.KEY_DEFAULT
+        week.days = week.days.map { day in
+            DayData(date: day.date, dayOfWeek: day.dayOfWeek, courses: day.courses.map { row in
+                var course = row
+                course.color = ""
+                course.colorMode = CourseColorMode.GROUP
+                return course
+            }, timeJson: day.timeJson)
+        }
+        let now = sample.today.date.addingTimeInterval(7 * 3600)
+        let prefs = AppPrefs.shared
+        let previous = prefs.isWidgetColorless()
+        defer { prefs.setWidgetColorless(previous) }
+        let size = CGSize(width: 358, height: 169)
+        let neutral = resolveWidgetScheme(themeKey: week.themeKey, isDark: false).secondaryContainer
+        for kind in ["WeekGridWidgetV19", "TodayWidgetRV", "TwoDayWidgetRV", "WeekListWidgetRV",
+                     WeekGridWideMode.vertical.widgetKind, WeekGridWideMode.horizontal.widgetKind] {
+            func content() -> AnyView {
+                switch kind {
+                case "WeekGridWidgetV19":
+                    return AnyView(WeekGridWidgetEntryView(entry: .init(date: now, data: week)))
+                case "TodayWidgetRV":
+                    let today = WidgetData(date: sample.today.date, courses: week.days[1].courses,
+                        timeJson: sample.today.timeJson, hasTable: true, themeKey: week.themeKey,
+                        themeMode: "light", isToday: true)
+                    return AnyView(TodayWidgetEntryView(entry: .init(date: now, data: today)))
+                case "TwoDayWidgetRV":
+                    return AnyView(TwoDayWidgetEntryView(entry: .init(date: now,
+                        data: TwoDayData(days: Array(week.days[1...2]), hasTable: true,
+                            themeKey: week.themeKey, themeMode: "light"))))
+                case "WeekListWidgetRV":
+                    return AnyView(WeekListWidgetEntryView(entry: .init(date: now, data: week)))
+                default:
+                    return AnyView(WeekGridWideWidgetEntryView(entry: .init(date: now, data: week,
+                        settings: .init(mode: WeekGridWideMode(kind: kind)!))))
+                }
+            }
+            prefs.setWidgetColorless(false)
+            let colored = try renderWideContent(content(), now: now, size: size)
+            prefs.setWidgetColorless(true)
+            let uniform = try renderWideContent(content(), now: now, size: size)
+            XCTAssertGreaterThan(try colorPixelCount(uniform, color: neutral),
+                                 try colorPixelCount(colored, color: neutral) + 100,
+                                 "\(kind) must use the selected theme's secondaryContainer when uniform color is enabled")
+            try attachWideMode(uniform, name: "uniform-" + kind)
+        }
+    }
+
+    private func colorPixelCount(_ image: UIImage, color: Color) throws -> Int {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        XCTAssertTrue(UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+        let target = [red, green, blue].map { Int(($0 * 255).rounded()) }
+        let pixels = try widePixels(image)
+        return stride(from: 0, to: pixels.bytes.count, by: 4).filter { offset in
+            pixels.bytes[offset + 3] > 240 &&
+                (0..<3).allSatisfy { abs(Int(pixels.bytes[offset + $0]) - target[$0]) <= 4 }
+        }.count
     }
 
     @available(iOS 16.0, *)

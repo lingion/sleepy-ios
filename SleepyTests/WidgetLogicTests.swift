@@ -154,6 +154,103 @@ final class WidgetLogicTests: XCTestCase {
         XCTAssertNil(WidgetTableResolver.resolveCurrentTable(repo))
     }
 
+    func testWeekSourceUsesBoundPeriodTableInsteadOfStaleScheduleTimes() async throws {
+        let repo = ScheduleRepository(try AppDatabase.inMemory())
+        let staleTimes = #"[{"node":1,"start":"08:00","end":"08:45"}]"#
+        let boundTimes = #"[{"node":1,"start":"14:00","end":"14:45"},{"node":2,"start":"15:00","end":"15:45"},{"node":3,"start":"16:00","end":"16:45"}]"#
+        let period = try repo.insertPeriodTable(PeriodTableEntity(name: "独立下午作息",
+            nodesPerDay: 3, timeJson: boundTimes))
+        let defaultTable = try repo.insertTable(TimeTableEntity(name: "默认表", startDate: "2026-11-09",
+            timeJson: staleTimes, isDefault: true))
+        let boundTable = try repo.insertTable(TimeTableEntity(name: "小组件绑定表", startDate: "2026-11-09",
+            nodesPerDay: 1, timeJson: staleTimes, periodTableId: period))
+        try repo.insertCourse(makeCourse(defaultTable, "默认课", startNode: 1))
+        let boundCourse = try repo.insertCourse(makeCourse(boundTable, "下午课", startNode: 3))
+        let kind = "widget-source-bound-\(UUID().uuidString)"
+        WidgetBindingStore.put(kind, tableId: boundTable)
+        defer { WidgetBindingStore.remove(kind) }
+
+        // A changed shared period table can leave the schedule's compatibility columns stale.
+        XCTAssertEqual(try repo.getTable(boundTable)?.timeJson, staleTimes)
+        let resolved = await WidgetWeekDataLoader.resolve(kind, repository: repo,
+            now: DateUtils.parseDate("2026-11-10")!)
+        let source = try XCTUnwrap(resolved)
+        XCTAssertEqual(source.table.id, boundTable)
+        XCTAssertEqual(source.table.timeJson, boundTimes)
+        XCTAssertEqual(source.table.nodesPerDay, 3)
+        XCTAssertEqual(source.courses.map(\.id), [boundCourse])
+        XCTAssertEqual(WeekGridWideWindowCore.periods(timeJson: source.table.timeJson).map(\.startMinute),
+                       [840, 900, 960])
+    }
+
+    func testWeekSourceWithoutBindingUsesHydratedDefaultTable() async throws {
+        let repo = ScheduleRepository(try AppDatabase.inMemory())
+        let periodTimes = #"[{"node":1,"start":"10:00","end":"10:45"},{"node":2,"start":"11:00","end":"11:45"}]"#
+        let period = try repo.insertPeriodTable(PeriodTableEntity(name: "默认表作息",
+            nodesPerDay: 2, timeJson: periodTimes))
+        let defaultTable = try repo.insertTable(TimeTableEntity(name: "默认表", startDate: "2026-11-09",
+            nodesPerDay: 1, timeJson: "[]", isDefault: true, periodTableId: period))
+        let other = try repo.insertTable(TimeTableEntity(name: "其他表", startDate: "2026-11-09",
+            timeJson: TimeTableUtils.DEFAULT_TIME_JSON))
+        let course = try repo.insertCourse(makeCourse(defaultTable, "默认课", startNode: 2))
+        try repo.insertCourse(makeCourse(other, "其他课一", startNode: 1))
+        try repo.insertCourse(makeCourse(other, "其他课二", startNode: 3))
+        let kind = "widget-source-default-\(UUID().uuidString)"
+        XCTAssertNil(WidgetBindingStore.get(kind))
+
+        let resolved = await WidgetWeekDataLoader.resolve(kind, repository: repo,
+            now: DateUtils.parseDate("2026-11-10")!)
+        let source = try XCTUnwrap(resolved)
+        XCTAssertEqual(source.table.id, defaultTable)
+        XCTAssertEqual(source.table.timeJson, periodTimes)
+        XCTAssertEqual(source.table.nodesPerDay, 2)
+        XCTAssertEqual(source.courses.map(\.id), [course])
+    }
+
+    func testIndependentWideKindsLoadTheirOwnBoundTablesAndPeriodSchedules() async throws {
+        let repository = ScheduleRepository(try AppDatabase.inMemory())
+        let timesA = #"[{"node":1,"start":"08:00","end":"08:45"}]"#
+        let timesB = #"[{"node":1,"start":"14:00","end":"14:45"},{"node":2,"start":"15:00","end":"15:45"}]"#
+        let periodA = try repository.insertPeriodTable(.init(name: "Morning", nodesPerDay: 1, timeJson: timesA))
+        let periodB = try repository.insertPeriodTable(.init(name: "Afternoon", nodesPerDay: 2, timeJson: timesB))
+        let tableA = try repository.insertTable(.init(name: "Vertical binding", startDate: "2426-11-09", periodTableId: periodA))
+        let tableB = try repository.insertTable(.init(name: "Horizontal binding", startDate: "2426-11-09", periodTableId: periodB))
+        let courseA = try repository.insertCourse(CourseEntity(groupId: "vertical", tableId: tableA,
+            courseName: "Vertical course", day: 2, startNode: 1, step: 1, startWeek: 1, endWeek: 16, color: ""))
+        let courseB = try repository.insertCourse(CourseEntity(groupId: "horizontal", tableId: tableB,
+            courseName: "Horizontal course", day: 2, startNode: 2, step: 1, startWeek: 1, endWeek: 16, color: ""))
+        let verticalKind = WeekGridWideMode.vertical.widgetKind
+        let horizontalKind = WeekGridWideMode.horizontal.widgetKind
+        let oldVertical = WidgetBindingStore.get(verticalKind), oldHorizontal = WidgetBindingStore.get(horizontalKind)
+        let store = AppPrefs.shared.sharedBackedStore
+        let cacheKeys = ["holiday_entries_2426", "holiday_entries_2426_loaded"]
+        let oldCache = cacheKeys.map { store.object(forKey: $0) }
+        store.set("[]", forKey: cacheKeys[0]); store.set(true, forKey: cacheKeys[1])
+        defer {
+            if let oldVertical { WidgetBindingStore.put(verticalKind, tableId: oldVertical) }
+            else { WidgetBindingStore.remove(verticalKind) }
+            if let oldHorizontal { WidgetBindingStore.put(horizontalKind, tableId: oldHorizontal) }
+            else { WidgetBindingStore.remove(horizontalKind) }
+            for (key, value) in zip(cacheKeys, oldCache) {
+                if let value { store.set(value, forKey: key) } else { store.removeObject(forKey: key) }
+            }
+        }
+        WidgetBindingStore.put(verticalKind, tableId: tableA)
+        WidgetBindingStore.put(horizontalKind, tableId: tableB)
+        let now = DateUtils.parseDate("2426-11-10")!
+        let vertical = await WeekGridWideDataLoader.load(kind: verticalKind, now: now, repository: repository)
+        let horizontal = await WeekGridWideDataLoader.load(kind: horizontalKind, now: now, repository: repository)
+        XCTAssertEqual(vertical.days.count, 7)
+        XCTAssertEqual(horizontal.days.count, 3)
+        XCTAssertEqual(Set(vertical.days.flatMap(\.courses).map(\.id)), [courseA])
+        XCTAssertEqual(Set(horizontal.days.flatMap(\.courses).map(\.id)), [courseB])
+        XCTAssertTrue(vertical.days.allSatisfy { $0.timeJson == timesA })
+        XCTAssertTrue(horizontal.days.allSatisfy { $0.timeJson == timesB })
+        WidgetBindingStore.remove(verticalKind)
+        XCTAssertEqual(WidgetBindingStore.get(horizontalKind), tableB,
+                       "Editing one widget must not change the other's binding")
+    }
+
     // ==================== WidgetEditCompactWindowSection.appliesTo(三天窗口族门控) ====================
     // ← 原 WidgetCompactWindowCoreTest `appliesTo only matches the two small
     //   week receivers` (L50-58): 仅 WeekList/WeekView 两族的「· 小」档显示本节,

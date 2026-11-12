@@ -1235,15 +1235,12 @@
 "import_backup_name" = "%1$@ - Copia";
 
 // Android v1.0.64 widget layouts and gallery
-"widget_week_grid_wide_label" = "Horario semanal en cuadrícula · 4×2";
 "widget_wide_grid_empty" = "No hay clases en las fechas de vista previa";
 "widget_wide_grid_horizontal" = "Tres días horizontales, avance diario";
 "widget_wide_grid_layout" = "Diseño de cuadrícula 4×2";
 "widget_wide_grid_left" = "Etiquetas de días a la izquierda";
-"widget_wide_grid_original" = "Cuadrícula completa original";
 "widget_wide_grid_preview_error" = "No se pudieron cargar las vistas previas. Vuelve e inténtalo de nuevo.";
 "widget_wide_grid_right" = "Etiquetas de días a la derecha";
-"widget_wide_grid_shapes" = "Cambiar forma";
 "widget_wide_grid_unavailable" = "Este widget se ha eliminado o no está disponible";
 "widget_wide_grid_vertical" = "Semana vertical, avanza cada período";
 "settings_widget_global_appearance" = "Apariencia global";
@@ -1397,3 +1394,6 @@
 "occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
 
 "settings_holidays" = "Festivos y clases de recuperación";
+
+"widget_week_grid_vertical_label" = "Cuadrícula semanal vertical · 4×2";
+"widget_week_grid_horizontal_label" = "Cuadrícula de tres días horizontal · 4×2";

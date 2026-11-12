@@ -54,6 +54,7 @@ struct WidgetGalleryScreen: View {
                 .padding(16)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(colors.background)
         .navigationBarHidden(true)
         // ← v1.0.64: 原「不支持」snackbar 死胡同 → 添加引导 sheet
@@ -68,7 +69,7 @@ struct WidgetGalleryScreen: View {
     }
 
     private func expanded(_ group: WidgetGalleryGroup) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             HStack {
                 Text(L10n.format(group.primary.variant.displayNameKey))
                     .font(.system(size: 16, weight: .semibold))
@@ -88,7 +89,9 @@ struct WidgetGalleryScreen: View {
             .contentShape(Rectangle())
             .onTapGesture { withAnimation { expandedGroupKey = nil } }
             let ratios = WidgetGalleryData.rowBoxAspectRatios(group.cards, columns: 2)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            // Android Row aligns variant columns at the top, including when a title wraps.
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12, alignment: .top),
+                                GridItem(.flexible(), spacing: 12, alignment: .top)], spacing: 12) {
                 ForEach(Array(group.cards.enumerated()), id: \.element.id) { index, card in
                     GalleryCard(card: card, boxAspectRatio: ratios[index],
                         enabled: !cooling.contains(card.receiverName), title: sizeTitle(card)) { tap(card) }
@@ -103,7 +106,11 @@ struct WidgetGalleryScreen: View {
     }
 
     private func sizeTitle(_ card: WidgetGalleryCard) -> String {
-        if card.variant.kind == WeekGridWideSettings.kind { return L10n.format(card.variant.displayNameKey) }
+        if WeekGridWideMode(kind: card.variant.kind) != nil { return L10n.format(card.variant.displayNameKey) }
+        if card.variant.kind == "WeekGridWidgetV19" {
+            return L10n.format(card.previewFamily == .systemSmall
+                ? "widget_week_grid_small_label" : "widget_week_grid_label")
+        }
         let key = card.previewFamily == .systemSmall ? "widget_size_small"
             : card.previewFamily == .systemMedium ? "widget_size_medium" : "widget_size_large"
         return L10n.format(key)

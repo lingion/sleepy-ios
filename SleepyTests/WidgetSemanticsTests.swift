@@ -65,18 +65,24 @@ final class WidgetSemanticsTests: XCTestCase {
                        ["2026-11-15", "2026-11-16", "2026-11-17"])
         XCTAssertEqual(WeekGridWideWindowCore.visibleDates(today: sunday, mode: .vertical).map(HolidayTransferOps.dayKey),
                        (9...15).map { "2026-11-\(String(format: "%02d", $0))" })
-        XCTAssertEqual(WeekGridWideWindowCore.visibleDates(today: sunday, mode: .original).count, 7)
     }
 
-    func testWideGridStoreHasIndependentDefaultsAndRetainsValidFields() throws {
+    func testIndependentWideKindsLockTheirLayoutAndIsolateLabelPreferences() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: url) }
-        XCTAssertEqual(WeekGridWideSettingsStore.read(url: url), WeekGridWideSettings())
-        WeekGridWideSettingsStore.write(WeekGridWideSettings(mode: .horizontal, labelSide: .right), url: url)
-        XCTAssertEqual(WeekGridWideSettingsStore.read(url: url), WeekGridWideSettings(mode: .horizontal, labelSide: .right))
-        XCTAssertEqual(WeekGridWideSettingsStore.read(kind: "other", url: url), WeekGridWideSettings())
-        try Data("{\"WeekGridWideWidget\":{\"mode\":\"future\",\"labelSide\":\"right\"}}".utf8).write(to: url)
-        XCTAssertEqual(WeekGridWideSettingsStore.read(url: url), WeekGridWideSettings(mode: .vertical, labelSide: .right))
+        let vertical = WeekGridWideMode.vertical.widgetKind
+        let horizontal = WeekGridWideMode.horizontal.widgetKind
+        XCTAssertEqual(WeekGridWideSettingsStore.read(kind: vertical, url: url), .init(mode: .vertical))
+        XCTAssertEqual(WeekGridWideSettingsStore.read(kind: horizontal, url: url), .init(mode: .horizontal))
+        WeekGridWideSettingsStore.write(.init(mode: .vertical, labelSide: .right), kind: horizontal, url: url)
+        XCTAssertEqual(WeekGridWideSettingsStore.read(kind: horizontal, url: url), .init(mode: .horizontal, labelSide: .right))
+        XCTAssertEqual(WeekGridWideSettingsStore.read(kind: vertical, url: url), .init(mode: .vertical, labelSide: .left))
+        WeekGridWideSettingsStore.write(.init(mode: .horizontal, labelSide: .left), kind: vertical, url: url)
+        XCTAssertEqual(WeekGridWideSettingsStore.read(kind: vertical, url: url).mode, .vertical)
+        XCTAssertEqual(WeekGridWideSettingsStore.read(kind: horizontal, url: url).labelSide, .right)
+        XCTAssertNil(WeekGridWideMode(kind: "WeekGridWideWidget"))
+        XCTAssertEqual(Set(allWidgetVariants.map(\.kind)).intersection([vertical, horizontal]).count, 2)
+        XCTAssertFalse(allWidgetVariants.contains { $0.kind == "WeekGridWideWidget" })
     }
 
     func testSingleLaneStackKeepsEveryCourseInItsRowHeight() {

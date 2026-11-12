@@ -1,4 +1,4 @@
-// Android v1.0.64 dedicated 4×2 receiver. Existing WeekGrid family is unchanged.
+// Two independent 4×2 kinds share Android v1.0.64 window and card geometry.
 import SwiftUI
 import WidgetKit
 
@@ -9,30 +9,32 @@ struct WeekGridWideWidgetEntry: TimelineEntry {
 }
 
 struct WeekGridWideWidgetProvider: TimelineProvider {
+    let mode: WeekGridWideMode
+
     func placeholder(in context: Context) -> WeekGridWideWidgetEntry {
-        WidgetArchiveLog.append(kind: WeekGridWideSettings.kind, family: context.family.description, result: "success")
+        WidgetArchiveLog.append(kind: mode.widgetKind, family: context.family.description, result: "success")
         return WeekGridWideWidgetEntry(date: Date(), data: WeekData(days: [], hasTable: false),
-                                      settings: WeekGridWideSettings())
+                                      settings: WeekGridWideSettings(mode: mode))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WeekGridWideWidgetEntry) -> Void) {
         Task {
-            let now = Date(), settings = WeekGridWideSettingsStore.read()
-            let data = await WeekGridWideDataLoader.load(mode: settings.mode, now: now)
-            WidgetArchiveLog.append(kind: WeekGridWideSettings.kind, family: context.family.description, result: "success")
+            let now = Date(), settings = WeekGridWideSettingsStore.read(kind: mode.widgetKind)
+            let data = await WeekGridWideDataLoader.load(kind: mode.widgetKind, now: now)
+            WidgetArchiveLog.append(kind: mode.widgetKind, family: context.family.description, result: "success")
             completion(WeekGridWideWidgetEntry(date: now, data: data, settings: settings))
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekGridWideWidgetEntry>) -> Void) {
         Task {
-            let now = Date(), settings = WeekGridWideSettingsStore.read()
-            let data = await WeekGridWideDataLoader.load(mode: settings.mode, now: now)
+            let now = Date(), settings = WeekGridWideSettingsStore.read(kind: mode.widgetKind)
+            let data = await WeekGridWideDataLoader.load(kind: mode.widgetKind, now: now)
             let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
             let entries = Self.timelineDates(data: data, mode: settings.mode, from: now, before: refresh).map {
                 WeekGridWideWidgetEntry(date: $0, data: data, settings: settings)
             }
-            WidgetArchiveLog.append(kind: WeekGridWideSettings.kind, family: context.family.description, result: "success")
+            WidgetArchiveLog.append(kind: mode.widgetKind, family: context.family.description, result: "success")
             completion(Timeline(entries: entries, policy: .after(refresh)))
         }
     }
@@ -112,9 +114,6 @@ struct WeekGridWideWidgetEntryView: View {
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        if entry.settings.mode == .original {
-            WeekGridWidgetEntryView(entry: WeekGridWidgetEntry(date: entry.date, data: entry.data))
-        } else {
             WidgetGlassModeContent { mode in
                 let dark = effectiveWidgetIsDark(themeMode: entry.data.themeMode, snapshotIsDark: entry.data.isDark,
                                                  envScheme: colorScheme)
@@ -147,7 +146,6 @@ struct WeekGridWideWidgetEntryView: View {
                 .cornerRadius(18)
             }
             .widgetURL(URL(string: "sleepy://open"))
-        }
     }
 
     private var fontScale: CGFloat { max(UIFont.preferredFont(forTextStyle: .body).pointSize / 17, 1) }
@@ -296,12 +294,25 @@ struct WideGridTextLayout {
     }
 }
 
-struct WeekGridWideWidget: Widget {
+struct WeekGridVerticalWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: WeekGridWideSettings.kind, provider: WeekGridWideWidgetProvider()) {
+        StaticConfiguration(kind: WeekGridWideMode.vertical.widgetKind,
+                            provider: WeekGridWideWidgetProvider(mode: .vertical)) {
             WeekGridWideWidgetEntryView(entry: $0)
         }
-        .configurationDisplayName(L10n.format("widget_week_grid_wide_label"))
+        .configurationDisplayName(L10n.format(WeekGridWideMode.vertical.displayNameKey))
+        .supportedFamilies([.systemMedium])
+        .contentMarginsDisabled()
+    }
+}
+
+struct WeekGridHorizontalWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: WeekGridWideMode.horizontal.widgetKind,
+                            provider: WeekGridWideWidgetProvider(mode: .horizontal)) {
+            WeekGridWideWidgetEntryView(entry: $0)
+        }
+        .configurationDisplayName(L10n.format(WeekGridWideMode.horizontal.displayNameKey))
         .supportedFamilies([.systemMedium])
         .contentMarginsDisabled()
     }

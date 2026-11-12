@@ -1235,15 +1235,12 @@
 "import_backup_name" = "%1$@ - Backup";
 
 // Android v1.0.64 widget layouts and gallery
-"widget_week_grid_wide_label" = "Week grid · 4×2";
 "widget_wide_grid_empty" = "No courses in the preview dates";
 "widget_wide_grid_horizontal" = "Horizontal three days, advance daily";
 "widget_wide_grid_layout" = "4×2 grid layout";
 "widget_wide_grid_left" = "Day labels on the left";
-"widget_wide_grid_original" = "Original full grid";
 "widget_wide_grid_preview_error" = "Could not load previews. Go back and try again.";
 "widget_wide_grid_right" = "Day labels on the right";
-"widget_wide_grid_shapes" = "Switch form";
 "widget_wide_grid_unavailable" = "This widget was removed or is unavailable";
 "widget_wide_grid_vertical" = "Vertical week, advance each period";
 "settings_widget_global_appearance" = "Global appearance";
@@ -1397,3 +1394,6 @@
 "occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
 
 "settings_holidays" = "Holidays and makeup classes";
+
+"widget_week_grid_vertical_label" = "Week grid · Vertical · 4×2";
+"widget_week_grid_horizontal_label" = "Three-day grid · Horizontal · 4×2";

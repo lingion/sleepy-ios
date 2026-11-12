@@ -1236,15 +1236,12 @@
 "import_backup_name" = "%1$@-备份";
 
 // Android v1.0.64 widget layouts and gallery
-"widget_week_grid_wide_label" = "本周课表（网格）· 4×2";
 "widget_wide_grid_empty" = "当前预览日期内没有课程";
 "widget_wide_grid_horizontal" = "横向三天，逐日推进";
 "widget_wide_grid_layout" = "4×2 网格布局";
 "widget_wide_grid_left" = "星期标签放左侧";
-"widget_wide_grid_original" = "原有完整网格";
 "widget_wide_grid_preview_error" = "预览加载失败，请返回后重试";
 "widget_wide_grid_right" = "星期标签放右侧";
-"widget_wide_grid_shapes" = "切换形态";
 "widget_wide_grid_unavailable" = "此小组件已删除或不可用";
 "widget_wide_grid_vertical" = "竖向七天，逐节推进";
 "settings_widget_global_appearance" = "全局外观";
@@ -1398,3 +1395,6 @@
 "occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
 
 "settings_holidays" = "节假日与调休";
+
+"widget_week_grid_vertical_label" = "本周课表（竖向网格）· 4×2";
+"widget_week_grid_horizontal_label" = "三天课表（横向网格）· 4×2";

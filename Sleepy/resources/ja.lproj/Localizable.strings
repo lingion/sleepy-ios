@@ -1235,15 +1235,12 @@
 "import_backup_name" = "%1$@ - バックアップ";
 
 // Android v1.0.64 widget layouts and gallery
-"widget_week_grid_wide_label" = "週間時間割（グリッド）· 4×2";
 "widget_wide_grid_empty" = "プレビュー期間に授業はありません";
 "widget_wide_grid_horizontal" = "横向きの3日間・日ごとに移動";
 "widget_wide_grid_layout" = "4×2 グリッドの配置";
 "widget_wide_grid_left" = "曜日ラベルを左側に表示";
-"widget_wide_grid_original" = "従来の全体グリッド";
 "widget_wide_grid_preview_error" = "プレビューを読み込めませんでした。戻ってもう一度お試しください。";
 "widget_wide_grid_right" = "曜日ラベルを右側に表示";
-"widget_wide_grid_shapes" = "表示形式を切り替え";
 "widget_wide_grid_unavailable" = "このウィジェットは削除されたか利用できません";
 "widget_wide_grid_vertical" = "縦向きの7日間・時限ごとに移動";
 "settings_widget_global_appearance" = "全体の外観";
@@ -1397,3 +1394,6 @@
 "occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
 
 "settings_holidays" = "祝日と振替授業";
+
+"widget_week_grid_vertical_label" = "週間時間割（縦グリッド）· 4×2";
+"widget_week_grid_horizontal_label" = "3日間時間割（横グリッド）· 4×2";

@@ -1235,15 +1235,12 @@
 "import_backup_name" = "%1$@-備份";
 
 // Android v1.0.64 widget layouts and gallery
-"widget_week_grid_wide_label" = "本週課表（網格）· 4×2";
 "widget_wide_grid_empty" = "目前預覽日期內沒有課程";
 "widget_wide_grid_horizontal" = "橫向三天，逐日推進";
 "widget_wide_grid_layout" = "4×2 網格配置";
 "widget_wide_grid_left" = "星期標籤放左側";
-"widget_wide_grid_original" = "原有完整網格";
 "widget_wide_grid_preview_error" = "預覽載入失敗，請返回後重試";
 "widget_wide_grid_right" = "星期標籤放右側";
-"widget_wide_grid_shapes" = "切換形態";
 "widget_wide_grid_unavailable" = "此小工具已刪除或無法使用";
 "widget_wide_grid_vertical" = "直向七天，逐節推進";
 "settings_widget_global_appearance" = "全域外觀";
@@ -1397,3 +1394,6 @@
 "occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
 
 "settings_holidays" = "假日與補課";
+
+"widget_week_grid_vertical_label" = "本週課表（直向網格）· 4×2";
+"widget_week_grid_horizontal_label" = "三天課表（橫向網格）· 4×2";

@@ -93,6 +93,7 @@ func applyWidgetBinding(kind: String, tableId: Int64?) {
 
 struct WidgetEditScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.localNavExtraBottomPadding) private var navExtra
     let kind: String
     // ← 设计 §6: family(系统小/中/大) = 原 receiverSimpleName 的 iOS 等价族信息,
     //   由管理页 WidgetInfo.family 传入 (nil = 未知, 族门控节按各自规则处理)
@@ -117,12 +118,15 @@ struct WidgetEditScreen: View {
                     }
                 }
                 .padding(SettingsLayout.pageInset)
+                .padding(.bottom, navExtra)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(colors.background)
         .onAppear {
             reloadScope()
         }
+        .accessibilityIdentifier("widget_edit_screen_\(kind)")
     }
 
     // ← vm.reload(): 选完/切完重读 scope, 选中态即时切换 — 全部回调同走"写库 + 重读"管线
@@ -174,6 +178,7 @@ private struct WidgetEditScheduleSection: View {
             Text(L10n.format("widget_edit_section_schedule"))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(colors.onSurface)
+                .accessibilityIdentifier("widget_edit_schedule_heading")
             Spacer().frame(height: 8)
             // ← Surface(shape 16dp, surfaceContainer): 纵向 padding 4dp + 行列
             VStack(spacing: 0) {
@@ -259,6 +264,7 @@ private struct WidgetEditAliasSection: View {
             Text(L10n.format("widget_edit_section_alias"))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(colors.onSurface)
+                .accessibilityIdentifier("widget_edit_alias_heading")
             Spacer().frame(height: 8)
             // ← Surface(shape 16dp, surfaceContainer): 纵向 padding 4dp + 两行 optionRow
             VStack(spacing: 0) {

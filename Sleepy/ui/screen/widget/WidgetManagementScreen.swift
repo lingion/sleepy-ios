@@ -31,6 +31,14 @@ struct PlacedWidgetItem: Identifiable {
 //   v1.0.62 B4: internal 化 — WidgetSettingsScreen 页尾「刷新所有小组件」按钮的
 //   存在条件与「添加或管理」列表同一条数据源(单一真源, 零新通路)。
 func loadPlacedWidgets() async -> [PlacedWidgetItem] {
+    let arguments = ProcessInfo.processInfo.arguments
+    if arguments.contains("-SLEEPY_UI_TEST_SEED"), arguments.contains("-SLEEPY_UI_TEST_PLACED_WIDGETS") {
+        // Only the host's installed-widget list is injected. Rows, editors,
+        // bindings, settings stores, loaders and preview views remain production code.
+        return WeekGridWideMode.allCases.map {
+            PlacedWidgetItem(kind: $0.widgetKind, family: .systemMedium, tableName: nil)
+        }
+    }
     guard let repo = WidgetLoader.makeRepo() else {
         return []
     }
@@ -39,7 +47,8 @@ func loadPlacedWidgets() async -> [PlacedWidgetItem] {
             cont.resume(returning: (try? result.get()) ?? [])
         }
     }
-    return infos.map { info in
+    let knownKinds = Set(allWidgetVariants.map(\.kind))
+    return infos.filter { knownKinds.contains($0.kind) }.map { info in
         PlacedWidgetItem(
             kind: info.kind,
             family: info.family,
@@ -113,6 +122,7 @@ struct WidgetManagementScreen: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(colors.background)
         .task { items = await loadItems() }
         .onChange(of: scenePhase) { phase in
