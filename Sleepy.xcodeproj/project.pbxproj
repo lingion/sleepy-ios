@@ -906,6 +906,7 @@
 		CD4DBDBD4665DCDAE1B70954 /* RealUserScheduleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F8C6D3080AE57961A4E115 /* RealUserScheduleTests.swift */; };
 		CD765CAE5026036D50FCD4F5 /* ManagementPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B51026659FD36F62B0A0281 /* ManagementPage.swift */; };
 		CD777F7A41318DA863A267CD /* ImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24530B6DC99642CD638100EE /* ImportSheet.swift */; };
+		CE18593B5E555C37FE66B289 /* HolidayTransferDateConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5D3F52D8116F47DD15E931 /* HolidayTransferDateConcurrencyTests.swift */; };
 		CE2C31F40304EC90477442A7 /* catalog-v1063-candidates.json in Resources */ = {isa = PBXBuildFile; fileRef = 26BD5BD80898AA44B8846071 /* catalog-v1063-candidates.json */; };
 		CECA82B56BC9789C51F175A5 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = FADE02004C926EA639079FBD /* ZIPFoundation */; };
 		CF1DA513D5803CD7443912CF /* FeedbackComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F1E27AEBC58B8A02E88519 /* FeedbackComposer.swift */; };
@@ -1765,6 +1766,7 @@
 		CB070EA63C58455FEB8A0DDB /* UndoHistoryDepthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoHistoryDepthTests.swift; sourceTree = "<group>"; };
 		CB07AD2C808DD68F7D34105F /* CourseImportPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseImportPolicyTests.swift; sourceTree = "<group>"; };
 		CB3FF942AD486AE4C2BB486F /* JwUmoocYlParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwUmoocYlParserTests.swift; sourceTree = "<group>"; };
+		CB5D3F52D8116F47DD15E931 /* HolidayTransferDateConcurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayTransferDateConcurrencyTests.swift; sourceTree = "<group>"; };
 		CB6A1018CDA12035558C1A35 /* CourseListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseListScreen.swift; sourceTree = "<group>"; };
 		CB6A7AFEDDFEE5ED0C0F3DEA /* JwEcuplDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwEcuplDetails.swift; sourceTree = "<group>"; };
 		CBB3F76D45AE7F613321DAFA /* MigrationV7toV10Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationV7toV10Tests.swift; sourceTree = "<group>"; };
@@ -2522,6 +2524,7 @@
 				B86B824C466FC89217642B5E /* HolidayCivilDayAuditTests.swift */,
 				7F8FE3D103CAC0B91A9CE015 /* HolidayManagerTests.swift */,
 				D7C64B8C9F20602B582D6F22 /* HolidayReminderPolicyAdapterTests.swift */,
+				CB5D3F52D8116F47DD15E931 /* HolidayTransferDateConcurrencyTests.swift */,
 				4D83A7A25FAA92EB0300C64A /* Ics28NeuPeriodsTests.swift */,
 				F5FCDC93078E048057126BEF /* ImportAtomicityAuditTests.swift */,
 				A96BF262488C60DF32EE682F /* ImportDraftRepositoryTests.swift */,
@@ -4064,6 +4067,7 @@
 				EF4A9ABD04494F4F9A5FAE87 /* HolidayCivilDayAuditTests.swift in Sources */,
 				6A66F8370C8F187915144393 /* HolidayManagerTests.swift in Sources */,
 				118C9D479FCCF165698AFD84 /* HolidayReminderPolicyAdapterTests.swift in Sources */,
+				CE18593B5E555C37FE66B289 /* HolidayTransferDateConcurrencyTests.swift in Sources */,
 				770E54586B09A166233F94AA /* Ics28NeuPeriodsTests.swift in Sources */,
 				BE8FD48E353FD5D30EA15C81 /* ImportAtomicityAuditTests.swift in Sources */,
 				1FD4B13081B758504A67B753 /* ImportDraftRepositoryTests.swift in Sources */,

@@ -27,17 +27,28 @@ struct HolidayTransferEntry: Equatable {
 
 /** 映射纯函数集(无系统依赖); 互斥写入由 AppPrefs 组合本对象完成 */
 enum HolidayTransferOps {
-    private static var fmt: DateFormatter {
+    // 固定配置只初始化一次；后台装载的解析与界面的格式化共用同一把锁。
+    private static let formatterLock = NSLock()
+    private static let fmt: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.timeZone = TimeZone(identifier: "Asia/Shanghai")
         f.locale = Locale(identifier: "en_US_POSIX")
         return f
-    }
+    }()
 
     /// 日键 "yyyy-MM-dd" (Asia/Shanghai) — internal: widget 装载器按日期口径去重/比较用
-    static func dayKey(_ d: Date) -> String { fmt.string(from: d) }
-    private static func parseDay(_ s: String) -> Date? { fmt.date(from: s) }
+    static func dayKey(_ d: Date) -> String {
+        formatterLock.lock()
+        defer { formatterLock.unlock() }
+        return fmt.string(from: d)
+    }
+
+    private static func parseDay(_ s: String) -> Date? {
+        formatterLock.lock()
+        defer { formatterLock.unlock() }
+        return fmt.date(from: s)
+    }
 
     /// 星期几(1=周一 7=周日), 与 DateUtils.todayDayOfWeek 同语义
     private static func dayOfWeek(_ d: Date) -> Int {
@@ -47,17 +58,21 @@ enum HolidayTransferOps {
     /// 某放假日是否已有映射; 有 → 该 entry, 无 → nil ← transferFor
     /// (原 lastOrNull = 后选覆盖前选, 编解码侧已按 sourceDate 去重保尾)
     static func transferFor(_ date: Date, _ transfers: [HolidayTransferEntry]) -> HolidayTransferEntry? {
-        transfers.last { dayKey($0.sourceDate) == dayKey(date) }
+        guard !transfers.isEmpty else { return nil }
+        let key = dayKey(date)
+        return transfers.last { dayKey($0.sourceDate) == key }
     }
 
     /// 该展示日的"课实际来自哪一天": 命中 targetDate → 对应 sourceDate;
     /// date 本身是被挪走的放假日 → nil (无课); 其余 → 原日期。
     /// ← HolidayTransferOps.courseDateForDate (HolidayRange.kt:151-155)
     static func courseDateForDate(_ date: Date, _ transfers: [HolidayTransferEntry]) -> Date? {
-        if let hit = transfers.last(where: { dayKey($0.targetDate) == dayKey(date) }) {
+        guard !transfers.isEmpty else { return date }
+        let key = dayKey(date)
+        if let hit = transfers.last(where: { dayKey($0.targetDate) == key }) {
             return hit.sourceDate
         }
-        if transfers.contains(where: { dayKey($0.sourceDate) == dayKey(date) }) { return nil }
+        if transfers.contains(where: { dayKey($0.sourceDate) == key }) { return nil }
         return date
     }
 
@@ -95,9 +110,11 @@ enum HolidayTransferOps {
     static func withTargetExclusivity(
         _ existing: [HolidayTransferEntry], _ newEntry: HolidayTransferEntry
     ) -> [HolidayTransferEntry] {
-        (existing.filter {
-            dayKey($0.targetDate) != dayKey(newEntry.targetDate) &&
-            dayKey($0.sourceDate) != dayKey(newEntry.sourceDate)
+        guard !existing.isEmpty else { return [newEntry] }
+        let target = dayKey(newEntry.targetDate)
+        let source = dayKey(newEntry.sourceDate)
+        return (existing.filter {
+            dayKey($0.targetDate) != target && dayKey($0.sourceDate) != source
         } + [newEntry]).sorted { dayKey($0.sourceDate) < dayKey($1.sourceDate) }
     }
 
@@ -106,7 +123,8 @@ enum HolidayTransferOps {
      * 失效 entry 数据保留, UI 灰显提示, 用户手清。
      */
     static func isOrphanFor(_ entry: HolidayTransferEntry, _ yearHolidayDates: Set<Date>) -> Bool {
-        !yearHolidayDates.contains { dayKey($0) == dayKey(entry.sourceDate) }
+        let source = dayKey(entry.sourceDate)
+        return !yearHolidayDates.contains { dayKey($0) == source }
     }
 
     /// 映射列表 → JSON 数组 ← encodeTransfers

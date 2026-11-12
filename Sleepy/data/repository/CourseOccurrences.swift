@@ -55,12 +55,15 @@ enum CourseOccurrences {
 
     static func coursesForDate(_ date: Date, startDate: String, maxWeek: Int,
                                courses: [CourseEntity], transfers: [HolidayTransferEntry]) -> [CourseEntity] {
-        let fixed = courses.filter { $0.fixedDate == HolidayTransferOps.dayKey(date) }
+        guard !courses.isEmpty else { return [] }
+        let displayDayKey = HolidayTransferOps.dayKey(date)
+        let fixed = courses.filter { $0.fixedDate == displayDayKey }
         guard let source = HolidayTransferOps.courseDateForDate(date, transfers),
               let week = week(startDate: startDate, date: source), week <= maxWeek else {
             return fixed.sorted { $0.startNode < $1.startNode }
         }
-        return (courses.filter { $0.fixedDate == nil && $0.day == day(source) && $0.inWeek(week) } + fixed)
+        let sourceDay = day(source)
+        return (courses.filter { $0.fixedDate == nil && $0.day == sourceDay && $0.inWeek(week) } + fixed)
             .sorted { $0.startNode < $1.startNode }
     }
 
