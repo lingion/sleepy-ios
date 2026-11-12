@@ -181,7 +181,7 @@ struct CourseDragSource: ViewModifier {
                     Color.clear
                         .onAppear { register(geometry.frame(in: .global), in: drag) }
                         .onChange(of: geometry.frame(in: .global)) { register($0, in: drag) }
-                        .onChange(of: try? JSONEncoder().encode(course)) { _ in
+                        .onChange(of: course) { _ in
                             register(geometry.frame(in: .global), in: drag)
                         }
                 })
