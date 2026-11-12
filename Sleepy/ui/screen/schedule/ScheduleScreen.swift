@@ -195,9 +195,9 @@ struct ScheduleScreen: View {
                         options: [(ViewMode.full, L10n.format("view_full")),
                                   (ViewMode.cards, L10n.format("view_cards"))],
                         selected: viewMode,
-                        onSelect: { viewMode = $0 })
+                        onSelect: { viewMode = $0 }, height: 32)
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 4)
                 }
 
                 if state.hasPeriodConflict {
@@ -959,20 +959,27 @@ private struct ScheduleTopBar: View {
         let textWidth = ceil((label as NSString).size(withAttributes: [.font: font]).width)
         let numberWidth = max(32, ceil((String(currentWeek) as NSString).size(withAttributes: [.font: font]).width) + 8)
         let native = style == .liquidGlass
+        // Compact home controls retain the v1.0.64 fallback order while using
+        // smaller action slots. Native glass keeps its platform-rendered surface.
+        let actionSize: CGFloat = native ? 36 : 32
+        let fullCenterWidth = 2 * actionSize + 44 + textWidth
+        let history = hasUndoSnapshot || hasRedoSnapshot
+        let normalStartWidth = actionSize + (history ? 73 : 0) + (scaleUncommitted ? actionSize + 8 : 0)
+        let tightStartWidth = actionSize + (history ? 65 : 0) + (scaleUncommitted ? actionSize : 0)
         let normalStart = nativeSizes[0]
         let tightStart = nativeSizes[4]
         let normalEnd = nativeSizes[2]
         let tightEnd = nativeSizes[5]
         let layout = ScheduleToolbarGeometry.resolve(width: max(0, barWidth),
-            fullCenterWidth: native ? nativeSizes[1]?.width ?? 140 + textWidth : 140 + textWidth,
+            fullCenterWidth: native ? nativeSizes[1]?.width ?? fullCenterWidth : fullCenterWidth,
             groupedCenterWidth: native ? nativeSizes[3]?.width ?? 66 + numberWidth : 66 + numberWidth,
-            history: hasUndoSnapshot || hasRedoSnapshot, confirm: scaleUncommitted,
-            normalStartWidth: native ? normalStart?.width : nil,
-            tightStartWidth: native ? tightStart?.width : nil,
-            normalEndWidth: native ? normalEnd?.width ?? 104 : 104,
-            tightEndWidth: native ? tightEnd?.width ?? 96 : 96,
-            sideHeight: native ? max(normalStart?.height ?? 48, normalEnd?.height ?? 48) : 48,
-            fullCenterHeight: native ? nativeSizes[1]?.height ?? 48 : 48,
+            history: history, confirm: scaleUncommitted,
+            normalStartWidth: native ? normalStart?.width ?? normalStartWidth : normalStartWidth,
+            tightStartWidth: native ? tightStart?.width ?? tightStartWidth : tightStartWidth,
+            normalEndWidth: native ? normalEnd?.width ?? 2 * actionSize + 8 : 2 * actionSize + 8,
+            tightEndWidth: native ? tightEnd?.width ?? 2 * actionSize : 2 * actionSize,
+            sideHeight: native ? max(normalStart?.height ?? actionSize, normalEnd?.height ?? actionSize) : actionSize,
+            fullCenterHeight: native ? nativeSizes[1]?.height ?? actionSize : actionSize,
             groupedCenterHeight: native ? nativeSizes[3]?.height ?? 32 : 32)
         GeometryReader { proxy in
             let fit = layout.fitScale
@@ -1001,7 +1008,7 @@ private struct ScheduleTopBar: View {
             }
             .preference(key: TopBarWidthKey.self, value: proxy.size.width)
         }
-        .frame(height: barWidth > 0 ? layout.height : 48)
+        .frame(height: barWidth > 0 ? layout.height : actionSize)
         .onPreferenceChange(TopBarWidthKey.self) { barWidth = $0 }
         .padding(.vertical, 6)
         .background(colors.surface)
@@ -1166,20 +1173,23 @@ private struct WeekNavButton: View {
     }
 
     private var button: some View {
-        // v1.0.64: 32pt visual circle inside the 48pt action slot; both
-        // follow the toolbar side scale before the final narrow-window fit.
-        Button(action: onClick) {
-            AndroidMaterialIcon(name: icon, size: 20 * scale)
+        let native = style == .liquidGlass
+        let platformSize: CGFloat = native ? 44 : 32 * scale
+        let actionSize: CGFloat = (native ? 36 : 32) * scale
+        // Scale only this toolbar's native disc; compensate the icon so its
+        // final size stays 20pt. Other screens retain their normal native sizing.
+        return Button(action: onClick) {
+            AndroidMaterialIcon(name: icon, size: native ? 20 * 44 / 36 : 20 * scale)
                 .foregroundColor(colors.onSurfaceVariant)
-                .frame(width: style == .classic ? 32 * scale : nil,
-                       height: style == .classic ? 32 * scale : nil)
+                .frame(width: native ? 34 : actionSize,
+                       height: native ? 34 : actionSize)
                 .sleepyControlSurface(cornerRadius: 16 * scale, tint: colors.surfaceContainerHigh)
-                .frame(width: style == .classic ? 48 * scale : nil,
-                       height: style == .classic ? 48 * scale : nil)
                 .contentShape(Rectangle())
         }
         .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 16 * scale, compact: true, shape: .circle))
-        .frame(width: 48 * scale, height: 48 * scale)
+        .frame(width: platformSize, height: platformSize)
+        .scaleEffect(actionSize / platformSize)
+        .frame(width: actionSize, height: actionSize)
         .tint(colors.surfaceContainerHigh)
         // ← G5: 周导航箭头锚点(chevron.left → week_prev / chevron.right → week_next)
         .accessibilityIdentifier(icon == .chevronLeft ? "week_prev" : "week_next")
