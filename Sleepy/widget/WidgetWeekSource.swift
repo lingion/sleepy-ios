@@ -69,18 +69,18 @@ enum WidgetWeekDataLoader {
 
     /// 解析 → (table, courses, display) 三元组;无表 → nil (对齐 原 runBlocking + nullable)
     /// - Parameter appWidgetId: iOS = widget kind 字符串(per-kind 粒度)
-    static func resolve(_ appWidgetId: String) async -> WidgetWeekSource? {
-        guard let repo = WidgetLoader.makeRepo() else { return nil }
+    static func resolve(_ appWidgetId: String, repository: ScheduleRepository? = nil,
+                        now: Date = AppClock.now) async -> WidgetWeekSource? {
+        guard let repo = repository ?? WidgetLoader.makeRepo() else { return nil }
         // ← 原版本 WidgetWeekDataLoader.kt:66: runCatching { CourseHueStore.refresh(app) }
         //   widget 进程与 App 进程分离 → 装载点自刷持久色相快照, 保证 widget 与 App 同色。
         await CourseHueStore.shared.refresh(
             mode: AppPrefs.shared.getCourseColorMode(),
             dao: repo.database.courseColorDao)
         // ← WidgetTableResolver.resolveBoundTable(id) ?: resolveCurrentTable() ?: return null
-        guard let table = WidgetBindingStore.resolveBoundTable(appWidgetId, repo: repo)
+        guard let table = WidgetTableResolver.resolveBoundTable(appWidgetId, repo: repo)
                 ?? WidgetTableResolver.resolveCurrentTable(repo) else { return nil }
         let courses = (try? repo.getCourses(table.id)) ?? []
-        let now = Date()
         let transfers = AppPrefs.shared.getHolidayTransfers(table.id)
         let display = WeekDisplayResolver.resolve(
             startDate: table.startDate,

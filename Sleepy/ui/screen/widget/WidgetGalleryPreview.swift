@@ -27,9 +27,9 @@ struct WidgetGalleryPreview: View {
         switch card.variant.kind {
         case "WeekGridWidgetV19":
             WeekGridWidgetEntryView(entry: WeekGridWidgetEntry(date: sample.today.date, data: sample.week))
-        case "WeekGridWideWidget":
+        case WeekGridWideMode.vertical.widgetKind, WeekGridWideMode.horizontal.widgetKind:
             WeekGridWideWidgetEntryView(entry: WeekGridWideWidgetEntry(date: sample.today.date,
-                data: sample.week, settings: WeekGridWideSettings()))
+                data: sample.week, settings: WeekGridWideSettings(mode: WeekGridWideMode(kind: card.variant.kind)!)))
         case "TodayWidgetRV":
             TodayWidgetEntryView(entry: TodayWidgetEntry(date: sample.today.date, data: sample.today))
         case "WeekListWidgetRV":

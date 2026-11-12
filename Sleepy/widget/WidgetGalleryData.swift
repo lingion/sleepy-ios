@@ -50,7 +50,8 @@ enum WidgetGalleryData {
         }
     }
 
-    /// WidgetKit exposes size families under each kind. The dedicated wide grid joins its grid family.
+    /// The grid family presents the full grid, two independent 4×2 kinds, and the small face.
+    /// The complete grid exposes small/large; only the two fixed layouts offer 4×2.
     static func buildGroups() -> [WidgetGalleryGroup] {
         #if os(watchOS)
         return buildCards().map { WidgetGalleryGroup(id: $0.variant.kind, cards: [$0]) }
@@ -58,10 +59,15 @@ enum WidgetGalleryData {
         var order: [String] = []
         var grouped: [String: [WidgetGalleryCard]] = [:]
         for variant in allWidgetVariants {
-            let key = variant.kind == "WeekGridWideWidget" ? "WeekGridWidgetV19" : variant.kind
+            let key = WeekGridWideMode(kind: variant.kind) != nil ? "WeekGridWidgetV19" : variant.kind
             if grouped[key] == nil { order.append(key) }
-            let families: [WidgetFamily] = variant.kind == "WeekGridWideWidget"
-                ? [.systemMedium] : [.systemLarge, .systemMedium, .systemSmall]
+            let families: [WidgetFamily]
+            switch variant.kind {
+            case "WeekGridWidgetV19": families = [.systemLarge, .systemSmall]
+            case WeekGridWideMode.vertical.widgetKind, WeekGridWideMode.horizontal.widgetKind:
+                families = [.systemMedium]
+            default: families = [.systemLarge, .systemMedium, .systemSmall]
+            }
             grouped[key, default: []] += families.map { WidgetGalleryCard(variant: variant, previewFamily: $0) }
         }
         return order.map { key in

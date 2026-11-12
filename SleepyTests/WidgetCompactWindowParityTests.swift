@@ -54,10 +54,10 @@ final class WidgetCompactWindowParityTests: XCTestCase {
         XCTAssertEqual(data.days.map { HolidayTransferOps.dayKey($0.date) }, ["2426-09-13", "2426-09-14", "2426-09-15"])
         XCTAssertEqual(data.days.map { $0.courses.map(\.id) }, [[701], [702], [703]])
         XCTAssertEqual(Set(data.days.flatMap(\.courses).map(\.tableId)), [tableId])
-        let full = await WeekGridWideDataLoader.dataForSource(source, mode: .original, now: now)
         let vertical = await WeekGridWideDataLoader.dataForSource(source, mode: .vertical, now: now)
-        XCTAssertEqual(full.days.map(\.date), vertical.days.map(\.date))
-        XCTAssertEqual(full.days.map { $0.courses.map(\.id) }, vertical.days.map { $0.courses.map(\.id) })
+        XCTAssertEqual(vertical.days.count, 7)
+        XCTAssertEqual(vertical.days.last?.courses.map(\.id), [701])
+        XCTAssertFalse(vertical.days.contains { HolidayTransferOps.dayKey($0.date) == "2426-09-14" })
     }
 
     func testDedicatedWideGridRespectsMakeupDatesOutsideTheSemester() async throws {

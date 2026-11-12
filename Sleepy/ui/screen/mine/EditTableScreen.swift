@@ -92,9 +92,6 @@ struct EditTableScreen: View {
         return bound ?? allPeriodTables.first { $0.id == pendingBind }
     }
 
-    @State private var showJwUpdate = false
-    @State private var jwUpdateActive = false
-
     var body: some View {
         let state = viewModel.state
         // ← 原版本: tableId == null 编辑当前表; 显式 tableId 未命中 → edit_table_not_found 空态。
@@ -172,16 +169,6 @@ struct EditTableScreen: View {
                         }
                     }
                     .onAppear { enterSession(table: table) }
-
-                    Button { showJwUpdate = true } label: {
-                        Label(L10n.t("course_update_from_school"), systemImage: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(colors.onSecondaryContainer)
-                            .frame(maxWidth: .infinity).padding(16)
-                            .background(colors.secondaryContainer).cornerRadius(SleepyShapes.large)
-                    }
-                    .buttonStyle(SleepyButtonStyle())
-                    .accessibilityIdentifier("table_update_from_school")
 
                     // 节次时间表(可折叠)
                     VStack(spacing: 0) {
@@ -351,13 +338,6 @@ struct EditTableScreen: View {
             Text(courseCount == 0
                  ? L10n.format("edit_table_delete_msg", table.name)
                  : L10n.format("edit_table_delete_msg_count", table.name, courseCount))
-        }
-        .sheet(isPresented: $showJwUpdate) {
-            JwImportFlow(onFinish: { _ in showJwUpdate = false },
-                onActiveImportChanged: { jwUpdateActive = $0 },
-                targetTableId: table.id, updateExistingCourses: true,
-                updateRepository: viewModel.occurrenceRepository)
-                .interactiveDismissDisabled(jwUpdateActive)
         }
         // issue#40 §5.3: 换绑确认 — 换绑后本课表按新节次表解释节次时间, 自定义时间课程不受影响
         .alert(L10n.format("period_table_bind_preview_title"), isPresented: $showRebindConfirm) {
@@ -649,28 +629,30 @@ struct FieldTextField: View {
     let label: String
     var placeholder: String = ""
     var keyboardType: UIKeyboardType = .default
+    var identifier: String? = nil
+    @FocusState private var focused: Bool
+
+    private var floatingLabelVisible: Bool { focused || !text.isEmpty || !placeholder.isEmpty }
 
     var body: some View {
-        TextField(placeholder.isEmpty ? label : placeholder, text: $text)
-            .keyboardType(keyboardType)
-            .font(.system(size: 16))
-            .padding(.horizontal, 16)   // ← M3 filled TextField 内边距 16dp(原 12)
-            .padding(.vertical, 10)
-            .frame(minHeight: 56, alignment: .bottom)   // ← M3 TextField MinHeight 56dp, 文字贴底(原约 40)
-            .background(colors.surfaceContainerLowest)
-            .cornerRadius(SleepyTheme.fieldShape)
-            // ← 原 filled TextField, 无描边
-            .accessibilityIdentifier("field_\(label)")   // ← G5: 字段锚点(label 原文)
-            .overlay(alignment: .leading) {
-                if !placeholder.isEmpty {
-                    // label 浮动到左上(M3 风格近似: 前缀标签)
-                    Text(label)
-                        .font(.system(size: 12)) // ← M3 floating label ≈ bodySmall 12
-                        .foregroundColor(colors.onSurfaceVariant)
-                        .padding(.leading, 12)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .offset(y: -22)
-                }
+        VStack(alignment: .leading, spacing: 2) {
+            if floatingLabelVisible {
+                Text(label)
+                    .font(.system(size: 12))
+                    .foregroundColor(colors.onSurfaceVariant)
             }
+            TextField(placeholder.isEmpty ? (floatingLabelVisible ? "" : label) : placeholder, text: $text)
+                .keyboardType(keyboardType)
+                .font(.system(size: 16))
+                .foregroundColor(colors.onSurface)
+                .focused($focused)
+                .accessibilityLabel(label)
+                .accessibilityIdentifier(identifier ?? "field_\(label)")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56, alignment: .bottom)
+        .background(colors.surfaceContainerLowest)
+        .cornerRadius(SleepyTheme.fieldShape)
     }
 }

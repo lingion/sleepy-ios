@@ -6,6 +6,69 @@ import XCTest
 
 final class WidgetThemeModeTests: XCTestCase {
 
+    func testAppAndExtensionDomainsShareExistingAndUpdatedWidgetRenderingPreferences() throws {
+        let names = (0..<3).map { _ in "widget-process-prefs-\(UUID().uuidString)" }
+        let application = try XCTUnwrap(UserDefaults(suiteName: names[0]))
+        let extensionLocal = try XCTUnwrap(UserDefaults(suiteName: names[1]))
+        let shared = try XCTUnwrap(UserDefaults(suiteName: names[2]))
+        defer { for name in names { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) } }
+        application.set(true, forKey: AppPrefs.KEY_WIDGET_COLORLESS)
+        application.set("theme-before-upgrade", forKey: AppPrefs.KEY_THEME)
+        application.set(true, forKey: AppPrefs.KEY_WIDGET_USE_ALIAS)
+        application.set("three_line", forKey: AppPrefs.KEY_PERIOD_HEADER_LAYOUT)
+        application.set("private-account-data", forKey: "unrelated_private_value")
+        extensionLocal.set(false, forKey: AppPrefs.KEY_WIDGET_COLORLESS)
+        let app = AppPrefs(defaults: application, widgetSharedDefaults: shared, role: .application)
+        let widget = AppPrefs(defaults: extensionLocal,
+            widgetSharedDefaults: try XCTUnwrap(UserDefaults(suiteName: names[2])), role: .widgetExtension)
+        XCTAssertTrue(widget.isWidgetColorless(), "An upgrade must publish the saved value without another toggle")
+        XCTAssertEqual(widget.getThemeKey(), "theme-before-upgrade")
+        XCTAssertTrue(widget.isWidgetUseAlias())
+        XCTAssertEqual(widget.getPeriodHeaderLayout(), "three_line")
+        XCTAssertNil(shared.object(forKey: "unrelated_private_value"))
+        app.setWidgetColorless(false)
+        app.setWidgetUseAlias(false)
+        app.setThemeKey("default")
+        app.setPeriodHeaderLayout("legacy")
+        app.setPeriodHeaderHideTime(true)
+        app.setPeriodHeaderTimeAlignment("center")
+        app.setShowDate(false)
+        app.setVisibleDays([2, 4])
+        app.setGridShowSeparators(true)
+        app.setGridLongBreakSpacing(true)
+        XCTAssertFalse(widget.isWidgetColorless())
+        XCTAssertFalse(widget.isWidgetUseAlias())
+        XCTAssertEqual(widget.getThemeKey(), "default")
+        XCTAssertEqual(widget.getPeriodHeaderLayout(), "legacy")
+        XCTAssertTrue(widget.isPeriodHeaderHideTime())
+        XCTAssertEqual(widget.getPeriodHeaderTimeAlignment(), "center")
+        XCTAssertFalse(widget.isShowDate())
+        XCTAssertEqual(widget.getVisibleDays(), [2, 4])
+        XCTAssertTrue(widget.isGridShowSeparators())
+        XCTAssertTrue(widget.isGridLongBreakSpacing())
+        XCTAssertEqual(extensionLocal.object(forKey: AppPrefs.KEY_THEME) as? String, nil)
+        widget.syncWidgetPreferences(replacingMissing: true)
+        XCTAssertTrue(shared.bool(forKey: AppPrefs.KEY_PERIOD_HEADER_HIDE_TIME),
+                      "The extension must never publish its unrelated local defaults over the app's settings")
+    }
+
+    func testMissingAppGroupKeepsLocalFallbackAndDoesNotEraseValidSharedValues() throws {
+        let names = (0..<2).map { _ in "widget-fallback-prefs-\(UUID().uuidString)" }
+        let local = try XCTUnwrap(UserDefaults(suiteName: names[0]))
+        let shared = try XCTUnwrap(UserDefaults(suiteName: names[1]))
+        defer { for name in names { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) } }
+        shared.set(true, forKey: AppPrefs.KEY_WIDGET_COLORLESS)
+        _ = AppPrefs(defaults: local, widgetSharedDefaults: shared)
+        XCTAssertTrue(shared.bool(forKey: AppPrefs.KEY_WIDGET_COLORLESS))
+        let fallback = AppPrefs(defaults: local, role: .widgetExtension)
+        fallback.setWidgetColorless(true)
+        XCTAssertTrue(fallback.isWidgetColorless())
+        local.removeObject(forKey: AppPrefs.KEY_WIDGET_COLORLESS)
+        let publisher = AppPrefs(defaults: local, widgetSharedDefaults: shared)
+        publisher.syncWidgetPreferences(replacingMissing: true)
+        XCTAssertNil(shared.object(forKey: AppPrefs.KEY_WIDGET_COLORLESS))
+    }
+
     // system 模式 → 用渲染期环境色域(WidgetKit \.colorScheme), 不信快照
     func testSystemModeFollowsEnvironmentNotSnapshot() {
         XCTAssertTrue(effectiveWidgetIsDark(themeMode: AppPrefs.THEME_MODE_SYSTEM,

@@ -113,6 +113,20 @@ final class CourseDragViewModelTests: XCTestCase {
         }
     }
 
+    @MainActor
+    private func approveMove(_ fixture: Fixture, source: CourseDragContext.Source, targetWeek: Int,
+                             displayDay: Int, targetNode: Int, targetStartTime: String? = nil,
+                             targetStep: Int? = nil,
+                             choices: [CourseDragMoveChoice] = [.confirm]) -> Bool {
+        guard fixture.vm.stageDraggedOccurrence(source: source, targetWeek: targetWeek,
+            displayDay: displayDay, targetNode: targetNode, targetStartTime: targetStartTime,
+            targetStep: targetStep) else { return false }
+        if fixture.vm.pendingCourseMove == nil { return true }
+        var result = CourseDragMoveAdvance.awaitingApproval
+        for choice in choices { result = fixture.vm.advancePendingCourseMove(choice) }
+        return result == .saved
+    }
+
     private func transfer(week: Int, from: Int, to: Int) throws -> HolidayTransferEntry {
         HolidayTransferEntry(
             sourceDate: try XCTUnwrap(DateUtils.dateOfWeek(
@@ -196,6 +210,56 @@ final class CourseDragViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testResizedCardCanMoveToAnotherWeekWithoutLosingItsSpan() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        await load(f, course: original)
+        let before = try f.snapshot()
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 8, displayDay: 4, targetNode: 2, targetStep: 3, resizeOnly: false))
+        XCTAssertFalse(try XCTUnwrap(f.vm.pendingCourseMove).isResizeOnly)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertTrue(f.vm.confirmPendingCourseMove())
+        let rows = try f.rows()
+        let moved = try XCTUnwrap(rows.first { $0.day == 4 })
+        XCTAssertEqual(moved.startWeek, 8)
+        XCTAssertEqual(moved.endWeek, 8)
+        XCTAssertEqual(moved.startNode, 2)
+        XCTAssertEqual(moved.step, 3)
+        XCTAssertFalse(rows.contains { $0.day == 2 && $0.inWeek(3) })
+        XCTAssertEqual(rows.filter { $0.day == 2 }.map(\.step), [2, 2])
+        XCTAssertEqual(f.writes, 1)
+        XCTAssertTrue(f.vm.undoLastChange())
+        XCTAssertEqual(try f.snapshot(), before)
+    }
+
+    @MainActor
+    func testResizedMoveUsesHolidayDestinationSourceDate() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        let targetTransfer = HolidayTransferEntry(
+            sourceDate: try XCTUnwrap(DateUtils.dateOfWeek(startDate: "2026-09-07", week: 7, dayOfWeek: 1)),
+            targetDate: try XCTUnwrap(DateUtils.dateOfWeek(startDate: "2026-09-07", week: 8, dayOfWeek: 7)),
+            segmentId: "resize-destination")
+        f.setTransfers([targetTransfer], tableId: f.tableId)
+        await load(f, course: original)
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 8, displayDay: 7, targetNode: 2, targetStep: 3, resizeOnly: false))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.pendingCourseMove?.prompt, .destination)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .saved)
+        let moved = try XCTUnwrap(try f.rows().first { $0.day == 1 && $0.step == 3 })
+        XCTAssertEqual(moved.startWeek, 7)
+        XCTAssertEqual(moved.endWeek, 7)
+        let display = CourseOccurrences.coursesForDate(targetTransfer.targetDate,
+            startDate: "2026-09-07", maxWeek: 20, courses: try f.rows(), transfers: [targetTransfer])
+        XCTAssertTrue(display.contains { $0.id == moved.id })
+        XCTAssertFalse(try f.rows().contains { $0.day == 2 && $0.inWeek(3) })
+    }
+
+    @MainActor
     func testTransferRenderCopyMovesOriginalIDAndCapturedWeekRatherThanVisibleWeek() async throws {
         let f = try Fixture()
         defer { f.close() }
@@ -216,12 +280,10 @@ final class CourseDragViewModelTests: XCTestCase {
         XCTAssertEqual(source.displayWeek, 4)
         XCTAssertEqual(original.day, 2)
         XCTAssertEqual(original.startNode, 4)
-        f.setTransfers([], tableId: f.tableId)
-        f.vm.refreshTransfer() // 捕获后映射变化，也不能重算源周成第四周。
         f.vm.changeWeek(8) // 拖动已翻页；不能用 VM 当前展示周或 lift 展示周代替 occurrence。
         let before = try f.snapshot()
 
-        XCTAssertTrue(f.vm.moveDraggedOccurrence(source: source, targetWeek: 8,
+        XCTAssertTrue(approveMove(f, source: source, targetWeek: 8,
                                                   displayDay: 4, targetNode: 3))
 
         let rows = try f.rows()
@@ -230,9 +292,11 @@ final class CourseDragViewModelTests: XCTestCase {
         XCTAssertEqual(moved.startWeek, 8)
         XCTAssertEqual(moved.endWeek, 8)
         XCTAssertEqual(moved.startNode, 3)
-        XCTAssertEqual(moved.step, 2, "不能把归一化渲染副本的 step=1 写回库")
+        XCTAssertEqual(moved.step, 1, "安卓浮起后按显示栅格跨度换格")
         XCTAssertEqual(moved.startTime, "10:00")
-        XCTAssertEqual(moved.endTime, "10:05")
+        XCTAssertEqual(moved.endTime, "10:45")
+        XCTAssertTrue(moved.ownTime)
+        XCTAssertTrue(moved.isIrregularTime)
         XCTAssertEqual(moved.note, original.note)
         XCTAssertEqual(moved.room, original.room)
         XCTAssertEqual(moved.alias, original.alias)
@@ -268,8 +332,8 @@ final class CourseDragViewModelTests: XCTestCase {
         f.vm.changeWeek(3)
         let before = try f.snapshot()
 
-        XCTAssertTrue(f.vm.moveDraggedOccurrence(source: source, targetWeek: 8,
-                                                  displayDay: 7, targetNode: 3))
+        XCTAssertTrue(approveMove(f, source: source, targetWeek: 8,
+                                                  displayDay: 7, targetNode: 3, choices: [.confirm, .confirm]))
 
         let rows = try f.rows()
         let moved = try XCTUnwrap(rows.first { $0.startWeek == 7 && $0.endWeek == 7 })
@@ -284,7 +348,7 @@ final class CourseDragViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testHolidayEmptyColumnRejectsWithoutWritingOrReplacingExistingUndo() async throws {
+    func testCancelingOutgoingTransferWarningPreservesExistingUndo() async throws {
         let f = try Fixture()
         defer { f.close() }
         let original = try f.seed()
@@ -297,9 +361,11 @@ final class CourseDragViewModelTests: XCTestCase {
         let beforeDrop = try f.snapshot()
         f.writes = 0
 
-        XCTAssertFalse(f.vm.moveDraggedOccurrence(source: try f.source(original, week: 3),
-                                                   targetWeek: 8, displayDay: 4, targetNode: 3),
-                        "新模型周日唯一映射源日；拒绝对象是已挪空的周四列")
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(edited, week: 3),
+            targetWeek: 8, displayDay: 4, targetNode: 3))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.pendingCourseMove?.prompt, .outgoing)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(.cancel), .canceled)
 
         XCTAssertEqual(try f.snapshot(), beforeDrop)
         XCTAssertEqual(f.writes, 0)
@@ -310,7 +376,7 @@ final class CourseDragViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testHolidayEmptyColumnRejectsWithoutCreatingUndo() async throws {
+    func testCancelingOutgoingTransferWarningCreatesNoUndo() async throws {
         let f = try Fixture()
         defer { f.close() }
         let original = try f.seed()
@@ -318,8 +384,11 @@ final class CourseDragViewModelTests: XCTestCase {
         await load(f, course: original)
         let before = try f.snapshot()
 
-        XCTAssertFalse(f.vm.moveDraggedOccurrence(source: try f.source(original, week: 3),
-                                                   targetWeek: 8, displayDay: 4, targetNode: 3))
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 8, displayDay: 4, targetNode: 3))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.pendingCourseMove?.prompt, .outgoing)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(.cancel), .canceled)
 
         XCTAssertEqual(try f.snapshot(), before)
         XCTAssertEqual(f.writes, 0)
@@ -348,9 +417,9 @@ final class CourseDragViewModelTests: XCTestCase {
         f.writes = 0
         Sleepy.UndoManager.shared.clear()
 
-        XCTAssertFalse(f.vm.moveDraggedOccurrence(source: source, targetWeek: 3,
+        XCTAssertFalse(approveMove(f, source: source, targetWeek: 3,
                                                    displayDay: 2, targetNode: 1))
-        XCTAssertFalse(f.vm.moveDraggedOccurrence(source: source, targetWeek: 8,
+        XCTAssertFalse(approveMove(f, source: source, targetWeek: 8,
                                                    displayDay: 4, targetNode: 3))
 
         XCTAssertEqual(try f.snapshot(), before, "旧表源与新表课程均不写")
@@ -376,7 +445,7 @@ final class CourseDragViewModelTests: XCTestCase {
         let afterEdit = try f.snapshot()
         f.writes = 0
 
-        XCTAssertTrue(f.vm.moveDraggedOccurrence(source: source, targetWeek: 3,
+        XCTAssertTrue(approveMove(f, source: try f.source(edited, week: 3), targetWeek: 3,
                                                   displayDay: 7, targetNode: 1, targetStartTime: "08:35"))
         XCTAssertEqual(try f.snapshot(), afterEdit)
         XCTAssertEqual(f.writes, 0)
@@ -384,7 +453,7 @@ final class CourseDragViewModelTests: XCTestCase {
         XCTAssertEqual(try f.snapshot(), beforeEdit)
         f.writes = 0
 
-        XCTAssertTrue(f.vm.moveDraggedOccurrence(source: source, targetWeek: 3,
+        XCTAssertTrue(approveMove(f, source: source, targetWeek: 3,
                                                   displayDay: 7, targetNode: 1, targetStartTime: "08:35"))
         XCTAssertEqual(try f.snapshot(), beforeEdit)
         XCTAssertEqual(f.writes, 0)
@@ -395,47 +464,22 @@ final class CourseDragViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testSameWeekDayAndNodeWithDifferentExplicitStartIsNotNoOp() async throws {
+    func testSameDisplayedGridDropPreservesCustomTimesAndCreatesNoUndo() async throws {
         let f = try Fixture()
         defer { f.close() }
         let original = try f.seed(ownTime: true)
         await load(f, course: original)
         let source = try f.source(original, week: 3)
-        XCTAssertEqual(source.displayWeek, 3)
-        XCTAssertEqual(source.course.day, 2)
-        XCTAssertEqual(source.renderedCourse.startNode, 1)
-        XCTAssertEqual(source.course.startTime, "08:35")
         let before = try f.snapshot()
 
-        XCTAssertTrue(f.vm.moveDraggedOccurrence(source: source, targetWeek: 3,
-                                                  displayDay: 2, targetNode: 1, targetStartTime: "08:30"))
+        XCTAssertTrue(approveMove(f, source: source, targetWeek: 3,
+            displayDay: 2, targetNode: source.renderedCourse.startNode,
+            targetStartTime: "08:30", targetStep: source.renderedCourse.step))
 
-        let rows = try f.rows()
-        let selectedWeek = rows.filter { $0.inWeek(3) }
-        XCTAssertEqual(selectedWeek.count, 1)
-        let moved = try XCTUnwrap(selectedWeek.first)
-        XCTAssertEqual(moved.startWeek, 3)
-        XCTAssertEqual(moved.endWeek, 3)
-        XCTAssertEqual(moved.day, 2)
-        XCTAssertEqual(moved.startNode, 1)
-        XCTAssertEqual(moved.startTime, "08:30", "同一网格位置的显式改时刻必须写库")
-        XCTAssertEqual(moved.endTime, "08:35", "仍保持五分钟时长")
-        XCTAssertEqual(moved.step, original.step)
-        XCTAssertTrue(moved.ownTime)
-        let remaining = rows.filter { !$0.inWeek(3) }
-        XCTAssertEqual(remaining.map(\.startWeek).sorted(), [1, 4])
-        XCTAssertEqual(remaining.map(\.endWeek).sorted(), [2, 9])
-        XCTAssertTrue(remaining.allSatisfy {
-            $0.day == 2 && $0.startTime == "08:35" && $0.endTime == "08:40"
-        })
-        XCTAssertEqual(f.writes, 1)
-        let after = try f.snapshot()
-        XCTAssertNotEqual(after, before)
-        XCTAssertTrue(f.vm.undoLastChange())
+        XCTAssertNil(f.vm.pendingCourseMove)
         XCTAssertEqual(try f.snapshot(), before)
-        XCTAssertFalse(f.vm.undoLastChange(), "改时刻只产生一个撤回单元")
-        XCTAssertTrue(f.vm.redoLastUndo())
-        XCTAssertEqual(try f.snapshot(), after)
+        XCTAssertEqual(f.writes, 0)
+        XCTAssertFalse(f.repo.canUndo)
     }
 
     @MainActor
@@ -449,7 +493,7 @@ final class CourseDragViewModelTests: XCTestCase {
         try f.repo.deleteCourse(original.id)
         let afterDelete = try f.snapshot()
         f.writes = 0
-        XCTAssertFalse(f.vm.moveDraggedOccurrence(source: source, targetWeek: 3,
+        XCTAssertFalse(approveMove(f, source: source, targetWeek: 3,
             displayDay: 2, targetNode: 1))
         XCTAssertEqual(try f.snapshot(), afterDelete)
         XCTAssertEqual(f.writes, 0)
@@ -458,7 +502,7 @@ final class CourseDragViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testHorizontalOwnTimeMoveForwardsExactStartAndPreservesDuration() async throws {
+    func testHorizontalOwnTimeMoveUsesTheDisplayedTargetGridTime() async throws {
         let f = try Fixture()
         defer { f.close() }
         let original = try f.seed(ownTime: true)
@@ -467,7 +511,7 @@ final class CourseDragViewModelTests: XCTestCase {
         XCTAssertEqual(source.renderedCourse.startNode, 1)
         let before = try f.snapshot()
 
-        XCTAssertTrue(f.vm.moveDraggedOccurrence(source: source, targetWeek: 3,
+        XCTAssertTrue(approveMove(f, source: source, targetWeek: 3,
                                                   displayDay: 4, targetNode: 1, targetStartTime: "08:35"))
 
         let rows = try f.rows()
@@ -475,10 +519,11 @@ final class CourseDragViewModelTests: XCTestCase {
         XCTAssertEqual(moved.startWeek, 3)
         XCTAssertEqual(moved.endWeek, 3)
         XCTAssertEqual(moved.startNode, 1)
-        XCTAssertEqual(moved.startTime, "08:35", "丢失参数会错误吸附到 08:00")
-        XCTAssertEqual(moved.endTime, "08:40")
-        XCTAssertEqual(moved.step, 2)
+        XCTAssertEqual(moved.startTime, "08:00")
+        XCTAssertEqual(moved.endTime, "08:45")
+        XCTAssertEqual(moved.step, 1)
         XCTAssertTrue(moved.ownTime)
+        XCTAssertTrue(moved.isIrregularTime)
         XCTAssertEqual(rows.filter { $0.day == 2 && $0.inWeek(3) }.count, 0)
         XCTAssertEqual(f.writes, 1)
         let after = try f.snapshot()
@@ -486,5 +531,232 @@ final class CourseDragViewModelTests: XCTestCase {
         XCTAssertEqual(try f.snapshot(), before)
         XCTAssertTrue(f.vm.redoLastUndo())
         XCTAssertEqual(try f.snapshot(), after)
+    }
+
+    @MainActor
+    func testDestinationFollowTransferWaitsForApprovalAndUsesTheSourceWeek() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        let mapping = HolidayTransferEntry(
+            sourceDate: try XCTUnwrap(CourseOccurrences.date(startDate: "2026-09-07", week: 7, day: 4)),
+            targetDate: try XCTUnwrap(CourseOccurrences.date(startDate: "2026-09-07", week: 8, day: 7)),
+            segmentId: "destination")
+        f.setTransfers([mapping], tableId: f.tableId)
+        await load(f, course: original)
+        let before = try f.snapshot()
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 8, displayDay: 7, targetNode: 3, targetStep: 2))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.pendingCourseMove?.prompt, .destination)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertEqual(f.writes, 0)
+        XCTAssertFalse(f.repo.canUndo)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .saved)
+        let moved = try XCTUnwrap(try f.rows().first { $0.day == 4 })
+        XCTAssertEqual(moved.startWeek, 7)
+        XCTAssertEqual(moved.endWeek, 7)
+        XCTAssertNil(moved.fixedDate)
+        XCTAssertEqual(f.writes, 1)
+        XCTAssertTrue(f.vm.undoLastChange())
+        XCTAssertEqual(try f.snapshot(), before)
+    }
+
+    @MainActor
+    func testDirectDestinationNeedsASecondWarningAndRemainsHiddenByTransfer() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        let mapping = try transfer(week: 8, from: 4, to: 7)
+        f.setTransfers([mapping], tableId: f.tableId)
+        await load(f, course: original)
+        let before = try f.snapshot()
+        let source = try f.source(original, week: 3)
+
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: source,
+            targetWeek: 8, displayDay: 7, targetNode: 3, targetStep: 2))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(.direct), .awaitingApproval)
+        XCTAssertEqual(f.vm.pendingCourseMove?.prompt, .hidden)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(.cancel), .canceled)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertEqual(f.writes, 0)
+        XCTAssertFalse(f.repo.canUndo)
+
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: source,
+            targetWeek: 8, displayDay: 7, targetNode: 3, targetStep: 2))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(.direct), .awaitingApproval)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .saved)
+        let moved = try XCTUnwrap(try f.rows().first { $0.day == 7 })
+        XCTAssertEqual(moved.startWeek, 8)
+        XCTAssertNil(moved.fixedDate, "直接安排保存普通日程，不能绕过调休显示规则")
+        XCTAssertTrue(CourseOccurrences.coursesForDate(mapping.targetDate,
+            startDate: "2026-09-07", maxWeek: 20, courses: [moved], transfers: [mapping]).isEmpty)
+        XCTAssertEqual(CourseOccurrences.coursesForDate(mapping.targetDate,
+            startDate: "2026-09-07", maxWeek: 20, courses: [moved], transfers: []).map(\.id), [moved.id])
+        XCTAssertEqual(f.writes, 1)
+    }
+
+    @MainActor
+    func testApprovingOutgoingDayStoresThatDayAndDisplaysAtTheTransferTarget() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        let mapping = try transfer(week: 8, from: 4, to: 7)
+        f.setTransfers([mapping], tableId: f.tableId)
+        await load(f, course: original)
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 8, displayDay: 4, targetNode: 3, targetStep: 2))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.pendingCourseMove?.prompt, .outgoing)
+        XCTAssertEqual(f.writes, 0)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .saved)
+        let moved = try XCTUnwrap(try f.rows().first { $0.day == 4 })
+        XCTAssertNil(moved.fixedDate)
+        XCTAssertEqual(CourseOccurrences.coursesForDate(mapping.targetDate,
+            startDate: "2026-09-07", maxWeek: 20, courses: [moved], transfers: [mapping]).map(\.id), [moved.id])
+        XCTAssertEqual(f.writes, 1)
+    }
+
+    @MainActor
+    func testCrossWeekSameCellRequiresConflictApprovalAndKeepsBothApprovedOccurrences() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        await load(f, course: original)
+        let source = try f.source(original, week: 3)
+        let before = try f.snapshot()
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: source,
+            targetWeek: 8, displayDay: 2, targetNode: 1, targetStep: 2))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.pendingCourseMove?.prompt, .conflicts)
+        XCTAssertFalse(try XCTUnwrap(f.vm.pendingCourseMove).conflicts.isEmpty)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertEqual(f.writes, 0)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(.cancel), .canceled)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertFalse(f.repo.canUndo)
+
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: source,
+            targetWeek: 8, displayDay: 2, targetNode: 1, targetStep: 2))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .saved)
+        let rows = try f.rows()
+        XCTAssertFalse(rows.contains { $0.inWeek(3) })
+        XCTAssertEqual(rows.filter { $0.inWeek(8) }.count, 2, "确认后保留已批准的重叠，不静默吞掉课程")
+        XCTAssertEqual(f.writes, 1)
+        XCTAssertTrue(f.vm.undoLastChange())
+        XCTAssertEqual(try f.snapshot(), before)
+    }
+
+    @MainActor
+    func testTransferApprovalThenConflictApprovalAreBothRequired() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        var blocker = try f.seed()
+        blocker.day = 4
+        blocker.startNode = 3
+        try f.db.courseDao.update(blocker)
+        f.setTransfers([try transfer(week: 8, from: 4, to: 7)], tableId: f.tableId)
+        await load(f, course: original)
+        let before = try f.snapshot()
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 8, displayDay: 7, targetNode: 3, targetStep: 2))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.pendingCourseMove?.prompt, .destination)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertEqual(f.vm.pendingCourseMove?.prompt, .conflicts)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertEqual(f.writes, 0)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(.cancel), .canceled)
+        XCTAssertEqual(try f.snapshot(), before)
+    }
+
+    @MainActor
+    func testTransferChangeDuringApprovalRejectsWithoutReplacingAnExistingUndo() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        f.setTransfers([try transfer(week: 8, from: 4, to: 7)], tableId: f.tableId)
+        await load(f, course: original)
+        var edited = original
+        edited.note = "此前可撤销的编辑"
+        try f.repo.updateCourse(edited)
+        let source = try f.source(edited, week: 3)
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: source,
+            targetWeek: 8, displayDay: 7, targetNode: 3, targetStep: 2))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        let before = try f.snapshot()
+        f.writes = 0
+        f.setTransfers([], tableId: f.tableId)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .failed)
+        XCTAssertNil(f.vm.pendingCourseMove)
+        XCTAssertEqual(try f.snapshot(), before)
+        XCTAssertEqual(f.writes, 0)
+        XCTAssertTrue(f.repo.canUndo)
+    }
+
+    @MainActor
+    func testCanceledApprovalCannotBeReopenedByItsQueuedPresentation() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        f.setTransfers([try transfer(week: 8, from: 4, to: 7)], tableId: f.tableId)
+        await load(f, course: original)
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 8, displayDay: 7, targetNode: 3, targetStep: 2))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .awaitingApproval)
+        XCTAssertFalse(f.vm.courseMovePromptPresented)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(.cancel), .canceled)
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+        XCTAssertFalse(f.vm.courseMovePromptPresented)
+        XCTAssertNil(f.vm.pendingCourseMove)
+        XCTAssertEqual(f.writes, 0)
+    }
+
+    @MainActor
+    func testResizeOnAnAlreadyTransferredDisplayDayPreservesItsSourceWithoutAnotherDestinationPrompt() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        let original = try f.seed()
+        f.setTransfers([try transfer(week: 3, from: 2, to: 7)], tableId: f.tableId)
+        await load(f, course: original)
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: try f.source(original, week: 3),
+            targetWeek: 3, displayDay: 7, targetNode: 1, targetStep: 3, resizeOnly: true))
+        XCTAssertTrue(try XCTUnwrap(f.vm.pendingCourseMove).isResizeOnly)
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .saved)
+        let resized = try XCTUnwrap(try f.rows().first { $0.startWeek == 3 && $0.endWeek == 3 })
+        XCTAssertEqual(resized.day, 2)
+        XCTAssertEqual(resized.step, 3)
+        XCTAssertNil(resized.fixedDate)
+    }
+
+    @MainActor
+    func testIrregularCustomCourseBecomesTargetGridTimeAndShrinksBeforeMovingToLastNode() async throws {
+        let f = try Fixture()
+        defer { f.close() }
+        var original = try f.seed(ownTime: true)
+        original.ownTime = false
+        original.isIrregularTime = true
+        original.endTime = "11:40"
+        try f.db.courseDao.update(original)
+        await load(f, course: original)
+        let source = try f.source(original, week: 3)
+        XCTAssertEqual(source.renderedCourse.step, 4)
+        XCTAssertTrue(f.vm.stageDraggedOccurrence(source: source,
+            targetWeek: 8, displayDay: 4, targetNode: 4, targetStep: 1, resizeOnly: false))
+        XCTAssertEqual(f.vm.advancePendingCourseMove(), .saved)
+        let moved = try XCTUnwrap(try f.rows().first { $0.day == 4 })
+        XCTAssertEqual(moved.startNode, 4)
+        XCTAssertEqual(moved.step, 1)
+        XCTAssertEqual(moved.startTime, "11:00")
+        XCTAssertEqual(moved.endTime, "11:45")
+        XCTAssertTrue(moved.ownTime)
+        XCTAssertTrue(moved.isIrregularTime)
     }
 }

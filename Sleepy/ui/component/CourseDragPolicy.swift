@@ -1,23 +1,53 @@
 import Foundation
 import CoreGraphics
 
+enum CourseDragMovePrompt: Equatable { case change, destination, hidden, outgoing, conflicts }
+enum CourseDragMoveChoice { case confirm, direct, cancel }
+enum CourseDragMoveAdvance: Equatable { case awaitingApproval, saved, failed, canceled }
+
 struct CourseDragMoveRequest: Identifiable {
     let id = UUID()
     let source: CourseDragContext.Source
     let targetWeek: Int
     let displayDay: Int
     let targetNode: Int
-    let targetStartTime: String?
     let targetStep: Int?
     let table: TimeTableEntity
     let courses: [CourseEntity]
     let transfers: [HolidayTransferEntry]
+    var resizeOnly = false
+    var prompt: CourseDragMovePrompt = .change
+    var replacement: CourseEntity?
+    var conflicts: [String] = []
 
     var confirmationTitle: String {
-        L10n.t(targetStep == nil ? "occurrence_move_confirm_title" : "occurrence_span_confirm_title")
+        switch prompt {
+        case .change: return L10n.t(isResizeOnly ? "occurrence_span_confirm_title" : "occurrence_move_confirm_title")
+        case .destination: return L10n.t("occurrence_destination_title")
+        case .hidden: return L10n.t("occurrence_hidden_title")
+        case .outgoing: return L10n.t("occurrence_outgoing_title")
+        case .conflicts: return L10n.t("conflict_detail_title")
+        }
+    }
+
+    var isResizeOnly: Bool {
+        resizeOnly
     }
 
     var confirmationMessage: String {
+        let selectedDate = targetDate.map(HolidayTransferOps.dayKey) ?? ""
+        switch prompt {
+        case .destination, .hidden:
+            let sourceDate = transfers.last { HolidayTransferOps.dayKey($0.targetDate) == selectedDate }?.sourceDate
+            return L10n.format(prompt == .destination ? "occurrence_destination_message" : "occurrence_hidden_message",
+                               source.course.courseName, selectedDate, sourceDate.map(HolidayTransferOps.dayKey) ?? "")
+        case .outgoing:
+            let target = transfers.last { HolidayTransferOps.dayKey($0.sourceDate) == selectedDate }?.targetDate
+            return L10n.format("occurrence_outgoing_message", source.course.courseName, selectedDate,
+                               target.map(HolidayTransferOps.dayKey) ?? L10n.t("occurrence_transfer_day"))
+        case .conflicts: return conflicts.joined(separator: "\n")
+        case .change: break
+        }
         let crossWeek = source.displayWeek != targetWeek
         func label(week: Int, day: Int, node: Int, step: Int) -> String {
             let span = "\(DateUtils.localizedDay(day)) \(L10n.format("course_node_format", "\(node)-\(node + step - 1)"))"
@@ -29,12 +59,36 @@ struct CourseDragMoveRequest: Identifiable {
             label(week: targetWeek, day: displayDay, node: targetNode,
                   step: targetStep ?? source.renderedCourse.step))
     }
+
+    var targetDate: Date? {
+        CourseOccurrences.date(startDate: table.startDate, week: targetWeek, day: displayDay)
+    }
+
+    var confirmationAction: String {
+        switch prompt {
+        case .change: return L10n.t("ok")
+        case .destination: return L10n.t("occurrence_follow_transfer")
+        case .hidden: return L10n.t("occurrence_direct_anyway")
+        case .outgoing: return L10n.t("occurrence_continue")
+        case .conflicts: return L10n.t("conflict_detail_save_anyway")
+        }
+    }
+
+    var confirmationIsDestructive: Bool { prompt == .hidden || prompt == .conflicts }
 }
 
 /// 单调时钟驱动的边缘驻留；每满 500ms 翻一周，换边/离开重新计时。
 struct CourseDragEdgePaging {
     private var heldDirection = 0
     private var startedAt: TimeInterval = 0
+
+    func feedback(direction: Int, now: TimeInterval, week: Int, maxWeek: Int) -> CourseDragEdgeFeedback {
+        guard direction != 0 else { return .init() }
+        let target = min(max(week + direction, 1), max(1, maxWeek))
+        let blocked = target == week
+        let progress = blocked ? 1 : (heldDirection == direction ? min(max((now - startedAt) / 0.5, 0), 1) : 0)
+        return .init(direction: direction, progress: progress, blocked: blocked, targetWeek: target)
+    }
 
     mutating func update(direction: Int, now: TimeInterval, week: Int, maxWeek: Int,
                          destinationReady: Bool = true) -> Int? {
@@ -62,11 +116,46 @@ struct CourseDragEdgePaging {
     /// The farther-out pointer or card center activates paging; card boundaries do not.
     static func direction(centerX: CGFloat, fingerX: CGFloat?, originX: CGFloat,
                           width: CGFloat, minimumX: CGFloat = 0) -> Int {
-        guard abs(centerX - originX) >= 16 else { return 0 }
+        guard abs(centerX - originX) >= 8 else { return 0 }
         let pointer = fingerX ?? centerX
         if min(pointer, centerX) < minimumX + 10 { return -1 }
         if max(pointer, centerX) > minimumX + width - 10 { return 1 }
         return 0
+    }
+}
+
+struct CourseDragEdgeFeedback: Equatable {
+    var direction = 0
+    var progress: Double = 0
+    var blocked = false
+    var targetWeek = 1
+
+    var opacity: Double {
+        guard progress > 0 else { return 0 }
+        return blocked ? 0.35 : max(0, (progress - 0.35) / 0.65)
+    }
+    var scale: CGFloat { blocked ? 1 : 1.1 - 0.1 * progress }
+}
+
+enum CourseFloatResizePolicy {
+    /// Floating existing courses may span every consecutive visible node,
+    /// including edge periods. Quick-add's edge-period single-slot rule is separate.
+    static func resized(_ range: QuickAddRange, top: Bool, position: CGFloat,
+                        rows: [QuickAddRow]) -> QuickAddRange {
+        let nodes = Set(rows.map(\.node))
+        guard nodes.contains(range.startNode), nodes.contains(range.endNode) else { return range }
+        var first = range.startNode
+        var last = range.endNode
+        while first > 1 && nodes.contains(first - 1) { first -= 1 }
+        while last < (nodes.max() ?? last) && nodes.contains(last + 1) { last += 1 }
+        let candidates = rows.filter {
+            $0.node >= (top ? first : range.startNode) && $0.node <= (top ? range.endNode : last)
+        }
+        guard let nearest = candidates.min(by: {
+            abs((top ? $0.top : $0.bottom) - position) < abs((top ? $1.top : $1.bottom) - position)
+        }) else { return range }
+        return QuickAddRange(day: range.day, startNode: top ? nearest.node : range.startNode,
+            endNode: top ? range.endNode : nearest.node)
     }
 }
 
@@ -103,13 +192,20 @@ struct CourseDropGrid: Equatable {
         return positioned
     }
 
-    /// 外侧驻留区也允许松手：左边越过时间轴映射首列，右边映射末列。
-    /// 只吸附驻留区的 X；时间轴中部、网格上下方与 viewport 外仍是取消。
+    /// 拖动时只在真实列带吸附；松手时横向无条件钳到可见首/末列。
+    /// 卡中心可在屏外（偏边抓取），纵向越出网格或跨度越末节仍不接受。
     func target(at point: CGPoint, step: Int, grabOffsetY: CGFloat = 0,
-                viewport: CGRect, edgeDirection: Int) -> (day: Int, node: Int, rect: CGRect)? {
-        guard viewport.contains(point), !days.isEmpty else { return nil }
+                viewport: CGRect, edgeDirection: Int,
+                clampHorizontal: Bool = false) -> (day: Int, node: Int, rect: CGRect)? {
+        guard !days.isEmpty, point.y >= viewport.minY, point.y < viewport.maxY else { return nil }
         var point = point
-        if edgeDirection == -1, point.x < viewport.minX + 10 {
+        if clampHorizontal {
+            let firstCenter = frame.minX + timeWidth + gap + columnWidth / 2
+            let lastCenter = firstCenter + CGFloat(days.count - 1) * (columnWidth + gap)
+            point.x = min(max(point.x, firstCenter), lastCenter)
+        } else if !viewport.contains(point) {
+            return nil
+        } else if edgeDirection == -1, point.x < viewport.minX + 10 {
             point.x = frame.minX + timeWidth + gap + columnWidth / 2
         } else if edgeDirection == 1, point.x > viewport.maxX - 10 {
             point.x = frame.minX + timeWidth + gap
@@ -142,7 +238,9 @@ struct CourseDropGrid: Equatable {
         let index = Int((local.x - firstX) / (columnWidth + gap))
         guard days.indices.contains(index),
               let start = rows.min(by: { abs($0.top - (local.y - grabOffsetY)) < abs($1.top - (local.y - grabOffsetY)) }),
-              let end = rows.first(where: { $0.node == start.node + step - 1 }) else { return nil }
+              start.node <= Int.max - (step - 1),
+              let end = rows.first(where: { $0.node == start.node + step - 1 }),
+              (start.node...end.node).allSatisfy(Set(rows.map(\.node)).contains) else { return nil }
         let rect = CGRect(x: frame.minX + firstX + CGFloat(index) * (columnWidth + gap),
                           y: frame.minY + start.top, width: columnWidth,
                           height: end.bottom - start.top)

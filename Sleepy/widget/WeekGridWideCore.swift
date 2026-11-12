@@ -3,8 +3,15 @@ import Foundation
 import CoreGraphics
 
 enum WeekGridWideMode: String, Codable, CaseIterable, Hashable {
-    case original, vertical, horizontal
+    case vertical, horizontal
     var labelKey: String { "widget_wide_grid_\(rawValue)" }
+    var widgetKind: String { self == .vertical ? "WeekGridVerticalWidget" : "WeekGridHorizontalWidget" }
+    var displayNameKey: String { "widget_week_grid_\(rawValue)_label" }
+
+    init?(kind: String) {
+        guard let mode = Self.allCases.first(where: { $0.widgetKind == kind }) else { return nil }
+        self = mode
+    }
 }
 
 enum WeekGridWideLabelSide: String, Codable, CaseIterable, Hashable {
@@ -13,7 +20,6 @@ enum WeekGridWideLabelSide: String, Codable, CaseIterable, Hashable {
 }
 
 struct WeekGridWideSettings: Codable, Equatable {
-    static let kind = "WeekGridWideWidget"
     var mode: WeekGridWideMode = .vertical
     var labelSide: WeekGridWideLabelSide = .left
 }
@@ -150,22 +156,24 @@ private extension Range where Bound == CGFloat {
 
 // Independent defaults: never inherit the old global scroll or compact-window preference.
 enum WeekGridWideSettingsStore {
-    static func read(kind: String = WeekGridWideSettings.kind, url: URL? = nil) -> WeekGridWideSettings {
+    static func read(kind: String, url: URL? = nil) -> WeekGridWideSettings {
         let url = url ?? storeURL()
+        let fixedMode = WeekGridWideMode(kind: kind)
         guard let data = try? Data(contentsOf: url),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: [String: String]],
-              let values = root[kind] else { return WeekGridWideSettings() }
-        return WeekGridWideSettings(mode: WeekGridWideMode(rawValue: values["mode"] ?? "") ?? .vertical,
+              let values = root[kind] else { return WeekGridWideSettings(mode: fixedMode ?? .vertical) }
+        return WeekGridWideSettings(mode: fixedMode ?? WeekGridWideMode(rawValue: values["mode"] ?? "") ?? .vertical,
                                     labelSide: WeekGridWideLabelSide(rawValue: values["labelSide"] ?? "") ?? .left)
     }
 
-    static func write(_ settings: WeekGridWideSettings, kind: String = WeekGridWideSettings.kind,
+    static func write(_ settings: WeekGridWideSettings, kind: String,
                       url: URL? = nil) {
         let url = url ?? storeURL()
         var values = (try? Data(contentsOf: url)).flatMap {
             try? JSONSerialization.jsonObject(with: $0) as? [String: [String: String]]
         } ?? [:]
-        values[kind] = ["mode": settings.mode.rawValue, "labelSide": settings.labelSide.rawValue]
+        let mode = WeekGridWideMode(kind: kind) ?? settings.mode
+        values[kind] = ["mode": mode.rawValue, "labelSide": settings.labelSide.rawValue]
         guard let data = try? JSONSerialization.data(withJSONObject: values) else { return }
         try? data.write(to: url, options: .atomic)
     }

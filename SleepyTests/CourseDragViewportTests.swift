@@ -49,6 +49,19 @@ final class CourseDragViewportTests: XCTestCase {
             grabOffsetY: 50, viewport: viewport, edgeDirection: 0))
     }
 
+    func testReleaseClampsOffscreenCardCenterAndTimeAxisToVisibleDays() throws {
+        for (x, day) in [(CGFloat(-60), 2), (CGFloat(40), 2), (CGFloat(460), 7)] {
+            let result = try XCTUnwrap(grid().target(at: CGPoint(x: x, y: 382), step: 2,
+                grabOffsetY: 50, viewport: viewport, edgeDirection: 0, clampHorizontal: true))
+            XCTAssertEqual(result.day, day)
+            XCTAssertEqual(result.node, 3)
+        }
+        for y: CGFloat in [160, 220, 450, 880] {
+            XCTAssertNil(grid().target(at: CGPoint(x: -60, y: y), step: 2,
+                grabOffsetY: 50, viewport: viewport, edgeDirection: -1, clampHorizontal: true))
+        }
+    }
+
     func testEdgeDoesNotClampVerticalOverflowOrOutsideViewport() {
         for point in [CGPoint(x: -1, y: 278), CGPoint(x: 9, y: 220),
                       CGPoint(x: 393, y: 450), CGPoint(x: 403, y: 278)] {

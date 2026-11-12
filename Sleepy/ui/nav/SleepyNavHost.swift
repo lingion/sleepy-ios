@@ -84,6 +84,90 @@ struct SleepyNavigationUnderlay: ViewModifier {
     }
 }
 
+/// A full-screen child page that keeps its source view and input state alive.
+/// Import methods and manual editors are Android navigation entries, rather than
+/// modal sheets. Only their presentation changes; their data sessions stay local.
+private struct SleepyNavigationPage<Item: Identifiable, Page: View, Canvas: View>: ViewModifier {
+    @Binding var item: Item?
+    let onDismiss: () -> Void
+    @ViewBuilder var canvas: () -> Canvas
+    @ViewBuilder var page: (Item) -> Page
+    @State private var shownItem: Item?
+    @State private var dragX: CGFloat = 0
+    @State private var dismissal: UUID?
+    @State private var childPageIsPresented = false
+
+    func body(content: Content) -> some View {
+        ZStack {
+            content.modifier(SleepyNavigationUnderlay(covered: shownItem != nil))
+            if let shownItem {
+                page(shownItem)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(canvas())
+                    .offset(x: dragX)
+                    .onPreferenceChange(SleepyChildPageKey.self) { childPageIsPresented = $0 }
+                    .edgeBackGesture(dragX: $dragX, enabled: !childPageIsPresented, onBack: { item = nil },
+                                     onCommit: { action in action() })
+                    .id(shownItem.id)
+                    .transition(SleepyMaterialTransition.forwardTransform)
+                    .zIndex(1)
+            }
+        }
+        .background(canvas())
+        .onAppear { shownItem = item }
+        .onChange(of: item?.id) { _ in syncPresentation() }
+        .preference(key: SleepyChildPageKey.self, value: shownItem != nil)
+    }
+
+    private func syncPresentation() {
+        if let item {
+            dismissal = nil
+            dragX = 0
+            withAnimation(SleepyMaterialTransition.forwardAnimation) { shownItem = item }
+        } else if shownItem != nil {
+            let ticket = UUID()
+            dismissal = ticket
+            withAnimation(SleepyMaterialTransition.forwardAnimation) { shownItem = nil }
+            DispatchQueue.main.asyncAfter(deadline: .now() + SleepyMaterialTransition.forwardDuration) {
+                guard dismissal == ticket, self.item == nil, shownItem == nil else { return }
+                dismissal = nil
+                dragX = 0
+                onDismiss()
+            }
+        }
+    }
+}
+
+private struct SleepyChildPageKey: PreferenceKey {
+    static var defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
+}
+
+private struct SleepyNavigationPageToken: Identifiable {
+    let id = 0
+}
+
+extension View {
+    func sleepyNavigationPage<Item: Identifiable, Page: View, Canvas: View>(
+        item: Binding<Item?>, onDismiss: @escaping () -> Void = {},
+        @ViewBuilder canvas: @escaping () -> Canvas,
+        @ViewBuilder content: @escaping (Item) -> Page
+    ) -> some View {
+        modifier(SleepyNavigationPage(item: item, onDismiss: onDismiss, canvas: canvas, page: content))
+    }
+
+    func sleepyNavigationPage<Page: View, Canvas: View>(
+        isPresented: Binding<Bool>, onDismiss: @escaping () -> Void = {},
+        @ViewBuilder canvas: @escaping () -> Canvas,
+        @ViewBuilder content: @escaping () -> Page
+    ) -> some View {
+        sleepyNavigationPage(item: Binding(
+            get: { isPresented.wrappedValue ? SleepyNavigationPageToken() : nil },
+            set: { isPresented.wrappedValue = $0 != nil }), onDismiss: onDismiss,
+            canvas: canvas, content: { _ in content() })
+    }
+}
+
 extension AppRootViewModel {
     /// 路由 → iOS 导航态 单点入口 (原版本 SleepyNavigator.openXxx 的 VM 直驱版).
     /// 未落地路由在此集中留痕, 避免散落的 no-op.

@@ -48,7 +48,7 @@
 "edit_table_start_date" = "学期开始日期";
 "edit_table_start_date_hint" = "例如 2026-02-24";
 "edit_table_max_week" = "总周数";
-"edit_table_time_slots" = "节次时间表";
+"edit_table_time_slots" = "作息表";
 "edit_table_delete" = "删除课表";
 "edit_table_save" = "保存课表设置";
 "edit_table_not_found" = "课表数据未找到";
@@ -221,17 +221,17 @@
 "settings_grid_sub_teacher_sub" = "课程名下方显示授课教师（无教师则不显示）";
 "settings_grid_sub_none" = "无";
 "settings_grid_sub_none_sub" = "网格卡片只显示课程名";
-"settings_display_node" = "统一显示节次";
+"settings_display_node" = "节次";
 "settings_display_node_sub" = "所有课程显示为「第N节」";
-"settings_display_time" = "统一显示时间";
+"settings_display_time" = "时间";
 "settings_display_time_sub" = "所有课程显示为「HH:mm–HH:mm」";
 "settings_show_date" = "课表显示日期";
 "settings_show_date_sub" = "在每列表头显示具体日期（月/日）";
 "settings_visible_days" = "显示星期";
-"settings_visible_days_sub" = "取消勾选的星期将在所有视图中隐藏";
+"settings_visible_days_sub" = "取消勾选的星期将在课表页和小组件中隐藏";
 "settings_start_view" = "启动默认视图";
 "settings_start_view_full" = "周视图";
-"settings_start_view_cards" = "卡片视图";
+"settings_start_view_cards" = "网格";
 "settings_vert_punct" = "竖排标点优化";
 "settings_vert_punct_sub" = "网格小组件课名竖排时将（）《》等横排符号替换为专用竖排符号（实验功能）";
 "settings_widget" = "小组件设置";
@@ -413,7 +413,7 @@
 "day_short_7" = "日";
 "section_node_format" = "第%1$d-%2$d节";
 "section_single" = "第%1$d 节";
-"mine_appearance" = "外观与显示";
+"mine_appearance" = "外观与主题";
 "mine_general" = "通用";
 "theme_appearance" = "外观";
 "theme_mode_system" = "深浅色跟随系统";
@@ -650,7 +650,7 @@
 "jw_toggle_desktop_ua" = "切换桌面版网页";
 "jw_toggle_mobile_ua" = "切换手机版网页";
 "license_contributor_section" = "贡献者";
-"settings_grid_alias" = "网格视图课程名";
+"settings_grid_alias" = "网格视图显示别名";
 "settings_name_alias" = "别名";
 "settings_name_original" = "原名";
 "settings_pill" = "主页显示设置";
@@ -658,7 +658,7 @@
 "settings_pill_scale" = "网格视图缩放";
 "settings_pill_week_scale" = "周视图缩放";
 "settings_start_view_sub" = "仅影响启动时进入的视图，随时可在课表页顶部切换";
-"settings_week_alias" = "周视图课程名";
+"settings_week_alias" = "周视图显示别名";
 "settings_week_hide_empty" = "周视图隐藏无课日";
 "settings_week_two_column" = "周视图两栏显示";
 "settings_week_two_column_balance" = "按课程数平衡";
@@ -1236,15 +1236,12 @@
 "import_backup_name" = "%1$@-备份";
 
 // Android v1.0.64 widget layouts and gallery
-"widget_week_grid_wide_label" = "本周课表（网格）· 4×2";
 "widget_wide_grid_empty" = "当前预览日期内没有课程";
 "widget_wide_grid_horizontal" = "横向三天，逐日推进";
 "widget_wide_grid_layout" = "4×2 网格布局";
 "widget_wide_grid_left" = "星期标签放左侧";
-"widget_wide_grid_original" = "原有完整网格";
 "widget_wide_grid_preview_error" = "预览加载失败，请返回后重试";
 "widget_wide_grid_right" = "星期标签放右侧";
-"widget_wide_grid_shapes" = "切换形态";
 "widget_wide_grid_unavailable" = "此小组件已删除或不可用";
 "widget_wide_grid_vertical" = "竖向七天，逐节推进";
 "settings_widget_global_appearance" = "全局外观";
@@ -1396,3 +1393,8 @@
 "occurrence_span_confirm_title" = "是否调整持续节次?";
 
 "occurrence_change_confirm_message" = "%1$@\n%2$@ → %3$@";
+
+"settings_holidays" = "节假日与调休";
+
+"widget_week_grid_vertical_label" = "本周课表（竖向网格）· 4×2";
+"widget_week_grid_horizontal_label" = "三天课表（横向网格）· 4×2";

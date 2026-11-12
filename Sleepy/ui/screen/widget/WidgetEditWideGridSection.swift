@@ -7,14 +7,16 @@ enum WideGridPreviewStatus { case loading, ready, empty, noTable, unavailable, e
 
 /// Screen-owned observation and cancellation. No stock courses are substituted for the binding.
 @MainActor final class WeekGridWidePreviewModel: ObservableObject {
-    @Published private(set) var frames: [WeekGridWideMode: WeekData] = [:]
+    @Published private(set) var frame: WeekData?
     @Published private(set) var status: WideGridPreviewStatus = .loading
     @Published private(set) var now = Date()
     private var observation: AnyCancellable?
     private var loadTask: Task<Void, Never>?
+    private var kind: String = WeekGridWideMode.vertical.widgetKind
 
-    func start() {
+    func start(kind: String) {
         stop()
+        self.kind = kind
         guard let repo = WidgetLoader.makeRepo() else { status = .error; return }
         observation = ValueObservation.tracking { db -> [Row] in
             // Observing every row also catches edits with unchanged course/table counts.
@@ -30,38 +32,25 @@ enum WideGridPreviewStatus { case loading, ready, empty, noTable, unavailable, e
 
     func refresh() {
         loadTask?.cancel()
-        frames = [:]
+        frame = nil
         status = .loading
+        let requestedKind = kind
+        guard let mode = WeekGridWideMode(kind: requestedKind) else { status = .unavailable; return }
         loadTask = Task {
-            let binding = WidgetBindingStore.get(WeekGridWideSettings.kind)
-            let settings = WeekGridWideSettingsStore.read()
+            let binding = WidgetBindingStore.get(requestedKind)
+            let settings = WeekGridWideSettingsStore.read(kind: requestedKind)
             let alias = AppPrefs.shared.isWidgetUseAlias()
             let theme = AppPrefs.shared.getThemeKey()
-            let configurations: [WidgetInfo]? = await withCheckedContinuation { continuation in
-                WidgetCenter.shared.getCurrentConfigurations { result in
-                    continuation.resume(returning: try? result.get())
-                }
-            }
-            guard !Task.isCancelled else { return }
-            guard let configurations else { status = .error; return }
-            guard configurations.contains(where: { $0.kind == WeekGridWideSettings.kind }) else {
-                status = .unavailable; return
-            }
             let date = Date()
-            let source = await WidgetWeekDataLoader.resolve(WeekGridWideSettings.kind)
-            var batch: [WeekGridWideMode: WeekData] = [:]
-            for mode in WeekGridWideMode.allCases {
-                guard !Task.isCancelled else { return }
-                batch[mode] = await WeekGridWideDataLoader.dataForSource(source, mode: mode, now: date)
-            }
-            guard !Task.isCancelled,
-                  binding == WidgetBindingStore.get(WeekGridWideSettings.kind),
-                  settings == WeekGridWideSettingsStore.read(), alias == AppPrefs.shared.isWidgetUseAlias(),
-                  theme == AppPrefs.shared.getThemeKey() else { return }
+            let source = await WidgetWeekDataLoader.resolve(requestedKind, now: date)
+            let data = await WeekGridWideDataLoader.dataForSource(source, mode: mode, now: date)
+            guard !Task.isCancelled, requestedKind == kind,
+                  binding == WidgetBindingStore.get(requestedKind),
+                  settings == WeekGridWideSettingsStore.read(kind: requestedKind),
+                  alias == AppPrefs.shared.isWidgetUseAlias(), theme == AppPrefs.shared.getThemeKey() else { return }
             now = date
-            frames = batch
-            status = source == nil ? .noTable : batch.values.allSatisfy { $0.days.allSatisfy { $0.courses.isEmpty } }
-                ? .empty : .ready
+            frame = data
+            status = source == nil ? .noTable : data.days.allSatisfy { $0.courses.isEmpty } ? .empty : .ready
         }
     }
 
@@ -81,89 +70,55 @@ struct WidgetEditWideGridSection: View {
     @StateObject private var previews = WeekGridWidePreviewModel()
     let scope: WidgetEditScope
 
-    static func appliesTo(kind: String) -> Bool { kind == WeekGridWideSettings.kind }
+    static func appliesTo(kind: String) -> Bool { WeekGridWideMode(kind: kind) != nil }
 
     var body: some View {
         if Self.appliesTo(kind: scope.kind) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: SettingsLayout.headerGap) {
                 Text(L10n.format("widget_wide_grid_layout")).font(.system(size: 14, weight: .semibold))
-                if let message = statusMessage {
-                    Text(message).font(.footnote).foregroundColor(colors.onSurfaceVariant)
-                        .accessibilityIdentifier("wide-preview-status")
-                }
-                if style == .liquidGlass {
-                    Picker(L10n.format("widget_wide_grid_shapes"), selection: Binding(
-                        get: { scope.wideGridSettings.mode },
-                        set: { scope.onWideGridSettingsChange(WeekGridWideSettings(
-                            mode: $0, labelSide: scope.wideGridSettings.labelSide)) }
-                    )) {
-                        ForEach(WeekGridWideMode.allCases, id: \.self) { mode in
-                            Text(L10n.format(mode.labelKey))
-                                .tag(mode)
-                                .accessibilityIdentifier("wide-shape-\(mode.rawValue)")
-                        }
+                    .accessibilityIdentifier("widget_edit_wide_heading")
+                VStack(alignment: .leading, spacing: 12) {
+                    if let message = statusMessage {
+                        Text(message).font(.footnote).foregroundColor(colors.onSurfaceVariant)
+                            .accessibilityIdentifier("wide-preview-status")
                     }
-                    .pickerStyle(.menu)
-                    .tint(colors.primary)
-                    .accessibilityIdentifier("wide-shape-picker")
-                    preview(for: scope.wideGridSettings.mode)
-                } else {
-                    ForEach(WeekGridWideMode.allCases, id: \.self) { mode in
-                        Button { scope.onWideGridSettingsChange(WeekGridWideSettings(mode: mode,
-                            labelSide: scope.wideGridSettings.labelSide)) } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 8) {
-                                    MaterialSelectionIndicator(kind: .radio, selected: scope.wideGridSettings.mode == mode)
-                                        .frame(width: 48, height: 48)
-                                    Text(L10n.format(mode.labelKey)).font(.system(size: 14, weight: .medium))
-                                }
-                                preview(for: mode)
-                            }
-                            .foregroundColor(colors.onSurface)
-                            .padding(12)
-                            .background(scope.wideGridSettings.mode == mode ? colors.secondaryContainer : colors.surfaceContainer)
-                            .cornerRadius(16)
-                        }
-                        .buttonStyle(SleepyButtonStyle())
-                        .accessibilityAddTraits(scope.wideGridSettings.mode == mode ? .isSelected : [])
-                        .accessibilityIdentifier("wide-shape-\(mode.rawValue)")
-                    }
-                }
-                if scope.wideGridSettings.mode == .horizontal {
-                    if style == .liquidGlass {
-                        Picker(L10n.format("widget_wide_grid_layout"), selection: Binding(
-                            get: { scope.wideGridSettings.labelSide },
-                            set: { scope.onWideGridSettingsChange(WeekGridWideSettings(mode: .horizontal, labelSide: $0)) }
-                        )) {
-                            ForEach(WeekGridWideLabelSide.allCases, id: \.self) { side in
-                                Text(L10n.format(side.labelKey))
-                                    .tag(side)
-                                    .accessibilityIdentifier("wide-label-\(side.rawValue)")
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .tint(colors.primary)
-                        .accessibilityIdentifier("wide-label-picker")
-                    } else {
-                        ForEach(WeekGridWideLabelSide.allCases, id: \.self) { side in
-                            Button { scope.onWideGridSettingsChange(WeekGridWideSettings(mode: .horizontal, labelSide: side)) } label: {
-                                HStack(spacing: 12) {
-                                    MaterialSelectionIndicator(kind: .radio, selected: scope.wideGridSettings.labelSide == side)
-                                        .frame(width: 48, height: 48)
+                    previewCard(for: scope.wideGridSettings.mode)
+                    if scope.wideGridSettings.mode == .horizontal {
+                        if style == .liquidGlass {
+                            Picker(L10n.format("widget_wide_grid_layout"), selection: Binding(
+                                get: { scope.wideGridSettings.labelSide },
+                                set: { scope.onWideGridSettingsChange(WeekGridWideSettings(mode: .horizontal, labelSide: $0)) }
+                            )) {
+                                ForEach(WeekGridWideLabelSide.allCases, id: \.self) { side in
                                     Text(L10n.format(side.labelKey))
-                                    Spacer()
+                                        .tag(side)
+                                        .accessibilityIdentifier("wide-label-\(side.rawValue)")
                                 }
-                                .foregroundColor(colors.onSurface).padding(8)
                             }
-                            .buttonStyle(SleepyButtonStyle())
-                            .accessibilityAddTraits(scope.wideGridSettings.labelSide == side ? .isSelected : [])
-                            .accessibilityIdentifier("wide-label-\(side.rawValue)")
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .tint(colors.primary)
+                            .accessibilityIdentifier("wide-label-picker")
+                        } else {
+                            ForEach(WeekGridWideLabelSide.allCases, id: \.self) { side in
+                                Button { scope.onWideGridSettingsChange(WeekGridWideSettings(mode: .horizontal, labelSide: side)) } label: {
+                                    HStack(spacing: 12) {
+                                        MaterialSelectionIndicator(kind: .radio, selected: scope.wideGridSettings.labelSide == side)
+                                            .frame(width: 48, height: 48)
+                                        Text(L10n.format(side.labelKey))
+                                        Spacer()
+                                    }
+                                    .foregroundColor(colors.onSurface).padding(8)
+                                }
+                                .buttonStyle(SleepyButtonStyle())
+                                .accessibilityAddTraits(scope.wideGridSettings.labelSide == side ? .isSelected : [])
+                                .accessibilityIdentifier("wide-label-\(side.rawValue)")
+                            }
                         }
                     }
                 }
             }
-            .task(id: refreshKey) { previews.start() }
+            .task(id: refreshKey) { previews.start(kind: scope.kind) }
             .onDisappear { previews.stop() }
             .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
                 if scenePhase == .active { previews.refresh() }
@@ -175,15 +130,29 @@ struct WidgetEditWideGridSection: View {
                 if scenePhase == .active { previews.refresh() }
             }
             .onChange(of: scenePhase) { phase in
-                if phase == .active { previews.start() } else { previews.stop() }
+                if phase == .active { previews.start(kind: scope.kind) } else { previews.stop() }
             }
             .onChange(of: colorScheme) { _ in previews.refresh() }
         }
     }
 
+    private func previewCard(for mode: WeekGridWideMode) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.format(mode.labelKey))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(colors.onSurface)
+                .accessibilityIdentifier("wide-preview-caption-\(mode.rawValue)")
+            preview(for: mode)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(colors.surfaceContainer)
+        .cornerRadius(SleepyShapes.large)
+    }
+
     @ViewBuilder
     private func preview(for mode: WeekGridWideMode) -> some View {
-        if let data = previews.frames[mode] {
+        if let data = previews.frame {
             WeekGridWideWidgetEntryView(entry: WeekGridWideWidgetEntry(date: previews.now,
                 data: data, settings: WeekGridWideSettings(mode: mode, labelSide: scope.wideGridSettings.labelSide)))
                 .environment(\.sleepyWidgetGalleryFamily, .systemMedium)
@@ -202,7 +171,7 @@ struct WidgetEditWideGridSection: View {
     }
 
     private var refreshKey: String {
-        "\(scope.currentBinding ?? 0)|\(scope.useAlias)|\(scope.wideGridSettings.mode)|\(scope.wideGridSettings.labelSide)"
+        "\(scope.kind)|\(scope.currentBinding ?? 0)|\(scope.useAlias)|\(scope.wideGridSettings.mode)|\(scope.wideGridSettings.labelSide)"
     }
 
     private var statusMessage: String? {

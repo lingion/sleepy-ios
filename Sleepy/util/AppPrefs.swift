@@ -8,7 +8,13 @@ import WidgetKit
 
 /// App 级别轻量设置 — 避免引入额外依赖。
 final class AppPrefs {
-    static let shared = AppPrefs()
+    static let shared: AppPrefs = {
+        let sharedDefaults = AppGroupResolver.resolve().flatMap { UserDefaults(suiteName: $0) }
+        let role: ProcessRole = Bundle.main.bundleURL.pathExtension == "appex" ? .widgetExtension : .application
+        return AppPrefs(widgetSharedDefaults: sharedDefaults, role: role)
+    }()
+
+    enum ProcessRole { case application, widgetExtension }
 
     static let FILE = "sleepy_prefs"
     static let KEY_UI_STYLE = "ui_style"
@@ -150,9 +156,53 @@ final class AppPrefs {
     /// 单测注入用:默认 UserDefaults.standard。测试用 suiteName 隔离。
     private let d: UserDefaults
 
-    init(defaults: UserDefaults = .standard) {
-        self.d = defaults
+    private let widgetSharedDefaults: UserDefaults?
+
+    /// The app keeps its existing standard domain; the extension reads the App Group.
+    /// Explicit stores and roles let tests model the two process domains independently.
+    init(defaults: UserDefaults = .standard, widgetSharedDefaults: UserDefaults? = nil,
+         role: ProcessRole = .application) {
+        self.d = role == .widgetExtension ? widgetSharedDefaults ?? defaults : defaults
+        self.widgetSharedDefaults = role == .application ? widgetSharedDefaults : nil
+        // Publish existing installations' saved settings without requiring another toggle.
+        syncWidgetPreferences()
         uiStyleSubject.send(getUiStyle())
+    }
+
+    private static let widgetPreferenceKeys: Set<String> = [
+        KEY_WIDGET_COLORLESS, KEY_WIDGET_SEPARATOR, KEY_WIDGET_USE_ALIAS,
+        KEY_THEME, KEY_THEME_MODE, KEY_DARK, KEY_LANG, KEY_DISPLAY_MODE,
+        KEY_SHOW_DATE, KEY_VISIBLE_DAYS, KEY_VERT_PUNCT_REPLACE,
+        KEY_PERIOD_HEADER_LAYOUT, KEY_PERIOD_HEADER_STYLE, KEY_PERIOD_HEADER_HANGING,
+        KEY_PERIOD_HEADER_SHOW_X, KEY_PERIOD_HEADER_HIDE_TIME, KEY_PERIOD_HEADER_TIME_ALIGNMENT,
+        KEY_GRID_SHOW_SEPARATORS, KEY_GRID_LONG_BREAK_SPACING, KEY_NEAREST_BUSY_DAY,
+        KEY_COMPACT_WINDOW_TODAY_FIRST, KEY_WIDGET_SCROLL_ENABLED,
+        KEY_HOLIDAY_GREY_HOLIDAY, KEY_HOLIDAY_GREY_WEEKEND, KEY_HOLIDAY_STYLE,
+        KEY_HOLIDAY_IGNORE_WORKDAY, KEY_HOLIDAY_OVERRIDES,
+        KEY_COURSE_COLOR_MODE, KEY_COURSE_COLOR_SEED_HUE, CustomThemeCore.KEY_THEMES
+    ]
+
+    private static func isWidgetPreference(_ key: String) -> Bool {
+        widgetPreferenceKeys.contains(key) || key.hasPrefix("holiday_transfer_")
+    }
+
+    private func setPreference(_ value: Any?, forKey key: String) {
+        d.set(value, forKey: key)
+        if Self.isWidgetPreference(key) { widgetSharedDefaults?.set(value, forKey: key) }
+    }
+
+    /// Only the application publishes. An extension never overwrites valid shared
+    /// settings with defaults from its separate standard domain. Missing App Group
+    /// access retains the previous process-local fallback.
+    func syncWidgetPreferences(replacingMissing: Bool = false) {
+        guard let shared = widgetSharedDefaults else { return }
+        let values = d.dictionaryRepresentation().filter { Self.isWidgetPreference($0.key) }
+        if replacingMissing {
+            for key in shared.dictionaryRepresentation().keys where Self.isWidgetPreference(key) && values[key] == nil {
+                shared.removeObject(forKey: key)
+            }
+        }
+        for (key, value) in values { shared.set(value, forKey: key) }
     }
 
     private func sp() -> UserDefaults { d }
@@ -182,7 +232,7 @@ final class AppPrefs {
 
     func setThemeMode(_ mode: String) {
         precondition(mode == Self.THEME_MODE_LIGHT || mode == Self.THEME_MODE_DARK || mode == Self.THEME_MODE_SYSTEM)
-        sp().set(mode, forKey: Self.KEY_THEME_MODE)
+        setPreference(mode, forKey: Self.KEY_THEME_MODE)
     }
 
     // ===== 画面 =====
@@ -216,7 +266,7 @@ final class AppPrefs {
     }
 
     func setThemeKey(_ key: String) {
-        sp().set(key, forKey: Self.KEY_THEME)
+        setPreference(key, forKey: Self.KEY_THEME)
         themeKeySubject.send(key)
     }
 
@@ -344,13 +394,13 @@ final class AppPrefs {
         if preferred.hasPrefix("es") { return "es" }
         return "zh-CN"
     }
-    func setLanguage(_ lang: String) { sp().set(lang, forKey: Self.KEY_LANG) }
+    func setLanguage(_ lang: String) { setPreference(lang, forKey: Self.KEY_LANG) }
 
     // ===== 显示模式:节次 / 时间 =====
 
     /// 显示模式出厂默认 "time"(时间段) — 用户 2026-09-14 指令, ← 原版本 getString(KEY_DISPLAY_MODE, "time")
     func getDisplayMode() -> String { sp().string(forKey: Self.KEY_DISPLAY_MODE) ?? "time" }
-    func setDisplayMode(_ mode: String) { sp().set(mode, forKey: Self.KEY_DISPLAY_MODE) }
+    func setDisplayMode(_ mode: String) { setPreference(mode, forKey: Self.KEY_DISPLAY_MODE) }
 
     /// 启动默认视图 — ← AppPrefs.getStartView 原版本 (出厂默认 "cards": 用户反馈网格更好用)。
     /// 仅通用设置里设置, 手动切换课表顶部视图不写入(原版本 注释硬规则, iOS 一致遵循)。
@@ -442,7 +492,7 @@ final class AppPrefs {
 
     func setGridScale(_ value: Double) {
         // ← 原 setter 静默 coerceIn(0.7f, 1.3f), 不抛
-        sp().set(min(max(value, Self.GRID_SCALE_RANGE.lowerBound), Self.GRID_SCALE_RANGE.upperBound),
+        setPreference(min(max(value, Self.GRID_SCALE_RANGE.lowerBound), Self.GRID_SCALE_RANGE.upperBound),
                  forKey: Self.KEY_GRID_SCALE)
     }
 
@@ -454,7 +504,7 @@ final class AppPrefs {
 
     func setWeekScale(_ value: Double) {
         // ← 原 setter 静默 coerceIn(0.7f, 1.3f)
-        sp().set(min(max(value, Self.GRID_SCALE_RANGE.lowerBound), Self.GRID_SCALE_RANGE.upperBound),
+        setPreference(min(max(value, Self.GRID_SCALE_RANGE.lowerBound), Self.GRID_SCALE_RANGE.upperBound),
                  forKey: Self.KEY_WEEK_SCALE)
     }
 
@@ -466,7 +516,7 @@ final class AppPrefs {
 
     func setGridCornerRatio(_ value: Double) {
         // ← 原 setter 静默 coerceIn(0f, 2f)
-        sp().set(min(max(value, Self.CORNER_RATIO_RANGE.lowerBound), Self.CORNER_RATIO_RANGE.upperBound),
+        setPreference(min(max(value, Self.CORNER_RATIO_RANGE.lowerBound), Self.CORNER_RATIO_RANGE.upperBound),
                  forKey: Self.KEY_GRID_CORNER_RATIO)
     }
 
@@ -495,7 +545,7 @@ final class AppPrefs {
     // (WidgetUpdater.notifyDataChanged, 桌面即时重绘)。
     func isWidgetUseAlias() -> Bool { sp().bool(forKey: Self.KEY_WIDGET_USE_ALIAS) }
     func setWidgetUseAlias(_ v: Bool) {
-        sp().set(v, forKey: Self.KEY_WIDGET_USE_ALIAS)
+        setPreference(v, forKey: Self.KEY_WIDGET_USE_ALIAS)
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -544,7 +594,7 @@ final class AppPrefs {
     func isShowDate() -> Bool {
         sp().object(forKey: Self.KEY_SHOW_DATE) as? Bool ?? true
     }
-    func setShowDate(_ v: Bool) { sp().set(v, forKey: Self.KEY_SHOW_DATE) }
+    func setShowDate(_ v: Bool) { setPreference(v, forKey: Self.KEY_SHOW_DATE) }
 
     // ===== 可见天 =====
 
@@ -556,18 +606,18 @@ final class AppPrefs {
 
     func setVisibleDays(_ days: Set<Int>) {
         let joined = days.sorted().map(String.init).joined(separator: ",")
-        sp().set(joined, forKey: Self.KEY_VISIBLE_DAYS)
+        setPreference(joined, forKey: Self.KEY_VISIBLE_DAYS)
     }
 
     // ===== 竖排标点优化(方案B: 标点替换为 Unicode Vertical Forms) — 默认 false =====
 
     func isVertPunctReplace() -> Bool { sp().bool(forKey: Self.KEY_VERT_PUNCT_REPLACE) }
-    func setVertPunctReplace(_ v: Bool) { sp().set(v, forKey: Self.KEY_VERT_PUNCT_REPLACE) }
+    func setVertPunctReplace(_ v: Bool) { setPreference(v, forKey: Self.KEY_VERT_PUNCT_REPLACE) }
 
     // ===== 小组件无色模式 — 默认 false =====
 
     func isWidgetColorless() -> Bool { sp().bool(forKey: Self.KEY_WIDGET_COLORLESS) }
-    func setWidgetColorless(_ v: Bool) { sp().set(v, forKey: Self.KEY_WIDGET_COLORLESS) }
+    func setWidgetColorless(_ v: Bool) { setPreference(v, forKey: Self.KEY_WIDGET_COLORLESS) }
 
     // ===== App 课程胶囊无色模式 — 默认 false =====
 
@@ -582,13 +632,13 @@ final class AppPrefs {
             ? sp().integer(forKey: Self.KEY_COURSE_COLOR_MODE)
             : Self.COURSE_COLOR_MODE_CLASSIC
     }
-    func setCourseColorMode(_ v: Int) { sp().set(v, forKey: Self.KEY_COURSE_COLOR_MODE) }
+    func setCourseColorMode(_ v: Int) { setPreference(v, forKey: Self.KEY_COURSE_COLOR_MODE) }
 
     func getCourseColorSeedHue() -> Float {
         guard sp().object(forKey: Self.KEY_COURSE_COLOR_SEED_HUE) != nil else { return Self.COURSE_COLOR_SEED_UNSET }
         return sp().float(forKey: Self.KEY_COURSE_COLOR_SEED_HUE)
     }
-    func setCourseColorSeedHue(_ hue: Float) { sp().set(hue, forKey: Self.KEY_COURSE_COLOR_SEED_HUE) }
+    func setCourseColorSeedHue(_ hue: Float) { setPreference(hue, forKey: Self.KEY_COURSE_COLOR_SEED_HUE) }
 
     // ===== widget v1.0.60 对齐键 (← AppPrefs.kt 同名键) =====
 
@@ -596,7 +646,7 @@ final class AppPrefs {
     /// (← KEY_NEAREST_BUSY_DAY; WidgetWeekDataLoader.resolve enabled 入参)
     func isNearestBusyDay() -> Bool { sp().bool(forKey: Self.KEY_NEAREST_BUSY_DAY) }
     func setNearestBusyDay(_ v: Bool) {
-        sp().set(v, forKey: Self.KEY_NEAREST_BUSY_DAY)
+        setPreference(v, forKey: Self.KEY_NEAREST_BUSY_DAY)
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -612,7 +662,7 @@ final class AppPrefs {
         sp().object(forKey: Self.KEY_COMPACT_WINDOW_TODAY_FIRST) as? Bool ?? true
     }
     func setCompactWindowTodayFirst(_ v: Bool) {
-        sp().set(v, forKey: Self.KEY_COMPACT_WINDOW_TODAY_FIRST)
+        setPreference(v, forKey: Self.KEY_COMPACT_WINDOW_TODAY_FIRST)
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -627,7 +677,7 @@ final class AppPrefs {
     func isWidgetSeparator() -> Bool {
         sp().object(forKey: Self.KEY_WIDGET_SEPARATOR) as? Bool ?? true
     }
-    func setWidgetSeparator(_ v: Bool) { sp().set(v, forKey: Self.KEY_WIDGET_SEPARATOR) }
+    func setWidgetSeparator(_ v: Bool) { setPreference(v, forKey: Self.KEY_WIDGET_SEPARATOR) }
 
     // ===== 节假日灰显 =====
 
@@ -635,13 +685,13 @@ final class AppPrefs {
     func isHolidayGreyHoliday() -> Bool {
         sp().object(forKey: Self.KEY_HOLIDAY_GREY_HOLIDAY) as? Bool ?? true
     }
-    func setHolidayGreyHoliday(_ v: Bool) { sp().set(v, forKey: Self.KEY_HOLIDAY_GREY_HOLIDAY) }
+    func setHolidayGreyHoliday(_ v: Bool) { setPreference(v, forKey: Self.KEY_HOLIDAY_GREY_HOLIDAY) }
 
     /// 周末灰显开关 — 默认 true ← isHolidayGreyWeekend
     func isHolidayGreyWeekend() -> Bool {
         sp().object(forKey: Self.KEY_HOLIDAY_GREY_WEEKEND) as? Bool ?? true
     }
-    func setHolidayGreyWeekend(_ v: Bool) { sp().set(v, forKey: Self.KEY_HOLIDAY_GREY_WEEKEND) }
+    func setHolidayGreyWeekend(_ v: Bool) { setPreference(v, forKey: Self.KEY_HOLIDAY_GREY_WEEKEND) }
 
     /// 灰显样式 — 默认 "grey" ← getHolidayStyle/setHolidayStyle
     func getHolidayStyle() -> String {
@@ -649,21 +699,21 @@ final class AppPrefs {
     }
     func setHolidayStyle(_ style: String) {
         precondition(style == "grey" || style == "strikethrough")
-        sp().set(style, forKey: Self.KEY_HOLIDAY_STYLE)
+        setPreference(style, forKey: Self.KEY_HOLIDAY_STYLE)
     }
 
     /// 忽略补班日 — 默认 true ← isHolidayIgnoreWorkday
     func isHolidayIgnoreWorkday() -> Bool {
         sp().object(forKey: Self.KEY_HOLIDAY_IGNORE_WORKDAY) as? Bool ?? true
     }
-    func setHolidayIgnoreWorkday(_ v: Bool) { sp().set(v, forKey: Self.KEY_HOLIDAY_IGNORE_WORKDAY) }
+    func setHolidayIgnoreWorkday(_ v: Bool) { setPreference(v, forKey: Self.KEY_HOLIDAY_IGNORE_WORKDAY) }
 
     /// 用户范围化覆盖段: 编辑/新增/删除节日段 ← getHolidayRanges/setHolidayRanges
     func getHolidayRanges() -> [HolidayRange] {
         HolidayRangeOps.decodeOverrides(sp().string(forKey: Self.KEY_HOLIDAY_OVERRIDES) ?? "[]")
     }
     func setHolidayRanges(_ ranges: [HolidayRange]) {
-        sp().set(HolidayRangeOps.encodeOverrides(ranges), forKey: Self.KEY_HOLIDAY_OVERRIDES)
+        setPreference(HolidayRangeOps.encodeOverrides(ranges), forKey: Self.KEY_HOLIDAY_OVERRIDES)
     }
 
     // ===== 节假日提醒规则开关 (v1.0.60 对齐) =====
@@ -750,7 +800,7 @@ final class AppPrefs {
     }
 
     func setHolidayTransfers(_ tableId: Int64, _ transfers: [HolidayTransferEntry]) {
-        sp().set(HolidayTransferOps.encodeTransfers(transfers), forKey: Self.transferKey(tableId))
+        setPreference(HolidayTransferOps.encodeTransfers(transfers), forKey: Self.transferKey(tableId))
     }
 
     /// 设/改某放假日的映射; targetDate = nil → 清除该放假日(回到自然星期)。
@@ -780,7 +830,7 @@ final class AppPrefs {
     }
     func setPeriodHeaderLayout(_ value: String) {
         precondition(value == "legacy" || value == "three_line")
-        sp().set(value, forKey: Self.KEY_PERIOD_HEADER_LAYOUT)
+        setPreference(value, forKey: Self.KEY_PERIOD_HEADER_LAYOUT)
     }
     func getPeriodHeaderStyle() -> String {
         sp().string(forKey: Self.KEY_PERIOD_HEADER_STYLE) ?? "arabic"
@@ -788,26 +838,26 @@ final class AppPrefs {
     func setPeriodHeaderStyle(_ value: String) {
         let allowed: Set<String> = ["arabic", "chinese", "financial", "circled", "roman"]
         precondition(allowed.contains(value))
-        sp().set(value, forKey: Self.KEY_PERIOD_HEADER_STYLE)
+        setPreference(value, forKey: Self.KEY_PERIOD_HEADER_STYLE)
     }
     func getPeriodHeaderHanging() -> Float {
         let raw = sp().float(forKey: Self.KEY_PERIOD_HEADER_HANGING)
         return max(-1.0, min(1.0, raw))
     }
     func setPeriodHeaderHanging(_ value: Float) {
-        sp().set(max(-1.0, min(1.0, value)), forKey: Self.KEY_PERIOD_HEADER_HANGING)
+        setPreference(max(-1.0, min(1.0, value)), forKey: Self.KEY_PERIOD_HEADER_HANGING)
     }
     func isPeriodHeaderShowX() -> Bool {
         sp().bool(forKey: Self.KEY_PERIOD_HEADER_SHOW_X)
     }
     func setPeriodHeaderShowX(_ value: Bool) {
-        sp().set(value, forKey: Self.KEY_PERIOD_HEADER_SHOW_X)
+        setPreference(value, forKey: Self.KEY_PERIOD_HEADER_SHOW_X)
     }
     func isPeriodHeaderHideTime() -> Bool {
         sp().bool(forKey: Self.KEY_PERIOD_HEADER_HIDE_TIME)
     }
     func setPeriodHeaderHideTime(_ value: Bool) {
-        sp().set(value, forKey: Self.KEY_PERIOD_HEADER_HIDE_TIME)
+        setPreference(value, forKey: Self.KEY_PERIOD_HEADER_HIDE_TIME)
     }
 
     // ← Android AppPrefs.getPeriodHeaderTimeAlignment / setPeriodHeaderTimeAlignment (v1.0.63 #259)
@@ -819,7 +869,7 @@ final class AppPrefs {
     }
     func setPeriodHeaderTimeAlignment(_ value: String) {
         precondition(value == "dash" || value == "center")
-        sp().set(value, forKey: Self.KEY_PERIOD_HEADER_TIME_ALIGNMENT)
+        setPreference(value, forKey: Self.KEY_PERIOD_HEADER_TIME_ALIGNMENT)
     }
 
     // MARK: - 实验室开关组 getter(← AppPrefs.kt KEY_GRID_* / KEY_SHOW_VIEW_SWITCHER, v1.0.56)
@@ -872,13 +922,13 @@ final class AppPrefs {
     func isGridShowSeparators() -> Bool {
         sp().object(forKey: Self.KEY_GRID_SHOW_SEPARATORS) as? Bool ?? Self.DEFAULT_GRID_SHOW_SEPARATORS
     }
-    func setGridShowSeparators(_ v: Bool) { sp().set(v, forKey: Self.KEY_GRID_SHOW_SEPARATORS) }
+    func setGridShowSeparators(_ v: Bool) { setPreference(v, forKey: Self.KEY_GRID_SHOW_SEPARATORS) }
 
     /// 长课间额外留白 — default false ← isGridLongBreakSpacing
     func isGridLongBreakSpacing() -> Bool {
         sp().object(forKey: Self.KEY_GRID_LONG_BREAK_SPACING) as? Bool ?? Self.DEFAULT_GRID_LONG_BREAK_SPACING
     }
-    func setGridLongBreakSpacing(_ v: Bool) { sp().set(v, forKey: Self.KEY_GRID_LONG_BREAK_SPACING) }
+    func setGridLongBreakSpacing(_ v: Bool) { setPreference(v, forKey: Self.KEY_GRID_LONG_BREAK_SPACING) }
 
     /// 首页周/网格视图切换栏显隐 — default true ← isShowViewSwitcher getBoolean(key, true)
     func isShowViewSwitcher() -> Bool {

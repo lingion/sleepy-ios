@@ -347,6 +347,7 @@ final class CourseDragUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Move this class?"].exists)
         capture("course-move-confirmation")
         tap("course_move_cancel")
+        dismissReturnedFloatingCard()
         assertMathCount(1)
         assertMathCount(0, movedOnly: true)
         assertOccurrence(originalCard, week: 1, day: 1, startNode: 1, firstWeek: 1, lastWeek: 20)
@@ -374,9 +375,13 @@ final class CourseDragUITests: XCTestCase {
         let topStart = top.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         topStart.press(forDuration: 0.1, thenDragTo: topStart.withOffset(CGVector(dx: 0, dy: -periodHeight)),
             withVelocity: .slow, thenHoldForDuration: 0.1)
+        XCTAssertFalse(app.buttons["course_move_confirm"].exists,
+                       "Releasing a resize handle only changes the floating preview")
+        app.buttons["week_label"].tap()
         waitForHittable(app.buttons["course_move_cancel"])
         XCTAssertTrue(app.staticTexts["Change this class's length?"].exists)
         tap("course_move_cancel")
+        dismissReturnedFloatingCard()
         card = movedCard()
         XCTAssertEqual(card.frame.minY, movedFrame.minY, accuracy: 3)
         XCTAssertEqual(card.frame.height, movedFrame.height, accuracy: 3)
@@ -388,6 +393,8 @@ final class CourseDragUITests: XCTestCase {
         bottomStart.press(forDuration: 0.1,
             thenDragTo: bottomStart.withOffset(CGVector(dx: 0, dy: periodHeight)),
             withVelocity: .slow, thenHoldForDuration: 0.1)
+        XCTAssertFalse(app.buttons["course_move_confirm"].exists)
+        app.buttons["week_label"].tap()
         confirmMove()
         card = movedCard()
         XCTAssertEqual(card.frame.minY, movedFrame.minY, accuracy: 3)
@@ -409,11 +416,20 @@ final class CourseDragUITests: XCTestCase {
         add(attachment)
     }
 
+    private func dismissReturnedFloatingCard() {
+        let edit = app.buttons["course_float_edit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5), "Cancelled/invalid moves return to the lifted card")
+        app.buttons["week_label"].tap()
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: edit)
+        XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 5), .completed)
+    }
+
     func testDropOutsideGridLeavesOriginalAndWeekUnchanged() {
         let original = originalCard.frame
         let source = originalCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let target = app.buttons["week_label"].coordinate(withNormalizedOffset: .zero)
         source.press(forDuration: 1, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.75)
+        dismissReturnedFloatingCard()
         assertMathCount(1)
         assertMathCount(0, movedOnly: true)
         // 保留屏幕坐标断言：不能将没有抬起课程、实际触发滚动的手势当作取消成功。

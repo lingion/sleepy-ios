@@ -84,7 +84,7 @@ final class WidgetBackupProductionTests: XCTestCase {
         WidgetScrollStore.write(kind, false)
         WidgetCompactWindowStore.setTodayFirst(kind, true)
         TodayDateNavStore.remove(kind)
-        WeekGridWideSettingsStore.write(.init(mode: .original, labelSide: .left), kind: kind)
+        WeekGridWideSettingsStore.write(.init(mode: .vertical, labelSide: .left), kind: kind)
         try restore(bytes, database)
 
         XCTAssertEqual(WidgetBindingStore.get(kind), 42)
