@@ -91,7 +91,7 @@
         }
       ]
     },
-    "final": {
+    "cache-only-candidate": {
       "InteractionPerformanceUITests/testProcessLaunchToResponsive()": [
         {
           "metric": "Duration (ApplicationFirstFramePresentationResponsive)",
@@ -176,7 +176,7 @@
         }
       ]
     },
-    "baseline-control": {
+    "baseline-launch-control": {
       "InteractionPerformanceUITests/testProcessLaunchToResponsive()": [
         {
           "metric": "Duration (ApplicationFirstFramePresentationResponsive)",
@@ -191,7 +191,7 @@
         }
       ]
     },
-    "final-control": {
+    "cache-only-candidate-launch-control": {
       "InteractionPerformanceUITests/testProcessLaunchToResponsive()": [
         {
           "metric": "Duration (ApplicationFirstFramePresentationResponsive)",
@@ -206,7 +206,7 @@
         }
       ]
     },
-    "initial-candidate": {
+    "initial-cache-candidate": {
       "InteractionPerformanceUITests/testProcessLaunchToResponsive()": [
         {
           "metric": "Duration (ApplicationFirstFramePresentationResponsive)",
@@ -292,5 +292,79 @@
       ]
     }
   },
-  "final_candidate_production": "ce102ec62ed928100999961608e5626f090dc744"
+  "cache_only_candidate_production": "ce102ec62ed928100999961608e5626f090dc744",
+  "measurement_scope": "Preserved historical cache-only app samples; no completed performance sample group measures the final NativeWeekPager implementation.",
+  "run_name_changes": {
+    "final": "cache-only-candidate",
+    "baseline-control": "baseline-launch-control",
+    "final-control": "cache-only-candidate-launch-control",
+    "initial-candidate": "initial-cache-candidate"
+  },
+  "final_native_pager": {
+    "implementation": "UIPageViewController with serialized latest-request transitions, at most four coordinator-cached page hosts, explicit environment forwarding and page-grid preference contributions restored on appearance",
+    "build_for_testing": "passed",
+    "unit_regression": {
+      "executed": 2655,
+      "passed": 2654,
+      "failed": 1,
+      "failure": "WebViewNavigationPolicyTests/testNormalNavigationUnaffectedByFix timed out; WebContent process later logged unresponsive",
+      "log": "final-native-regression.log"
+    },
+    "webview_class_retry": {
+      "executed": 4,
+      "passed": 4,
+      "failed": 0,
+      "log": "final-webkit-retry.log"
+    },
+    "new_pager_unit_tests": {
+      "executed": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "ordinary_ui_tests": {
+      "executed": 2,
+      "passed": 2,
+      "failed": 0,
+      "tests": [
+        "NavigationTransitionCanvasUITests/testClassicWeekButtonsAndStationaryLift",
+        "NavigationTransitionCanvasUITests/testClassicWeekJumpAndNativeSwipeStayInSync"
+      ],
+      "log": "final-native-regression.log"
+    },
+    "visual_review": {
+      "encoded_samples": 163,
+      "observed": [
+        "visible horizontal paging",
+        "bottom tabs remain fixed",
+        "no side black bands in reviewed samples"
+      ],
+      "scope": "Visual transition evidence only; not FPS or hitch-rate measurement"
+    },
+    "earlier_navigation_tests": {
+      "executed": 3,
+      "passed": 3,
+      "scope": "Intermediate implementation, not a final NativeWeekPager rerun"
+    },
+    "performance_remeasurement": {
+      "status": "stopped_at_user_request",
+      "reason": "User requested direct PR submission and local merge for Xcode testing without further tests",
+      "baseline_control": {
+        "log": "native-baseline-control.log",
+        "status": "interrupted_by_SIGINT",
+        "exit_code": 75
+      },
+      "candidate_run": {
+        "name": "native-final-metrics",
+        "status": "not_started"
+      },
+      "completed_comparison": false,
+      "final_native_improvement_percent": null
+    },
+    "launch_conclusion": "No stable launch speedup established by the preserved historical samples",
+    "retracted_experiments": [
+      "Local-selection TabView experiment without visible horizontal motion",
+      "Whole EnvironmentValues forwarding, which replayed ancestor bottom tabs in page hosts"
+    ],
+    "production_revision": "b0ef1a22c8e947234aaef45a0218d9b24f70d6e5"
+  }
 }

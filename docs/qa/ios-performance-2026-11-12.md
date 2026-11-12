@@ -1,12 +1,32 @@
 # iOS performance verification — 2026-11-12
 
-The changes remove repeated date formatting, course projection, holiday preference decoding, theme derivation and state publication from the launch/render/navigation paths. Layout, transitions, theme interpolation and course gestures retain their existing behavior.
+The changes remove repeated date formatting, course projection, holiday preference decoding, theme derivation and state publication from launch, rendering and navigation. The final implementation also replaces the week pager with a native scrolling page controller so arrow buttons and week jumps produce visible horizontal transitions. The numerical comparisons below belong to the earlier cache-only candidate; they do not measure this final native pager.
 
-## App measurements
+## Final native pager and validation
 
-Baseline production: `2c77f5ba`. Final candidate production: `ce102ec6`. The same UI measurement harness was compiled into both builds. Xcode 27.2, Debug, iPhone 17 simulator running iOS 27.0, one simulator and serial execution. Each test seeds five courses once, removes the seed launch argument, then records five iterations. Paging uses the cards grid and classic theme, English, Asia/Shanghai. These are light UI fixtures, not a 252-course stress test.
+Final production revision: `b0ef1a22c8e947234aaef45a0218d9b24f70d6e5`.
 
-| Workload, per iteration | Baseline mean | Candidate mean | Change |
+`NativeWeekPager` uses `UIPageViewController` for ordinary swipes and explicitly animated programmatic week changes. It serializes transitions, drains the latest queued request after completion, clamps requests when the semester shortens, and ignores completions from invalidated controllers. The coordinator retains at most four page hosts in its own cache: the current page, its neighbors and an in-flight destination. Cached hosts receive updated roots with the same view structure. App theme and public layout values cross the hosting boundary explicitly; ancestor container internals are not copied.
+
+Grid preferences do not cross hosting-controller boundaries automatically. Each page therefore replaces its complete contribution in a shared aggregator, restores its last contribution on reappearance and removes only its own contribution on disappearance. The pinned source host supplies drag grids while a course is held. Table/epoch guards and resets discard callbacks from replaced pagers. The existing drag interaction remains in place; complex cross-week moves and resizing remain for the user to test.
+
+A local-selection `TabView` experiment did not produce visible horizontal movement and was removed. Copying the entire SwiftUI environment replayed the ancestor bottom tabs within moving pages; that experiment was also removed. The final code forwards explicit environment values.
+
+Final validation completed before the user's instruction to stop testing:
+
+- Build-for-testing succeeded. The complete unit run executed 2,655 tests: 2,654 passed and one existing WebKit navigation test timed out. A subsequent rerun of all four `WebViewNavigationPolicyTests` passed. The failed run logged its WebContent process becoming unresponsive; the precise timing cause was not established.
+- All three new `NativeWeekPagerTests` passed, covering queued requests, semester clamping and invalidated completions.
+- Both final ordinary UI tests passed: week arrows with stationary long press, and a far-week jump followed by native swipes and return navigation.
+- Review of 163 encoded video samples showed actual horizontal paging, a fixed bottom tab bar and no side black bands in those samples. This is visual transition evidence, not an FPS or hitch-rate measurement.
+- The earlier three Tab/settings/navigation tests also passed, but on an intermediate implementation. They are not a final native-pager rerun of those three flows.
+
+The user then requested direct submission and local merging for Xcode testing. Further testing was stopped: the new `native-baseline-control` performance run was interrupted with SIGINT and exited with code 75; `native-final-metrics` had not started. There is no completed performance comparison or new improvement percentage for the final native pager.
+
+## Earlier cache-only app measurements
+
+Baseline production: `2c77f5ba`. Cache-only candidate production: `ce102ec6`, before the final `NativeWeekPager` change. The same UI measurement harness was compiled into both builds. Xcode 27.2, Debug, iPhone 17 simulator running iOS 27.0, one simulator and serial execution. Each test seeds five courses once, removes the seed launch argument, then records five iterations. Paging uses the cards grid and classic theme, English, Asia/Shanghai. These are light UI fixtures, not a 252-course stress test.
+
+| Workload, per iteration | Baseline mean | Cache-only candidate mean | Change |
 | --- | ---: | ---: | ---: |
 | Four weeks forward and four back, App CPU | 2.341 s | 1.712 s | −26.9% |
 | Same paging, retired instructions | 23,943,486 kI | 21,086,721 kI | −11.9% |
@@ -22,14 +42,14 @@ Launch-to-responsive was unstable between runs:
 | Run | Mean | XCTest relative standard deviation |
 | --- | ---: | ---: |
 | Initial baseline | 9.817 s | 17.4% |
-| Initial candidate | 7.952 s | 17.7% |
-| Final candidate after full test suite | 19.190 s | 42.2% |
+| Initial cache candidate | 7.952 s | 17.7% |
+| Cache-only candidate after its full test suite | 19.190 s | 42.2% |
 | Subsequent baseline control, preserved baseline binary | 12.011 s | 12.7% |
-| Immediately following final candidate control | 10.571 s | 5.7% |
+| Immediately following cache-only candidate control | 10.571 s | 5.7% |
 
-The control pair did not reproduce the large final-suite slowdown. It also does not justify a stable launch speedup percentage: host/simulator effects and the inconsistent earlier run remain. A partial launch trace contained 560 main-thread samples, 417 in simulator pre-main dynamic loading; it contains no recorded first-frame/first-responsive endpoint and cannot explain the complete launch interval. Database migration and required initialization were retained. A longer all-process paging trace failed to save after disk exhaustion and is excluded from the evidence.
+The earlier cache-only control pair did not reproduce that run’s large slowdown. It also does not justify a stable launch speedup percentage: host/simulator effects and the inconsistent earlier run remain. A partial launch trace contained 560 main-thread samples, 417 in simulator pre-main dynamic loading; it contains no recorded first-frame/first-responsive endpoint and cannot explain the complete launch interval. Database migration and required initialization were retained. A longer all-process paging trace failed to save after disk exhaustion and is excluded from the evidence.
 
-Raw per-iteration app samples, including the slow launch run, are in `ios-performance-2026-11-12-metrics.json`. Initial/final UI workload comparisons are one before/after group; they cannot attribute a percentage to an individual optimization.
+Raw per-iteration app samples, including the slow launch run, are in `ios-performance-2026-11-12-metrics.json`. The cache-only UI workload comparisons are one before/after group; they cannot attribute a percentage to an individual optimization or establish the performance of the final native pager.
 
 ## Component evidence and bounds
 
@@ -37,7 +57,7 @@ Raw per-iteration app samples, including the slow launch run, are in `ios-perfor
 | --- | --- | --- |
 | Fixed civil-day formatters and loop invariants | Dense three-week/252-course/12-transfer Foundation projection: about 194–215 → 0.734–0.759 ms across reversed A/B run order | Standalone `swiftc -O` helper, not app UI timing; output digests match in Shanghai and Los Angeles |
 | Separate fixed short/full display formatters | 16,000 concurrent calls: 694 wrong-format results → 0; alternating-format median 477.629 → 357.006 ms over seven batches of 600,000 calls | Repeated short-date timing was within noise; no speed claim for it |
-| Theme endpoint/vector reuse | Final same-process system terminal vector: 50.911 → 2.860 µs; custom original derivation/vector path: 105.865 → 3.950 µs | Warm endpoints only; interpolation still runs normally |
+| Theme endpoint/vector reuse | Cache-only same-process system terminal vector: 50.911 → 2.860 µs; custom original derivation/vector path: 105.865 → 3.950 µs | Warm endpoints only; interpolation still runs normally |
 | Batched state publication | Initial load 10 → 2 publications; week change 2 → 1; repeated selected week → 0 | Complete state snapshots; table selection still replaces its course subscription |
 | Week projection reuse | 252-course, three-page warm cache: 0.855 → 0.000808 ms/page | Cache hit only, not first projection, layout, or FPS |
 | Holiday batching | Entire 21-day viewport: 7.190 → 0.174 ms | Old per-day calls versus one batch; all eight preference combinations agree |
@@ -48,10 +68,10 @@ Theme caches hold at most 16 endpoints/vectors. The custom-document cache holds 
 
 An extra provider-level system/preset scheme cache was tried and removed after it added lock overhead to preset resolution. Presets now return their existing static scheme directly. No cache stores animation intermediates.
 
-## Verification and reproduction
+## Earlier measurement validation and reproduction
 
-- Final production build-for-testing succeeded; 2,652 unit tests and three opt-in app performance tests passed with zero failures.
-- Three existing navigation tests passed with zero failures: classic and native Tab/settings round trips, ordinary week buttons and stationary long press. Video review is recorded separately from the comparative performance run.
+- The cache-only candidate build-for-testing succeeded; its 2,652 unit tests and three opt-in app performance tests passed with zero failures. These historical results precede the native pager.
+- Three existing navigation tests passed on an intermediate build: classic and native Tab/settings round trips, ordinary week buttons and stationary long press. Final native-pager validation is listed separately above.
 - The new performance UI suite refuses physical-device execution. It is opt-in; ordinary CI skips its measurements. A separate default-environment run confirmed 12 timing tests skipped and six theme correctness tests passed, with zero failures. Timing probes have no absolute latency assertions in correctness CI.
 - The measurement fixture clears courses/timetables and changes preferences in its test app container. Use a dedicated disposable simulator. It is not a fully isolated preference reset, so reuse the same prepared simulator for A/B comparisons.
 - Existing date, theme, stale-data, selection/clamping, holiday and projection tests cover correctness independently of timing.
@@ -71,4 +91,4 @@ xcrun xcresulttool get test-results metrics \
   --path /tmp/sleepy-performance.xcresult --compact
 ```
 
-The local performance scheme is deliberately not committed. Component probes in `ThemeCacheProbeTests`, `HolidayViewportTests` and `WeekProjectionCacheTests` use the same opt-in variable. Default CI remains a correctness check and does not impose a simulator timing gate.
+The performance scheme is opt-in. Component probes in `ThemeCacheProbeTests`, `HolidayViewportTests` and `WeekProjectionCacheTests` use the same opt-in variable. Default CI remains a correctness check and does not impose a simulator timing gate.
