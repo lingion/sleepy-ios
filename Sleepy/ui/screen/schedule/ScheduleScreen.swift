@@ -499,10 +499,36 @@ private struct WeekPager: View {
     let onQuickAdd: (Int, Int, Int, Int) -> Void
     let onCourseClick: (CourseEntity, Int) -> Void
 
-    // 每个 pager 页独立缓存灰显星期 ← 原版本 produceState(greyDays, page, startDate)
-    @State private var greyDaysByWeek: [Int: Set<Int>] = [:]
-    // 灰显缓存失效闸 ← produceState 键含 state.transfers: 调休映射变 → 全周重算
-    @State private var greyCacheSignature = ""
+    @State private var greySettings = HolidayManager.greySettingsSignature()
+    @State private var greyCache: GreyCache?
+
+    private struct GreyContext: Hashable {
+        let tableId: Int64?
+        let startDate: String
+        let transfers: [Date]
+        let settings: HolidayManager.GreySettingsSignature
+    }
+    private struct GreyRequest: Hashable {
+        let context: GreyContext
+        let selectedWeek: Int
+        let maxWeek: Int
+        let sourceWeek: Int?
+    }
+    private struct GreyCache {
+        let context: GreyContext
+        let daysByWeek: [Int: Set<Int>]
+    }
+    private var greyRequest: GreyRequest {
+        let state = viewModel.state
+        return GreyRequest(context: GreyContext(tableId: state.selectedTableId,
+            startDate: state.currentTable?.startDate ?? "",
+            transfers: state.transfers.flatMap { [$0.sourceDate, $0.targetDate] }, settings: greySettings),
+            selectedWeek: state.selectedWeek, maxWeek: pagerMaxWeek, sourceWeek: dragHostWeek)
+    }
+    private func greyDays(for week: Int) -> Set<Int> {
+        guard let cache = greyCache, cache.context == greyRequest.context else { return [] }
+        return cache.daysByWeek[week] ?? []
+    }
 
     private struct FloatingOccurrenceRequest: Identifiable {
         let id = UUID()
@@ -580,8 +606,13 @@ private struct WeekPager: View {
                     onDismiss: { floatingOccurrence = nil }, startInEdit: request.startInEdit,
                     startWithDelete: request.startWithDelete)
             }
-            .task(id: "\(viewModel.state.currentTable?.startDate ?? "")-\(viewModel.state.selectedWeek)-\(pagerMaxWeek)") {
-                await refreshGreyDays()
+            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+                .receive(on: RunLoop.main)) { _ in
+                let settings = HolidayManager.greySettingsSignature()
+                if settings != greySettings { greySettings = settings }
+            }
+            .task(id: greyRequest) {
+                await refreshGreyDays(greyRequest)
             }
     }
 
@@ -666,7 +697,7 @@ private struct WeekPager: View {
                                      currentWeek: page,
                                      onCourseClick: { onCourseClick($0, page) },
                                      onCourseLongClick: { openWeekOccurrence($0, displayWeek: page) },
-                                     greyDays: greyDaysByWeek[page] ?? [],
+                                     greyDays: greyDays(for: page),
                                      // v1.0.62 B5b: 周视图日期「·M月d日」← 原版本 FullWeekView(showDate = showDate)
                                      showDate: showDate)
                     case .cards:
@@ -679,7 +710,7 @@ private struct WeekPager: View {
                                       startDate: state.currentTable?.startDate ?? "",
                                       currentWeek: page,
                                       onCourseClick: { onCourseClick($0, page) },
-                                      greyDays: greyDaysByWeek[page] ?? [],
+                                      greyDays: greyDays(for: page),
                                       // ← 原 allCourses = state.courses(晚间自动收起按全学期判)
                                       allCourses: state.courses,
                                       // 会话级置顶/轮换真相源在 ScheduleScreen — 翻页不丢(v7.10.16r)
@@ -769,33 +800,31 @@ private struct WeekPager: View {
         } catch { dragError = true }
     }
 
-    // 每页独立计算灰显星期(节假日/周末)。
-    private func refreshGreyDays() async {
-        let state = viewModel.state
-        let start = state.currentTable?.startDate ?? ""
-        // issue#44: 灰显要查当前表调休映射(命中映射的放假日那天要上课, 永不灰) ← ScheduleScreen.kt:326
-        // issue F106-7: 表 ID 取水合表(effectiveCurrentTable?.id) ← 原版本 同口径
-        let tableId = state.effectiveCurrentTable?.id
-        guard !start.isEmpty else {
-            greyDaysByWeek = [:]
-            return
-        }
-        // ← produceState 键含 state.transfers: 映射变(设置页改完 refreshTransfer)缓存整体作废重算
-        let signature = state.transfers.map { DateUtils.fullDate($0.sourceDate) + ">" + DateUtils.fullDate($0.targetDate) }
-            .joined(separator: ",")
-        if signature != greyCacheSignature {
-            greyDaysByWeek = [:]
-            greyCacheSignature = signature
-        }
-        for week in 1...pagerMaxWeek where greyDaysByWeek[week] == nil {
-            var grey: Set<Int> = []
+    private func refreshGreyDays(_ request: GreyRequest) async {
+        guard !Task.isCancelled, request == greyRequest else { return }
+        guard !request.context.startDate.isEmpty else { greyCache = nil; return }
+        // Match the rendered viewport, retaining the pinned source during a drag.
+        let lastWeek = max(1, request.maxWeek)
+        let selectedWeek = min(max(1, request.selectedWeek), lastWeek)
+        var weeks = Set(max(1, selectedWeek - 1)...min(lastWeek, selectedWeek + 1))
+        if let source = request.sourceWeek { weeks.insert(source) }
+        let old = greyCache?.context == request.context ? greyCache?.daysByWeek ?? [:] : [:]
+        var daysByWeek = old.filter { weeks.contains($0.key) }
+        var cells: [(week: Int, day: Int, date: Date)] = []
+        for week in weeks.sorted() where daysByWeek[week] == nil {
+            daysByWeek[week] = []
             for day in 1...7 {
-                if let date = DateUtils.dateOfWeek(startDate: start, week: week, dayOfWeek: day),
-                   await HolidayManager.shouldGrey(date, tableId: tableId) {
-                    grey.insert(day)
+                if let date = DateUtils.dateOfWeek(startDate: request.context.startDate, week: week, dayOfWeek: day) {
+                    cells.append((week, day, date))
                 }
             }
-            greyDaysByWeek[week] = grey
+        }
+        let grey = await HolidayManager.greyDates(cells.map(\.date), tableId: request.context.tableId,
+                                                   transfers: viewModel.state.transfers)
+        guard !Task.isCancelled, request == greyRequest else { return }
+        for cell in cells where grey.contains(cell.date) { daysByWeek[cell.week, default: []].insert(cell.day) }
+        if greyCache?.context != request.context || greyCache?.daysByWeek != daysByWeek {
+            greyCache = GreyCache(context: request.context, daysByWeek: daysByWeek)
         }
     }
 }

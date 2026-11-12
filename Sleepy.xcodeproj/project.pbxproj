@@ -709,6 +709,7 @@
 		9CAC4760300910C8EB6BB8EA /* CalendarImportDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EBA2DA9AE696580ADE5F713 /* CalendarImportDialog.swift */; };
 		9CBCD416D140CBDE09FAFF0D /* MarkdownBlocksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00BA999BFA7BF12B2E93DFA /* MarkdownBlocksTests.swift */; };
 		9CD15FB64044347529E02189 /* JwImportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6FB4EA603D000B36F0CA61 /* JwImportViewModelTests.swift */; };
+		9CD782F7B35F331F36A10593 /* HolidayViewportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D0006EB74BE88924DBDCF1 /* HolidayViewportTests.swift */; };
 		9CEB5A89C77403963A6C9682 /* CourseEditorContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9DA45A24C1DCC1412BBAE3 /* CourseEditorContext.swift */; };
 		9CF496F47DCA8CDC5D6E93D4 /* JwEams5Parser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A86F82646BCD36EE693111 /* JwEams5Parser.swift */; };
 		9D2207A1FABF397C6B858D68 /* ClassDndScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62CB68DB9B653E572BD941AC /* ClassDndScheduler.swift */; };
@@ -1528,6 +1529,7 @@
 		7453815E27C3A0269EAA730D /* QqJoin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QqJoin.swift; sourceTree = "<group>"; };
 		7461A91D5FAD9150EA7F2E14 /* UIStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIStyle.swift; sourceTree = "<group>"; };
 		74C97682FCE677102A9970F1 /* CourseOccurrenceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseOccurrenceIdentity.swift; sourceTree = "<group>"; };
+		74D0006EB74BE88924DBDCF1 /* HolidayViewportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolidayViewportTests.swift; sourceTree = "<group>"; };
 		74EB72448743A4CF5CF466C5 /* TimeTableUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTableUtils.swift; sourceTree = "<group>"; };
 		7607CC5E3679C603264B6E73 /* ScheduleFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleFlowUITests.swift; sourceTree = "<group>"; };
 		76708A287EC92FBF4F4CFB0A /* LocalCalendarFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCalendarFallback.swift; sourceTree = "<group>"; };
@@ -2537,6 +2539,7 @@
 				7F8FE3D103CAC0B91A9CE015 /* HolidayManagerTests.swift */,
 				D7C64B8C9F20602B582D6F22 /* HolidayReminderPolicyAdapterTests.swift */,
 				CB5D3F52D8116F47DD15E931 /* HolidayTransferDateConcurrencyTests.swift */,
+				74D0006EB74BE88924DBDCF1 /* HolidayViewportTests.swift */,
 				4D83A7A25FAA92EB0300C64A /* Ics28NeuPeriodsTests.swift */,
 				F5FCDC93078E048057126BEF /* ImportAtomicityAuditTests.swift */,
 				A96BF262488C60DF32EE682F /* ImportDraftRepositoryTests.swift */,
@@ -4085,6 +4088,7 @@
 				6A66F8370C8F187915144393 /* HolidayManagerTests.swift in Sources */,
 				118C9D479FCCF165698AFD84 /* HolidayReminderPolicyAdapterTests.swift in Sources */,
 				CE18593B5E555C37FE66B289 /* HolidayTransferDateConcurrencyTests.swift in Sources */,
+				9CD782F7B35F331F36A10593 /* HolidayViewportTests.swift in Sources */,
 				770E54586B09A166233F94AA /* Ics28NeuPeriodsTests.swift in Sources */,
 				BE8FD48E353FD5D30EA15C81 /* ImportAtomicityAuditTests.swift in Sources */,
 				1FD4B13081B758504A67B753 /* ImportDraftRepositoryTests.swift in Sources */,
