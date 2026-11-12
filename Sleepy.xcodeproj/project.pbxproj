@@ -338,6 +338,7 @@
 		4C0533AC6F31D05B5996A357 /* WakeUpShareImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 915D9C78677997870FB3FD66 /* WakeUpShareImportSheet.swift */; };
 		4C0D73B8EB004BA320146C50 /* CourseOccurrenceDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F06A7C136B2FD5AA2AEB0B /* CourseOccurrenceDestination.swift */; };
 		4C11CEA9A518D6F2972027E6 /* ScheduleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F93B2813DC503FB445168386 /* ScheduleRepository.swift */; };
+		4C18E2B94D747DFD07BDB2E4 /* InteractionPerformanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEBE477A989741DF8B9CE31B /* InteractionPerformanceUITests.swift */; };
 		4C29C5E2910B4DD694BDBC7E /* PurePeriodImportFailureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1944FA7DBE0C9A170FCA773 /* PurePeriodImportFailureTests.swift */; };
 		4C3C4F1263FBBCA9F079E503 /* DailyAgendaLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B57447FD00F186468439771 /* DailyAgendaLoader.swift */; };
 		4C849CA74D599C87C175C33A /* ReminderRescheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EA972FB93F27FC5BF76C73 /* ReminderRescheduler.swift */; };
@@ -1870,6 +1871,7 @@
 		EE111F2DF650D0D1D30E8359 /* SchedulePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulePolicy.swift; sourceTree = "<group>"; };
 		EE1DE2FF5CE5C12E87423907 /* AndroidMaterialIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AndroidMaterialIcon.swift; sourceTree = "<group>"; };
 		EE200AEAE75DE203FAB8BFB7 /* PeriodTableEdgeRebindParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeriodTableEdgeRebindParityTests.swift; sourceTree = "<group>"; };
+		EEBE477A989741DF8B9CE31B /* InteractionPerformanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionPerformanceUITests.swift; sourceTree = "<group>"; };
 		EEFFFB7B27071D52A6BF4CD8 /* JwParseDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParseDiagnostics.swift; sourceTree = "<group>"; };
 		EF312CEED47850FE3DAC81F4 /* GridPinchAttachmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridPinchAttachmentTests.swift; sourceTree = "<group>"; };
 		EFA83C4C6953AC1887DC5C65 /* JwParseDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwParseDiagnosticsTests.swift; sourceTree = "<group>"; };
@@ -2881,6 +2883,7 @@
 				D44F2A183A78AAFC46585839 /* GridPinchRowHeightUITests.swift */,
 				0718B20F0D0233CEBDC569F8 /* ImportAuditUITests.swift */,
 				0A34060A11A2074B2B02C7E1 /* Info.plist */,
+				EEBE477A989741DF8B9CE31B /* InteractionPerformanceUITests.swift */,
 				F8A0EF2E319E98B292C560CE /* JwWebViewBlankTargetUITests.swift */,
 				C2F2A17F12A54A7F6392BA2C /* ManageImportUITests.swift */,
 				AD3F0EE026CF01741657A7AD /* MineSettingsUITests.swift */,
@@ -3755,6 +3758,7 @@
 				66F139067FBE341280D9CBF9 /* FileImportUITests.swift in Sources */,
 				E12AD1CC1057281D80A94B49 /* GridPinchRowHeightUITests.swift in Sources */,
 				0A85C1402956ED7AA81EE29B /* ImportAuditUITests.swift in Sources */,
+				4C18E2B94D747DFD07BDB2E4 /* InteractionPerformanceUITests.swift in Sources */,
 				488B6FCD75861629BFB511C2 /* JwWebViewBlankTargetUITests.swift in Sources */,
 				5BB9CEB5499F051A3EE0F4D2 /* ManageImportUITests.swift in Sources */,
 				5A08679A20DB96F3A56D5DBB /* MineSettingsUITests.swift in Sources */,
