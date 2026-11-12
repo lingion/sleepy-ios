@@ -391,6 +391,7 @@ final class AppRootViewModel: ObservableObject {
         // The editor resolves the explicit new ID from the synchronously inserted
         // table list. Creating a draft must preserve the current schedule.
         let newId = scheduleViewModel.createEmptyTable(commitSelection: false)
+        guard newId > 0 else { return }
         previousDefaultTableId = previousId
         pendingNewTableId = newId
         editTableId = newId
@@ -553,11 +554,15 @@ struct AppRoot: View {
         .onChange(of: root.importRequested) { requested in
             if requested { presentRequestedImport() }
         }
-        .sheet(isPresented: $showImportSheet, onDismiss: {
+        .sleepyNavigationPage(isPresented: $showImportSheet, onDismiss: {
             importTargetTableId = nil
             importInitialText = nil
             importPresentation.didDismiss(.methods)
             drainRequestedImportsAfterDismissal()
+        }, canvas: {
+            OverlayCanvasBackground().ignoresSafeArea()
+                .themedOverlay(isDark: isDark, themeKey: themeKey,
+                               schemeOverride: schemeOverride, customThemeVersion: customThemesJson)
         }) {
             let targetTableId = importTargetTableId
             ImportSheet(viewModel: root.scheduleViewModel,
@@ -1393,10 +1398,13 @@ private struct PresentOverlay: ViewModifier {
                     // 整体挂在根 SleepyThemeProvider 之外, 直接读环境拿到的是
                     // WakeUpColorsKey.defaultValue = lightScheme (白) 而非当前主题。
                     .background(OverlayCanvasBackground().ignoresSafeArea())
-                    // ← 原版本 SleepyNavHost.kt:171 sleepyForwardTransform: 入页 fadeIn110
-                    //   + 中心浮起220, 出页 fadeOut+scaleOut(→0.92)。此前硬编码
-                    //   .move(edge:.trailing) = 只有侧滑, 零消费 Material 转场表 (F069)。
+                    // A route replacement must remove the old page and insert the
+                    // new one; changing only the switch's input reuses its host.
+                    .id(screen)
+                    // Android forward and pop both use the shared centered
+                    // content motion. Keep outgoing pages above the root canvas.
                     .transition(SleepyMaterialTransition.forwardTransform)
+                    .zIndex(1)
             }
         }
         // Pages scale and fade independently. Keep a full-screen themed canvas
@@ -1425,17 +1433,10 @@ private struct PresentOverlay: ViewModifier {
     private func syncPresentation(_ active: AppRootViewModel.OverlayScreen?) {
         if let screen = active {
             guard shownScreen != screen else { return }
-            if shownScreen == nil {
-                // 打开: 中心浮起 + 淡入(sleepyForwardEnter, 非右缘滑入)。
-                // forwardEnter 的 opacity/scale 段已自带 110ms/220ms 曲线,
-                // 此处 withAnimation 只提供转场触发上下文。
-                dragX = 0
-                withAnimation(SleepyMaterialTransition.forwardAnimation) { shownScreen = screen }
-            } else {
-                // 极端竞态: 未经过 nil 直接换页 → 无动画切换, 复位位移
-                shownScreen = screen
-                dragX = 0
-            }
+            // Root entry, child push and return to a parent all consume the
+            // same content transition, matching Android's forward/pop pair.
+            dragX = 0
+            withAnimation(SleepyMaterialTransition.forwardAnimation) { shownScreen = screen }
         } else if shownScreen != nil {
             // 关闭路径①: 程序化关闭(✕ 按钮/保存/删除) → 右滑出动画后移除
             if dragX > 60 {
@@ -1607,22 +1608,28 @@ private extension View {
 //   页面跟手移动、可取消;内层 UINavigationController(HolidaySettings)的
 //   原生 pop 识别器按 UIKit 独占规则优先, 本识别器自动失败, 无双重返回。
 private struct OverlayBackDriver: UIViewControllerRepresentable {
+    @Environment(\.isEnabled) private var isEnabled
+    var enabled = true
     let onProgress: (CGFloat) -> Void
     let onFinish: (Bool) -> Void
 
     func makeUIViewController(context: Context) -> EdgeBackDriverVC {
-        EdgeBackDriverVC(onProgress: onProgress, onFinish: onFinish)
+        let controller = EdgeBackDriverVC(onProgress: onProgress, onFinish: onFinish)
+        controller.navigationEnabled = enabled && isEnabled
+        return controller
     }
 
     func updateUIViewController(_ controller: EdgeBackDriverVC, context: Context) {
         controller.onProgress = onProgress
         controller.onFinish = onFinish
+        controller.navigationEnabled = enabled && isEnabled
     }
 }
 
 private final class EdgeBackDriverVC: UIViewController, UIGestureRecognizerDelegate {
     var onProgress: (CGFloat) -> Void
     var onFinish: (Bool) -> Void
+    var navigationEnabled = true
     private weak var installedView: UIView?
     private var committed = false
 
@@ -1664,7 +1671,7 @@ private final class EdgeBackDriverVC: UIViewController, UIGestureRecognizerDeleg
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                            shouldReceive touch: UITouch) -> Bool {
         let point = touch.location(in: gestureRecognizer.view)
-        return point.x <= 30
+        return navigationEnabled && point.x <= 30
     }
 
     // 独占: 内层原生 pop(HolidaySettings)先 begin 则本识别器失败, 避免双重返回
@@ -1694,13 +1701,14 @@ private final class EdgeBackDriverVC: UIViewController, UIGestureRecognizerDeleg
     }
 }
 
-private extension View {
+extension View {
     /// 浮层页统一接入: 跟手位移写入容器 dragX, 过阈值由容器滑出后回调 onBack。
-    func edgeBackGesture(dragX: Binding<CGFloat>,
+    func edgeBackGesture(dragX: Binding<CGFloat>, enabled: Bool = true,
                          onBack: @escaping () -> Void,
                          onCommit: @escaping (@escaping () -> Void) -> Void) -> some View {
         overlay {
             OverlayBackDriver(
+                enabled: enabled,
                 onProgress: { translation in
                     guard translation > 0 else { return }
                     dragX.wrappedValue = translation

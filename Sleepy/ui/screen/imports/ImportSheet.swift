@@ -165,6 +165,7 @@ struct ImportSheet: View {
     @State private var textExpanded = false
     @State private var inputText = ""
     @State private var importInputHeight: CGFloat = 160
+    @State private var importInputFrame: CGRect = .zero
     @State private var inputRevealRequest = 0
     @FocusState private var inputFocused: Bool
     @State private var isLoading = false
@@ -234,6 +235,10 @@ struct ImportSheet: View {
                             // ← 原 filled TextField, 无描边
                             .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("import_paste_viewport")
+                            .background(GeometryReader { geometry in
+                                Color.clear.preference(key: ImportPasteViewportFrameKey.self,
+                                    value: geometry.frame(in: .global))
+                            })
                         Button {
                             if WakeUpShareClient.looksLikeShareCode(inputText) {
                                 presentWakeUpShare(inputText)
@@ -331,7 +336,12 @@ struct ImportSheet: View {
             .padding(.vertical, 8)
         }
         .accessibilityIdentifier("import_methods_scroll")
-        .scrollDismissesKeyboardImmediatelyCompat()
+        .modifier(ImportMethodsKeyboardDismissal(inputFrame: importInputFrame) {
+            guard inputFocused else { return }
+            inputFocused = false
+            Self.dismissKeyboard()
+        })
+        .onPreferenceChange(ImportPasteViewportFrameKey.self) { importInputFrame = $0 }
         .background(colors.background)
         .background(GeometryReader { geometry in
             Color.clear
@@ -582,19 +592,6 @@ struct ImportSheet: View {
                 .interactiveDismissDisabled(jwActiveImport)
                 .sheetDragIndicator(.visible)
         }
-        // Keep this methods instance and its paste/preview draft below the editor.
-        // Interactive dismissal and the editor's Back action share one discard path.
-        .sheet(item: Binding(
-            get: { manualEditor },
-            set: { if $0 == nil { dismissManualEditor() } }
-        )) { session in
-            manualEditorContent(session)
-                .environment(\.localWakeUpColors, colors)
-                .environment(\.localCoursePalette, palette)
-                .environment(\.sleepyUIStyle, style)
-                .preferredColorScheme(colorScheme)
-                .sheetDragIndicator(.visible)
-        }
         // 格式详情弹窗 ("支持格式"每行 ⓘ 点开)
         .centeredDialog(isPresented: Binding(get: { detailFormat != nil }, set: { if !$0 { detailFormat = nil } })) {
             if let fmt = detailFormat {
@@ -604,6 +601,18 @@ struct ImportSheet: View {
         }
         }
         .background(colors.background)
+        // Cover the complete methods page, including its toolbar, while keeping
+        // its paste/preview draft alive below the manual editor.
+        .sleepyNavigationPage(item: Binding(
+            get: { manualEditor },
+            set: { if $0 == nil { dismissManualEditor() } }
+        ), canvas: { colors.background.ignoresSafeArea() }) { session in
+            manualEditorContent(session)
+                .environment(\.localWakeUpColors, colors)
+                .environment(\.localCoursePalette, palette)
+                .environment(\.sleepyUIStyle, style)
+                .preferredColorScheme(colorScheme)
+        }
     }
 
     @ViewBuilder
@@ -952,6 +961,36 @@ struct ImportSheet: View {
         return TimeTableUtils.suggestUniqueName(
             pt.name, courseTableNames: courseNames, periodTableNames: periodNames)
     }
+}
+
+/// The input's keyboard/viewport observers scroll it into view programmatically.
+/// Those scrolls must preserve focus; only a user's drag dismisses the keyboard.
+private struct ImportMethodsKeyboardDismissal: ViewModifier {
+    let inputFrame: CGRect
+    let onUserScroll: () -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 16.0, *) {
+            content
+                .scrollDismissesKeyboard(.never)
+                .simultaneousGesture(userScroll)
+        } else {
+            content.simultaneousGesture(userScroll)
+        }
+    }
+
+    private var userScroll: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .global).onChanged { value in
+            // Let the text control own selection handles and its internal scrolling.
+            guard !inputFrame.contains(value.startLocation) else { return }
+            onUserScroll()
+        }
+    }
+}
+
+private struct ImportPasteViewportFrameKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }
 
 private enum ManualEditorSession: Identifiable {
