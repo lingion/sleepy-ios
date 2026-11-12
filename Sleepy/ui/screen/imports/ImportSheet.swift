@@ -181,10 +181,10 @@ struct ImportSheet: View {
     @State private var wakeUpShareText = ""
     @State private var pendingWakeUpJSON: String?
     @State private var showExistingTables = false
-    @State private var pendingSelection: ImportPreview? = nil
+    @SleepyNavigationState private var pendingSelection: ImportPreview? = nil
     @State private var selectedPreview: ImportPreview? = nil
     @State private var preparationId = UUID()
-    @State private var manualEditor: ManualEditorSession?
+    @SleepyNavigationState private var manualEditor: ManualEditorSession? = nil
 
     private var canImport: Bool {
         !isLoading && (targetTableId == nil || viewModel.state.tables.contains { $0.id == targetTableId })
@@ -431,7 +431,7 @@ struct ImportSheet: View {
         .sleepyNavigationPage(item: Binding(
             get: { pendingSelection.map { PreviewBox(preview: $0) } },
             set: { if $0 == nil { pendingSelection = nil } }
-        ), onDismiss: {
+        ), changes: _pendingSelection.changes, onDismiss: {
             guard let selected = selectedPreview else { return }
             selectedPreview = nil
             previewSession.replacePreview(selected)
@@ -606,7 +606,7 @@ struct ImportSheet: View {
         .sleepyNavigationPage(item: Binding(
             get: { manualEditor },
             set: { if $0 == nil { dismissManualEditor() } }
-        ), canvas: { colors.background.ignoresSafeArea() }) { session in
+        ), changes: _manualEditor.changes, canvas: { colors.background.ignoresSafeArea() }) { session in
             manualEditorContent(session)
                 .environment(\.localWakeUpColors, colors)
                 .environment(\.localCoursePalette, palette)

@@ -29,13 +29,13 @@ struct WidgetSettingsScreen: View {
     @State private var widgetColorless = AppPrefs.shared.isWidgetColorless()
     @State private var widgetSeparator = AppPrefs.shared.isWidgetSeparator()
     @State private var vertPunct = AppPrefs.shared.isVertPunctReplace()
-    @State private var showSharedDisplay = false
+    @SleepyNavigationState private var showSharedDisplay = false
     @State private var watchTimeStripTomorrow = AppPrefs.shared.isWatchTimeStripTomorrow()
 
     // ← 已放置实例 = 页尾刷新按钮的存在条件(单一真源, 同「添加或管理」页)
     @State private var placedItems: [PlacedWidgetItem] = []
     // ← onOpenWidgetManagement: 跳二级页列出已放置的小组件(右上 ＋ 进画廊)
-    @State private var showManage = false
+    @SleepyNavigationState private var showManage = false
     // ← 刷新成功反馈: 按钮迁移自「我的」页, snackbar 链随迁
     @State private var snackMessage: String? = nil
 
@@ -140,12 +140,12 @@ struct WidgetSettingsScreen: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active { reloadPlaced() }
         }
-        .sleepyNavigationPage(isPresented: $showSharedDisplay, canvas: {
+        .sleepyNavigationPage(isPresented: $showSharedDisplay, changes: _showSharedDisplay.changes, canvas: {
             colors.background.ignoresSafeArea()
         }) {
             ScheduleDisplayScreen(onDismiss: { showSharedDisplay = false }, viewModel: viewModel)
         }
-        .sleepyNavigationPage(isPresented: $showManage, onDismiss: {
+        .sleepyNavigationPage(isPresented: $showManage, changes: _showManage.changes, onDismiss: {
             reloadPlaced()
         }, canvas: {
             colors.background.ignoresSafeArea()

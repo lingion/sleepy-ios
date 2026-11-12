@@ -19,8 +19,8 @@ struct MineScreen: View {
     var onOpenAbout: () -> Void = {}
 
     // Complete settings pages share the app's native navigation stack.
-    @State private var showWidgetSettings = false
-    @State private var settingsSheet: SettingsSheet?
+    @SleepyNavigationState private var showWidgetSettings = false
+    @SleepyNavigationState private var settingsSheet: SettingsSheet? = nil
     private enum SettingsSheet: String, Identifiable {
         case holiday, backup
         var id: String { rawValue }
@@ -76,7 +76,7 @@ struct MineScreen: View {
             .padding(.bottom, navExtra)
         }
         .background(colors.background)
-        .sleepyNavigationPage(item: $settingsSheet, canvas: {
+        .sleepyNavigationPage(item: $settingsSheet, changes: _settingsSheet.changes, canvas: {
             colors.background.ignoresSafeArea()
         }) { sheet in
             switch sheet {
@@ -88,7 +88,7 @@ struct MineScreen: View {
                 GeneralSettingsScreen(onDismiss: { settingsSheet = nil }, viewModel: viewModel, section: .backup)
             }
         }
-        .sleepyNavigationPage(isPresented: $showWidgetSettings, canvas: {
+        .sleepyNavigationPage(isPresented: $showWidgetSettings, changes: _showWidgetSettings.changes, canvas: {
             colors.background.ignoresSafeArea()
         }) {
             WidgetSettingsScreen(onDismiss: { showWidgetSettings = false }, viewModel: viewModel)

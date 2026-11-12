@@ -519,7 +519,7 @@ struct AppRoot: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var importPresentation = ImportPresentationState()
     @State private var requestedExternalImportDeliveryID: UUID?
-    @State private var showImportSheet = false
+    @SleepyNavigationState private var showImportSheet = false
     @State private var importTargetTableId: Int64? = nil
     @State private var importInitialText: String?
     @State private var jwImportActive = false
@@ -715,7 +715,7 @@ struct AppRoot: View {
 
     private var importableTabs: some View {
         tabs
-        .sleepyNavigationPage(isPresented: $showImportSheet, onDismiss: {
+        .sleepyNavigationPage(isPresented: $showImportSheet, changes: _showImportSheet.changes, onDismiss: {
             importTargetTableId = nil
             importInitialText = nil
             importPresentation.didDismiss(.methods)

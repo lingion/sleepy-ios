@@ -20,7 +20,7 @@ struct AppearanceScreen: View {
     @State private var currentKey: String
     // 自定义主题列表(编辑器保存/删除后重载)← 原版本 customListVersion
     @State private var customThemes: [CustomTheme] = CustomThemeStore.getAll()
-    @State private var showEditor = false
+    @SleepyNavigationState private var showEditor = false
     @State private var editingTheme: CustomTheme?
     @ObservedObject private var hueStore = CourseHueStore.shared
     @State private var courseColorless = AppPrefs.shared.isCourseColorless()
@@ -150,7 +150,7 @@ struct AppearanceScreen: View {
         }
         .background(colors.background)
         .onReceive(prefs.uiStylePublisher) { uiStyle = $0 }
-        .sleepyNavigationPage(isPresented: $showEditor,
+        .sleepyNavigationPage(isPresented: $showEditor, changes: _showEditor.changes,
                              onDismiss: { editingTheme = nil }, canvas: {
             colors.background.ignoresSafeArea()
         }) {

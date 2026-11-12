@@ -41,7 +41,7 @@ struct EditTableScreen: View {
     @State private var timeSlotsExpanded = false
     @State private var error: String? = nil
     @State private var showDeleteConfirm = false
-    @State private var showHolidaySettings = false
+    @SleepyNavigationState private var showHolidaySettings = false
     @State private var slotRows: [TimeTableUtils.TimeSlotRow] = []
     @State private var smartConfig = SmartPeriodConfig()
     @State private var reorderCourses: [CourseEntity]? = nil
@@ -319,7 +319,7 @@ struct EditTableScreen: View {
         //   时仅重播选择器初值 pendingBind, 不重建整个会话
         .onChange(of: table.periodTableId) { _ in pendingBind = table.periodTableId }
         .onChange(of: scheduleKey) { _ in reloadSchedule(table: table, effective: effective) }
-        .sleepyNavigationPage(isPresented: $showHolidaySettings, canvas: {
+        .sleepyNavigationPage(isPresented: $showHolidaySettings, changes: _showHolidaySettings.changes, canvas: {
             colors.background.ignoresSafeArea()
         }) {
             HolidaySettingsScreen(onDismiss: { showHolidaySettings = false },

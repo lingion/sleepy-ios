@@ -1,5 +1,6 @@
 // Native full-screen navigation, shared by root routes and local child pages.
 import SwiftUI
+import Combine
 import UIKit
 
 /// Tabs replace their content directly; pushed pages use UIKit's own transition.
@@ -48,9 +49,6 @@ private struct SleepyNativeNavigationController<Root: View>: UIViewControllerRep
                                           coordinator: SleepyNativeNavigationCoordinator) {
         coordinator.invalidate()
         controller.delegate = nil
-        if controller.interactivePopGestureRecognizer?.delegate === coordinator {
-            controller.interactivePopGestureRecognizer?.delegate = nil
-        }
     }
 }
 
@@ -101,6 +99,7 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
     private var drainScheduled = false
     private var awaitingUIKitCompletion = false
     private var active = true
+    private var popGestureDelegates: [ObjectIdentifier: SleepyNativePopGestureDelegateProxy] = [:]
 
     private struct LocalRegistration {
         let parentID: AnyHashable
@@ -155,6 +154,10 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
         // every host again here would feed the registration back into itself.
         if let entry, let host = hosts[entry.id] { host.rootView = content(for: entry.id) }
         scheduleDrain()
+    }
+
+    fileprivate func isCurrentRegistration(_ scope: UUID, entryID: AnyHashable) -> Bool {
+        active && registrations[scope]?.entry?.id == entryID
     }
 
     fileprivate func unregister(_ scope: UUID) {
@@ -341,15 +344,43 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
         globalOrders = globalOrders.filter { globalIDs.contains($0.key) }
     }
 
+    private var popGestures: [UIGestureRecognizer] {
+        guard let navigationController else { return [] }
+        var gestures = [navigationController.interactivePopGestureRecognizer].compactMap { $0 }
+        if #available(iOS 26.0, *),
+           let content = navigationController.interactiveContentPopGestureRecognizer {
+            gestures.append(content)
+        }
+        return gestures
+    }
+
+    private func popGestureDelegate(for gesture: UIGestureRecognizer) -> SleepyNativePopGestureDelegateProxy {
+        let key = ObjectIdentifier(gesture)
+        if let proxy = popGestureDelegates[key] {
+            // UIKit may install a fresh native delegate after a transition.
+            // Capture that replacement before reinstalling our stable proxy.
+            if gesture.delegate !== proxy { proxy.originalDelegate = gesture.delegate }
+            return proxy
+        }
+        let proxy = SleepyNativePopGestureDelegateProxy(
+            gestureRecognizer: gesture, originalDelegate: gesture.delegate, coordinator: self)
+        popGestureDelegates[key] = proxy
+        return proxy
+    }
+
     private func updatePopGesture() {
-        guard active, let navigationController,
-              let gesture = navigationController.interactivePopGestureRecognizer else { return }
-        // Changing isEnabled while UIKit tracks the edge would cancel the user's
-        // gesture. The delegate gates new gestures until this one has completed.
-        guard transition?.programmatic != false else { return }
-        gesture.delegate = self
-        gesture.isEnabled = navigationController.viewControllers.count > 1 && transition == nil
+        guard active, let navigationController else { return }
+        let gestures = popGestures
+        // UIKit coordinates edge and content pans. Keep both native recognizers
+        // under the same back policy, and never reset one during an active pan.
+        guard transition?.programmatic != false,
+              !gestures.contains(where: { $0.state == .began || $0.state == .changed }) else { return }
+        let enabled = navigationController.viewControllers.count > 1 && transition == nil
             && !(actualIDs.last.flatMap { backDisabled[$0] } ?? false)
+        for gesture in gestures {
+            gesture.delegate = popGestureDelegate(for: gesture)
+            gesture.isEnabled = enabled
+        }
     }
 
     func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController,
@@ -384,6 +415,12 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
     }
 
     func invalidate() {
+        for proxy in popGestureDelegates.values {
+            if let gesture = proxy.gestureRecognizer, gesture.delegate === proxy {
+                gesture.delegate = proxy.originalDelegate
+            }
+        }
+        popGestureDelegates.removeAll()
         active = false
         registrations.removeAll()
         localDismissals.removeAll()
@@ -407,14 +444,142 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
     }
 }
 
+/// Keep UIKit's gesture arbitration while overriding only the app's back gate.
+/// A separate proxy for each recognizer preserves its own original delegate.
+/// No targets, thresholds, failure requirements or gesture states are changed.
+private final class SleepyNativePopGestureDelegateProxy: NSObject, UIGestureRecognizerDelegate {
+    weak var gestureRecognizer: UIGestureRecognizer?
+    weak var originalDelegate: UIGestureRecognizerDelegate?
+    weak var coordinator: SleepyNativeNavigationCoordinator?
+
+    init(gestureRecognizer: UIGestureRecognizer,
+         originalDelegate: UIGestureRecognizerDelegate?,
+         coordinator: SleepyNativeNavigationCoordinator) {
+        self.gestureRecognizer = gestureRecognizer
+        self.originalDelegate = originalDelegate
+        self.coordinator = coordinator
+        super.init()
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        // The app uses a custom toolbar and hides UINavigationBar. Its existing
+        // gate remains authoritative instead of inheriting a hidden-bar veto.
+        coordinator?.gestureRecognizerShouldBegin(gestureRecognizer) ?? false
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        let allowed = originalDelegate?.gestureRecognizer?(
+            gestureRecognizer, shouldRecognizeSimultaneouslyWith: otherGestureRecognizer) ?? false
+        return allowed
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        let required = originalDelegate?.gestureRecognizer?(
+            gestureRecognizer, shouldRequireFailureOf: otherGestureRecognizer) ?? false
+        return required
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        let required = originalDelegate?.gestureRecognizer?(
+            gestureRecognizer, shouldBeRequiredToFailBy: otherGestureRecognizer) ?? false
+        return required
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        let allowed = originalDelegate?.gestureRecognizer?(gestureRecognizer, shouldReceive: touch) ?? true
+        return allowed
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive press: UIPress) -> Bool {
+        originalDelegate?.gestureRecognizer?(gestureRecognizer, shouldReceive: press) ?? true
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive event: UIEvent) -> Bool {
+        originalDelegate?.gestureRecognizer?(gestureRecognizer, shouldReceive: event) ?? true
+    }
+}
+
 private struct SleepyLocalNavigationID: Hashable {
     let scope: UUID
     let item: AnyHashable
+    let session: UUID
+}
+
+/// Navigation values have to notify UIKit even while their SwiftUI source is
+/// covered by another hosting controller. Binding alone has no change publisher.
+@propertyWrapper
+struct SleepyNavigationState<Value>: DynamicProperty {
+    @StateObject private var storage: SleepyNavigationStorage<Value>
+
+    init(wrappedValue: Value) {
+        _storage = StateObject(wrappedValue: SleepyNavigationStorage(wrappedValue))
+    }
+
+    var wrappedValue: Value {
+        get { storage.value }
+        nonmutating set { storage.set(newValue) }
+    }
+
+    var projectedValue: Binding<Value> {
+        let storage = storage
+        return Binding(get: { storage.value }, set: { storage.set($0) })
+    }
+
+    var changes: AnyPublisher<Void, Never> { storage.changes.eraseToAnyPublisher() }
+}
+
+private final class SleepyNavigationStorage<Value>: ObservableObject {
+    @Published private(set) var value: Value
+    let changes = PassthroughSubject<Void, Never>()
+
+    init(_ value: Value) { self.value = value }
+
+    func set(_ value: Value) {
+        self.value = value
+        // Publish after assignment: reconciliation must read the latest value.
+        changes.send()
+    }
 }
 
 private final class SleepyNavigationRegistration: ObservableObject {
     let scope = UUID()
     weak var coordinator: SleepyNativeNavigationCoordinator?
+    private(set) var registeredItemID: AnyHashable?
+    private(set) var session = UUID()
+    private var observation: AnyCancellable?
+    private var refresh: (() -> Void)?
+    private var refreshScheduled = false
+
+    func observe(_ changes: AnyPublisher<Void, Never>, refresh: @escaping () -> Void) {
+        self.refresh = refresh
+        if observation == nil {
+            observation = changes.sink { [weak self] _ in self?.scheduleRefresh() }
+        }
+        refresh()
+    }
+
+    private func scheduleRefresh() {
+        guard !refreshScheduled else { return }
+        refreshScheduled = true
+        // Leave SwiftUI's render pass before mutating a hosting controller.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.refreshScheduled = false
+            self.refresh?()
+        }
+    }
+
+    /// Bool presentations reuse an item ID, but each activation owns its callbacks.
+    func synchronize(itemID: AnyHashable?) {
+        if let itemID, registeredItemID != itemID { session = UUID() }
+        registeredItemID = itemID
+    }
+
+    func accepts(session: UUID) -> Bool { self.session == session }
+
     deinit {
         let scope = scope
         let coordinator = coordinator
@@ -426,6 +591,7 @@ private final class SleepyNavigationRegistration: ObservableObject {
 private struct SleepyNavigationPage<Item: Identifiable, Page: View, Canvas: View>: ViewModifier {
     @Environment(\.sleepyNativeNavigationContext) private var navigation
     @Binding var item: Item?
+    let changes: AnyPublisher<Void, Never>
     let onDismiss: () -> Void
     @ViewBuilder var canvas: () -> Canvas
     @ViewBuilder var page: (Item) -> Page
@@ -439,46 +605,76 @@ private struct SleepyNavigationPage<Item: Identifiable, Page: View, Canvas: View
     }
 
     private func registered(_ content: Content) -> some View {
-        content.modifier(SleepyNavigationPageRegistration(item: $item, onDismiss: onDismiss,
-                                                         canvas: canvas, page: page))
+        content.modifier(SleepyNavigationPageRegistration(item: $item, changes: changes,
+                                                         onDismiss: onDismiss, canvas: canvas, page: page))
     }
 }
 
 private struct SleepyNavigationPageRegistration<Item: Identifiable, Page: View, Canvas: View>: ViewModifier {
     @Environment(\.sleepyNativeNavigationContext) private var navigation
     @Binding var item: Item?
+    let changes: AnyPublisher<Void, Never>
     let onDismiss: () -> Void
     @ViewBuilder let canvas: () -> Canvas
     @ViewBuilder let page: (Item) -> Page
     @StateObject private var registration = SleepyNavigationRegistration()
 
     func body(content: Content) -> some View {
-        content.background(SleepyNavigationRegistrationUpdate(update: update).frame(width: 0, height: 0))
+        let registration = registration
+        let binding = $item
+        let navigation = navigation
+        let page = page
+        let canvas = canvas
+        let onDismiss = onDismiss
+        content.background(SleepyNavigationRegistrationUpdate(update: {
+            guard let navigation, let coordinator = navigation.coordinator else { return }
+            registration.coordinator = coordinator
+            registration.observe(changes) { [weak registration, weak coordinator] in
+                guard let registration, let coordinator else { return }
+                Self.update(binding: binding, registration: registration, coordinator: coordinator,
+                            parentID: navigation.parentID, onDismiss: onDismiss, canvas: canvas, page: page)
+            }
+        }).frame(width: 0, height: 0))
     }
 
-    private func update() {
-        guard let navigation, let coordinator = navigation.coordinator else { return }
-        registration.coordinator = coordinator
-        let binding = $item
-        let entry = item.map { value in
-            SleepyNativeNavigationEntry(
-                id: SleepyLocalNavigationID(scope: registration.scope, item: AnyHashable(value.id)),
+    private static func update(binding: Binding<Item?>, registration: SleepyNavigationRegistration,
+                               coordinator: SleepyNativeNavigationCoordinator, parentID: AnyHashable,
+                               onDismiss: @escaping () -> Void, canvas: @escaping () -> Canvas,
+                               page: @escaping (Item) -> Page) {
+        // Queued render updates and direct notifications both use the live value.
+        let live = binding.wrappedValue
+        registration.synchronize(itemID: live.map { AnyHashable($0.id) })
+        let session = registration.session
+        let entry = live.map { value in
+            let entryID = AnyHashable(SleepyLocalNavigationID(scope: registration.scope,
+                                                             item: AnyHashable(value.id), session: session))
+            return SleepyNativeNavigationEntry(
+                id: entryID,
                 content: AnyView(page(value).frame(maxWidth: .infinity, maxHeight: .infinity).background(canvas())),
                 onPop: {
-                    if binding.wrappedValue?.id == value.id { binding.wrappedValue = nil }
+                    guard registration.accepts(session: session),
+                          coordinator.isCurrentRegistration(registration.scope, entryID: entryID),
+                          binding.wrappedValue?.id == value.id else { return }
+                    registration.synchronize(itemID: nil)
+                    binding.wrappedValue = nil
                 })
         }
-        let presentedID = item?.id
-        coordinator.register(registration.scope, parentID: navigation.parentID,
-                             entry: entry, onDismiss: {
-                                 // Removing a parent also removes its local flow.
-                                 // Never let an old dismissal clear a replacement.
-                                 if let current = binding.wrappedValue {
-                                     guard current.id == presentedID else { return }
-                                     binding.wrappedValue = nil
-                                 }
-                                 onDismiss()
-                             })
+        let presentedID = live?.id
+        let presentedEntryID = entry?.id
+        coordinator.register(registration.scope, parentID: parentID, entry: entry, onDismiss: {
+            // A previous pop must not clear a new Bool activation, even before
+            // that activation's queued registration reaches the coordinator.
+            guard registration.accepts(session: session) else { return }
+            if let current = binding.wrappedValue {
+                guard current.id == presentedID,
+                      registration.registeredItemID == AnyHashable(current.id),
+                      let presentedEntryID,
+                      coordinator.isCurrentRegistration(registration.scope, entryID: presentedEntryID) else { return }
+                registration.synchronize(itemID: nil)
+                binding.wrappedValue = nil
+            }
+            onDismiss()
+        })
     }
 }
 
@@ -498,21 +694,22 @@ extension View {
     }
 
     func sleepyNavigationPage<Item: Identifiable, Page: View, Canvas: View>(
-        item: Binding<Item?>, onDismiss: @escaping () -> Void = {},
+        item: Binding<Item?>, changes: AnyPublisher<Void, Never>, onDismiss: @escaping () -> Void = {},
         @ViewBuilder canvas: @escaping () -> Canvas,
         @ViewBuilder content: @escaping (Item) -> Page
     ) -> some View {
-        modifier(SleepyNavigationPage(item: item, onDismiss: onDismiss, canvas: canvas, page: content))
+        modifier(SleepyNavigationPage(item: item, changes: changes, onDismiss: onDismiss,
+                                      canvas: canvas, page: content))
     }
 
     func sleepyNavigationPage<Page: View, Canvas: View>(
-        isPresented: Binding<Bool>, onDismiss: @escaping () -> Void = {},
+        isPresented: Binding<Bool>, changes: AnyPublisher<Void, Never>, onDismiss: @escaping () -> Void = {},
         @ViewBuilder canvas: @escaping () -> Canvas,
         @ViewBuilder content: @escaping () -> Page
     ) -> some View {
         sleepyNavigationPage(item: Binding(
             get: { isPresented.wrappedValue ? SleepyNavigationPageToken() : nil },
-            set: { isPresented.wrappedValue = $0 != nil }), onDismiss: onDismiss,
+            set: { isPresented.wrappedValue = $0 != nil }), changes: changes, onDismiss: onDismiss,
             canvas: canvas, content: { _ in content() })
     }
 }

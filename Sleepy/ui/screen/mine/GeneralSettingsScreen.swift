@@ -18,7 +18,7 @@ struct GeneralSettingsScreen: View {
     /// { viewModel?.refreshTransfer() } 的 Void? 闭包在 () -> Void 槽位写法同 JwWebViewLoginScreen:191 先例。
     var viewModel: ScheduleViewModel? = nil
     var section: Section = .general
-    @State private var showPeriodHeaders = false
+    @SleepyNavigationState private var showPeriodHeaders = false
 
     private var pageTitle: String {
         switch section {
@@ -54,7 +54,7 @@ struct GeneralSettingsScreen: View {
     @State private var showImportPicker = false
     @State private var exportURL: URL? = nil
     @State private var migrationToast: String? = nil
-    @State private var holidaySettingsItem: HolidaySettingsItem? = nil
+    @SleepyNavigationState private var holidaySettingsItem: HolidaySettingsItem? = nil
     private struct HolidaySettingsItem: Identifiable { let id = UUID() }
 
     private func toggleSection(_ key: String) {
@@ -266,12 +266,12 @@ struct GeneralSettingsScreen: View {
                       allowedContentTypes: [.zip, .data],
                       allowsMultipleSelection: false,
                       onCompletion: onImportFileResult)
-        .sleepyNavigationPage(isPresented: $showPeriodHeaders, canvas: {
+        .sleepyNavigationPage(isPresented: $showPeriodHeaders, changes: _showPeriodHeaders.changes, canvas: {
             colors.background.ignoresSafeArea()
         }) {
             PeriodHeaderSettingsScreen(onBack: { showPeriodHeaders = false })
         }
-        .sleepyNavigationPage(item: $holidaySettingsItem, canvas: {
+        .sleepyNavigationPage(item: $holidaySettingsItem, changes: _holidaySettingsItem.changes, canvas: {
             colors.background.ignoresSafeArea()
         }) { _ in
             HolidaySettingsScreen(

@@ -68,9 +68,9 @@ struct WidgetManagementScreen: View {
     // ← vm.state (WidgetManagementViewModel)
     @State private var items: [PlacedWidgetItem] = []
     // 点击行 → 编辑页(等价 原版本 onSelect(id) 导航)
-    @State private var editTarget: PlacedWidgetItem? = nil
+    @SleepyNavigationState private var editTarget: PlacedWidgetItem? = nil
     // v1.0.62 B4: 标题栏右上「＋」进画廊页直接添加(设计 §3)
-    @State private var showGallery = false
+    @SleepyNavigationState private var showGallery = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -130,7 +130,7 @@ struct WidgetManagementScreen: View {
                 Task { items = await loadItems() }
             }
         }
-        .sleepyNavigationPage(item: $editTarget, onDismiss: {
+        .sleepyNavigationPage(item: $editTarget, changes: _editTarget.changes, onDismiss: {
             Task { items = await loadItems() }
         }, canvas: {
             colors.background.ignoresSafeArea()
@@ -139,7 +139,7 @@ struct WidgetManagementScreen: View {
             WidgetEditScreen(kind: target.kind, family: target.family,
                              onDismiss: { editTarget = nil })
         }
-        .sleepyNavigationPage(isPresented: $showGallery, onDismiss: {
+        .sleepyNavigationPage(isPresented: $showGallery, changes: _showGallery.changes, onDismiss: {
             Task { items = await loadItems() }
         }, canvas: {
             colors.background.ignoresSafeArea()

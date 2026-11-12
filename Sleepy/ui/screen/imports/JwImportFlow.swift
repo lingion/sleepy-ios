@@ -189,7 +189,7 @@ struct JwImportFlow: View {
     private let draftRepository = ImportDraftRepository(AppDatabase.getShared())
 
     @State private var selectedSchool: JwSchoolInfo? = nil
-    @State private var stage: JwStage = .selectSchool
+    @SleepyNavigationState private var stage: JwStage = .selectSchool
     @State private var didStartFlow = false
     @State private var errorMsg: String? = nil
     @State private var statusMsg: String? = nil
@@ -484,7 +484,7 @@ struct JwImportFlow: View {
                     openSelectedSchool(school)
                 }, onDismiss: { requestExit() })
             }
-            .sleepyNavigationPage(item: loginRoute,
+            .sleepyNavigationPage(item: loginRoute, changes: _stage.changes,
                                   canvas: { colors.background.ignoresSafeArea() }) { _ in
                 webViewPage
             }
@@ -508,7 +508,7 @@ struct JwImportFlow: View {
                 Color.clear.onAppear { navigateToStage(.selectSchool) }
             }
         }
-        .sleepyNavigationPage(item: webChildRoute,
+        .sleepyNavigationPage(item: webChildRoute, changes: _stage.changes,
                               canvas: { colors.background.ignoresSafeArea() }) { child in
             if child == .configureConfirm {
                 configurationPage
@@ -520,7 +520,7 @@ struct JwImportFlow: View {
 
     private var previewPage: some View {
         flowPage(for: .preview) { previewContent }
-            .sleepyNavigationPage(item: configurationRoute,
+            .sleepyNavigationPage(item: configurationRoute, changes: _stage.changes,
                                   canvas: { colors.background.ignoresSafeArea() }) { _ in
                 configurationPage
             }
