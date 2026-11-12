@@ -732,8 +732,12 @@ private struct WeekPager: View {
                                       dragMaxWeek: state.currentTable?.maxWeek ?? 0,
                                       dragTransfers: state.transfers,
                                       quickAddState: quickAdd,
-                                      quickAddEnabled: quickAddEnabled && dragEnabled && page == state.selectedWeek,
-                                      onQuickAdd: { day, node, step in onQuickAdd(page, day, node, step) },
+                                      quickAddEnabled: quickAddEnabled && dragEnabled && page == state.selectedWeek
+                                        && viewModel.pendingCourseMove == nil,
+                                      onQuickAdd: { day, node, step in
+                                          guard drag.source == nil, viewModel.pendingCourseMove == nil else { return }
+                                          onQuickAdd(page, day, node, step)
+                                      },
                                       publishesDropGrid: publishesDropGrid)
                     }
                 }

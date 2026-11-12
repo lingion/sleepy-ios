@@ -79,6 +79,8 @@ final class QuickAddCourseUITests: XCTestCase {
 
     func testOutsidePressCancelsWithoutOpeningCourseOrReselectingCell() {
         cell(6, 5).tap()
+        XCTAssertFalse(capsule.exists, "A short tap on an empty cell must not start quick-add")
+        cell(6, 5).press(forDuration: 0.6)
         XCTAssertTrue(capsule.waitForExistence(timeout: 5))
         // 点实体课只取消，第二次点才可打开详情。
         let course = pager.buttons["gridcell_1"]
@@ -89,12 +91,12 @@ final class QuickAddCourseUITests: XCTestCase {
         XCTAssertTrue(app.buttons["detail_close"].waitForExistence(timeout: 5))
         app.buttons["detail_close"].tap()
 
-        cell(6, 5).tap()
+        cell(6, 5).press(forDuration: 0.6)
         XCTAssertTrue(capsule.waitForExistence(timeout: 5))
         let next = cell(7, 5).frame
         coordinate(CGPoint(x: next.midX, y: next.midY)).tap()
         assertDismissed()
-        cell(7, 5).tap()
+        cell(7, 5).press(forDuration: 0.6)
         XCTAssertTrue(capsule.waitForExistence(timeout: 5))
         XCTAssertEqual(capsule.frame.midX, next.midX, accuracy: 2)
         // 顶栏也遵循第一次按下只取消，第二次才能翻周。
@@ -118,7 +120,7 @@ final class QuickAddCourseUITests: XCTestCase {
         try revealPlacementRange()
         let first = cell(6, 4).frame
         let last = cell(6, 6).frame
-        cell(6, 5).tap()
+        cell(6, 5).press(forDuration: 0.6)
         XCTAssertTrue(capsule.waitForExistence(timeout: 5))
         let top = app.descendants(matching: .any)["quick-add-top"]
         let bottom = app.descendants(matching: .any)["quick-add-bottom"]

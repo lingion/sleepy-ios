@@ -563,6 +563,7 @@ struct CardsGridView: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
     @Environment(\.localNavExtraBottomPadding) private var navExtra
+    @Environment(\.courseDragContext) private var courseDrag
     let courses: [CourseEntity]
     let timeSlots: [TimeSlot]
     /// issue#23 §5: 非空 → 渲染期合成占位节次 + 按分钟加权行高(非常规课跨空隙落位)
@@ -783,7 +784,8 @@ struct CardsGridView: View {
 
                         if quickAddEnabled, onQuickAdd != nil, let quickAddState {
                             QuickAddCourseCells(state: quickAddState, days: sortedDays, rows: quickAddRows,
-                                timeWidth: timeW, columnWidth: colW, gap: gapW)
+                                timeWidth: timeW, columnWidth: colW, gap: gapW,
+                                canSelect: { courseDrag?.source == nil && courseDrag?.awaitingConfirmation != true })
                                 .frame(width: availableW, height: gridH, alignment: .topLeading)
                         }
 
