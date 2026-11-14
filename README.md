@@ -5,8 +5,8 @@
 <h1 align="center">Sleepy · 轻课表 iOS</h1>
 
 <p align="center">
-  A clean, Material You iOS schedule/timetable app built with Swift + SwiftUI + GRDB + WidgetKit.<br>
-  Material You 设计的纯净 iOS 课程表 App — 多视图 · 教务直连 · 桌面小组件 · HSV 自定义配色
+  A clean, native iOS timetable app built with Swift + SwiftUI + GRDB + WidgetKit. Part of Sleepy, an open-source cross-platform (Android & iOS) university timetable project.<br>
+  纯净原生 iOS 课程表,Sleepy 开源跨端(Android 与 iOS 双原生)项目之一 — 多视图 · 教务直连 · 桌面小组件 · HSV 自定义配色
 </p>
 
 <p align="center">
@@ -29,9 +29,11 @@
 > [!IMPORTANT]
 > **官方安装渠道**：中国大陆以外的 [App Store](https://apps.apple.com/app/id6827001840) 均已上线，正式版通过商店安装与更新。中国大陆区仍在审核中，可加入 [TestFlight 公测](https://testflight.apple.com/join/SxymmDzf)，通过 Apple 官方 TestFlight App 安装与更新，无需自行签名。正式商店与公测独立发布，实际功能以安装渠道的版本说明为准。渠道核对日期为2026年11月10日。
 
+> **同属一个产品**：本仓库是 Sleepy 的 iOS 原生实现。Android 原生版在独立仓库 [lingion/sleepy](https://github.com/lingion/sleepy) 维护（Kotlin + Jetpack Compose）。两端可经 WakeUp JSON / ICS 等通用格式互相导入课表；功能演进各自独立，Android 版本号不代表 iOS 功能相同。
+
 ---
 
-> **Keywords (SEO):** iOS schedule app, 课程表, 课表, timetable, university schedule, SwiftUI, WidgetKit, iOS widget, home screen widget, 教务导入, 教务直连, 正方教务, 超星教务, 强智教务, wisedu, URP, 开源课表, 开源课程表, 离线课表, 无广告课表, 隐私课表, 大学课表, 高校课表, ICS 课表, WakeUp 替代, 课程格子 替代, 超级课程表 替代, class timetable, school timetable, university timetable, course schedule
+> **Keywords (SEO):** iOS schedule app, iPhone 课程表, 开源 iPhone 课表, SwiftUI, WidgetKit, iOS widget, App Store 课表, cross-platform timetable, 课程表, 课表, timetable, university schedule, home screen widget, 教务导入, 教务直连, 正方教务, 超星教务, 强智教务, wisedu, URP, 开源课表, 开源课程表, 离线课表, 无广告课表, 隐私课表, 大学课表, 高校课表, ICS 课表, WakeUp 替代, 课程格子 替代, 超级课程表 替代, class timetable, school timetable, university timetable, course schedule
 
 ---
 
