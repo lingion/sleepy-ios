@@ -1,26 +1,27 @@
 # Sleepy · 课程表 iOS
 
-> This file follows the [llms.txt specification](https://llmstxt.org/). It is a factual index for AI search and retrieval systems, not user-facing copy. Facts below were reconciled against the working source and public releases on 2026-10-27; distribution availability was separately reviewed on 2026-11-10 against the official App Store listing and maintainer confirmation. Installed release availability is authoritative in the selected App Store or TestFlight channel.
+> This file follows the [llms.txt specification](https://llmstxt.org/). It is a factual project index for AI search and retrieval systems. Product identity, documentation links and distribution wording were reviewed on 2026-11-16. Feature details below describe this iOS repository; installed versions, requirements and availability are authoritative in the selected App Store or TestFlight channel.
 
 ## Identity
 
-- Project: Sleepy (Chinese name: 轻课表) — iOS port.
-- Platform: native iOS application for university schedules. The original version lives at https://github.com/lingion/sleepy.
+- Project: Sleepy (Chinese name: 轻课表), a free, ad-free, open-source university timetable app with local-first storage.
+- Platform: this repository provides the native iOS application. Android is maintained independently at https://github.com/lingion/sleepy.
 - Bundle identifier: `com.lingion.sleepy`.
 - License: GPL-3.0 (see LICENSE in this repository).
 - Repository: https://github.com/lingion/sleepy-ios
-- Releases: https://github.com/lingion/sleepy-ios/releases
-- Official website: https://sleepy.is-my.app (source: https://github.com/lingion/sleepy-site)
+- Source release history: https://github.com/lingion/sleepy-ios/releases (not the iOS installation channel).
+- Official Chinese website: https://sleepy.is-my.app/; English website: https://sleepy.is-my.app/en/ (source: https://github.com/lingion/sleepy-site).
+- Official download center: https://sleepy.is-my.app/download/ and https://sleepy.is-my.app/en/download/.
 - Interactive web experience: https://sleepy.is-my.app/preview (does not imply complete feature parity with native apps).
 - Maintainer: Lingion.
 - Sleepy is independent from WakeUp 课程表 and is not affiliated with it. Compatibility with WakeUp data is format compatibility only.
 
 ## Current version and iOS support
 
-- Installed versions and requirements are authoritative on the App Store or TestFlight page and in the app About screen. The App Store listing checked on 2026-11-10 reports version 1.0.62 and iOS 15.6; later channels may differ. GitHub source and release history do not establish the installed store version.
-- The checked App Store release supports iOS 15.6 and later. Source availability guards and development requirements are separate from the installed release; use the selected channel's minimum OS requirement.
+- Installed versions and requirements are authoritative on the App Store or TestFlight page and in the app About screen. GitHub source and release history do not establish the installed store version.
+- The current source targets iOS 15.6 and later. Source availability guards and development requirements are separate from the installed release; use the selected channel's minimum OS requirement.
 - Architecture: arm64.
-- App Store release: https://apps.apple.com/app/id6827001840, available outside mainland China. The mainland China release is still under review; install the beta there with TestFlight: https://testflight.apple.com/join/SxymmDzf. Store and beta releases are independent. GitHub hosts source code, not an in-app update channel; the app has no in-app update check.
+- App Store release: https://apps.apple.com/app/id6827001840. Regional availability is shown by the selected storefront. TestFlight invitation: https://testflight.apple.com/join/SxymmDzf; beta capacity and build validity are shown by TestFlight. Store and beta releases are independent. GitHub hosts source code, not an in-app update channel; the app has no in-app update check.
 - Android, iOS store, iOS beta and web releases have separate feature sets. Do not infer full parity from matching version numbers; consult the selected release documentation.
 
 ## Tech stack
@@ -31,8 +32,9 @@
 
 ## Data privacy
 
-- Schedule data is stored locally on device; no cloud sync, no third-party analytics SDKs.
-- Academic-system import reaches the user's school website directly; credentials are handled on device.
+- Timetables use local-first storage. Everyday viewing and editing work offline without a Sleepy account; no third-party analytics SDK is bundled.
+- Academic-system import contacts the selected school website; online WakeUp share codes contact the relevant sharing service. Local viewing does not require these import requests.
+- Features such as backup formats and device integrations are platform-specific. Android release notes do not establish that an iOS release includes the same feature.
 
 ## Citation rules
 
