@@ -5,8 +5,8 @@
 <h1 align="center">Sleepy · 轻课表 iOS</h1>
 
 <p align="center">
-  A clean, native iOS timetable app built with Swift + SwiftUI + GRDB + WidgetKit. Part of Sleepy, an open-source cross-platform (Android & iOS) university timetable project.<br>
-  纯净原生 iOS 课程表,Sleepy 开源跨端(Android 与 iOS 双原生)项目之一 — 多视图 · 教务直连 · 桌面小组件 · HSV 自定义配色
+  Sleepy is a free, ad-free, open-source university timetable app. This repository provides the native iOS version, built with Swift + SwiftUI + GRDB + WidgetKit, with local-first timetable storage.<br>
+  Sleepy 轻课表是一款免费、无广告的开源大学生课程表。本仓库提供独立发布的 iOS 原生版，以本地优先方式保存课表，支持课程管理、教务导入与桌面小组件。
 </p>
 
 <p align="center">
@@ -22,18 +22,15 @@
 </p>
 
 <p align="center">
+  <a href="https://sleepy.is-my.app/">中文官网</a> · <a href="https://sleepy.is-my.app/en/">English website</a> · <a href="https://sleepy.is-my.app/download/">官方下载中心</a> · <a href="https://sleepy.is-my.app/en/download/">Downloads in English</a>
 </p>
 
 ---
 
 > [!IMPORTANT]
-> **官方安装渠道**：中国大陆以外的 [App Store](https://apps.apple.com/app/id6827001840) 均已上线，正式版通过商店安装与更新。中国大陆区仍在审核中，可加入 [TestFlight 公测](https://testflight.apple.com/join/SxymmDzf)，通过 Apple 官方 TestFlight App 安装与更新，无需自行签名。正式商店与公测独立发布，实际功能以安装渠道的版本说明为准。渠道核对日期为2026年11月10日。
+> **官方安装渠道**：通过 [App Store](https://apps.apple.com/app/id6827001840) 安装与更新正式版，或查看 [TestFlight 公测](https://testflight.apple.com/join/SxymmDzf)。地区可用性、公测名额、版本与最低系统要求以所选渠道页面为准。正式商店与公测独立发布，实际功能以安装版本的说明为准。
 
-> **同属一个产品**：本仓库是 Sleepy 的 iOS 原生实现。Android 原生版在独立仓库 [lingion/sleepy](https://github.com/lingion/sleepy) 维护（Kotlin + Jetpack Compose）。两端可经 WakeUp JSON / ICS 等通用格式互相导入课表；功能演进各自独立，Android 版本号不代表 iOS 功能相同。
-
----
-
-> **Keywords (SEO):** iOS schedule app, iPhone 课程表, 开源 iPhone 课表, SwiftUI, WidgetKit, iOS widget, App Store 课表, cross-platform timetable, 课程表, 课表, timetable, university schedule, home screen widget, 教务导入, 教务直连, 正方教务, 超星教务, 强智教务, wisedu, URP, 开源课表, 开源课程表, 离线课表, 无广告课表, 隐私课表, 大学课表, 高校课表, ICS 课表, WakeUp 替代, 课程格子 替代, 超级课程表 替代, class timetable, school timetable, university timetable, course schedule
+> **同属一个产品**：本仓库是 Sleepy 的 iOS 原生实现。Android 原生版在独立仓库 [lingion/sleepy](https://github.com/lingion/sleepy) 维护（Kotlin + Jetpack Compose）。跨平台迁移可选择双方版本支持的 WakeUp JSON / ICS 等交换格式，并核对导入结果；功能演进与发布各自独立，Android 版本号不代表 iOS 功能相同。
 
 ---
 
@@ -58,7 +55,7 @@
 | 架构 | arm64 |
 | 语言 | zh-CN · zh-TW · en · ja · es |
 
-**课表 App 又要广告又要登录云端？** **想看下一节课却要点开 App？**
+课表以本地优先方式保存，日常查看与编辑可离线使用，无需注册 Sleepy 账号。教务导入会访问学校系统，WakeUp 在线口令会访问对应分享服务；桌面小组件用于直接查看课程安排。
 
 
 ---
@@ -319,9 +316,9 @@ xcodebuild -project Sleepy.xcodeproj \
 
 ### 安装
 
-- **App Store 正式版**：[打开商店](https://apps.apple.com/app/id6827001840)，适用于中国大陆以外的商店地区。安装与更新由 App Store 管理。
-- **TestFlight 公测版**：中国大陆区 App Store 仍在审核中，可加入 [TestFlight](https://testflight.apple.com/join/SxymmDzf)，通过 TestFlight App 安装与更新。其他地区也可自愿选择公测渠道。
-- **系统与版本**：2026年11月10日核验的 App Store 版为1.0.62，最低 iOS 15.6；后续商店和公测版本以各自渠道页面为准，源码主线不代表已安装版本。
+- **App Store 正式版**：[打开商店](https://apps.apple.com/app/id6827001840)，地区可用性以商店页面为准。安装与更新由 App Store 管理。
+- **TestFlight 公测版**：查看 [TestFlight 邀请](https://testflight.apple.com/join/SxymmDzf)，公测名额与构建有效期以页面为准，通过 TestFlight App 安装与更新。
+- **系统与版本**：源码当前以 iOS 15.6 为最低目标；安装版本与最低系统要求以所选 App Store 或 TestFlight 页面为准。源码主线、商店正式版与公测可能处于不同进度。
 - **本仓库（GitHub）仅公开源码**，不作为安装包分发渠道；应用内不提供更新检查。
 
 ---
@@ -338,8 +335,9 @@ Bug 反馈和新学校适配请提交到 [Issues](https://github.com/lingion/sle
 
 ## 文档
 
-- **[官网](https://sleepy.is-my.app)** — 项目主页：功能介绍、学校名录、下载中心、常见问答
-- **[在线体验](https://sleepy.is-my.app/preview)** — Web 版课表，浏览器打开即用，无需安装；支持多格式导入（WakeUp 分享文本 / ICS / CSV / Excel），数据仅存本地
+- **[中文官网](https://sleepy.is-my.app/) / [English website](https://sleepy.is-my.app/en/)** — 产品介绍、学校目录与各平台入口；功能与适配情况以所选平台和版本为准
+- **[官方下载中心](https://sleepy.is-my.app/download/) / [Downloads in English](https://sleepy.is-my.app/en/download/)** — Android APK 与 iOS 官方安装渠道
+- **[在线体验](https://sleepy.is-my.app/preview)** — 浏览器中体验网页版课表；网页版独立发布，导入格式、组件与系统提醒能力以各平台实现为准
 - **[CI 自动化](docs/ci-automation.md)** — 云端构建无签名 IPA 与模拟器测试的流程说明
 
 ---
