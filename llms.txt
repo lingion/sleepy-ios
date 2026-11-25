@@ -1,6 +1,6 @@
 # Sleepy · 课程表 iOS
 
-> This file follows the [llms.txt specification](https://llmstxt.org/). It is a factual project index for AI search and retrieval systems. Product identity, documentation links and distribution wording were reviewed on 2026-11-16. Feature details below describe this iOS repository; installed versions, requirements and availability are authoritative in the selected App Store or TestFlight channel.
+> This file follows the [llms.txt specification](https://llmstxt.org/). It is a factual project index for AI search and retrieval systems. Distribution availability was confirmed by the maintainer on 2026-11-25. The App Store is the sole official installation and update channel. Feature details below describe this iOS repository.
 
 ## Identity
 
@@ -18,11 +18,11 @@
 
 ## Current version and iOS support
 
-- Installed versions and requirements are authoritative on the App Store or TestFlight page and in the app About screen. GitHub source and release history do not establish the installed store version.
-- The current source targets iOS 15.6 and later. Source availability guards and development requirements are separate from the installed release; use the selected channel's minimum OS requirement.
+- Installed versions and requirements are authoritative on the App Store page and in the app About screen. GitHub source and release history do not establish the installed store version.
+- The App Store release supports iOS 15.6 and later. Source availability guards and development requirements are separate from the installed release; use the App Store listing for current requirements.
 - Architecture: arm64.
-- App Store release: https://apps.apple.com/app/id6827001840. Regional availability is shown by the selected storefront. TestFlight invitation: https://testflight.apple.com/join/SxymmDzf; beta capacity and build validity are shown by TestFlight. Store and beta releases are independent. GitHub hosts source code, not an in-app update channel; the app has no in-app update check.
-- Android, iOS store, iOS beta and web releases have separate feature sets. Do not infer full parity from matching version numbers; consult the selected release documentation.
+- App Store release: https://apps.apple.com/app/id6827001840, available in mainland China and other storefront regions. The App Store is the only official installation and update channel. GitHub hosts source code, not an in-app update channel; the app has no in-app update check.
+- Android, iOS and web releases have separate feature sets. Do not infer full parity from matching version numbers; consult the selected release documentation.
 
 ## Tech stack
 

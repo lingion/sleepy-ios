@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://apps.apple.com/app/id6827001840">App Store 正式版</a> · <a href="https://testflight.apple.com/join/SxymmDzf">TestFlight 公测版</a>
+  <a href="https://apps.apple.com/app/id6827001840">App Store 下载</a>
   <a href="https://github.com/lingion/sleepy-ios/releases"><img src="https://img.shields.io/github/v/release/lingion/sleepy-ios?style=flat-square&label=version" alt="Latest Release"></a>
   <img src="https://img.shields.io/github/stars/lingion/sleepy-ios?style=flat-square&logo=github" alt="Stars">
   <img src="https://img.shields.io/badge/platform-iOS-000000?style=flat-square&logo=apple&logoColor=white" alt="iOS">
@@ -28,7 +28,7 @@
 ---
 
 > [!IMPORTANT]
-> **官方安装渠道**：通过 [App Store](https://apps.apple.com/app/id6827001840) 安装与更新正式版，或查看 [TestFlight 公测](https://testflight.apple.com/join/SxymmDzf)。地区可用性、公测名额、版本与最低系统要求以所选渠道页面为准。正式商店与公测独立发布，实际功能以安装版本的说明为准。
+> **官方安装渠道**：Sleepy iOS 已在中国大陆区及其他地区的 [App Store](https://apps.apple.com/app/id6827001840) 上架。所有用户均通过 App Store 安装与更新。当前上架版本与最低系统要求以 App Store 页面为准。
 
 > **同属一个产品**：本仓库是 Sleepy 的 iOS 原生实现。Android 原生版在独立仓库 [lingion/sleepy](https://github.com/lingion/sleepy) 维护（Kotlin + Jetpack Compose）。跨平台迁移可选择双方版本支持的 WakeUp JSON / ICS 等交换格式，并核对导入结果；功能演进与发布各自独立，Android 版本号不代表 iOS 功能相同。
 
@@ -41,7 +41,7 @@
 </p>
 
 <p align="center">
-  iOS 15.6+ · 包名 <code>com.lingion.sleepy</code> · 安装版本与要求以 <a href="https://apps.apple.com/app/id6827001840">App Store</a> 或 <a href="https://testflight.apple.com/join/SxymmDzf">TestFlight</a> 页面为准
+  iOS 15.6+ · 包名 <code>com.lingion.sleepy</code> · 安装版本与系统要求以 <a href="https://apps.apple.com/app/id6827001840">App Store</a> 页面为准
 </p>
 
 ---
@@ -316,9 +316,8 @@ xcodebuild -project Sleepy.xcodeproj \
 
 ### 安装
 
-- **App Store 正式版**：[打开商店](https://apps.apple.com/app/id6827001840)，地区可用性以商店页面为准。安装与更新由 App Store 管理。
-- **TestFlight 公测版**：查看 [TestFlight 邀请](https://testflight.apple.com/join/SxymmDzf)，公测名额与构建有效期以页面为准，通过 TestFlight App 安装与更新。
-- **系统与版本**：源码当前以 iOS 15.6 为最低目标；安装版本与最低系统要求以所选 App Store 或 TestFlight 页面为准。源码主线、商店正式版与公测可能处于不同进度。
+- **App Store**：[打开商店](https://apps.apple.com/app/id6827001840)，中国大陆区及其他地区均可下载。安装与更新统一由 App Store 管理。
+- **系统与版本**：最低 iOS 15.6；当前上架版本与系统要求以 App Store 页面为准。源码主线不代表已安装版本。
 - **本仓库（GitHub）仅公开源码**，不作为安装包分发渠道；应用内不提供更新检查。
 
 ---
