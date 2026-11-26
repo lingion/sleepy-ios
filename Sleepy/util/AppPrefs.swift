@@ -45,7 +45,7 @@ final class AppPrefs {
     static let KEY_THEME = "theme_key"
     static let KEY_LANG = "language"
     static let KEY_DISPLAY_MODE = "display_mode" // "node" or "time"
-    static let KEY_START_VIEW = "start_view" // "full" / "cards" — ← 原 AppPrefs.KEY; 启动默认视图（仅通用设置里设置；手动切换课表顶部视图不写入）
+    static let KEY_START_VIEW = "start_view" // "full" / "cards" / "today" — ← 原 AppPrefs.KEY; 启动默认页（仅课表设置里设置；手动切换课表顶部视图不写入）
     static let KEY_GRID_SUB_INFO = "grid_sub_info" // "room" / "teacher" / "none" — 网格卡片副信息(周视图网格卡课程名下方那行;左栏已有节次,故此处不再显示节次/时间)
     static let KEY_CONFLICT_STYLE = "conflict_style" // "stack"/"fold"/"rail" — 冲突课程显示样式,默认 "rail"(← KEY_CONFLICT_STYLE v7.10.16s)
     static let KEY_CONFLICT_TOP_INSET = "conflict_top_inset" // Double dp — 旧共用收窄量 key: 仅作拆分迁移源,停写(用户 2026-09-04 拆分)
@@ -406,7 +406,7 @@ final class AppPrefs {
     /// 仅通用设置里设置, 手动切换课表顶部视图不写入(原版本 注释硬规则, iOS 一致遵循)。
     func getStartView() -> String { sp().string(forKey: Self.KEY_START_VIEW) ?? "cards" }
     func setStartView(_ mode: String) {
-        precondition(mode == "full" || mode == "cards")
+        precondition(mode == "full" || mode == "cards" || mode == "today")
         sp().set(mode, forKey: Self.KEY_START_VIEW)
     }
 

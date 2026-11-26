@@ -188,7 +188,9 @@ final class AppRootViewModel: ObservableObject {
         let dailyAgendaDate: Date?
     }
 
-    @Published var currentTab: Tab = .schedule
+    @Published var currentTab: Tab = AppPrefs.shared.getStartView() == "today" ? .today : .schedule
+    @Published var isTodayHome: Bool = AppPrefs.shared.getStartView() == "today"
+    var homeTab: Tab { isTodayHome ? .today : .schedule }
     @Published var importRequested = false
     @Published private(set) var requestedImportTargetTableId: Int64? = nil
 
@@ -254,7 +256,7 @@ final class AppRootViewModel: ObservableObject {
     @Published var initialCourseSlot: CourseAddSlot? = nil
     // ← 原版本 b96c865b: 课表视图模式(周/网格)会话级真值, 与 currentTab 同级 —
     // tab 切换/overlay 都会整页移除 ScheduleScreen, 状态必须提层才存活; 初始化读启动默认
-    @Published var scheduleViewMode: ViewMode = AppPrefs.shared.getStartView() == "cards" ? .cards : .full
+    @Published var scheduleViewMode: ViewMode = AppPrefs.shared.getStartView() == "full" ? .full : .cards
     // ← rememberSaveable 导航参数(旋转恢复语义 — iOS 状态默认保留)
     @Published var editTableId: Int64? = nil
     // ← v1.0.60 作息表编辑路由参数(镜像 EditTable 的 pendingNew 丢弃链)
@@ -342,6 +344,8 @@ final class AppRootViewModel: ObservableObject {
         let floating = NavStyleResolver.floating(for: mode)
         if navMode != mode { navMode = mode }
         if navFloating != floating { navFloating = floating }
+        let todayHome = AppPrefs.shared.getStartView() == "today"
+        if isTodayHome != todayHome { isTodayHome = todayHome }
     }
 
     private func recordOverlayNavigation() {
@@ -735,7 +739,7 @@ struct AppRoot: View {
                         canCreateNewTable: true,
                         targetTableId: targetTableId,
                         initialImportText: importInitialText,
-                        onManualCourseSaved: { root.currentTab = .schedule })
+                        onManualCourseSaved: { root.currentTab = root.homeTab })
                 .id(targetTableId)
                 .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                               customThemeVersion: customThemesJson))
@@ -767,14 +771,14 @@ struct AppRoot: View {
                 onBack: { root.handleBack() },
                 onSavedAdd: {
                     root.handleBack()
-                    root.currentTab = .schedule
+                    root.currentTab = root.homeTab
                 },
                 onSavedTable: {
                     root.finishTableSave()
                 },
                 onDeletedTable: {
                     root.finishTableSave()
-                    root.currentTab = .schedule
+                    root.currentTab = root.homeTab
                 },
                 onCreateNewTable: { root.createNewTableThenEdit() },
                 onOpenEditTable: { tableId in
@@ -957,25 +961,18 @@ struct AppRoot: View {
     //   - 4 屏无 onAppear 副作用(数据经 root/scheduleViewModel 常驻订阅),
     //     TabView 懒实例化其余 tab 安全。
     private var nativeTabs: some View {
-        TabView(selection: Binding(
+        return TabView(selection: Binding(
             get: { root.currentTab },
             set: { root.currentTab = $0 })) {
-            screen(for: .schedule)
+            ForEach(orderedTabs(todayFirst: root.isTodayHome), id: \.self) { tab in
+                screen(for: tab)
                     .nativeScreen(extraBottom: nativeScrollBottomPadding)
-                .tabItem { Image(uiImage: AndroidMaterialIcon.navigationImage(for: "schedule")); Text(L10n.t("tab_schedule")) }
-                .tag(AppRootViewModel.Tab.schedule)
-            screen(for: .today)
-                    .nativeScreen(extraBottom: nativeScrollBottomPadding)
-                .tabItem { Image(uiImage: AndroidMaterialIcon.navigationImage(for: "today")); Text(L10n.t("tab_today")) }
-                .tag(AppRootViewModel.Tab.today)
-            screen(for: .manage)
-                    .nativeScreen(extraBottom: nativeScrollBottomPadding)
-                .tabItem { Image(uiImage: AndroidMaterialIcon.navigationImage(for: "manage")); Text(L10n.t("tab_manage")) }
-                .tag(AppRootViewModel.Tab.manage)
-            screen(for: .mine)
-                    .nativeScreen(extraBottom: nativeScrollBottomPadding)
-                .tabItem { Image(uiImage: AndroidMaterialIcon.navigationImage(for: "mine")); Text(L10n.t("tab_mine")) }
-                .tag(AppRootViewModel.Tab.mine)
+                    .tabItem {
+                        Image(uiImage: AndroidMaterialIcon.navigationImage(for: tabIconKey(tab)))
+                        Text(L10n.t(tabLabelKey(tab)))
+                    }
+                    .tag(tab)
+            }
         }
         .modifier(NativeTabSelectionTint())
         // ★ 视口直通屏底(2026-10-26 实机): 每屏子级 ignoresSafeArea 在 iOS26
@@ -1045,20 +1042,48 @@ struct AppRoot: View {
     // 4 个 tab 的数据:共用于 docked / floating 两个自绘分支,避免重复
     // (v1.0.60 的 Mine tab 更新红点随「获取更新」切片 1.0.64 移除)
     private var navItems: [PillNavItemData] {
-        [
-            PillNavItemData(id: "schedule", icon: "calendar",
-                            label: L10n.format("tab_schedule"),
-                            selected: root.currentTab == .schedule) { root.currentTab = .schedule },
-            PillNavItemData(id: "today", icon: "doc.on.doc",
-                            label: L10n.format("tab_today"),
-                            selected: root.currentTab == .today) { root.currentTab = .today },
-            PillNavItemData(id: "manage", icon: "gearshape",
-                            label: L10n.format("tab_manage"),
-                            selected: root.currentTab == .manage) { root.currentTab = .manage },
-            PillNavItemData(id: "mine", icon: "person",
-                            label: L10n.format("tab_mine"),
-                            selected: root.currentTab == .mine) { root.currentTab = .mine },
-        ]
+        orderedTabs(todayFirst: root.isTodayHome).map { tab in
+            switch tab {
+            case .schedule:
+                return PillNavItemData(id: "schedule", icon: "calendar",
+                                       label: L10n.format("tab_schedule"),
+                                       selected: root.currentTab == .schedule) { root.currentTab = .schedule }
+            case .today:
+                return PillNavItemData(id: "today", icon: "doc.on.doc",
+                                       label: L10n.format("tab_today"),
+                                       selected: root.currentTab == .today) { root.currentTab = .today }
+            case .manage:
+                return PillNavItemData(id: "manage", icon: "gearshape",
+                                       label: L10n.format("tab_manage"),
+                                       selected: root.currentTab == .manage) { root.currentTab = .manage }
+            case .mine:
+                return PillNavItemData(id: "mine", icon: "person",
+                                       label: L10n.format("tab_mine"),
+                                       selected: root.currentTab == .mine) { root.currentTab = .mine }
+            }
+        }
+    }
+
+    private func orderedTabs(todayFirst: Bool) -> [AppRootViewModel.Tab] {
+        todayFirst ? [.today, .schedule, .manage, .mine] : [.schedule, .today, .manage, .mine]
+    }
+
+    private func tabIconKey(_ tab: AppRootViewModel.Tab) -> String {
+        switch tab {
+        case .schedule: return "schedule"
+        case .today: return "today"
+        case .manage: return "manage"
+        case .mine: return "mine"
+        }
+    }
+
+    private func tabLabelKey(_ tab: AppRootViewModel.Tab) -> String {
+        switch tab {
+        case .schedule: return "tab_schedule"
+        case .today: return "tab_today"
+        case .manage: return "tab_manage"
+        case .mine: return "tab_mine"
+        }
     }
 
     // 当前 Tab 对应屏 — 工厂 screen(for:) 单源, 本壳仅供自绘 docked/floating 分支取当前页。
