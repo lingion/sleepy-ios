@@ -65,6 +65,7 @@ struct AppearanceScreen: View {
         let columns = sizeCategory.isAccessibilityCategory ? 1 : 2
         let cells = Self.gridCells(presets: ThemePresets.all, customs: customThemes)
         let selection = selectedKey
+        let isDarkBg = isDarkBackgroundByRedChannel(colors.background)
         return SettingsSection(title: L10n.format("appearance_section_theme")) {
             SystemThemeCard(selected: selection == ThemePresets.KEY_SYSTEM) {
                 selectThemeKey(ThemePresets.KEY_SYSTEM)
@@ -74,6 +75,7 @@ struct AppearanceScreen: View {
                     HStack(spacing: 12) {
                         ForEach(row) { cell in
                             ThemeGridCellView(cell: cell, currentKey: selection,
+                                              isDarkBackground: isDarkBg,
                                               onSelect: selectThemeKey, onEdit: openEditor)
                         }
                         if row.count < columns {
@@ -196,8 +198,13 @@ struct AppearanceScreen: View {
         courseColorless = prefs.isCourseColorless()
         courseColorMode = prefs.getCourseColorMode()
         // 同一视图身份的会话基线不在 onAppear/提交时重置。
-        let courses = (try? AppDatabase.getShared().courseDao.getAllCourses()) ?? []
-        previewGroups = CourseColorPreview.groups(from: courses)
+        Task.detached(priority: .userInitiated) {
+            let courses = (try? AppDatabase.getShared().courseDao.getAllCourses()) ?? []
+            let groups = CourseColorPreview.groups(from: courses)
+            await MainActor.run {
+                previewGroups = groups
+            }
+        }
     }
 
     private func selectCourseColorMode(_ raw: Int) {
@@ -299,17 +306,20 @@ enum ThemeGridCell: Identifiable {
 private struct ThemeGridCellView: View {
     let cell: ThemeGridCell
     let currentKey: String
+    let isDarkBackground: Bool
     let onSelect: (String) -> Void
     let onEdit: (CustomTheme?) -> Void
 
     var body: some View {
         switch cell {
         case .preset(let preset):
-            PresetThemeCard(preset: preset, selected: currentKey == preset.key) {
+            PresetThemeCard(preset: preset, selected: currentKey == preset.key,
+                            isDarkBackground: isDarkBackground) {
                 onSelect(preset.key)
             }
         case .custom(let theme):
-            CustomThemeCard(theme: theme, selected: currentKey == ThemePresets.CUSTOM_KEY_PREFIX + theme.id) {
+            CustomThemeCard(theme: theme, selected: currentKey == ThemePresets.CUSTOM_KEY_PREFIX + theme.id,
+                            isDarkBackground: isDarkBackground) {
                 onSelect(ThemePresets.CUSTOM_KEY_PREFIX + theme.id)
             } onEdit: {
                 onEdit(theme)
@@ -373,15 +383,15 @@ private struct SystemThemeCard: View {
 
 // ← PresetThemeCard
 private struct PresetThemeCard: View {
-    @Environment(\.localWakeUpColors) private var colors
     let preset: ThemePreset
     let selected: Bool
+    let isDarkBackground: Bool
     let onClick: () -> Void
 
     var body: some View {
         // ← 原版本: if (colors.background.red < 0.5f) preset.light else preset.dark
         //   探针是红通道(非亮度), 且分支方向: 深色底展示 light 预览板
-        let scheme = isDarkBackgroundByRedChannel(colors.background) ? preset.light : preset.dark
+        let scheme = isDarkBackground ? preset.light : preset.dark
         let name = L10n.format(preset.nameKey)
         Button(action: onClick) {
             ThemePaletteCardLabel(name: name, scheme: scheme, selected: selected)
@@ -467,11 +477,12 @@ private struct CustomThemeCard: View {
     @Environment(\.sleepyUIStyle) private var uiStyle
     let theme: CustomTheme
     let selected: Bool
+    let isDarkBackground: Bool
     let onClick: () -> Void
     let onEdit: () -> Void
 
     var body: some View {
-        let scheme = CustomSchemeDeriver.derive(theme: theme, isDark: isDarkBackgroundByRedChannel(colors.background))
+        let scheme = CustomSchemeDeriver.derive(theme: theme, isDark: isDarkBackground)
         let name = theme.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? L10n.format("theme_new") : theme.name
         // Keep the two actions as sibling buttons: tapping the selection surface and editing have separate targets.

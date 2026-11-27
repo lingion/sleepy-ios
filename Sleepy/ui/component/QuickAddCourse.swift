@@ -73,13 +73,19 @@ struct QuickAddCourseCells: View {
     var canSelect: () -> Bool = { true }
 
     var body: some View {
+        let addTitle = L10n.t("schedule_add_course")
+        let dayLabels = Dictionary(uniqueKeysWithValues: days.map { ($0, DateUtils.localizedDay($0)) })
+        let nodeLabels = Dictionary(uniqueKeysWithValues: rows.map { ($0.node, L10n.format("period_format_node", "\($0.node)")) })
         ZStack(alignment: .topLeading) {
             ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                let x = timeWidth + gap + CGFloat(index) * (columnWidth + gap)
+                let dayLabel = dayLabels[day] ?? ""
                 ForEach(rows, id: \.node) { row in
+                    let nodeLabel = nodeLabels[row.node] ?? ""
                     QuickAddCourseCell(state: state, day: day, node: row.node, canSelect: canSelect)
                     .frame(width: columnWidth, height: max(0, row.bottom - row.top))
-                    .offset(x: timeWidth + gap + CGFloat(index) * (columnWidth + gap), y: row.top)
-                    .accessibilityLabel("\(L10n.t("schedule_add_course")), \(DateUtils.localizedDay(day)), \(L10n.format("period_format_node", "\(row.node)"))")
+                    .offset(x: x, y: row.top)
+                    .accessibilityLabel("\(addTitle), \(dayLabel), \(nodeLabel)")
                     .accessibilityIdentifier("add-course-\(day)-\(row.node)")
                 }
             }
@@ -130,11 +136,13 @@ struct QuickAddCourseLayer: View {
     let timeWidth: CGFloat
     let columnWidth: CGFloat
     let gap: CGFloat
+    var canDisplayCapsule: () -> Bool = { true }
     let onConfirm: (QuickAddRange) -> Void
 
     var body: some View {
+        let activeSelection = canDisplayCapsule() ? state.selection : nil
         ZStack(alignment: .topLeading) {
-            if let selection = state.selection,
+            if let selection = activeSelection,
                let day = days.firstIndex(of: selection.day),
                let start = rows.first(where: { $0.node == selection.startNode }),
                let end = rows.first(where: { $0.node == selection.endNode }) {
@@ -146,9 +154,9 @@ struct QuickAddCourseLayer: View {
             }
         }
         // 仅可见性触发，拖动手柄改变范围时不补间网格几何。
-        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: state.selection != nil)
-        .allowsHitTesting(state.selection != nil)
-        .accessibilityHidden(state.selection == nil)
+        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: activeSelection != nil)
+        .allowsHitTesting(activeSelection != nil)
+        .accessibilityHidden(activeSelection == nil)
     }
 }
 
@@ -467,19 +475,22 @@ private final class QuickAddOutsidePressAnchorView: UIView {
 
     private func resolveShieldHost(in window: UIWindow) -> (container: UIView, above: UIView?) {
         var cur = superview
+        var navChildView: UIView?
         var vcView: UIView?
         var highestHosting: UIView?
         while let view = cur, view !== window {
-            if view.next is UIViewController, vcView == nil {
-                vcView = view
+            if let vc = view.next as? UIViewController {
+                if vcView == nil { vcView = view }
+                if vc.parent is UINavigationController { navChildView = view }
             }
             if String(describing: type(of: view)).contains("HostingView") {
                 highestHosting = view
             }
             cur = view.superview
         }
-        if let vcView, let container = vcView.superview, container.isUserInteractionEnabled {
-            return (container, vcView)
+        if let targetVCView = navChildView ?? vcView,
+           let container = targetVCView.superview, container.isUserInteractionEnabled {
+            return (container, targetVCView)
         }
         if let highestHosting, let container = highestHosting.superview, container.isUserInteractionEnabled {
             return (container, highestHosting)

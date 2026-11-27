@@ -1125,7 +1125,8 @@ struct AppRoot: View {
     // 当前 Tab 对应屏 — 工厂 screen(for:) 单源, 本壳仅供自绘 docked/floating 分支取当前页。
     @ViewBuilder
     private var tabContent: some View {
-        SleepyNavigationContent(selection: root.currentTab) { tab in
+        SleepyNavigationContent(selection: root.currentTab,
+                                keepAliveTabs: [.schedule, .today, .manage, .mine]) { tab in
             screen(for: tab)
         }
     }

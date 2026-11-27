@@ -3,11 +3,136 @@ import SwiftUI
 import Combine
 import UIKit
 
-/// Tabs replace their content directly; pushed pages use UIKit's own transition.
+private struct SleepyTabIsVisibleKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    var sleepyTabIsVisible: Bool {
+        get { self[SleepyTabIsVisibleKey.self] }
+        set { self[SleepyTabIsVisibleKey.self] = newValue }
+    }
+}
+
+/// Tabs keep visited destinations warm inside detached UIHostingControllers; pushed pages use UIKit's own transition.
 struct SleepyNavigationContent<Key: Hashable, Page: View>: View {
     let selection: Key
+    var keepAliveTabs: [Key] = []
     @ViewBuilder var page: (Key) -> Page
-    var body: some View { page(selection).id(selection) }
+
+    var body: some View {
+        if keepAliveTabs.isEmpty {
+            page(selection).id(selection)
+        } else {
+            SleepyKeepAliveTabContainer(selection: selection, page: page)
+        }
+    }
+}
+
+private struct SleepyKeepAliveTabContainer<Key: Hashable, Page: View>: UIViewControllerRepresentable {
+    let selection: Key
+    @ViewBuilder var page: (Key) -> Page
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let container = UIViewController()
+        container.view.backgroundColor = .clear
+        container.view.isOpaque = false
+        context.coordinator.update(self, container: container, environment: context.environment)
+        return container
+    }
+
+    func updateUIViewController(_ container: UIViewController, context: Context) {
+        context.coordinator.update(self, container: container, environment: context.environment)
+    }
+
+    static func dismantleUIViewController(_ container: UIViewController, coordinator: Coordinator) {
+        coordinator.invalidate(in: container)
+    }
+
+    final class Coordinator {
+        private var hosts: [Key: TabHost] = [:]
+        private weak var activeHost: TabHost?
+
+        func update(_ parent: SleepyKeepAliveTabContainer, container: UIViewController, environment: EnvironmentValues) {
+            let wrapped = wrap(parent.page(parent.selection), environment: environment)
+            let target: TabHost
+            if let existing = hosts[parent.selection] {
+                existing.rootView = wrapped
+                target = existing
+            } else {
+                let created = TabHost(tabKey: parent.selection, rootView: wrapped)
+                hosts[parent.selection] = created
+                target = created
+            }
+
+            if activeHost !== target {
+                if let previous = activeHost {
+                    previous.willMove(toParent: nil)
+                    previous.view.removeFromSuperview()
+                    previous.removeFromParent()
+                }
+                container.addChild(target)
+                target.view.frame = container.view.bounds
+                target.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                container.view.addSubview(target.view)
+                target.didMove(toParent: container)
+                activeHost = target
+            }
+        }
+
+        func invalidate(in container: UIViewController) {
+            if let previous = activeHost {
+                previous.willMove(toParent: nil)
+                previous.view.removeFromSuperview()
+                previous.removeFromParent()
+                activeHost = nil
+            }
+            hosts.removeAll()
+        }
+
+        private func wrap(_ view: Page, environment: EnvironmentValues) -> AnyView {
+            AnyView(view
+                .environment(\.localWakeUpColors, environment.localWakeUpColors)
+                .environment(\.localCoursePalette, environment.localCoursePalette)
+                .environment(\.sleepyUIStyle, environment.sleepyUIStyle)
+                .environment(\.sleepyNativeButtonSurface, environment.sleepyNativeButtonSurface)
+                .environment(\.systemColorSnapshot, environment.systemColorSnapshot)
+                .environment(\.localNavExtraBottomPadding, environment.localNavExtraBottomPadding)
+                .environment(\.colorScheme, environment.colorScheme)
+                .environment(\.layoutDirection, environment.layoutDirection)
+                .environment(\.sizeCategory, environment.sizeCategory)
+                .environment(\.dynamicTypeSize, environment.dynamicTypeSize)
+                .environment(\.legibilityWeight, environment.legibilityWeight)
+                .environment(\.displayScale, environment.displayScale)
+                .environment(\.horizontalSizeClass, environment.horizontalSizeClass)
+                .environment(\.verticalSizeClass, environment.verticalSizeClass)
+                .environment(\.locale, environment.locale)
+                .environment(\.calendar, environment.calendar)
+                .environment(\.timeZone, environment.timeZone)
+                .environment(\.scenePhase, environment.scenePhase)
+                .environment(\.isEnabled, environment.isEnabled)
+                .environment(\.sleepyNativeNavigationContext, environment.sleepyNativeNavigationContext)
+                .environment(\.sleepyTabIsVisible, true)
+                .tint(environment.localWakeUpColors.primary))
+        }
+
+        private final class TabHost: UIHostingController<AnyView> {
+            let tabKey: Key
+            init(tabKey: Key, rootView: AnyView) {
+                self.tabKey = tabKey
+                super.init(rootView: rootView)
+                automaticallyAdjustsScrollViewInsets = false
+                viewRespectsSystemMinimumLayoutMargins = false
+                view.backgroundColor = .clear
+                view.isOpaque = false
+            }
+
+            @available(*, unavailable)
+            required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+        }
+    }
 }
 
 struct SleepyNativeNavigationEntry {
@@ -228,8 +353,21 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
         let background = UIColor(environment.localWakeUpColors.background)
         navigationController.view.backgroundColor = background
         navigationController.setNavigationBarHidden(true, animated: false)
+        let visibleTop = navigationController.topViewController
+        let coordinator = navigationController.transitionCoordinator
+        let transTo = coordinator?.viewController(forKey: .to)
+        let transFrom = coordinator?.viewController(forKey: .from)
+        let targetTopID = desiredIDs.last
         for (id, host) in hosts {
-            if id == rootID || entries[id] != nil { host.rootView = content(for: id) }
+            let activeHost = host === visibleTop || host === transTo || host === transFrom || id == targetTopID
+            if id == rootID || entries[id] != nil {
+                if activeHost {
+                    host.needsRefresh = false
+                    host.rootView = content(for: id)
+                } else {
+                    host.needsRefresh = true
+                }
+            }
             host.view.backgroundColor = background
         }
         updatePopGesture()
@@ -417,6 +555,11 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
     func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController,
                               animated: Bool) {
         navigationController.setNavigationBarHidden(true, animated: false)
+        if let host = viewController as? PageHost, host.needsRefresh,
+           host.entryID == rootID || entries[host.entryID] != nil {
+            host.needsRefresh = false
+            host.rootView = content(for: host.entryID)
+        }
         if transition == nil {
             transition = Transition(sourceIDs: settledIDs.isEmpty ? actualIDs : settledIDs,
                                     revision: revision, programmatic: false)
@@ -466,6 +609,7 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
 
     private final class PageHost: UIHostingController<AnyView> {
         let entryID: AnyHashable
+        var needsRefresh = false
         init(entryID: AnyHashable, rootView: AnyView) {
             self.entryID = entryID
             super.init(rootView: rootView)

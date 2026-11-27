@@ -1015,15 +1015,59 @@ struct NameToken {
 }
 
 enum VerticalNameTokenizer {
+    private struct TextWidthKey: Hashable {
+        let text: String
+        let size: CGFloat
+        let bold: Bool
+    }
+    private struct FontKey: Hashable {
+        let size: CGFloat
+        let bold: Bool
+    }
+    private static let measureLock = NSLock()
+    private static var fontCache: [FontKey: UIFont] = [:]
+    private static var textWidthCache: [TextWidthKey: CGFloat] = [:]
+
     /// 文本墨迹宽度 — ← 原版本 paint.measureText 的 iOS 等价口径
     /// (NSAttributedString.size, 与 App 层 CourseTableView textWidth 同源)。
     /// 三行表头几何/字号自适应与竖排截断必须实测, 不能再用固定系数近似。
     static func textWidth(_ s: String, font: UIFont) -> CGFloat {
-        (s as NSString).size(withAttributes: [.font: font]).width
+        let key = TextWidthKey(text: s, size: font.pointSize, bold: font.fontDescriptor.symbolicTraits.contains(.traitBold))
+        measureLock.lock()
+        if let hit = textWidthCache[key] {
+            measureLock.unlock()
+            return hit
+        }
+        measureLock.unlock()
+        let width = (s as NSString).size(withAttributes: [.font: font]).width
+        measureLock.lock()
+        if textWidthCache.count >= 1024 { textWidthCache.removeAll(keepingCapacity: true) }
+        textWidthCache[key] = width
+        measureLock.unlock()
+        return width
     }
 
     static func textWidth(_ s: String, size: CGFloat, bold: Bool) -> CGFloat {
-        textWidth(s, font: UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular))
+        let key = TextWidthKey(text: s, size: size, bold: bold)
+        measureLock.lock()
+        if let hit = textWidthCache[key] {
+            measureLock.unlock()
+            return hit
+        }
+        let fontKey = FontKey(size: size, bold: bold)
+        let font = fontCache[fontKey] ?? {
+            let f = UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
+            if fontCache.count >= 64 { fontCache.removeAll(keepingCapacity: true) }
+            fontCache[fontKey] = f
+            return f
+        }()
+        measureLock.unlock()
+        let width = (s as NSString).size(withAttributes: [.font: font]).width
+        measureLock.lock()
+        if textWidthCache.count >= 1024 { textWidthCache.removeAll(keepingCapacity: true) }
+        textWidthCache[key] = width
+        measureLock.unlock()
+        return width
     }
 
     /// 标点字符集 — 横排符号, 需特殊处理(旋转或替换)

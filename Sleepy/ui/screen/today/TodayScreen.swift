@@ -72,6 +72,7 @@ struct TodayScreen: View {
         // 不再因节点占位值相同被并成假冲突行。
         let laneRows = ConflictLayoutEngine.weekLaneRows(
             todayCourses, timeJson: effectiveTimeJson)
+        let groupRowsById = Dictionary(grouping: todayCourses, by: \.groupId)
 
         ScrollView {
             VStack(spacing: compact ? 12 : 16) {
@@ -92,7 +93,7 @@ struct TodayScreen: View {
                         if row.laneCount == 1 {
                             ForEach(row.courses) { course in
                                 TodayCourseCard(course: course, timeJson: effectiveTimeJson,
-                                                groupRows: todayCourses.filter { $0.groupId == course.groupId },
+                                                groupRows: groupRowsById[course.groupId] ?? [course],
                                                 availableWidth: contentWidth,
                                                 textSize: todayTextSize) {
                                     selectedCourseDate = civil
@@ -101,7 +102,7 @@ struct TodayScreen: View {
                             }
                         } else {
                             TodayLaneRow(row: row, timeJson: effectiveTimeJson,
-                                         todayCourses: todayCourses,
+                                         groupRowsById: groupRowsById,
                                          availableWidth: contentWidth,
                                          textSize: todayTextSize) { c in
                                 selectedCourseDate = civil
@@ -205,13 +206,14 @@ private struct TodayLaneRow: View {
     @Environment(\.localWakeUpColors) private var colors
     let row: ConflictLayoutEngine.WeekLaneRow
     var timeJson: String? = nil
-    var todayCourses: [CourseEntity] = []
+    var groupRowsById: [String: [CourseEntity]] = [:]
     var availableWidth: CGFloat = 360
     var textSize: CGFloat = 16
     let onCourseClick: (CourseEntity) -> Void
 
     var body: some View {
         if let laneW = TodayAgendaLayout.laneWidth(available: availableWidth, count: row.laneCount, textSize: textSize) {
+            let coursesByLane = Dictionary(grouping: row.courses, by: { row.laneOf[$0.id] ?? -1 })
             HStack(alignment: .top, spacing: TodayAgendaLayout.laneGap) {
                 ForEach(0..<row.laneCount, id: \.self) { li in
                     if li > 0 {
@@ -219,11 +221,11 @@ private struct TodayLaneRow: View {
                             .fill(colors.onSurface.opacity(SleepyTheme.Alpha.hairline))
                             .frame(width: TodayAgendaLayout.dividerWidth)
                     }
-                    let laneCourses = row.courses.filter { row.laneOf[$0.id] == li }
+                    let laneCourses = coursesByLane[li] ?? []
                     VStack(spacing: 6) {
                         ForEach(laneCourses) { laneCourse in
                             TodayCourseCard(course: laneCourse, timeJson: timeJson,
-                                            groupRows: todayCourses.filter { $0.groupId == laneCourse.groupId },
+                                            groupRows: groupRowsById[laneCourse.groupId] ?? [laneCourse],
                                             availableWidth: laneW,
                                             textSize: textSize) {
                                 onCourseClick(laneCourse)
@@ -237,7 +239,7 @@ private struct TodayLaneRow: View {
             VStack(spacing: 8) {
                 ForEach(row.courses) { laneCourse in
                     TodayCourseCard(course: laneCourse, timeJson: timeJson,
-                                    groupRows: todayCourses.filter { $0.groupId == laneCourse.groupId },
+                                    groupRows: groupRowsById[laneCourse.groupId] ?? [laneCourse],
                                     availableWidth: availableWidth,
                                     textSize: textSize) {
                         onCourseClick(laneCourse)

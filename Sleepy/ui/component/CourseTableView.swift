@@ -22,7 +22,7 @@ import SwiftUI
 import UIKit
 
 /// 时段定义 — 5 个时段(WakeUp 默认 12 节对应 1-2/3-5/6-7/8-10/11-13) ← TimeSlot
-struct TimeSlot {
+struct TimeSlot: Hashable {
     let label: String        // "1-2节"
     let startHour: Int
     let startMinute: Int
@@ -45,14 +45,37 @@ struct TimeSlot {
 // MARK: - TimeTableUtils 渲染槽位扩展(App target 专属 — 依赖 TimeSlot, Widget target 无)
 // issue#23 §5: 非常规时间胶囊按真实分钟在网格内按比例定位 + 跨空隙占位节次合成。
 extension TimeTableUtils {
+    private struct RenderSlotsKey: Hashable {
+        let timeJson: String
+        let tzOffset: Int
+        let calId: Calendar.Identifier
+    }
+    private static let renderSlotsCacheLock = NSLock()
+    private static var renderSlotsCache: [RenderSlotsKey: [TimeSlot]] = [:]
+
     /// timeJson → 渲染槽位表(每节一个 TimeSlot, 按 node 升序) — ← 原版本 timeSlotsFor(timeJson)
     static func renderSlots(timeJson: String) -> [TimeSlot] {
-        parseNodes(timeJson).map { n in
-            let sc = Calendar.current.dateComponents([.hour, .minute], from: n.start)
-            let ec = Calendar.current.dateComponents([.hour, .minute], from: n.end)
+        let cal = Calendar.current
+        let key = RenderSlotsKey(timeJson: timeJson,
+                                 tzOffset: cal.timeZone.secondsFromGMT(),
+                                 calId: cal.identifier)
+        renderSlotsCacheLock.lock()
+        if let hit = renderSlotsCache[key] {
+            renderSlotsCacheLock.unlock()
+            return hit
+        }
+        renderSlotsCacheLock.unlock()
+        let slots = parseNodes(timeJson).map { n in
+            let sc = cal.dateComponents([.hour, .minute], from: n.start)
+            let ec = cal.dateComponents([.hour, .minute], from: n.end)
             return TimeSlot(label: "\(n.node)", startHour: sc.hour ?? 0, startMinute: sc.minute ?? 0,
                             endHour: ec.hour ?? 0, endMinute: ec.minute ?? 0, nodeStart: n.node)
         }
+        renderSlotsCacheLock.lock()
+        if renderSlotsCache.count >= 64 { renderSlotsCache.removeAll(keepingCapacity: true) }
+        renderSlotsCache[key] = slots
+        renderSlotsCacheLock.unlock()
+        return slots
     }
 
     /**
@@ -494,10 +517,15 @@ private struct HeaderColumnGeometry {
     init(renderSlots: [TimeSlot], layout: String, style: String, hanging: CGFloat, showX: Bool,
          centerTime: Bool, scale: CGFloat, rowHeightAt: (Int) -> CGFloat, gapH: CGFloat, rowHeightDp: CGFloat) {
         let padDp = 2 * periodHeaderCardPadDp * scale
-        let minRowDp = renderSlots.enumerated()
-            .filter { !$0.element.isPlaceholder }
-            .map { max(rowHeightAt($0.offset) - gapH, 0) }
-            .min() ?? max(rowHeightDp - gapH, 0)
+        var computedMinRow: CGFloat?
+        var nonPlaceholderSlots: [TimeSlot] = []
+        nonPlaceholderSlots.reserveCapacity(renderSlots.count)
+        for (index, slot) in renderSlots.enumerated() where !slot.isPlaceholder {
+            nonPlaceholderSlots.append(slot)
+            let h = max(rowHeightAt(index) - gapH, 0)
+            computedMinRow = computedMinRow.map { min($0, h) } ?? h
+        }
+        let minRowDp = computedMinRow ?? max(rowHeightDp - gapH, 0)
         let headerContentHeightSp = max(minRowDp - padDp, 1)
 
         let timeFont = UIFont.systemFont(ofSize: 11 * scale)   // ← headerTimeStyle(scale)
@@ -513,16 +541,17 @@ private struct HeaderColumnGeometry {
             // legacy: 列级 dash 轴 — 几何与 legacyLineWidthDp 同一解(pad 已在列宽, 轴不含 pad)
             columnFont = nil
             columnPlacements = nil
-            let rows = renderSlots.filter { !$0.isPlaceholder }.map { slot -> LegacyDashRowInk in
+            let dashPx = textWidth("-", font: timeFont)
+            let rows = nonPlaceholderSlots.map { slot -> LegacyDashRowInk in
                 LegacyDashRowInk(
                     labelPx: textWidth(label(of: slot), font: labelFont),
                     timeLeftPx: textWidth(slot.displayStart, font: timeFont),
-                    dashPx: textWidth("-", font: timeFont),
+                    dashPx: dashPx,
                     timeRightPx: textWidth(slot.displayEnd, font: timeFont))
             }
             legacyAxis = legacyTimeColumnPx(rows: rows, padPx: 0, centerTime: centerTime).dashCenterX
         } else {
-            let metricsRows = renderSlots.filter { !$0.isPlaceholder }.map { slot -> PeriodHeaderMetrics in
+            let metricsRows = nonPlaceholderSlots.map { slot -> PeriodHeaderMetrics in
                 PeriodHeaderMetrics(
                     startWidth: textWidth(slot.displayStart, font: timeFont),
                     endWidth: textWidth(slot.displayEnd, font: timeFont),
@@ -594,6 +623,7 @@ struct CardsGridView: View {
     var dragTransfers: [HolidayTransferEntry] = []
     var quickAddState: QuickAddCourseState? = nil
     var quickAddEnabled = false
+    var canQuickAddOnPage: () -> Bool = { true }
     var onQuickAdd: ((Int, Int, Int) -> Void)? = nil
     var publishesDropGrid = true
 
@@ -687,9 +717,21 @@ struct CardsGridView: View {
             let gridH = yOfRows(Double(max(renderSlots.count, 1)))
 
             // 行 → sharedPlacement 索引 = 该行之前(含本行前缀)非占位行数 ← subList(0,i).count{!isPlaceholder}
+            let placementIndices: [Int] = {
+                var arr: [Int] = []
+                arr.reserveCapacity(renderSlots.count + 1)
+                var acc = 0
+                for s in renderSlots {
+                    arr.append(acc)
+                    if !s.isPlaceholder { acc += 1 }
+                }
+                return arr
+            }()
             let placementIndexOf: (Int) -> Int = { i in
-                renderSlots[0..<max(min(i, renderSlots.count), 0)].filter { !$0.isPlaceholder }.count
+                placementIndices.indices.contains(i) ? placementIndices[i] : placementIndices.last ?? 0
             }
+            let dayCounts: [Int: Int] = courses.reduce(into: [:]) { $0[$1.day, default: 0] += 1 }
+            let groupRowsById = Dictionary(grouping: courses, by: \.groupId)
 
             ScrollView(.vertical) {
                 VStack(spacing: 0) {
@@ -706,7 +748,7 @@ struct CardsGridView: View {
                                         isToday: isDateTodayOfWeek(startDate: startDate, week: currentWeek,
                                                                    day: day, todayDate: todayDate),
                                         isGrey: greyDays.contains(day),
-                                        courseCount: courses.filter { $0.day == day }.count,
+                                        courseCount: dayCounts[day] ?? 0,
                                         dateStr: dateStr,
                                         scale: scale, cornerRatio: cornerRatio)
                                 .frame(width: colW)
@@ -785,7 +827,7 @@ struct CardsGridView: View {
                         if quickAddEnabled, onQuickAdd != nil, let quickAddState {
                             QuickAddCourseCells(state: quickAddState, days: sortedDays, rows: quickAddRows,
                                 timeWidth: timeW, columnWidth: colW, gap: gapW,
-                                canSelect: { courseDrag?.source == nil && courseDrag?.awaitingConfirmation != true })
+                                canSelect: { canQuickAddOnPage() && courseDrag?.source == nil && courseDrag?.awaitingConfirmation != true })
                                 .frame(width: availableW, height: gridH, alignment: .topLeading)
                         }
 
@@ -804,11 +846,13 @@ struct CardsGridView: View {
                             onSetTopOverride: onSetTopOverride,
                             rotationSteps: rotationSteps,
                             onRotationStep: onRotationStep,
-                             yOfRows: yOfRows,
-                             gapAfterRow: gapAfterRow)
+                            yOfRows: yOfRows,
+                            gapAfterRow: gapAfterRow,
+                            groupRowsById: groupRowsById)
                         if quickAddEnabled, let quickAddState, let onQuickAdd {
                             QuickAddCourseLayer(state: quickAddState, days: sortedDays, rows: quickAddRows,
                                 maxStandard: maxStandard, timeWidth: timeW, columnWidth: colW, gap: gapW,
+                                canDisplayCapsule: canQuickAddOnPage,
                                 onConfirm: { onQuickAdd($0.day, $0.startNode, $0.step) })
                         }
                     }
@@ -915,6 +959,8 @@ struct GridConflictLayer: View {
     var yOfRows: (Double) -> CGFloat = { _ in 0 }
     /// 行后间距(含长课间带) ← gapAfterRow
     var gapAfterRow: (Int) -> CGFloat = { _ in 4 }
+    /// 调用方已按 groupId 预分组的映射, nil 时内部构建
+    var groupRowsById: [String: [CourseEntity]]? = nil
 
     var body: some View {
         let conflictStyle = AppPrefs.shared.getConflictStyle()
@@ -922,10 +968,16 @@ struct GridConflictLayer: View {
         let clusters = ConflictLayoutEngine.findClusters(
             courses, timeJson: timeJson.isEmpty ? nil : timeJson)
         let clusteredIds = Set(clusters.flatMap { $0.courses.map { $0.id } })
+        let groupedById = groupRowsById ?? Dictionary(grouping: courses, by: \.groupId)
+        let dayIndexByDay = Dictionary(sortedDays.enumerated().map { ($0.element, $0.offset) },
+                                       uniquingKeysWith: { first, _ in first })
+        let slotIndexByNode: [Int: Int] = timeSlots.isEmpty ? [:] : Dictionary(
+            timeSlots.enumerated().map { ($0.element.nodeStart, $0.offset) },
+            uniquingKeysWith: { first, _ in first })
         // issue#23: 边缘节点用 slotIndexOf 兜底, 数据脏返回 -1 直接过滤
         let slotIndexOf: (Int) -> Int = timeSlots.isEmpty
             ? { node in (1...max(maxNode, 1)).contains(node) ? node - 1 : -1 }
-            : { node in timeSlots.firstIndex { $0.nodeStart == node } ?? -1 }
+            : { node in slotIndexByNode[node] ?? -1 }
 
         ZStack(alignment: .topLeading) {
             ForEach(Array(clusters.enumerated()), id: \.offset) { item in
@@ -935,7 +987,7 @@ struct GridConflictLayer: View {
                     let inGrid = cluster.courses.filter { slotIndexOf($0.startNode) >= 0 }
                     if !inGrid.isEmpty {
                         let anchor = cluster.courses.first! // 主课判定序首位,决定簇基点
-                        let dayIdx = sortedDays.firstIndex(of: cluster.day) ?? 0
+                        let dayIdx = dayIndexByDay[cluster.day] ?? 0
                         let cardX = timeW + gapW + (colW + gapW) * CGFloat(dayIdx)
                         // 用户报障 2026-09-10: 簇锚点用锚课小数行坐标(ownTime 锚课不再
                         // 被 slotIndexOf 整格吸附丢掉本体偏移);加权 dp 与簇内 spanDpOf 同一真值。
@@ -972,7 +1024,7 @@ struct GridConflictLayer: View {
                 if visibleDays.contains(course.day),
                    slotIndexOf(course.startNode) >= 0,
                    !clusteredIds.contains(course.id) { // 簇内课已由 ConflictClusterCard 绘制
-                    let dayIdx = sortedDays.firstIndex(of: course.day) ?? 0
+                    let dayIdx = dayIndexByDay[course.day] ?? 0
                     let nodeIdx = slotIndexOf(course.startNode)
                     // 步长上限按剩余行数算(边缘节点也按 renderSlots 总行数取模)
                     let steps = min(max(course.step, 1), timeSlots.count - nodeIdx)
@@ -998,7 +1050,7 @@ struct GridConflictLayer: View {
                     CourseOverlayCard(course: course, cardHeight: cardH,
                                       isDark: isDark,
                                       isGrey: greyDays.contains(course.day),
-                                      groupRows: courses.filter { $0.groupId == course.groupId },
+                                      groupRows: groupedById[course.groupId] ?? [course],
                                       scale: scale, cornerRatio: cornerRatio) {
                         onCourseClick(course)
                     }
@@ -1589,9 +1641,10 @@ private struct DetailDayCard: View {
                 // (横向 laneCount 栏,同栏多门课纵向堆叠), 无冲突课一行一门全宽。
                 let rows = ConflictLayoutEngine.weekLaneRows(
                     courses, timeJson: timeJson.isEmpty ? nil : timeJson)
+                let groupRowsById = Dictionary(grouping: courses, by: \.groupId)
                 VStack(spacing: 7 * scale) {
                     ForEach(rows, id: \.courses.first!.id) { row in
-                        lessonGroup(row)
+                        lessonGroup(row, groupRowsById: groupRowsById)
                     }
                 }
             }
@@ -1608,10 +1661,12 @@ private struct DetailDayCard: View {
     }
 
     @ViewBuilder
-    private func lessonGroup(_ row: ConflictLayoutEngine.WeekLaneRow) -> some View {
+    private func lessonGroup(_ row: ConflictLayoutEngine.WeekLaneRow,
+                             groupRowsById: [String: [CourseEntity]]) -> some View {
         if let width = WeekAgendaLayout.conflictLaneWidth(
             available: contentWidth, count: row.laneCount, scale: scale, textSize: textSize
         ) {
+            let coursesByLane = Dictionary(grouping: row.courses, by: { row.laneOf[$0.id] ?? -1 })
             HStack(alignment: .top, spacing: WeekAgendaLayout.laneSpacing(scale: scale)) {
                 ForEach(0..<row.laneCount, id: \.self) { lane in
                     if lane > 0 {
@@ -1621,8 +1676,8 @@ private struct DetailDayCard: View {
                             .accessibilityHidden(true)
                     }
                     VStack(spacing: 5 * scale) {
-                        ForEach(row.courses.filter { row.laneOf[$0.id] == lane }) { course in
-                            lesson(course, width: width)
+                        ForEach(coursesByLane[lane] ?? []) { course in
+                            lesson(course, width: width, groupRowsById: groupRowsById)
                         }
                     }
                     .frame(width: width, alignment: .leading)
@@ -1632,15 +1687,16 @@ private struct DetailDayCard: View {
             // Keep the engine's row order and every member when lanes cannot share the width.
             VStack(spacing: 5 * scale) {
                 ForEach(row.courses) { course in
-                    lesson(course, width: contentWidth)
+                    lesson(course, width: contentWidth, groupRowsById: groupRowsById)
                 }
             }
         }
     }
 
-    private func lesson(_ course: CourseEntity, width: CGFloat) -> some View {
+    private func lesson(_ course: CourseEntity, width: CGFloat,
+                        groupRowsById: [String: [CourseEntity]]) -> some View {
         LessonRow(course: course, displayMode: displayMode, timeJson: timeJson,
-                  isGrey: isGrey, groupRows: courses.filter { $0.groupId == course.groupId },
+                  isGrey: isGrey, groupRows: groupRowsById[course.groupId] ?? [course],
                   scale: scale, cornerRatio: cornerRatio, textSize: textSize,
                   showsSideLabel: WeekAgendaLayout.showsSideLabel(width: width, textSize: textSize, scale: scale),
                   onLongClick: { onCourseLongClick?(course) }) {

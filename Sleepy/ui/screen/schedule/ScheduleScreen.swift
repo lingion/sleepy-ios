@@ -75,6 +75,7 @@ private struct WeekGroupSurface: ViewModifier {
 
 struct ScheduleScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyTabIsVisible) private var tabIsVisible
     @ObservedObject var viewModel: ScheduleViewModel
     // ← 原版本 b96c865b: 视图模式提升到 AppRoot 会话层(切 tab/开 overlay 不再弹回启动默认),
     // 顶部手动切换只改会话态, 不回写启动偏好(KEY_START_VIEW 既有分离设计)
@@ -266,6 +267,7 @@ struct ScheduleScreen: View {
         .onChange(of: showWeekJumpMenu) { if $0 { quickAdd.dismiss() } }
         .onChange(of: showTableSwitcher) { if $0 { quickAdd.dismiss() } }
         .onChange(of: showShareSheet) { if $0 { quickAdd.dismiss() } }
+        .onChange(of: tabIsVisible) { if !$0 { quickAdd.dismiss() } }
         .onDisappear { quickAdd.dismiss() }
         // v7.10.14 课表切换弹窗(← TableSwitcherDialog)
         .centeredDialog(isPresented: $showTableSwitcher) {
@@ -528,9 +530,7 @@ private struct WeekPager: View {
     }
     private struct GreyRequest: Hashable {
         let context: GreyContext
-        let selectedWeek: Int
         let maxWeek: Int
-        let sourceWeek: Int?
     }
     private struct GreyCache {
         let context: GreyContext
@@ -541,7 +541,7 @@ private struct WeekPager: View {
         return GreyRequest(context: GreyContext(tableId: state.selectedTableId,
             startDate: state.currentTable?.startDate ?? "",
             transfers: state.transfers.flatMap { [$0.sourceDate, $0.targetDate] }, settings: greySettings),
-            selectedWeek: state.selectedWeek, maxWeek: pagerMaxWeek, sourceWeek: dragHostWeek)
+            maxWeek: pagerMaxWeek)
     }
     private func greyDays(for week: Int) -> Set<Int> {
         guard let cache = greyCache, cache.context == greyRequest.context else { return [] }
@@ -631,7 +631,7 @@ private struct WeekPager: View {
                     onDismiss: { floatingOccurrence = nil }, startInEdit: request.startInEdit,
                     startWithDelete: request.startWithDelete)
             }
-            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification, object: UserDefaults.standard)
                 .receive(on: RunLoop.main)) { _ in
                 let settings = HolidayManager.greySettingsSignature()
                 if settings != greySettings { greySettings = settings }
@@ -641,15 +641,77 @@ private struct WeekPager: View {
             }
     }
 
+    private struct WeekPageSignature: Hashable {
+        let page: Int
+        let viewMode: ViewMode
+        let displayMode: String
+        let showDate: Bool
+        let visibleDays: Set<Int>
+        let tableId: Int64?
+        let startDate: String
+        let maxWeek: Int
+        let renderTimeJson: String?
+        let effectivePeriodTable: PeriodTableEntity?
+        let courses: [CourseEntity]
+        let greyDays: Set<Int>
+        let transfers: [HolidayTransferEntry]
+        let topOverrides: [String: Int64]
+        let rotationSteps: [String: Int]
+        let rowHeightScale: CGFloat
+        let pinchZoomEnabled: Bool
+        let dragEnabled: Bool
+        let quickAddActive: Bool
+        let dragHostWeek: Int?
+        let dragSelectedWeek: Int
+        let pendingMoveNil: Bool
+        let prefsRevision: UInt64
+    }
+
+    private func pageSignature(for page: Int, state: ScheduleState,
+                               pinchZoomEnabled: Bool, prefsRevision: UInt64) -> AnyHashable {
+        WeekPageSignature(
+            page: page,
+            viewMode: viewMode,
+            displayMode: displayMode,
+            showDate: showDate,
+            visibleDays: visibleDays,
+            tableId: state.selectedTableId,
+            startDate: state.currentTable?.startDate ?? "",
+            maxWeek: state.currentTable?.maxWeek ?? 0,
+            renderTimeJson: state.effectiveRenderTimeJson,
+            effectivePeriodTable: state.effectivePeriodTable,
+            courses: state.courses,
+            greyDays: greyDays(for: page),
+            transfers: state.transfers,
+            topOverrides: topOverrides,
+            rotationSteps: rotationSteps,
+            rowHeightScale: rowHeightScale,
+            pinchZoomEnabled: pinchZoomEnabled,
+            dragEnabled: dragEnabled,
+            quickAddActive: quickAddEnabled && dragEnabled && viewModel.pendingCourseMove == nil,
+            dragHostWeek: dragHostWeek,
+            dragSelectedWeek: dragHostWeek == nil ? 0 : state.selectedWeek,
+            pendingMoveNil: viewModel.pendingCourseMove == nil,
+            prefsRevision: prefsRevision
+        )
+    }
+
     private var pages: some View {
         let state = viewModel.state
         let epoch = pagerEpoch
         let tableID = state.selectedTableId
+        let pinchEnabled = AppPrefs.shared.isGridPinchZoom()
+        let prefsRev = AppPrefs.shared.mutationRevision
         // The native page controller explicitly animates programmatic selection.
         // A held course keeps its source host alive while the existing page stack moves.
         return NativeWeekPager(selection: min(max(dragHostWeek ?? state.selectedWeek, 1), pagerMaxWeek),
                                maxWeek: pagerMaxWeek,
                                animationsEnabled: dragHostWeek == nil,
+                               pageSignature: { page in
+                                   pageSignature(for: page, state: state,
+                                                 pinchZoomEnabled: pinchEnabled,
+                                                 prefsRevision: prefsRev)
+                               },
                                onSelect: { newWeek in
             guard epoch == pagerEpoch, tableID == viewModel.state.selectedTableId,
                   dragHostWeek == nil, (1...pagerMaxWeek).contains(newWeek) else { return }
@@ -764,8 +826,11 @@ private struct WeekPager: View {
                                       dragMaxWeek: state.currentTable?.maxWeek ?? 0,
                                       dragTransfers: state.transfers,
                                       quickAddState: quickAdd,
-                                      quickAddEnabled: quickAddEnabled && dragEnabled && page == state.selectedWeek
+                                      quickAddEnabled: quickAddEnabled && dragEnabled
                                         && viewModel.pendingCourseMove == nil,
+                                      canQuickAddOnPage: { [weak viewModel] in
+                                          viewModel?.state.selectedWeek == page
+                                      },
                                       onQuickAdd: { day, node, step in
                                           guard drag.source == nil, viewModel.pendingCourseMove == nil else { return }
                                           onQuickAdd(page, day, node, step)
@@ -780,7 +845,6 @@ private struct WeekPager: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.courseDragContext, viewMode == .cards && publishesDropGrid ? drag : nil)
         .environment(\.courseDragWeek, page)
-        .accessibilityHidden(page != state.selectedWeek)
         .tag(page)
     }
 
@@ -844,15 +908,13 @@ private struct WeekPager: View {
     private func refreshGreyDays(_ request: GreyRequest) async {
         guard !Task.isCancelled, request == greyRequest else { return }
         guard !request.context.startDate.isEmpty else { greyCache = nil; return }
-        // Match the rendered viewport, retaining the pinned source during a drag.
+        // Precompute grey-day sets once for all weeks of the current timetable/settings context
+        // so swiping or jumping across weeks never churns greyCache or invalidates cached pages.
         let lastWeek = max(1, request.maxWeek)
-        let selectedWeek = min(max(1, request.selectedWeek), lastWeek)
-        var weeks = Set(max(1, selectedWeek - 1)...min(lastWeek, selectedWeek + 1))
-        if let source = request.sourceWeek { weeks.insert(source) }
         let old = greyCache?.context == request.context ? greyCache?.daysByWeek ?? [:] : [:]
-        var daysByWeek = old.filter { weeks.contains($0.key) }
+        var daysByWeek = old
         var cells: [(week: Int, day: Int, date: Date)] = []
-        for week in weeks.sorted() where daysByWeek[week] == nil {
+        for week in 1...lastWeek where daysByWeek[week] == nil {
             daysByWeek[week] = []
             for day in 1...7 {
                 if let date = DateUtils.dateOfWeek(startDate: request.context.startDate, week: week, dayOfWeek: day) {
@@ -860,6 +922,7 @@ private struct WeekPager: View {
                 }
             }
         }
+        guard !cells.isEmpty else { return }
         let grey = await HolidayManager.greyDates(cells.map(\.date), tableId: request.context.tableId,
                                                    transfers: viewModel.state.transfers)
         guard !Task.isCancelled, request == greyRequest else { return }
@@ -988,8 +1051,8 @@ private struct ScheduleTopBar: View {
         let description = status == .inRange ? label
             : L10n.format(status == .beforeStart ? "semester_not_started" : "semester_ended") + " · " + label
         let font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        let textWidth = ceil((label as NSString).size(withAttributes: [.font: font]).width)
-        let numberWidth = max(32, ceil((String(currentWeek) as NSString).size(withAttributes: [.font: font]).width) + 8)
+        let textWidth = ceil(Sleepy.textWidth(label, font: font))
+        let numberWidth = max(32, ceil(Sleepy.textWidth(String(currentWeek), font: font)) + 8)
         let native = style == .liquidGlass
         // Compact home controls retain the v1.0.64 fallback order while using
         // smaller action slots. Native glass keeps its platform-rendered surface.

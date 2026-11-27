@@ -8,6 +8,7 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
     let selection: Int
     let maxWeek: Int
     var animationsEnabled = true
+    var pageSignature: ((Int) -> AnyHashable)? = nil
     let onSelect: (Int) -> Void
     @ViewBuilder let content: (Int) -> Content
 
@@ -47,6 +48,8 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
         private var parent: NativeWeekPager?
         private var environment = EnvironmentValues()
         private var hosts: [Int: PageHost] = [:]
+        private var hostLRUOrder: [Int] = []
+        private let maxRetainedHosts = 8
         private var requestedWeek = 1
         private var weekCount = 1
         private var selectionRevision: UInt = 0
@@ -73,6 +76,52 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             fallbackPan = pan
         }
 
+        private struct EnvSignature: Equatable {
+            let colors: WakeUpColorScheme
+            let coursePalette: CoursePalette
+            let navExtraBottom: CGFloat
+            let uiStyle: SleepyUIStyle
+            let nativeButtonSurface: Bool
+            let systemColorSnapshot: SystemColorSnapshot?
+            let colorScheme: ColorScheme
+            let layoutDirection: LayoutDirection
+            let sizeCategory: ContentSizeCategory
+            let dynamicTypeSize: DynamicTypeSize
+            let legibilityWeight: LegibilityWeight?
+            let displayScale: CGFloat
+            let horizontalSizeClass: UserInterfaceSizeClass?
+            let verticalSizeClass: UserInterfaceSizeClass?
+            let locale: Locale
+            let calendar: Calendar
+            let timeZone: TimeZone
+            let scenePhase: ScenePhase
+            let isEnabled: Bool
+            let tabIsVisible: Bool
+
+            init(_ env: EnvironmentValues) {
+                colors = env.localWakeUpColors
+                coursePalette = env.localCoursePalette
+                navExtraBottom = env.localNavExtraBottomPadding
+                uiStyle = env.sleepyUIStyle
+                nativeButtonSurface = env.sleepyNativeButtonSurface
+                systemColorSnapshot = env.systemColorSnapshot
+                colorScheme = env.colorScheme
+                layoutDirection = env.layoutDirection
+                sizeCategory = env.sizeCategory
+                dynamicTypeSize = env.dynamicTypeSize
+                legibilityWeight = env.legibilityWeight
+                displayScale = env.displayScale
+                horizontalSizeClass = env.horizontalSizeClass
+                verticalSizeClass = env.verticalSizeClass
+                locale = env.locale
+                calendar = env.calendar
+                timeZone = env.timeZone
+                scenePhase = env.scenePhase
+                isEnabled = env.isEnabled
+                tabIsVisible = env.sleepyTabIsVisible
+            }
+        }
+
         func update(_ parent: NativeWeekPager, environment: EnvironmentValues) {
             guard active else { return }
             let count = max(1, parent.maxWeek)
@@ -82,11 +131,33 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             self.environment = environment
             weekCount = count
             requestedWeek = requested
-            if let visible = controller?.viewControllers?.first as? PageHost {
-                hosts[visible.week] = visible
+            let visible = environment.sleepyTabIsVisible
+            controller?.view.isUserInteractionEnabled = visible
+            if let visibleVC = controller?.viewControllers?.first as? PageHost {
+                hosts[visibleVC.week] = visibleVC
             }
-            // Updating a root retains each page's SwiftUI identity and scroll state.
-            for host in Array(hosts.values) { host.rootView = rootView(for: host.week) }
+            let envSig = EnvSignature(environment)
+            let eagerLower = max(1, requested - 1)
+            let eagerUpper = min(count, requested + 1)
+            // Updating a root retains each page's SwiftUI identity and scroll state,
+            // while skipping rebuilds for unchanged signatures and deferring distant cached pages.
+            for host in Array(hosts.values) {
+                let sig = parent.pageSignature?(host.week)
+                let changed = host.needsRefresh || sig == nil || host.contentSignature != sig || host.envSignature != envSig
+                guard changed else { continue }
+                let isNearVisible = (eagerLower...eagerUpper).contains(host.week)
+                    || host.week == transitionSource || host.week == transitionTarget
+                if isNearVisible {
+                    host.needsRefresh = false
+                    host.rootView = rootView(for: host.week, visibility: host.visibility)
+                    host.contentSignature = sig
+                    host.envSignature = envSig
+                } else {
+                    host.needsRefresh = true
+                }
+            }
+            touchHost(requested)
+            syncPageVisibility()
             drain()
             prune()
         }
@@ -95,13 +166,30 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             active = false
             parent = nil
             hosts.removeAll()
+            hostLRUOrder.removeAll()
         }
 
-        private func rootView(for week: Int) -> AnyView {
+        private func syncPageVisibility() {
+            for host in hosts.values {
+                let isSelected = (host.week == requestedWeek)
+                if host.visibility.isSelected != isSelected {
+                    host.visibility.isSelected = isSelected
+                }
+            }
+        }
+
+        private func touchHost(_ week: Int) {
+            if let idx = hostLRUOrder.firstIndex(of: week) {
+                hostLRUOrder.remove(at: idx)
+            }
+            hostLRUOrder.append(week)
+        }
+
+        private func rootView(for week: Int, visibility: PageVisibilityModel) -> AnyView {
             guard let parent else { return AnyView(EmptyView()) }
             // Copy public app/layout values, not container internals: copying
             // the whole environment can replay ancestor overlays inside each page.
-            return AnyView(parent.content(week)
+            return AnyView(PageAccessibilityWrapper(visibility: visibility, content: parent.content(week))
                 .ignoresSafeArea()
                 .navigationBarHidden(true)
                 .environment(\.localWakeUpColors, environment.localWakeUpColors)
@@ -127,8 +215,27 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
         }
 
         private func host(for week: Int) -> PageHost {
-            if let host = hosts[week] { return host }
-            let host = PageHost(week: week, rootView: rootView(for: week))
+            touchHost(week)
+            let envSig = EnvSignature(environment)
+            let sig = parent?.pageSignature?(week)
+            if let existing = hosts[week] {
+                if existing.needsRefresh || sig == nil || existing.contentSignature != sig || existing.envSignature != envSig {
+                    existing.needsRefresh = false
+                    existing.rootView = rootView(for: week, visibility: existing.visibility)
+                    existing.contentSignature = sig
+                    existing.envSignature = envSig
+                }
+                let isSelected = (week == requestedWeek)
+                if existing.visibility.isSelected != isSelected {
+                    existing.visibility.isSelected = isSelected
+                }
+                return existing
+            }
+            let visibility = PageVisibilityModel(isSelected: week == requestedWeek)
+            let host = PageHost(week: week, visibility: visibility,
+                                rootView: rootView(for: week, visibility: visibility))
+            host.contentSignature = sig
+            host.envSignature = envSig
             hosts[week] = host
             return host
         }
@@ -139,6 +246,7 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             guard current != requestedWeek else { prune(); return }
             let target = requestedWeek
             let destination = host(for: target)
+            syncPageVisibility()
             transitioning = true
             transitionSource = current
             transitionTarget = target
@@ -172,8 +280,15 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             var retained = Set(max(1, anchor - 1)...min(weekCount, anchor + 1))
             retained.insert(current)
             if let target = transitionTarget { retained.insert(target) }
-            // Current + two neighbors + an in-flight destination: at most four.
+            // Keep immediate neighbors pinned plus recent MRU pages up to bounded window for instant week reversals.
+            var remainingBudget = max(0, maxRetainedHosts - retained.count)
+            for week in hostLRUOrder.reversed() where !retained.contains(week) && (1...weekCount).contains(week) {
+                if remainingBudget == 0 { break }
+                retained.insert(week)
+                remainingBudget -= 1
+            }
             hosts = hosts.filter { retained.contains($0.key) }
+            hostLRUOrder.removeAll { !retained.contains($0) }
         }
 
         func pageViewController(_ pageViewController: UIPageViewController,
@@ -201,7 +316,15 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             interactiveRevision = selectionRevision
             transitionSource = displayedWeek
             if let pending = pendingViewControllers.first as? PageHost {
-                pending.rootView = rootView(for: pending.week)
+                touchHost(pending.week)
+                let sig = parent?.pageSignature?(pending.week)
+                let envSig = EnvSignature(environment)
+                if pending.needsRefresh || sig == nil || pending.contentSignature != sig || pending.envSignature != envSig {
+                    pending.needsRefresh = false
+                    pending.rootView = rootView(for: pending.week, visibility: pending.visibility)
+                    pending.contentSignature = sig
+                    pending.envSignature = envSig
+                }
                 hosts[pending.week] = pending
                 transitionTarget = pending.week
             }
@@ -218,6 +341,7 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             if completed, revision == selectionRevision, let week = displayedWeek,
                (1...weekCount).contains(week) {
                 requestedWeek = week
+                syncPageVisibility()
                 parent?.onSelect(week)
             }
             prune()
@@ -281,6 +405,7 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
                    let week = self.displayedWeek,
                    (1...self.weekCount).contains(week) {
                     self.requestedWeek = week
+                    self.syncPageVisibility()
                     self.parent?.onSelect(week)
                 }
                 self.prune()
@@ -313,12 +438,30 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             return false
         }
 
+        private final class PageVisibilityModel: ObservableObject {
+            @Published var isSelected: Bool
+            init(isSelected: Bool) { self.isSelected = isSelected }
+        }
+
+        private struct PageAccessibilityWrapper<PageContent: View>: View {
+            @ObservedObject var visibility: PageVisibilityModel
+            let content: PageContent
+            var body: some View {
+                content.accessibilityHidden(!visibility.isSelected)
+            }
+        }
+
         private final class PageHost: UIHostingController<AnyView> {
             let week: Int
+            let visibility: PageVisibilityModel
+            var contentSignature: AnyHashable?
+            var envSignature: EnvSignature?
+            var needsRefresh = false
             private var lastLegacyLayoutSize: CGSize = .zero
 
-            init(week: Int, rootView: AnyView) {
+            init(week: Int, visibility: PageVisibilityModel, rootView: AnyView) {
                 self.week = week
+                self.visibility = visibility
                 super.init(rootView: rootView)
                 automaticallyAdjustsScrollViewInsets = false
                 edgesForExtendedLayout = []
