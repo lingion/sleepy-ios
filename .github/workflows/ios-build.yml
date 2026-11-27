@@ -5,6 +5,11 @@ on:
     branches: [master]
     paths-ignore:
       - '**/*.md'
+      - 'docs/**'
+      - 'audit_shots/**'
+      - 'artifacts/**'
+      - 'tasks/**'
+      - llms.txt
       - LICENSE
       - .gitignore
   workflow_dispatch:
@@ -38,6 +43,8 @@ permissions:
 env:
   DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
   TZ: Asia/Shanghai
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
 jobs:
   verify:
@@ -49,9 +56,28 @@ jobs:
       CI_TASK: ${{ github.event_name == 'workflow_dispatch' && inputs.task || 'unit' }}
       UI_TEST_SELECTOR: ${{ inputs.ui_test }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+      - name: Cache Homebrew bottles
+        uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: ios-brew-xcodegen-${{ runner.os }}
+      - name: Cache SwiftPM packages
+        uses: actions/cache@v6
+        with:
+          path: build/SourcePackages
+          key: ios-spm-${{ runner.os }}-${{ hashFiles('project.yml', 'Sleepy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ios-spm-${{ runner.os }}-
+      - name: Cache Xcode DerivedData
+        uses: actions/cache@v6
+        with:
+          path: build/DerivedData
+          key: ios-derived-${{ runner.os }}-xcode26.3-${{ hashFiles('project.yml') }}-${{ hashFiles('Sleepy/**/*.swift', 'SleepyWidget/**/*.swift', 'SleepyWatch/**/*.swift', 'SleepyTests/**/*.swift', 'SleepyUITests/**/*.swift') }}
+          restore-keys: |
+            ios-derived-${{ runner.os }}-xcode26.3-${{ hashFiles('project.yml') }}-
       - name: Record revision and validate requested UI test
         shell: bash
         run: |
@@ -63,7 +89,7 @@ jobs:
           fi
           xcodebuild -version | tee build/ci/xcode.log
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
       - name: Generate project and select simulator
         shell: bash
         run: |
@@ -90,7 +116,8 @@ jobs:
           set -euo pipefail
           xcodebuild build-for-testing -project Sleepy.xcodeproj -scheme Sleepy \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -derivedDataPath build/DerivedData -jobs 3 \
+            -derivedDataPath build/DerivedData \
+            -clonedSourcePackagesDirPath build/SourcePackages -jobs 3 \
             -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES \
             2>&1 | tee build/ci/build.log
       - name: Run all unit and integration tests
@@ -100,7 +127,8 @@ jobs:
           set -euo pipefail
           xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
+            -derivedDataPath build/DerivedData \
+            -clonedSourcePackagesDirPath build/SourcePackages -parallel-testing-enabled NO \
             -only-testing:SleepyTests -resultBundlePath build/ci/unit.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/unit.log
           xcrun xcresulttool get test-results summary --path build/ci/unit.xcresult \
@@ -114,7 +142,8 @@ jobs:
           selector=$(cat build/ci/ui-selector.txt)
           xcodebuild test-without-building -project Sleepy.xcodeproj -scheme Sleepy \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -derivedDataPath build/DerivedData -parallel-testing-enabled NO \
+            -derivedDataPath build/DerivedData \
+            -clonedSourcePackagesDirPath build/SourcePackages -parallel-testing-enabled NO \
             "$selector" -resultBundlePath build/ci/ui.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ci/ui.log
           xcrun xcresulttool get test-results summary --path build/ci/ui.xcresult \
@@ -122,7 +151,7 @@ jobs:
           python3 -c 'import json; s=json.load(open("build/ci/ui-summary.json")); assert s["totalTestCount"] > 0, "No UI tests executed"'
       - name: Upload diagnostics
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-${{ env.CI_TASK }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/ci
@@ -136,9 +165,14 @@ jobs:
     env:
       IPA_CONFIGURATION: ${{ inputs.config }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
+      - name: Cache Homebrew bottles
+        uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: ios-brew-xcodegen-${{ runner.os }}
       - name: Record revision and install XcodeGen
         shell: bash
         run: |
@@ -146,10 +180,10 @@ jobs:
           mkdir -p build
           git rev-parse HEAD | tee build/revision.txt
           git config --global url.https://github.com/.insteadOf https://gh.qdp.qzz.io/
-          brew install xcodegen
+          command -v xcodegen >/dev/null || brew install xcodegen
       - name: Build unsigned IPA
         run: ./scripts/build-ipa.sh "$IPA_CONFIGURATION"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sleepy-ios-${{ inputs.config }}-${{ github.run_id }}
           path: |
@@ -159,7 +193,7 @@ jobs:
           retention-days: 7
       - name: Upload build log
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sleepy-ipa-diagnostics-${{ github.run_id }}
           path: build/ipa-build.log
