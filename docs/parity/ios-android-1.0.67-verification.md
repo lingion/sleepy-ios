@@ -111,3 +111,14 @@
 - **物理 Apple Watch 实机运行**：`SleepyWatch` 与 `SleepyWatchWidgets` 已通过 watchOS 通用构建与核心算法单测，尚未在真实配对 watchOS `10+` 手表上实机运行、测试表盘渲染或同步通知。
 - **外部实时联调场景**：真实学校教务账号在线登录抓取、远端授权 WebDAV 服务器实际读写、系统桌面长按 WidgetKit 添加多实例并测试交互按钮，需后续使用独立测试数据在真机手工或专项集成测试中补充验证。
 - **系统分享扩展入口（`I06`）**：根 `project.yml` 未包含独立 Share Extension 目标，维持通过主应用文档打开（`CFBundleDocumentTypes` / `onOpenURL`）承接外部导入文件。
+
+## 后续真机反馈修复（iOS 15 网格左右滑动顶部空白）
+
+- **问题现象**：`iPhone 6s Plus`（`iOS 15.8.8`）在网格视图左右滑动切换周次时顶部出现意外空白区域。
+- **根因定位**：`NativeWeekPager` 内 `PageHost` 此前仅在 `#available(iOS 16.4, *)` 时设置 `safeAreaRegions = []`，在 `iOS 15` 上未剥离嵌入 `UIPageViewController` 内部 `_UIQueuingScrollView` 与祖先 `UINavigationController` 传播的安全区与自动滚动内边距；同时 `UIPageViewController` 未关闭 `automaticallyAdjustsScrollViewInsets` 且 `_UIQueuingScrollView` 未锁定 `.never` 及禁用纵向回弹，`ScheduleScreen` 外层 `GeometryReader` 在普通滑动切换 `selectedWeek` 时亦附带隐式位移动画。
+- **改动文件**：[NativeWeekPager.swift](../../Sleepy/ui/component/NativeWeekPager.swift)、[ScheduleScreen.swift](../../Sleepy/ui/screen/schedule/ScheduleScreen.swift) 与 [NativeWeekPagerTests.swift](../../SleepyTests/NativeWeekPagerTests.swift)（新增 `SleepyLegacyHostingSafeArea` 在 `iOS 16.4` 以下剥离 `PageHost` 安全区并置 `.ignoresSafeArea()`，增加 `PagingController` 与子滚动视图 `.never` / 垂直偏移归零保护，并在非拖拽切周时取消外层 `GeometryReader` 隐式动画）。
+- **改动后复验（2026-11-27）**：
+  - 全量单元测试 `SleepyTests`（`build/pager-fix-unit.log`）：执行 **2753** 项（含新增 2 项 `NativeWeekPagerTests` 用例），跳过 **12** 项（与上文相同的 12 项基准/系统能力/几何跳过用例），失败 **0** 项，耗时 `248.252` 秒，`TEST SUCCEEDED`。
+  - 定向 UI 回归（`CourseDragUITests`、`NavigationTransitionCanvasUITests`、`ScheduleFlowUITests`，`build/pager-fix-ui.log`）：共执行 **28** 项（分别 10 / 9 / 9 项），失败 **0** 项，耗时 `3690.135` 秒，`TEST SUCCEEDED`（其余 `SleepyUITests` 用例仅在前置全量基线运行通过，本次未全量重跑）。
+  - watchOS 编译 `Sleepy Watch`（`build/pager-fix-watch.log`）：`BUILD SUCCEEDED`。
+  - `iPhone 6s Plus`（`iOS 15.8.8`）Debug `1.0.67 (67)` 重新编译、签名校验与 `ios-deploy --no-wifi` 非破坏性安装成功（`build/pager-fix-device.log`、`build/pager-fix-install.log`）；`iOS 15.8.8` 真机交互目视无顶部空白需用户真机滑动确认。
