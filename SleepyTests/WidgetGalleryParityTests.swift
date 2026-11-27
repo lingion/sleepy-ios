@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import UIKit
 import WidgetKit
 @testable import Sleepy
 
@@ -17,9 +18,17 @@ final class WidgetGalleryParityTests: XCTestCase {
             return []
         })
         let host = UIHostingController(rootView: WidgetManagementTestHost(phase: phase, screen: screen))
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let window: UIWindow
+        if let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first {
+            window = UIWindow(windowScene: scene)
+            window.frame = scene.coordinateSpace.bounds
+        } else {
+            window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        }
         window.rootViewController = host
-        window.makeKeyAndVisible()
+        window.isHidden = false
+        host.view.layoutIfNeeded()
         defer {
             window.isHidden = true
             window.rootViewController = nil
