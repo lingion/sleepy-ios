@@ -34,7 +34,14 @@ final class WatchTimeStripSettingsUITests: XCTestCase {
     }
 
     func testTomorrowTogglePersistsWhenRevisitingWidgetSettings() throws {
-        openWidgetSettings()
+        let supportsWatch = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 17
+            && UIDevice.current.userInterfaceIdiom != .pad
+        openWidgetSettings(expectWatchToggle: supportsWatch)
+        guard supportsWatch else {
+            app.swipeUp()
+            XCTAssertFalse(tomorrowToggle.exists, "低于 iOS 17 或非手表配对设备不应展示 Watch 课程时间带选项")
+            return
+        }
         XCTAssertEqual(tomorrowToggle.label, "Show tomorrow after today ends")
         let original = try XCTUnwrap(tomorrowToggle.value as? String)
         XCTAssertTrue(["0", "1"].contains(original), "The setting must expose native switch state")
@@ -56,11 +63,14 @@ final class WatchTimeStripSettingsUITests: XCTestCase {
                        "Both enabled and disabled values must persist")
     }
 
-    private func openWidgetSettings() {
+    private func openWidgetSettings(expectWatchToggle: Bool = true) {
         let entry = app.descendants(matching: .any)["mine_widget"].firstMatch
         XCTAssertTrue(entry.waitForExistence(timeout: 10), "Me must contain the Widgets entry")
         XCTAssertTrue(scrollIntoView(entry))
         entry.tap()
+        XCTAssertTrue(app.buttons["topbar_back"].firstMatch.waitForExistence(timeout: 10),
+                      "Widgets settings screen must appear after tapping the entry")
+        guard expectWatchToggle else { return }
         XCTAssertTrue(tomorrowToggle.waitForExistence(timeout: 10),
                       "Widgets must expose the Apple Watch option as a native switch")
         XCTAssertTrue(scrollIntoView(tomorrowToggle))

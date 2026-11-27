@@ -116,16 +116,18 @@ struct AppearanceScreen: View {
                                      }))
                         .accessibilityIdentifier("appearance_navigation_shape")
                     }
-                    VStack(alignment: .leading, spacing: SettingsLayout.headerGap) {
-                        Text(L10n.format("appearance_section_dock_theme")).font(SettingsLayout.headingStyle).foregroundColor(colors.onSurface)
-                    SettingsFlatCard(title: L10n.format("appearance_section_dock_theme")) {
-                        SegmentedSwitcher(options: [("classic", L10n.format("dock_theme_classic")),
-                                                    ("liquid_glass", L10n.format("dock_theme_liquid_glass"))],
-                                          selected: uiStyle, onSelect: { value in
-                                              uiStyle = value; prefs.setUiStyle(value)
-                                          }, containerColor: colors.surfaceContainerHighest)
-                            .accessibilityIdentifier("appearance_ui_style")
-                    }
+                    if SleepyUIStyle.supportsLiquidGlass {
+                        VStack(alignment: .leading, spacing: SettingsLayout.headerGap) {
+                            Text(L10n.format("appearance_section_dock_theme")).font(SettingsLayout.headingStyle).foregroundColor(colors.onSurface)
+                        SettingsFlatCard(title: L10n.format("appearance_section_dock_theme")) {
+                            SegmentedSwitcher(options: [("classic", L10n.format("dock_theme_classic")),
+                                                        ("liquid_glass", L10n.format("dock_theme_liquid_glass"))],
+                                              selected: uiStyle, onSelect: { value in
+                                                  uiStyle = value; prefs.setUiStyle(value)
+                                              }, containerColor: colors.surfaceContainerHighest)
+                                .accessibilityIdentifier("appearance_ui_style")
+                        }
+                        }
                     }
                     SettingsSection(title: L10n.format("appearance_section_course_color")) {
                     CourseColorSection(

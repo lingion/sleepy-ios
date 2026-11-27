@@ -831,24 +831,40 @@ final class MineSettingsUITests: XCTestCase {
             app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@",
                                              "seg_\(label)", label)).firstMatch
         }
-        let classic = option("Material Design")
-        XCTAssertTrue(scrollUntil(classic, reservedBottomInset: 0))
-        classic.tap()
-        XCTAssertTrue(pollUntil { classic.isSelected })
         let docked = option("Docked")
-        XCTAssertTrue(scrollUntil(docked))
+        XCTAssertTrue(scrollUntil(docked, reservedBottomInset: 0))
         docked.tap()
-        XCTAssertTrue(docked.isSelected)
-        let glass = option("Liquid Glass")
-        XCTAssertTrue(glass.exists)
-        glass.tap()
-        XCTAssertTrue(pollUntil { glass.isSelected })
-        XCTAssertTrue(docked.isSelected, "界面材质不能改导航形态")
-        let widthTargets = [app.staticTexts["Appearance & theme"].firstMatch,
-                            option("Material Design"), glass, docked, option("Floating"),
-                            app.buttons["theme_new_entry"].firstMatch]
-            + app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'theme_preset_'"))
-                .allElementsBoundByIndex
+        XCTAssertTrue(pollUntil { docked.isSelected })
+
+        let supportsLiquidGlass = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26
+        var widthTargets: [XCUIElement] = [
+            app.staticTexts["Appearance & theme"].firstMatch,
+            docked,
+            option("Floating"),
+            app.buttons["theme_new_entry"].firstMatch
+        ] + app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'theme_preset_'"))
+            .allElementsBoundByIndex
+
+        if supportsLiquidGlass {
+            let classic = option("Material Design")
+            XCTAssertTrue(scrollUntil(classic, reservedBottomInset: 0))
+            classic.tap()
+            XCTAssertTrue(pollUntil { classic.isSelected })
+            let glass = option("Liquid Glass")
+            XCTAssertTrue(glass.exists)
+            glass.tap()
+            XCTAssertTrue(pollUntil { glass.isSelected })
+            XCTAssertTrue(docked.isSelected, "界面材质不能改导航形态")
+            widthTargets.append(contentsOf: [classic, glass])
+        } else {
+            XCTAssertFalse(app.descendants(matching: .any)["appearance_ui_style"].exists,
+                           "低于 iOS 26 时不应向用户呈现界面风格切换控件")
+            XCTAssertFalse(app.staticTexts["Interface style"].exists,
+                           "低于 iOS 26 时不应呈现不支持的液态玻璃分组标题")
+            XCTAssertFalse(option("Liquid Glass").exists)
+            XCTAssertFalse(option("Material Design").exists)
+        }
+
         XCTAssertTrue(pollUntil {
             let window = self.app.frame
             return widthTargets.allSatisfy { target in
@@ -858,7 +874,13 @@ final class MineSettingsUITests: XCTestCase {
             }
         }, "Switching to native segments must keep the title, theme grid and every option inside the window width")
         retainScreenshot("native-glass-docked-selection")
-        option("Material Design").tap()
+        if supportsLiquidGlass {
+            option("Material Design").tap()
+        } else {
+            option("Floating").tap()
+            XCTAssertTrue(pollUntil { option("Floating").isSelected })
+            docked.tap()
+        }
         XCTAssertTrue(docked.isSelected)
     }
 

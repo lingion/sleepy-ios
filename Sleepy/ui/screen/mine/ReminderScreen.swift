@@ -465,7 +465,7 @@ struct ReminderScreen: View {
                         .foregroundColor(colors.onSurfaceVariant)
                         .padding(.horizontal, 4)
                         .padding(.bottom, 8)
-                    if #available(iOS 26.0, *), liveActivityEnabled {
+                    if ClassDayActivityCore.supportsScheduledActivities, liveActivityEnabled {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(L10n.format("live_activity_scheduled_count", activityScheduleStatus.scheduledCount))
                             if let through = activityScheduleStatus.coveredThrough {
@@ -516,21 +516,23 @@ struct ReminderScreen: View {
                     }
                     .accessibilityIdentifier("reminder_reliability_notification")
                 // 精确提醒 ← snapshot.reminderTransportState()/timeSensitiveAllowed
-                //   (原 exactAlarmAllowed ≙ iOS 时效性通知, 见 Snapshot 头部映射表)
-                Text(L10n.format("reminder_reliability_exact_alarm",
-                                 exactAlarmStatusText(snapshot)))
-                    .font(.system(size: 12))
-                    .foregroundColor(snapshot.timeSensitiveAllowed ? colors.onSurfaceVariant : colors.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        // ← 原版本 openExactAlarmSettings: 未授权时跳系统通知设置
-                        if !snapshot.timeSensitiveAllowed,
-                           let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
+                // 仅当系统与当前构建实际支持时效性通知权限控制时才向用户展示。
+                if snapshot.timeSensitiveSupported {
+                    Text(L10n.format("reminder_reliability_exact_alarm",
+                                     exactAlarmStatusText(snapshot)))
+                        .font(.system(size: 12))
+                        .foregroundColor(snapshot.timeSensitiveAllowed ? colors.onSurfaceVariant : colors.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            // ← 原版本 openExactAlarmSettings: 未授权时跳系统通知设置
+                            if !snapshot.timeSensitiveAllowed,
+                               let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
                         }
-                    }
-                    .accessibilityIdentifier("reminder_reliability_exact_alarm")
+                        .accessibilityIdentifier("reminder_reliability_exact_alarm")
+                }
                 // 电池优化 ← snapshot.lowPowerModeActive(取反语义: 原版本 白名单 ≙ iOS 低电量未开)
                 Text(L10n.format("reminder_reliability_battery",
                                  snapshot.lowPowerModeActive

@@ -25,9 +25,22 @@ final class BackgroundReliabilityProbe {
         let notificationPermissionGranted: Bool
         let timeSensitiveAllowed: Bool
         let lowPowerModeActive: Bool
+        let timeSensitiveSupported: Bool
+
+        init(
+            notificationPermissionGranted: Bool,
+            timeSensitiveAllowed: Bool,
+            lowPowerModeActive: Bool,
+            timeSensitiveSupported: Bool = true
+        ) {
+            self.notificationPermissionGranted = notificationPermissionGranted
+            self.timeSensitiveAllowed = timeSensitiveAllowed
+            self.lowPowerModeActive = lowPowerModeActive
+            self.timeSensitiveSupported = timeSensitiveSupported
+        }
     }
 
-    /// ← snapshot(context): 异步聚合三 facts → snapshot
+    /// ← snapshot(context): 异步聚合 facts → snapshot
     func snapshot(
         center: UNUserNotificationCenter = .current(),
         processInfo: ProcessInfo = .processInfo
@@ -36,14 +49,16 @@ final class BackgroundReliabilityProbe {
             return BackgroundReliabilitySnapshot(
                 notificationPermissionGranted: f.notificationPermissionGranted,
                 timeSensitiveAllowed: f.timeSensitiveAllowed,
-                lowPowerModeActive: f.lowPowerModeActive
+                lowPowerModeActive: f.lowPowerModeActive,
+                timeSensitiveSupported: f.timeSensitiveSupported
             )
         }
         let settings = await center.notificationSettings()
         return BackgroundReliabilitySnapshot(
             notificationPermissionGranted: settings.authorizationStatus == .authorized,
             timeSensitiveAllowed: settings.timeSensitiveSetting == .enabled,
-            lowPowerModeActive: processInfo.isLowPowerModeEnabled
+            lowPowerModeActive: processInfo.isLowPowerModeEnabled,
+            timeSensitiveSupported: settings.timeSensitiveSetting != .notSupported
         )
     }
 }

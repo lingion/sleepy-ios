@@ -219,4 +219,34 @@ final class QuickAddCourseUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["4-6 (Week 3-3)"].exists)
         app.buttons["detail_close"].tap()
     }
+
+    /// 锁定 issue #473：启用液态玻璃样式时，快速加课胶囊表面不得抢占上下拖动手柄命中。
+    func testLiquidGlassQuickAddEdgeHandlesDragCleanly() throws {
+        app.terminate()
+        app.launchArguments += ["-ui_style", "liquid_glass"]
+        app.sleepyLaunch()
+        XCTAssertTrue(pager.waitForExistence(timeout: 15))
+        waitForWeek(1)
+        app.buttons["week_next"].tap()
+        waitForWeek(2)
+        app.buttons["week_next"].tap()
+        waitForWeek(3)
+        try revealPlacementRange()
+        let first = cell(6, 4).frame
+        let last = cell(6, 6).frame
+        cell(6, 5).press(forDuration: 0.6)
+        XCTAssertTrue(capsule.waitForExistence(timeout: 5))
+        let top = app.descendants(matching: .any)["quick-add-top"]
+        let bottom = app.descendants(matching: .any)["quick-add-bottom"]
+        XCTAssertTrue(top.exists && bottom.exists)
+        top.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.1,
+            thenDragTo: coordinate(CGPoint(x: first.midX, y: first.minY + 7)))
+        bottom.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.1,
+            thenDragTo: coordinate(CGPoint(x: last.midX, y: last.maxY - 7)))
+        XCTAssertEqual(top.value as? String, "4")
+        XCTAssertEqual(bottom.value as? String, "6")
+        XCTAssertEqual(capsule.frame.minY, first.minY, accuracy: 2)
+        XCTAssertEqual(capsule.frame.maxY, last.maxY, accuracy: 2)
+        XCTAssertEqual(capsule.frame.midX, first.midX, accuracy: 2)
+    }
 }
