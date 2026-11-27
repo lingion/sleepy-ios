@@ -4,6 +4,7 @@ import SwiftUI
 struct CourseOccurrenceEditor: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.sleepyUIStyle) private var style
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     let occurrence: CourseOccurrence
     let table: TimeTableEntity
     let repository: ScheduleRepository
@@ -27,6 +28,12 @@ struct CourseOccurrenceEditor: View {
     @State private var pickerDate = Date()
     @State private var didPrepareInitialDelete = false
     @FocusState private var focusedTime: String?
+    @State private var timeRevealRequest: UInt = 0
+    @State private var containerWidth: CGFloat = 0
+    @State private var rotationWindowUntil = Date.distantPast
+    @State private var lastFocusedKey: String? = nil
+    @State private var focusRestoreKey: String? = nil
+    @State private var focusRestoreToken: UInt = 0
 
     private enum Prompt: Equatable { case destination, hidden, outgoing, conflicts, delete }
     private struct PendingSave {
@@ -168,32 +175,91 @@ struct CourseOccurrenceEditor: View {
                 .foregroundColor(colors.onSurface)
                 .background(colors.surface.ignoresSafeArea())
                 .background(GeometryReader { geometry in
-                    Color.clear.onChange(of: geometry.size) { _ in revealFocusedTime(using: proxy) }
+                    Color.clear
+                        .onAppear { containerWidth = geometry.size.width }
+                        .onChange(of: geometry.size) { newSize in
+                            if abs(newSize.width - containerWidth) > 20 {
+                                containerWidth = newSize.width
+                                markRotationWindow()
+                            }
+                            timeRevealRequest &+= 1
+                        }
                 })
-                .onChange(of: focusedTime) { _ in revealFocusedTime(using: proxy) }
+                .onChange(of: verticalSizeClass) { _ in
+                    markRotationWindow()
+                    timeRevealRequest &+= 1
+                }
+                .onChange(of: focusedTime) { value in
+                    if let value {
+                        lastFocusedKey = value
+                    } else if Date() <= rotationWindowUntil, let key = lastFocusedKey,
+                              !busy, !showDatePicker, prompt == nil {
+                        focusRestoreKey = key
+                        focusRestoreToken &+= 1
+                    } else {
+                        lastFocusedKey = nil
+                    }
+                    timeRevealRequest &+= 1
+                }
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidChangeFrameNotification)) { _ in
-                    revealFocusedTime(using: proxy)
+                    timeRevealRequest &+= 1
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                    timeRevealRequest &+= 1
+                }
+                .task(id: focusRestoreToken) {
+                    await restoreFocusAfterRotation()
+                }
+                .task(id: timeRevealRequest) {
+                    await revealFocusedTime(using: proxy)
                 }
                 .disabled(busy)
                 .navigationTitle(L10n.format("occurrence_title"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button(L10n.format("cancel"), action: onDismiss)
-                            .accessibilityIdentifier("occurrence_cancel")
+                        Button(L10n.format("cancel")) {
+                            lastFocusedKey = nil
+                            rotationWindowUntil = .distantPast
+                            onDismiss()
+                        }
+                        .accessibilityIdentifier("occurrence_cancel")
                     }
                 }
             }
         }
         .navigationViewStyle(.stack)
     }
-    private func revealFocusedTime(using proxy: ScrollViewProxy) {
+    private func markRotationWindow() {
+        rotationWindowUntil = Date().addingTimeInterval(0.9)
+        if focusedTime == nil, let key = lastFocusedKey, !busy, !showDatePicker, prompt == nil {
+            focusRestoreKey = key
+            focusRestoreToken &+= 1
+        }
+    }
+    @MainActor
+    private func restoreFocusAfterRotation() async {
+        guard let key = focusRestoreKey else { return }
+        // Keep the active time field focused when UIKit's sheet transition temporarily resigns it.
+        do { try await Task.sleep(nanoseconds: 250_000_000) }
+        catch { return }
+        guard !Task.isCancelled, focusedTime == nil, Date() <= rotationWindowUntil,
+              !busy, !showDatePicker, prompt == nil else { return }
+        focusedTime = key
+        focusRestoreKey = nil
+        timeRevealRequest &+= 1
+    }
+    @MainActor
+    private func revealFocusedTime(using proxy: ScrollViewProxy) async {
         guard let key = focusedTime else { return }
-        // The keyboard and sheet finish resizing after the focus event. Recenter
-        // the complete outlined field in the updated viewport, including rotation.
-        DispatchQueue.main.async {
-            guard focusedTime == key else { return }
-            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(key, anchor: .center) }
+        // Wait for bursty rotation and keyboard frame animations to settle before scrolling.
+        do { try await Task.sleep(nanoseconds: 150_000_000) }
+        catch { return }
+        guard !Task.isCancelled, focusedTime == key else { return }
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            proxy.scrollTo(key, anchor: .center)
         }
     }
     @ViewBuilder private var dateCard: some View {
@@ -213,7 +279,7 @@ struct CourseOccurrenceEditor: View {
                         AndroidMaterialIcon(name: .calendarMonth, size: 24)
                     }
                 }
-                .buttonStyle(SleepyPlatformButtonStyle())
+                .sleepyPlatformButtonStyle()
                 .controlSize(.large)
                 .tint(colors.primary)
                 .accessibilityIdentifier("occurrence_date")
@@ -235,7 +301,7 @@ struct CourseOccurrenceEditor: View {
             .padding(16)
             .overlay(RoundedRectangle(cornerRadius: SleepyShapes.medium).stroke(colors.outline, lineWidth: 1))
         }
-        .buttonStyle(SleepyPlatformButtonStyle())
+        .sleepyPlatformButtonStyle()
         .accessibilityIdentifier("occurrence_date")
     }
     private var dateFormatter: DateFormatter {
@@ -301,7 +367,7 @@ struct CourseOccurrenceEditor: View {
             Button(role: key == "occurrence_delete" ? .destructive : nil, action: action) {
                 Text(L10n.format(key)).foregroundColor(content).frame(maxWidth: .infinity)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(prominent: key == "occurrence_save"))
+            .sleepyPlatformButtonStyle(prominent: key == "occurrence_save")
             .controlSize(.large)
             .tint(key == "occurrence_delete" ? colors.error : key == "occurrence_adjust" ? colors.secondary : colors.primary)
             .accessibilityIdentifier(identifier ?? key)
@@ -493,15 +559,26 @@ private struct OccurrenceNodeInput: View {
 private struct OccurrenceCheckboxStyle: ToggleStyle {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.sleepyUIStyle) private var style
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     let identifier: String
 
     @ViewBuilder
     func makeBody(configuration: Configuration) -> some View {
         if style == .liquidGlass {
-            Toggle(isOn: configuration.$isOn) { configuration.label }
-                .toggleStyle(.switch)
-                .tint(colors.primary)
-                .accessibilityIdentifier(identifier)
+            HStack {
+                configuration.label
+                    .font(.system(size: 16))
+                    .foregroundColor(colors.onSurface)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 12)
+                Toggle(isOn: configuration.$isOn) { configuration.label }
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .tint(colors.primary)
+                    .accessibilityIdentifier(identifier)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { configuration.isOn.toggle() }
         } else {
             classicCheckbox(configuration: configuration)
         }

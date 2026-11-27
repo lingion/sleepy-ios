@@ -1,6 +1,6 @@
 // ShareScheduleSheet.swift — ← ui/component/ShareScheduleSheet.kt (v7.10.7)
 // 顶栏分享按钮的格式选择底部弹层 — 沿用导出页格式:
-// WakeUp JSON / 分享文本(原生 marker 格式,同第 4 项) / ICS 日历。条目视觉与
+// 原生分享 / 分享文本 / WakeUp JSON / ICS 日历。条目视觉与
 // 导出操作全部复用
 // ExportScreen 的现成实现,选中即走系统分享,弹层保持展开(用户下滑关闭)。
 
@@ -12,9 +12,11 @@ struct ShareScheduleSheet: View {
     @ScaledMetric(relativeTo: .headline) private var headingSize: CGFloat = 16
     let table: TimeTableEntity
     let courses: [CourseEntity]
+    var periodTable: PeriodTableEntity? = nil
     let onDismiss: () -> Void
 
     @State private var shareSheet: SharePayload? = nil
+    @State private var showExportError = false
 
     var body: some View {
         ContentFittingSheet {
@@ -27,6 +29,35 @@ struct ShareScheduleSheet: View {
                     .padding(.vertical, 12)
 
                 VStack(spacing: 0) {
+                    // 原生分享按 Android 1.0.67 用可粘贴的带标记文本。
+                    ShareRow(icon: "star",
+                             title: L10n.format("export_native_title"),
+                             subtitle: L10n.format("export_native_subtitle")) {
+                        shareSheet = SharePayload(
+                            text: SleepyNativeExporter.exportShareText(
+                                tableName: table.name, startDate: table.startDate,
+                                maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
+                                timeJson: table.timeJson, courses: courses, importSourceJson: table.importSourceJson,
+                                                       jwSchoolSourceJson: table.jwSchoolSourceJson),
+                            subject: table.name, url: nil)
+                    }
+                    .accessibilityIdentifier("share_format_native")
+                    ShareRowDivider()
+                    ShareRow(icon: "square.and.arrow.up",
+                             title: L10n.format("export_share_title"),
+                             subtitle: L10n.format("export_share_subtitle")) {
+                        // 分享文本与原生行使用相同的可粘贴格式。
+                        //   (原版本 v1.0.61 弹层从不提供 WakeUp URL 编码 JSON 这一格式)
+                        shareSheet = SharePayload(
+                            text: SleepyNativeExporter.exportShareText(
+                                tableName: table.name, startDate: table.startDate,
+                                maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
+                                timeJson: table.timeJson, courses: courses, importSourceJson: table.importSourceJson,
+                                                       jwSchoolSourceJson: table.jwSchoolSourceJson),
+                            subject: table.name, url: nil)
+                    }
+                    .accessibilityIdentifier("share_format_text")
+                    ShareRowDivider()
                     ShareRow(icon: "curlybraces",
                              title: L10n.format("export_json_title"),
                              subtitle: L10n.format("export_json_subtitle")) {
@@ -35,46 +66,24 @@ struct ShareScheduleSheet: View {
                     }
                     .accessibilityIdentifier("share_format_json")
                     ShareRowDivider()
-                    ShareRow(icon: "square.and.arrow.up",
-                             title: L10n.format("export_share_title"),
-                             subtitle: L10n.format("export_share_subtitle")) {
-                        // ← 原版本 ShareScheduleSheet.kt:95 — 与第 4 项同为原生分享文本
-                        //   (原版本 v1.0.61 弹层从不提供 WakeUp URL 编码 JSON 这一格式)
-                        shareSheet = SharePayload(
-                            text: SleepyNativeExporter.exportShareText(
-                                tableName: table.name, startDate: table.startDate,
-                                maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
-                                timeJson: table.timeJson, courses: courses, importSourceJson: table.importSourceJson),
-                            subject: table.name, url: nil)
-                    }
-                    .accessibilityIdentifier("share_format_text")
-                    ShareRowDivider()
                     ShareRow(icon: "calendar",
                              title: L10n.format("export_ics_title"),
                              subtitle: L10n.format("export_ics_subtitle")) {
-                        exportFile(ext: "ics", mime: "text/calendar",
-                                   content: ScheduleExporter.exportIcs(table, courses,
-                                       transfers: AppPrefs.shared.getHolidayTransfers(table.id)))
+                        do {
+                            let content = try ScheduleExporter.exportIcsOrThrow(table, courses,
+                                transfers: AppPrefs.shared.getHolidayTransfers(table.id), periodTable: periodTable)
+                            exportFile(ext: "ics", mime: "text/calendar", content: content)
+                        } catch { showExportError = true }
                     }
                     .accessibilityIdentifier("share_format_ics")
-                    ShareRowDivider()
-                    // v7.10.7 第 4 项: Sleepy 原生格式 — marker 包裹 + 无 chk(IM 场景最小体积)
-                    ShareRow(icon: "star",
-                             title: L10n.format("export_native_title"),
-                             subtitle: L10n.format("export_native_subtitle")) {
-                        shareSheet = SharePayload(
-                            text: SleepyNativeExporter.exportShareText(
-                                tableName: table.name, startDate: table.startDate,
-                                maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
-                                timeJson: table.timeJson, courses: courses, importSourceJson: table.importSourceJson),
-                            subject: table.name, url: nil)
-                    }
-                    .accessibilityIdentifier("share_format_native")
                 }
             }
             .padding(.bottom, 24)
         }
         // 有意差异: 原 containerColor = colors.surface,iOS 用系统弹层背景;条目图标 Material outlined → SF Symbols
+        .alert(L10n.t("export_failed"), isPresented: $showExportError) {
+            Button(L10n.t("action_confirm"), role: .cancel) {}
+        }
         .sheet(item: $shareSheet) { item in
             SharePayloadSheet(text: item.text, subject: item.subject, url: item.url)
                 .onAppear {
@@ -86,14 +95,11 @@ struct ShareScheduleSheet: View {
 
     // ← exportAndShare: 写临时文件 + 分享
     private func exportFile(ext: String, mime: String, content: String) {
-        let f = DateFormatter()
-        f.dateFormat = "yyyyMMdd_HHmmss"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        let fileName = "sleepy_\(table.name)_\(f.string(from: Date())).\(ext)"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        if (try? content.data(using: .utf8)?.write(to: url)) != nil {
+        let url = ExportScreen.temporaryExportURL(displayName: table.name, ext: ext)
+        do {
+            try Data(content.utf8).write(to: url)
             shareSheet = SharePayload(text: nil, subject: table.name, url: url)
-        }
+        } catch { showExportError = true }
     }
 }
 

@@ -124,6 +124,17 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             // watch 伴侣 App: 回前台兜底重推 (离线期间 onDataChanged 攒的改动追平)
             WatchSyncCoordinator.shared.syncNow()
         }
+        // Keep local triggers, widgets, and Live Activities aligned after device zone/clock changes.
+        for name in [NSNotification.Name.NSSystemTimeZoneDidChange, UIApplication.significantTimeChangeNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard self != nil else { return }
+                WidgetCenter.shared.reloadAllTimelines()
+                ReminderRescheduler.shared.request()
+                ClassDndScheduler.shared.syncFromPrefs()
+                if #available(iOS 16.1, *) { ClassDayActivityManager.refresh() }
+                WatchSyncCoordinator.shared.syncNow()
+            }
+        }
     }
 
     // ← BGTaskScheduler 注册窗口在启动完成前 (F129 issue: 注册调用此前零调用方,
@@ -151,6 +162,7 @@ struct ScheduleShareRequest: Identifiable {
     let id = UUID()
     let table: TimeTableEntity
     let courses: [CourseEntity]
+    let periodTable: PeriodTableEntity?
 }
 
 // ← AppRoot 状态机(overlay 导航 + 深链)
@@ -215,6 +227,7 @@ final class AppRootViewModel: ObservableObject {
     }
     @Published var shareRequest: ScheduleShareRequest? = nil
     @Published var courseDetailRequest: ScheduleCourseDetailRequest? = nil
+    @Published var floatingOccurrenceRequest: ScheduleFloatingOccurrenceRequest? = nil
     @Published var addCourseTargetTableId: Int64? = nil
     @Published private(set) var overlayNavigationRevision: UInt64 = 0
     private let overlayDismissalState = OverlayDismissalState()
@@ -605,7 +618,7 @@ struct AppRoot: View {
             if requested { presentRequestedImport() }
         }
         .sheet(item: $root.shareRequest) { request in
-            ShareScheduleSheet(table: request.table, courses: request.courses,
+            ShareScheduleSheet(table: request.table, courses: request.courses, periodTable: request.periodTable,
                                onDismiss: { root.shareRequest = nil })
                 .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                               customThemeVersion: customThemesJson))
@@ -631,6 +644,23 @@ struct AppRoot: View {
                     root.courseDetailRequest = nil
                     root.scheduleViewModel.occurrenceSaved()
                 })
+                .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
+                                              customThemeVersion: customThemesJson))
+                .environment(\.systemColorSnapshot, systemColorSnapshot)
+                .preferredColorScheme(schemeOverride)
+        }
+        .sheet(item: $root.floatingOccurrenceRequest) { request in
+            CourseOccurrenceEditor(
+                occurrence: request.occurrence,
+                table: request.table,
+                repository: root.scheduleViewModel.occurrenceRepository,
+                onSaved: {
+                    root.floatingOccurrenceRequest = nil
+                    root.scheduleViewModel.occurrenceSaved()
+                },
+                onDismiss: { root.floatingOccurrenceRequest = nil },
+                startInEdit: request.startInEdit,
+                startWithDelete: request.startWithDelete)
                 .modifier(SleepyThemeProvider(darkTheme: isDark, themeKey: themeKey,
                                               customThemeVersion: customThemesJson))
                 .environment(\.systemColorSnapshot, systemColorSnapshot)
@@ -900,11 +930,13 @@ struct AppRoot: View {
             onGoImport: {
                 root.requestImport()
             },
-            onShareRequested: { table, courses in
-                root.shareRequest = ScheduleShareRequest(table: table, courses: courses)
+            onShareRequested: { table, courses, period in
+                root.shareRequest = ScheduleShareRequest(table: table, courses: courses, periodTable: period)
             },
             onCourseDetailRequested: { root.courseDetailRequest = $0 },
             courseDetailPresented: root.courseDetailRequest != nil,
+            onFloatingOccurrenceRequested: { root.floatingOccurrenceRequest = $0 },
+            floatingOccurrencePresented: root.floatingOccurrenceRequest != nil,
             onManualAdd: { root.navigator.openAddCourse() },
             onCreateTable: { root.createNewTableThenEdit() },
             onEditCourse: { course in
@@ -998,11 +1030,13 @@ struct AppRoot: View {
                 viewModel: root.scheduleViewModel,
                 viewMode: $root.scheduleViewMode,
                 onGoImport: { root.requestImport() },
-                onShareRequested: { table, courses in
-                    root.shareRequest = ScheduleShareRequest(table: table, courses: courses)
+                onShareRequested: { table, courses, period in
+                    root.shareRequest = ScheduleShareRequest(table: table, courses: courses, periodTable: period)
                 },
                 onCourseDetailRequested: { root.courseDetailRequest = $0 },
                 courseDetailPresented: root.courseDetailRequest != nil,
+                onFloatingOccurrenceRequested: { root.floatingOccurrenceRequest = $0 },
+                floatingOccurrencePresented: root.floatingOccurrenceRequest != nil,
                 // ← 原版本 MainTabs:328 onManualAdd = navigator.openAddCourse()
                 onManualAdd: { root.navigator.openAddCourse() },
                 onCreateTable: { root.createNewTableThenEdit() },
@@ -1174,6 +1208,11 @@ struct AppRoot: View {
             if let date = DailyAgendaRoute.parse(url.lastPathComponent) {
                 root.openDailyAgenda(date)
             }
+        case "today-nav":
+            if TodayDateNavStore.applyDeepLink(url) != nil {
+                WidgetCenter.shared.reloadTimelines(ofKind: "TodayWidgetRV")
+                WidgetCenter.shared.reloadTimelines(ofKind: "LockScreenCourseWidget")
+            }
         default:
             break
         }
@@ -1285,6 +1324,7 @@ enum NativeTabBarTheme {
 /// ② 链上首个 VC 设 additionalSafeAreaInsets.bottom = -(系统基础 inset),
 ///    把视口推回真屏底(edge-to-edge, 与原实现一致; 玻璃 bar 悬浮其上,
 ///    滚动余量经 .localNavExtraBottomPadding=92pt 让最后一行可滚离遮挡)。
+@MainActor
 private struct TabBarTransparentProbe: UIViewRepresentable {
     let colors: WakeUpColorScheme
 
@@ -1305,6 +1345,7 @@ private struct TabBarTransparentProbe: UIViewRepresentable {
         view.scheduleApply()
     }
 
+    @MainActor
     static func apply(from v: UIView, colors: WakeUpColorScheme) {
         var cur = v.superview
         var fixedVC = false

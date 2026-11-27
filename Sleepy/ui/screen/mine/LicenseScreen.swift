@@ -377,52 +377,56 @@ struct LicenseScreen: View {
             SettingsTopBar(title: L10n.format("license_page_title"), onBack: onDismiss)
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    // ---- 许可证区块 ----
-                    LicenseCard {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(L10n.format("license_gpl_section"))
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(colors.onSurface)
-                            Text(L10n.format("license_gpl_body"))
-                                .font(.system(size: 14))
-                                .foregroundColor(colors.onSurfaceVariant)
+                    Group {
+                        // ---- 许可证区块 ----
+                        LicenseCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(L10n.format("license_gpl_section"))
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(colors.onSurface)
+                                Text(L10n.format("license_gpl_body"))
+                                    .font(.system(size: 14))
+                                    .foregroundColor(colors.onSurfaceVariant)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
 
-                    // ---- 贡献者区块 (直接向本项目提交代码并合入的开发者, 与上游参考仓库致谢区分) ----
-                    SectionHeader(L10n.format("license_contributor_section"))
-                    ForEach(contributorEntries, id: \.id) { e in
-                        AttributionCard(
-                            title: e.title,
-                            subtitle: e.meta,
-                            description: e.usage,
-                            lines: nil,
-                            expanded: false,
-                            onToggle: nil)
-                    }
-
-                    SectionHeader(L10n.format("license_recent_section"))
-                    LicenseCard {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(L10n.format("license_recent_source_notice"))
-                                .font(.system(size: 14))
-                                .foregroundColor(colors.onSurface)
-                            Text(L10n.format("license_recent_intro"))
-                                .font(.system(size: 12))
-                                .foregroundColor(colors.onSurfaceVariant)
+                        // ---- 贡献者区块 (直接向本项目提交代码并合入的开发者, 与上游参考仓库致谢区分) ----
+                        SectionHeader(L10n.format("license_contributor_section"))
+                        ForEach(contributorEntries, id: \.id) { e in
+                            AttributionCard(
+                                title: e.title,
+                                subtitle: e.meta,
+                                description: e.usage,
+                                lines: nil,
+                                expanded: false,
+                                onToggle: nil)
                         }
                     }
-                    ForEach(recentAttributionGroups) { group in
-                        AttributionCard(
-                            title: L10n.format(group.titleKey),
-                            subtitle: nil,
-                            description: nil,
-                            lines: L10n.format(group.bodyKey).components(separatedBy: "\n"),
-                            expanded: expanded[group.id] ?? false,
-                            onToggle: {
-                                withAnimation { expanded[group.id] = !(expanded[group.id] ?? false) }
-                            })
+
+                    Group {
+                        SectionHeader(L10n.format("license_recent_section"))
+                        LicenseCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(L10n.format("license_recent_source_notice"))
+                                    .font(.system(size: 14))
+                                    .foregroundColor(colors.onSurface)
+                                Text(L10n.format("license_recent_intro"))
+                                    .font(.system(size: 12))
+                                    .foregroundColor(colors.onSurfaceVariant)
+                            }
+                        }
+                        ForEach(recentAttributionGroups) { group in
+                            AttributionCard(
+                                title: L10n.format(group.titleKey),
+                                subtitle: nil,
+                                description: nil,
+                                lines: L10n.format(group.bodyKey).components(separatedBy: "\n"),
+                                expanded: expanded[group.id] ?? false,
+                                onToggle: {
+                                    withAnimation { expanded[group.id] = !(expanded[group.id] ?? false) }
+                                })
+                        }
                     }
 
                     // ---- 致谢导语区块 (可折叠: 展开看 about_license_body 全文) ----
@@ -444,9 +448,9 @@ struct LicenseScreen: View {
                                 } label: {
                                     AndroidSettingsIcon(name: bodyExpanded ? .expandLess : .expandMore, size: 24) // ← 原 IconButton 内 Icon 默认 24dp
                                         .foregroundColor(colors.onSurfaceVariant)
-                                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                                        .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                                 }
-                                .buttonStyle(SleepyPlatformButtonStyle(compact: true, shape: .circle))
+                                .sleepyPlatformButtonStyle(compact: true, shape: .circle)
                                 .frame(width: 48, height: 48)
                                 .accessibilityLabel(bodyExpanded ? "collapse" : "expand")
                             }
@@ -467,30 +471,32 @@ struct LicenseScreen: View {
                         .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastSpatial, value: bodyExpanded)
                     }
 
-                    // ---- 跨校普适项目 ----
-                    SectionHeader(L10n.format("license_foundational_section"))
-                    ForEach(foundationalEntries, id: \.title) { e in
-                        AttributionCard(
-                            title: e.title,
-                            subtitle: e.meta,
-                            description: e.usage,
-                            lines: nil,
-                            expanded: false,
-                        onToggle: nil)
-                    }
+                    Group {
+                        // ---- 跨校普适项目 ----
+                        SectionHeader(L10n.format("license_foundational_section"))
+                        ForEach(foundationalEntries, id: \.title) { e in
+                            AttributionCard(
+                                title: e.title,
+                                subtitle: e.meta,
+                                description: e.usage,
+                                lines: nil,
+                                expanded: false,
+                            onToggle: nil)
+                        }
 
-                    // ---- 按学校致谢 (可展开, 展开态按 id 记忆) ----
-                    SectionHeader(L10n.format("license_perschool_section"))
-                    ForEach(perSchoolEntries, id: \.id) { e in
-                        AttributionCard(
-                            title: e.title,
-                            subtitle: nil,
-                            description: nil,
-                            lines: e.usage.components(separatedBy: "\n"),
-                            expanded: expanded[e.id] ?? false,
-                            onToggle: {
-                                withAnimation { expanded[e.id] = !(expanded[e.id] ?? false) }
-                            })
+                        // ---- 按学校致谢 (可展开, 展开态按 id 记忆) ----
+                        SectionHeader(L10n.format("license_perschool_section"))
+                        ForEach(perSchoolEntries, id: \.id) { e in
+                            AttributionCard(
+                                title: e.title,
+                                subtitle: nil,
+                                description: nil,
+                                lines: e.usage.components(separatedBy: "\n"),
+                                expanded: expanded[e.id] ?? false,
+                                onToggle: {
+                                    withAnimation { expanded[e.id] = !(expanded[e.id] ?? false) }
+                                })
+                        }
                     }
 
                 }
@@ -576,9 +582,9 @@ struct LicenseScreen: View {
                     Button(action: onToggle) {
                         AndroidSettingsIcon(name: expanded ? .expandLess : .expandMore, size: 24)
                             .foregroundColor(colors.onSurfaceVariant)
-                            .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                            .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(compact: true, shape: .circle))
+                    .sleepyPlatformButtonStyle(compact: true, shape: .circle)
                     .frame(width: 48, height: 48)
                     .accessibilityLabel(expanded ? "collapse" : "expand")
                 }

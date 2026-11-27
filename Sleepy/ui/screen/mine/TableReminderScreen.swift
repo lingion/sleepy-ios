@@ -17,16 +17,140 @@
 import SwiftUI
 import Combine
 
+struct TableReminderCard: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let masterEnabled: Bool
+    var onError: ((String) -> Void)? = nil
+
+    @State private var expanded = false
+    @State private var tables: [TimeTableEntity] = []
+    @State private var pendingIds: Set<Int64> = []
+    @State private var tablesCancellable: AnyCancellable? = nil
+    private let repo = ScheduleRepository(AppDatabase.getShared())
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(sleepySettingsExpand) {
+                    expanded.toggle()
+                }
+            } label: {
+                HStack(spacing: SettingsLayout.controlGap) {
+                    Text(L10n.format("settings_table_reminder_scope"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(colors.onSurface)
+                    Spacer()
+                    AndroidSettingsIcon(name: .expandMore, size: 20)
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .padding(.vertical, 12)
+                .frame(minHeight: SettingsLayout.minRowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(SleepyButtonStyle())
+            .accessibilityIdentifier("reminder_table_reminder_entry")
+
+            if expanded {
+                TableReminderContent(
+                    masterEnabled: masterEnabled,
+                    tables: tables,
+                    pendingIds: pendingIds,
+                    onToggle: { id, enabled in setEnabled(id, enabled) }
+                )
+                .padding(.top, SettingsLayout.headerGap)
+                .padding(.bottom, SettingsLayout.cardInset)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(.horizontal, SettingsLayout.cardInset)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(colors.surfaceContainer)
+        .cornerRadius(SleepyShapes.large)
+        .animation(sleepySettingsExpand, value: expanded)
+        .onAppear {
+            tablesCancellable = repo.observeAllTables()
+                .catch { _ in Just<[TimeTableEntity]>([]) }
+                .receive(on: DispatchQueue.main)
+                .sink { tables in
+                    self.tables = resolveReminderTableScope(tables: tables, selectedTableId: tables.first { $0.isDefault }?.id)
+                }
+        }
+        .onDisappear { tablesCancellable = nil }
+    }
+
+    private func setEnabled(_ id: Int64, _ enabled: Bool) {
+        guard !pendingIds.contains(id) else { return }
+        pendingIds.insert(id)
+        do {
+            try repo.setTableReminderEnabled(id: id, enabled: enabled)
+        } catch {
+            onError?(L10n.format("table_reminder_save_failed"))
+        }
+        pendingIds.remove(id)
+    }
+}
+
+struct TableReminderContent: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let masterEnabled: Bool
+    let tables: [TimeTableEntity]
+    let pendingIds: Set<Int64>
+    let onToggle: (Int64, Bool) -> Void
+    var rowBackground: Color? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L10n.format(masterEnabled ? "table_reminder_subtitle" : "table_reminder_master_off"))
+                .font(.system(size: 14))
+                .foregroundColor(colors.onSurfaceVariant)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if tables.isEmpty {
+                Text(L10n.format("table_reminder_empty"))
+                    .font(.system(size: 14))
+                    .foregroundColor(colors.onSurfaceVariant)
+            }
+            ForEach(tables) { table in
+                let enabled = !pendingIds.contains(table.id)
+                HStack(spacing: 12) {
+                    Text(table.name)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(colors.onSurface)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Toggle("", isOn: Binding(
+                        get: { table.reminderEnabled },
+                        set: { onToggle(table.id, $0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(SleepyToggleStyle())
+                    .tint(colors.primary)
+                    .disabled(!enabled)
+                }
+                .padding(16)
+                .background(rowBackground ?? colors.surfaceContainerLow)
+                .cornerRadius(SleepyShapes.large)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard enabled else { return }
+                    onToggle(table.id, !table.reminderEnabled)
+                }
+                .opacity(enabled ? 1 : 0.6)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("table_reminder_row_\(table.id)")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct TableReminderScreen: View {
     @Environment(\.localWakeUpColors) private var colors
     let onDismiss: () -> Void
 
-    // ← 原 vm = viewModel(): pending 写队列 + tables 流。iOS 页内状态机即可
-    // (无跨页复用需求; ScheduleViewModel 同层先例)。
     @State private var tables: [TimeTableEntity] = []
     @State private var pendingIds: Set<Int64> = []
     @State private var snackMessage: String? = nil
-    // ← 原版本 AppPrefs.isReminderEnabled(ctx) remember 一次性读 (进页快照)。
     @State private var masterEnabled = AppPrefs.shared.isReminderEnabled()
 
     private let repo = ScheduleRepository(AppDatabase.getShared())
@@ -36,54 +160,17 @@ struct TableReminderScreen: View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("settings_table_reminder_scope"), onBack: onDismiss)
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    // ← 原版本 subtitle: 总开关开 → subtitle, 关 → master_off 警示文案
-                    Text(L10n.format(masterEnabled ? "table_reminder_subtitle" : "table_reminder_master_off"))
-                        .font(.system(size: 14))   // ← bodyMedium 14sp
-                        .foregroundColor(colors.onSurfaceVariant)
-
-                    if tables.isEmpty {
-                        Text(L10n.format("table_reminder_empty"))
-                            .font(.system(size: 14))
-                            .foregroundColor(colors.onSurfaceVariant)
-                    }
-                    // ← 原版本 items(key = id): 行 = surfaceContainer 卡 + 整行 toggleable
-                    ForEach(tables) { table in
-                        let enabled = !pendingIds.contains(table.id)
-                        HStack(spacing: 12) {
-                            Text(table.name)
-                                .font(.system(size: 14, weight: .medium))   // ← titleSmall
-                                .foregroundColor(colors.onSurface)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Toggle("", isOn: Binding(
-                                get: { table.reminderEnabled },
-                                set: { setEnabled(table.id, $0) }
-                            ))
-                            .labelsHidden()
-                            .toggleStyle(SleepyToggleStyle())
-                            .tint(colors.primary)
-                            .disabled(!enabled)
-                        }
-                        .padding(16)
-                        .background(colors.surfaceContainer)
-                        .cornerRadius(SleepyShapes.large)
-                        .contentShape(Rectangle())
-                        // ← 原版本 toggleable(enabled = enabled): 在飞写入时整行不可点
-                        // (SwiftUI 无 onTapGesture(where:), guard 等价)。
-                        .onTapGesture {
-                            guard enabled else { return }
-                            setEnabled(table.id, !table.reminderEnabled)
-                        }
-                        .opacity(enabled ? 1 : 0.6)
-                        .accessibilityIdentifier("table_reminder_row_\(table.id)")
-                    }
-                }
+                TableReminderContent(
+                    masterEnabled: masterEnabled,
+                    tables: tables,
+                    pendingIds: pendingIds,
+                    onToggle: { setEnabled($0, $1) },
+                    rowBackground: colors.surfaceContainer
+                )
                 .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .background(colors.background)
-        // ← 原版本 Toast 失败提示 → snackbar 叠层 (AboutScreen:300-318 同款)
         .overlay(alignment: .bottom) {
             if let msg = snackMessage {
                 Text(msg)
@@ -103,7 +190,7 @@ struct TableReminderScreen: View {
             }
         }
         .onAppear {
-            // ← repository.observeAllTables() collectAsStateWithLifecycle
+            masterEnabled = AppPrefs.shared.isReminderEnabled()
             tablesCancellable = repo.observeAllTables()
                 .catch { _ in Just<[TimeTableEntity]>([]) }
                 .receive(on: DispatchQueue.main)
@@ -112,8 +199,6 @@ struct TableReminderScreen: View {
         .onDisappear { tablesCancellable = nil }
     }
 
-    /// ← 原版本 vm.setEnabled: 在飞即吞 (return), 否则 pending+id → repo 写 →
-    /// catch 失败 Toast → finally pending−id。iOS repo 调用同步 throws, 语义同。
     private func setEnabled(_ id: Int64, _ enabled: Bool) {
         guard !pendingIds.contains(id) else { return }
         pendingIds.insert(id)
@@ -126,6 +211,8 @@ struct TableReminderScreen: View {
     }
 }
 
+#if compiler(>=5.9)
 #Preview {
     TableReminderScreen(onDismiss: {})
 }
+#endif

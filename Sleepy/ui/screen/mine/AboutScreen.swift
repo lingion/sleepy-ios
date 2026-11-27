@@ -1,6 +1,6 @@
 // AboutScreen.swift — ← ui/screen/mine/AboutScreen.kt
 // 关于页: App 名+版本 / 反馈 / QQ 群 / 作者 / 源码 / 隐私 / 许可证。
-// (1.0.64: 获取更新切片移除 — 分发收敛到 App Store/TestFlight, GitHub 仅源码公开。)
+// (1.0.64: 获取更新切片移除 — 分发收敛到 App Store, GitHub 仅源码公开。)
 
 import SwiftUI
 
@@ -63,7 +63,7 @@ struct AboutScreen: View {
                                            height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
                                     .foregroundColor(colors.primary)
                             }
-                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .sleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle)
                             .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                             .accessibilityLabel(L10n.format("about_feedback_github"))
                             Button { openEmailFeedback() } label: {
@@ -72,7 +72,7 @@ struct AboutScreen: View {
                                            height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
                                     .foregroundColor(colors.primary)
                             }
-                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .sleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle)
                             .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                             .accessibilityLabel(L10n.format("about_feedback_email"))
                         }
@@ -106,7 +106,7 @@ struct AboutScreen: View {
                                     .foregroundColor(colors.primary)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .sleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle)
                             .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                             .accessibilityLabel(L10n.format("about_qq_copy_action"))
                         }
@@ -137,7 +137,7 @@ struct AboutScreen: View {
                                            height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
                                     .foregroundColor(colors.primary)
                             }
-                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .sleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle)
                             .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                             .accessibilityLabel(L10n.format("about_author"))
                         }
@@ -172,7 +172,7 @@ struct AboutScreen: View {
                                            height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
                                     .foregroundColor(colors.primary)
                             }
-                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .sleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle)
                             .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                             .accessibilityLabel(L10n.format("about_source"))
                         }
@@ -208,7 +208,7 @@ struct AboutScreen: View {
                                            height: uiStyle == .classic ? SettingsLayout.minRowHeight : nil)
                                     .foregroundColor(colors.primary)
                             }
-                            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+                            .sleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle)
                             .frame(width: SettingsLayout.minRowHeight, height: SettingsLayout.minRowHeight)
                             .accessibilityLabel(L10n.format("about_privacy"))
                         }

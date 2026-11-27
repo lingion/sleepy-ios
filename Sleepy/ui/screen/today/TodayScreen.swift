@@ -11,15 +11,21 @@ struct TodayDisplayContext {
     let actualWeek: Int
     let semesterStatus: DateUtils.SemesterStatus
 
-    init(state: ScheduleState, today: Date) {
+    init(state: ScheduleState, today: Date, civilDate: Date? = nil) {
         date = today
-        let courseDate = state.courseDateFor(today) ?? today
-        actualWeek = state.currentTable.map {
-            DateUtils.currentWeek(startDate: $0.startDate, today: courseDate)
-        } ?? state.currentWeek
-        semesterStatus = state.currentTable.map {
-            DateUtils.semesterStatus(startDate: $0.startDate, maxWeek: $0.maxWeek, today: courseDate)
-        } ?? .inRange
+        let civil = civilDate ?? today
+        let courseDate = state.courseDateFor(civil) ?? civil
+        if let table = state.currentTable,
+           let first = CourseOccurrences.date(startDate: table.startDate, week: 1, day: 1) {
+            let week = CourseOccurrences.week(startDate: table.startDate, date: courseDate)
+            actualWeek = week ?? 1
+            if courseDate < first { semesterStatus = .beforeStart }
+            else if actualWeek > table.maxWeek { semesterStatus = .afterEnd }
+            else { semesterStatus = .inRange }
+        } else {
+            actualWeek = state.currentWeek
+            semesterStatus = .inRange
+        }
     }
 }
 
@@ -37,17 +43,20 @@ struct TodayScreen: View {
     // ← selectedCourse: 点课卡 → 详情 BottomSheet(与课表页同一组件同一交互)
     @State private var selectedCourse: CourseEntity? = nil
     @State private var selectedCourseDate: Date? = nil
+    @State private var contentWidth: CGFloat = 360
+    @ScaledMetric(relativeTo: .body) private var todayTextSize: CGFloat = 16
 
     var body: some View {
         let state = viewModel.state
         let today = AppClock.now
-        let dateContext = TodayDisplayContext(state: state, today: today)
-        let effectiveTimeJson = state.effectiveRenderTimeJson
+        let civil = CourseReminderCalendar(timeZone: .current).civilDay(containing: today) ?? today
+        let dateContext = TodayDisplayContext(state: state, today: today, civilDate: civil)
+        let effectiveTimeJson = state.effectiveRenderTimeJson(on: civil)
         // ★ 学期外感知: BEFORE_START/AFTER_END 时今日课不按周过滤展示
         let semesterStatus = dateContext.semesterStatus
         let todayCourses: [CourseEntity] = {
             let list = state.currentTable.map { table in
-                HolidayTransferOps.coursesForDate(today, startDate: table.startDate, maxWeek: table.maxWeek,
+                HolidayTransferOps.coursesForDate(civil, startDate: table.startDate, maxWeek: table.maxWeek,
                     courses: state.courses, transfers: state.transfers)
             } ?? []
             // 用户报障 2026-09-10: ownTime 课渲染前按真实时间归一化节点(与网格同一
@@ -83,20 +92,32 @@ struct TodayScreen: View {
                         if row.laneCount == 1 {
                             ForEach(row.courses) { course in
                                 TodayCourseCard(course: course, timeJson: effectiveTimeJson,
-                                                groupRows: todayCourses.filter { $0.groupId == course.groupId }) {
-                                    selectedCourseDate = today
+                                                groupRows: todayCourses.filter { $0.groupId == course.groupId },
+                                                availableWidth: contentWidth,
+                                                textSize: todayTextSize) {
+                                    selectedCourseDate = civil
                                     selectedCourse = course
                                 }
                             }
                         } else {
                             TodayLaneRow(row: row, timeJson: effectiveTimeJson,
-                                         todayCourses: todayCourses) { c in
-                                selectedCourseDate = today
+                                         todayCourses: todayCourses,
+                                         availableWidth: contentWidth,
+                                         textSize: todayTextSize) { c in
+                                selectedCourseDate = civil
                                 selectedCourse = c
                             }
                         }
                     }
                 }
+            }
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(key: TodayContentWidthKey.self, value: proxy.size.width)
+                }
+            )
+            .onPreferenceChange(TodayContentWidthKey.self) { width in
+                if width > 0 { contentWidth = width }
             }
             .padding(compact ? EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
                              : EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
@@ -122,7 +143,7 @@ struct TodayScreen: View {
                     selectedCourse = nil
                     onEditCourse?(state.courses.first { $0.id == c.id } ?? c)
                 },
-                timeJson: effectiveTimeJson,
+                timeJson: state.effectiveRenderTimeJson(on: selectedCourseDate ?? civil),
                 displayDate: selectedCourseDate,
                 occurrenceTable: state.effectiveCurrentTable,
                 occurrenceRepository: viewModel.occurrenceRepository,
@@ -156,31 +177,72 @@ struct PeriodConflictBanner: View {
 
 // v7.10.10 冲突分栏行 — 按 lane 并排(每栏均分), 同栏课程纵向堆叠;
 // 栏间浅细竖线: 0.5dp 宽, onSurface hairline 透明度, 高度随行(与周视图分栏同款)
+private struct TodayContentWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 { value = next }
+    }
+}
+
+enum TodayAgendaLayout {
+    static let laneGap: CGFloat = 6
+    static let dividerWidth: CGFloat = 0.5
+
+    static func laneWidth(available: CGFloat, count: Int, textSize: CGFloat = 16) -> CGFloat? {
+        guard count > 1 else { return nil }
+        let totalGap = CGFloat(count - 1) * (laneGap * 2 + dividerWidth)
+        let width = (available - totalGap) / CGFloat(count)
+        return width >= max(150, 9.5 * textSize) ? width : nil
+    }
+
+    static func showsSideSlot(width: CGFloat, textSize: CGFloat = 16) -> Bool {
+        width >= max(220, 13.75 * textSize)
+    }
+}
+
 private struct TodayLaneRow: View {
     @Environment(\.localWakeUpColors) private var colors
     let row: ConflictLayoutEngine.WeekLaneRow
     var timeJson: String? = nil
     var todayCourses: [CourseEntity] = []
+    var availableWidth: CGFloat = 360
+    var textSize: CGFloat = 16
     let onCourseClick: (CourseEntity) -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            ForEach(0..<row.laneCount, id: \.self) { li in
-                if li > 0 {
-                    Rectangle()
-                        .fill(colors.onSurface.opacity(SleepyTheme.Alpha.hairline))
-                        .frame(width: 0.5)
-                }
-                let laneCourses = row.courses.filter { row.laneOf[$0.id] == li }
-                VStack(spacing: 6) {
-                    ForEach(laneCourses) { laneCourse in
-                        TodayCourseCard(course: laneCourse, timeJson: timeJson,
-                                        groupRows: todayCourses.filter { $0.groupId == laneCourse.groupId }) {
-                            onCourseClick(laneCourse)
+        if let laneW = TodayAgendaLayout.laneWidth(available: availableWidth, count: row.laneCount, textSize: textSize) {
+            HStack(alignment: .top, spacing: TodayAgendaLayout.laneGap) {
+                ForEach(0..<row.laneCount, id: \.self) { li in
+                    if li > 0 {
+                        Rectangle()
+                            .fill(colors.onSurface.opacity(SleepyTheme.Alpha.hairline))
+                            .frame(width: TodayAgendaLayout.dividerWidth)
+                    }
+                    let laneCourses = row.courses.filter { row.laneOf[$0.id] == li }
+                    VStack(spacing: 6) {
+                        ForEach(laneCourses) { laneCourse in
+                            TodayCourseCard(course: laneCourse, timeJson: timeJson,
+                                            groupRows: todayCourses.filter { $0.groupId == laneCourse.groupId },
+                                            availableWidth: laneW,
+                                            textSize: textSize) {
+                                onCourseClick(laneCourse)
+                            }
                         }
                     }
+                    .frame(width: laneW, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            VStack(spacing: 8) {
+                ForEach(row.courses) { laneCourse in
+                    TodayCourseCard(course: laneCourse, timeJson: timeJson,
+                                    groupRows: todayCourses.filter { $0.groupId == laneCourse.groupId },
+                                    availableWidth: availableWidth,
+                                    textSize: textSize) {
+                        onCourseClick(laneCourse)
+                    }
+                }
             }
         }
     }
@@ -297,6 +359,8 @@ private struct TodayCourseCard: View {
     var timeJson: String? = nil
     /// issue#22: 同 groupId 全行(含自身) — AUTO/CUSTOM 取色按行判; 空则回退 [course](= 原 `listOf(course)` 默认值)
     var groupRows: [CourseEntity] = []
+    var availableWidth: CGFloat = 360
+    var textSize: CGFloat = 16
     var onClick: (() -> Void)? = nil
 
     // 统一取色入口 — hue 源自动对齐 groupId; issue#22 改走 *WithGroupRows 三态入口
@@ -317,48 +381,82 @@ private struct TodayCourseCard: View {
                   let end = TimeTableUtils.hmToSeconds(parts.1), end > start else { return nil }
             return "\(parts.0)-\(parts.1)"
         }()
+        let showsSide = TodayAgendaLayout.showsSideSlot(width: availableWidth, textSize: textSize)
+        let meta: String = {
+            var s = ""
+            if !course.teacher.isEmpty { s += course.teacher }
+            if !course.room.isEmpty {
+                if !s.isEmpty { s += " · " }
+                s += course.room
+            }
+            return s
+        }()
 
         Button {
             onClick?()
         } label: {
-            HStack(alignment: .top, spacing: 12) {
-                // 时间槽 — 固定宽度避免 "10:20-12:45" 被截断
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(course.nodeString(isShort: true))
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(fg)
-                    if let time = time {
-                        Text(time)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(fg.opacity(SleepyTheme.Alpha.highContent))
-                            .lineLimit(1)
-                            .fixedSize()
-                    }
-                }
-                .frame(width: 76, alignment: .leading)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(course.courseName)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(fg)
-                        .lineLimit(2)
-                    let meta: String = {
-                        var s = ""
-                        if !course.teacher.isEmpty { s += course.teacher }
-                        if !course.room.isEmpty {
-                            if !s.isEmpty { s += " · " }
-                            s += course.room
+            Group {
+                if showsSide {
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(course.nodeString(isShort: true))
+                                .font(.system(size: textSize, weight: .bold))
+                                .foregroundColor(fg)
+                            if let time = time {
+                                Text(time)
+                                    .font(.system(size: max(11, textSize * 11 / 16), weight: .medium).monospacedDigit())
+                                    .foregroundColor(fg.opacity(SleepyTheme.Alpha.highContent))
+                                    .fixedSize(horizontal: true, vertical: true)
+                            }
                         }
-                        return s
-                    }()
-                    if !meta.isEmpty {
-                        Text(meta)
-                            .font(.system(size: 12))
-                            .foregroundColor(fg.opacity(SleepyTheme.Alpha.highContent))
+                        .frame(minWidth: 76, alignment: .leading)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(course.courseName)
+                                .font(.system(size: textSize, weight: .semibold))
+                                .foregroundColor(fg)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if !meta.isEmpty {
+                                Text(meta)
+                                    .font(.system(size: max(12, textSize * 12 / 16)))
+                                    .foregroundColor(fg.opacity(SleepyTheme.Alpha.highContent))
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        Spacer(minLength: 0)
                     }
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(course.nodeString(isShort: true))
+                                .font(.system(size: max(13, textSize * 14 / 16), weight: .bold))
+                                .foregroundColor(fg)
+                            if let time = time {
+                                Text(time)
+                                    .font(.system(size: max(11, textSize * 11 / 16), weight: .medium).monospacedDigit())
+                                    .foregroundColor(fg.opacity(SleepyTheme.Alpha.highContent))
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        Text(course.courseName)
+                            .font(.system(size: textSize, weight: .semibold))
+                            .foregroundColor(fg)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !meta.isEmpty {
+                            Text(meta)
+                                .font(.system(size: max(12, textSize * 12 / 16)))
+                                .foregroundColor(fg.opacity(SleepyTheme.Alpha.highContent))
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Spacer(minLength: 0)
             }
+            .multilineTextAlignment(.leading)
             .padding(12)
         }
         .buttonStyle(SleepyButtonStyle())

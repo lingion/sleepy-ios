@@ -191,7 +191,6 @@ struct WidgetSettingsScreen: View {
             }
             .toggleStyle(SleepyToggleStyle(showsLabel: true))
             .tint(colors.primary)
-            .accessibilityLabel(Text(L10n.format("settings_watch_time_strip_tomorrow")))
             .accessibilityHint(Text(L10n.format("settings_watch_time_strip_tomorrow_hint")))
             .accessibilityIdentifier("watch_time_strip_tomorrow_toggle")
 
@@ -246,7 +245,7 @@ struct WidgetSettingsScreen: View {
             .frame(height: style == .liquidGlass ? nil : 48)   // ← SleepyTheme.Buttons.regularHeight
             .sleepyControlSurface(cornerRadius: 24, tint: colors.secondaryContainer)
         }
-        .buttonStyle(SleepyPlatformButtonStyle(shape: .capsule))
+        .sleepyPlatformButtonStyle(shape: .capsule)
         .frame(maxWidth: .infinity, minHeight: 48)
         .tint(colors.secondaryContainer)
         .accessibilityIdentifier("widget_settings_refresh")

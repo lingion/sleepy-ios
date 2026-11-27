@@ -134,11 +134,31 @@ private struct SleepyNativeGlassSurface: ViewModifier {
         } else {
             content.background(.ultraThinMaterial, in: shape)
         }
-        #else
+        #elseif os(iOS)
         content.background(.ultraThinMaterial, in: shape)
+        #else
+        #if compiler(>=5.9)
+        if #available(watchOS 10.0, *) {
+            content.background(.ultraThinMaterial, in: shape)
+        } else {
+            content.background(Color.black.opacity(0.28), in: shape)
+        }
+        #else
+        content.background(Color.black.opacity(0.28), in: shape)
         #endif
-        #else
+        #endif
+        #elseif os(iOS)
         content.background(.ultraThinMaterial, in: shape)
+        #else
+        #if compiler(>=5.9)
+        if #available(watchOS 10.0, *) {
+            content.background(.ultraThinMaterial, in: shape)
+        } else {
+            content.background(Color.black.opacity(0.28), in: shape)
+        }
+        #else
+        content.background(Color.black.opacity(0.28), in: shape)
+        #endif
         #endif
     }
 }

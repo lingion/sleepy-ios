@@ -75,19 +75,19 @@ struct WidgetManagementScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             // ← TopAppBar + actions{ IconButton(Add) }: 48pt触控槽与 Android 同源。
-            SettingsTopBar(title: L10n.format("widget_manage_title"), onBack: onDismiss)
-                .overlay(alignment: .trailing) {
-                    Button(action: { showGallery = true }) {
-                        AndroidMaterialIcon(name: .add, size: 24)   // ← 原 Icon 默认 24dp
-                            .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
-                            .foregroundColor(colors.onBackground)
-                    }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
-                    .frame(width: 48, height: 48)
-                    .accessibilityIdentifier("widget_gallery_add")
-                    .accessibilityLabel(L10n.format("widget_gallery_title"))
-                    .padding(.trailing, 4)   // ← TopAppBarHorizontalPadding 4dp
+            SettingsTopBar(title: L10n.format("widget_manage_title"), onBack: onDismiss) {
+                Button(action: { showGallery = true }) {
+                    AndroidMaterialIcon(name: .add, size: 24)   // ← 原 Icon 默认 24dp
+                        .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
+                        .foregroundColor(colors.onBackground)
+                        .contentShape(Rectangle())
                 }
+                .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
+                .frame(width: 48, height: 48)
+                .accessibilityIdentifier("widget_gallery_add")
+                .accessibilityLabel(L10n.format("widget_gallery_title"))
+                .padding(.trailing, 4)   // ← TopAppBarHorizontalPadding 4dp
+            }
             if items.isEmpty {
                 VStack(spacing: 16) {
                     Text(L10n.format("widget_manage_empty_v2"))
@@ -103,7 +103,7 @@ struct WidgetManagementScreen: View {
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large,
                                                   tint: colors.secondaryContainer, prominent: true)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                     .frame(minHeight: 40)
                     .tint(colors.secondaryContainer)
                     .accessibilityIdentifier("widget_empty_gallery")

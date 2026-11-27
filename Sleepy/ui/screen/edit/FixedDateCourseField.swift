@@ -22,11 +22,20 @@ struct FixedDateCourseField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle(L10n.format("occurrence_fixed_date"), isOn: Binding(
-                get: { block.fixedDate != nil },
-                set: { enabled in if enabled { setDate(selectedDate) } else { block.fixedDate = nil } }))
-                .toggleStyle(.switch)
-                .accessibilityIdentifier("course_fixed_date_toggle")
+            HStack {
+                Text(L10n.format("occurrence_fixed_date"))
+                Spacer(minLength: 12)
+                Toggle(L10n.format("occurrence_fixed_date"), isOn: Binding(
+                    get: { block.fixedDate != nil },
+                    set: { enabled in if enabled { setDate(selectedDate) } else { block.fixedDate = nil } }))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityIdentifier("course_fixed_date_toggle")
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if block.fixedDate == nil { setDate(selectedDate) } else { block.fixedDate = nil }
+            }
             if block.fixedDate != nil,
                let first = CourseOccurrences.date(startDate: table.startDate, week: 1, day: 1),
                let last = CourseOccurrences.date(startDate: table.startDate, week: table.maxWeek, day: 7), first <= last {

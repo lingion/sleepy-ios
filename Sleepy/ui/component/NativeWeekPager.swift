@@ -17,10 +17,14 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             navigationOrientation: .horizontal)
         controller.view.backgroundColor = .clear
         controller.view.isOpaque = false
+        controller.view.clipsToBounds = true
         controller.view.accessibilityIdentifier = "schedule_week_pager"
         controller.dataSource = context.coordinator
         controller.delegate = context.coordinator
         context.coordinator.controller = controller
+        if let scrollView = controller.view.subviews.compactMap({ $0 as? UIScrollView }).first {
+            context.coordinator.attachFallbackPan(to: controller, scrollView: scrollView)
+        }
         context.coordinator.update(self, environment: context.environment)
         return controller
     }
@@ -35,8 +39,10 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
         controller.dataSource = nil
     }
 
-    final class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
+    final class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate, UIGestureRecognizerDelegate {
         weak var controller: UIPageViewController?
+        private weak var pagerScrollView: UIScrollView?
+        private weak var fallbackPan: PagerFallbackPanGestureRecognizer?
         private var parent: NativeWeekPager?
         private var environment = EnvironmentValues()
         private var hosts: [Int: PageHost] = [:]
@@ -52,6 +58,18 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
 
         private var displayedWeek: Int? {
             (controller?.viewControllers?.first as? PageHost)?.week
+        }
+
+        func attachFallbackPan(to controller: UIPageViewController, scrollView: UIScrollView) {
+            pagerScrollView = scrollView
+            let pan = PagerFallbackPanGestureRecognizer(target: self, action: #selector(handleFallbackPan(_:)))
+            pan.cancelsTouchesInView = false
+            pan.delaysTouchesBegan = false
+            pan.delaysTouchesEnded = false
+            pan.delegate = self
+            pan.require(toFail: scrollView.panGestureRecognizer)
+            controller.view.addGestureRecognizer(pan)
+            fallbackPan = pan
         }
 
         func update(_ parent: NativeWeekPager, environment: EnvironmentValues) {
@@ -110,6 +128,7 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             let host = PageHost(week: week, rootView: rootView(for: week))
             host.view.backgroundColor = .clear
             host.view.isOpaque = false
+            host.view.clipsToBounds = true
             if #available(iOS 16.4, *) { host.safeAreaRegions = [] }
             hosts[week] = host
             return host
@@ -206,6 +225,95 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             scheduleDrain()
         }
 
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard gestureRecognizer === fallbackPan,
+                  let pan = gestureRecognizer as? PagerFallbackPanGestureRecognizer,
+                  active, !transitioning, weekCount > 1,
+                  let view = controller?.view, view.window != nil,
+                  let scroll = pagerScrollView, scroll.isScrollEnabled, scroll.panGestureRecognizer.isEnabled,
+                  scroll.panGestureRecognizer.state != .began, scroll.panGestureRecognizer.state != .changed,
+                  !scroll.isDragging, !scroll.isDecelerating,
+                  !hasActiveDragGesture(from: view),
+                  !hasActiveDescendantScroll(in: scroll) else { return false }
+            let d = pan.displacement
+            return abs(d.x) > abs(d.y) * 1.25 && abs(d.x) >= 6
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard gestureRecognizer === fallbackPan else { return false }
+            if otherGestureRecognizer.name == "sleepy.courseDrag"
+                || otherGestureRecognizer.name == "sleepy.gridRowPinch"
+                || otherGestureRecognizer is UIPinchGestureRecognizer {
+                return false
+            }
+            if let otherPan = otherGestureRecognizer as? UIPanGestureRecognizer, otherPan.view is UIScrollView {
+                return false
+            }
+            return true
+        }
+
+        @objc private func handleFallbackPan(_ sender: UIPanGestureRecognizer) {
+            guard let pan = sender as? PagerFallbackPanGestureRecognizer,
+                  pan.state == .ended, active, !transitioning,
+                  let controller, let view = controller.view, view.window != nil,
+                  let parent else { return }
+            let d = pan.displacement
+            let vel = pan.velocity(in: view)
+            guard abs(d.x) > abs(d.y),
+                  abs(d.x) >= 24 || abs(vel.x) >= 250 else { return }
+            let current = displayedWeek ?? requestedWeek
+            let horizontal = abs(d.x) >= 24 ? d.x : vel.x
+            let target = current + (horizontal > 0 ? -1 : 1)
+            guard (1...weekCount).contains(target), target != current else { return }
+            let destination = host(for: target)
+            let swipeRevision = selectionRevision
+            transitioning = true
+            transitionSource = current
+            transitionTarget = target
+            let direction: UIPageViewController.NavigationDirection = target < current ? .reverse : .forward
+            let animated = parent.animationsEnabled && !environment.accessibilityReduceMotion
+            controller.setViewControllers([destination], direction: direction, animated: animated) { [weak self] _ in
+                guard let self, self.active else { return }
+                self.transitioning = false
+                self.transitionSource = nil
+                self.transitionTarget = nil
+                if swipeRevision == self.selectionRevision,
+                   let week = self.displayedWeek,
+                   (1...self.weekCount).contains(week) {
+                    self.requestedWeek = week
+                    self.parent?.onSelect(week)
+                }
+                self.prune()
+                self.scheduleDrain()
+            }
+            prune()
+        }
+
+        private func hasActiveDragGesture(from view: UIView) -> Bool {
+            var cur: UIView? = view
+            while let v = cur {
+                if (v.gestureRecognizers ?? []).contains(where: {
+                    $0.name == "sleepy.courseDrag" && ($0.state == .began || $0.state == .changed)
+                }) {
+                    return true
+                }
+                cur = v.superview
+            }
+            return false
+        }
+
+        private func hasActiveDescendantScroll(in view: UIView) -> Bool {
+            for child in view.subviews {
+                if let scroll = child as? UIScrollView,
+                   scroll.isDragging || scroll.panGestureRecognizer.state == .began || scroll.panGestureRecognizer.state == .changed {
+                    return true
+                }
+                if hasActiveDescendantScroll(in: child) { return true }
+            }
+            return false
+        }
+
         private final class PageHost: UIHostingController<AnyView> {
             let week: Int
             init(week: Int, rootView: AnyView) {
@@ -215,5 +323,37 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             @available(*, unavailable)
             required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
         }
+    }
+}
+
+private final class PagerFallbackPanGestureRecognizer: UIPanGestureRecognizer {
+    private var startLocation: CGPoint?
+    private var latestLocation: CGPoint?
+
+    var displacement: CGPoint {
+        guard let startLocation, let latestLocation else { return .zero }
+        return CGPoint(x: latestLocation.x - startLocation.x, y: latestLocation.y - startLocation.y)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let touch = touches.first {
+            let point = touch.location(in: view)
+            startLocation = point
+            latestLocation = point
+        }
+        super.touchesBegan(touches, with: event)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let touch = touches.first {
+            latestLocation = touch.location(in: view)
+        }
+        super.touchesMoved(touches, with: event)
+    }
+
+    override func reset() {
+        startLocation = nil
+        latestLocation = nil
+        super.reset()
     }
 }

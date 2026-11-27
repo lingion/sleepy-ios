@@ -105,6 +105,7 @@ struct AddCourseScreen: View {
     var targetTableId: Int64? = nil
 
     @State private var loadedForId: Int64 = -1
+    @State private var showsFullQuickAdd = false
     @State private var courseName = ""
     /// issue#26: 课程别名(可选) — 空串 = 处处显示原名; 组级属性, 编辑页保存时整组覆盖
     @State private var courseAlias = ""
@@ -170,117 +171,16 @@ struct AddCourseScreen: View {
 
     var body: some View {
         let state = viewModel.state
-        let currentTable = editorContext?.table
+        let compactSlot = editingCourse == nil && !showsFullQuickAdd ? initialSlot : nil
 
         VStack(spacing: 0) {
-            SettingsTopBar(title: L10n.format(editingCourse != nil ? "edit_course" : "create_course"),
+            SettingsTopBar(title: L10n.format(compactSlot != nil ? "occurrence_add_title" :
+                                               (editingCourse != nil ? "edit_course" : "create_course")),
                            onBack: onDismiss)
-            ScrollView {
-                VStack(spacing: 14) {
-                    Spacer().frame(height: 2)
-
-                    if !validationIssues.isEmpty {
-                        ValidationCard(issues: validationIssues)
-                    }
-
-                    basicInfoCard
-                    weekRangeCard
-
-                    // 上课时段标题
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L10n.format("meeting_slots"))
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(colors.onSurface)
-                        Text(L10n.format("meeting_slots_sub"))
-                            .font(.system(size: 12))
-                            .foregroundColor(colors.onSurfaceVariant)
-                    }
-                    .padding(.horizontal, 4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    ForEach(Array(meetingBlocks.enumerated()), id: \.element.id) { index, block in
-                        MeetingBlockEditor(
-                            title: L10n.format("slot_n", index + 1),
-                            table: currentTable,
-                            block: bindingForBlock(withId: block.id),
-                            maxStd: TimeTableUtils.maxStandardNode(effectiveTimeJson),
-                            maxWeek: maxWeek,
-                            timeJson: effectiveTimeJson,
-                            canRemove: meetingBlocks.count > 1,
-                            issues: validationIssues.filter { $0.blockId == block.id }.map { $0.message },
-                            groupSourceColorHex: groupSourceColorHex,
-                            onRemove: { removeBlock(withId: block.id) },
-                            onPickEdge: { edgePickTargetIndex = index },
-                            onEditSlot: { node, s, e in slotEditTarget = SlotEditTarget(node: node, start: s, end: e) },
-                            onDeselectEdge: { released in deselectEdge(from: index, released: released) })
-                    }
-
-                    // 新增时段按钮 (← 原版本: LazyColumn 独立 item, spacing 14)
-                    Button {
-                        meetingBlocks.append(MeetingBlockDraft(
-                            id: nextBlockId, days: [2],
-                            startNode: 3, step: 2, startTime: "10:00", endTime: "11:40",
-                            // ← 原版本: 新卡默认固定 1..16, 不做 min/max 交换 (周次卡顶部值
-                            // 经「应用到全部时段」显式下发, 倒挂交 slot_week_order 校验)
-                            startWeek: 1, endWeek: 16, weekType: 0, isExpanded: true))
-                        nextBlockId += 1
-                    } label: {
-                        HStack(spacing: 8) {
-                            AndroidMaterialIcon(name: .add, size: 24)
-                            Text(L10n.format("add_slot"))
-                        }
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(colors.onSecondaryContainer)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: style == .liquidGlass ? nil : 48)
-                        .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
-                    }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
-                    .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
-                    .tint(colors.secondaryContainer)
-                    .accessibilityIdentifier("course_add_slot")
-
-                    // 保存
-                    Button(action: { save() }) {
-                        HStack(spacing: 8) {
-                            AndroidMaterialIcon(name: .check, size: 24)
-                            Text(L10n.format(editingCourse != nil ? "save_course" : "create_course_btn"))
-                        }
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(colors.onPrimary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: style == .liquidGlass ? nil : 56)
-                        .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
-                    }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
-                    .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
-                    .tint(colors.primary)
-                    .disabled(!canSave)
-                    .accessibilityIdentifier("course_save")
-
-                    // 删除(编辑模式)
-                    if editingCourse != nil {
-                        Button(action: { showDeleteConfirm = true }) {
-                            HStack(spacing: 8) {
-                                AndroidSettingsIcon(name: .delete, size: 24)
-                                Text(L10n.format("delete_course"))
-                            }
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(colors.onErrorContainer)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: style == .liquidGlass ? nil : 48)
-                            .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)
-                        }
-                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
-                        .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
-                        .tint(colors.errorContainer)
-                        .disabled(!groupLoaded)
-                        .accessibilityIdentifier("course_delete")
-                    }
-
-                    Spacer().frame(height: 32)
-                }
-                .padding(.horizontal, 16)
+            if let slot = compactSlot {
+                compactCourseForm(slot)
+            } else {
+                fullCourseForm(currentTable: editorContext?.table)
             }
         }
         .background(colors.background)
@@ -297,7 +197,7 @@ struct AddCourseScreen: View {
         // 改组色弹层(issue#22 spec §6.2/§6.3 恢复): 调色盘 + 全组影响确认。
         // 编辑模式才弹(新建模式无 groupId, showGroupColorPicker 永远不会置 true)
         .sheet(isPresented: $showGroupColorPicker) {
-            NativeColorPicker(initialHex: groupSourceColorHex.isEmpty ? "#FF6750A4" : groupSourceColorHex) { hex in
+            NativeColorPicker(initialHex: groupSourceColorHex.isEmpty ? "#FF6750A4" : groupSourceColorHex, requiresConfirmation: true) { hex in
                 showGroupColorPicker = false
                 pendingGroupColorHex = hex
             }
@@ -394,6 +294,182 @@ struct AddCourseScreen: View {
         }
     }
 
+    private func fullCourseForm(currentTable: TimeTableEntity?) -> some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                Spacer().frame(height: 2)
+
+                if !validationIssues.isEmpty {
+                    ValidationCard(issues: validationIssues)
+                }
+
+                basicInfoCard
+                weekRangeCard
+
+                // 上课时段标题
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.format("meeting_slots"))
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(colors.onSurface)
+                    Text(L10n.format("meeting_slots_sub"))
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.onSurfaceVariant)
+                }
+                .padding(.horizontal, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                ForEach(Array(meetingBlocks.enumerated()), id: \.element.id) { index, block in
+                    MeetingBlockEditor(
+                        title: L10n.format("slot_n", index + 1),
+                        table: currentTable,
+                        block: bindingForBlock(withId: block.id),
+                        maxStd: TimeTableUtils.maxStandardNode(effectiveTimeJson),
+                        maxWeek: maxWeek,
+                        timeJson: effectiveTimeJson,
+                        canRemove: meetingBlocks.count > 1,
+                        issues: validationIssues.filter { $0.blockId == block.id }.map { $0.message },
+                        groupSourceColorHex: groupSourceColorHex,
+                        onRemove: { removeBlock(withId: block.id) },
+                        onPickEdge: { edgePickTargetIndex = index },
+                        onEditSlot: { node, s, e in slotEditTarget = SlotEditTarget(node: node, start: s, end: e) },
+                        onDeselectEdge: { released in deselectEdge(from: index, released: released) })
+                }
+
+                // 新增时段按钮 (← 原版本: LazyColumn 独立 item, spacing 14)
+                Button {
+                    meetingBlocks.append(MeetingBlockDraft(
+                        id: nextBlockId, days: [2],
+                        startNode: 3, step: 2, startTime: "10:00", endTime: "11:40",
+                        // ← 原版本: 新卡默认固定 1..16, 不做 min/max 交换 (周次卡顶部值
+                        // 经「应用到全部时段」显式下发, 倒挂交 slot_week_order 校验)
+                        startWeek: 1, endWeek: 16, weekType: 0, isExpanded: true))
+                    nextBlockId += 1
+                } label: {
+                    HStack(spacing: 8) {
+                        AndroidMaterialIcon(name: .add, size: 24)
+                        Text(L10n.format("add_slot"))
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onSecondaryContainer)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: style == .liquidGlass ? nil : 48)
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
+                }
+                .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
+                .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
+                .tint(colors.secondaryContainer)
+                .accessibilityIdentifier("course_add_slot")
+
+                // 保存
+                Button(action: { save() }) {
+                    HStack(spacing: 8) {
+                        AndroidMaterialIcon(name: .check, size: 24)
+                        Text(L10n.format(editingCourse != nil ? "save_course" : "create_course_btn"))
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(colors.onPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: style == .liquidGlass ? nil : 56)
+                    .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
+                }
+                .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
+                .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
+                .tint(colors.primary)
+                .disabled(!canSave)
+                .accessibilityIdentifier("course_save")
+
+                // 删除(编辑模式)
+                if editingCourse != nil {
+                    Button(action: { showDeleteConfirm = true }) {
+                        HStack(spacing: 8) {
+                            AndroidSettingsIcon(name: .delete, size: 24)
+                            Text(L10n.format("delete_course"))
+                        }
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(colors.onErrorContainer)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: style == .liquidGlass ? nil : 48)
+                        .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)
+                    }
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
+                    .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
+                    .tint(colors.errorContainer)
+                    .disabled(!groupLoaded)
+                    .accessibilityIdentifier("course_delete")
+                }
+
+                Spacer().frame(height: 32)
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func compactCourseForm(_ slot: CourseAddSlot) -> some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if !validationIssues.isEmpty {
+                        ValidationCard(issues: validationIssues)
+                    }
+                    if let table = editorContext?.table, let first = meetingBlocks.first {
+                        let block = bindingForBlock(withId: first.id)
+                        Text(quickAddSummary(slot, table: table))
+                            .foregroundColor(colors.onSurfaceVariant)
+                            .font(.subheadline)
+                            .accessibilityIdentifier("course_quick_add_summary")
+                        FieldTextField(text: $courseName, label: L10n.format("course_name_required"))
+                        FieldTextField(text: $courseAlias, label: L10n.format("course_alias"))
+                        FieldTextField(text: block.teacher, label: L10n.format("course_teacher"))
+                        FieldTextField(text: block.room, label: L10n.format("course_room"))
+                        CourseNoteField(text: block.note)
+                        ColorSection(block: block, groupSourceColorHex: groupSourceColorHex)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(colors.surfaceContainer, in: RoundedRectangle(cornerRadius: SleepyShapes.extraLarge))
+                .padding(16)
+            }
+            VStack(spacing: 8) {
+                compactAction(L10n.format("save_course"), prominent: true) {
+                    ImportSheet.dismissKeyboard()
+                    save()
+                }
+                .disabled(!canSave)
+                .accessibilityIdentifier("course_save")
+
+                compactAction(L10n.format("occurrence_add_more"), prominent: false) {
+                    ImportSheet.dismissKeyboard()
+                    showsFullQuickAdd = true
+                }
+                .disabled(!groupLoaded)
+                .accessibilityIdentifier("course_quick_add_more")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func quickAddSummary(_ slot: CourseAddSlot, table: TimeTableEntity) -> String {
+        let date = CourseOccurrences.date(startDate: table.startDate, week: slot.week, day: slot.day)
+            .map(HolidayTransferOps.dayKey) ?? L10n.format("schedule_week_prefix", slot.week)
+        let nodes = slot.step == 1 ? String(slot.node) : "\(slot.node)-\(slot.node + slot.step - 1)"
+        return "\(date) · \(DateUtils.localizedDay(slot.day)) · \(L10n.format("course_node_format", nodes))"
+    }
+
+    private func compactAction(_ title: String, prominent: Bool, action: @escaping () -> Void) -> some View {
+        let tint = prominent ? colors.primary : colors.secondaryContainer
+        return Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(prominent ? colors.onPrimary : colors.onSecondaryContainer)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: tint, prominent: true)
+        }
+        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
+        .tint(tint)
+    }
+
     /// §2.3 槽位复用: 关闭非常规节次时, 无他卡引用的 owned 暂存槽位回收
     private func deselectEdge(from index: Int, released: Int) {
         guard meetingBlocks.indices.contains(index) else { return }
@@ -458,7 +534,7 @@ struct AddCourseScreen: View {
                     .frame(height: style == .liquidGlass ? nil : 48)
                     .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
             .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
             .tint(colors.secondaryContainer)
             .accessibilityIdentifier("course_apply_to_all_slots")
@@ -500,6 +576,7 @@ struct AddCourseScreen: View {
         let key = editingCourse?.id ?? 0
         guard loadedForId != key else { return }
         loadedForId = key
+        showsFullQuickAdd = false
         groupLoaded = false
         editorContext = nil
         groupSourceColorHex = ""
@@ -1176,7 +1253,7 @@ private struct MeetingBlockEditor: View {
                             .frame(width: style == .liquidGlass ? nil : 48,
                                    height: style == .liquidGlass ? nil : 48)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, shape: .circle))
+                    .sleepyPlatformButtonStyle(cornerRadius: 24, shape: .circle)
                     .frame(width: 48, height: 48)
                     .accessibilityLabel(L10n.t("delete_slot"))
                     .accessibilityIdentifier("course_slot_\(block.id)_remove")
@@ -1187,7 +1264,7 @@ private struct MeetingBlockEditor: View {
                         .frame(width: style == .liquidGlass ? nil : 48,
                                height: style == .liquidGlass ? nil : 48)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, shape: .circle))
+                .sleepyPlatformButtonStyle(cornerRadius: 24, shape: .circle)
                 .frame(width: 48, height: 48)
                 .accessibilityLabel(L10n.t(block.isExpanded ? "slot_collapse" : "slot_expand"))
                 .accessibilityIdentifier("course_slot_\(block.id)_expand")
@@ -1264,12 +1341,7 @@ private struct MeetingBlockEditor: View {
             Group {
                 FieldTextField(text: $block.teacher, label: L10n.format("course_teacher"))
                 FieldTextField(text: $block.room, label: L10n.format("course_room"))
-                MultilineFieldCompat(placeholder: L10n.format("course_note"), text: $block.note, minLines: 2, maxLines: 4)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(colors.surfaceContainerHighest)   // ← fieldColors 容器色 surfaceContainerHighest
-                    .cornerRadius(SleepyTheme.fieldShape)
-                    // ← 原 filled TextField, 无描边
+                CourseNoteField(text: $block.note)
                 // 颜色 — 三态(GROUP 跟组 / AUTO 自动 / CUSTOM 自定义); 改组色入口在
                 // 基础信息卡组色节, 逐卡 OFF 态仅显示组色色块+hex (2026-09-15 用户令二次修正)
                 ColorSection(block: $block, groupSourceColorHex: groupSourceColorHex)
@@ -1393,10 +1465,9 @@ private struct IrregularOptionsSection: View {
                                 } label: {
                                     AndroidSettingsIcon(name: .edit, size: 24)
                                         .foregroundColor(colors.onSurfaceVariant)
-                                        .frame(width: style == .classic ? 48 : nil,
-                                               height: style == .classic ? 48 : nil)
+                                        .frame(width: style == .classic ? 48 : 34, height: style == .classic ? 48 : 34)
                                 }
-                                .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+                                .sleepyPlatformButtonStyle(shape: .circle)
                                 .frame(width: 48, height: 48)
                                 .accessibilityLabel(L10n.format("irregular_slot_edit_title"))
                             }
@@ -1572,7 +1643,7 @@ private struct ColorSection: View {
             }
         }
         .sheet(isPresented: $showColorPicker) {
-            NativeColorPicker(initialHex: block.color.isEmpty ? "#FF6750A4" : block.color) { hex in
+            NativeColorPicker(initialHex: block.color.isEmpty ? "#FF6750A4" : block.color, requiresConfirmation: true) { hex in
                 block.color = hex
                 block.colorMode = CourseColorMode.CUSTOM
                 showColorPicker = false
@@ -1612,8 +1683,8 @@ private struct GroupColorSection: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true,
-                                                           cornerRadius: SleepyShapes.medium))
+                    .sleepyPlatformButtonStyle(prominent: true,
+                                                           cornerRadius: SleepyShapes.medium)
                     .tint(colors.secondaryContainer)
                 } else {
                     Button(action: onChangeGroupColor) {
@@ -1680,8 +1751,8 @@ private struct MultiDayPicker: View {
                             .minimumScaleFactor(0.75)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: selected,
-                                                           cornerRadius: SleepyShapes.medium, compact: true))
+                    .sleepyPlatformButtonStyle(prominent: selected,
+                                                           cornerRadius: SleepyShapes.medium, compact: true)
                     .tint(colors.primary)
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .accessibilityAddTraits(selected ? .isSelected : [])
@@ -1819,7 +1890,7 @@ private struct EdgeCandidatePickerDialog: View {
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large,
                                                   tint: colors.secondaryContainer, prominent: true)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                     .frame(minHeight: style == .liquidGlass ? 48 : nil)
                     .tint(colors.secondaryContainer)
                 }
@@ -1918,11 +1989,10 @@ private struct AutoColorDot: View {
                     .font(.system(size: 11))
                     .foregroundColor(selected ? colors.onPrimaryContainer : colors.onSurfaceVariant)
             }
-            .frame(width: style == .classic ? 48 : nil,
-                   height: style == .classic ? 48 : nil)
+            .frame(width: style == .classic ? 48 : 34, height: style == .classic ? 48 : 34)
             .contentShape(Circle())
         }
-        .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+        .sleepyPlatformButtonStyle(shape: .circle)
         .frame(width: 48, height: 48)
         .contentShape(Circle())
     }
@@ -1950,12 +2020,26 @@ private struct CustomColorDot: View {
                         .foregroundColor(colors.onSurfaceVariant)
                 }
             }
-            .frame(width: style == .classic ? 48 : nil,
-                   height: style == .classic ? 48 : nil)
+            .frame(width: style == .classic ? 48 : 34, height: style == .classic ? 48 : 34)
             .contentShape(Circle())
         }
-        .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+        .sleepyPlatformButtonStyle(shape: .circle)
         .frame(width: 48, height: 48)
         .contentShape(Circle())
+    }
+}
+
+private struct CourseNoteField: View {
+    @Environment(\.localWakeUpColors) private var colors
+    @Binding var text: String
+
+    var body: some View {
+        MultilineFieldCompat(placeholder: L10n.format("course_note"), text: $text, minLines: 2, maxLines: 4)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(colors.surfaceContainerHighest)
+            .cornerRadius(SleepyTheme.fieldShape)
+            .accessibilityLabel(L10n.format("course_note"))
+            .accessibilityIdentifier("field_\(L10n.format("course_note"))")
     }
 }

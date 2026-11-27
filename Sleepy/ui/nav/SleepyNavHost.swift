@@ -347,10 +347,12 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
     private var popGestures: [UIGestureRecognizer] {
         guard let navigationController else { return [] }
         var gestures = [navigationController.interactivePopGestureRecognizer].compactMap { $0 }
+#if compiler(>=6.2)
         if #available(iOS 26.0, *),
            let content = navigationController.interactiveContentPopGestureRecognizer {
             gestures.append(content)
         }
+#endif
         return gestures
     }
 

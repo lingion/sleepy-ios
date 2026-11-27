@@ -48,7 +48,8 @@ struct GeneralSettingsScreen: View {
     @State private var weekHideEmptyDays: Bool = AppPrefs.shared.isWeekHideEmptyDays()
     // ★ v1.0.61 数据迁移组(GeneralSettingsScreen.kt 分组⑥)
     @State private var migrationBusy = false
-    @State private var pendingImportBytes: Data? = nil
+    @State private var webDAVBusy = false
+    @State private var pendingImport: MigrationPreparedArchive?
     @State private var showImportDialog = false
     @State private var showExportPicker = false
     @State private var showImportPicker = false
@@ -70,15 +71,15 @@ struct GeneralSettingsScreen: View {
     // ── 数据迁移(runMigrationImport / onMigrationExportClick / launchers) ──
 
     private func runMigrationImport(_ mode: MigrationExecutor.ImportMode) {
-        guard let bytes = pendingImportBytes else { return }
-        pendingImportBytes = nil
+        guard !migrationBusy, !webDAVBusy, let prepared = pendingImport else { return }
+        pendingImport = nil
         migrationBusy = true
         Task.detached(priority: .userInitiated) {
             let db = AppDatabase.getShared()
             let store = RuntimeMigrationPrefsStore()
             do {
-                let report = try MigrationExecutor.import(
-                    bytes: bytes, mode: mode, prefsStore: store,
+                let report = try MigrationExecutor.apply(
+                    prepared, mode: mode, prefsStore: store,
                     courseDao: db.courseDao, timeTableDao: db.timeTableDao,
                     periodTableDao: db.periodTableDao, importDraftDao: db.importDraftDao,
                     dbQueue: db.dbQueue
@@ -103,22 +104,24 @@ struct GeneralSettingsScreen: View {
         }
     }
 
+    private nonisolated static func makeCompleteBackup() throws -> Data {
+        try Task.checkCancellation()
+        let db = AppDatabase.getShared()
+        return try MigrationExecutor.export(
+            selected: [.DATABASE, .PREFERENCES, .WIDGETS],
+            prefsStore: RuntimeMigrationPrefsStore(),
+            courseDao: db.courseDao, timeTableDao: db.timeTableDao,
+            periodTableDao: db.periodTableDao, importDraftDao: db.importDraftDao,
+            dbQueue: db.dbQueue
+        ).bytes
+    }
+
     private func onMigrationExportClick() {
-        guard !migrationBusy else { return }
+        guard !migrationBusy, !webDAVBusy, pendingImport == nil else { return }
         migrationBusy = true
         Task.detached(priority: .userInitiated) {
-            let db = AppDatabase.getShared()
-            let store = RuntimeMigrationPrefsStore()
             do {
-                // ← 原 modules = {DATABASE, PREFERENCES, WIDGETS}(依赖闭包
-                //   由 MigrationModuleDeps.resolve 自动补 PERSISTED_STATE, 两端同)
-                let result = try MigrationExecutor.export(
-                    selected: [.DATABASE, .PREFERENCES, .WIDGETS],
-                    prefsStore: store,
-                    courseDao: db.courseDao, timeTableDao: db.timeTableDao,
-                    periodTableDao: db.periodTableDao, importDraftDao: db.importDraftDao,
-                    dbQueue: db.dbQueue
-                )
+                let bytes = try Self.makeCompleteBackup()
                 // ← 原 stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
                 let f = DateFormatter()
                 f.dateFormat = "yyyyMMdd-HHmmss"
@@ -126,7 +129,7 @@ struct GeneralSettingsScreen: View {
                 let fileName = "sleepy-backup-\(f.string(from: Date())).sleepybackup"
                 let url = FileManager.default.temporaryDirectory
                     .appendingPathComponent(fileName)
-                try result.bytes.write(to: url)
+                try bytes.write(to: url)
                 await MainActor.run {
                     // Keep the lock until the save panel finishes or is dismissed.
                     exportURL = url
@@ -143,24 +146,32 @@ struct GeneralSettingsScreen: View {
     }
 
     private func onImportFileResult(_ result: Result<[URL], Error>) {
-        // ← 原 uri == null 静默取消(OpenDocument 取消路径)
-        guard case .success(let urls) = result, let url = urls.first else { return }
+        guard !migrationBusy, !webDAVBusy, pendingImport == nil,
+              case .success(let urls) = result, let url = urls.first else { return }
         migrationBusy = true
         Task.detached(priority: .userInitiated) {
             let secured = url.startAccessingSecurityScopedResource()
             defer { if secured { url.stopAccessingSecurityScopedResource() } }
-            let bytes = try? Data(contentsOf: url)
-            await MainActor.run {
-                migrationBusy = false
-                if let bytes {
-                    // ← 原版本: 读成功 → 弹模式选择对话框
-                    pendingImportBytes = bytes
-                    showImportDialog = true
-                } else {
-                    migrationToast = L10n.format("settings_migration_import_fail")
+            do {
+                let prepared = try MigrationPreparedArchive.decode(Data(contentsOf: url))
+                await MainActor.run {
+                    migrationBusy = false
+                    stageRestore(prepared)
+                }
+            } catch {
+                await MainActor.run {
+                    migrationBusy = false
+                    migrationToast = L10n.t("settings_migration_import_fail")
                 }
             }
         }
+    }
+
+    /// Neither source can write until the common confirmation chooses a mode.
+    private func stageRestore(_ prepared: MigrationPreparedArchive) {
+        guard !migrationBusy, pendingImport == nil else { return }
+        pendingImport = prepared
+        showImportDialog = true
     }
 
     var body: some View {
@@ -186,9 +197,15 @@ struct GeneralSettingsScreen: View {
                     } else if section == .display {
                         displaySettings
                     } else {
-                        MigrationSection(busy: migrationBusy,
+                        MigrationSection(busy: migrationBusy || webDAVBusy,
                                          onExport: onMigrationExportClick,
-                                         onImport: { if !migrationBusy { showImportPicker = true } })
+                                         onImport: {
+                            if !migrationBusy && !webDAVBusy && pendingImport == nil { showImportPicker = true }
+                        })
+                        WebDAVBackupSection(busy: $webDAVBusy,
+                                            localBusy: migrationBusy || showImportPicker || showExportPicker || pendingImport != nil,
+                                            makeArchive: Self.makeCompleteBackup,
+                                            onRestore: stageRestore)
                     }
                 }
                 .padding(16)
@@ -231,28 +248,31 @@ struct GeneralSettingsScreen: View {
                 runMigrationImport(.MERGE)
             }
             Button(L10n.format("cancel"), role: .cancel) {
-                pendingImportBytes = nil
+                pendingImport = nil
             }
         } message: {
             Text(L10n.format("settings_migration_import_dialog_text"))
         }
-        // ← 原版本 CreateDocument("application/zip") 保存对话框 → fileExporter。
-        //   完成回调对齐 原版本 exportLauncher: 写成功 export_ok toast,
-        //   失败 export_fail toast, 取消(uri==null)静默。
-        .fileExporter(isPresented: $showExportPicker,
-                      document: ExportedBackupFile(url: exportURL),
-                      contentType: UTType.data,
-                      defaultFilename: exportURL.map { $0.deletingPathExtension().lastPathComponent } ?? "sleepy-backup") { result in
-            migrationBusy = false
-            switch result {
-            case .success:
-                migrationToast = L10n.format("settings_migration_export_ok")
-            case .failure(let error):
-                // Reported cancellation errors are also silent.
-                if error is CancellationError { return }
-                NSLog("SleepyMigration: export failed: %@", String(describing: error))
-                migrationToast = L10n.format("settings_migration_export_fail")
-            }
+        // Host .fileExporter and .fileImporter on separate zero-hit views so iOS < 17
+        // SwiftUI does not drop the second document presenter after exporting once.
+        .background {
+            Color.clear
+                .allowsHitTesting(false)
+                .fileExporter(isPresented: $showExportPicker,
+                              document: ExportedBackupFile(url: exportURL),
+                              contentType: UTType.data,
+                              defaultFilename: exportURL.map { $0.deletingPathExtension().lastPathComponent } ?? "sleepy-backup") { result in
+                    migrationBusy = false
+                    switch result {
+                    case .success:
+                        migrationToast = L10n.format("settings_migration_export_ok")
+                    case .failure(let error):
+                        // Reported cancellation errors are also silent.
+                        if error is CancellationError { return }
+                        NSLog("SleepyMigration: export failed: %@", String(describing: error))
+                        migrationToast = L10n.format("settings_migration_export_fail")
+                    }
+                }
         }
         .onChange(of: showExportPicker) { presented in
             // fileExporter dismisses on cancellation without invoking
@@ -262,10 +282,14 @@ struct GeneralSettingsScreen: View {
         // ← 原版本 OpenDocument(["application/zip","application/octet-stream"])
         //   = UTType.zip + UTType.data(octet-stream); .sleepybackup 内容即 zip,
         //   动态 extension UTType 不进 allowedContentTypes(未声明类型有崩溃风险)
-        .fileImporter(isPresented: $showImportPicker,
-                      allowedContentTypes: [.zip, .data],
-                      allowsMultipleSelection: false,
-                      onCompletion: onImportFileResult)
+        .background {
+            Color.clear
+                .allowsHitTesting(false)
+                .fileImporter(isPresented: $showImportPicker,
+                              allowedContentTypes: [.zip, .data],
+                              allowsMultipleSelection: false,
+                              onCompletion: onImportFileResult)
+        }
         .sleepyNavigationPage(isPresented: $showPeriodHeaders, changes: _showPeriodHeaders.changes, canvas: {
             colors.background.ignoresSafeArea()
         }) {
@@ -699,65 +723,183 @@ private struct LabSection: View {
     }
 }
 
-/// 与 Android 的 ^-?\d{0,6}$ 一致: 允许编辑中的空串/负号, 仅完整整数落库。
+/// The UI exposes Android's three modes while retaining the legacy integer key:
+/// 0 = Off, any negative = Unlimited, positive = Limited.
+enum UndoDepthMode: Hashable {
+    case off, limited, unlimited
+
+    init(depth: Int) {
+        switch depth {
+        case 0: self = .off
+        case ..<0: self = .unlimited
+        default: self = .limited
+        }
+    }
+
+    var storedDepth: Int {
+        switch self {
+        case .off: return 0
+        case .limited: return AppPrefs.DEFAULT_UNDO_DEPTH
+        case .unlimited: return -1
+        }
+    }
+}
+
+/// Android's digits-only count draft: at most six ASCII digits; only a positive
+/// integer can be committed. Empty/zero drafts remain editable without disabling undo.
 enum UndoDepthInput {
     static func accepts(_ text: String) -> Bool {
-        let digits = text.hasPrefix("-") ? text.dropFirst() : text[...]
-        return digits.count <= 6 && digits.utf8.allSatisfy { (48...57).contains($0) }
+        text.count <= 6 && text.utf8.allSatisfy { (48...57).contains($0) }
     }
 
     static func value(_ text: String) -> Int? {
-        guard accepts(text) else { return nil }
-        return Int(text)
+        guard accepts(text), let value = Int(text), value > 0 else { return nil }
+        return value
     }
 }
 
 private struct UndoDepthSettingsRow: View {
     @Environment(\.localWakeUpColors) private var colors
-    @State private var input = String(AppPrefs.shared.getUndoDepth())
+    @State private var mode = UndoDepthMode(depth: AppPrefs.shared.getUndoDepth())
+    @State private var input: String
+    @State private var committedDepth: Int
+    @State private var inputInvalid = false
+    @FocusState private var undoFieldFocused: Bool
 
-    // 临时 fallback 随全局 strings 补齐自动退出, 使用现有的语言 Bundle。
+    init() {
+        let depth = AppPrefs.shared.getUndoDepth()
+        _mode = State(initialValue: UndoDepthMode(depth: depth))
+        let positive = depth > 0 ? depth : AppPrefs.DEFAULT_UNDO_DEPTH
+        _committedDepth = State(initialValue: positive)
+        _input = State(initialValue: String(positive))
+    }
+
+    // Temporary fallbacks remain local until the shared strings gain these keys.
     private func localized(_ key: String, defaultValue: String) -> String {
         NSLocalizedString(key, bundle: LocaleHelper.currentBundle(), value: defaultValue, comment: "")
     }
 
+    private func apply(_ depth: Int) {
+        if depth > 0 { committedDepth = depth }
+        AppPrefs.shared.setUndoDepth(depth)
+        UndoManager.shared.applyMaxDepth(depth)
+    }
+
+    private func commitOrRestoreDraft() {
+        if let value = UndoDepthInput.value(input) {
+            input = String(value)
+            inputInvalid = false
+            apply(value)
+        } else {
+            let fallback = max(1, committedDepth)
+            input = String(fallback)
+            inputInvalid = false
+        }
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(localized("settings_undo_depth", defaultValue: "撤回保留步数"))
-                    .font(.system(size: 16))
+        VStack(alignment: .leading, spacing: SettingsLayout.controlGap) {
+            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
+                Text(localized("settings_undo_depth", defaultValue: "Undo history depth"))
+                    .font(SettingsLayout.headingStyle)
                     .foregroundColor(colors.onSurface)
-                Text(localized("settings_undo_depth_sub", defaultValue: "-1 为无限，0 为关闭撤回，其他数字保留相应步数。默认 5。历史仅存于内存，结束进程即清空。"))
-                    .font(.system(size: 11))
+                Text(localized("settings_undo_experiment", defaultValue: "Experimental. History is stored in memory and clears when the app process ends."))
+                    .font(SettingsLayout.descriptionStyle)
                     .foregroundColor(colors.onSurfaceVariant)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            TextField("", text: Binding(
-                get: { input },
-                set: { text in
-                    guard UndoDepthInput.accepts(text) else { return }
-                    input = text
-                    guard let value = UndoDepthInput.value(text) else { return }
-                    AppPrefs.shared.setUndoDepth(value)
-                    UndoManager.shared.applyMaxDepth(value)
+            Text(localized("settings_undo_mode", defaultValue: "History limit"))
+                .font(SettingsLayout.itemStyle)
+                .foregroundColor(colors.onSurface)
+            SegmentedSwitcher(
+                options: [
+                    (UndoDepthMode.off, localized("settings_undo_off", defaultValue: "Off")),
+                    (.limited, localized("settings_undo_limited", defaultValue: "Limited")),
+                    (.unlimited, localized("settings_undo_unlimited", defaultValue: "Unlimited"))
+                ],
+                selected: mode,
+                onSelect: { selected in
+                    mode = selected
+                    inputInvalid = false
+                    undoFieldFocused = false
+                    let depth: Int
+                    switch selected {
+                    case .off: depth = 0
+                    case .unlimited: depth = -1
+                    case .limited:
+                        depth = UndoDepthInput.value(input) ?? AppPrefs.DEFAULT_UNDO_DEPTH
+                        input = String(depth)
+                    }
+                    apply(depth)
+                },
+                containerColor: colors.surfaceContainerHighest,
+                accessibilityTitle: localized("settings_undo_mode", defaultValue: "History limit")
+            )
+
+            if mode == .limited {
+                VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
+                    Text(localized("settings_undo_depth_label", defaultValue: "Undo history depth input"))
+                        .font(SettingsLayout.descriptionStyle)
+                        .foregroundColor(inputInvalid ? colors.error : colors.onSurfaceVariant)
+                    TextField("", text: Binding(
+                        get: { input },
+                        set: { text in
+                            guard UndoDepthInput.accepts(text) else { return }
+                            input = text
+                            inputInvalid = UndoDepthInput.value(text) == nil
+                        }
+                    ))
+                    .keyboardType(.numberPad)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .submitLabel(.done)
+                    .focused($undoFieldFocused)
+                    .onChange(of: undoFieldFocused) { focused in
+                        if !focused {
+                            DispatchQueue.main.async { commitOrRestoreDraft() }
+                        }
+                    }
+                    .onSubmit {
+                        undoFieldFocused = false
+                        DispatchQueue.main.async { commitOrRestoreDraft() }
+                    }
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button(localized("done", defaultValue: "Done")) {
+                                undoFieldFocused = false
+                                commitOrRestoreDraft()
+                            }
+                            .accessibilityIdentifier("general_undo_depth_done")
+                        }
+                    }
+                    .onDisappear {
+                        if mode == .limited { commitOrRestoreDraft() }
+                    }
+                    .multilineTextAlignment(.trailing)
+                    .accessibilityLabel(localized("settings_undo_depth_label", defaultValue: "Undo history depth input"))
+                    .accessibilityIdentifier("general_undo_depth_field")
+                    .padding(12)
+                    .frame(maxWidth: .infinity)
+                    .background(colors.surfaceContainerHigh)
+                    .cornerRadius(SleepyShapes.large)
+                    .overlay(alignment: .trailing) {
+                        if inputInvalid {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(colors.error)
+                                .padding(.trailing, 12)
+                                .accessibilityIdentifier("general_undo_depth_invalid")
+                        }
+                    }
+                    Text(localized("settings_undo_count_hint", defaultValue: "Enter a positive number of steps."))
+                        .font(SettingsLayout.descriptionStyle)
+                        .foregroundColor(inputInvalid ? colors.error : colors.onSurfaceVariant)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("general_undo_depth_hint")
                 }
-            ))
-            // numberPad 没有负号, 无法输入合法的无限深度。
-            .keyboardType(.numbersAndPunctuation)
-            .textInputAutocapitalization(.never)
-            .disableAutocorrection(true)
-            .submitLabel(.done)
-            .onSubmit { input = String(AppPrefs.shared.getUndoDepth()) }
-            .multilineTextAlignment(.trailing)
-            .padding(12)
-            .frame(width: 110)
-            .background(colors.surfaceContainerHigh)
-            .cornerRadius(SleepyShapes.large)
-            .accessibilityLabel(localized("settings_undo_depth_label", defaultValue: "撤回保留步数输入框"))
-            .accessibilityIdentifier("general_undo_depth_field")
+            }
         }
-        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

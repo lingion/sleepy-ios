@@ -1263,6 +1263,7 @@ struct FullWeekView: View {
     var visibleDays: Set<Int> = Set(1...7)
     var displayMode: String = "node"
     var timeJson: String = ""
+    var dayTimeJson: [Int: String] = [:]
     var today: Int = DateUtils.todayDayOfWeek()
     var todayDate: Date = AppClock.now
     /// 周页上下文: isToday 按该页(week, day)真实日期判定, 非"星期号 = 今天星期号" —
@@ -1302,7 +1303,7 @@ struct FullWeekView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                 DetailPanel(byDay: byDay, visibleDays: visibleDays, displayMode: displayMode,
-                            timeJson: timeJson,
+                            timeJson: timeJson, dayTimeJson: dayTimeJson,
                             today: today, todayDate: todayDate,
                             startDate: startDate, currentWeek: currentWeek,
                             greyDays: greyDays,
@@ -1381,18 +1382,8 @@ private struct DaySummaryCell: View {
             if courses.isEmpty {
                 Spacer().frame(height: 14 * scale)
             } else {
-                // iOS 15 兼容:ViewThatFits 是 iOS16+ API。原语义 = fullText 放不下
-                // 回退纯数字;minimumScaleFactor 缩到 0.6 下限近似该意图(列宽极窄时
-                // 缩字号仍可读,不再二选一),iOS 16+ 视觉行为不变。
-                Text(L10n.format("course_count_format", courses.count))
-                    .font(.system(size: 10 * scale, weight: .semibold))
-                    .foregroundColor(chipFg)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                .padding(.horizontal, 7 * scale)
-                .padding(.vertical, 2 * scale)
-                .background(colors.surfaceVariant)
-                .cornerRadius(50)
+                DaySummaryCourseCountChip(count: courses.count, scale: scale,
+                                          fg: chipFg, bg: colors.surfaceVariant)
             }
 
             Spacer().frame(height: 4 * scale)
@@ -1425,10 +1416,12 @@ private struct DaySummaryCell: View {
 // ← DetailPanel
 private struct DetailPanel: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sizeCategory) private var sizeCategory
     let byDay: [Int: [CourseEntity]]
     let visibleDays: Set<Int>
     let displayMode: String
     let timeJson: String
+    let dayTimeJson: [Int: String]
     let today: Int
     let todayDate: Date
     let startDate: String
@@ -1455,7 +1448,7 @@ private struct DetailPanel: View {
         //   days    = 按天对半分 — 前半周左/后半周右, 天数固定(隐藏无课日后按剩余天数平分,
         //             奇数天多的一天落左栏)
         //   balance = 按课程数动态平衡 — 逐天放进当天卡片(约)更矮的栏, 两栏高度接近
-        if twoColumn && sortedDays.count >= 2 {
+        if twoColumn && !sizeCategory.isAccessibilityCategory && sortedDays.count >= 2 {
             let split: ([Int], [Int]) = {
                 if twoColumnMode == "balance" {
                     // 贪心: 按天序遍历, 权重 = 课程数(空天也有卡头记 1), 每天放进更矮的栏
@@ -1474,7 +1467,7 @@ private struct DetailPanel: View {
                 DetailDayColumn(days: split.0, byDay: byDay,
                                 today: today, todayDate: todayDate,
                                 startDate: startDate, currentWeek: currentWeek,
-                                displayMode: displayMode, timeJson: timeJson,
+                                displayMode: displayMode, timeJson: timeJson, dayTimeJson: dayTimeJson,
                                 greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
                                 onCourseClick: onCourseClick, onCourseLongClick: onCourseLongClick,
                                 dayDates: dayDates)
@@ -1483,7 +1476,7 @@ private struct DetailPanel: View {
                     DetailDayColumn(days: split.1, byDay: byDay,
                                     today: today, todayDate: todayDate,
                                     startDate: startDate, currentWeek: currentWeek,
-                                    displayMode: displayMode, timeJson: timeJson,
+                                    displayMode: displayMode, timeJson: timeJson, dayTimeJson: dayTimeJson,
                                     greyDays: greyDays, scale: scale, cornerRatio: cornerRatio,
                                     onCourseClick: onCourseClick, onCourseLongClick: onCourseLongClick,
                                     dayDates: dayDates)
@@ -1499,7 +1492,7 @@ private struct DetailPanel: View {
                     DetailDayCard(day: day, courses: dayCourses,
                                   isToday: isDateTodayOfWeek(startDate: startDate, week: currentWeek,
                                                              day: day, todayDate: todayDate),
-                                  displayMode: displayMode, timeJson: timeJson,
+                                  displayMode: displayMode, timeJson: dayTimeJson[day] ?? timeJson,
                                   isGrey: greyDays.contains(day),
                                   scale: scale, cornerRatio: cornerRatio,
                                   onCourseClick: onCourseClick, onCourseLongClick: onCourseLongClick,
@@ -1524,6 +1517,7 @@ private struct DetailDayColumn: View {
     let currentWeek: Int
     let displayMode: String
     let timeJson: String
+    let dayTimeJson: [Int: String]
     var greyDays: Set<Int> = []
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
@@ -1538,7 +1532,7 @@ private struct DetailDayColumn: View {
                 DetailDayCard(day: day, courses: dayCourses,
                               isToday: isDateTodayOfWeek(startDate: startDate, week: currentWeek,
                                                          day: day, todayDate: todayDate),
-                              displayMode: displayMode, timeJson: timeJson,
+                              displayMode: displayMode, timeJson: dayTimeJson[day] ?? timeJson,
                               isGrey: greyDays.contains(day),
                               scale: scale, cornerRatio: cornerRatio,
                               onCourseClick: onCourseClick, onCourseLongClick: onCourseLongClick,
@@ -1554,6 +1548,7 @@ private struct DetailDayColumn: View {
 // ← DetailDayCard
 private struct DetailDayCard: View {
     @Environment(\.localWakeUpColors) private var colors
+    @ScaledMetric(relativeTo: .caption) private var baseTextSize: CGFloat = 12
     let day: Int
     let courses: [CourseEntity]
     let isToday: Bool
@@ -1566,8 +1561,9 @@ private struct DetailDayCard: View {
     var onCourseLongClick: ((CourseEntity) -> Void)? = nil
     var dateLabel: String? = nil
 
-    // v7.10.4 冲突栏字体压缩: lane 实宽按内容区宽算(行满宽 → 与卡内边距对齐)
-    @State private var contentW: CGFloat = 0
+    @State private var contentWidth: CGFloat = 0
+
+    private var textSize: CGFloat { baseTextSize * scale }
 
     var body: some View {
         let greyFg = colors.onSurfaceVariant.opacity(SleepyTheme.Alpha.inactive)
@@ -1595,64 +1591,114 @@ private struct DetailDayCard: View {
                     courses, timeJson: timeJson.isEmpty ? nil : timeJson)
                 VStack(spacing: 7 * scale) {
                     ForEach(rows, id: \.courses.first!.id) { row in
-                        if row.laneCount == 1, let only = row.courses.first {
-                            LessonRow(course: only, displayMode: displayMode, timeJson: timeJson,
-                                      isGrey: isGrey, groupRows: courses.filter { $0.groupId == only.groupId },
-                                      scale: scale, cornerRatio: cornerRatio,
-                                      onLongClick: { onCourseLongClick?(only) }) {
-                                onCourseClick(only)
-                            }
-                        } else {
-                            // 冲突行: 按 lane 并排(每栏均分), 同栏课程纵向堆叠
-                            // (栏内课互不重叠——chainGroups 独立集保证,堆叠即正确时序)
-                            // v7.10.4: 栏实宽 → 字体线性压缩(两栏模式下 lane 半宽不缩则字挤)
-                            let laneGap = 6 * scale
-                            let laneW = contentW > 0
-                                ? (contentW - laneGap * CGFloat(row.laneCount - 1)) / CGFloat(row.laneCount)
-                                : 0
-                            let laneScale = weekLaneFontScale(laneW: CGFloat(laneW))
-                            let hideSide = weekLaneHideSideLabel(laneW: CGFloat(laneW))
-                            HStack(alignment: .top, spacing: laneGap) {
-                                ForEach(0..<row.laneCount, id: \.self) { li in
-                                    if li > 0 {
-                                        // 栏间浅细竖线: 0.5dp 宽, onSurface hairline, 高度随行
-                                        Rectangle()
-                                            .fill(colors.onSurface.opacity(SleepyTheme.Alpha.hairline))
-                                            .frame(width: 0.5)
-                                    }
-                                    let laneCourses = row.courses.filter { row.laneOf[$0.id] == li }
-                                    VStack(spacing: 5 * scale) {
-                                        ForEach(laneCourses) { laneCourse in
-                                            LessonRow(course: laneCourse, displayMode: displayMode,
-                                                      timeJson: timeJson, isGrey: isGrey,
-                                                      groupRows: courses.filter { $0.groupId == laneCourse.groupId },
-                                                      scale: scale, cornerRatio: cornerRatio,
-                                                      laneScale: laneScale, hideSideLabel: hideSide,
-                                                      onLongClick: { onCourseLongClick?(laneCourse) }) {
-                                                onCourseClick(laneCourse)
-                                            }
-                                        }
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                        }
+                        lessonGroup(row)
                     }
                 }
             }
         }
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .background(GeometryReader { geometry in
+            Color.clear.preference(key: DetailDayCardWidthKey.self, value: geometry.size.width)
+        })
         .padding(10 * scale)
-        .frame(maxWidth: .infinity, alignment: .leading)
         // 空课 surfaceContainerLow(← DetailDayCard), 无描边
         .background(courses.isEmpty ? colors.surfaceContainerLow : colors.surface)
         .cornerRadius(12 * scale * cornerRatio)
-        .background(
-            // 内容区宽测量 → 冲突 lane 压缩比(一次测量, 卡内全部冲突行共用)
-            GeometryReader { g in
-                Color.clear.preference(key: DetailDayCardWidthKey.self, value: g.size.width)
+        .onPreferenceChange(DetailDayCardWidthKey.self) { contentWidth = $0 }
+    }
+
+    @ViewBuilder
+    private func lessonGroup(_ row: ConflictLayoutEngine.WeekLaneRow) -> some View {
+        if let width = WeekAgendaLayout.conflictLaneWidth(
+            available: contentWidth, count: row.laneCount, scale: scale, textSize: textSize
+        ) {
+            HStack(alignment: .top, spacing: WeekAgendaLayout.laneSpacing(scale: scale)) {
+                ForEach(0..<row.laneCount, id: \.self) { lane in
+                    if lane > 0 {
+                        Rectangle()
+                            .fill(colors.onSurface.opacity(SleepyTheme.Alpha.hairline))
+                            .frame(width: WeekAgendaLayout.dividerWidth)
+                            .accessibilityHidden(true)
+                    }
+                    VStack(spacing: 5 * scale) {
+                        ForEach(row.courses.filter { row.laneOf[$0.id] == lane }) { course in
+                            lesson(course, width: width)
+                        }
+                    }
+                    .frame(width: width, alignment: .leading)
+                }
             }
-        )
-        .onPreferenceChange(DetailDayCardWidthKey.self) { contentW = $0 - 20 * scale }
+        } else {
+            // Keep the engine's row order and every member when lanes cannot share the width.
+            VStack(spacing: 5 * scale) {
+                ForEach(row.courses) { course in
+                    lesson(course, width: contentWidth)
+                }
+            }
+        }
+    }
+
+    private func lesson(_ course: CourseEntity, width: CGFloat) -> some View {
+        LessonRow(course: course, displayMode: displayMode, timeJson: timeJson,
+                  isGrey: isGrey, groupRows: courses.filter { $0.groupId == course.groupId },
+                  scale: scale, cornerRatio: cornerRatio, textSize: textSize,
+                  showsSideLabel: WeekAgendaLayout.showsSideLabel(width: width, textSize: textSize, scale: scale),
+                  onLongClick: { onCourseLongClick?(course) }) {
+            onCourseClick(course)
+        }
+    }
+}
+
+private struct DaySummaryWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 { value = next }
+    }
+}
+
+private struct DaySummaryCourseCountChip: View {
+    let count: Int
+    let scale: CGFloat
+    let fg: Color
+    let bg: Color
+    @State private var availableWidth: CGFloat = 0
+
+    private func chip(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10 * scale, weight: .semibold))
+            .foregroundColor(fg)
+            .lineLimit(1)
+            .padding(.horizontal, 7 * scale)
+            .padding(.vertical, 2 * scale)
+            .background(bg)
+            .cornerRadius(50)
+    }
+
+    var body: some View {
+        let fullText = L10n.format("course_count_format", count)
+        let numberText = "\(count)"
+        Group {
+            if #available(iOS 16.0, *) {
+                ViewThatFits(in: .horizontal) {
+                    chip(fullText)
+                    chip(numberText)
+                }
+            } else {
+                let textWidth = (fullText as NSString).size(
+                    withAttributes: [.font: UIFont.systemFont(ofSize: 10 * scale, weight: .semibold)]
+                ).width + 14 * scale
+                let useNumberOnly = availableWidth > 0 && textWidth > availableWidth
+                chip(useNumberOnly ? numberText : fullText)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear.preference(key: DaySummaryWidthKey.self, value: proxy.size.width)
+                        }
+                    )
+                    .onPreferenceChange(DaySummaryWidthKey.self) { availableWidth = $0 }
+            }
+        }
     }
 }
 
@@ -1661,27 +1707,29 @@ private struct DetailDayCardWidthKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
-// =====================================================================================
-// v7.10.4 冲突栏字号/间距压缩 — 用户 2026-09-02: 两栏模式下分栏字全挤到一起,
-// 需按 lane 实宽调画面比例。(weekLaneFontScale/weekLaneHideSideLabel)
-// =====================================================================================
+enum WeekAgendaLayout {
+    static let dividerWidth: CGFloat = 0.5
 
-/// lane 宽压缩基准: 单栏半宽量级(用户实测"比较好"的现状), 低于它开始线性缩。
-let WEEK_LANE_SCALE_BASE: CGFloat = 150
-/// 压缩下限 — 再窄也不无限缩, 可读性由隐藏侧栏标签/副信息兜底。
-let WEEK_LANE_SCALE_FLOOR: CGFloat = 0.6
+    static func cardHorizontalPadding(scale: CGFloat) -> CGFloat { 18 * scale }
 
-/// 冲突栏内 LessonRow 的缩放比(纯函数可测): laneW ≥ 150dp → 1.0; 以下线性压缩; 0.6 封底。
-func weekLaneFontScale(laneW: CGFloat) -> Double {
-    if laneW >= WEEK_LANE_SCALE_BASE { return 1 }
-    return Double(max(laneW / WEEK_LANE_SCALE_BASE, WEEK_LANE_SCALE_FLOOR))
+    static func laneSpacing(scale: CGFloat) -> CGFloat { 3 * scale }
+
+    static func conflictLaneWidth(available: CGFloat, count: Int, scale: CGFloat, textSize: CGFloat) -> CGFloat? {
+        guard count > 1 else { return nil }
+        let gap = 2 * laneSpacing(scale: scale) + dividerWidth
+        let width = (available - CGFloat(count - 1) * gap) / CGFloat(count)
+        // Reserve room for card horizontal padding, the range, its insets and a usable measure for the title.
+        let contentWidth = width - cardHorizontalPadding(scale: scale)
+        return contentWidth >= max(86, 7.0 * textSize) ? width : nil
+    }
+
+    static func showsSideLabel(width: CGFloat, textSize: CGFloat, scale: CGFloat = 1) -> Bool {
+        let contentWidth = width - cardHorizontalPadding(scale: scale)
+        return contentWidth >= max(126, 10.5 * textSize)
+    }
 }
 
-/// 极窄 lane 判定: 侧栏节次/时间标签(42dp+8dp 间距)挤占正文 → 隐藏它。
-func weekLaneHideSideLabel(laneW: CGFloat) -> Bool { laneW < 110 }
-
-// ← LessonRow
-private struct LessonRow: View {
+struct LessonRow: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.localCoursePalette) private var palette
     let course: CourseEntity
@@ -1690,14 +1738,13 @@ private struct LessonRow: View {
     var isGrey: Bool = false
     /// issue#22: 同 groupId 全行(AUTO 模式按行序算 hue; 不传 = 退化为单行 groupRows)
     var groupRows: [CourseEntity] = []
-    /// issue#8: 周视图缩放 + 冲突栏压缩(v7.10.4: effScale = scale × laneScale)
     var scale: Double = 1.0
     var cornerRatio: Double = 1.0
-    var laneScale: Double = 1.0
-    /// 极窄 lane: 侧栏节次/时间标签(42+8)挤占正文 → 隐藏(← weekLaneHideSideLabel)
-    var hideSideLabel: Bool = false
+    var textSize: CGFloat = 12
+    let showsSideLabel: Bool
     var onLongClick: (() -> Void)? = nil
     let onClick: () -> Void
+    @State private var holdRecognized = false
 
     var body: some View {
         let isDark = CourseColorUtil.isPaletteDark(palette)
@@ -1713,17 +1760,16 @@ private struct LessonRow: View {
         let effectiveBg = isGrey ? bg.opacity(SleepyTheme.Alpha.inactive) : bg
         let effectiveFg = isGrey ? fg.opacity(SleepyTheme.Alpha.inactive) : fg
         let strikethrough = isGrey && AppPrefs.shared.getHolidayStyle() == "strikethrough"
-        let effScale = scale * laneScale
         // issue#26: 周视图场景别名 — 与 colorless 同模式, 叶子直接读场景开关
         let name = CourseDisplayUtil.displayName(course, AppPrefs.shared.isWeekUseAlias())
 
-        // time 模式: 时间段在连字符后折行; node 模式: 节次标签
-        let timeParts: (String, String)? = displayMode == "time" && !timeJson.isEmpty
+        let timeParts: (String, String)? = displayMode == "time"
             ? TimeTableUtils.courseTimeParts(courseStartNode: course.startNode, courseStep: course.step,
                                              timeJson: timeJson, ownTime: course.ownTime,
                                              startTime: course.startTime, endTime: course.endTime)
             : nil
         let nodeLabel = course.nodeString(isShort: true)
+        let scheduleLabel = timeParts.map { "\($0.0) - \($0.1)" } ?? nodeLabel
 
         // meta: 教师 · 教室
         let meta: String = {
@@ -1736,61 +1782,73 @@ private struct LessonRow: View {
             return s
         }()
 
-        Button(action: onClick) {
-            HStack(alignment: .top, spacing: 8 * effScale) {
-                if !hideSideLabel {
-                    if let parts = timeParts {
-                        Text("\(parts.0)-\n\(parts.1)")
-                            .font(.system(size: 12 * effScale, weight: .semibold))
-                            .foregroundColor(effectiveFg)
-                            .strikethrough(strikethrough)
-                            .frame(width: 42 * effScale, alignment: .leading)
-                    } else {
-                        Text(nodeLabel)
-                            .font(.system(size: 12 * effScale, weight: .semibold))
-                            .foregroundColor(effectiveFg)
-                            .strikethrough(strikethrough)
-                            .frame(width: 42 * effScale, alignment: .leading)
-                            .lineLimit(1)
-                    }
-                }
-                // ← 原版本 Column(weight(1f)) 无 spacing(0)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(name)
-                        .font(.system(size: 12 * effScale, weight: .semibold))
-                        .foregroundColor(effectiveFg)
-                        .strikethrough(strikethrough)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    // 极窄 lane 下副信息(教师/教室)也让位给课名(!hideSideLabel)
-                    if !meta.isEmpty && !hideSideLabel {
-                        Text(meta)
-                            .font(.system(size: 11 * effScale))
-                            .foregroundColor(effectiveFg.opacity(SleepyTheme.Alpha.highContent))
-                            .strikethrough(strikethrough)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                    }
-                }
-                Spacer(minLength: 0)
+        let timeText = Text(showsSideLabel ? (timeParts.map { "\($0.0)-\n\($0.1)" } ?? nodeLabel) : scheduleLabel)
+            .font(.system(size: textSize, weight: .semibold).monospacedDigit())
+            .foregroundColor(effectiveFg)
+            .strikethrough(strikethrough)
+            .lineLimit(nil)
+            .fixedSize(horizontal: showsSideLabel, vertical: true)
+            .frame(minWidth: showsSideLabel ? 42 * scale : nil, alignment: .leading)
+
+        let details = VStack(alignment: .leading, spacing: 2 * scale) {
+            Text(name)
+                .font(.system(size: textSize, weight: .semibold))
+                .foregroundColor(effectiveFg)
+                .strikethrough(strikethrough)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+            if !meta.isEmpty {
+                Text(meta)
+                    .font(.system(size: textSize * 11 / 12))
+                    .foregroundColor(effectiveFg.opacity(SleepyTheme.Alpha.highContent))
+                    .strikethrough(strikethrough)
+                    .lineLimit(showsSideLabel ? 2 : nil)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(9 * effScale)
+        }
+        .multilineTextAlignment(.leading)
+
+        Button {
+            if holdRecognized {
+                holdRecognized = false
+                return
+            }
+            onClick()
+        } label: {
+            Group {
+                if showsSideLabel {
+                    HStack(alignment: .top, spacing: 8 * scale) {
+                        timeText
+                        details
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 4 * scale) {
+                        timeText
+                        details
+                    }
+                }
+            }
+            .padding(9 * scale)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 44, alignment: .leading)
             .background(effectiveBg)
-            .cornerRadius(12 * effScale * cornerRatio)
+            .cornerRadius(12 * scale * cornerRatio)
         }
         .buttonStyle(SleepyButtonStyle())
-        .highPriorityGesture(
+        .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.5, maximumDistance: 10)
-                .exclusively(before: TapGesture())
-                .onEnded { result in
-                    switch result {
-                    case .first(true): onLongClick?()
-                    case .second: onClick()
-                    default: break
-                    }
+                .onChanged { pressing in
+                    if pressing { holdRecognized = false }
+                }
+                .onEnded { finished in
+                    guard finished, let onLongClick else { return }
+                    holdRecognized = true
+                    onLongClick()
                 }
         )
+        .accessibilityLabel(Text(name))
+        .accessibilityValue(Text(meta.isEmpty ? scheduleLabel : "\(scheduleLabel), \(meta)"))
+        .accessibilityAction { onClick() }
         .accessibilityAction(named: Text(L10n.t("occurrence_actions"))) { onLongClick?() }
         .accessibilityIdentifier("lesson_\(course.id)")   // ← G5: 详情锚点
     }

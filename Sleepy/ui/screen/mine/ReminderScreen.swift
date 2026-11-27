@@ -64,9 +64,7 @@ struct ReminderScreen: View {
     @State private var pickerTarget: DailyReminderTimeTarget? = nil
     @State private var pickerTime = Date()
     @SleepyNavigationState private var showHolidaySettings = false
-    // v1.0.62 B3: 课表提醒独立页入口 (原版本 SleepyRoute.TableReminder push 路由;
-    // iOS 内嵌 sheet = holiday/widgetManagement 同款 by design 链)。
-    @SleepyNavigationState private var showTableReminder = false
+    @State private var snackMessage: String? = nil
     /// 通知权限 denied 态 → master 卡内手动设置引导行。
     /// iOS 语义: denied 后 requestAuthorization 不再弹系统框、静默返回 false
     /// (一次性弹窗), 唯一恢复路径 = 用户手动去系统设置。仅在用户点 master
@@ -111,35 +109,14 @@ struct ReminderScreen: View {
                                 .sleepyControlSurface(cornerRadius: SleepyShapes.large,
                                                       tint: colors.secondaryContainer, prominent: true)
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                         .tint(colors.secondaryContainer)
                         .accessibilityIdentifier("reminder_permissions_attention")
                     }
 
-                    // v1.0.62 B3 课表提醒入口 — ← 原版本 ReminderScreen item:
-                    // title+subtitle 两行 + 尾随 ChevronRight, surfaceContainer 卡底。
-                    Button { showTableReminder = true } label: {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: SettingsLayout.descriptionGap) {
-                                Text(L10n.format("settings_table_reminder_scope"))
-                                    .font(.system(size: 14, weight: .medium))   // ← titleSmall
-                                    .foregroundColor(colors.onSurface)
-                                Text(L10n.format("table_reminder_subtitle"))
-                                    .font(.system(size: 12))                    // ← bodySmall
-                                    .foregroundColor(colors.onSurfaceVariant)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            AndroidMaterialIcon(name: .chevronRight, size: 20)
-                                .foregroundColor(colors.onSurfaceVariant)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .frame(maxWidth: .infinity)
-                        .background(colors.surfaceContainer)
-                        .cornerRadius(SleepyShapes.large)
+                    TableReminderCard(masterEnabled: masterEnabled) { message in
+                        snackMessage = message
                     }
-                    .buttonStyle(SleepyButtonStyle())
-                    .accessibilityIdentifier("reminder_table_reminder_entry")
 
                     // Sub-settings — only visible when master is on
                     if masterEnabled {
@@ -167,6 +144,24 @@ struct ReminderScreen: View {
             }
         }
         .background(colors.background)
+        .overlay(alignment: .bottom) {
+            if let msg = snackMessage {
+                Text(msg)
+                    .font(.system(size: 14))
+                    .accessibilityIdentifier("table_reminder_snackbar")
+                    .foregroundColor(colors.onSurface)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(colors.surfaceContainerHighest)
+                    .cornerRadius(8)
+                    .padding(.bottom, 12)
+                    .task(id: msg) {
+                        try? await Task.sleep(nanoseconds: 2_500_000_000)
+                        guard !Task.isCancelled else { return }
+                        withAnimation { snackMessage = nil }
+                    }
+            }
+        }
         .task {
             // 进入页面即取一次快照
             await refreshReliabilitySnapshot()
@@ -191,11 +186,6 @@ struct ReminderScreen: View {
             HolidaySettingsScreen(onDismiss: { showHolidaySettings = false },
                                   tableId: currentSelectedTableId,
                                   refreshTransfer: { viewModel?.refreshTransfer() })
-        }
-        .sleepyNavigationPage(isPresented: $showTableReminder, changes: _showTableReminder.changes, canvas: {
-            colors.background.ignoresSafeArea()
-        }) {
-            TableReminderScreen(onDismiss: { showTableReminder = false })
         }
     }
 
@@ -297,7 +287,7 @@ struct ReminderScreen: View {
                             .frame(height: uiStyle == .liquidGlass ? nil : 48)   // ← iOS FilledTonalButton 惯例(AllTablesScreen 同语言)
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .tint(colors.secondaryContainer)
                     .padding(.top, 4)
@@ -637,6 +627,10 @@ struct ReminderScreen: View {
                     confirmText: L10n.format("action_confirm"),
                     onConfirm: {
                         let f = DateFormatter()
+                        let cal = Calendar.autoupdatingCurrent
+                        f.locale = Locale(identifier: "en_US_POSIX")
+                        f.calendar = cal
+                        f.timeZone = cal.timeZone
                         f.dateFormat = "HH:mm"
                         let newTime = f.string(from: pickerTime)
                         switch target {
@@ -662,7 +656,7 @@ struct ReminderScreen: View {
         }
         .sheetDetents([.height(400), .large])
         .onAppear {
-            var cal = DateUtils.isoCalendar
+            let cal = Calendar.autoupdatingCurrent
             pickerTime = cal.date(bySettingHour: parts.first ?? defaultHour,
                                   minute: parts.count > 1 ? parts[1] : 0,
                                   second: 0, of: Date()) ?? Date()
@@ -833,19 +827,64 @@ enum ReminderPreviewLoader {
     }
 
     /// ← loadReminderSchedulePreview(): 只读当前表; 任何失败 → nil(回退通用示例)。
-    static func load() async -> ReminderSchedulePreview? {
-        let repo = ScheduleRepository(AppDatabase.getShared())
+    static func load(
+        repo: ScheduleRepository = ScheduleRepository(AppDatabase.getShared()),
+        now: Date = Date(),
+        timeZone: TimeZone = Calendar.autoupdatingCurrent.timeZone
+    ) async -> ReminderSchedulePreview? {
         guard let table = WidgetTableResolver.resolveCurrentTable(repo) else { return nil }
         // ← runCatching + takeIf { isNotEmpty() }: 查询失败/无课 → nil(回退通用示例)
         guard let courses = try? repo.getCourses(table.id), !courses.isEmpty else { return nil }
-        let nodes = TimeTableUtils.parseNodes(table.timeJson)
-        let cal = DateUtils.isoCalendar
-        let now = Date()
-        let todayDay = cal.startOfDay(for: now)
+        let period = table.periodTableId.flatMap { try? repo.getPeriodTable($0) }
+        let clock = CourseReminderCalendar(timeZone: timeZone)
+        let civilCal = CourseOccurrences.calendar
+        let todayDay = clock.civilDay(containing: now) ?? civilCal.startOfDay(for: now)
         let transfers = AppPrefs.shared.getHolidayTransfers(table.id)
 
+        func resolvedTimeJson(for date: Date) -> String {
+            table.hydratedWith(period, forDateKey: HolidayTransferOps.dayKey(date)).timeJson
+        }
+
+        func courseStart(for course: CourseEntity, on date: Date) -> Date? {
+            let timeJson = resolvedTimeJson(for: date)
+            if let seconds = ReminderBellTimes(timeJson).bounds(for: course).start,
+               let instant = clock.instant(on: date, wallSeconds: seconds) {
+                return instant
+            }
+            if course.ownTime && !course.startTime.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let seconds = Self.hmmSeconds(course.startTime),
+               let instant = clock.instant(on: date, wallSeconds: seconds) {
+                return instant
+            }
+            let fallbackNodes = TimeTableUtils.parseNodes(timeJson)
+            if let legacy = fallbackNodes.first(where: { $0.node == course.startNode })?.start {
+                let comps = DateUtils.isoCalendar.dateComponents([.hour, .minute, .second], from: legacy)
+                let secs = (comps.hour ?? 0) * 3600 + (comps.minute ?? 0) * 60 + (comps.second ?? 0)
+                return clock.instant(on: date, wallSeconds: secs)
+            }
+            return nil
+        }
+
         func coursesOn(_ date: Date) -> [CourseEntity] {
-            Self.coursesOn(date, table: table, courses: courses, transfers: transfers, nodes: nodes)
+            let hydrated = table.hydratedWith(period, forDateKey: HolidayTransferOps.dayKey(date))
+            return HolidayTransferOps.coursesForDate(date, startDate: hydrated.startDate, maxWeek: hydrated.maxWeek,
+                                                     courses: courses, transfers: transfers)
+                .sorted { a, b in
+                    let sa = courseStart(for: a, on: date)
+                    let sb = courseStart(for: b, on: date)
+                    switch (sa, sb) {
+                    case (nil, nil): return a.startNode < b.startNode
+                    case (nil, .some): return false
+                    case (.some, nil): return true
+                    case let (.some(x), .some(y)) where x == y: return a.startNode < b.startNode
+                    case let (.some(x), .some(y)): return x < y
+                    }
+                }
+        }
+
+        func formatClock(_ date: Date?) -> String {
+            guard let date else { return "--:--" }
+            return clock.timeText(for: date)
         }
 
         func dayPreview(_ date: Date) -> ReminderDayPreview {
@@ -854,7 +893,7 @@ enum ReminderPreviewLoader {
                 ReminderCoursePreview(
                     date: date,
                     course: course,
-                    startTime: Self.timeText(courseStartTime(course, nodes: nodes))
+                    startTime: formatClock(courseStart(for: course, on: date))
                 )
             }
             return ReminderDayPreview(date: date, courses: dayCourses, firstCourse: first)
@@ -864,14 +903,15 @@ enum ReminderPreviewLoader {
         var nextClass: ReminderCoursePreview? = nil
         let searchDays = max(table.maxWeek, 1) * 7 + 7
         for offset in 0...searchDays {
-            guard let date = cal.date(byAdding: .day, value: offset, to: todayDay) else { continue }
+            guard let date = civilCal.date(byAdding: .day, value: offset, to: todayDay) else { continue }
             let candidate = coursesOn(date)
-                .compactMap { course -> ReminderCoursePreview? in
-                    guard let start = courseStartTime(course, nodes: nodes) else { return nil }
-                    if offset == 0 && start <= now { return nil }      // ← !start.isAfter(LocalTime.now())
-                    return ReminderCoursePreview(date: date, course: course, startTime: Self.timeText(start))
+                .compactMap { course -> (course: CourseEntity, start: Date)? in
+                    guard let start = courseStart(for: course, on: date) else { return nil }
+                    if offset == 0 && start <= now { return nil }
+                    return (course, start)
                 }
-                .min(by: { $0.startTime < $1.startTime })
+                .min(by: { $0.start < $1.start })
+                .map { ReminderCoursePreview(date: date, course: $0.course, startTime: clock.timeText(for: $0.start)) }
             if let candidate = candidate {
                 nextClass = candidate
                 break
@@ -880,7 +920,7 @@ enum ReminderPreviewLoader {
 
         return ReminderSchedulePreview(
             today: dayPreview(todayDay),
-            tomorrow: dayPreview(cal.date(byAdding: .day, value: 1, to: todayDay) ?? todayDay),
+            tomorrow: dayPreview(civilCal.date(byAdding: .day, value: 1, to: todayDay) ?? todayDay),
             nextClass: nextClass
         )
     }

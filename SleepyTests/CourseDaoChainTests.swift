@@ -156,17 +156,19 @@ final class CourseDaoChainTests: XCTestCase {
                         "isIrregularNode","isIrregularTime","ownTime",
                         "startTime","endTime","alias","credit","level","fixedDate"], courseCols)
         let tableCols = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "PRAGMA table_info(time_tables)").map { (r: Row) -> String in r["name"] } })
-        // v14 adds nullable reminderOverride; v15 retains opaque import source metadata.
+        // v14 adds nullable reminderOverride; v15 retains opaque import source metadata;
+        // v17 adds verified academic source metadata.
         XCTAssertEqual(["id","name","startDate","maxWeek","nodesPerDay","timeJson","color",
                         "isDefault","smartConfigJson","createdAt",
-                        "periodTableId","preBindSnapshotJson","reminderEnabled","reminderOverride","importSourceJson"], tableCols)
+                        "periodTableId","preBindSnapshotJson","reminderEnabled","reminderOverride",
+                        "importSourceJson","jwSchoolSourceJson","jwSchoolSourceVerified"], tableCols)
         // v10 新表: period_tables / import_drafts / calendar_import_records 存在且列集对齐 Room
         let tables = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "SELECT name FROM sqlite_master WHERE type='table'").map { (r: Row) -> String in r["name"] } })
         XCTAssertTrue(tables.contains("period_tables"))
         XCTAssertTrue(tables.contains("import_drafts"))
         XCTAssertTrue(tables.contains("calendar_import_records"))
         let periodCols = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "PRAGMA table_info(period_tables)").map { (r: Row) -> String in r["name"] } })
-        XCTAssertEqual(["id","name","nodesPerDay","timeJson","smartConfigJson","createdAt","updatedAt"], periodCols)
+        XCTAssertEqual(["id","name","nodesPerDay","timeJson","smartConfigJson","comboScheduleJson","createdAt","updatedAt"], periodCols)
         let draftCols = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "PRAGMA table_info(import_drafts)").map { (r: Row) -> String in r["name"] } })
         XCTAssertEqual(["id","sourceType","sourceUrl","payloadJson","createdAt","updatedAt"], draftCols)
         let cirCols = try Set(db.dbQueue.read { try Row.fetchAll($0, sql: "PRAGMA table_info(calendar_import_records)").map { (r: Row) -> String in r["name"] } })

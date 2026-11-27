@@ -150,7 +150,7 @@ struct DialogActionButtons: View {
                        maxHeight: style == .liquidGlass ? nil : 48)   // 48 ← SleepyTheme.Buttons.regularHeight
                 .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: container, prominent: true)
         }
-        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
         .frame(minWidth: width, maxWidth: width ?? .infinity,
                minHeight: style == .liquidGlass ? 48 : nil)
         .tint(container)

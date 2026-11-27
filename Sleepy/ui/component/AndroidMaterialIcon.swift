@@ -21,7 +21,7 @@ struct AndroidMaterialIcon: View {
             .fill()
             .frame(width: size, height: size)
             .scaleEffect(x: mirrorsInRTL && layoutDirection == .rightToLeft ? -1 : 1, y: 1)
-            .accessibilityHidden(true)
+            .sleepyAccessibleShapeAnchor()
     }
 
     private var mirrorsInRTL: Bool { name == .undo || name == .redo }
@@ -47,6 +47,26 @@ struct AndroidVectorShape: Shape {
         let scale = min(rect.width, rect.height) / 24
         return vector.applying(CGAffineTransform(scaleX: scale, y: scale))
             .offsetBy(dx: rect.midX - 12 * scale, dy: rect.midY - 12 * scale)
+    }
+}
+
+private enum SleepyTransparentPixel {
+    static let image: UIImage = {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1))
+        return renderer.image { _ in }
+    }()
+}
+
+extension View {
+    /// Keeps shape-only buttons discoverable in iOS 16 ScrollView accessibility trees
+    /// without speaking a stray label when combined alongside Text labels.
+    func sleepyAccessibleShapeAnchor() -> some View {
+        background(
+            Image(uiImage: SleepyTransparentPixel.image)
+                .resizable()
+                .accessibilityRemoveTraits(.isImage)
+                .accessibilityHidden(false)
+        )
     }
 }
 

@@ -647,8 +647,8 @@ private struct ConflictCoursePickerSheet: View {
                             .sleepyControlSurface(cornerRadius: SleepyShapes.small,
                                                   tint: isTopLayer ? colors.primaryContainer : colors.surfaceContainer)
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(prominent: (layerRepIdOfCourse[course.id] ?? course.id) == topRepId,
-                                                               cornerRadius: SleepyShapes.small))
+                        .sleepyPlatformButtonStyle(prominent: (layerRepIdOfCourse[course.id] ?? course.id) == topRepId,
+                                                               cornerRadius: SleepyShapes.small)
                         .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
                         .tint((layerRepIdOfCourse[course.id] ?? course.id) == topRepId ? colors.primaryContainer : colors.surfaceContainer)
                         .accessibilityLabel(course.courseName)

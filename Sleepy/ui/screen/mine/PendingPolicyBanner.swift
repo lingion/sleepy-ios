@@ -36,7 +36,7 @@ struct PendingPolicyBanner: View {
                         .padding(.vertical, style == .classic ? 6 : 0)
                         .frame(minHeight: style == .classic ? 48 : nil)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle())
+                .sleepyPlatformButtonStyle()
                 .tint(colors.primary)
                 .frame(minHeight: 48)
             }

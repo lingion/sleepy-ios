@@ -1,5 +1,6 @@
 // ThemeAndPinyinTests.swift — D4 主题 + PinyinMatcher 测试(原版本 无对应测试文件,iOS 立守卫)
 
+import Combine
 import XCTest
 import SwiftUI
 @testable import Sleepy
@@ -41,6 +42,22 @@ final class ThemePresetTests: XCTestCase {
         // (无法直接断言语义色相等,断言不等于任一预设的背景)
         let dyn = SleepyThemeProvider.dynamicSystemScheme(dark: false)
         XCTAssertNotEqual(ThemePresets.default.light.background, dyn.background)
+    }
+
+    func testThemePublisherStartsWithStoredThemeAndPublishesOneUpdatePerSelection() throws {
+        let suite = "theme-selection-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(ThemePresets.KEY_SPRING, forKey: AppPrefs.KEY_THEME)
+        let prefs = AppPrefs(defaults: defaults)
+        var updates: [String] = []
+        let subscription = prefs.themeKeyPublisher.sink { updates.append($0) }
+        defer { subscription.cancel() }
+
+        prefs.setThemeKey(ThemePresets.KEY_OCEAN)
+        prefs.setThemeKey(ThemePresets.KEY_OCEAN)
+        XCTAssertEqual(updates, [ThemePresets.KEY_SPRING, ThemePresets.KEY_OCEAN])
+        XCTAssertEqual(AppPrefs(defaults: defaults).getThemeKey(), ThemePresets.KEY_OCEAN)
     }
 
     func testLocalizedNamesResolve() {

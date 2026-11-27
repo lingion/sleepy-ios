@@ -21,15 +21,22 @@ struct ThemeColorVector: VectorArithmetic {
         ])
         let space = CGColorSpace(name: CGColorSpace.extendedSRGB)!
         self.init(components: Self.slots(of: scheme).flatMap { color -> [Double] in
-            let ui = UIColor(color).resolvedColor(with: traits)
-            if let converted = ui.cgColor.converted(to: space, intent: .relativeColorimetric, options: nil),
-               let rgba = converted.components, rgba.count == 4 {
-                return rgba.map { Double($0) }
+            var rgbaValues: [Double] = [0, 0, 0, 1]
+            // On iOS 15-16, UIColor(Color(uiColor: dynamic)) drops trait updates on resolvedColor(with:).
+            let raw = (Mirror(reflecting: color).descendant("provider", "base") as? UIColor) ?? UIColor(color)
+            traits.performAsCurrent {
+                let ui = raw.resolvedColor(with: traits)
+                if let converted = ui.cgColor.converted(to: space, intent: .relativeColorimetric, options: nil),
+                   let rgba = converted.components, rgba.count == 4 {
+                    rgbaValues = rgba.map { Double($0) }
+                } else {
+                    // 现有角色均是 RGB/灰度色；保留 UIKit 桥接兜底，透明度不丢失。
+                    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 1
+                    ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+                    rgbaValues = [Double(r), Double(g), Double(b), Double(a)]
+                }
             }
-            // 现有角色均是 RGB/灰度色；保留 UIKit 桥接兜底，透明度不丢失。
-            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 1
-            ui.getRed(&r, green: &g, blue: &b, alpha: &a)
-            return [Double(r), Double(g), Double(b), Double(a)]
+            return rgbaValues
         })
     }
 

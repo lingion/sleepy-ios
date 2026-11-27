@@ -124,7 +124,7 @@ struct CourseColorSection: View {
                         .frame(height: style == .liquidGlass ? nil : 48)
                         .sleepyControlSurface(cornerRadius: 24, tint: colors.secondaryContainer)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(shape: .capsule))
+                .sleepyPlatformButtonStyle(shape: .capsule)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .tint(colors.secondaryContainer)
                 .accessibilityIdentifier("course_color_recalc")

@@ -7,7 +7,9 @@ enum SleepyButtonShape {
     case capsule
 
     var nativeBorder: ButtonBorderShape {
+#if compiler(>=5.9)
         if #available(iOS 17.0, *), self == .circle { return .circle }
+#endif
         return .capsule
     }
 }
@@ -98,7 +100,8 @@ struct SleepyActionButtonStyle: PrimitiveButtonStyle {
     }
 }
 
-/// Preserve existing Material labels while letting native glass buttons own their surface.
+/// Preserve existing Material labels while applying native glass or Classic styles directly
+/// to the owning Button so accessibility identifiers and button traits stay attached to one node.
 struct SleepyPlatformButtonStyle: PrimitiveButtonStyle {
     @Environment(\.sleepyUIStyle) private var style
     var prominent = false
@@ -115,6 +118,92 @@ struct SleepyPlatformButtonStyle: PrimitiveButtonStyle {
             Button(role: configuration.role, action: configuration.trigger) { configuration.label }
                 .buttonStyle(SleepyButtonStyle())
         }
+    }
+}
+
+private struct SleepyPlatformButtonStyleModifier: ViewModifier {
+    @Environment(\.sleepyUIStyle) private var style
+    @Environment(\.isEnabled) private var isEnabled
+    var prominent = false
+    var cornerRadius: CGFloat = 20
+    var compact = false
+    var shape: SleepyButtonShape = .capsule
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if style == .liquidGlass {
+            #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                if prominent {
+                    content
+                        .buttonStyle(GlassProminentButtonStyle())
+                        .buttonBorderShape(shape.nativeBorder)
+                        .modifier(SleepyNativeButtonSizing(compact: compact || shape == .circle))
+                        .environment(\.sleepyNativeButtonSurface, true)
+                } else {
+                    content
+                        .buttonStyle(GlassButtonStyle())
+                        .buttonBorderShape(shape.nativeBorder)
+                        .modifier(SleepyNativeButtonSizing(compact: compact || shape == .circle))
+                        .environment(\.sleepyNativeButtonSurface, true)
+                }
+            } else {
+                nativeFallback(content: content)
+            }
+            #else
+            nativeFallback(content: content)
+            #endif
+        } else {
+            content.buttonStyle(SleepyButtonStyle())
+        }
+    }
+
+    @ViewBuilder
+    private func nativeFallback(content: Content) -> some View {
+        if #unavailable(iOS 17.0), shape == .circle {
+            content
+                .buttonStyle(NativeCircleMaterialButtonStyle(prominent: prominent, isEnabled: isEnabled))
+                .environment(\.sleepyNativeButtonSurface, true)
+        } else if prominent {
+            content
+                .buttonStyle(BorderedProminentButtonStyle())
+                .buttonBorderShape(shape.nativeBorder)
+                .modifier(SleepyNativeButtonSizing(compact: compact || shape == .circle))
+                .environment(\.sleepyNativeButtonSurface, true)
+        } else {
+            content
+                .buttonStyle(BorderedButtonStyle())
+                .buttonBorderShape(shape.nativeBorder)
+                .modifier(SleepyNativeButtonSizing(compact: compact || shape == .circle))
+                .environment(\.sleepyNativeButtonSurface, true)
+        }
+    }
+}
+
+private struct NativeCircleMaterialButtonStyle: ButtonStyle {
+    let prominent: Bool
+    let isEnabled: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(width: 44, height: 44)
+            .background {
+                if prominent {
+                    Circle().fill(.tint)
+                } else {
+                    Circle().fill(.ultraThinMaterial)
+                }
+            }
+            .contentShape(Circle())
+            .opacity(configuration.isPressed && isEnabled ? 0.7 : (isEnabled ? 1 : 0.45))
+    }
+}
+
+extension View {
+    func sleepyPlatformButtonStyle(prominent: Bool = false, cornerRadius: CGFloat = 20,
+                                   compact: Bool = false, shape: SleepyButtonShape = .capsule) -> some View {
+        modifier(SleepyPlatformButtonStyleModifier(prominent: prominent, cornerRadius: cornerRadius,
+                                                   compact: compact, shape: shape))
     }
 }
 

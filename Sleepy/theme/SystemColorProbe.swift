@@ -156,11 +156,13 @@ private final class WindowTintSensor: UIView {
         super.init(frame: .zero)
         isUserInteractionEnabled = false
         isAccessibilityElement = false
+#if compiler(>=5.9)
         if #available(iOS 17.0, *) {
             registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) {
                 (self: Self, _: UITraitCollection) in self.changed?()
             }
         }
+#endif
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }

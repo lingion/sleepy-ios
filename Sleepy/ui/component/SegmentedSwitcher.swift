@@ -58,6 +58,7 @@ struct SegmentedSwitcher<T: Hashable>: View {
                                 .foregroundColor(index == selectedIndex ? colors.onSecondaryContainer : colors.onSurfaceVariant)
                                 .lineLimit(1).minimumScaleFactor(0.75).allowsTightening(true)
                                 .frame(width: slot, height: trackHeight)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(SleepyButtonStyle())
                         .accessibilityIdentifier("seg_\(pair.1)")
@@ -70,7 +71,6 @@ struct SegmentedSwitcher<T: Hashable>: View {
             .padding(4)
             .frame(width: geo.size.width, height: height)
             .background(RoundedRectangle(cornerRadius: 14).fill(containerColor ?? colors.surfaceContainer))
-            .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.45)
         }
         .frame(height: height)
