@@ -1,7 +1,7 @@
 # Spec: Sleepy iOS — sleepy 课程表 100% 移植 (original → iOS)
 
 **源项目**: `~/Desktop/sleepy` (Kotlin + Compose, 87 文件 / 18,242 行, v1.0.34, GPL-3.0)
-**目标**: SwiftUI 原生移植。当前用户分发采用 App Store 和 TestFlight；下文 AltStore 与无签名构建属于早期开发验收方案。安装状态见文末“当前分发状态”。
+**目标**: SwiftUI 原生移植。当前用户分发仅使用 App Store；下文 AltStore 与无签名构建属于早期开发验收方案。安装状态见文末“当前分发状态”。
 
 ---
 
@@ -23,7 +23,7 @@
 | WebView | WKWebView | JW 登录取 cookie |
 | 工程生成 | XcodeGen | project.yml 可读可 diff,免手写 pbxproj |
 | 签名 | **不签名构建** → AltStore 用免费 Apple ID 重签 | 侧载标准做法;App Group 由 AltStore 注入 |
-| 分发 | App Store 正式版与 TestFlight 公测 | 中国大陆商店审核中，使用 TestFlight；无签名 IPA 仅用于开发验收 |
+| 分发 | App Store | 中国大陆区及其他地区均已通过 App Store 分发；无签名 IPA 仅用于开发验收 |
 
 依赖经 SPM 拉取,git 源走 `gh.qdp.qzz.io` 镜像替换 `github.com`。
 
@@ -108,7 +108,7 @@ Kotlin → Swift 逐行对译,保结构:
 | # | original 机制 | iOS 等价适配 | 性质 |
 |---|---|---|---|
 | 1 | AlarmManager 精确闹钟+BootReceiver | UNUserNotificationCenter 本地通知(UNCalendarNotificationTrigger),iOS 重启后通知仍持久,BootReceiver 不需要;64 pending 上限→按天批量排程 | 等价 |
-| 2 | REQUEST_INSTALL_PACKAGES 自装 APK 更新 | 1.0.64 起 iOS 分发收敛 App Store/TestFlight,「获取更新」切片整体移除(无自装等价物, GitHub 仅源码公开) | 平台私有(功能移除) |
+| 2 | REQUEST_INSTALL_PACKAGES 自装 APK 更新 | 1.0.64 起 iOS 分发仅保留 App Store,「获取更新」切片整体移除(无自装等价物, GitHub 仅源码公开) | 平台私有(功能移除) |
 | 3 | OPPO Fluid Cloud(FluidCloudService + oppo-fluid-cloud-upk) | ActivityKit 实况活动/灵动岛，界面位于 SleepyWidget。按提醒总开关、课前开关、各表开关与提前分钟数选择当前/即将开始的课程。前台按边界刷新；后台只保证已交付的系统计时视图，不保证自动切课或移除，重新打开应用校准。静态+动态载荷合计不得超过4KB；单条活动最多8小时，结束后锁屏最多保留4小时。 | 有平台限制，真机待验收 |
 | 4 | ACTION_VIEW json 文件导入(ImportReceiverActivity) | CFBundleDocumentTypes + onOpenURL,ImportSheet 预览流程原样 | 等价 |
 | 5 | RemoteViews+Canvas bitmap 渲染 widget | WidgetKit SwiftUI 视图;WidgetBitmapRenderers.kt 的**布局/排版/配色计算逻辑逐函数移植**,bitmap 管道本身不移植 | 等价(渲染载体换) |
@@ -135,4 +135,4 @@ Kotlin → Swift 逐行对译,保结构:
 
 ## 当前分发状态
 
-2026年11月10日核对：中国大陆以外的 [App Store](https://apps.apple.com/app/id6827001840) 均已上线，中国大陆区仍在审核中，可通过 [TestFlight](https://testflight.apple.com/join/SxymmDzf) 安装。正式商店、公测与源码主线独立，安装版本和系统要求以所选渠道页面为准。GitHub 仅作为源码与开发记录入口，应用不通过 GitHub 检查更新。
+2026年11月25日核对：中国大陆区及其他地区的 [App Store](https://apps.apple.com/app/id6827001840) 已作为 Sleepy iOS 的唯一官方安装与更新渠道。源码主线与上架版本独立，实际安装版本和系统要求以 App Store 页面为准。GitHub 仅作为源码与开发记录入口，应用不通过 GitHub 检查更新。
