@@ -43,6 +43,38 @@ final class JwSgAssetBridgeTests: XCTestCase {
         XCTAssertEqual(courses.first?.type, 1)
     }
 
+    func testDatedRulesStayRawUntilTheOneTerminalMessage() throws {
+        let context = try runtime()
+        context.evaluateScript(JwSgAssetBridge.assemble(vendorJs: #"""
+        const raw = '{ "name":"秋冬🍂", "publicSchedules": [] }';
+        shiguangBridgePromise.saveImportedCourses('[{"name":"课","day":1,"startSection":1,"endSection":1,"weeks":[1]}]');
+        shiguangBridgePromise.saveComboSchedule(raw);
+        if (messages.length !== 0) throw new Error('premature result');
+        shiguangBridgePromise.savePresetTimeSlots('[{"number":1,"startTime":"08:00","endTime":"08:45"}]');
+        shiguangBridge.notifyTaskCompletion();
+        shiguangBridge.notifyTaskCompletion();
+        """#))
+        let output = try messages(context)
+        XCTAssertEqual(output.count, 1)
+        XCTAssertEqual(output.first?["ok"] as? Bool, true)
+        XCTAssertEqual(output.first?["comboScheduleJson"] as? String, #"{ "name":"秋冬🍂", "publicSchedules": [] }"#)
+        XCTAssertEqual((output.first?["periods"] as? [[String: Any]])?.count, 1)
+    }
+
+    func testCaughtCombinationFailureCannotBecomeASuccessfulCapture() throws {
+        let context = try runtime()
+        context.evaluateScript(JwSgAssetBridge.assemble(vendorJs: #"""
+        shiguangBridgePromise.saveImportedCourses('[]');
+        shiguangBridgePromise.saveComboSchedule('{"publicSchedules":null}').catch(function(){});
+        shiguangBridgePromise.saveComboSchedule('{"publicSchedules":[]}').catch(function(){});
+        shiguangBridge.notifyTaskCompletion();
+        """#))
+        let output = try messages(context)
+        XCTAssertEqual(output.count, 1)
+        XCTAssertEqual(output.first?["ok"] as? Bool, false)
+        XCTAssertNil(output.first?["comboScheduleJson"])
+    }
+
     func testCompletionWithoutSubmissionAndVendorExceptionFailExplicitly() throws {
         for script in ["shiguangBridge.notifyTaskCompletion();", "throw new Error('vendor failed');",
                        "AndroidBridgePromise.saveComboSchedule('{}'); shiguangBridge.notifyTaskCompletion();"] {

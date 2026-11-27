@@ -92,6 +92,7 @@ struct JwWebViewLoginScreen: View {
 
     var selectedSgAdapterId: String = ""
     var onSgAdapterSelected: ((String) -> Void)? = nil
+    let locksImportEntry: Bool
     @State private var chosenSgAdapterId = ""
     @State private var sgAdapterChoices: [JwSgAssetBridge.Manifest.Adapter] = []
     @State private var showSgAdapterChoices = false
@@ -109,6 +110,7 @@ struct JwWebViewLoginScreen: View {
     // (rememberTextFieldState(school.url)) — 浏览器式地址栏编辑态
     @State private var editingUrl = false
     @State private var urlDraft: String = ""
+    @State private var enteredImportURL: String?
 
     init(school: JwSchoolInfo,
          onHtmlCaptured: @escaping (String, JwSchoolInfo, [(Int, String, String)], String) -> Void,
@@ -117,7 +119,8 @@ struct JwWebViewLoginScreen: View {
          onWebViewReady: ((WebViewCoordinator) -> Void)? = nil,
          onCaptureError: ((FrameCaptureResult, String) -> Void)? = nil,
          selectedSgAdapterId: String = "",
-         onSgAdapterSelected: ((String) -> Void)? = nil) {
+         onSgAdapterSelected: ((String) -> Void)? = nil,
+         locksImportEntry: Bool = false) {
         self.school = school
         self.onHtmlCaptured = onHtmlCaptured
         self.onBack = onBack
@@ -126,6 +129,7 @@ struct JwWebViewLoginScreen: View {
         self.onCaptureError = onCaptureError
         self.selectedSgAdapterId = selectedSgAdapterId
         self.onSgAdapterSelected = onSgAdapterSelected
+        self.locksImportEntry = locksImportEntry
         _chosenSgAdapterId = State(initialValue: selectedSgAdapterId)
         _desktopUa = State(initialValue: JwClassicEamsFetch.initialDesktopUa(school))
     }
@@ -140,14 +144,14 @@ struct JwWebViewLoginScreen: View {
                 }) {
                     AndroidSettingsIcon(name: .arrowBack, size: 24)   // ← 原 ArrowBack 默认 24dp regular
                         .foregroundColor(colors.onBackground)
-                        .frame(width: style == .classic ? 48 : nil,
-                               height: style == .classic ? 48 : nil)
+                        .frame(width: style == .classic ? 48 : 34, height: style == .classic ? 48 : 34)
                         .contentShape(Circle())
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                .sleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle)
                 .frame(width: 48, height: 48)
                 .contentShape(Circle())
                 .accessibilityLabel(L10n.format("back"))   // ← contentDescription = R.string.back
+                .accessibilityIdentifier("topbar_back")
                 // ← title: editingUrl ? OutlinedTextField(urlDraft) : Column(name, currentUrl)
                 if editingUrl {
                     // ← OutlinedTextField state=urlDraft, SingleLine, placeholder=jw_url_hint,
@@ -181,43 +185,44 @@ struct JwWebViewLoginScreen: View {
                 Spacer()
                 // ← actions Edit/Check IconButton: 进编辑态(urlDraft := currentUrl)
                 //   或提交; enabled = webViewRef != null
-                Button(action: {
-                    if editingUrl {
-                        submitUrl()
-                    } else {
-                        urlDraft = currentUrl
-                        editingUrl = true
-                    }
-                }) {
-                    Group {
+                if !locksImportEntry && school.type != JwProtocol.TYPE_SG_ASSET {
+                    Button(action: {
                         if editingUrl {
-                            AndroidMaterialIcon(name: .check, size: 24)
+                            submitUrl()
                         } else {
-                            AndroidSettingsIcon(name: .edit, size: 24)
+                            urlDraft = currentUrl
+                            editingUrl = true
                         }
-                    }   // ← M3 Icon 24dp
-                        .frame(width: style == .liquidGlass ? nil : 48,
-                               height: style == .liquidGlass ? nil : 48)
-                        .contentShape(Circle())
-                        .foregroundColor(webViewCoordinator == nil
-                            ? colors.onSurface.opacity(0.38)
-                            : colors.onBackground)
+                    }) {
+                        Group {
+                            if editingUrl {
+                                AndroidMaterialIcon(name: .check, size: 24)
+                            } else {
+                                AndroidSettingsIcon(name: .edit, size: 24)
+                            }
+                        }   // ← M3 Icon 24dp
+                            .frame(width: style == .liquidGlass ? nil : 48,
+                                   height: style == .liquidGlass ? nil : 48)
+                            .contentShape(Circle())
+                            .foregroundColor(webViewCoordinator == nil
+                                ? colors.onSurface.opacity(0.38)
+                                : colors.onBackground)
+                    }
+                    .sleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
+                    .disabled(webViewCoordinator == nil)
+                    .accessibilityLabel(L10n.format(editingUrl ? "jw_url_submit" : "jw_edit_url"))
+                    .accessibilityIdentifier("jw_edit_url")
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
-                .frame(width: 48, height: 48)
-                .contentShape(Circle())
-                .disabled(webViewCoordinator == nil)
-                .accessibilityLabel(L10n.format(editingUrl ? "jw_url_submit" : "jw_edit_url"))
-                .accessibilityIdentifier("jw_edit_url")
                 if !editingUrl {
-                    if sgAdapterChoices.count > 1 {
+                    if sgAdapterChoices.count > 1 && !locksImportEntry {
                         Button { showSgAdapterChoices = true } label: {
                             AndroidSettingsIcon(name: .school, size: 24)
                                 .foregroundColor(colors.onBackground)
-                                .frame(width: style == .classic ? 48 : nil,
-                                       height: style == .classic ? 48 : nil)
+                                .frame(width: style == .classic ? 48 : 34, height: style == .classic ? 48 : 34)
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                        .sleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle)
                         .frame(width: 48, height: 48)
                         .disabled(webViewCoordinator == nil)
                         .accessibilityLabel(L10n.t("jw_sg_choose_adapter"))
@@ -235,7 +240,7 @@ struct JwWebViewLoginScreen: View {
                                 ? colors.onSurface.opacity(0.38)   // ← disabled: onSurface 38%
                                 : colors.onBackground)   // ← actionIconContentColor
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                    .sleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle)
                     .frame(width: 48, height: 48)
                     .contentShape(Circle())
                     .disabled(webViewCoordinator == nil)
@@ -254,7 +259,7 @@ struct JwWebViewLoginScreen: View {
                                 ? colors.onSurface.opacity(0.38)
                                 : colors.onBackground)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle))
+                    .sleepyPlatformButtonStyle(cornerRadius: 20, shape: .circle)
                     .frame(width: 48, height: 48)
                     .contentShape(Circle())
                     .disabled(webViewCoordinator == nil)
@@ -323,7 +328,7 @@ struct JwWebViewLoginScreen: View {
                         tint: webViewCoordinator == nil ? colors.onSurface.opacity(0.12) : colors.primary,
                         prominent: true)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.extraLarge))
+                .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.extraLarge)
                 .frame(minHeight: style == .liquidGlass ? 44 : nil)
                 .tint(webViewCoordinator == nil ? colors.onSurface.opacity(0.12) : colors.primary)
                 .disabled(webViewCoordinator == nil)   // ← 原 enabled = webViewRef != null
@@ -396,11 +401,12 @@ struct JwWebViewLoginScreen: View {
         guard let uri = URL(string: normalized),
               let scheme = uri.scheme?.lowercased(),
               (scheme == "http" || scheme == "https"),
-              let host = uri.host, !host.isEmpty else {
+              let host = uri.host, !host.isEmpty, uri.user == nil, uri.password == nil else {
             snackMessage = L10n.format("jw_url_invalid")
             return
         }
         editingUrl = false
+        enteredImportURL = normalized
         webViewCoordinator?.loadURL(normalized)
     }
 
@@ -440,7 +446,8 @@ struct JwWebViewLoginScreen: View {
                 if let url = URL(string: restored.importUrl), ["http", "https"].contains(url.scheme ?? "") {
                     coordinator.webView?.load(URLRequest(url: url))
                 }
-            } else { showSgAdapterChoices = true }
+            } else if !locksImportEntry { showSgAdapterChoices = true }
+            else { snackMessage = L10n.t("jw_update_source_unavailable") }
         } catch { snackMessage = error.localizedDescription }
     }
 
@@ -651,12 +658,28 @@ struct JwWebViewLoginScreen: View {
                                   "category": adapter.category ?? "", "importUrl": adapter.importUrl]
                 }
                 do {
-                    payload = try JwSgSourceMetadata.stringify(["sleepySgAsset": true,
-                        "coursesJson": content, "config": obj["sgConfig"] as? [String: Any] ?? [:], "adapter": provenance])
+                    var envelope: [String: Any] = ["sleepySgAsset": true,
+                        "coursesJson": content, "config": obj["sgConfig"] as? [String: Any] ?? [:], "adapter": provenance]
+                    if let raw = obj["comboScheduleJson"] as? String, !raw.isEmpty {
+                        // Use the whole base from the same terminal message. Never infer missing rows.
+                        let base = TimeTableUtils.buildTimeJsonFromRows(periods.map {
+                            .init(node: $0.0, start: $0.1, end: $0.2)
+                        })
+                        _ = try importedDatedPeriodTable(name: "", bindingId: -1, baseJson: base, comboScheduleJson: raw)
+                        envelope["comboScheduleJson"] = raw
+                    } else if let value = obj["comboScheduleJson"], !(value is String) {
+                        throw ImportedDatedPeriodError.invalidSchedule
+                    }
+                    payload = try JwSgSourceMetadata.stringify(envelope)
                     _ = try JwSgSourceMetadata.capture(payload, school.type)
                 } catch { snackMessage = error.localizedDescription; return }
             }
             var capturedSchool = school
+            if let enteredImportURL = enteredImportURL, enteredImportURL != school.url {
+                // The user chose a custom entry; do not vouch for it as the bundled catalog entry.
+                capturedSchool = JwSchoolInfo(sortKey: "", name: school.name, url: enteredImportURL, type: school.type,
+                                              status: school.status, enableFetch: school.enableFetch)
+            }
             if obj["protocol"] as? String == "chaoxing_share",
                Jw1064CaptureScripts.isChaoxingShareUrl(webViewCoordinator?.currentURLString ?? "") {
                 capturedSchool.type = "chaoxing_share"

@@ -55,6 +55,14 @@ final class JwCatalogMigrationTests: XCTestCase {
         }
     }
 
+    func testGXNZDUsesTheReleasedVPNEntryWithoutChangingProtocol() throws {
+        let rows = try catalog().filter { $0["catalogId"] as? String == "G_广西农业职业技术大学" }
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?["url"] as? String, "https://vpn.gxnzd.com.cn")
+        XCTAssertEqual(rows.first?["type"] as? String, "zf_new")
+        XCTAssertEqual(rows.first?["aliases"] as? [String], ["gxnzd"])
+    }
+
     func testEverySgSchoolLoadsItsRealBundledAdapterAndLicense() throws {
         let roots = [bundle.resourceURL, Bundle.main.resourceURL].compactMap { $0 }
         let root = try XCTUnwrap(roots.first {

@@ -7,6 +7,15 @@ final class JwPostgradSchoolParityTests: XCTestCase {
         try JwPostgradSchoolParser(source, protocolType: type).generateCourseList()
     }
 
+    private func zjuPage(_ tables: String...) throws -> String {
+        let html = "<div><form id='kcbForm'></form>" + tables.joined() + "</div>"
+        return String(decoding: try JSONSerialization.data(withJSONObject: [html]), as: UTF8.self)
+    }
+
+    private func zjuAnchor(_ name: String, _ weeks: String, _ teacher: String, _ room: String) -> String {
+        "<a><strong>\(name)</strong><br><br>类别<br>时间||(\(weeks)周)<br>\(teacher)<br>\(room)</a>"
+    }
+
     private func course(_ name: String, _ room: String, _ teacher: String, _ day: Int,
                         _ start: Int, _ end: Int, _ first: Int, _ last: Int, _ parity: Int = 0,
                         credit: Float = 0, note: String = "", startTime: String = "", endTime: String = "") -> JwCourse {
@@ -92,6 +101,42 @@ final class JwPostgradSchoolParityTests: XCTestCase {
         let page = #"<div><form id='kcbForm'></form><table><tr><th>头</th></tr><tr><td rowspan='2'><a><strong>研究2</strong><br><br>类别<br>时间||(前四,八周)<br>王<br>A</a></td><td><a><strong>专题</strong><br><br>类别<br>时间||(五周)<br>李<br>B</a></td></tr><tr><td><a><strong>后课</strong><br><br>类别<br>时间||(九周)<br>陈<br>C</a></td></tr></table></div>"#
         let source = String(decoding: try JSONSerialization.data(withJSONObject: [page]), as: UTF8.self)
         XCTAssertEqual(try parse("zju_post", source), [course("研究2", "A", "王", 1, 1, 2, 1, 4), course("研究2", "A", "王", 1, 1, 2, 8, 8), course("专题", "B", "李", 2, 1, 1, 5, 5), course("后课", "C", "陈", 2, 2, 2, 9, 9)])
+    }
+
+    func testZjuDecoyTablesCannotShadowCompleteCourseTuple() throws {
+        let decoy = "<table><tr><td>菜单</td><td>公告</td></tr></table>"
+        let schedule = "<table><tr><th>节次</th><th>星期一</th><th>星期二</th></tr><tr><td rowspan='2'>\(zjuAnchor("研究2", "前四,八", "王", "A"))</td><td>\(zjuAnchor("专题", "3,5-6", "李", "B"))</td></tr><tr><td>\(zjuAnchor("后课", "九", "陈", "C"))</td></tr></table>"
+        let result = try parse("zju_post", zjuPage(decoy, schedule, decoy))
+        XCTAssertEqual(result, [
+            course("研究2", "A", "王", 1, 1, 2, 1, 4),
+            course("研究2", "A", "王", 1, 1, 2, 8, 8),
+            course("专题", "B", "李", 2, 1, 1, 3, 3),
+            course("专题", "B", "李", 2, 1, 1, 5, 6),
+            course("后课", "C", "陈", 2, 2, 2, 9, 9),
+        ])
+    }
+
+    func testZjuDuplicateTablesWithTitleRowKeepOneCompleteLayout() throws {
+        let schedule = "<tr><th colspan='2'>课程表标题</th></tr><tr><th>节次</th><th>星期一</th><th>星期二</th></tr><tr><td rowspan='2'>\(zjuAnchor("研讨", "前二", "王", "A101"))</td><td>\(zjuAnchor("专题", "3,5", "李", "B201"))</td></tr><tr><td>\(zjuAnchor("后课", "九", "陈", "C301"))</td></tr>"
+        let table = "<table>\(schedule)</table>"
+        let result = try parse("zju_post", zjuPage(table, table))
+        XCTAssertEqual(result, [
+            course("研讨", "A101", "王", 1, 1, 2, 1, 2),
+            course("专题", "B201", "李", 2, 1, 1, 3, 3),
+            course("专题", "B201", "李", 2, 1, 1, 5, 5),
+            course("后课", "C301", "陈", 2, 2, 2, 9, 9),
+        ])
+    }
+
+    func testZjuMalformedTableDoesNotLeakPartialCourses() throws {
+        let malformed = "<table><tr><th>头</th></tr><tr><td>\(zjuAnchor("半截课", "五", "赵", "坏室"))</td></tr><tr><td rowspan='0'>\(zjuAnchor("坏跨度", "六", "钱", "坏室"))</td></tr></table>"
+        let valid = "<table><tr><th>头</th></tr><tr><td rowspan='2'>\(zjuAnchor("完整课", "7-8", "孙", "D401"))</td><td>\(zjuAnchor("同期课", "9", "周", "E501"))</td></tr><tr><td>\(zjuAnchor("后续课", "10", "吴", "F601"))</td></tr></table>"
+        let result = try parse("zju_post", zjuPage(malformed, valid))
+        XCTAssertEqual(result, [
+            course("完整课", "D401", "孙", 1, 1, 2, 7, 8),
+            course("同期课", "E501", "周", 2, 1, 1, 9, 9),
+            course("后续课", "F601", "吴", 2, 2, 2, 10, 10),
+        ])
     }
 
     func testCsvQuotedFieldsCRLFAndSemicolon() throws {

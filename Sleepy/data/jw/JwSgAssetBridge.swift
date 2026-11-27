@@ -185,7 +185,18 @@ enum JwSgAssetBridge {
     },
     saveComboSchedule: function(comboScheduleJsonString){
       if (!active()) return Promise.reject(new Error('采集 session 已结束或取消'));
-      return metadataFailure('来源包含按日期切换的作息，本次导入尚不能完整保存该方案');
+      try {
+        if (typeof comboScheduleJsonString !== 'string' || comboScheduleJsonString.length > 262144) {
+          throw new Error('组合字段无效或过长');
+        }
+        var combo = JSON.parse(comboScheduleJsonString);
+        if (!combo || !Array.isArray(combo.publicSchedules) || combo.publicSchedules.length > 366) {
+          throw new Error('组合方案结构无效');
+        }
+        // Swift validates the original string against the completed base schedule.
+        state.comboScheduleJson = comboScheduleJsonString;
+      } catch(e) { return metadataFailure('来源组合作息无效，请检查后重新导入'); }
+      return promiseResult(true);
     }
   };
   var syncApi = {
@@ -201,7 +212,7 @@ enum JwSgAssetBridge {
       if (state.failure || unanswered) {
         out({ok:false,captureId:state.sessionId,err:state.failure || '来源尚有未完成的导入选择，请重新导入'});
       } else if (state.submitted) {
-        out({ok:true, captureId:state.sessionId, data:state.data, periods:state.periods, startDate:state.startDate, sgConfig:state.config, sgAsset:'saveImportedCourses'});
+        out({ok:true, captureId:state.sessionId, data:state.data, periods:state.periods, startDate:state.startDate, sgConfig:state.config, comboScheduleJson:state.comboScheduleJson, sgAsset:'saveImportedCourses'});
       } else {
         out({ok:false, captureId:state.sessionId, err:'拾光适配脚本已结束但未提交课表 (可能需要手动导航到课表页后重试)'});
       }
@@ -212,7 +223,7 @@ enum JwSgAssetBridge {
       // 来源异步代码可能在稍后读取全局 API。换 session 必须换文档，不能原页重装。
       if (state) throw new Error('再次导入前请重新加载页面');
       state = {sessionId:sessionId, submitted:false, completed:false, cancelled:false,
-        nextRequest:0,pending:{},data:'', periods:[], startDate:'', config:{},failure:''};
+        nextRequest:0,pending:{},data:'', periods:[], startDate:'', config:{}, comboScheduleJson:'', failure:''};
       window.shiguangBridgePromise = promiseApi;
       window.shiguangBridge = syncApi;
       window.AndroidBridgePromise = promiseApi;

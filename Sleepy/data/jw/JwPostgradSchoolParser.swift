@@ -314,33 +314,63 @@ final class JwPostgradSchoolParser: JwParser, JwParserConfidenceReporting {
         guard let pages = jsonArray(source) else { return [] }
         var courses: [JwCourse] = []
         for page in pages {
-            guard let html = page as? String, let doc = try? SwiftSoup.parse(html), let form = jw1064Elements(doc, "#kcbForm").first,
-                  let parent = form.parent(), let table = jw1064Elements(parent, "table").first else { continue }
-            var occupiedUntil = [Int](repeating: 0, count: 7)
-            for (rowIndex, row) in jw1064Elements(table, "tr").enumerated() where rowIndex != 0 {
-                var column = 0
-                for cell in children(row, tags: ["td"]).filter({ ((try? $0.ownText()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
-                    while column < 7 && occupiedUntil[column] > rowIndex { column += 1 }
-                    if column >= 7 { break }
-                    let height = cell.hasAttr("rowspan") ? jw1064Integer(jw1064Attribute(cell, "rowspan")) : 1
-                    guard let height, let endNode = explicitScheduleEnd(rowIndex, height) else { return courses }
-                    occupiedUntil[column] = endNode + 1
-                    for anchor in jw1064Elements(cell, "a") {
-                        let name = jw1064Text(jw1064Elements(anchor, "strong").first)
-                        let tail = blocks(self.html(anchor)).last ?? ""
-                        let fields = lines(tail), teacherIndex = lines(tail).count == 4 ? 2 : 3
-                        guard fields.count > teacherIndex + 1,
-                              let token = jw1064Matches(#"\(([^()]*)周\)"#, after(at(fields, 1), "||")).first?[1] else { continue }
-                        let weekText = token.components(separatedBy: CharacterSet(charactersIn: ",，")).map { part -> String in
-                            let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if trimmed == "每" { return "1-20" }
-                            if trimmed.hasPrefix("前"), let number = chineseNumber(String(trimmed.dropFirst())) { return "1-\(number)" }
-                            return chineseNumber(trimmed).map(String.init) ?? trimmed
-                        }.joined(separator: ",")
-                        courses += slots(name, fields[teacherIndex + 1], fields[teacherIndex], column + 1, "\(rowIndex)-\(endNode)", weekText)
-                    }
-                    column += 1
+            guard let html = page as? String, let doc = try? SwiftSoup.parse(html) else { continue }
+            let preferred = jw1064Elements(doc, "*:has(> #kcbForm)").flatMap { root -> [Element] in
+                root.tagName() == "table" ? [root] : jw1064Elements(root, "table")
+            }
+            var preferredIds = Set<ObjectIdentifier>()
+            let preferredTables = preferred.filter { preferredIds.insert(ObjectIdentifier($0)).inserted }
+            var selected: [JwCourse]?
+            for table in preferredTables {
+                let parsed = zjuTable(table)
+                if !parsed.isEmpty { selected = parsed; break }
+            }
+            if let selected {
+                courses += selected
+                continue
+            }
+            let fallback = jw1064Elements(doc, "table").filter { !preferredIds.contains(ObjectIdentifier($0)) }
+            let candidates = fallback.map(zjuTable).filter { !$0.isEmpty }
+            guard let first = candidates.first else { continue }
+            let contents = Dictionary(grouping: first, by: { $0 }).mapValues { $0.count }
+            if candidates.allSatisfy({ Dictionary(grouping: $0, by: { $0 }).mapValues { $0.count } == contents }) {
+                courses += first
+            }
+        }
+        return courses
+    }
+
+    private func zjuTable(_ table: Element) -> [JwCourse] {
+        var courses: [JwCourse] = []
+        var occupiedUntil = [Int](repeating: 0, count: 7)
+        var rowIndex = 0
+        for row in jw1064Elements(table, "tr") {
+            guard row.parents().array().first(where: { $0.tagName() == "table" }) === table else { continue }
+            let cells = children(row, tags: ["th", "td"])
+            if cells.contains(where: { $0.tagName() == "th" }) && !cells.contains(where: { $0.tagName() == "td" }) { continue }
+            rowIndex += 1
+            var column = 0
+            for cell in cells.filter({ $0.tagName() == "td" && ((try? $0.ownText()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                while column < 7 && occupiedUntil[column] > rowIndex { column += 1 }
+                if column >= 7 { break }
+                let height = cell.hasAttr("rowspan") ? jw1064Integer(jw1064Attribute(cell, "rowspan")) : 1
+                guard let height, let endNode = explicitScheduleEnd(rowIndex, height) else { return [] }
+                occupiedUntil[column] = endNode + 1
+                for anchor in jw1064Elements(cell, "a") {
+                    let name = jw1064Text(jw1064Elements(anchor, "strong").first)
+                    let tail = blocks(self.html(anchor)).last ?? ""
+                    let fields = lines(tail), teacherIndex = lines(tail).count == 4 ? 2 : 3
+                    guard fields.count > teacherIndex + 1,
+                          let token = jw1064Matches(#"\(([^()]*)周\)"#, after(at(fields, 1), "||")).first?[1] else { continue }
+                    let weekText = token.components(separatedBy: CharacterSet(charactersIn: ",，")).map { part -> String in
+                        let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmed == "每" { return "1-20" }
+                        if trimmed.hasPrefix("前"), let number = chineseNumber(String(trimmed.dropFirst())) { return "1-\(number)" }
+                        return chineseNumber(trimmed).map(String.init) ?? trimmed
+                    }.joined(separator: ",")
+                    courses += slots(name, fields[teacherIndex + 1], fields[teacherIndex], column + 1, "\(rowIndex)-\(endNode)", weekText)
                 }
+                column += 1
             }
         }
         return courses

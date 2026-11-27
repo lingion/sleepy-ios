@@ -15,10 +15,13 @@
 //   ② zcs toInt() → toIntOrNull()（空周次跳过该条而非 NumberFormatException）
 
 import Foundation
+import SwiftSoup
 
 final class JwChengFangParser: JwParser, JwParserConfidenceReporting {
 
     let source: String
+
+    private lazy var courseData = Self.courseLiteral(source)
 
     init(_ source: String) {
         self.source = source
@@ -26,11 +29,9 @@ final class JwChengFangParser: JwParser, JwParserConfidenceReporting {
 
     func generateCourseList() throws -> [JwCourse] {
         var result: [JwCourse] = []
-        guard let json = Self.extractKbxxJson(source) else { return result }
-        guard let data = json.data(using: .utf8),
-              let arr = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return result }
+        guard let arr = courseData?.value as? [Any] else { return result }
 
-        for o in arr {
+        for case let o as [String: Any] in arr {
             func str(_ k: String) -> String {
                 ((o[k] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -63,43 +64,23 @@ final class JwChengFangParser: JwParser, JwParserConfidenceReporting {
 
     // MARK: - companion ← static
 
-    /// 从 HTML 里抠 `var kbxx = [...]`（测试入口）。
-    static func extractKbxxJsonForTest(_ html: String) -> String? {
-        extractKbxxJson(html)
-    }
+    static func extractKbxxJsonForTest(_ html: String) -> String? { courseLiteral(html)?.json }
 
-    /// 字符串感知的括号配对，找不到标记 / 找不到 '[' / 括号不平衡 → nil。
-    private static func extractKbxxJson(_ html: String) -> String? {
-        let marker = "var kbxx"
-        guard let idx = html.range(of: marker)?.upperBound else { return nil }
-        let chars = Array(html)
-        var arrStart = chars.startIndex
-        let startOffset = html.distance(from: html.startIndex, to: idx)
-        var offset = startOffset
-        while offset < chars.count && chars[offset] != "[" { offset += 1 }
-        if offset >= chars.count { return nil }
-        arrStart = offset
-
-        var depth = 0
-        var inStr = false
-        var esc = false
-        var i = arrStart
-        while i < chars.count {
-            let c = chars[i]
-            if esc { esc = false; i += 1; continue }
-            if c == "\\" { esc = true; i += 1; continue }
-            if c == "\"" { inStr.toggle(); i += 1; continue }
-            if inStr { i += 1; continue }
-            if c == "[" { depth += 1 }
-            if c == "]" {
-                depth -= 1
-                if depth == 0 {
-                    return String(chars[arrStart...(i)])
-                }
+    private static func courseLiteral(_ source: String) -> JwStaticJSON.Literal? {
+        let keys = ["kcmc", "xq", "jcdm2", "zcs"]
+        let populated = keys.allSatisfy { source.contains($0) } ? JwStaticJSON.find(source) { literal in
+            guard let array = literal.value as? [Any] else { return false }
+            return array.contains { value in
+                guard let row = value as? [String: Any] else { return false }
+                return keys.allSatisfy { row[$0] != nil }
             }
-            i += 1
+        } : nil
+        if let populated = populated { return populated }
+        // Anonymous empty arrays do not establish a protocol; only the known empty-term field does.
+        guard source.contains("kbxx") else { return nil }
+        return JwStaticJSON.find(source) { literal in
+            literal.binding?.split(separator: ".").last == "kbxx" && (literal.value as? [Any])?.isEmpty == true
         }
-        return nil
     }
 
     static func weekIntList2WeekBeanList(_ input: [Int]) -> [(Int, Int, Int)] {
@@ -136,21 +117,99 @@ final class JwChengFangParser: JwParser, JwParserConfidenceReporting {
         return list
     }
 
-    /// T8: var kbxx + CF 字段四件套 = 100; 仅 var kbxx = 70
     var confidenceValue: Int {
-        if !source.contains("var kbxx") { return 0 }
-        let hasFields = source.contains("kcmc") && (source.contains("teaxms") ||
-            source.contains("jxcdmcs") || source.contains("jcdm2"))
-        return hasFields ? 100 : 70
+        guard let rows = courseData?.value as? [Any] else { return 0 }
+        return rows.isEmpty ? 70 : 100
     }
 
-    var matchedFeatureList: [String] {
-        if !source.contains("var kbxx") { return [] }
-        var out: [String] = ["var kbxx"]
-        if source.contains("kcmc") { out.append("字段=kcmc") }
-        if source.contains("teaxms") { out.append("字段=teaxms") }
-        if source.contains("jxcdmcs") { out.append("字段=jxcdmcs") }
-        if source.contains("jcdm2") { out.append("字段=jcdm2") }
-        return out
+    var matchedFeatureList: [String] { courseData == nil ? [] : ["cf-course-schema"] }
+}
+
+/// Static JSON in script elements. No scripts are evaluated, and no variable name is
+/// required for data that matches a known schema. Bounds match the released Android scanner.
+enum JwStaticJSON {
+    struct Literal {
+        let json: String
+        let value: Any
+        let binding: String?
+    }
+
+    static func find(_ source: String, accepts: (Literal) -> Bool) -> Literal? {
+        guard source.utf8.count <= 8 * 1024 * 1024 else { return nil }
+        let scripts: [String]
+        if source.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<") {
+            guard let doc = try? SwiftSoup.parse(source), let elements = try? doc.select("script") else { return nil }
+            scripts = elements.array().map { $0.data() }
+        } else {
+            scripts = [source]
+        }
+        let assignment = try? NSRegularExpression(pattern: #"([\w$]+(?:\.[\w$]+)*)\s*=\s*$"#)
+        for script in scripts {
+            let bytes = Array(script.utf8)
+            var budget = bytes.count * 3
+            for range in ranges(bytes).sorted(by: { $0.lowerBound < $1.lowerBound }) {
+                guard range.count <= budget else { continue }
+                budget -= range.count
+                let data = Data(bytes[range])
+                guard let value = try? JSONSerialization.jsonObject(with: data) else { continue }
+                let tail = String(decoding: bytes[max(0, range.lowerBound - 256)..<range.lowerBound], as: UTF8.self)
+                let binding = assignment?.firstMatch(in: tail, range: NSRange(tail.startIndex..., in: tail))
+                    .flatMap { Range($0.range(at: 1), in: tail).map { String(tail[$0]) } }
+                let literal = Literal(json: String(decoding: data, as: UTF8.self), value: value, binding: binding)
+                if accepts(literal) { return literal }
+            }
+        }
+        return nil
+    }
+
+    private static func ranges(_ bytes: [UInt8]) -> [Range<Int>] {
+        var result: [Range<Int>] = []
+        var pending: [Range<Int>] = []
+        var stack: [(offset: Int, token: UInt8)] = []
+        var depth = 0
+        var quote: UInt8?
+        var escaped = false
+        var lineComment = false
+        var blockComment = false
+        var invalidGroup = false
+        var i = 0
+        while i < bytes.count {
+            let token = bytes[i]
+            let next = i + 1 < bytes.count ? bytes[i + 1] : 0
+            defer { i += 1 }
+            if lineComment {
+                if token == 10 || token == 13 { lineComment = false }
+            } else if blockComment {
+                if token == 42 && next == 47 { blockComment = false; i += 1 }
+            } else if let activeQuote = quote {
+                if escaped { escaped = false }
+                else if token == 92 { escaped = true }
+                else if token == activeQuote { quote = nil }
+            } else if token == 47 && next == 47 {
+                lineComment = true
+                i += 1
+            } else if token == 47 && next == 42 {
+                blockComment = true
+                i += 1
+            } else if token == 34 || token == 39 || token == 96 {
+                quote = token
+            } else if token == 91 || token == 123 {
+                depth += 1
+                if depth <= 64 { stack.append((i, token)) }
+                else { invalidGroup = true }
+            } else if (token == 93 || token == 125) && depth > 0 {
+                if depth <= 64, let open = stack.popLast() {
+                    if (open.token == 91) != (token == 93) { invalidGroup = true }
+                    if !invalidGroup { pending.append(open.offset..<(i + 1)) }
+                }
+                depth -= 1
+                if depth == 0 {
+                    if !invalidGroup { result.append(contentsOf: pending) }
+                    pending.removeAll(keepingCapacity: true)
+                    invalidGroup = false
+                }
+            }
+        }
+        return result
     }
 }

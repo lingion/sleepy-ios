@@ -46,6 +46,62 @@ final class JwWebViewFrameCaptureTests: XCTestCase {
 
     // MARK: - case.json #1: 4 层嵌套
 
+    func testGDUTReleasedFixtureKeepsCompleteRowsAndFindsRenamedThirdLevelScript() throws {
+        let fixture = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "gdut-20261116",
+            withExtension: "html", subdirectory: "resources"))
+        let html = try String(contentsOf: fixture, encoding: .utf8)
+        let original = try JwChengFangParser(html).generateCourseList()
+        XCTAssertEqual(original.count, 38)
+        XCTAssertEqual(Set(original.map(\.name)).count, 16)
+        let units = original.reduce(0) { partial, row in
+            partial + (row.startWeek...row.endWeek).filter { week in
+                row.type == 0 || (row.type == 1 ? week % 2 == 1 : week % 2 == 0)
+            }.count * (row.endNode - row.startNode + 1)
+        }
+        XCTAssertEqual(units, 503)
+        let renamed = html.replacingOccurrences(of: "var kbxx", with: "window.renamedLayout")
+        XCTAssertEqual(try JwChengFangParser(renamed).generateCourseList(), original)
+        for type in [JwProtocol.TYPE_CF, nil] {
+            let result = FrameTraversalTree.selectBestFrame(FrameSnapshotList.fromJson(json([
+                f(name: "(top)", src: nil, depth: 0, path: [], html: "<html>教学管理系统</html>"),
+                f(name: "wdkb", src: nil, depth: 2, path: ["(top)", "iframe_0"], html: "<html>学生课表</html>"),
+                f(name: "list", src: nil, depth: 3, path: ["(top)", "iframe_0", "wdkb"], html: renamed)
+            ])), declaredType: type)
+            XCTAssertEqual(result.status, .ok)
+            XCTAssertEqual(result.selectedFramePath?.last, "list")
+            XCTAssertEqual(result.courseCount, 38)
+        }
+    }
+
+    func testCFCommentsStringsAndAnonymousEmptyArraysAreNotCourseEvidence() throws {
+        let array = #"[{"kcmc":"课","xq":"1","jcdm2":"1,3","zcs":"1,3,5"}]"#
+        let actual = "<script>const wrapper = {\"rows\":\(array)}; const duplicate = \(array);</script>"
+        let rows = try JwChengFangParser(actual).generateCourseList()
+        XCTAssertEqual(rows.map(\.startNode), [1, 3])
+        XCTAssertTrue(rows.allSatisfy { $0.startWeek == 1 && $0.endWeek == 5 && $0.type == 1 })
+        for script in ["/* var kbxx=\(array); */", "const note = '\(array)';", "const note = `\(array)`;",
+                       "var kbxx = null; const unrelated = [];"] {
+            let html = "<script>\(script)</script>"
+            XCTAssertTrue(try JwChengFangParser(html).generateCourseList().isEmpty)
+            XCTAssertFalse(FrameTraversalTree.findAnchors(html).contains("cf-course-schema"))
+        }
+        XCTAssertTrue(FrameTraversalTree.findAnchors("<script>var kbxx = [];</script>").contains("cf-course-schema"))
+    }
+
+    func testExpiredSiblingWinsOverCachedCourseFrameWithAnAnchor() {
+        let array = #"[{"kcmc":"缓存课","xq":"1","jcdm2":"1","zcs":"1"}]"#
+        let frames = FrameSnapshotList.fromJson(json([
+            f(name: "(top)", src: nil, depth: 0, path: [], html: "<html>Portal</html>"),
+            f(name: "course", src: nil, depth: 2, path: ["(top)", "pane"],
+              html: "<html><table id='Table1'></table><script>var kbxx=\(array);</script></html>"),
+            f(name: "login", src: nil, depth: 2, path: ["(top)", "pane"],
+              html: "<form action='/authserver/login'><input name='pass' TYPE = 'password'></form>")
+        ]))
+        XCTAssertEqual(FrameTraversalTree.selectBestFrame(frames, declaredType: JwProtocol.TYPE_CF).status, .sessionExpired)
+        XCTAssertEqual(FrameTraversalTree.selectBestFrame(frames).status, .sessionExpired)
+        XCTAssertEqual(FrameTraversalTree.rankAll(frames) { try JwChengFangParser($0).generateCourseList() }.status, .sessionExpired)
+    }
+
     func testFourLevelIframeRecursionReachesDeepestTable1() {
         let snaps = FrameSnapshotList.fromJson(json([
             f(name: "(top)", src: "https://jw.example.edu.cn/default2.aspx", depth: 0, path: [],

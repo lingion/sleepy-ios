@@ -605,11 +605,24 @@ final class JwImportViewModel: ObservableObject {
         periodTable: PeriodTableEntity? = nil,
         bindPeriodTableId: Int64? = nil,
         termWeekCount: Int = 0,
-        importSourceJson: String = ""
+        importSourceJson: String = "",
+        jwSchoolSourceJson: String = "",
+        confirmedLocalCapture: Bool = false
     ) throws -> Int64 {
         if courses.isEmpty {
             throw NSError(domain: "JwImport", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "课程列表为空，请确认已到达课表页面"])  // ← kt:672 全角逗号
+        }
+
+        let verified = confirmedLocalCapture && JwImportDraftCodec.readSchoolSource(jwSchoolSourceJson)?.school.canImport == true
+        if let period = periodTable, !period.comboScheduleJson.isEmpty {
+            guard bindPeriodTableId == nil, period.id == 0 else {
+                throw ImportedDatedPeriodError.requiresNewTimetable
+            }
+            _ = try importedDatedPeriodTable(name: period.name, bindingId: -1, baseJson: period.timeJson,
+                                             comboScheduleJson: period.comboScheduleJson)
+            try CourseImportPolicy.requirePeriodCoverage(
+                toCourseEntities(courses, tableId: 0, defaultColor: "#FF6750A4"), timeJson: period.timeJson)
         }
 
         // An existing bell schedule is validated and bound inside the same transaction
@@ -625,7 +638,8 @@ final class JwImportViewModel: ObservableObject {
                     nodesPerDay: nodesPerDay > 0 ? nodesPerDay : (courses.map { max($0.startNode, $0.endNode) }.max() ?? 1),
                     timeJson: timeJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? TimeTableUtils.DEFAULT_TIME_JSON : timeJson,
                     smartConfigJson: smartConfigJson,
-                    importSourceJson: importSourceJson),
+                    importSourceJson: importSourceJson, jwSchoolSourceJson: jwSchoolSourceJson,
+                    jwSchoolSourceVerified: verified),
                 courses: toCourseEntities(courses, tableId: 0, defaultColor: "#FF6750A4"),
                 periodTable: nil, bindPeriodTableId: bindPeriodTableId)
         }
@@ -652,6 +666,8 @@ final class JwImportViewModel: ObservableObject {
                 isDefault: isFirstTable,
                 smartConfigJson: smartConfigJson,
                 importSourceJson: importSourceJson,
+                jwSchoolSourceJson: jwSchoolSourceJson,
+                jwSchoolSourceVerified: verified,
                 id: 0
             )
             // v1.0.56 T10: 自动作息表先落库拿 id — 建表时同名, 但全局唯一名墙:
@@ -701,9 +717,8 @@ final class JwImportViewModel: ObservableObject {
     /// 回格式化比对 == 原文 = Java LocalDate.parse 的严格语义(2026-13-45 / 2026-09-1
     /// 这类非法/欠宽输入必须原样返回, 不许 Calendar 宽松顺延成别的日期)。
     static func normalizeStartDate(_ startDate: String) -> String {
-        guard let parsed = DateUtils.parseDate(startDate),
-              DateUtils.fullDate(parsed) == startDate else { return startDate }
-        return DateUtils.fullDate(Calendar.isoMondayOfWeek(parsed))
+        guard JwSourceCalendar.canonicalDate(startDate) == startDate else { return startDate }
+        return JwSourceCalendar.monday(startDate) ?? startDate
     }
 
     /// 默认学期开始日期:本学期第一周周一的 ISO 日期。

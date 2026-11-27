@@ -166,7 +166,8 @@ struct ImportSheet: View {
     @State private var inputText = ""
     @State private var importInputHeight: CGFloat = 160
     @State private var inputRevealRequest = 0
-    @FocusState private var inputFocused: Bool
+    @FocusState private var fieldFocused: Bool
+    @State private var editorFocused = false
     @State private var isLoading = false
     @State private var errorMsg: String? = nil
     @State private var previewSession = ImportPreviewSession()
@@ -224,16 +225,7 @@ struct ImportSheet: View {
                 }
                 if textExpanded {
                     VStack(spacing: 8) {
-                        importTextField
-                            .padding(12)
-                            .frame(height: importInputHeight, alignment: .topLeading)
-                            .background(colors.surfaceContainerHighest)   // ← fieldColors 容器色 surfaceContainerHighest
-                            .cornerRadius(SleepyTheme.fieldShape)
-                            .contentShape(Rectangle())
-                            .onTapGesture { inputFocused = true }
-                            // ← 原 filled TextField, 无描边
-                            .accessibilityElement(children: .contain)
-                            .accessibilityIdentifier("import_paste_viewport")
+                        importPasteCard
                         Button {
                             if WakeUpShareClient.looksLikeShareCode(inputText) {
                                 presentWakeUpShare(inputText)
@@ -264,7 +256,7 @@ struct ImportSheet: View {
                                 .frame(height: style == .liquidGlass ? nil : 48)
                                 .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                         .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 48 : nil)
                         .tint(colors.primary)
                         .accessibilityIdentifier("import_preview_btn")
@@ -277,6 +269,13 @@ struct ImportSheet: View {
                     .id("import_paste_focus_target")
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+
+                ImportMethodRow(id: "import_ai", icon: "sparkles", label: L10n.format("ai_prompt_title")) {
+                    UIPasteboard.general.string = L10n.format("ai_prompt_text")
+                        .replacingOccurrences(of: "\\n", with: "\n")
+                        .replacingOccurrences(of: "\\t", with: "\t")
+                    showSuccess(L10n.format("copied"))
+                }.disabled(!canImport)
 
                 if targetTableId != nil {
                     ImportMethodRow(id: "import_manual", icon: "plus",
@@ -301,6 +300,9 @@ struct ImportSheet: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(colors.onSurface)
                         .padding(.bottom, 8)
+                    FormatRow(id: "format_help_plain", name: L10n.format("format_plain"), desc: L10n.format("format_plain_desc")) {
+                        detailFormat = .plain
+                    }
                     FormatRow(id: "format_help_wakeup_share", name: L10n.format("format_wakeup_share"), desc: L10n.format("format_wakeup_desc")) {
                         detailFormat = .wakeupShare
                     }
@@ -315,9 +317,6 @@ struct ImportSheet: View {
                     }
                     FormatRow(id: "format_help_html", name: L10n.format("format_html"), desc: L10n.format("format_html_desc")) {
                         detailFormat = .html
-                    }
-                    FormatRow(id: "format_help_plain", name: L10n.format("format_plain"), desc: L10n.format("format_plain_desc")) {
-                        detailFormat = .plain
                     }
                 }
                 .padding(14)
@@ -345,9 +344,10 @@ struct ImportSheet: View {
                     updateImportInputViewport(size)
                 }
         })
-        .onChange(of: inputFocused) { _ in requestImportInputReveal() }
+        .onChange(of: fieldFocused) { _ in requestImportInputReveal() }
+        .onChange(of: editorFocused) { _ in requestImportInputReveal() }
         .onChange(of: textExpanded) { expanded in
-            if !expanded { inputFocused = false }
+            if !expanded { setPasteInputFocused(false) }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidChangeFrameNotification)) { _ in
             requestImportInputReveal()
@@ -631,7 +631,7 @@ struct ImportSheet: View {
 
     private func beginManualTable() {
         guard manualEditor == nil, canCreateNewTable, targetTableId == nil, canImport else { return }
-        inputFocused = false
+        setPasteInputFocused(false)
         Self.dismissKeyboard()
         let fallbackId = viewModel.state.currentTable?.id
         let tableId = viewModel.createEmptyTable(commitSelection: false)
@@ -641,7 +641,7 @@ struct ImportSheet: View {
 
     private func beginManualCourse() {
         guard manualEditor == nil, let targetTableId, canImport else { return }
-        inputFocused = false
+        setPasteInputFocused(false)
         Self.dismissKeyboard()
         manualEditor = .course(targetTableId: targetTableId)
     }
@@ -670,43 +670,72 @@ struct ImportSheet: View {
         requestImportInputReveal()
     }
 
+    private var isPasteInputFocused: Bool {
+        if #available(iOS 17.0, *) { return fieldFocused }
+        return editorFocused
+    }
+
+    private func setPasteInputFocused(_ focused: Bool) {
+        if #available(iOS 17.0, *) {
+            fieldFocused = focused
+        } else {
+            editorFocused = focused
+        }
+    }
+
     @ViewBuilder
-    private var importTextField: some View {
-        if #available(iOS 16.0, *) {
+    private var importPasteCard: some View {
+        // On iOS 16.4, wrapping SwiftUI TextField/TextEditor inside `.accessibilityElement(children: .contain)`
+        // drops `import_paste_input` from AX when a pushed navigation child pops back to this sheet.
+        // Keep the background viewport element sibling to a direct UIKit UITextView on < iOS 17.
+        if #available(iOS 17.0, *) {
             TextField(L10n.format("import_paste_hint"), text: $inputText, axis: .vertical)
                 .lineLimit(1...8)
-                .focused($inputFocused)
+                .focused($fieldFocused)
                 .accessibilityIdentifier("import_paste_input")
+                .padding(12)
+                .frame(height: importInputHeight, alignment: .topLeading)
+                .background(colors.surfaceContainerHighest)
+                .cornerRadius(SleepyTheme.fieldShape)
+                .contentShape(Rectangle())
+                .onTapGesture { fieldFocused = true }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("import_paste_viewport")
         } else {
             ZStack(alignment: .topLeading) {
-                if inputText.isEmpty {
-                    Text(L10n.format("import_paste_hint"))
-                        .foregroundColor(Color(.placeholderText))
-                        .padding(.top, 8)
-                        .padding(.leading, 4)
-                        .allowsHitTesting(false)
-                }
-                TextEditor(text: $inputText)
-                    .padding(-4)
-                    .focused($inputFocused)
-                    .accessibilityIdentifier("import_paste_input")
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { editorFocused = true }
+                    .accessibilityElement()
+                    .accessibilityIdentifier("import_paste_viewport")
+                ImportPasteTextView(
+                    text: $inputText,
+                    isFocused: $editorFocused,
+                    placeholder: L10n.format("import_paste_hint"),
+                    textColor: UIColor(colors.onSurface),
+                    placeholderColor: .placeholderText
+                )
+                .padding(12)
             }
+            .frame(height: importInputHeight, alignment: .topLeading)
+            .background(colors.surfaceContainerHighest)
+            .cornerRadius(SleepyTheme.fieldShape)
         }
     }
 
     private func requestImportInputReveal() {
-        guard textExpanded && inputFocused else { return }
+        guard textExpanded && isPasteInputFocused else { return }
         inputRevealRequest &+= 1
     }
 
     @MainActor
     private func revealImportInput(using proxy: ScrollViewProxy) async {
-        guard textExpanded && inputFocused else { return }
+        guard textExpanded && isPasteInputFocused else { return }
         // Geometry and keyboard notifications arrive in a burst during rotation.
         // The view task cancels the previous request and waits for settled layout.
         do { try await Task.sleep(nanoseconds: 100_000_000) }
         catch { return }
-        guard !Task.isCancelled && textExpanded && inputFocused else { return }
+        guard !Task.isCancelled && textExpanded && isPasteInputFocused else { return }
         // Reveal is part of keyboard layout, not another scroll animation racing
         // UIKit's rotation/caret positioning. Also discard inherited animation.
         var transaction = Transaction(animation: nil)
@@ -1118,10 +1147,9 @@ private struct FormatRow: View {
                 Button(action: onDetail) {
                     AndroidSettingsIcon(name: .info, size: 20)   // ← Android 1.0.64 Info 20dp
                         .foregroundColor(colors.onSurfaceVariant)
-                        .frame(width: style == .classic ? 48 : nil,
-                               height: style == .classic ? 48 : nil)
+                        .frame(width: style == .classic ? 48 : 34, height: style == .classic ? 48 : 34)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+                .sleepyPlatformButtonStyle(shape: .circle)
                 .frame(width: 48, height: 48)
                 .padding(.leading, 6)   // ← 原 icon padding(start = 6.dp)
                 .accessibilityLabel(L10n.format("format_detail_content_desc"))
@@ -1148,7 +1176,7 @@ private struct FormatDetailDialog: View {
                     .foregroundColor(style == .liquidGlass ? colors.onPrimary : colors.primary)
                     .frame(maxWidth: .infinity, minHeight: 48)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(prominent: true))
+            .sleepyPlatformButtonStyle(prominent: true)
             .tint(colors.primary)
             .accessibilityIdentifier("format_help_close")
         )) {
@@ -1212,7 +1240,7 @@ private struct FormatDetailDialog: View {
                                 .frame(height: style == .classic ? 48 : nil)
                                 .sleepyControlSurface(cornerRadius: 24, tint: colors.primaryContainer)
                             }
-                            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: 24))
+                            .sleepyPlatformButtonStyle(prominent: true, cornerRadius: 24)
                             .tint(colors.primaryContainer)
                             .frame(maxWidth: .infinity, minHeight: 48)
                             .accessibilityIdentifier("import_copy_prompt")
@@ -1390,7 +1418,7 @@ struct ImportPreviewDialog: View {
                         .frame(height: style == .liquidGlass ? nil : 40)
                         .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.errorContainer, prominent: true)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium)
                 .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
                 .tint(colors.errorContainer)
                 .accessibilityIdentifier("import_mode_append_conflict")
@@ -1408,7 +1436,7 @@ struct ImportPreviewDialog: View {
                     .frame(height: style == .liquidGlass ? nil : 40)
                     .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.errorContainer, prominent: true)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+            .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium)
             .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
             .tint(colors.errorContainer)
             .accessibilityIdentifier("import_mode_overwrite")
@@ -1427,7 +1455,7 @@ struct ImportPreviewDialog: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: style == .classic ? 40 : nil)
         }
-        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: SleepyShapes.medium))
+        .sleepyPlatformButtonStyle(cornerRadius: SleepyShapes.medium)
         .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
         .accessibilityIdentifier("import_preview_cancel")
     }
@@ -1460,7 +1488,7 @@ private struct PrimaryDialogButton: View {
                 .frame(height: style == .liquidGlass ? nil : 40)
                 .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.primary, prominent: true)
         }
-        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium)
         .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
         .tint(colors.primary)
         // 稳定标识: 预览底部按钮浮在 List 之上, XCUITest 按 label 找元素时偶发拿到
@@ -1745,10 +1773,10 @@ private struct PurePeriodImportDialog: View {
                     .font(.system(size: 14))
                     .foregroundColor(colors.onSurfaceVariant)
                 VStack(alignment: .leading, spacing: 4) {
-                    FieldTextField(text: $name, label: L10n.format("period_table_name_label"))
+                    FieldTextField(text: $name, label: L10n.format("period_table_name_label"),
+                                   identifier: "import_pure_period_field")
                         .overlay(RoundedRectangle(cornerRadius: SleepyTheme.fieldShape)
                             .strokeBorder(nameTaken ? colors.error : Color.clear, lineWidth: 1))
-                        .accessibilityIdentifier("import_pure_period_field")
                     if nameTaken {
                         Text(L10n.format("period_table_name_taken"))
                             .font(.system(size: 12))
@@ -1877,7 +1905,8 @@ extension ImportSheet {
                 name: name.isEmpty ? preview.parseResult.tableName : name,
                 startDate: confirmedStartDate, maxWeek: preview.parseResult.maxWeek,
                 nodesPerDay: preview.parseResult.nodesPerDay, timeJson: confirmedTimeJson,
-                courses: preview.parseResult.courses, keepGroups: preview.parseResult.groupIdsAuthoritative)
+                courses: preview.parseResult.courses, keepGroups: preview.parseResult.groupIdsAuthoritative,
+                jwSchoolSourceJson: preview.parseResult.jwSchoolSourceJson)
             let badDays = ConflictLayoutEngine.daysExceedingTwoLanes(preview.parseResult.courses)
             if !badDays.isEmpty { onError(L10n.format("import_three_layers_kept", dayNames(badDays))) }
             onImported()
@@ -1909,7 +1938,8 @@ extension ImportSheet {
                     nodesPerDay: max(TimeTableUtils.parseTimeSlotRows(confirmedTimeJson).count, 1),
                     timeJson: confirmedTimeJson,
                     color: base?.color ?? "#FF6750A4",
-                    isDefault: false, importSourceJson: preview.parseResult.importSourceJson),
+                    isDefault: false, importSourceJson: preview.parseResult.importSourceJson,
+                    jwSchoolSourceJson: preview.parseResult.jwSchoolSourceJson),
                 courses: preview.parseResult.courses,
                 periodTable: importedPeriod,
                 bindPeriodTableId: bindPeriodTableId,
@@ -2015,7 +2045,8 @@ extension ImportSheet {
                     nodesPerDay: max(mergedRows.count, 1),
                     timeJson: mergedTimeJson,
                     color: base?.color ?? "#FF6750A4",
-                    isDefault: false, importSourceJson: incoming.importSourceJson),
+                    isDefault: false, importSourceJson: incoming.importSourceJson,
+                    jwSchoolSourceJson: incoming.jwSchoolSourceJson),
                 courses: oldCourses + cleanIncoming,
                 periodTable: mergedPeriod,
                 keepGroups: preview.parseResult.groupIdsAuthoritative)
@@ -2158,5 +2189,97 @@ extension ImportSheet {
 extension Optional {
     func `let`<R>(_ transform: (Wrapped) -> R) -> R? {
         map(transform) ?? nil
+    }
+}
+
+private struct ImportPasteTextView: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    let placeholder: String
+    let textColor: UIColor
+    let placeholderColor: UIColor
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.delegate = context.coordinator
+        view.backgroundColor = .clear
+        view.font = .systemFont(ofSize: 16)
+        view.textColor = textColor
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        view.isScrollEnabled = true
+        view.alwaysBounceVertical = false
+        view.isAccessibilityElement = true
+        view.accessibilityIdentifier = "import_paste_input"
+
+        let label = context.coordinator.placeholderLabel
+        label.font = view.font
+        label.textColor = placeholderColor
+        label.numberOfLines = 0
+        label.isUserInteractionEnabled = false
+        label.isAccessibilityElement = false
+        label.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: view.topAnchor),
+            label.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: view.frameLayoutGuide.trailingAnchor)
+        ])
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        context.coordinator.parent = self
+        if view.text != text {
+            view.text = text
+        }
+        view.textColor = textColor
+        context.coordinator.placeholderLabel.text = placeholder
+        context.coordinator.placeholderLabel.textColor = placeholderColor
+        context.coordinator.placeholderLabel.isHidden = !text.isEmpty
+        if isFocused && !view.isFirstResponder {
+            DispatchQueue.main.async {
+                if self.isFocused && !view.isFirstResponder && view.window != nil {
+                    view.becomeFirstResponder()
+                }
+            }
+        } else if !isFocused && view.isFirstResponder {
+            DispatchQueue.main.async {
+                if !self.isFocused && view.isFirstResponder {
+                    view.resignFirstResponder()
+                }
+            }
+        }
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: ImportPasteTextView
+        let placeholderLabel = UILabel()
+
+        init(parent: ImportPasteTextView) {
+            self.parent = parent
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.isFocused = true
+            }
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.isFocused = false
+            }
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            let value = textView.text ?? ""
+            placeholderLabel.isHidden = !value.isEmpty
+            if parent.text != value {
+                parent.text = value
+            }
+        }
     }
 }

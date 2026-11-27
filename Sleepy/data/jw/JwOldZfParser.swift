@@ -60,10 +60,10 @@ final class JwOldZfParser: JwParser, JwParserConfidenceReporting {
         // 与 1.18.1 逐字节一致 (对照实验: 三个 zf fixture 两版本 diff 为空)。
         doc.outputSettings().prettyPrint(pretty: false)
         // T1 G5: #Table1 → table.blacktab → 文本含"星期一"的第一个 table
-        let table1 = (try? doc.getElementById("Table1")) ?? nil
-            ?? Jw64.first(doc, "#kbgrid_table") ?? Jw64.first(doc, "#table1")
-            ?? ((try? doc.select("table.blacktab").first()) ?? nil)
-            ?? pickTableByMonday(doc)
+        let byTable1: Element? = (try? doc.getElementById("Table1")) ?? nil
+        let byKbGrid: Element? = Jw64.first(doc, "#kbgrid_table") ?? Jw64.first(doc, "#table1")
+        let byBlackTab: Element? = (try? doc.select("table.blacktab").first()) ?? nil
+        let table1 = byTable1 ?? byKbGrid ?? byBlackTab ?? pickTableByMonday(doc)
         guard let table = table1 else { return [] }
         let trs = Jw64.rows(table)
         var importBeanList: [ImportBean] = []

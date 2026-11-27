@@ -20,6 +20,7 @@ struct JwImportDraftSnapshot: Equatable {
     var termWeekCount: Int = 0
     var datedCourseOrigin: String = ""
     var importSourceJson: String = ""
+    var comboScheduleJson: String = ""
     var selectedSgAdapterId: String = ""
     var termWeekText: String? = nil
     var phase: JwImportDraftPhase = .configureConfirm
@@ -36,7 +37,8 @@ struct JwImportDraftSnapshot: Equatable {
          datedCourseOrigin: String = "",
          importSourceJson: String = "",
          selectedSgAdapterId: String = "",
-         termWeekText: String? = nil) {
+         termWeekText: String? = nil,
+         comboScheduleJson: String = "") {
         self.school = school
         self.courses = courses
         self.periods = periods
@@ -48,6 +50,7 @@ struct JwImportDraftSnapshot: Equatable {
         self.termWeekCount = termWeekCount
         self.datedCourseOrigin = datedCourseOrigin
         self.importSourceJson = importSourceJson
+        self.comboScheduleJson = comboScheduleJson
         self.selectedSgAdapterId = selectedSgAdapterId
         self.termWeekText = termWeekText
     }
@@ -102,6 +105,7 @@ enum JwImportDraftCodec {
         // 仅 true 时写出(旧 payload 缺键 = false, 与 optString 默认语义一致)
         if snapshot.usedDefaultTimes { root["usedDefaultTimes"] = true }
         if let text = snapshot.termWeekText { root["termWeekText"] = text }
+        if !snapshot.comboScheduleJson.isEmpty { root["comboScheduleJson"] = snapshot.comboScheduleJson }
         root["courses"] = snapshot.courses.map(courseToJson)
         root["periods"] = snapshot.periods.map(periodToJson)
         guard let data = try? JSONSerialization.data(withJSONObject: root),
@@ -158,6 +162,11 @@ enum JwImportDraftCodec {
         if !origin.isEmpty && JwSourceCalendar.monday(origin) != origin { return nil }
         let metadata = root["importSourceJson"] as? String ?? ""
         if !metadata.isEmpty && JwSgSourceMetadata.read(metadata) == nil { return nil }
+        let combo: String
+        if let raw = root["comboScheduleJson"] {
+            guard let text = raw as? String, text.utf16.count <= 262_144 else { return nil }
+            combo = text
+        } else { combo = "" }
         return JwImportDraftSnapshot(
             school: school,
             courses: courses,
@@ -172,8 +181,76 @@ enum JwImportDraftCodec {
             datedCourseOrigin: origin,
             importSourceJson: metadata,
             selectedSgAdapterId: root["selectedSgAdapterId"] as? String ?? "",
-            termWeekText: termWeekText
+            termWeekText: termWeekText,
+            comboScheduleJson: combo
         )
+    }
+
+    /// Shareable description of the chosen entry. A decoded value is not proof of local import.
+    static func toSchoolSourceJson(_ school: JwSchoolInfo, selectedAdapterId: String = "") -> String {
+        var fields = schoolToJson(school)
+        if school.type == nil { fields["type"] = NSNull() }
+        var payload: [String: Any] = ["schemaVersion": 1, "sourceType": "jw", "school": fields]
+        // Android 1.0.67 ignores this extension; iOS records the explicit choice for multi-entry schools.
+        if !selectedAdapterId.isEmpty { payload["selectedSgAdapterId"] = selectedAdapterId }
+        return (try? JwSgSourceMetadata.stringify(payload)) ?? ""
+    }
+
+    static func readSchoolSource(_ json: String) -> (school: JwSchoolInfo, selectedAdapterId: String)? {
+        guard !json.isEmpty, json.utf8.count <= 65_536,
+              let root = JwSgSourceMetadata.object(json),
+              JwSgSourceMetadata.strictInteger(root["schemaVersion"]) == 1,
+              root["sourceType"] as? String == "jw", let fields = root["school"] as? [String: Any],
+              let school = schoolFromJson(fields, portableIdentity: true) else { return nil }
+        if let value = root["selectedSgAdapterId"], !(value is String) { return nil }
+        return (school, root["selectedSgAdapterId"] as? String ?? "")
+    }
+
+    struct AuthorizedSchoolUpdate: Identifiable {
+        let id: Int64
+        let school: JwSchoolInfo
+        let adapterId: String
+        let source: String
+    }
+
+    /// Authorize against a real database row first. For catalog entries use only the unique
+    /// current school/adapter record; never select a destination from a portable payload.
+    static func authorizedUpdate(for table: TimeTableEntity, catalog: [JwSchoolInfo],
+                                 adapters: (String) throws -> [JwSgAssetBridge.Manifest.Adapter] = {
+                                     try JwSgAssetBridge.entries(schoolName: $0)
+                                 }) -> AuthorizedSchoolUpdate? {
+        guard table.jwSchoolSourceVerified,
+              let identity = readSchoolSource(table.jwSchoolSourceJson), identity.school.canImport
+        else { return nil }
+        let snapshot = identity.school
+        let source: JwSchoolInfo
+        if !snapshot.catalogId.isEmpty {
+            let matches = catalog.filter { $0.catalogId == snapshot.catalogId }
+            guard matches.count == 1, matches[0].name == snapshot.name, matches[0].type == snapshot.type,
+                  matches[0].sortKey == snapshot.sortKey, matches[0].canImport else { return nil }
+            source = matches[0]
+        } else if !snapshot.sortKey.isEmpty {
+            let matches = catalog.filter {
+                $0.sortKey == snapshot.sortKey && $0.name == snapshot.name && $0.type == snapshot.type && $0.url == snapshot.url
+            }
+            guard matches.count == 1, matches[0].canImport else { return nil }
+            source = matches[0]
+        } else {
+            guard snapshot.isSupported else { return nil }
+            source = snapshot
+        }
+        var resolved = source
+        var adapterId = ""
+        if source.type == JwProtocol.TYPE_SG_ASSET {
+            guard !identity.selectedAdapterId.isEmpty, let entries = try? adapters(source.name),
+                  let choice = JwSgAssetBridge.restoreChoice(entries, savedId: identity.selectedAdapterId),
+                  choice.importUrl == snapshot.url else { return nil }
+            resolved.url = choice.importUrl
+            adapterId = choice.id
+        } else if !identity.selectedAdapterId.isEmpty {
+            return nil
+        }
+        return AuthorizedSchoolUpdate(id: table.id, school: resolved, adapterId: adapterId, source: table.jwSchoolSourceJson)
     }
 
     private static func schoolToJson(_ school: JwSchoolInfo) -> [String: Any] {
@@ -193,10 +270,11 @@ enum JwImportDraftCodec {
         return o
     }
 
-    private static func schoolFromJson(_ json: [String: Any]) -> JwSchoolInfo? {
+    private static func schoolFromJson(_ json: [String: Any], portableIdentity: Bool = false) -> JwSchoolInfo? {
         let sortKey = (json["sortKey"] as? String) ?? ""
         let name = (json["name"] as? String) ?? ""
-        if jwIsBlank(sortKey) || jwIsBlank(name) { return nil }
+        let catalogId = json["catalogId"] as? String ?? ""
+        if jwIsBlank(name) || (jwIsBlank(sortKey) && (!portableIdentity || !jwIsBlank(catalogId))) { return nil }
 
         let aliasesJson = json["aliases"] as? [Any]
         var aliases: [String] = []
@@ -221,7 +299,7 @@ enum JwImportDraftCodec {
             aliases: aliases,
             sortKeyFull: (json["sortKeyFull"] as? String) ?? "",
             enableFetch: (json["enableFetch"] as? Bool) ?? false,
-            catalogId: (json["catalogId"] as? String) ?? ""
+            catalogId: catalogId
         )
     }
 
