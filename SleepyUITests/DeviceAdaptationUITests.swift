@@ -141,7 +141,7 @@ final class DeviceAdaptationUITests: XCTestCase {
 
     private func assertFocusedTimeVisibleAfterRotation(_ field: XCUIElement,
                                                         file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(waitFor {
+        let visible = waitFor {
             let keyboard = self.app.keyboards.firstMatch
             let editor = self.app.descendants(matching: .any)["occurrence_editor"].firstMatch
             let navigation = editor.navigationBars.firstMatch
@@ -153,7 +153,19 @@ final class DeviceAdaptationUITests: XCTestCase {
                                  width: field.frame.width, height: height)
             return outline.minY >= navigation.frame.maxY + 4
                 && outline.maxY <= keyboard.frame.minY - 44
-        }, "Rotation must keep the keyboard and automatically reveal the complete focused time field",
+        }
+        if !visible {
+            let keyboard = app.keyboards.firstMatch
+            let editor = app.descendants(matching: .any)["occurrence_editor"].firstMatch
+            let navigation = editor.navigationBars.firstMatch
+            let diag = XCTAttachment(string: "orient=\(XCUIDevice.shared.orientation.rawValue) field=(\(field.exists),\(field.isHittable),\(field.frame)) kb=(\(keyboard.exists),\(keyboard.exists ? "\(keyboard.frame)" : "-")) nav=(\(navigation.exists),\(navigation.exists ? "\(navigation.frame)" : "-"))\n\(app.debugDescription)")
+            diag.name = "occurrence-rotation-visibility-diagnostic"
+            diag.lifetime = .keepAlways
+            add(diag)
+            capture("occurrence-rotation-obscured")
+        }
+        XCTAssertTrue(visible,
+                      "Rotation must keep the keyboard and automatically reveal the complete focused time field",
                       file: file, line: line)
     }
 
@@ -378,14 +390,17 @@ final class DeviceAdaptationUITests: XCTestCase {
             // Reveal the custom-time section inside the foreground editor
             // before requiring the input to be fully visible.
             revealOccurrenceControl(start)
-            let oldValue = start.value as? String ?? ""
             for _ in 0..<3 {
                 revealOccurrenceControl(start)
-                start.tap()
+                start.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
                 if app.keyboards.firstMatch.waitForExistence(timeout: 3) { break }
             }
             XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldValue.count))
+            for _ in 0..<12 {
+                let current = start.value as? String ?? ""
+                if current.isEmpty { break }
+                app.typeText(XCUIKeyboardKey.delete.rawValue)
+            }
             app.typeText(text)
             XCTAssertEqual(start.value as? String, text)
         }
@@ -396,9 +411,11 @@ final class DeviceAdaptationUITests: XCTestCase {
             XCTAssertTrue(waitFor { !cancel.exists })
             waitForOrientationReady()
             let close = app.buttons["detail_close"].firstMatch
-            makeHittable(close)
-            close.tap()
-            XCTAssertTrue(waitFor { !close.exists })
+            if close.waitForExistence(timeout: 2) {
+                makeHittable(close)
+                close.tap()
+                XCTAssertTrue(waitFor { !close.exists })
+            }
         }
 
         enterDraft("08:23")

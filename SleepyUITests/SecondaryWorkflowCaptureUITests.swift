@@ -71,6 +71,9 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
             }
             if let keyboard = app.keyboards.allElementsBoundByIndex.first {
                 area.size.height = max(0, min(area.maxY, keyboard.frame.minY - 12) - area.minY)
+            } else if docks.isEmpty {
+                let homeSafeMaxY = app.windows.firstMatch.frame.maxY - 36
+                area.size.height = max(0, min(area.maxY, homeSafeMaxY) - area.minY)
             }
             return area
         }
@@ -715,6 +718,7 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
             .min { abs($0.frame.midY - irregular.frame.midY) < abs($1.frame.midY - irregular.frame.midY) }
         XCTAssertNotNil(toggle, "The irregular-period row must expose its real switch")
         if let toggle {
+            reveal(toggle)
             XCTAssertLessThan(abs(toggle.frame.midY - irregular.frame.midY), 45)
             XCTAssertEqual(toggle.value as? String, "0")
             toggle.tap()
@@ -739,6 +743,10 @@ final class SecondaryWorkflowCaptureUITests: XCTestCase {
         cancel?.tap()
         XCTAssertTrue(waitUntil { !title.exists && app.buttons["course_save"].exists })
         tapBack()
+        if !app.buttons["manage_add_course"].waitForExistence(timeout: 2),
+           app.buttons["import_manual"].firstMatch.exists {
+            tapBack()
+        }
         XCTAssertTrue(app.buttons["manage_add_course"].waitForExistence(timeout: 5))
     }
 }

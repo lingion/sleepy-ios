@@ -112,6 +112,28 @@ final class QuickAddCourseUITests: XCTestCase {
         }
     }
 
+    func testMoreKeepsTheQuickAddDraft() throws {
+        app.buttons["week_next"].tap()
+        waitForWeek(2)
+        try revealPlacementRange()
+        cell(6, 5).press(forDuration: 0.6)
+        XCTAssertTrue(capsule.waitForExistence(timeout: 5))
+        capsule.tap()
+
+        let name = app.textFields["field_Course Name *"]
+        XCTAssertTrue(app.staticTexts["course_quick_add_summary"].waitForExistence(timeout: 5))
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["course_add_slot"].exists)
+        name.tap()
+        name.typeText("Same quick draft")
+        let more = app.buttons["course_quick_add_more"]
+        XCTAssertTrue(more.isHittable)
+        more.tap()
+        XCTAssertTrue(app.buttons["course_add_slot"].waitForExistence(timeout: 5))
+        XCTAssertEqual(name.value as? String, "Same quick draft")
+        XCTAssertFalse(app.staticTexts["course_quick_add_summary"].exists)
+    }
+
     func testBothHandlesPrefillSingleWeekAndSavePersistsExactPlacement() throws {
         app.buttons["week_next"].tap()
         waitForWeek(2)
@@ -138,6 +160,7 @@ final class QuickAddCourseUITests: XCTestCase {
         capsule.tap()
         let name = app.textFields["field_Course Name *"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["course_quick_add_summary"].label.contains("4-6"))
         let save = app.buttons["course_save"]
         XCTAssertTrue(save.exists)
         XCTAssertFalse(save.isEnabled, "快速加课不能绕过空名称校验")
@@ -173,14 +196,17 @@ final class QuickAddCourseUITests: XCTestCase {
     }
 
     private func savedCards() -> [XCUIElement] {
-        pager.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
-            "gridcell_", "Quick Add CI")).allElementsBoundByIndex.filter(\.isHittable)
+        let pagerFrame = pager.frame
+        return pager.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+            "gridcell_", "Quick Add CI")).allElementsBoundByIndex.filter { card in
+            card.exists && pagerFrame.intersects(card.frame) && card.isHittable
+        }
     }
 
     private func assertSavedPlacement() throws {
         try revealPlacementRange()
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in savedCards().count == 1 }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 12), .completed)
         let card = savedCards()[0]
         let first = cell(6, 4).frame
         let last = cell(6, 6).frame

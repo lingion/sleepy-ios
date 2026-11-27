@@ -77,7 +77,7 @@ final class SheetPlatformUITests: XCTestCase {
     }
 
     private func visibleViewport(in scroll: XCUIElement?) -> CGRect {
-        var viewport = app.frame.insetBy(dx: 2, dy: 4)
+        var viewport = scroll == nil ? app.frame : app.frame.insetBy(dx: 2, dy: 4)
         if let scroll {
             // A naturally sized dialog may contain a single 56pt field in a
             // 56pt scroll viewport. Its actual edges remain visible; adding
@@ -167,10 +167,24 @@ final class SheetPlatformUITests: XCTestCase {
                       "The complete control must fit in its foreground scroll area above the keyboard", file: file, line: line)
     }
 
+    private func waitForOrientationReady(file: StaticString = #filePath, line: UInt = #line) {
+        let landscape = XCUIDevice.shared.orientation.isLandscape
+        XCTAssertTrue(waitUntil(timeout: 10) {
+            let frame = self.app.frame
+            return frame.width > 0 && frame.height > 0
+                && (landscape ? frame.width > frame.height : frame.height > frame.width)
+        }, "The app accessibility frame must match the displayed orientation", file: file, line: line)
+    }
+
     private func assertInteractiveInWindow(_ element: XCUIElement,
                                            file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(waitUntil { fullyVisible(element) },
-                      "The complete action must be visible in the current sheet", file: file, line: line)
+        if !waitUntil(timeout: 10, { fullyVisible(element) }) {
+            let diagnostic = XCTAttachment(string: "target=\(element.exists ? String(describing: element.frame) : "missing") hittable=\(element.exists ? element.isHittable : false) appFrame=\(app.frame) viewport=\(visibleViewport(in: owningScrollView(element)))\n\(app.debugDescription)")
+            diagnostic.name = "sheet-interactive-diagnostic"
+            diagnostic.lifetime = .keepAlways
+            add(diagnostic)
+            XCTFail("The complete action must be visible in the current sheet", file: file, line: line)
+        }
         XCTAssertTrue(element.isEnabled, file: file, line: line)
         XCTAssertTrue(app.frame.insetBy(dx: -1, dy: -1).contains(element.frame),
                       "A sheet action escaped the visible window", file: file, line: line)
@@ -184,14 +198,27 @@ final class SheetPlatformUITests: XCTestCase {
     private func replaceText(_ field: XCUIElement, with text: String,
                              file: StaticString = #filePath, line: UInt = #line) {
         makeHittable(field, file: file, line: line)
-        let oldValue = field.value as? String ?? ""
-        field.tap()
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), file: file, line: line)
-        if !oldValue.isEmpty {
-            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldValue.count))
+        for _ in 0..<8 {
+            let current = field.value as? String ?? ""
+            if current.isEmpty { break }
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            let batch = min(current.count, 8)
+            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: batch))
         }
-        app.typeText(text)
-        XCTAssertEqual(field.value as? String, text, file: file, line: line)
+        XCTAssertEqual(field.value as? String ?? "", "", file: file, line: line)
+        if !text.isEmpty {
+            let chunkSize = 6
+            var start = text.startIndex
+            while start < text.endIndex {
+                let end = text.index(start, offsetBy: chunkSize, limitedBy: text.endIndex) ?? text.endIndex
+                app.typeText(String(text[start..<end]))
+                start = end
+            }
+        }
+        XCTAssertTrue(waitUntil(timeout: 3) { (field.value as? String) == text },
+                      "Expected '\(text)' but got '\(field.value as? String ?? "nil")'", file: file, line: line)
     }
 
     private func openImport() {
@@ -338,6 +365,7 @@ final class SheetPlatformUITests: XCTestCase {
         let cancelledName = "Cancelled-\(suffix)"
         let copiedName = "Copied-\(suffix)"
         XCUIDevice.shared.orientation = .landscapeLeft
+        waitForOrientationReady()
         if fromEditor {
             let edit = app.buttons["period_table_edit_\(sourceID)"].firstMatch
             makeHittable(edit)
@@ -481,6 +509,7 @@ final class SheetPlatformUITests: XCTestCase {
                        "The floating course must not expose the edit form")
         edit.tap()
         XCUIDevice.shared.orientation = .landscapeLeft
+        waitForOrientationReady()
         let field = app.descendants(matching: .any)["occurrence_room"].firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["occurrence_delete"].firstMatch.exists,
@@ -540,6 +569,7 @@ final class SheetPlatformUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["occurrence_fixed_date"].firstMatch.exists,
                        "Editing one occurrence must preserve its original fixed-date provenance")
         XCUIDevice.shared.orientation = .landscapeLeft
+        waitForOrientationReady()
         assertInteractiveInWindow(cancel)
         let customRow = app.descendants(matching: .any)["occurrence_custom_time"].firstMatch
         // The styled Toggle exposes one actionable accessibility element,

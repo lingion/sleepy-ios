@@ -10,7 +10,12 @@ final class WeekOccurrenceUITests: XCTestCase {
         app.sleepyLaunch()
         let week = app.buttons["seg_Week"]
         XCTAssertTrue(week.waitForExistence(timeout: 10))
-        week.tap()
+        _ = app.descendants(matching: .any)["gridcell_1"].waitForExistence(timeout: 5)
+        for _ in 0..<3 {
+            if week.isSelected { break }
+            week.tap()
+            Thread.sleep(forTimeInterval: 0.3)
+        }
         makeHittable(lesson)
     }
 
@@ -82,5 +87,61 @@ final class WeekOccurrenceUITests: XCTestCase {
         waitUntilGone(app.buttons["detail_close"])
         let undo = app.buttons["undo_button"]
         XCTAssertFalse(undo.exists && undo.isEnabled, "取消删除不能消费撤回历史")
+    }
+}
+
+final class DenseWeekAgendaUITests: XCTestCase {
+    func testNarrowConflictCoursesExposeWholeTitlesAndTimesInOrder() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-SLEEPY_UI_TEST_SEED",
+                               "-SLEEPY_UI_TEST_DENSE_WEEK", "-display_mode", "time",
+                               "-week_two_column", "YES"]
+        app.sleepyLaunch()
+        defer { app.terminate() }
+        try XCTSkipUnless(app.frame.width <= 430 && app.frame.height > app.frame.width,
+                          "This regression exercises a narrow portrait phone.")
+        let week = app.buttons["seg_Week"]
+        XCTAssertTrue(week.waitForExistence(timeout: 10))
+        _ = app.descendants(matching: .any)["gridcell_1"].waitForExistence(timeout: 5)
+        for _ in 0..<3 {
+            if week.isSelected { break }
+            week.tap()
+            Thread.sleep(forTimeInterval: 0.3)
+        }
+
+        let expected = [
+            (101, "International Economics and Comparative Public Policy", "08:30 - 09:55"),
+            (102, "Introduction to Applied Mathematics and Data Modeling", "08:45 - 10:20"),
+            (103, "Mechanical Engineering Design and Systems Analysis", "08:50 - 10:30")
+        ]
+        let first = app.buttons["lesson_101"].firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 8))
+        for _ in 0..<6 {
+            if first.isHittable && first.frame.minY >= 96 && first.frame.midY < app.frame.maxY - 96 { break }
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.67))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.38))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+        var previous: CGRect?
+        for (id, title, time) in expected {
+            let lesson = app.buttons["lesson_\(id)"].firstMatch
+            XCTAssertTrue(lesson.exists)
+            XCTAssertEqual(lesson.label, title)
+            XCTAssertTrue((lesson.value as? String)?.contains(time) == true)
+            XCTAssertGreaterThanOrEqual(lesson.frame.height, 44)
+            if let previous {
+                XCTAssertEqual(lesson.frame.minX, previous.minX, accuracy: 1)
+                XCTAssertGreaterThanOrEqual(lesson.frame.minY, previous.maxY - 1)
+            }
+            previous = lesson.frame
+        }
+        XCTAssertTrue(first.isHittable)
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "week-agenda-compact-conflict"
+        capture.lifetime = .keepAlways
+        add(capture)
+        first.tap()
+        XCTAssertTrue(app.buttons["detail_close"].waitForExistence(timeout: 5))
     }
 }

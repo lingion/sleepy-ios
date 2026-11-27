@@ -78,10 +78,10 @@ final class SwipeBackGestureUITests: XCTestCase {
         XCTAssertTrue(backButton.waitForExistence(timeout: 5),
                       "About overlay 顶栏 ⬅️ 按钮必须存在")
 
-        // 从屏幕左边缘拖向右侧，触发应用的 overlay 返回手势
-        let leftEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.5))
-        let midRight = app.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5))
-        leftEdge.press(forDuration: 0.05, thenDragTo: midRight, withVelocity: .fast, thenHoldForDuration: 0.3)
+        // 从屏幕左边缘拖向右侧，触发应用的 overlay 返回手势 (模拟器需贴近 0.001 左缘以触发 UIScreenEdgePan)
+        let leftEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.001, dy: 0.5))
+        let midRight = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+        leftEdge.press(forDuration: 0.05, thenDragTo: midRight)
 
         // 期望: overlay 消失且回到 Mine; 只检查底层入口不足以证明 dismiss 成功。
         let dismissed = XCTNSPredicateExpectation(

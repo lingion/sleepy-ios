@@ -304,11 +304,13 @@ final class NavigationTransitionCanvasUITests: XCTestCase {
 
     private func reveal(_ entry: XCUIElement) {
         XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        let hasFloatingDock = app.buttons["pill_schedule"].firstMatch.isHittable
+        let bottomClearance: CGFloat = hasFloatingDock ? 110 : 36
         for _ in 0..<6 {
-            if entry.isHittable && entry.frame.maxY < app.frame.maxY - 110 { return }
+            if entry.isHittable && entry.frame.maxY < app.frame.maxY - bottomClearance { return }
             app.swipeUp()
         }
-        XCTAssertTrue(entry.isHittable && entry.frame.maxY < app.frame.maxY - 110,
+        XCTAssertTrue(entry.isHittable && entry.frame.maxY < app.frame.maxY - bottomClearance,
                       "Settings entry must be above the floating navigation")
     }
 

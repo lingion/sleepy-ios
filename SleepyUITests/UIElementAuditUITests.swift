@@ -165,8 +165,9 @@ final class UIElementAuditUITests: XCTestCase {
             }
         }
         func viewport(_ scroll: XCUIElement?) -> CGRect {
-            var frame = app.windows.firstMatch.frame.insetBy(dx: 2, dy: 4)
-            if let scroll { frame = frame.intersection(scroll.frame) }
+            // Inset vertically to ignore subpixel edges without excluding full-width sheet rows.
+            var frame = app.windows.firstMatch.frame.insetBy(dx: -1, dy: 2)
+            if let scroll { frame = frame.intersection(scroll.frame.insetBy(dx: -1, dy: 0)) }
             if let back = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex.last(where: { $0.isHittable }),
                back.frame.minY < frame.midY {
                 let bottom = frame.maxY
@@ -188,7 +189,7 @@ final class UIElementAuditUITests: XCTestCase {
         }
         func visible() -> Bool {
             element.exists && element.isHittable && element.frame.width > 0 && element.frame.height > 0
-                && viewport(owningScroll()).contains(element.frame)
+                && viewport(owningScroll()).insetBy(dx: -0.5, dy: -0.5).contains(element.frame)
         }
         for _ in 0..<16 {
             if visible() { return }
@@ -206,7 +207,14 @@ final class UIElementAuditUITests: XCTestCase {
             origin.withOffset(CGVector(dx: start.x, dy: start.y)).press(forDuration: 0.05,
                 thenDragTo: origin.withOffset(CGVector(dx: end.x, dy: end.y)))
         }
-        XCTAssertTrue(waitForAuditCondition { visible() },
+        let ok = waitForAuditCondition { visible() }
+        if !ok {
+            let diag = XCTAttachment(string: "target=\(element.exists ? String(describing: element.frame) : "missing") hittable=\(element.exists ? element.isHittable : false) scroll=\(owningScroll().map { String(describing: $0.frame) } ?? "nil") viewport=\(viewport(owningScroll()))")
+            diag.name = "audit-reveal-diagnostic"
+            diag.lifetime = .keepAlways
+            add(diag)
+        }
+        XCTAssertTrue(ok,
                       "The complete control must be visible above navigation and keyboard", file: file, line: line)
     }
 
@@ -481,7 +489,12 @@ final class UIElementAuditUITests: XCTestCase {
         let addBack = app.descendants(matching: .any)["topbar_back"].firstMatch
         XCTAssertTrue(addBack.waitForExistence(timeout: 5), "加课页未打开")
         addBack.tap()
-        XCTAssertTrue(app.buttons["manage_add_course"].waitForExistence(timeout: 5), "加课页返回后未回到管理页")
+        XCTAssertTrue(app.buttons["import_manual"].waitForExistence(timeout: 5), "手动加课页返回后未回到添加方式页")
+        let methodsBack = app.buttons.matching(identifier: "topbar_back").allElementsBoundByIndex.last { $0.isHittable }
+            ?? app.descendants(matching: .any)["topbar_back"].firstMatch
+        XCTAssertTrue(methodsBack.waitForExistence(timeout: 5), "添加方式页缺少返回按钮")
+        methodsBack.tap()
+        XCTAssertTrue(app.buttons["manage_add_course"].waitForExistence(timeout: 5), "添加方式页返回后未回到管理页")
     }
 
     func testA4_EditTableNavigationBack() {
@@ -502,9 +515,8 @@ final class UIElementAuditUITests: XCTestCase {
         let importButton = app.buttons["manage_import"].firstMatch
         XCTAssertTrue(importButton.waitForExistence(timeout: 5), "导入入口未出现")
         importButton.tap()
-        // ImportSheet 以 sheet 呈现; 验证其入口行可见后下滑关闭
-        XCTAssertTrue(app.buttons["import_jw"].waitForExistence(timeout: 5), "导入 sheet 未打开")
-        app.swipeDown()
+        XCTAssertTrue(app.buttons["import_jw"].waitForExistence(timeout: 5), "导入页未打开")
+        tapAuditBack()
         XCTAssertTrue(app.buttons["manage_import"].waitForExistence(timeout: 5), "导入页返回后未回到管理页")
     }
 
@@ -747,8 +759,49 @@ final class UIElementAuditUITests: XCTestCase {
         XCTAssertTrue(pickerCancel.waitForExistence(timeout: 10))
         assertNativeColorPickerContent()
         captureScreenshot("A8_theme-primary-native-color-picker")
+        let originalPrimary = "#7C4DFF"
         pickerCancel.tap()
         XCTAssertTrue(waitForAuditCondition { !pickerCancel.exists && primary.exists })
+        XCTAssertEqual(primary.value as? String, originalPrimary)
+
+        revealAuditControl(primary)
+        primary.tap()
+        let confirm = app.buttons["theme_color_confirm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "The picker must let users confirm rather than close on first touch")
+        let sliders = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Sliders'"))
+            .allElementsBoundByIndex.first(where: \.isHittable)
+        guard let sliders else {
+            XCTFail("The native color picker must expose its Sliders mode")
+            return
+        }
+        sliders.tap()
+        func hexField() -> XCUIElement {
+            app.textFields.matching(NSPredicate(format: "label CONTAINS[c] 'hex' OR value MATCHES %@",
+                                                "#?[A-Fa-f0-9]{6}")).firstMatch
+        }
+        let field = hexField()
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        guard let text = field.value as? String else { return XCTFail("Missing native hex value") }
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count) + "11743A\n")
+        let keyboard = app.keyboards.firstMatch
+        let done = keyboard.buttons.matching(NSPredicate(format: "label IN %@", ["Done", "Return", "Go"])).firstMatch
+        if done.exists { done.tap() }
+        XCTAssertTrue(confirm.isHittable, "Adjusting the color must not close the picker")
+        confirm.tap()
+        XCTAssertTrue(waitForAuditCondition { !confirm.exists && primary.exists })
+        let actualPrimary = primary.value as? String ?? "nil"
+        // iOS 16 Color Picker Sliders defaults to Display P3 (0x11743A -> sRGB #007633);
+        // iOS 17+/26 defaults to sRGB (#11743A). Accept both exact platform conversions.
+        let matchedPickedColor = ["11743A", "007633"].contains { actualPrimary.hasSuffix($0) }
+        if !matchedPickedColor {
+            let att = XCTAttachment(string: "actualPrimary=\(actualPrimary)")
+            att.name = "a8-primary-value-diagnostic"
+            att.lifetime = .keepAlways
+            add(att)
+        }
+        XCTAssertTrue(matchedPickedColor,
+                      "Confirming the native picker must carry the new primary into the draft (got \(actualPrimary))")
 
         revealAuditControl(name)
         let oldName = name.value as? String ?? ""
@@ -792,7 +845,16 @@ final class UIElementAuditUITests: XCTestCase {
         }
         let savedCard = app.buttons[savedCardID].firstMatch
         XCTAssertTrue(savedCard.label.contains(savedName))
+        XCTAssertTrue(savedCard.isSelected, "Saving a theme must apply it")
         let savedThemeID = String(savedCardID.dropFirst("theme_custom_".count))
+        let defaultPreset = app.buttons["theme_preset_default"].firstMatch
+        revealAuditControl(defaultPreset)
+        defaultPreset.tap()
+        XCTAssertTrue(waitForAuditCondition { defaultPreset.isSelected })
+        revealAuditControl(savedCard)
+        savedCard.tap()
+        XCTAssertTrue(waitForAuditCondition { savedCard.isSelected && !defaultPreset.isSelected },
+                      "The custom card must select without activating its separate edit button")
         let editSavedTheme = app.buttons["theme_custom_edit_\(savedThemeID)"].firstMatch
         revealAuditControl(editSavedTheme)
         editSavedTheme.tap()
@@ -819,13 +881,10 @@ final class UIElementAuditUITests: XCTestCase {
         XCTAssertTrue(create.waitForExistence(timeout: 10))
         XCTAssertEqual(customThemeCardIDs(), savedThemeIDs, "Canceling deletion must preserve the entire custom theme collection")
         XCTAssertTrue(savedCard.label.contains(savedName), "Canceling deletion must retain the same named theme card")
-        let defaultPreset = app.buttons["theme_preset_default"].firstMatch
         revealAuditControl(defaultPreset)
         defaultPreset.tap()
-        XCTAssertTrue(waitForAuditCondition {
-            defaultPreset.label.contains("Selected") || defaultPreset.descendants(matching: .any)
-                .matching(NSPredicate(format: "label == %@", "Selected")).firstMatch.exists
-        }, "The capture must finish with the default preset selected")
+        XCTAssertTrue(waitForAuditCondition { defaultPreset.isSelected },
+                      "The capture must finish with the default preset selected")
         let recalc = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Re-arrange all course colors")).firstMatch
         revealAuditControl(recalc)
         captureScreenshot("A8_appearance-course-colors-lower")

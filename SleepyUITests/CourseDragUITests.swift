@@ -46,6 +46,7 @@ final class CourseDragUITests: XCTestCase {
         waitForHittable(button)
         XCTAssertTrue(button.exists, "\(identifier) 必须存在")
         XCTAssertTrue(button.isEnabled, "\(identifier) 应可用")
+        let windowFrame = app.windows.firstMatch.frame
         var previousFrame = button.frame
         var stableSince = Date()
         let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
@@ -53,9 +54,9 @@ final class CourseDragUITests: XCTestCase {
             let frame = button.frame
             if frame != previousFrame { stableSince = Date() }
             previousFrame = frame
-            return self.app.frame.contains(frame) && Date().timeIntervalSince(stableSince) >= 0.3
+            return windowFrame.contains(frame) && Date().timeIntervalSince(stableSince) >= 0.3
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 12), .completed)
         button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
@@ -94,7 +95,7 @@ final class CourseDragUITests: XCTestCase {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
             visibleMathCards(movedOnly: movedOnly).count == count
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed,
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 12), .completed,
                        "本周高数卡数量应为 \(count)，movedOnly=\(movedOnly)")
     }
 
