@@ -667,7 +667,7 @@ private struct WeekPager: View {
                     }
                 }
                 .clipped()
-                .animation(weekPageAnimation, value: state.selectedWeek)
+                .animation(dragHostWeek == nil ? nil : weekPageAnimation, value: state.selectedWeek)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

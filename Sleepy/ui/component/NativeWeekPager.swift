@@ -1,3 +1,4 @@
+import ObjectiveC
 import SwiftUI
 import UIKit
 
@@ -13,7 +14,7 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIViewController(context: Context) -> UIPageViewController {
-        let controller = UIPageViewController(transitionStyle: .scroll,
+        let controller = PagingController(transitionStyle: .scroll,
             navigationOrientation: .horizontal)
         controller.view.backgroundColor = .clear
         controller.view.isOpaque = false
@@ -101,6 +102,7 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             // Copy public app/layout values, not container internals: copying
             // the whole environment can replay ancestor overlays inside each page.
             return AnyView(parent.content(week)
+                .ignoresSafeArea()
                 .environment(\.localWakeUpColors, environment.localWakeUpColors)
                 .environment(\.localCoursePalette, environment.localCoursePalette)
                 .environment(\.localNavExtraBottomPadding, environment.localNavExtraBottomPadding)
@@ -126,10 +128,6 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
         private func host(for week: Int) -> PageHost {
             if let host = hosts[week] { return host }
             let host = PageHost(week: week, rootView: rootView(for: week))
-            host.view.backgroundColor = .clear
-            host.view.isOpaque = false
-            host.view.clipsToBounds = true
-            if #available(iOS 16.4, *) { host.safeAreaRegions = [] }
             hosts[week] = host
             return host
         }
@@ -316,13 +314,121 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
 
         private final class PageHost: UIHostingController<AnyView> {
             let week: Int
+            private var lastLegacyLayoutSize: CGSize = .zero
+
             init(week: Int, rootView: AnyView) {
                 self.week = week
                 super.init(rootView: rootView)
+                automaticallyAdjustsScrollViewInsets = false
+                edgesForExtendedLayout = []
+                viewRespectsSystemMinimumLayoutMargins = false
             }
+
             @available(*, unavailable)
             required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+            override func viewDidLoad() {
+                super.viewDidLoad()
+                view.backgroundColor = .clear
+                view.isOpaque = false
+                view.clipsToBounds = true
+                view.insetsLayoutMarginsFromSafeArea = false
+                if #available(iOS 16.4, *) {
+                    safeAreaRegions = []
+                } else {
+                    SleepyLegacyHostingSafeArea.disable(for: view)
+                }
+            }
+
+            override func viewDidLayoutSubviews() {
+                super.viewDidLayoutSubviews()
+                Self.disableScrollViewInsetAdjustment(in: view)
+                if #unavailable(iOS 16.4) {
+                    let size = view.bounds.size
+                    if size != lastLegacyLayoutSize {
+                        lastLegacyLayoutSize = size
+                        view.setNeedsUpdateConstraints()
+                    }
+                }
+            }
+
+            private static func disableScrollViewInsetAdjustment(in root: UIView) {
+                for child in root.subviews {
+                    if let scroll = child as? UIScrollView, scroll.contentInsetAdjustmentBehavior != .never {
+                        scroll.contentInsetAdjustmentBehavior = .never
+                    }
+                    disableScrollViewInsetAdjustment(in: child)
+                }
+            }
         }
+    }
+}
+
+/// Prevent UIPageViewController's internal _UIQueuingScrollView from adjusting
+/// top/bottom insets or drifting vertically when embedded inside NavigationController on iOS 15.
+private final class PagingController: UIPageViewController {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        automaticallyAdjustsScrollViewInsets = false
+        edgesForExtendedLayout = []
+        configureQueueScrollView()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        configureQueueScrollView()
+    }
+
+    private func configureQueueScrollView() {
+        for case let scroll as UIScrollView in view.subviews {
+            if scroll.contentInsetAdjustmentBehavior != .never {
+                scroll.contentInsetAdjustmentBehavior = .never
+            }
+            if scroll.alwaysBounceVertical {
+                scroll.alwaysBounceVertical = false
+            }
+            if scroll.showsVerticalScrollIndicator {
+                scroll.showsVerticalScrollIndicator = false
+            }
+            if !scroll.isDirectionalLockEnabled {
+                scroll.isDirectionalLockEnabled = true
+            }
+            if abs(scroll.contentOffset.y) > 0.5 {
+                scroll.contentOffset.y = 0
+            }
+            if abs(scroll.contentInset.top) > 0.5 || abs(scroll.contentInset.bottom) > 0.5 {
+                var inset = scroll.contentInset
+                inset.top = 0
+                inset.bottom = 0
+                scroll.contentInset = inset
+            }
+        }
+    }
+}
+
+/// Polyfill `UIHostingController.safeAreaRegions = []` on iOS < 16.4 so embedded
+/// pager pages never pick up ancestor navigation or status bar safe-area insets.
+@MainActor
+enum SleepyLegacyHostingSafeArea {
+    static func disable(for view: UIView) {
+        guard let viewClass = object_getClass(view) else { return }
+        let baseName = String(cString: class_getName(viewClass))
+        guard !baseName.hasSuffix("_SleepyIgnoreSafeArea") else { return }
+        let subclassName = "\(baseName)_SleepyIgnoreSafeArea"
+        if let existing = NSClassFromString(subclassName) {
+            object_setClass(view, existing)
+            return
+        }
+        guard let cName = (subclassName as NSString).utf8String,
+              let subclass = objc_allocateClassPair(viewClass, cName, 0) else { return }
+        if let method = class_getInstanceMethod(UIView.self, #selector(getter: UIView.safeAreaInsets)) {
+            let zeroSafeArea: @convention(block) (AnyObject) -> UIEdgeInsets = { _ in .zero }
+            class_addMethod(subclass, #selector(getter: UIView.safeAreaInsets),
+                            imp_implementationWithBlock(zeroSafeArea),
+                            method_getTypeEncoding(method))
+        }
+        objc_registerClassPair(subclass)
+        object_setClass(view, subclass)
     }
 }
 
