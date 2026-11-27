@@ -274,4 +274,56 @@ final class NativeWeekPagerTests: XCTestCase {
             }
         }
     }
+
+    func testNavigationHostKeepsNavigationBarHiddenAcrossHostingBarRequestsAndPaging() async throws {
+        let db = try AppDatabase.inMemory()
+        var t = TimeTableEntity(name: "NavBarTable", startDate: "2026-11-02", maxWeek: 20)
+        t.id = try db.timeTableDao.insert(t)
+        try db.timeTableDao.setDefault(t.id)
+        try db.courseDao.insert(CourseEntity(groupId: "g1", tableId: t.id, courseName: "高数",
+            day: 1, startNode: 1, step: 2, startWeek: 1, endWeek: 20, type: 0, color: "#FF6750A4"))
+        let repo = ScheduleRepository(db)
+        let rootVM = AppRootViewModel(repository: repo)
+        rootVM.scheduleViewMode = .cards
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        let window = scene.map { UIWindow(windowScene: $0) } ?? UIWindow(frame: CGRect(x: 0, y: 0, width: 414, height: 736))
+        window.frame = CGRect(x: 0, y: 0, width: 414, height: 736)
+        let rootHost = UIHostingController(rootView: AppRoot().environmentObject(rootVM))
+        window.rootViewController = rootHost
+        window.isHidden = false
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+
+        func find<T>(_ type: T.Type, in view: UIView) -> T? {
+            if let match = view.next as? T { return match }
+            for child in view.subviews {
+                if let match = find(type, in: child) { return match }
+            }
+            return nil
+        }
+
+        for _ in 0..<40 {
+            await flushMainQueue()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            if rootVM.scheduleViewModel.state.tables.count == 1,
+               find(UIPageViewController.self, in: window)?.viewControllers?.first != nil,
+               find(UINavigationController.self, in: window) != nil {
+                break
+            }
+        }
+        let nav = try XCTUnwrap(find(UINavigationController.self, in: window))
+        let pvc = try XCTUnwrap(find(UIPageViewController.self, in: window))
+        let baselineTop = pvc.view.convert(pvc.view.bounds, to: window).minY
+
+        // Simulate iOS 15 UIHostingController pushing its default navigationBarHidden=false onto ancestor UINavigationController.
+        nav.setNavigationBarHidden(false, animated: true)
+        nav.isNavigationBarHidden = false
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+
+        XCTAssertTrue(nav.isNavigationBarHidden,
+                      "SleepyNativeNavigationHost must keep UINavigationBar hidden even when a child hosting controller attempts to show it")
+        XCTAssertEqual(pvc.view.convert(pvc.view.bounds, to: window).minY, baselineTop, accuracy: 0.5)
+    }
 }

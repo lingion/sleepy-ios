@@ -103,6 +103,7 @@ struct NativeWeekPager<Content: View>: UIViewControllerRepresentable {
             // the whole environment can replay ancestor overlays inside each page.
             return AnyView(parent.content(week)
                 .ignoresSafeArea()
+                .navigationBarHidden(true)
                 .environment(\.localWakeUpColors, environment.localWakeUpColors)
                 .environment(\.localCoursePalette, environment.localCoursePalette)
                 .environment(\.localNavExtraBottomPadding, environment.localNavExtraBottomPadding)

@@ -33,7 +33,7 @@ private struct SleepyNativeNavigationController<Root: View>: UIViewControllerRep
     func makeCoordinator() -> SleepyNativeNavigationCoordinator { SleepyNativeNavigationCoordinator() }
 
     func makeUIViewController(context: Context) -> UINavigationController {
-        let controller = UINavigationController()
+        let controller = HiddenBarNavigationController()
         controller.setNavigationBarHidden(true, animated: false)
         controller.delegate = context.coordinator
         context.coordinator.navigationController = controller
@@ -49,6 +49,34 @@ private struct SleepyNativeNavigationController<Root: View>: UIViewControllerRep
                                           coordinator: SleepyNativeNavigationCoordinator) {
         coordinator.invalidate()
         controller.delegate = nil
+    }
+}
+
+/// Prevent iOS 15 child UIHostingControllers from unhiding the shared bar during layout or pager transitions.
+private final class HiddenBarNavigationController: UINavigationController {
+    override var isNavigationBarHidden: Bool {
+        get { super.isNavigationBarHidden }
+        set { super.setNavigationBarHidden(true, animated: false) }
+    }
+
+    override func setNavigationBarHidden(_ hidden: Bool, animated: Bool) {
+        super.setNavigationBarHidden(true, animated: false)
+    }
+
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        ensureBarHidden()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        ensureBarHidden()
+    }
+
+    private func ensureBarHidden() {
+        if !isNavigationBarHidden || !navigationBar.isHidden {
+            super.setNavigationBarHidden(true, animated: false)
+        }
     }
 }
 
@@ -234,6 +262,7 @@ final class SleepyNativeNavigationCoordinator: NSObject, UINavigationControllerD
                          SleepyNativeNavigationContext(coordinator: self, parentID: id))
             .tint(environment.localWakeUpColors.primary)
             .background(environment.localWakeUpColors.background.ignoresSafeArea())
+            .navigationBarHidden(true)
             .onPreferenceChange(SleepyNavigationBackDisabledKey.self) { [weak self] disabled in
                 guard let self, self.active, self.backDisabled[id] != disabled else { return }
                 self.backDisabled[id] = disabled
