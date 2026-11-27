@@ -122,3 +122,12 @@
   - 定向 UI 回归（`CourseDragUITests`、`NavigationTransitionCanvasUITests`、`ScheduleFlowUITests`，`build/pager-fix-ui.log`）：共执行 **28** 项（分别 10 / 9 / 9 项），失败 **0** 项，耗时 `3690.135` 秒，`TEST SUCCEEDED`（其余 `SleepyUITests` 用例仅在前置全量基线运行通过，本次未全量重跑）。
   - watchOS 编译 `Sleepy Watch`（`build/pager-fix-watch.log`）：`BUILD SUCCEEDED`。
   - `iPhone 6s Plus`（`iOS 15.8.8`）Debug `1.0.67 (67)` 重新编译、签名校验与 `ios-deploy --no-wifi` 非破坏性安装成功（`build/pager-fix-device.log`、`build/pager-fix-install.log`）；`iOS 15.8.8` 真机交互目视无顶部空白需用户真机滑动确认。
+- **二轮真机复现与根因定位（`HiddenBarNavigationController` 导航栏显隐泄漏）**：
+  - 在 `iPhone 6s Plus`（`iOS 15.8.8`）通过隔离探针确认，首轮修复后左右翻页切换新托管子控制器时，页面内的 `UIHostingController` 会将 SwiftUI 默认的未隐藏导航栏偏好向上传播给外层 `UINavigationController`，在转场期间将 `isNavigationBarHidden` 翻回 `false`，使导航栏由 `(0, -64, 414, 44)` 下移到 `(0, 20, 414, 44)`，并把顶部安全区从 `20pt` 推至 `64pt`，造成页面整体下移并在顶部露出 `44pt` 空白。
+  - **二轮改动**：在 [SleepyNavHost.swift](../../Sleepy/ui/nav/SleepyNavHost.swift) 引入私有 `HiddenBarNavigationController` 子类持续锁定 `isNavigationBarHidden = true` 并在 `viewWillLayoutSubviews` / `viewDidLayoutSubviews` 复核隐藏状态，同时在 `SleepyNativeNavigationCoordinator.content(for:)` 与 [NativeWeekPager.swift](../../Sleepy/ui/component/NativeWeekPager.swift) 子视图显式施加 `.navigationBarHidden(true)`；在 [NativeWeekPagerTests.swift](../../SleepyTests/NativeWeekPagerTests.swift) 新增 `testNavigationHostKeepsNavigationBarHiddenAcrossHostingBarRequestsAndPaging` 回归锁定。
+  - **二轮改动后复验（2026-11-27）**：
+    - `iPhone 6s Plus`（`iOS 15.8.8`）隔离真机探针（`SleepyProbe`）：`DevicePagerProbeTests`（1/1）、`NativeWeekPagerTests`（6/6）与 `DeviceGridSwipeProbeUITests`（1/1）全部通过，`navBarHidden=true` 且导航栏与页面区域在翻页前、转场中与翻页后保持稳定。
+    - 全量单元测试 `SleepyTests`（`build/nav-fix-unit.log`）：执行 **2754** 项（含新增测试），跳过 **12** 项，失败 **0** 项，耗时 `198.078` 秒，`TEST SUCCEEDED`。
+    - 定向 UI 回归（`CourseEditorUITests/testSaveCourseAppearsInSchedule`、`MineSettingsUITests/testBackupShowsWebDAVSetupWithoutRequiringAConnection`、`NavigationTransitionCanvasUITests`、`ScheduleFlowUITests`、`SwipeBackGestureUITests`，`build/nav-fix-ui.log`）：共执行 **24** 项，失败 **0** 项，耗时 `949.021` 秒，`TEST SUCCEEDED`。
+    - watchOS 编译 `Sleepy Watch`（`build/nav-fix-watch.log`）：`BUILD SUCCEEDED`。
+    - `iPhone 6s Plus`（`iOS 15.8.8`）Debug `1.0.67 (67)` 重新构建（`build/nav-fix-device.log`）并非破坏性安装成功（`build/nav-fix-install.log`）。
