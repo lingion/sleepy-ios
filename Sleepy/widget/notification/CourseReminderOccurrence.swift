@@ -2,6 +2,87 @@ import Foundation
 
 enum CourseReminderLoadError: Error { case unavailable }
 
+/// The database stores a civil day and a wall clock, not Shanghai instants.
+/// Use its existing civil-day anchor for table lookups, and the device zone
+/// only to translate those date and clock components into delivery instants.
+struct CourseReminderCalendar {
+    private let wallCalendar: Calendar
+    private let civilCalendar = CourseOccurrences.calendar
+
+    init(timeZone: TimeZone) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        wallCalendar = calendar
+    }
+
+    func civilDay(containing instant: Date) -> Date? {
+        civilCalendar.date(from: wallCalendar.dateComponents([.year, .month, .day], from: instant))
+    }
+
+    func days(startingAt instant: Date, count: Int) -> [Date] {
+        guard let first = civilDay(containing: instant) else { return [] }
+        return (0..<max(0, count)).compactMap { civilCalendar.date(byAdding: .day, value: $0, to: first) }
+    }
+
+    func instant(on civilDay: Date, wallSeconds: Int) -> Date? {
+        guard (0..<86_400).contains(wallSeconds) else { return nil }
+        var parts = civilCalendar.dateComponents([.year, .month, .day], from: civilDay)
+        parts.hour = wallSeconds / 3600
+        parts.minute = wallSeconds / 60 % 60
+        parts.second = wallSeconds % 60
+        // Adding elapsed seconds to local midnight would shift every clock
+        // after a daylight-saving transition. Build from wall components.
+        guard let instant = wallCalendar.date(from: parts),
+              self.civilDay(containing: instant) == civilCalendar.startOfDay(for: civilDay) else { return nil }
+        return instant
+    }
+
+    func timeText(for instant: Date) -> String {
+        let parts = wallCalendar.dateComponents([.hour, .minute], from: instant)
+        return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
+    }
+}
+
+/// Read bell times as wall-clock values. TimeTableUtils.parseNodes projects
+/// them onto today's Date for display, which must not affect reminder math.
+struct ReminderBellTimes {
+    private let nodes: [Int: (start: Int, end: Int)]
+
+    init(_ timeJson: String) {
+        var parsed: [Int: (start: Int, end: Int)] = [:]
+        for row in TimeTableUtils.strictPeriodRows(timeJson) ?? [] {
+            guard parsed[row.node] == nil,
+                  let start = TimeTableUtils.parsePeriodClock(row.start),
+                  let end = TimeTableUtils.parsePeriodClock(row.end) else {
+                nodes = [:]
+                return
+            }
+            parsed[row.node] = (start * 60, end * 60)
+        }
+        nodes = parsed
+    }
+
+    static func clockText(_ seconds: Int) -> String {
+        let hhmm = String(format: "%02d:%02d", seconds / 3600, seconds / 60 % 60)
+        let remainder = seconds % 60
+        return remainder == 0 ? hhmm : hhmm + String(format: ":%02d", remainder)
+    }
+
+    func bounds(for course: CourseEntity) -> (start: Int?, end: Int?) {
+        if course.ownTime || course.isIrregularTime {
+            return (TimeTableUtils.hmToSeconds(course.startTime.trimmingCharacters(in: .whitespaces)),
+                    TimeTableUtils.hmToSeconds(course.endTime.trimmingCharacters(in: .whitespaces)))
+        }
+        return nodeBounds(for: course)
+    }
+
+    func nodeBounds(for course: CourseEntity) -> (start: Int?, end: Int?) {
+        guard course.step > 0 else { return (nil, nil) }
+        let (last, overflow) = course.startNode.addingReportingOverflow(course.step - 1)
+        return (nodes[course.startNode]?.start, overflow ? nil : nodes[last]?.end)
+    }
+}
+
 /// A dated occurrence, shared by notifications and Live Activities. A transferred
 /// or repeated class keeps its own identity even when it uses the same DB row.
 struct CourseReminderOccurrence: Equatable {
@@ -25,11 +106,15 @@ struct CourseReminderOccurrence: Equatable {
         start.addingTimeInterval(-Double(min(999, max(0, leadMinutes))) * 60)
     }
 
-    static func notificationDateComponents(for date: Date) -> DateComponents {
-        let calendar = CourseOccurrences.calendar
+    static func notificationDateComponents(
+        for date: Date,
+        timeZone: TimeZone = Calendar.autoupdatingCurrent.timeZone
+    ) -> DateComponents {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
         var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         components.calendar = calendar
-        components.timeZone = calendar.timeZone
+        components.timeZone = timeZone
         return components
     }
 
@@ -44,32 +129,22 @@ struct CourseReminderOccurrence: Equatable {
 
 enum CourseReminderLoader {
     static func load(tables: [TimeTableEntity], dataSource: NotificationSchedulerBeforeClassDataSource,
-                     from date: Date, days: Int) async throws -> [CourseReminderOccurrence] {
-        let calendar = CourseOccurrences.calendar
-        let firstDay = calendar.startOfDay(for: date)
+                     from date: Date, days: Int, calendar: CourseReminderCalendar) async throws -> [CourseReminderOccurrence] {
+        let dateDays = calendar.days(startingAt: date, count: days)
         var result: [CourseReminderOccurrence] = []
         for table in tables where table.reminderEnabled {
-            for offset in 0..<max(0, days) {
-                guard let day = calendar.date(byAdding: .day, value: offset, to: firstDay),
-                      await dataSource.allowsReminder(tableId: table.id, date: day) else { continue }
-                var courses = try dataSource.coursesForDay(tableId: table.id, dayOfWeek: CourseOccurrences.day(day))
-                    .filter { $0.fixedDate == HolidayTransferOps.dayKey(day) }
-                if let source = dataSource.courseDateForDate(tableId: table.id, date: day),
-                   let week = CourseOccurrences.week(startDate: table.startDate, date: source),
-                   week > 0, week <= table.maxWeek {
-                    courses += try dataSource.coursesForDay(tableId: table.id, dayOfWeek: CourseOccurrences.day(source))
-                        .filter { $0.fixedDate == nil && $0.inWeek(week) }
-                }
-                for course in courses {
-                    guard course.step > 0, course.startNode <= Int.max - course.step,
-                        let times = TimeTableUtils.effectiveCourseTime(
-                        isIrregularTime: course.ownTime || course.isIrregularTime,
-                        startTime: course.startTime, endTime: course.endTime,
-                        startNode: course.startNode, step: course.step, timeJson: table.timeJson),
-                        let startSecond = TimeTableUtils.hmToSeconds(times.0),
-                        let endSecond = TimeTableUtils.hmToSeconds(times.1), endSecond > startSecond,
-                        let start = calendar.date(byAdding: .second, value: startSecond, to: day),
-                        let end = calendar.date(byAdding: .second, value: endSecond, to: day) else { continue }
+            let period = try dataSource.boundPeriodTable(for: table)
+            for day in dateDays {
+                guard await dataSource.allowsReminder(tableId: table.id, date: day) else { continue }
+                let courses = try dataSource.coursesOn(table: table, date: day)
+                guard !courses.isEmpty else { continue }
+                let effective = table.hydratedWith(period, forDateKey: HolidayTransferOps.dayKey(day))
+                let bells = ReminderBellTimes(effective.timeJson)
+                for course in courses where course.tableId == table.id {
+                    let times = bells.bounds(for: course)
+                    guard course.step > 0, let startSecond = times.start, let endSecond = times.end, endSecond > startSecond,
+                          let start = calendar.instant(on: day, wallSeconds: startSecond),
+                          let end = calendar.instant(on: day, wallSeconds: endSecond), end > start else { continue }
                     result.append(.init(tableId: table.id, courseId: course.id, tableName: table.name,
                                         name: course.courseName, room: course.room, start: start, end: end,
                                         teacher: course.teacher, startNode: course.startNode))

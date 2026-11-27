@@ -49,6 +49,7 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
         func beforeClassMinutes() -> Int { 10 }
         func nowEpochMs() -> Int64 { Int64(today.timeIntervalSince1970 * 1_000) }
         func todayDate() -> Date { today }
+        func notificationTimeZone() -> TimeZone { CourseOccurrences.calendar.timeZone }
         func loadArmedIds() -> Set<String> { lock.lock(); defer { lock.unlock() }; return ledger }
         func saveArmedIds(_ ids: Set<String>) { lock.lock(); defer { lock.unlock() }; ledger = ids }
     }
@@ -215,7 +216,7 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
         let env = Environment(daily: true, beforeClass: false)
         let port = Port()
         let scheduler = NotificationScheduler(env: env, dataSource: Source(), alarmPort: port,
-            writeNotification: { await port.write($0) },
+            writeNotification: { await port.write($0); return true },
             loadAgenda: { date in
                 await suspension.pauseOnce()
                 if throwsAfterLoad { throw NSError(domain: "injected", code: 1) }
@@ -231,14 +232,14 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
         XCTAssertTrue(port.pendingIDs().isEmpty)
         XCTAssertTrue(env.loadArmedIds().isEmpty)
         XCTAssertFalse(port.recordedEvents().contains { $0.hasPrefix("begin:") },
-                       "Neither a normal summary nor a failure's silent anchor may restore a disabled reminder")
+                       "A successful or failed load must not restore a disabled reminder")
     }
 
     func testSuspendedDailyLoadRechecksMasterBeforePosting() async {
         await checkSuspendedDailyLoadCannotRestoreAfterMasterOff(throwsAfterLoad: false)
     }
 
-    func testSuspendedDailyLoadFailureCannotRestoreSilentAnchor() async {
+    func testSuspendedDailyLoadFailureCannotRestoreSummary() async {
         await checkSuspendedDailyLoadCannotRestoreAfterMasterOff(throwsAfterLoad: true)
     }
 
@@ -248,7 +249,7 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
         let env = Environment(daily: true, beforeClass: false)
         let port = Port(summaryPause: suspension)
         let scheduler = NotificationScheduler(env: env, dataSource: Source(), alarmPort: port,
-            writeNotification: { await port.write($0) }, loadAgenda: { self.emptyAgenda($0) })
+            writeNotification: { await port.write($0); return true }, loadAgenda: { self.emptyAgenda($0) })
         let first = Task { await scheduler.refreshDailySummaries(isTomorrowPreview: false) }
         await fulfillment(of: [paused], timeout: 3)
         env.setMaster(false)
@@ -266,7 +267,7 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
         await first.value
         await cancel.value
         XCTAssertTrue(port.pendingIDs().isEmpty)
-        let id = NotificationScheduler.NOTIFY_DAILY
+        let id = NotificationScheduler.NOTIFY_DAILY + "_2026-11-09"
         let events = port.recordedEvents()
         let finished = events.firstIndex(of: "finish:\(id)")
         let cancelled = events.firstIndex(of: "cancel:\(id)")
@@ -276,6 +277,7 @@ final class NotificationSchedulerSerializationTests: XCTestCase {
 
         env.setMaster(true)
         await scheduler.refreshDailySummaries(isTomorrowPreview: false)
-        XCTAssertEqual(port.pendingIDs(), [id], "Refresh must return only after the notification write finishes")
+        XCTAssertTrue(port.pendingIDs().contains(id), "Refresh must return only after the notification write finishes")
+        XCTAssertEqual(port.pendingIDs().count, NotificationScheduler.DAILY_SUMMARY_WINDOW_DAYS)
     }
 }

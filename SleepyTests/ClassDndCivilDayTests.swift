@@ -26,6 +26,38 @@ final class ClassDndCivilDayTests: XCTestCase {
         XCTAssertTrue(intervals(on: "2026-11-02", courses: [course()], transfers: [transfer]).isEmpty)
     }
 
+    func testMakeupIntervalUsesDestinationBellsRatherThanSourceBells() throws {
+        let transfer = HolidayTransferEntry(sourceDate: date("2026-11-02"),
+                                            targetDate: date("2026-11-15"), segmentId: "holiday")
+        var recurring = course()
+        recurring.ownTime = false
+        let period = PeriodTableEntity(name: "Dated", nodesPerDay: 1,
+            timeJson: #"[{"node":1,"start":"08:00","end":"08:45"}]"#,
+            comboScheduleJson: """
+            {"publicSchedules":[{"name":"Makeup","startDate":"2026-11-15","endDate":"2026-11-15",
+              "timeSlots":[{"number":1,"startTime":"10:00","endTime":"10:45"}]}]}
+            """)
+        let actual = ClassDndScheduler.intervalsForDate(transfer.targetDate, table: table,
+            courses: [recurring], transfers: [transfer], period: period)
+        let interval = try XCTUnwrap(actual.first)
+        XCTAssertEqual(interval.0, time(on: "2026-11-15", hour: 10))
+        XCTAssertEqual(interval.1, time(on: "2026-11-15", hour: 10, minute: 45))
+    }
+
+    func testSuppressionStartsAtTheDeviceWallClockEvenWhenShanghaiIsTomorrow() throws {
+        let civil = date("2026-11-02")
+        let zone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let clock = CourseReminderCalendar(timeZone: zone)
+        var recurring = course()
+        recurring.startTime = "18:00"
+        recurring.endTime = "18:45"
+        let intervals = ClassDndScheduler.intervalsForDate(civil, table: table, courses: [recurring],
+            transfers: [], timeZone: zone)
+        let time = try XCTUnwrap(clock.instant(on: civil, wallSeconds: 18 * 3600 + 20 * 60))
+        XCTAssertEqual(intervals.first?.0, clock.instant(on: civil, wallSeconds: 18 * 3600))
+        XCTAssertTrue(ClassDndScheduler.isCurrentlyInClass(intervals, now: time))
+    }
+
     func testMakeupAfterSemesterStillUsesValidSourceWeek() {
         let transfer = HolidayTransferEntry(sourceDate: date("2026-11-02"), targetDate: date("2026-11-22"), segmentId: "holiday")
         XCTAssertEqual(intervals(on: "2026-11-22", courses: [course()], transfers: [transfer]).count, 1)

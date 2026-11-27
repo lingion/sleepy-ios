@@ -10,6 +10,7 @@
 import XCTest
 import EventKit
 import CryptoKit
+import CoreFoundation
 import Darwin
 @testable import Sleepy
 
@@ -18,6 +19,7 @@ final class CalendarTransferImportTests: XCTestCase {
     func testManagedEventFingerprintDoesNotChangeWithTheDeviceTimeZone() {
         let original = getenv("TZ").map { String(cString: $0) }
         defer {
+            CFTimeZoneSetDefault(nil)
             if let original { setenv("TZ", original, 1) } else { unsetenv("TZ") }
             tzset()
             NSTimeZone.resetSystemTimeZone()
@@ -26,7 +28,8 @@ final class CalendarTransferImportTests: XCTestCase {
             setenv("TZ", name, 1)
             tzset()
             NSTimeZone.resetSystemTimeZone()
-            XCTAssertEqual(TimeZone.current.identifier, name)
+            NSTimeZone.default = TimeZone(identifier: name)!
+            XCTAssertEqual(Calendar.autoupdatingCurrent.timeZone.identifier, name)
         }
         let event = EKEvent(eventStore: EKEventStore())
         event.title = "高等数学"
@@ -48,6 +51,7 @@ final class CalendarTransferImportTests: XCTestCase {
     func testLegacyCalendarFingerprintAcceptsUneditedEventsFromAnotherDeviceTimeZone() {
         let original = getenv("TZ").map { String(cString: $0) }
         defer {
+            CFTimeZoneSetDefault(nil)
             if let original { setenv("TZ", original, 1) } else { unsetenv("TZ") }
             tzset()
             NSTimeZone.resetSystemTimeZone()
@@ -55,7 +59,8 @@ final class CalendarTransferImportTests: XCTestCase {
         setenv("TZ", "America/Los_Angeles", 1)
         tzset()
         NSTimeZone.resetSystemTimeZone()
-        XCTAssertEqual(TimeZone.current.identifier, "America/Los_Angeles")
+        NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!
+        XCTAssertEqual(Calendar.autoupdatingCurrent.timeZone.identifier, "America/Los_Angeles")
         let event = EKEvent(eventStore: EKEventStore())
         event.title = "高等数学"
         event.location = "A305"

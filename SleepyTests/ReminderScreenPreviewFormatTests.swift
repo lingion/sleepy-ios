@@ -123,4 +123,33 @@ final class ReminderScreenPreviewFormatTests: XCTestCase {
             table: previewTable, courses: [secondWeek, tuesday], transfers: [previewTransfer], nodes: [])
         XCTAssertEqual(result.map(\.courseName), ["第一周周二"])
     }
+
+    func testLoadUsesHydratedPeriodTableScheduleAndDeviceTimeZone() async throws {
+        let appdb = try AppDatabase.inMemory()
+        let repo = ScheduleRepository(appdb)
+        let periodId = try appdb.periodTableDao.insert(PeriodTableEntity(
+            name: "Shared",
+            nodesPerDay: 2,
+            timeJson: #"[{"node":1,"start":"08:00","end":"08:45"},{"node":2,"start":"09:00","end":"09:45"}]"#,
+            comboScheduleJson: """
+            {"publicSchedules":[{"name":"Shift","startDate":"2026-11-02","endDate":"2026-11-02",
+              "timeSlots":[{"number":1,"startTime":"08:15","endTime":"08:55"}]}]}
+            """
+        ))
+        var table = TimeTableEntity(name: "Bound", startDate: "2026-11-02", maxWeek: 4, nodesPerDay: 2,
+                                    timeJson: "", isDefault: true, periodTableId: periodId)
+        table.id = try repo.insertTable(table)
+        try repo.insertCourse(CourseEntity(groupId: "g1", tableId: table.id, courseName: "Math",
+                                           day: 1, startNode: 1, step: 1, startWeek: 1, endWeek: 4,
+                                           color: "#FF6750A4"))
+
+        let london = try XCTUnwrap(TimeZone(identifier: "Europe/London"))
+        let now = try XCTUnwrap(CourseReminderCalendar(timeZone: london)
+            .instant(on: CourseOccurrences.parseDate("2026-11-02")!, wallSeconds: 7 * 3600))
+        let preview = await ReminderPreviewLoader.load(repo: repo, now: now, timeZone: london)
+        XCTAssertEqual(preview?.today.firstCourse?.course.courseName, "Math")
+        XCTAssertEqual(preview?.today.firstCourse?.startTime, "08:15")
+        XCTAssertEqual(preview?.nextClass?.course.courseName, "Math")
+        XCTAssertEqual(preview?.nextClass?.startTime, "08:15")
+    }
 }

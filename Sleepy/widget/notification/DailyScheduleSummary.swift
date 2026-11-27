@@ -10,12 +10,6 @@ import Foundation
 // MARK: - 时间小工具 (原版本 LocalTime 的 iOS 投影: 当日分钟数 + "HH:mm" 文本)
 
 enum DailyAgendaTime {
-    /// NodeTime/解析结果的 Date → 当日分钟数 (与 TimeTableUtils.formatTime 同一 Calendar 口径)
-    static func minutes(of d: Date) -> Int {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: d)
-        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
-    }
-
     /// 分钟数 → "HH:mm" (← String.format("%02d:%02d", hour, minute))
     static func format(_ minutes: Int) -> String {
         String(format: "%02d:%02d", minutes / 60, minutes % 60)
@@ -32,8 +26,10 @@ struct DailyTableCourses {
 struct DailyScheduleEntry {
     let table: TimeTableEntity
     let course: CourseEntity
-    /// 解析成功的开始时间(当日分钟数) ← 原版本 LocalTime?; nil = 时间不可解析(排序沉底)
-    let startTimeMinutes: Int?
+    /// Seconds from civil midnight. Keep seconds for ordering and merging even though labels show minutes.
+    let startTimeSeconds: Int?
+    let endTimeSeconds: Int?
+    var startTimeMinutes: Int? { startTimeSeconds.map { $0 / 60 } }
     /// 展示文本 ← 原版本 startTimeText: 自定义时间原文 或 解析后的 "HH:mm"; 不可解析 = ""
     let startTimeText: String
 }
@@ -60,31 +56,26 @@ func buildDailyScheduleSummary(_ tables: [DailyTableCourses]) -> DailyScheduleSu
     let entries = tables.flatMap { tc -> [DailyScheduleEntry] in
         let table = tc.table
         let courses = tc.courses
-        let nodeTimes = TimeTableUtils.parseNodes(table.timeJson)
-        return courses.map { course -> DailyScheduleEntry in
+        let bells = ReminderBellTimes(table.timeJson)
+        return courses.filter { $0.tableId == table.id }.map { course -> DailyScheduleEntry in
             // ← customTime = startTime.takeIf { course.ownTime && isNotBlank }:
             // 自定义时间存在但畸形 → start=null(不回落节点时间, 原版本 同款语义)。
             // iOS 双旗适配: isIrregularTime 吞并旧 ownTime 语义(实体注释), 判定取或。
-            let customTime: String? =
-                ((course.ownTime || course.isIrregularTime) && !course.startTime.isBlank)
-                ? course.startTime : nil
-            let startMinutes: Int?
-            if let customTime {
-                startMinutes = TimeTableUtils.hmMinutes(customTime)
-            } else {
-                startMinutes = nodeTimes.first(where: { $0.node == course.startNode })
-                    .map { DailyAgendaTime.minutes(of: $0.start) }
-            }
-            let text = customTime ?? startMinutes.map { DailyAgendaTime.format($0) } ?? ""
+            let usesOwnTime = course.ownTime || course.isIrregularTime
+            let customTime = usesOwnTime && !course.startTime.isBlank ? course.startTime : nil
+            let times = bells.bounds(for: course)
+            // Keep the legacy summary fallback when only the custom start is blank.
+            let start = usesOwnTime && customTime == nil ? bells.nodeBounds(for: course).start : times.start
+            let text = customTime ?? start.map { DailyAgendaTime.format($0 / 60) } ?? ""
             return DailyScheduleEntry(table: table, course: course,
-                                      startTimeMinutes: startMinutes, startTimeText: text)
+                                      startTimeSeconds: start, endTimeSeconds: times.end, startTimeText: text)
         }
     }.sorted { a, b in
-        switch (a.startTimeMinutes, b.startTimeMinutes) {
+        switch (a.startTimeSeconds, b.startTimeSeconds) {
         case (nil, nil): return false        // 同 null 保持稳定序
         case (nil, _): return false          // null 沉底
         case (_, nil): return true
-        default: return a.startTimeMinutes! < b.startTimeMinutes!
+        case (let startA?, let startB?): return startA < startB
         }
     }
     return DailyScheduleSummary(entries: entries, isMultiTable: tables.count > 1)
