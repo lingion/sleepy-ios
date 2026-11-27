@@ -337,6 +337,7 @@
 "export_xiaoai_title" = "小愛課程表";
 "export_xiaoai_subtitle" = "在本機準備課表後交給小愛 App 預覽並匯入";
 "export_xiaoai_invalid" = "課表超出小愛支援範圍或時間表無效，請檢查週次、日期及節次設定";
+"export_xiaoai_missing_period_time" = "「%1$@」用到第 %2$d 節，但作息表未設定該節時間。請補全作息表或核對課程節次後重試";
 "export_xiaoai_empty" = "目前課表沒有課程，無法匯出";
 "export_xiaoai_not_installed" = "未偵測到小愛，請先安裝小愛 App（含小愛課程表）";
 "export_xiaoai_launched" = "已跳轉小愛課程表，請在預覽頁確認匯入";
@@ -669,11 +670,11 @@
 "today_nav_prev_day" = "前一天";
 "url_match_school" = "符合學校：%@";
 "widget_edit_section_alias" = "課程名顯示";
-"widget_today_small_label" = "今日课程 · 小";
-"widget_twoday_small_label" = "最近两天 · 小";
-"widget_week_grid_small_label" = "本周课表（网格）· 小";
-"widget_week_list_small_label" = "本周课表（列表）· 小";
-"widget_week_view_small_label" = "本周课表（周视图）· 小";
+"widget_today_small_label" = "今日課程 · 小";
+"widget_twoday_small_label" = "最近兩天 · 小";
+"widget_week_grid_small_label" = "本週課表（網格）· 小";
+"widget_week_list_small_label" = "本週課表（列表）· 小";
+"widget_week_view_small_label" = "本週課表（週檢視）· 小";
 
 "schedule_empty_import" = "匯入第一張課表";
 "schedule_empty_create_table" = "手動建立第一張課表";
@@ -1397,3 +1398,62 @@
 
 "widget_week_grid_vertical_label" = "本週課表（直向網格）· 4×2";
 "widget_week_grid_horizontal_label" = "三天課表（橫向網格）· 4×2";
+
+"occurrence_add_title" = "新增單次課程";
+"occurrence_add_more" = "更多";
+
+/* WebDAV backup */
+"webdav_config_forgotten" = "已移除此裝置上的 WebDAV 設定";
+"webdav_config_saved" = "WebDAV 設定已驗證並儲存";
+"webdav_config_title" = "設定 WebDAV 伺服器";
+"webdav_configured_sub" = "伺服器：%1$@";
+"webdav_confirm_upload" = "確認上傳";
+"webdav_date_unknown" = "未知";
+"webdav_directory" = "備份目錄";
+"webdav_directory_create_notice" = "測試連線時，Sleepy 可能會在此帳戶下建立所填的備份目錄。";
+"webdav_error_archive_size" = "備份解壓縮後的資料量超過限制。";
+"webdav_error_authentication" = "伺服器拒絕使用者名稱或密碼，請檢查後重試。";
+"webdav_error_configuration" = "請檢查伺服器位址、備份目錄和使用者名稱。";
+"webdav_error_exists" = "同名備份已存在，未覆寫任何檔案。";
+"webdav_error_forbidden" = "伺服器拒絕存取此目錄，請檢查帳戶權限。";
+"webdav_error_generic" = "WebDAV 操作失敗，請檢查設定後重試。";
+"webdav_error_http_status" = "伺服器回傳錯誤（HTTP %1$d）。";
+"webdav_error_https" = "伺服器位址必須使用 HTTPS。";
+"webdav_error_network" = "無法連線至伺服器，請檢查網路和 HTTPS 憑證。";
+"webdav_error_redirect" = "伺服器重新導向了請求。請輸入最終的 HTTPS WebDAV 位址。";
+"webdav_error_response" = "無法識別伺服器回傳的 WebDAV 資料。";
+"webdav_error_too_large" = "備份檔超過 100 MB 限制。";
+"webdav_forget_configuration" = "移除此裝置上的設定";
+"webdav_forget_title" = "移除 WebDAV 設定？";
+"webdav_forget_warning" = "這會從此裝置移除伺服器位址和已儲存的密碼。伺服器上的備份不會刪除。";
+"webdav_password" = "密碼（選用）";
+"webdav_password_keep_hint" = "留白會保留已儲存的密碼；若要清除，請先移除此設定";
+"webdav_password_optional_hint" = "不需要驗證的伺服器可留白";
+"webdav_privacy_notice" = "伺服器上的備份未加密。連線設定和密碼存放在本機鑰匙圈中，不會寫入備份。";
+"webdav_remote_empty" = "伺服器目錄中找不到 .sleepybackup 檔案";
+"webdav_remote_file_detail" = "修改時間：%1$@ · 大小：%2$@";
+"webdav_remote_title" = "選擇遠端備份";
+"webdav_restore" = "從伺服器選擇備份還原";
+"webdav_section_sub" = "選用：備份至你自己的 WebDAV 伺服器";
+"webdav_section_title" = "WebDAV 備份";
+"webdav_server_url" = "HTTPS WebDAV 位址";
+"webdav_test_and_save" = "測試連線並儲存";
+"webdav_testing" = "測試中";
+"webdav_upload" = "上傳目前的完整備份";
+"webdav_upload_confirm_target" = "備份將傳送至：%1$@/%2$@";
+"webdav_upload_confirm_title" = "要上傳完整備份嗎？";
+"webdav_upload_done" = "已上傳：%1$@";
+"webdav_username" = "使用者名稱（選用）";
+"webdav_working" = "處理中";
+"jw_combo_new_table_required" = "請將此課表匯入為新課表，以保留依日期切換的作息。不會變更既有課表或共用作息。";
+"jw_combo_invalid" = "日期作息與基礎時間不符，請核對節次時間或重新擷取。";
+"jw_combo_saved_with_new_timetable" = "新課表會保留來源中依日期切換的作息。";
+"jw_update_source_unavailable" = "原教務入口已變更或無法使用。請從新增匯入選擇學校。";
+"edit_table_max_week_error" = "總週數必須是大於 0 的整數";
+"settings_undo_experiment" = "實驗功能。歷史僅保存在記憶體中，應用程式程序結束後清空。";
+"settings_undo_mode" = "保留方式";
+"settings_undo_off" = "關閉";
+"settings_undo_limited" = "指定步數";
+"settings_undo_unlimited" = "無限";
+"settings_undo_count_hint" = "請輸入大於零的保留步數。";
+"done" = "完成";

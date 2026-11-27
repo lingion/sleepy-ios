@@ -337,6 +337,7 @@
 "export_xiaoai_title" = "Horario XiaoAI";
 "export_xiaoai_subtitle" = "Prepara el horario localmente y abre XiaoAI para revisarlo e importarlo";
 "export_xiaoai_invalid" = "Horario no compatible o períodos no válidos. Revisa semanas, fechas y períodos.";
+"export_xiaoai_missing_period_time" = "%1$@ usa el período %2$d, pero falta su hora en la tabla de períodos. Añade la hora o revisa los períodos de la clase e inténtalo de nuevo.";
 "export_xiaoai_empty" = "Esta tabla no tiene cursos para exportar";
 "export_xiaoai_not_installed" = "No se encontró XiaoAI; instala la app XiaoAI (con Horario XiaoAI) primero";
 "export_xiaoai_launched" = "Se abrió Horario XiaoAI; confirma la importación en la vista previa";
@@ -669,11 +670,11 @@
 "today_nav_prev_day" = "Día anterior";
 "url_match_school" = "Escuela coincidente: %@";
 "widget_edit_section_alias" = "Visualización del nombre";
-"widget_today_small_label" = "今日课程 · 小";
-"widget_twoday_small_label" = "最近两天 · 小";
-"widget_week_grid_small_label" = "本周课表（网格）· 小";
-"widget_week_list_small_label" = "本周课表（列表）· 小";
-"widget_week_view_small_label" = "本周课表（周视图）· 小";
+"widget_today_small_label" = "Hoy · Pequeño";
+"widget_twoday_small_label" = "Próximos dos días · Pequeño";
+"widget_week_grid_small_label" = "Esta semana (cuadrícula) · Pequeño";
+"widget_week_list_small_label" = "Esta semana (lista) · Pequeño";
+"widget_week_view_small_label" = "Esta semana (vista) · Pequeño";
 
 "schedule_empty_import" = "Importar primer horario";
 "schedule_empty_create_table" = "Crear primer horario";
@@ -1397,3 +1398,62 @@
 
 "widget_week_grid_vertical_label" = "Cuadrícula semanal vertical · 4×2";
 "widget_week_grid_horizontal_label" = "Cuadrícula de tres días horizontal · 4×2";
+
+"occurrence_add_title" = "Añadir una clase única";
+"occurrence_add_more" = "Más";
+
+/* WebDAV backup */
+"webdav_config_forgotten" = "Configuración WebDAV eliminada de este dispositivo";
+"webdav_config_saved" = "Conexión WebDAV verificada y configuración guardada";
+"webdav_config_title" = "Configurar WebDAV";
+"webdav_configured_sub" = "Servidor: %1$@";
+"webdav_confirm_upload" = "Confirmar subida";
+"webdav_date_unknown" = "Desconocido";
+"webdav_directory" = "Carpeta de copias";
+"webdav_directory_create_notice" = "Al probar la conexión, Sleepy puede crear la carpeta indicada en esta cuenta.";
+"webdav_error_archive_size" = "El archivo contiene demasiados datos al descomprimirse.";
+"webdav_error_authentication" = "El servidor rechazó el nombre de usuario o la contraseña. Compruébalos e inténtalo de nuevo.";
+"webdav_error_configuration" = "Comprueba la dirección del servidor, la carpeta de copias y el nombre de usuario.";
+"webdav_error_exists" = "Ya existe una copia con ese nombre. No se ha sobrescrito nada.";
+"webdav_error_forbidden" = "El servidor denegó el acceso a esta carpeta. Comprueba los permisos de la cuenta.";
+"webdav_error_generic" = "Falló WebDAV. Comprueba la configuración e inténtalo de nuevo.";
+"webdav_error_http_status" = "El servidor devolvió un error (HTTP %1$d).";
+"webdav_error_https" = "La dirección del servidor debe usar HTTPS.";
+"webdav_error_network" = "No se pudo conectar. Comprueba la red y el certificado HTTPS.";
+"webdav_error_redirect" = "El servidor redirigió la solicitud. Introduce la dirección HTTPS final de WebDAV.";
+"webdav_error_response" = "La respuesta WebDAV del servidor no se reconoce.";
+"webdav_error_too_large" = "La copia supera el límite de 100 MB.";
+"webdav_forget_configuration" = "Eliminar la configuración de este dispositivo";
+"webdav_forget_title" = "¿Eliminar la configuración WebDAV?";
+"webdav_forget_warning" = "Se eliminarán de este dispositivo la dirección del servidor y la contraseña guardada. Las copias que ya estén en el servidor seguirán allí.";
+"webdav_password" = "Contraseña (opcional)";
+"webdav_password_keep_hint" = "Déjalo en blanco para conservar la contraseña guardada. Elimina la configuración para borrarla.";
+"webdav_password_optional_hint" = "Déjalo en blanco si el servidor no requiere autenticación";
+"webdav_privacy_notice" = "La copia no está cifrada en el servidor. La conexión y la contraseña se guardan en el llavero de este dispositivo y no se incluyen en las copias.";
+"webdav_remote_empty" = "No se encontraron archivos .sleepybackup en esta carpeta del servidor";
+"webdav_remote_file_detail" = "Modificado: %1$@ · Tamaño: %2$@";
+"webdav_remote_title" = "Elegir una copia remota";
+"webdav_restore" = "Elegir una copia del servidor para restaurar";
+"webdav_section_sub" = "Opcional: guarda una copia en tu propio servidor WebDAV";
+"webdav_section_title" = "Copia de seguridad WebDAV";
+"webdav_server_url" = "Dirección WebDAV HTTPS";
+"webdav_test_and_save" = "Probar conexión y guardar";
+"webdav_testing" = "Probando";
+"webdav_upload" = "Subir una copia completa";
+"webdav_upload_confirm_target" = "La copia se enviará a: %1$@/%2$@";
+"webdav_upload_confirm_title" = "¿Subir una copia completa?";
+"webdav_upload_done" = "Subida: %1$@";
+"webdav_username" = "Nombre de usuario (opcional)";
+"webdav_working" = "Procesando";
+"jw_combo_new_table_required" = "Importa este horario como uno nuevo para conservar las horas que cambian según la fecha. No se modificará ningún horario existente ni compartido.";
+"jw_combo_invalid" = "Las horas específicas por fecha no coinciden con las horas base. Comprueba los periodos o vuelve a obtener el horario.";
+"jw_combo_saved_with_new_timetable" = "El horario nuevo conserva las horas específicas por fecha del origen.";
+"jw_update_source_unavailable" = "La entrada de origen no está disponible o ha cambiado. Inicia una nueva importación para elegir un centro.";
+"edit_table_max_week_error" = "El total de semanas debe ser un número entero positivo";
+"settings_undo_experiment" = "Función experimental. El historial se guarda en memoria y se borra al finalizar el proceso de la aplicación.";
+"settings_undo_mode" = "Límite del historial";
+"settings_undo_off" = "Desactivado";
+"settings_undo_limited" = "Limitado";
+"settings_undo_unlimited" = "Ilimitado";
+"settings_undo_count_hint" = "Introduce un número positivo de pasos.";
+"done" = "Listo";

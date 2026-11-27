@@ -337,6 +337,7 @@
 "export_xiaoai_title" = "小愛課題表";
 "export_xiaoai_subtitle" = "端末で時間割を準備し、小愛アプリでプレビュー・取り込み";
 "export_xiaoai_invalid" = "非対応の時間割または無効な時限設定です。週・日付・時限を確認してください。";
+"export_xiaoai_missing_period_time" = "「%1$@」は %2$d 時限目を使用していますが、時限表にその時刻がありません。時刻を追加するか授業の時限を確認してから、もう一度お試しください。";
 "export_xiaoai_empty" = "この課題表に授業がなく、書き出せません";
 "export_xiaoai_not_installed" = "小愛が見つかりません。先に小愛アプリ（小愛課題表同梱）をインストールしてください";
 "export_xiaoai_launched" = "小愛課題表を開きました。プレビュー画面で取り込みを確認してください";
@@ -669,11 +670,11 @@
 "today_nav_prev_day" = "前日";
 "url_match_school" = "一致した学校：%@";
 "widget_edit_section_alias" = "科目名の表示";
-"widget_today_small_label" = "今日课程 · 小";
-"widget_twoday_small_label" = "最近两天 · 小";
-"widget_week_grid_small_label" = "本周课表（网格）· 小";
-"widget_week_list_small_label" = "本周课表（列表）· 小";
-"widget_week_view_small_label" = "本周课表（周视图）· 小";
+"widget_today_small_label" = "今日 · 小";
+"widget_twoday_small_label" = "直近2日 · 小";
+"widget_week_grid_small_label" = "今週の時間割（グリッド）· 小";
+"widget_week_list_small_label" = "今週の時間割（リスト）· 小";
+"widget_week_view_small_label" = "今週の時間割（ビュー）· 小";
 
 "schedule_empty_import" = "最初の時間割をインポート";
 "schedule_empty_create_table" = "最初の時間割を作成";
@@ -1083,7 +1084,7 @@
 "table_reminder_empty" = "時間割がありません。先に追加またはインポートしてください。";
 "table_reminder_save_failed" = "保存できませんでした。もう一度お試しください。";
 "edit_table_reminder_enable" = "この時間割を通知";
-"edit_table_reminder_desc" = "オフにすると、この時間割の课前リマインダー・日課表サマリー・フローティングクラウドは送信されません";
+"edit_table_reminder_desc" = "オフにすると、この時間割の授業前リマインダー・日課表サマリー・フローティングクラウドは送信されません";
 
 /* ---- sleepy v1.0.62 B4 alignment ---- */
 "appearance_header_hide_time" = "時間行を表示しない";
@@ -1397,3 +1398,62 @@
 
 "widget_week_grid_vertical_label" = "週間時間割（縦グリッド）· 4×2";
 "widget_week_grid_horizontal_label" = "3日間時間割（横グリッド）· 4×2";
+
+"occurrence_add_title" = "1回のみの授業を追加";
+"occurrence_add_more" = "詳細設定";
+
+/* WebDAV backup */
+"webdav_config_forgotten" = "この端末から WebDAV 設定を削除しました";
+"webdav_config_saved" = "WebDAV 接続を確認し、設定を保存しました";
+"webdav_config_title" = "WebDAV の設定";
+"webdav_configured_sub" = "サーバー：%1$@";
+"webdav_confirm_upload" = "アップロードを確認";
+"webdav_date_unknown" = "不明";
+"webdav_directory" = "バックアップフォルダー";
+"webdav_directory_create_notice" = "接続テスト時に、このアカウント内へ指定したフォルダーを作成することがあります。";
+"webdav_error_archive_size" = "展開したアーカイブが大きすぎます。";
+"webdav_error_authentication" = "サーバーがユーザー名またはパスワードを拒否しました。確認して再試行してください。";
+"webdav_error_configuration" = "サーバーアドレス、バックアップフォルダー、ユーザー名を確認してください。";
+"webdav_error_exists" = "同じ名前のバックアップがあります。上書きは行われませんでした。";
+"webdav_error_forbidden" = "このフォルダーへのアクセスが拒否されました。アカウントの権限を確認してください。";
+"webdav_error_generic" = "WebDAV に失敗しました。設定を確認して再試行してください。";
+"webdav_error_http_status" = "サーバーでエラーが発生しました（HTTP %1$d）。";
+"webdav_error_https" = "サーバーアドレスには HTTPS が必要です。";
+"webdav_error_network" = "接続できません。ネットワークと HTTPS 証明書を確認してください。";
+"webdav_error_redirect" = "サーバが要求をリダイレクトしました。最終的な HTTPS WebDAV アドレスを入力してください。";
+"webdav_error_response" = "サーバーから認識できない WebDAV 応答がありました。";
+"webdav_error_too_large" = "バックアップが 100 MB の上限を超えています。";
+"webdav_forget_configuration" = "この端末から設定を削除";
+"webdav_forget_title" = "WebDAV 設定を削除しますか？";
+"webdav_forget_warning" = "サーバーアドレスと保存済みパスワードをこの端末から削除します。サーバー上のバックアップは削除されません。";
+"webdav_password" = "パスワード（任意）";
+"webdav_password_keep_hint" = "空欄の場合、保存済みのパスワードを保持します。消去するには設定を削除してください。";
+"webdav_password_optional_hint" = "認証が不要なサーバーでは空欄にできます";
+"webdav_privacy_notice" = "サーバ上のバックアップは暗号化されません。接続情報とパスワードはこの端末のキーチェーンに保存され、バックアップには含まれません。";
+"webdav_remote_empty" = "このサーバーフォルダーに .sleepybackup ファイルはありません";
+"webdav_remote_file_detail" = "更新日時：%1$@ · サイズ：%2$@";
+"webdav_remote_title" = "リモートバックアップを選択";
+"webdav_restore" = "サーバー上のバックアップから復元";
+"webdav_section_sub" = "任意：自分の WebDAV サーバーにバックアップできます";
+"webdav_section_title" = "WebDAV バックアップ";
+"webdav_server_url" = "HTTPS WebDAV アドレス";
+"webdav_test_and_save" = "接続をテストして保存";
+"webdav_testing" = "テスト中";
+"webdav_upload" = "すべてのデータをバックアップ";
+"webdav_upload_confirm_target" = "バックアップの送信先：%1$@/%2$@";
+"webdav_upload_confirm_title" = "完全バックアップをアップロードしますか？";
+"webdav_upload_done" = "アップロード済み：%1$@";
+"webdav_username" = "ユーザー名（任意）";
+"webdav_working" = "処理中";
+"jw_combo_new_table_required" = "日付ごとの時限表を保持するには、新しい時間割として読み込んでください。既存の時間割や共用時限表は変更されません。";
+"jw_combo_invalid" = "日付ごとの時限表が基本時刻と一致しません。時限を確認するか、時間割を再取得してください。";
+"jw_combo_saved_with_new_timetable" = "新しい時間割には、元データの日付ごとの時限表が保存されます。";
+"jw_update_source_unavailable" = "元の学校の入口が利用できないか、変更されています。学校を選び直すには新規インポートを開始してください。";
+"edit_table_max_week_error" = "総週数は 1 以上の整数で入力してください";
+"settings_undo_experiment" = "試験的機能。履歴はメモリ内にのみ保存され、アプリのプロセス終了時に消去されます。";
+"settings_undo_mode" = "履歴の上限";
+"settings_undo_off" = "無効";
+"settings_undo_limited" = "回数指定";
+"settings_undo_unlimited" = "無制限";
+"settings_undo_count_hint" = "保存する回数を正の整数で入力してください。";
+"done" = "完了";
