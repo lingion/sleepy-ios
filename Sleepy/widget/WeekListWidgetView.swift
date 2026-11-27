@@ -52,16 +52,18 @@ struct WeekListWidgetEntry: TimelineEntry {
 /// (← WeekViewWidget.kt L186 注释「与 WeekListWidget.loadDataSync 完全一致」)。
 enum WeekListWidgetDataLoader {
 
-    static func loadData(kind: String) async -> WeekData {
-        let today = Date()
+    static func loadData(kind: String, now today: Date = Date(),
+                         overrideTableId: Int64? = nil,
+                         repository: ScheduleRepository? = nil) async -> WeekData {
         let prefs = AppPrefs.shared
-        let isDark = prefs.isDarkMode()
+        let isDark = prefs.isDarkMode(isSystemDark: currentSystemDark())
         let themeKey = prefs.getThemeKey()
         let themeMode = prefs.getThemeMode()
         let fallback = WeekData(days: [], hasTable: false, isDark: isDark,
                                 themeKey: themeKey, themeMode: themeMode)
-        guard let source = await WidgetWeekDataLoader.resolve(kind),
-              let repo = WidgetLoader.makeRepo() else { return fallback }
+        guard let source = await WidgetWeekDataLoader.resolve(kind, repository: repository, now: today,
+                                                              overrideTableId: overrideTableId),
+              let repo = repository ?? WidgetLoader.makeRepo() else { return fallback }
         let table = source.table
         let status = source.display.semesterStatus
         // ← 原版本 L183-197: 日期=source.dateFor(周1预习/跳周随 display), 取课=source.coursesOn
@@ -72,10 +74,10 @@ enum WeekListWidgetDataLoader {
         var days: [DayData] = []
         for dayOfWeek in 1...7 {
             let date = source.dateFor(dayOfWeek: dayOfWeek)
-            let visible = source.coursesOn(date, previewBeforeStart: true)
+            let visible = source.coursesOnDisplayDate(date, previewBeforeStart: true)
             days.append(DayData(date: date, dayOfWeek: dayOfWeek, courses: visible,
-                                timeJson: table.timeJson,
-                                isGrey: await HolidayManager.shouldGrey(date, tableId: table.id)))
+                                timeJson: source.table(onDisplayDate: date).timeJson,
+                                isGrey: await HolidayManager.shouldGrey(source.civilDay(onDisplayDate: date), tableId: table.id)))
         }
         let effStatus = days.contains(where: { !$0.courses.isEmpty }) && status == .afterEnd ? .inRange : status
         // 最小档三天窗口 (2026-09-15 用户令): 真实日期, 上下周打通 (原版本 L199-205)
@@ -83,7 +85,9 @@ enum WeekListWidgetDataLoader {
             repo: repo, tableId: table.id, timeJson: table.timeJson,
             startDate: table.startDate, maxWeek: table.maxWeek,
             today: today, todayFirst: WidgetCompactWindowStore.isTodayFirst(kind),
-            displayDate: source.display.status == .nearestBusyDay ? source.display.targetDate : nil
+            displayDate: source.display.status == .nearestBusyDay ? source.resolvedToday(today) : nil,
+            periodTable: source.periodTable,
+            displaySource: source
         )
         return WeekData(days: days, hasTable: true, isDark: isDark, themeKey: themeKey,
                         themeMode: themeMode, semesterStatus: effStatus,
@@ -108,14 +112,64 @@ struct WeekListWidgetProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekListWidgetEntry>) -> Void) {
         Task {
-            let now = Date()
-            let data = await WeekListWidgetDataLoader.loadData(kind: "WeekListWidgetRV")
-            let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
-            WidgetArchiveLog.append(kind: "WeekListWidgetRV", family: context.family.description, result: "success")
-            completion(Timeline(entries: [WeekListWidgetEntry(date: now, data: data)], policy: .after(refresh)))
+            let timeline = await Self.timeline(familyDescription: context.family.description)
+            completion(timeline)
         }
     }
+
+    static func timeline(familyDescription: String,
+                         overrideTableId: Int64? = nil) async -> Timeline<WeekListWidgetEntry> {
+        let now = Date()
+        let data = await WeekListWidgetDataLoader.loadData(kind: "WeekListWidgetRV", now: now,
+                                                           overrideTableId: overrideTableId)
+        let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
+        var entries = [WeekListWidgetEntry(date: now, data: data)]
+        if let rollover = WidgetBoundaryScheduler.nearestBusyRolloverDate(days: data.days, from: now),
+           rollover < refresh {
+            let nextData = await WeekListWidgetDataLoader.loadData(kind: "WeekListWidgetRV", now: rollover,
+                                                                   overrideTableId: overrideTableId)
+            if nextData.weekDisplayStatus == .nearestBusyDay {
+                entries.append(WeekListWidgetEntry(date: rollover, data: nextData))
+            }
+        }
+        WidgetArchiveLog.append(kind: "WeekListWidgetRV", family: familyDescription, result: "success")
+        return Timeline(entries: entries, policy: .after(refresh))
+    }
 }
+
+#if compiler(>=5.9)
+@available(iOS 17.0, *)
+struct WeekListIntentWidgetProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> WeekListWidgetEntry {
+        WeekListWidgetProvider().placeholder(in: context)
+    }
+
+    func snapshot(for configuration: SelectTimetableIntent, in context: Context) async -> WeekListWidgetEntry {
+        WidgetArchiveLog.append(kind: "WeekListWidgetRV", family: context.family.description, result: "success")
+        let data = await WeekListWidgetDataLoader.loadData(kind: "WeekListWidgetRV",
+                                                           overrideTableId: configuration.timetable?.id)
+        return WeekListWidgetEntry(date: Date(), data: data)
+    }
+
+    func timeline(for configuration: SelectTimetableIntent, in context: Context) async -> Timeline<WeekListWidgetEntry> {
+        await WeekListWidgetProvider.timeline(familyDescription: context.family.description,
+                                              overrideTableId: configuration.timetable?.id)
+    }
+}
+
+@available(iOS 17.0, *)
+struct WeekListIntentWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: "WeekListWidgetRV", intent: SelectTimetableIntent.self,
+                               provider: WeekListIntentWidgetProvider()) { entry in
+            WeekListWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName(L10n.format("widget_week_list_label"))
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .sleepyContentMarginsDisabled()
+    }
+}
+#endif
 
 // 星期标题(英缩写 — 原 dayLabels arrayOf("", "Mon"...))
 let weekDayLabels = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -261,7 +315,7 @@ private struct WeekListDayColumn: View {
                 // 课程数量 chip — 安卓 chip 文字继承标题 BOLD (L873 设 bold 后直到 L899
                 // 才重置, chip 在 L889 落在这段里); 宽 = 文本长度*6+12dp、高 14dp 固定公式
                 // (L884-885), 非自然字宽 — 逐字符 6dp 槽位。
-                let chipText = "\(day.courses.count) 门"
+                let chipText = L10n.format("course_count_format", day.courses.count)
                 Text(chipText)
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(s.onSurfaceVariant)
@@ -331,6 +385,6 @@ struct WeekListWidget: Widget {
         .configurationDisplayName(L10n.format("widget_week_list_label"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         // iOS 17+ 系统边距关闭, 维持既有自管 padding 布局 (iOS 16 及以下 no-op)
-        .contentMarginsDisabled()
+        .sleepyContentMarginsDisabled()
     }
 }

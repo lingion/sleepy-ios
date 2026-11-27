@@ -18,6 +18,51 @@ struct WidgetWeekSource {
     /// coursesOn / 装载器按日期反向查共用 (原版本 source.transfers 同源)。
     let transfers: [HolidayTransferEntry]
 
+    var periodTable: PeriodTableEntity? = nil
+    /// Non-nil when the display resolver returns timetable civil days rather than device instants.
+    var wallTimeZone: TimeZone? = nil
+
+    static func resolve(table: TimeTableEntity, courses: [CourseEntity], period: PeriodTableEntity?,
+                        transfers: [HolidayTransferEntry], now: Date, nearestBusyDay: Bool,
+                        timeZone: TimeZone = .current) -> WidgetWeekSource {
+        let day = CourseReminderCalendar(timeZone: timeZone).civilDay(containing: now) ?? now
+        let effective = table.hydratedWith(period, forDateKey: HolidayTransferOps.dayKey(day))
+        let display = WeekDisplayResolver.resolve(startDate: table.startDate, maxWeek: table.maxWeek, now: now,
+            courses: courses, timeJson: effective.timeJson, enabled: nearestBusyDay,
+            transfers: transfers, civilTimeZone: timeZone)
+        return WidgetWeekSource(table: table.hydratedWith(period), courses: courses, display: display,
+                                transfers: transfers, periodTable: period, wallTimeZone: timeZone)
+    }
+
+    func civilDay(onDisplayDate date: Date) -> Date {
+        guard let zone = wallTimeZone else { return date }
+        return CourseReminderCalendar(timeZone: zone).civilDay(containing: date) ?? date
+    }
+
+    func localDate(onCivilDay day: Date) -> Date {
+        guard let zone = wallTimeZone else { return day }
+        return CourseReminderCalendar(timeZone: zone).instant(on: day, wallSeconds: 0) ?? day
+    }
+
+    func table(onDisplayDate date: Date) -> TimeTableEntity { table(on: civilDay(onDisplayDate: date)) }
+
+    func coursesOnDisplayDate(_ date: Date, previewBeforeStart: Bool = false) -> [CourseEntity] {
+        coursesOn(civilDay(onDisplayDate: date), previewBeforeStart: previewBeforeStart)
+    }
+
+    func semesterStatus(onDisplayDate date: Date, usesTransfer: Bool = false) -> DateUtils.SemesterStatus {
+        let civil = civilDay(onDisplayDate: date)
+        let day = usesTransfer ? (HolidayTransferOps.courseDateForDate(civil, transfers) ?? civil) : civil
+        if wallTimeZone != nil {
+            return WeekDisplayResolver.civilSemesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, day: day)
+        }
+        return DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: day)
+    }
+
+    func table(on date: Date) -> TimeTableEntity {
+        table.hydratedWith(periodTable, forDateKey: HolidayTransferOps.dayKey(date))
+    }
+
     func coursesFor(dayOfWeek: Int, week: Int? = nil) -> [CourseEntity] {
         let w = week ?? display.targetWeek
         return courses
@@ -25,30 +70,31 @@ struct WidgetWeekSource {
             .sorted { $0.startNode < $1.startNode }
     }
 
-    /// ← Kotlin WidgetWeekSource.coursesOn (v1.0.61 口径, 调休按日期反向查):
-    /// AFTER_END 且非补班日 → 清空; BEFORE_START 且无映射命中该日 → 按周1 自然星期预习;
-    /// 其余走 HolidayTransferOps.coursesForDate (补班日=sourceDate 的课, 放假日=无课)。
-    /// fixedDate 定日课 iOS 实体无此字段 (上游缺口, 移植时恒空)。
+    /// Calendar inputs in this method use timetable civil keys, not host timezone.
     func coursesOn(_ date: Date, previewBeforeStart: Bool = false) -> [CourseEntity] {
         let key = HolidayTransferOps.dayKey(date)
-        if previewBeforeStart && display.semesterStatus == .afterEnd &&
-            !transfers.contains(where: { HolidayTransferOps.dayKey($0.targetDate) == key }) {
-            return []
-        }
-        if previewBeforeStart && !transfers.contains(where: {
+        let actual = HolidayTransferOps.coursesForDate(date, startDate: table.startDate, maxWeek: table.maxWeek,
+                                                       courses: courses, transfers: transfers)
+        guard previewBeforeStart, !transfers.contains(where: {
             HolidayTransferOps.dayKey($0.sourceDate) == key || HolidayTransferOps.dayKey($0.targetDate) == key
-        }) && DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: date) == .beforeStart {
-            return coursesFor(dayOfWeek: DateUtils.todayDayOfWeek(today: date), week: 1)
-        }
-        return HolidayTransferOps.coursesForDate(
-            date, startDate: table.startDate, maxWeek: table.maxWeek,
-            courses: courses, transfers: transfers
-        ).sorted { $0.startNode < $1.startNode }
+        }), WeekDisplayResolver.civilSemesterStatus(startDate: table.startDate,
+                    maxWeek: table.maxWeek, day: date) == .beforeStart else { return actual }
+        let weekday = CourseOccurrences.day(date)
+        return (actual + courses.filter { $0.fixedDate == nil && $0.day == weekday && $0.inWeek(1) })
+            .sorted { $0.startNode < $1.startNode }
     }
 
     /// ← Kotlin WidgetWeekSource.dateFor: 学期前(NORMAL) 显示学期所在周(周1),
     /// 其余按 targetDate 所在周的星期。
     func dateFor(dayOfWeek: Int) -> Date {
+        if wallTimeZone != nil {
+            let cal = CourseOccurrences.calendar
+            let anchor = display.semesterStatus == .beforeStart && display.status == .normal
+                ? (CourseOccurrences.date(startDate: table.startDate, week: 1, day: 1) ?? display.targetDate)
+                : display.targetDate
+            let offset = dayOfWeek - CourseOccurrences.day(anchor)
+            return localDate(onCivilDay: cal.date(byAdding: .day, value: offset, to: anchor) ?? anchor)
+        }
         if display.semesterStatus == .beforeStart && display.status == .normal {
             return DateUtils.dateOfWeek(startDate: table.startDate, week: 1, dayOfWeek: dayOfWeek)
                 ?? DateUtils.dateOfWeekDay(ref: display.targetDate, dayOfWeek: dayOfWeek)
@@ -60,7 +106,7 @@ struct WidgetWeekSource {
     /// - NORMAL 档:原 today
     /// - NEAREST_BUSY_DAY 档:被自动跳到的最近有课那一天
     func resolvedToday(_ now: Date = Date()) -> Date {
-        if display.status == .nearestBusyDay { return display.targetDate }
+        if display.status == .nearestBusyDay { return localDate(onCivilDay: display.targetDate) }
         return now
     }
 }
@@ -70,7 +116,8 @@ enum WidgetWeekDataLoader {
     /// 解析 → (table, courses, display) 三元组;无表 → nil (对齐 原 runBlocking + nullable)
     /// - Parameter appWidgetId: iOS = widget kind 字符串(per-kind 粒度)
     static func resolve(_ appWidgetId: String, repository: ScheduleRepository? = nil,
-                        now: Date = AppClock.now) async -> WidgetWeekSource? {
+                        now: Date = AppClock.now,
+                        overrideTableId: Int64? = nil) async -> WidgetWeekSource? {
         guard let repo = repository ?? WidgetLoader.makeRepo() else { return nil }
         // ← 原版本 WidgetWeekDataLoader.kt:66: runCatching { CourseHueStore.refresh(app) }
         //   widget 进程与 App 进程分离 → 装载点自刷持久色相快照, 保证 widget 与 App 同色。
@@ -78,20 +125,13 @@ enum WidgetWeekDataLoader {
             mode: AppPrefs.shared.getCourseColorMode(),
             dao: repo.database.courseColorDao)
         // ← WidgetTableResolver.resolveBoundTable(id) ?: resolveCurrentTable() ?: return null
-        guard let table = WidgetTableResolver.resolveBoundTable(appWidgetId, repo: repo)
+        guard let table = (overrideTableId.flatMap { WidgetTableResolver.resolveExplicitTable($0, repo: repo) })
+                ?? WidgetTableResolver.resolveBoundTable(appWidgetId, repo: repo)
                 ?? WidgetTableResolver.resolveCurrentTable(repo) else { return nil }
+        let period = table.periodTableId.flatMap { try? repo.getPeriodTable($0) }
         let courses = (try? repo.getCourses(table.id)) ?? []
         let transfers = AppPrefs.shared.getHolidayTransfers(table.id)
-        let display = WeekDisplayResolver.resolve(
-            startDate: table.startDate,
-            maxWeek: table.maxWeek,
-            now: now,
-            courses: courses,
-            timeJson: table.timeJson,
-            enabled: AppPrefs.shared.isNearestBusyDay(),
-            transfers: transfers
-        )
-        return WidgetWeekSource(table: table, courses: courses, display: display,
-                                transfers: transfers)
+        return WidgetWeekSource.resolve(table: table, courses: courses, period: period, transfers: transfers,
+            now: now, nearestBusyDay: AppPrefs.shared.isNearestBusyDay())
     }
 }

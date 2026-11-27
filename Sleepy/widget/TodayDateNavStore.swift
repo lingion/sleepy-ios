@@ -84,11 +84,55 @@ enum TodayDateNavCore {
 
 enum TodayDateNavStore {
 
+    static func widgetKey(kind: String, tableId: Int64?) -> String {
+        guard let tableId else { return kind }
+        return "\(kind)#\(tableId)"
+    }
+
+    static func navURL(delta: Int, widgetKey: String) -> URL {
+        var comps = URLComponents()
+        comps.scheme = "sleepy"
+        comps.host = "today-nav"
+        comps.queryItems = [
+            URLQueryItem(name: "delta", value: String(delta)),
+            URLQueryItem(name: "key", value: widgetKey),
+        ]
+        return comps.url ?? URL(string: "sleepy://today-nav?delta=\(delta)")!
+    }
+
+    @discardableResult
+    static func applyDeepLink(_ url: URL, now: Date = Date()) -> String? {
+        guard url.scheme == "sleepy", url.host == "today-nav",
+              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let deltaStr = comps.queryItems?.first(where: { $0.name == "delta" })?.value,
+              let delta = Int(deltaStr) else {
+            return nil
+        }
+        let rawKey = comps.queryItems?.first(where: { $0.name == "key" })?.value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let widgetKey = (rawKey?.isEmpty == false) ? rawKey! : "TodayWidgetRV"
+        if delta == 0 {
+            remove(widgetKey)
+        } else {
+            shift(widgetKey, now, delta)
+        }
+        return widgetKey
+    }
+
     /// 读取存储解析出该 widget 应渲染的日期 (无状态 → today)。
     static func target(_ widgetId: String, _ today: Date) -> Date {
         let entry = read(widgetId)
-        let epoch = TodayDateNavCore.resolveTargetEpochDay(entry, Calendar.epochDay(today))
-        return Calendar.dateFromEpochDay(epoch)
+        let epoch = TodayDateNavCore.resolveTargetEpochDay(entry, localEpochDay(today))
+        let utc = Calendar.dateFromEpochDay(epoch)
+        let civil = CourseReminderCalendar(timeZone: TimeZone(secondsFromGMT: 0)!).civilDay(containing: utc)
+        return civil.flatMap { CourseReminderCalendar(timeZone: .current).instant(on: $0, wallSeconds: 0) } ?? today
+    }
+
+    private static func localEpochDay(_ date: Date) -> Int {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(secondsFromGMT: 0)!
+        return Int(floor((utc.date(from: components) ?? date).timeIntervalSince1970 / 86_400))
     }
 
     /// true 表示用户曾经手动翻过日期；自动周末切换不得覆盖这类导航态。
@@ -100,7 +144,7 @@ enum TodayDateNavStore {
     static func shift(_ widgetId: String, _ today: Date, _ deltaDays: Int) {
         lock.lock(); defer { lock.unlock() }
         let entry = read(widgetId)
-        let newEntry = TodayDateNavCore.shift(entry, Calendar.epochDay(today), deltaDays)
+        let newEntry = TodayDateNavCore.shift(entry, localEpochDay(today), deltaDays)
         var raw = loadAll()
         TodayDateNavCore.write(&raw, widgetId, newEntry)
         saveAll(raw)

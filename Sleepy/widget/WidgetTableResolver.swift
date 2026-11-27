@@ -58,6 +58,11 @@ enum WidgetTableResolver {
         return table.hydratedWith(getPeriodTableOrNull(repo, table.periodTableId))
     }
 
+    static func resolveExplicitTable(_ tableId: Int64, repo: ScheduleRepository) -> TimeTableEntity? {
+        guard let table = ((try? repo.getTable(tableId)) ?? nil) else { return nil }
+        return table.hydratedWith(getPeriodTableOrNull(repo, table.periodTableId))
+    }
+
     /// issue#40: nil 安全取时间节次表 — id 为 nil 或查无此行都返回 nil
     /// (getPeriodTable 返回 optional, try? 产生双层 optional, 拉平一层)
     private static func getPeriodTableOrNull(

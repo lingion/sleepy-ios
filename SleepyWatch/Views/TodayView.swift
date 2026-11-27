@@ -12,6 +12,9 @@
 // · 全屏倒计时入口: 头卡日期行 → NavigationLink 到 CountdownView (大字沉浸式)。
 
 import SwiftUI
+#if os(watchOS)
+import WatchKit
+#endif
 
 struct TodayView: View {
     @EnvironmentObject private var store: WatchStore
@@ -34,14 +37,15 @@ struct TodayView: View {
     }
 
     @ViewBuilder
-    private func content(_ table: TimeTableEntity, scheme: WidgetScheme) -> some View {
+    private func content(_ base: TimeTableEntity, scheme: WidgetScheme) -> some View {
         let today = Date()
-        let status = DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: today)
+        let table = store.tableForDisplay(base, on: today)
+        let status = WatchAgendaCore.semesterStatus(table: table, date: today)
         // ownTime 课按时间域归一化节点 (← TodayScreen: 落库占位节点不得影响分组/排序)
-        let courses = store.todayCourses(table: table)
+        let courses = store.courses(on: today, table: table)
             .map { $0.normalizeNode(timeJson: table.timeJson) }
             .sorted { $0.startNode < $1.startNode }
-        let marks = status == .inRange ? classState(courses: courses, table: table, now: today) : [:]
+        let marks = classState(courses: courses, table: table, now: today)
         // 触觉反馈: 当前进行中课程 id 作为 trigger (变化 → haptic)
         let currentId: Int64 = {
             guard let entry = marks.first(where: { $0.value == .current }),
@@ -90,9 +94,21 @@ struct TodayView: View {
         .digitalCrownRotation($crownOffset, from: 0, through: Double(max(courses.count, 1)),
                               by: 0.5, sensitivity: .medium, isContinuous: false)
         // ★ 触觉反馈 — 进行中课程变化时触发 success haptic
-        .sensoryFeedback(.success, trigger: hapticTrigger)
+        .modifier(WatchClassChangeHapticModifier(trigger: hapticTrigger))
         .onChange(of: currentId) { newId in
+            let changed = newId != hapticTrigger
             hapticTrigger = newId
+            #if os(watchOS)
+            #if compiler(>=5.9)
+            if #unavailable(watchOS 10.0), changed, newId != 0 {
+                WKInterfaceDevice.current().play(.success)
+            }
+            #else
+            if changed, newId != 0 {
+                WKInterfaceDevice.current().play(.success)
+            }
+            #endif
+            #endif
         }
     }
 
@@ -166,7 +182,7 @@ struct TodayView: View {
         switch status {
         case .inRange:
             return L10n.format("schedule_current_week",
-                               DateUtils.currentWeek(startDate: table.startDate, today: today))
+                               WatchAgendaCore.weekInfo(table: table, date: today).week)
         case .beforeStart: return L10n.t("semester_not_started")
         case .afterEnd: return L10n.t("semester_ended")
         }
@@ -199,47 +215,36 @@ struct TodayView: View {
     /// 手表不画实时线, 只给「进行中/下一节」两枚角标。ownTime 课直读时钟,
     /// 节次课查水合表 (与 store.timeRange 同口径)。
     private func classState(courses: [CourseEntity], table: TimeTableEntity, now: Date) -> [Int: CourseMark] {
-        let nodes = TimeTableUtils.parseNodes(table.timeJson)
-        let cal = Calendar.current
-        let day = cal.startOfDay(for: now)
-        func clock(_ s: String) -> Date? {
-            guard let p = SleepyNativeFormat.parseClock(s) else { return nil }
-            return day.addingTimeInterval(TimeInterval(p.h * 3600 + p.min * 60))
-        }
-        /// 课程在「今天」的起止时刻; 非常规/缺节次 → nil 不参与标注
-        func interval(_ c: CourseEntity) -> (Date, Date)? {
-            if (c.ownTime || c.isIrregularTime), !c.startTime.isEmpty, !c.endTime.isEmpty,
-               let st = clock(c.startTime), let en = clock(c.endTime) {
-                return (st, en)
-            }
-            if c.isIrregularNode { return nil }
-            guard let s = nodes.first(where: { $0.node == c.startNode }),
-                  let e = nodes.first(where: { $0.node == c.startNode + c.step - 1 })
-            else { return nil }
-            // NodeTime 只有时刻有效 → 钉到今天
-            let st = combine(cal, day, s.start)
-            let en = combine(cal, day, e.end)
-            return (st, en)
-        }
+        let bells = ReminderBellTimes(table.timeJson)
         var marks: [Int: CourseMark] = [:]
-        var nextIdx: Int? = nil
-        for (idx, c) in courses.enumerated() {
-            guard let (st, en) = interval(c) else { continue }
-            if now >= st && now < en {
-                marks[idx] = .current
-            } else if now < st, nextIdx == nil {
-                nextIdx = idx
+        var next: (index: Int, start: Date)?
+        for (index, course) in courses.enumerated() {
+            guard let item = WatchAgendaCore.item(for: course, bells: bells, now: now) else { continue }
+            if now >= item.startDate && now < item.endDate {
+                marks[index] = .current
+            } else if item.startDate > now, next.map({ item.startDate < $0.start }) ?? true {
+                next = (index, item.startDate)
             }
         }
-        if let ni = nextIdx { marks[ni] = .next }
+        if let next = next { marks[next.index] = .next }
         return marks
-    }
-
-    /// 节次 Date 只有时刻有意义 → 钉到今天的日期
-    private func combine(_ cal: Calendar, _ day: Date, _ time: Date) -> Date {
-        let secs = cal.component(.hour, from: time) * 3600 + cal.component(.minute, from: time) * 60
-        return day.addingTimeInterval(TimeInterval(secs))
     }
 }
 
 enum CourseMark { case current, next }
+
+private struct WatchClassChangeHapticModifier: ViewModifier {
+    let trigger: Int64
+
+    @ViewBuilder func body(content: Content) -> some View {
+        #if os(watchOS) && compiler(>=5.9)
+        if #available(watchOS 10.0, *) {
+            content.sensoryFeedback(.success, trigger: trigger)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}

@@ -111,17 +111,20 @@ enum WidgetCompactWindow {
         maxWeek: Int,
         today: Date,
         todayFirst: Bool,
-        displayDate: Date? = nil
+        displayDate: Date? = nil,
+        periodTable: PeriodTableEntity? = nil,
+        displaySource: WidgetWeekSource? = nil
     ) async -> [DayData] {
         let anchorDate = displayDate ?? today
         let dates = WidgetCompactHelpers.compactWindowDates(today, todayFirst, anchorDate)
-        let rows = (try? repo.getCourses(tableId)) ?? []
+        let rows = displaySource?.courses ?? ((try? repo.getCourses(tableId)) ?? [])
         // ← dates.map 内 await HolidayManager → 闭包需 async; Sequence.map
         //   不接 async 闭包, 改 for 循环累加 (行为 1:1, 顺序保持, async 透传)
         var result: [DayData] = []
         for effectiveDate in dates {
             let dow = DateUtils.todayDayOfWeek(today: effectiveDate)
-            let sourceDate = HolidayTransferHelper.courseDateForDate(tableId, effectiveDate)
+            let civil = displaySource?.civilDay(onDisplayDate: effectiveDate) ?? effectiveDate
+            let sourceDate = HolidayTransferHelper.courseDateForDate(tableId, civil)
             let week = DateUtils.currentWeek(startDate: startDate, today: sourceDate ?? effectiveDate)
             // Kotlin LocalDate equality compares civil days. Widget timelines
             // can carry a time of day, while persisted transfers are midnight.
@@ -129,7 +132,9 @@ enum WidgetCompactWindow {
                 HolidayTransferOps.dayKey($0) == HolidayTransferOps.dayKey(effectiveDate)
             } ?? false
             let visible: [CourseEntity]
-            if isOriginalDay && DateUtils.semesterStatus(
+            if let displaySource = displaySource {
+                visible = displaySource.coursesOn(civil, previewBeforeStart: true)
+            } else if isOriginalDay && DateUtils.semesterStatus(
                 startDate: startDate, maxWeek: maxWeek, today: effectiveDate
             ) == .beforeStart {
                 visible = rows.filter { $0.fixedDate == nil && $0.day == dow && $0.inWeek(week) }
@@ -144,8 +149,8 @@ enum WidgetCompactWindow {
                 date: effectiveDate,
                 dayOfWeek: dow,
                 courses: visible,
-                timeJson: timeJson,
-                isGrey: await HolidayManager.shouldGrey(effectiveDate, tableId: tableId)
+                timeJson: periodTable?.timeJson(forDateKey: HolidayTransferOps.dayKey(civil)) ?? timeJson,
+                isGrey: await HolidayManager.shouldGrey(civil, tableId: tableId)
             ))
         }
         return result

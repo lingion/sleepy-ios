@@ -16,12 +16,15 @@ struct WatchTodayListEntryView: View {
     let entry: WatchWidgetEntry<WatchTodaySnapshot>
 
     var body: some View {
-        switch family {
-        case .accessoryCircular: WatchTodayListCircular(snap: entry.snapshot)
-        case .accessoryCorner: WatchTodayListCorner(snap: entry.snapshot)
-        case .accessoryInline: WatchTodayListInline(snap: entry.snapshot)
-        default: WatchTodayListRectangular(snap: entry.snapshot)
+        Group {
+            switch family {
+            case .accessoryCircular: WatchTodayListCircular(snap: entry.snapshot)
+            case .accessoryCorner: WatchTodayListCorner(snap: entry.snapshot)
+            case .accessoryInline: WatchTodayListInline(snap: entry.snapshot)
+            default: WatchTodayListRectangular(snap: entry.snapshot)
+            }
         }
+        .watchMaterialSurface(family)
     }
 }
 
@@ -30,7 +33,7 @@ private struct WatchTodayListCircular: View {
     let snap: WatchTodaySnapshot
     var body: some View {
         ZStack {
-            Circle().stroke(.foreground.opacity(0.3), lineWidth: 2)
+            WatchProgressRing(progress: 0)
             if !snap.remaining.isEmpty {
                 VStack(spacing: 0) {
                     Text("\(snap.remaining.count)")
@@ -71,6 +74,7 @@ private struct WatchTodayListCorner: View {
 
 /// rectangular — 进行中置顶 + 未开始, 最多 3 行 (时间 + 课名)
 private struct WatchTodayListRectangular: View {
+    @Environment(\.watchMaterialPalette) private var palette
     let snap: WatchTodaySnapshot
 
     /// 进行中置顶, 其后未开始, 总 3 行
@@ -85,15 +89,16 @@ private struct WatchTodayListRectangular: View {
             if rows.isEmpty {
                 Text(snap.hasAnyClass ? L10n.t("watch_countdown_done") : L10n.t("no_course"))
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(palette.secondaryText)
             } else {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     HStack(spacing: 6) {
                         Text(TimeTableUtils.formatTime(row.0.startDate))
                             .font(.system(size: 11).monospacedDigit())
-                            .foregroundColor(row.1 ? .primary : .secondary)
+                            .foregroundColor(row.1 ? palette.inProgressStart : palette.secondaryText)
                         Text(row.0.courseName)
                             .font(.system(size: 12, weight: row.1 ? .semibold : .regular))
+                            .foregroundColor(palette.primaryText)
                             .lineLimit(1)
                     }
                 }

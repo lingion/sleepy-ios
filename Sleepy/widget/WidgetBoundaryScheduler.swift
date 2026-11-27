@@ -33,6 +33,15 @@ enum WidgetBoundaryScheduler {
         return min(periodic, midnight)
     }
 
+    /// Last end-of-class + 1 min instant on today when nearest-busy-day auto-jump is enabled.
+    static func nearestBusyRolloverDate(days: [DayData], from now: Date,
+                                        calendar: Calendar = .current) -> Date? {
+        guard AppPrefs.shared.isNearestBusyDay(),
+              let todayDay = days.first(where: { calendar.isDate($0.date, inSameDayAs: now) }),
+              !todayDay.courses.isEmpty else { return nil }
+        return WidgetWindows.boundaryDates(courses: todayDay.courses, timeJson: todayDay.timeJson, from: now).last
+    }
+
     /// 纯函数: 下一边界分钟 = min(end+1) 且 > nowMin; 无未来边界 → nil。
     /// ← nextBoundaryMin
     static func nextBoundaryMin(_ endMins: [Int], nowMin: Int) -> Int? {

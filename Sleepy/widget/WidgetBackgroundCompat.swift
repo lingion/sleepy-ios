@@ -40,8 +40,10 @@ private struct SleepyWidgetBackgroundModifier<BG: View>: ViewModifier {
     func body(content: Content) -> some View {
         if galleryFamily != nil {
             content.background(backgroundView)
+#if compiler(>=5.9)
         } else if #available(iOS 17.0, *) {
             content.containerBackground(for: .widget) { backgroundView }
+#endif
         } else {
             content.background(backgroundView)
         }
@@ -57,8 +59,17 @@ extension View {
     }
 }
 
-// contentMarginsDisabled() 本身 iOS 15.0+ 即可直接调用 — SDK 里它内嵌
-// iOS 17 版本闸门(iOS 16 及以下返回 self), 无需再包一层。
+extension WidgetConfiguration {
+    /// contentMarginsDisabled() itself carries @available(iOS 15.0, watchOS 9.0, *)
+    /// in Xcode 15+ SDKs and becomes a no-op before iOS 17.
+    func sleepyContentMarginsDisabled() -> some WidgetConfiguration {
+#if compiler(>=5.9)
+        contentMarginsDisabled()
+#else
+        self
+#endif
+    }
+}
 
 // MARK: - 系统渲染模式（模式不是颜色，不能回写 seed）
 // iOS 18 已支持主屏幕着色；iOS 26 clear/tinted 使用 accented。

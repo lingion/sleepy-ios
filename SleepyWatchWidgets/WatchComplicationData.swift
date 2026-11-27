@@ -28,7 +28,8 @@ enum WatchComplicationData {
             return (nil, nil)
         }
         let courses = (try? repo.getCourses(table.id)) ?? []
-        let items = WatchAgendaCore.dayItems(table: table, courses: courses, date: now)
+        let period = table.periodTableId.flatMap { try? repo.getPeriodTable($0) }
+        let items = WatchAgendaCore.dayItems(table: table, courses: courses, date: now, period: period)
         guard let next = WatchAgendaCore.nextClass(in: items, now: now) else {
             return (table, nil)
         }

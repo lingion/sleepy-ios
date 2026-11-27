@@ -4,16 +4,8 @@
 //   Sleepy (iOS, 供 SleepyTests 单测) / SleepyWatch (手表 App) /
 //   SleepyWatchWidgets (extension)。
 //
-// 口径真源 (与手表主 App 完全同源):
-//   - 今日课过滤 ← WatchStore.courses(on:) (semesterStatus + AFTER_END 补班日例外 +
-//     effectiveDayOfWeek + inWeek) — 本文件把该过滤口径收口为可单测的纯函数
-//   - 时间反解 ← TimeTableUtils.effectiveCourseTime (ownTime/isIrregularTime 直读时钟,
-//     否则 timeJson 反解) + slotLabel(display_mode node/time)
-//     = 原 WatchComplicationData 私有副本的迁移终点 (不留第三份副本)
-//   - 课名恒原名 (今日页口径, 不套别名)
-//
-// 刻意差异 (设计文档 docs/watch-widgets-design.md §5): BEFORE_START (未开学) 全空 →
-// 「假期中」兜底; 表盘不做手表 App 的预习周预览 (WatchStore 预习口径仅服务 App 内周视图)。
+// 普通课按教学来源日选取，定日课只在自然日出现。时段按实际上课日解析。
+// 未开学的预习模式只由 App 周视图显式请求，表盘不显示预习课。
 
 import Foundation
 
@@ -47,48 +39,69 @@ enum WatchAgendaCore {
 
     // MARK: - 某日议程
 
-    /// 目标日全量议程: 有效星期 + 周次过滤 → 按开课时刻排序。
-    /// - date: 目标日任意时刻 (内部取当日 00:00 为基准) — 明日 = +1 day
-    /// - 未开学 / 学期外非补班日 / 当日无课 → [] (调用方用 semesterStatus 区分「假期中」兜底)
-    static func dayItems(table: TimeTableEntity, courses: [CourseEntity], date: Date) -> [ClassItem] {
+    /// The phone's civil dates identify courses and bell rules. Emit real Watch-local
+    /// instants from those wall clocks so timeline entries work on DST transitions.
+    static func dayItems(table: TimeTableEntity, courses: [CourseEntity], date: Date,
+                         period: PeriodTableEntity? = nil) -> [ClassItem] {
         dayItems(table: table, courses: courses, date: date,
                  displayMode: AppPrefs.shared.getDisplayMode(),
-                 transfers: HolidayTransferHelper.transfers(for: table.id))
+                 transfers: HolidayTransferHelper.transfers(for: table.id), period: period)
     }
 
-    // Widget extensions have separate standard defaults; callers can supply the shared snapshot.
+    // Widget extensions can supply the preferences from their shared snapshot.
     static func dayItems(table: TimeTableEntity, courses: [CourseEntity], date: Date,
-                         displayMode: String, transfers: [HolidayTransferEntry]) -> [ClassItem] {
-        guard let week = activeWeek(table: table, date: date, transfers: transfers) else { return [] }
-        let day = HolidayTransferOps.effectiveDayOfWeek(date, transfers)
-        let dayStart = Calendar(identifier: .gregorian).startOfDay(for: date)
-        return courses
-            .filter { $0.day == day && $0.inWeek(week) }
-            .compactMap { makeItem($0, table: table, displayMode: displayMode, dayStart: dayStart) }
-            .sorted { $0.startMin < $1.startMin }
+                         displayMode: String, transfers: [HolidayTransferEntry],
+                         period: PeriodTableEntity? = nil, timeZone: TimeZone = .current) -> [ClassItem] {
+        let clock = CourseReminderCalendar(timeZone: timeZone)
+        guard let day = clock.civilDay(containing: date) else { return [] }
+        let effective = table.hydratedWith(period, forDateKey: HolidayTransferOps.dayKey(day))
+        let bells = ReminderBellTimes(effective.timeJson)
+        return coursesOnCivilDay(day, table: table, courses: courses, transfers: transfers)
+            .compactMap { course in
+                makeItem(course, bells: bells, displayMode: displayMode, day: day, clock: clock)
+            }
+            .sorted { $0.startDate < $1.startDate }
     }
 
-    /// 「下一节」= startMin > nowMin 的最早一门 (← WatchComplicationData.computeNext 口径)
+    /// Keep fixed dates and holiday transfers consistent across the phone, Watch app and complications.
+    static func coursesOnCivilDay(_ day: Date, table: TimeTableEntity, courses: [CourseEntity],
+                                  transfers: [HolidayTransferEntry], previewBeforeStart: Bool = false) -> [CourseEntity] {
+        let stored = courses.filter { $0.tableId == table.id }
+        let actual = CourseOccurrences.coursesForDate(day, startDate: table.startDate, maxWeek: table.maxWeek,
+                                                     courses: stored, transfers: transfers)
+        guard previewBeforeStart,
+              let firstDay = CourseOccurrences.date(startDate: table.startDate, week: 1, day: 1),
+              day < firstDay,
+              let source = HolidayTransferOps.courseDateForDate(day, transfers), source == day
+        else { return actual }
+        let weekday = CourseOccurrences.day(day)
+        return (actual + stored.filter { $0.fixedDate == nil && $0.day == weekday && $0.inWeek(1) })
+            .sorted { $0.startNode < $1.startNode }
+    }
+
     static func nextClass(in items: [ClassItem], now: Date) -> ClassItem? {
-        let nowMin = minutesOfDay(now)
-        return items.first { $0.startMin > nowMin }
+        items.first { $0.startDate > now }
     }
 
-    /// 「正在上的课」= startMin ≤ nowMin < endMin (半开区间, 下课瞬间即离开)
     static func currentClass(in items: [ClassItem], now: Date) -> ClassItem? {
-        let nowMin = minutesOfDay(now)
-        return items.first { $0.startMin <= nowMin && nowMin < $0.endMin }
+        items.first { $0.startDate <= now && now < $0.endDate }
     }
 
     // MARK: - 学期 / 周信息
 
     static func semesterStatus(table: TimeTableEntity, date: Date) -> DateUtils.SemesterStatus {
-        DateUtils.semesterStatus(startDate: table.startDate, maxWeek: table.maxWeek, today: date)
+        guard let day = CourseReminderCalendar(timeZone: .current).civilDay(containing: date),
+              let first = CourseOccurrences.date(startDate: table.startDate, week: 1, day: 1)
+        else { return .inRange }
+        if day < first { return .beforeStart }
+        let week = CourseOccurrences.week(startDate: table.startDate, date: day) ?? 1
+        return week > table.maxWeek ? .afterEnd : .inRange
     }
 
     /// 周信息: week 1-based; ratio = week/maxWeek clamp 0...1 (maxWeek ≤ 0 → 0)
     static func weekInfo(table: TimeTableEntity, date: Date) -> (week: Int, maxWeek: Int, ratio: Double) {
-        let week = DateUtils.currentWeek(startDate: table.startDate, today: date)
+        let day = CourseReminderCalendar(timeZone: .current).civilDay(containing: date)
+        let week = day.flatMap { CourseOccurrences.week(startDate: table.startDate, date: $0) } ?? 1
         let maxWeek = table.maxWeek
         let ratio = maxWeek > 0 ? min(1, max(0, Double(week) / Double(maxWeek))) : 0
         return (week, maxWeek, ratio)
@@ -96,75 +109,41 @@ enum WatchAgendaCore {
 
     // MARK: - 内部
 
-    /// 生效周次 — nil = 该日无课语境。
-    /// ← WatchStore.courses(on:) 逐分支同源; BEFORE_START 刻意 nil (见文件头注释)。
-    private static func activeWeek(table: TimeTableEntity, date: Date,
-                                   transfers: [HolidayTransferEntry]) -> Int? {
-        switch semesterStatus(table: table, date: date) {
-        case .inRange:
-            return DateUtils.currentWeek(startDate: table.startDate, today: date)
-        case .beforeStart:
-            return nil
-        case .afterEnd:
-            // 补班日 = 调休映射的 sourceDate (上班日→换日上课); 其余学期外日清空 ← WatchStore 同款
-            let cal = Calendar(identifier: .gregorian)
-            let sourceDays = Set(transfers.map { cal.startOfDay(for: $0.sourceDate) })
-            guard sourceDays.contains(cal.startOfDay(for: date)) else { return nil }
-            return DateUtils.currentWeek(startDate: table.startDate, today: date)
-        }
+    static func item(for course: CourseEntity, bells: ReminderBellTimes, now: Date,
+                     timeZone: TimeZone = .current) -> ClassItem? {
+        let clock = CourseReminderCalendar(timeZone: timeZone)
+        guard let day = clock.civilDay(containing: now) else { return nil }
+        return makeItem(course, bells: bells, displayMode: "time", day: day, clock: clock)
     }
 
-    private static func minutesOfDay(_ date: Date) -> Int {
-        let c = Calendar(identifier: .gregorian).dateComponents([.hour, .minute], from: date)
-        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
-    }
-
-    /// 单课 → ClassItem; 时间反解失败 → nil (跳过, ← 原 computeNext 的 continue 口径)
-    private static func makeItem(_ c: CourseEntity, table: TimeTableEntity,
-                                 displayMode: String, dayStart: Date) -> ClassItem? {
-        guard let se = courseStartEndMin(c, table.timeJson) else { return nil }
+    private static func makeItem(_ course: CourseEntity, bells: ReminderBellTimes, displayMode: String,
+                                 day: Date, clock: CourseReminderCalendar) -> ClassItem? {
+        let bounds = bells.bounds(for: course)
+        guard let start = bounds.start, let end = bounds.end, end > start,
+              let startDate = clock.instant(on: day, wallSeconds: start),
+              let endDate = clock.instant(on: day, wallSeconds: end), endDate > startDate else { return nil }
         return ClassItem(
-            courseName: c.courseName,
-            room: c.room,
-            startLabel: slotLabel(c, table: table, displayMode: displayMode),
-            startMin: se.start,
-            endMin: se.end,
-            startDate: dayStart.addingTimeInterval(TimeInterval(se.start * 60)),
-            endDate: dayStart.addingTimeInterval(TimeInterval(se.end * 60)))
+            courseName: course.courseName,
+            room: course.room,
+            startLabel: label(for: course, bounds: bounds, displayMode: displayMode),
+            startMin: start / 60,
+            endMin: end / 60,
+            startDate: startDate,
+            endDate: endDate)
     }
 
-    /// ← WatchComplicationData.courseStartEndMin 迁移 (ownTime/irregular 直读时钟, 否则 timeJson)
-    private static func courseStartEndMin(_ c: CourseEntity, _ timeJson: String) -> (start: Int, end: Int)? {
-        guard let eff = TimeTableUtils.effectiveCourseTime(
-            isIrregularTime: c.isIrregularTime || c.ownTime,
-            startTime: c.startTime, endTime: c.endTime,
-            startNode: c.startNode, step: c.step, timeJson: timeJson),
-              let s = TimeTableUtils.hmMinutes(eff.0),
-              let e = TimeTableUtils.hmMinutes(eff.1) else { return nil }
-        return (s, e)
+    static func slotLabel(_ course: CourseEntity, table: TimeTableEntity, displayMode: String) -> String {
+        label(for: course, bounds: ReminderBellTimes(table.timeJson).bounds(for: course), displayMode: displayMode)
     }
 
-    /// ← WatchComplicationData.slotLabel 迁移: display_mode node → 节次短串, 否则时间区间
-    private static func slotLabel(_ c: CourseEntity, table: TimeTableEntity, displayMode: String) -> String {
-        displayMode == "node" ? c.nodeString(isShort: true) : timeRange(c, table: table)
-    }
-
-    /// ← WatchComplicationData.timeRange 迁移 (ownTime·irregular 直读, irregularNode 走节次, 否则 timeJson)
-    private static func timeRange(_ c: CourseEntity, table: TimeTableEntity) -> String {
-        let nodes = TimeTableUtils.parseNodes(table.timeJson)
-        let start: String, end: String
-        if (c.ownTime || c.isIrregularTime), !c.startTime.isEmpty, !c.endTime.isEmpty {
-            start = c.startTime
-            end = c.endTime
-        } else if c.isIrregularNode {
-            return c.nodeString()
-        } else {
-            guard let s = nodes.first(where: { $0.node == c.startNode }),
-                  let e = nodes.first(where: { $0.node == c.startNode + c.step - 1 })
-            else { return "" }
-            start = TimeTableUtils.formatTime(s.start)
-            end = TimeTableUtils.formatTime(e.end)
+    private static func label(for course: CourseEntity, bounds: (start: Int?, end: Int?), displayMode: String) -> String {
+        if displayMode == "node" { return course.nodeString(isShort: true) }
+        if course.ownTime || course.isIrregularTime {
+            return bounds.start != nil && bounds.end != nil ? "\(course.startTime)–\(course.endTime)" : ""
         }
-        return "\(start)–\(end)"
+        if course.isIrregularNode { return course.nodeString() }
+        guard let start = bounds.start, let end = bounds.end else { return "" }
+        func clock(_ seconds: Int) -> String { String(format: "%02d:%02d", seconds / 3600, seconds / 60 % 60) }
+        return "\(clock(start))–\(clock(end))"
     }
 }

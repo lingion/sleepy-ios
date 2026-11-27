@@ -71,7 +71,6 @@ enum WidgetCompactHelpers {
     /// 宿主只换数据, 渲染走 renderToday(SMALL) → 与今日课程·小像素同源同一张脸。
     /// 纯函数零 Date() — today 由调用方注入。
     static func weekGridMinimumTodayData(_ data: WeekData, today: Date) -> WidgetData {
-        let timeJson = data.days.first?.timeJson ?? ""
         // ← 原 weekGridMinimumTodayData (:1029-35): 数据源显式 targetDate 优先;
         //   整周数据下 minBy=周一不一定是跳转目标日 → 最早有课日次之, minDate 再次。
         let targetDate: Date
@@ -87,7 +86,7 @@ enum WidgetCompactHelpers {
         return WidgetData(
             date: targetDate,
             courses: targetDay?.courses ?? [],
-            timeJson: timeJson,
+            timeJson: targetDay?.timeJson ?? data.days.first?.timeJson ?? "",
             hasTable: data.hasTable,
             isDark: data.isDark,
             themeKey: data.themeKey,

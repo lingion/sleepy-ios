@@ -35,10 +35,12 @@ struct TwoDayWidgetEntry: TimelineEntry {
 /// 原 runBlocking → iOS async (TimelineProvider completion 允许异步回调)。
 enum TwoDayWidgetDataLoader {
 
-    static func loadData(kind: String) async -> TwoDayData {
+    static func loadData(kind: String, now: Date = Date(), overrideTableId: Int64? = nil,
+                         repository: ScheduleRepository? = nil) async -> TwoDayData {
         // 自然日零点锚 (LocalDate.now()); 明天 = +1 自然日, 不用 86400 秒
         // 算术 (DST/时区下不保日界)
-        let today = DateUtils.isoCalendar.startOfDay(for: Date())
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
         let prefs = AppPrefs.shared
         // ← 原版本 TwoDayWidget.kt:184: isSystemDark 取 widget 宿主 Context 的
         //   uiMode 夜间标志; iOS 默认参数 false 会让 system 主题下 widget 永远浅色。
@@ -47,9 +49,11 @@ enum TwoDayWidgetDataLoader {
         let themeMode = prefs.getThemeMode()
         let fallback = TwoDayData(days: [], hasTable: false, isDark: isDark,
                                   themeKey: themeKey, themeMode: themeMode)
-        guard let source = await WidgetWeekDataLoader.resolve(kind) else { return fallback }
+        guard let source = await WidgetWeekDataLoader.resolve(kind, repository: repository, now: now,
+                                                              overrideTableId: overrideTableId) else {
+            return fallback
+        }
         let table = source.table
-        let cal = DateUtils.isoCalendar
         let dates: [Date]
         if source.display.status == .nearestBusyDay {
             // 两列 = 最近两个未来有课日 (用户 2026-09-23 定稿: 11/2 + 12/2, 不再是
@@ -59,31 +63,30 @@ enum TwoDayWidgetDataLoader {
                 startDate: table.startDate,
                 actualWeek: source.display.actualWeek,
                 maxWeek: table.maxWeek,
-                today: today,
+                today: source.display.today,
                 courses: source.courses,
                 count: 2,
-                transfers: source.transfers
-            )
+                transfers: source.transfers,
+                civilDates: true
+            ).map { source.localDate(onCivilDay: $0) }
+            let anchor = source.resolvedToday(today)
             dates = nearest.count >= 2
                 ? Array(nearest.prefix(2))
-                : [source.display.targetDate,
-                   cal.date(byAdding: .day, value: 1, to: source.display.targetDate) ?? source.display.targetDate]
+                : [anchor, cal.date(byAdding: .day, value: 1, to: anchor) ?? anchor]
         } else {
             dates = [today, cal.date(byAdding: .day, value: 1, to: today) ?? today]
         }
-        let status = DateUtils.semesterStatus(startDate: table.startDate,
-                                              maxWeek: table.maxWeek,
-                                              today: dates.first ?? today)
+        let status = source.semesterStatus(onDisplayDate: dates.first ?? today, usesTransfer: true)
         // ← 原版本 L210-219: 取课 source.coursesOn(date) (调休按日期反向查, 学期外
         // 由 coursesForDate 内部清空; 审计 [A]-2 修复 — 旧 effectiveDayOfWeek 正向
         // 映射周次不随 source 日反解、补班日取错课), dayOfWeek 取自然星期。
         var days: [DayData] = []
         for date in dates {
-            let courses = source.coursesOn(date)
+            let courses = source.coursesOnDisplayDate(date)
             days.append(DayData(date: date, dayOfWeek: DateUtils.todayDayOfWeek(today: date),
                                 courses: courses,
-                                timeJson: table.timeJson,
-                                isGrey: await HolidayManager.shouldGrey(date, tableId: table.id)))
+                                timeJson: source.table(onDisplayDate: date).timeJson,
+                                isGrey: await HolidayManager.shouldGrey(source.civilDay(onDisplayDate: date), tableId: table.id)))
         }
         return TwoDayData(days: days, hasTable: true, isDark: isDark, themeKey: themeKey,
                           themeMode: themeMode,
@@ -115,27 +118,98 @@ struct TwoDayWidgetProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<TwoDayWidgetEntry>) -> Void) {
         Task {
-            let now = Date()
-            let data = await TwoDayWidgetDataLoader.loadData(kind: "TwoDayWidgetRV")
-            var entries = [TwoDayWidgetEntry(date: now, data: data, nowMin: WidgetWindows.nowMinutes(now))]
-            // ← WidgetBoundaryScheduler: 今天列每节课下课的下一分钟一颗边界,窗口跟着前移
-            //   (NEAREST_BUSY_DAY 选日下两列都不是今天 → 天然无边界, 与 原版本 同语义)
-            if let today = data.days.first(where: { $0.isToday }),
-               data.hasTable, data.semesterStatus == .inRange {
-                for at in WidgetWindows.boundaryDates(courses: today.courses, timeJson: today.timeJson, from: now) {
-                    entries.append(TwoDayWidgetEntry(date: at, data: data, nowMin: WidgetWindows.nowMinutes(at)))
-                }
-            }
-            // 次日 00:05 换日 (今天/明天窗口滚动)
-            let cal = DateUtils.isoCalendar
-            let tomorrow = cal.date(byAdding: .day, value: 1, to: now) ?? now.addingTimeInterval(3600)
-            let refresh = cal.date(bySettingHour: 0, minute: 5, second: 0, of: tomorrow) ?? tomorrow
-            WidgetArchiveLog.append(kind: "TwoDayWidgetRV", family: context.family.description, result: "success")
-            completion(Timeline(entries: entries, policy: .after(refresh)))
+            let timeline = await Self.timeline(familyDescription: context.family.description)
+            completion(timeline)
         }
     }
 
+    static func timeline(familyDescription: String,
+                         overrideTableId: Int64? = nil) async -> Timeline<TwoDayWidgetEntry> {
+        let now = Date()
+        let data = await TwoDayWidgetDataLoader.loadData(kind: "TwoDayWidgetRV", now: now,
+                                                         overrideTableId: overrideTableId)
+        // 次日 00:05 换日 (今天/明天窗口滚动)
+        let cal = DateUtils.isoCalendar
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: now) ?? now.addingTimeInterval(3600)
+        let refresh = cal.date(bySettingHour: 0, minute: 5, second: 0, of: tomorrow) ?? tomorrow
+        let rolloverLimit = WidgetBoundaryScheduler.nextRefresh(after: now)
+        let rollover = WidgetBoundaryScheduler.nearestBusyRolloverDate(days: data.days, from: now)
+            .flatMap { $0 < rolloverLimit ? $0 : nil }
+        let nextData: TwoDayData?
+        if let rollover {
+            nextData = await TwoDayWidgetDataLoader.loadData(kind: "TwoDayWidgetRV", now: rollover,
+                                                             overrideTableId: overrideTableId)
+        } else {
+            nextData = nil
+        }
+        let entries = timelineEntries(data: data, nextData: nextData, rollover: rollover,
+                                      from: now, refresh: rolloverLimit)
+        WidgetArchiveLog.append(kind: "TwoDayWidgetRV", family: familyDescription, result: "success")
+        return Timeline(entries: entries, policy: .after(refresh))
+    }
+
+    static func timelineEntries(data: TwoDayData, from now: Date,
+                                before limit: Date = .distantFuture) -> [TwoDayWidgetEntry] {
+        var entries = [TwoDayWidgetEntry(date: now, data: data, nowMin: WidgetWindows.nowMinutes(now))]
+        // ← WidgetBoundaryScheduler: 今天列每节课下课的下一分钟一颗边界,窗口跟着前移
+        //   (NEAREST_BUSY_DAY 选日下两列都不是今天 → 天然无边界, 与 原版本 同语义)
+        if let today = data.days.first(where: { $0.isToday }),
+           data.hasTable, data.semesterStatus == .inRange {
+            for at in WidgetWindows.boundaryDates(courses: today.courses, timeJson: today.timeJson, from: now)
+                where at < limit {
+                entries.append(TwoDayWidgetEntry(date: at, data: data, nowMin: WidgetWindows.nowMinutes(at)))
+            }
+        }
+        return entries
+    }
+
+    static func timelineEntries(data: TwoDayData, nextData: TwoDayData?,
+                                rollover: Date?, from now: Date,
+                                refresh: Date) -> [TwoDayWidgetEntry] {
+        guard let rollover, rollover < refresh, let nextData,
+              nextData.weekDisplayStatus == .nearestBusyDay else {
+            return timelineEntries(data: data, from: now, before: refresh)
+        }
+        return timelineEntries(data: data, from: now, before: rollover)
+            + timelineEntries(data: nextData, from: rollover, before: refresh)
+    }
+
 }
+
+#if compiler(>=5.9)
+@available(iOS 17.0, *)
+struct TwoDayIntentWidgetProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> TwoDayWidgetEntry {
+        TwoDayWidgetProvider().placeholder(in: context)
+    }
+
+    func snapshot(for configuration: SelectTimetableIntent, in context: Context) async -> TwoDayWidgetEntry {
+        WidgetArchiveLog.append(kind: "TwoDayWidgetRV", family: context.family.description, result: "success")
+        let now = Date()
+        let data = await TwoDayWidgetDataLoader.loadData(kind: "TwoDayWidgetRV", now: now,
+                                                         overrideTableId: configuration.timetable?.id)
+        return TwoDayWidgetEntry(date: now, data: data, nowMin: WidgetWindows.nowMinutes(now))
+    }
+
+    func timeline(for configuration: SelectTimetableIntent, in context: Context) async -> Timeline<TwoDayWidgetEntry> {
+        await TwoDayWidgetProvider.timeline(familyDescription: context.family.description,
+                                            overrideTableId: configuration.timetable?.id)
+    }
+}
+
+@available(iOS 17.0, *)
+struct TwoDayIntentWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: "TwoDayWidgetRV", intent: SelectTimetableIntent.self,
+                               provider: TwoDayIntentWidgetProvider()) { entry in
+            TwoDayWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName(L10n.format("widget_twoday_label"))
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .sleepyContentMarginsDisabled()
+    }
+}
+#endif
 
 /// Horizontal budgets are shared by every family and by the live gallery face.
 /// The separator occupies its own slot; neither column may draw into its gutter.
@@ -353,7 +427,6 @@ struct TwoDayWidget: Widget {
         }
         .configurationDisplayName(L10n.format("widget_twoday_label"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
-        // iOS 17+ 系统边距关闭, 维持既有自管 padding 布局 (iOS 16 及以下 no-op)
-        .contentMarginsDisabled()
+        .sleepyContentMarginsDisabled()
     }
 }

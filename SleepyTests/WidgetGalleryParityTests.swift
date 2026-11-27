@@ -129,6 +129,22 @@ final class WidgetGalleryParityTests: XCTestCase {
             before: now.addingTimeInterval(12 * 3600)), [now])
     }
 
+    func testWideGridTimelineUsesTheCurrentColumnsClocksOnADSTDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 8)))
+        let previous = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: now))
+        let expected = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 10, minute: 45)))
+        let data = WeekData(days: [
+            DayData(date: previous, dayOfWeek: 6, courses: [],
+                timeJson: #"[{"node":1,"start":"08:00","end":"08:45"}]"#),
+            DayData(date: now, dayOfWeek: 7, courses: [],
+                timeJson: #"[{"node":1,"start":"10:00","end":"10:45"}]"#)
+        ], hasTable: true)
+        XCTAssertEqual(WeekGridWideWidgetProvider.timelineDates(data: data, mode: .vertical, from: now,
+            before: now.addingTimeInterval(12 * 3600), calendar: calendar), [now, expected])
+    }
+
     func testWideGridSkipsMalformedLegacyNodeSpansBeforeConflictGeometry() {
         let sample = WidgetGallerySampleData.make()
         let valid = sample.today.courses.first!

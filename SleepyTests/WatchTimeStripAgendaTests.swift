@@ -20,7 +20,8 @@ final class WatchTimeStripAgendaTests: XCTestCase {
         let course = CourseEntity(groupId: "wednesday", tableId: table.id, courseName: "Wednesday",
                                   day: 3, startNode: 1, step: 1, startWeek: 1, endWeek: 20,
                                   color: "#FF6750A4")
-        let transfers = [HolidayTransferEntry(sourceDate: date(6), targetDate: date(4), segmentId: "makeup")]
+        let transfers = [HolidayTransferEntry(sourceDate: CourseOccurrences.parseDate("2026-11-04")!,
+                                               targetDate: CourseOccurrences.parseDate("2026-11-06")!, segmentId: "makeup")]
         let items = WatchAgendaCore.dayItems(table: table, courses: [course], date: date(6),
                                              displayMode: "time", transfers: transfers)
         XCTAssertEqual(items.map(\.courseName), ["Wednesday"])
@@ -36,7 +37,8 @@ final class WatchTimeStripAgendaTests: XCTestCase {
         let course = CourseEntity(groupId: "makeup", tableId: table.id, courseName: "Makeup",
                                   day: 3, startNode: 1, step: 1, startWeek: 1, endWeek: 30,
                                   color: "#FF6750A4")
-        let transfers = [HolidayTransferEntry(sourceDate: date(6), targetDate: date(4), segmentId: "makeup")]
+        let transfers = [HolidayTransferEntry(sourceDate: CourseOccurrences.parseDate("2026-08-26")!,
+                                               targetDate: CourseOccurrences.parseDate("2026-11-06")!, segmentId: "makeup")]
         XCTAssertEqual(WatchAgendaCore.dayItems(table: table, courses: [course], date: date(6),
                                                 displayMode: "time", transfers: transfers).count, 1)
         XCTAssertTrue(WatchAgendaCore.dayItems(table: table, courses: [course], date: date(6),

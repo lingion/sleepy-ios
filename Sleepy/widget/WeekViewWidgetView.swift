@@ -40,14 +40,64 @@ struct WeekViewWidgetProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekViewWidgetEntry>) -> Void) {
         Task {
-            let now = Date()
-            let data = await WeekListWidgetDataLoader.loadData(kind: "WeekViewWidgetRV")
-            let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
-            WidgetArchiveLog.append(kind: "WeekViewWidgetRV", family: context.family.description, result: "success")
-            completion(Timeline(entries: [WeekViewWidgetEntry(date: now, data: data)], policy: .after(refresh)))
+            let timeline = await Self.timeline(familyDescription: context.family.description)
+            completion(timeline)
         }
     }
+
+    static func timeline(familyDescription: String,
+                         overrideTableId: Int64? = nil) async -> Timeline<WeekViewWidgetEntry> {
+        let now = Date()
+        let data = await WeekListWidgetDataLoader.loadData(kind: "WeekViewWidgetRV", now: now,
+                                                           overrideTableId: overrideTableId)
+        let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
+        var entries = [WeekViewWidgetEntry(date: now, data: data)]
+        if let rollover = WidgetBoundaryScheduler.nearestBusyRolloverDate(days: data.days, from: now),
+           rollover < refresh {
+            let nextData = await WeekListWidgetDataLoader.loadData(kind: "WeekViewWidgetRV", now: rollover,
+                                                                   overrideTableId: overrideTableId)
+            if nextData.weekDisplayStatus == .nearestBusyDay {
+                entries.append(WeekViewWidgetEntry(date: rollover, data: nextData))
+            }
+        }
+        WidgetArchiveLog.append(kind: "WeekViewWidgetRV", family: familyDescription, result: "success")
+        return Timeline(entries: entries, policy: .after(refresh))
+    }
 }
+
+#if compiler(>=5.9)
+@available(iOS 17.0, *)
+struct WeekViewIntentWidgetProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> WeekViewWidgetEntry {
+        WeekViewWidgetProvider().placeholder(in: context)
+    }
+
+    func snapshot(for configuration: SelectTimetableIntent, in context: Context) async -> WeekViewWidgetEntry {
+        WidgetArchiveLog.append(kind: "WeekViewWidgetRV", family: context.family.description, result: "success")
+        let data = await WeekListWidgetDataLoader.loadData(kind: "WeekViewWidgetRV",
+                                                           overrideTableId: configuration.timetable?.id)
+        return WeekViewWidgetEntry(date: Date(), data: data)
+    }
+
+    func timeline(for configuration: SelectTimetableIntent, in context: Context) async -> Timeline<WeekViewWidgetEntry> {
+        await WeekViewWidgetProvider.timeline(familyDescription: context.family.description,
+                                              overrideTableId: configuration.timetable?.id)
+    }
+}
+
+@available(iOS 17.0, *)
+struct WeekViewIntentWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: "WeekViewWidgetRV", intent: SelectTimetableIntent.self,
+                               provider: WeekViewIntentWidgetProvider()) { entry in
+            WeekViewWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName(L10n.format("widget_week_view_label"))
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .sleepyContentMarginsDisabled()
+    }
+}
+#endif
 
 // MARK: - View ← renderWeekView
 
@@ -183,7 +233,7 @@ private struct WeekViewDayColumn: View {
                 // 课程数量 chip — chip 文字继承标题 BOLD (L1171 设 bold, L1196 才重置;
                 // chip 绘制在 L1187-1191 之间); 宽 = 文本长度*6+12dp、高 14dp 固定公式
                 // (L1182-1183), 非自然字宽。
-                let chipText = "\(day.courses.count) 门"
+                let chipText = L10n.format("course_count_format", day.courses.count)
                 Text(chipText)
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(s.onSurfaceVariant)
@@ -248,7 +298,7 @@ struct WeekViewWidget: Widget {
         .configurationDisplayName(L10n.format("widget_week_view_label"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         // iOS 17+ 系统边距关闭, 维持既有自管 padding 布局 (iOS 16 及以下 no-op)
-        .contentMarginsDisabled()
+        .sleepyContentMarginsDisabled()
     }
 }
 

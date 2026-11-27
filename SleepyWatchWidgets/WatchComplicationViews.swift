@@ -15,7 +15,7 @@ struct WatchCircularView: View {
     let next: WatchNextClass?
     var body: some View {
         ZStack {
-            Circle().stroke(.foreground.opacity(0.3), lineWidth: 2)
+            WatchProgressRing(progress: 0)
             VStack(spacing: 0) {
                 if let n = next {
                     Text("\(n.minutesUntil)")
@@ -34,25 +34,27 @@ struct WatchCircularView: View {
 
 /// rectangular — 课名 + 时段 + 教室
 struct WatchRectangularView: View {
+    @Environment(\.watchMaterialPalette) private var palette
     let next: WatchNextClass?
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             if let n = next {
                 Text(n.courseName)
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(palette.primaryText)
                     .lineLimit(1)
                     .widgetAccentable()
                 Text(n.startLabel)
                     .font(.system(size: 11).monospacedDigit())
-                    .foregroundColor(.secondary)
+                    .foregroundColor(palette.secondaryText)
                 if !n.room.isEmpty {
                     Text(n.room)
                         .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(palette.secondaryText)
                         .lineLimit(1)
                 }
             } else {
-                Text(noCourseText).font(.system(size: 12)).foregroundColor(.secondary)
+                Text(noCourseText).font(.system(size: 12)).foregroundColor(palette.secondaryText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

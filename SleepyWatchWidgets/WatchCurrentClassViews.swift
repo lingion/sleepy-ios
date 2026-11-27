@@ -19,12 +19,15 @@ struct WatchCurrentClassEntryView: View {
     let entry: WatchWidgetEntry<WatchCurrentSnapshot>
 
     var body: some View {
-        switch family {
-        case .accessoryCircular: WatchCurrentCircular(snap: entry.snapshot, now: entry.date)
-        case .accessoryCorner: WatchCurrentCorner(snap: entry.snapshot, now: entry.date)
-        case .accessoryInline: WatchCurrentInline(snap: entry.snapshot)
-        default: WatchCurrentRectangular(snap: entry.snapshot, now: entry.date)
+        Group {
+            switch family {
+            case .accessoryCircular: WatchCurrentCircular(snap: entry.snapshot, now: entry.date)
+            case .accessoryCorner: WatchCurrentCorner(snap: entry.snapshot, now: entry.date)
+            case .accessoryInline: WatchCurrentInline(snap: entry.snapshot)
+            default: WatchCurrentRectangular(snap: entry.snapshot, now: entry.date)
+            }
         }
+        .watchMaterialSurface(family)
     }
 }
 
@@ -80,6 +83,7 @@ private struct WatchCurrentCorner: View {
 
 /// rectangular — 课名 / 教室·剩余 / 进度条; 课间退化三行
 private struct WatchCurrentRectangular: View {
+    @Environment(\.watchMaterialPalette) private var palette
     let snap: WatchCurrentSnapshot
     let now: Date
     var body: some View {
@@ -87,38 +91,40 @@ private struct WatchCurrentRectangular: View {
             if let c = snap.current {
                 Text(c.courseName)
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(palette.primaryText)
                     .lineLimit(1)
                     .widgetAccentable()
                 HStack(spacing: 6) {
                     if !c.room.isEmpty {
                         Text(c.room)
                             .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(palette.secondaryText)
                             .lineLimit(1)
                     }
                     Text(timerInterval: min(now, c.endDate)...c.endDate, countsDown: true)
                         .font(.system(size: 10).monospacedDigit())
-                        .foregroundColor(.secondary)
+                        .foregroundColor(palette.secondaryText)
                 }
                 ProgressView(value: c.progress(at: now))
             } else if let n = snap.next {
                 Text(n.courseName)
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(palette.primaryText)
                     .lineLimit(1)
                     .widgetAccentable()
                 Text(n.startLabel)
                     .font(.system(size: 11).monospacedDigit())
-                    .foregroundColor(.secondary)
+                    .foregroundColor(palette.secondaryText)
                 if !n.room.isEmpty {
                     Text(n.room)
                         .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(palette.secondaryText)
                         .lineLimit(1)
                 }
             } else {
                 Text(L10n.t("no_course"))
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(palette.secondaryText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

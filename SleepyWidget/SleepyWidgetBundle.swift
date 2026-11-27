@@ -8,6 +8,35 @@ import WidgetKit
 import SwiftUI
 
 @main
+struct SleepyWidgetLauncher {
+    static func main() {
+#if compiler(>=5.9)
+        if #available(iOS 17.0, *) {
+            SleepyIntentWidgetBundle.main()
+            return
+        }
+#endif
+        SleepyWidgetBundle.main()
+    }
+}
+
+#if compiler(>=5.9)
+@available(iOS 17.0, *)
+struct SleepyIntentWidgetBundle: WidgetBundle {
+    var body: some Widget {
+        TodayIntentWidget()
+        TwoDayIntentWidget()
+        WeekListIntentWidget()
+        WeekViewIntentWidget()
+        WeekGridIntentWidget()
+        WeekGridVerticalIntentWidget()
+        WeekGridHorizontalIntentWidget()
+        LockScreenCourseIntentWidget()
+        SleepyClassLiveActivity()
+    }
+}
+#endif
+
 struct SleepyWidgetBundle: WidgetBundle {
     var body: some Widget {
         TodayWidget()
@@ -17,6 +46,9 @@ struct SleepyWidgetBundle: WidgetBundle {
         WeekGridWidget()
         WeekGridVerticalWidget()
         WeekGridHorizontalWidget()
+        if #available(iOS 16.0, *) {
+            LockScreenCourseWidget()
+        }
         // v1.0.64 课程实况活动(灵动岛/锁屏) — ActivityConfiguration 属 WidgetKit,
         // 与主屏小组件同扩展并列注册; iOS 16.1+ 门控(BundleBuilder 支持 #available)
         if #available(iOS 16.1, *) {

@@ -85,6 +85,7 @@ struct WatchTimeStripProvider: TimelineProvider {
         let repo = ScheduleRepository(AppDatabase.getShared())
         guard let table = WidgetTableResolver.resolveCurrentTable(repo),
               let courses = try? repo.getCourses(table.id) else { return nil }
+        let period = table.periodTableId.flatMap { try? repo.getPeriodTable($0) }
         let transfers = HolidayTransferOps.decodeTransfers(preferences.transfers[table.id] ?? "[]")
         var day = calendar.startOfDay(for: now)
         let horizonDay = calendar.startOfDay(for: now.addingTimeInterval(24 * 60 * 60))
@@ -93,7 +94,8 @@ struct WatchTimeStripProvider: TimelineProvider {
         // Include tomorrow for every entry, even when a short DST day crosses two midnights.
         while day <= lastDay {
             agendas[day] = WatchAgendaCore.dayItems(table: table, courses: courses, date: day,
-                                                   displayMode: "time", transfers: transfers)
+                                                   displayMode: "time", transfers: transfers, period: period,
+                                                   timeZone: calendar.timeZone)
             guard let next = calendar.date(byAdding: .day, value: 1, to: day), next > day else { break }
             day = next
         }
