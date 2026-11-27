@@ -68,6 +68,7 @@ enum MigrationDatabaseCodec {
         var reminderEnabled: Bool = true
         var reminderOverride: Bool? = nil
         var importSourceJson: String = ""
+        var jwSchoolSourceJson: String = ""
     }
 
     struct PeriodTableRow: Codable, Equatable {
@@ -76,6 +77,7 @@ enum MigrationDatabaseCodec {
         var nodesPerDay: Int = 12
         var timeJson: String
         var smartConfigJson: String = ""
+        var comboScheduleJson: String = ""
         var createdAt: Int64
         var updatedAt: Int64
     }
@@ -136,14 +138,16 @@ enum MigrationDatabaseCodec {
             createdAt: e.createdAt, periodTableId: e.periodTableId,
             preBindSnapshotJson: e.preBindSnapshotJson,
             reminderEnabled: e.reminderEnabled, reminderOverride: e.reminderOverride,
-            importSourceJson: e.importSourceJson
+            importSourceJson: e.importSourceJson,
+            jwSchoolSourceJson: e.jwSchoolSourceJson
         )
     }
 
     static func toRow(_ e: PeriodTableEntity) -> PeriodTableRow {
         return PeriodTableRow(
             id: e.id, name: e.name, nodesPerDay: e.nodesPerDay, timeJson: e.timeJson,
-            smartConfigJson: e.smartConfigJson, createdAt: e.createdAt, updatedAt: e.updatedAt
+            smartConfigJson: e.smartConfigJson, comboScheduleJson: e.comboScheduleJson,
+            createdAt: e.createdAt, updatedAt: e.updatedAt
         )
     }
 
@@ -177,6 +181,7 @@ enum MigrationDatabaseCodec {
             preBindSnapshotJson: r.preBindSnapshotJson,
             reminderEnabled: r.reminderEnabled, reminderOverride: r.reminderOverride,
             importSourceJson: r.importSourceJson,
+            jwSchoolSourceJson: r.jwSchoolSourceJson,
             id: r.id
         )
     }
@@ -184,7 +189,8 @@ enum MigrationDatabaseCodec {
     static func toEntity(_ r: PeriodTableRow) -> PeriodTableEntity {
         return PeriodTableEntity(
             name: r.name, nodesPerDay: r.nodesPerDay, timeJson: r.timeJson,
-            smartConfigJson: r.smartConfigJson, createdAt: r.createdAt, updatedAt: r.updatedAt,
+            smartConfigJson: r.smartConfigJson, comboScheduleJson: r.comboScheduleJson,
+            createdAt: r.createdAt, updatedAt: r.updatedAt,
             id: r.id
         )
     }
@@ -214,6 +220,19 @@ enum MigrationDatabaseCodec {
         )
     }
 
+    private static func recoveredTimeTables(_ snapshot: DatabaseSnapshot) -> [TimeTableRow] {
+        var latestWeek: [Int64: Int] = [:]
+        for course in snapshot.courses {
+            latestWeek[course.tableId] = max(latestWeek[course.tableId] ?? 1, course.endWeek)
+        }
+        return snapshot.timeTables.map { original in
+            guard original.maxWeek < 1 else { return original }
+            var recovered = original
+            recovered.maxWeek = latestWeek[original.id] ?? 1
+            return recovered
+        }
+    }
+
     /// 覆盖导入: 四表全量替换, 保留包内原始 ID 与关系。
     /// 写入顺序遵循 FK: period_tables → time_tables → courses; import_drafts 无 FK。
     /// iOS: GRDB 没有 auto-clear + insertAll 原子操作,分步走但 wrap 在 Database.write 里
@@ -232,7 +251,7 @@ enum MigrationDatabaseCodec {
             try timeTableDao.deleteAllInDb(db)
             try periodTableDao.deleteAllInDb(db)
             try periodTableDao.insertAllInDb(db, snapshot.periodTables.map(toEntity))
-            try timeTableDao.insertAllInDb(db, snapshot.timeTables.map(toEntity))
+            try timeTableDao.insertAllInDb(db, recoveredTimeTables(snapshot).map(toEntity))
             // 课程行保留 ID(原版本 insertKeepId)
             for row in snapshot.courses {
                 try courseDao.insertKeepIdInDb(db, toEntity(row))
@@ -264,7 +283,7 @@ enum MigrationDatabaseCodec {
                 periodIdMap[row.id] = newId
             }
             var tableIdMap: [Int64: Int64] = [:]
-            for row in snapshot.timeTables {
+            for row in recoveredTimeTables(snapshot) {
                 let mappedPeriod = row.periodTableId.flatMap { periodIdMap[$0] }
                 var imported = toEntity(row).withPeriodId(mappedPeriod).withId(0)
                 if hasLocalTables {
@@ -321,38 +340,22 @@ private extension CourseEntity {
 
 private extension TimeTableEntity {
     func withId(_ newId: Int64) -> TimeTableEntity {
-        return TimeTableEntity(
-            name: name, startDate: startDate, maxWeek: maxWeek,
-            nodesPerDay: nodesPerDay, timeJson: timeJson, color: color,
-            isDefault: isDefault, smartConfigJson: smartConfigJson,
-            createdAt: createdAt, periodTableId: periodTableId,
-            preBindSnapshotJson: preBindSnapshotJson,
-            reminderEnabled: reminderEnabled, reminderOverride: reminderOverride,
-            importSourceJson: importSourceJson,
-            id: newId
-        )
+        var copy = self
+        copy.id = newId
+        return copy
     }
     func withPeriodId(_ pid: Int64?) -> TimeTableEntity {
-        return TimeTableEntity(
-            name: name, startDate: startDate, maxWeek: maxWeek,
-            nodesPerDay: nodesPerDay, timeJson: timeJson, color: color,
-            isDefault: isDefault, smartConfigJson: smartConfigJson,
-            createdAt: createdAt, periodTableId: pid,
-            preBindSnapshotJson: preBindSnapshotJson,
-            reminderEnabled: reminderEnabled, reminderOverride: reminderOverride,
-            importSourceJson: importSourceJson,
-            id: id
-        )
+        var copy = self
+        copy.periodTableId = pid
+        return copy
     }
 }
 
 private extension PeriodTableEntity {
     func withId(_ newId: Int64) -> PeriodTableEntity {
-        return PeriodTableEntity(
-            name: name, nodesPerDay: nodesPerDay, timeJson: timeJson,
-            smartConfigJson: smartConfigJson, createdAt: createdAt, updatedAt: updatedAt,
-            id: newId
-        )
+        var copy = self
+        copy.id = newId
+        return copy
     }
 }
 
@@ -404,7 +407,7 @@ extension MigrationDatabaseCodec.TimeTableRow {
     enum CodingKeys: String, CodingKey {
         case id, name, startDate, maxWeek, nodesPerDay, timeJson, color,
              isDefault, smartConfigJson, createdAt, periodTableId,
-             preBindSnapshotJson, reminderEnabled, reminderOverride, importSourceJson
+             preBindSnapshotJson, reminderEnabled, reminderOverride, importSourceJson, jwSchoolSourceJson
     }
     init(from decoder: Decoder) throws {
         let k = try decoder.container(keyedBy: CodingKeys.self)
@@ -423,12 +426,13 @@ extension MigrationDatabaseCodec.TimeTableRow {
         reminderEnabled = try k.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? true
         reminderOverride = try k.decodeIfPresent(Bool.self, forKey: .reminderOverride)
         importSourceJson = try k.decodeIfPresent(String.self, forKey: .importSourceJson) ?? ""
+        jwSchoolSourceJson = try k.decodeIfPresent(String.self, forKey: .jwSchoolSourceJson) ?? ""
     }
 }
 
 extension MigrationDatabaseCodec.PeriodTableRow {
     enum CodingKeys: String, CodingKey {
-        case id, name, nodesPerDay, timeJson, smartConfigJson, createdAt, updatedAt
+        case id, name, nodesPerDay, timeJson, smartConfigJson, comboScheduleJson, createdAt, updatedAt
     }
     init(from decoder: Decoder) throws {
         let k = try decoder.container(keyedBy: CodingKeys.self)
@@ -437,6 +441,7 @@ extension MigrationDatabaseCodec.PeriodTableRow {
         nodesPerDay = try k.decodeIfPresent(Int.self, forKey: .nodesPerDay) ?? 12
         timeJson = try k.decode(String.self, forKey: .timeJson)
         smartConfigJson = try k.decodeIfPresent(String.self, forKey: .smartConfigJson) ?? ""
+        comboScheduleJson = try k.decodeIfPresent(String.self, forKey: .comboScheduleJson) ?? ""
         createdAt = try k.decode(Int64.self, forKey: .createdAt)
         updatedAt = try k.decode(Int64.self, forKey: .updatedAt)
     }

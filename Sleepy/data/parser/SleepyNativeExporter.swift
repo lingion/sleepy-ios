@@ -10,20 +10,22 @@ enum SleepyNativeExporter {
     /// 文件形态: 末尾追加 z|chk=crc32:xxxxxxxx(文件导出默认写)
     static func exportFile(tableName: String, startDate: String, maxWeek: Int,
                            nodesPerDay: Int, timeJson: String, courses: [CourseEntity],
-                           periodTable: PeriodTableExport? = nil, importSourceJson: String = "") -> String {
+                           periodTable: PeriodTableExport? = nil, importSourceJson: String = "",
+                           jwSchoolSourceJson: String = "") -> String {
         let body = buildBody(tableName: tableName, startDate: startDate, maxWeek: maxWeek,
                              nodesPerDay: nodesPerDay, timeJson: timeJson, courses: courses,
-                             periodTable: periodTable, importSourceJson: importSourceJson)
+                             periodTable: periodTable, importSourceJson: importSourceJson, jwSchoolSourceJson: jwSchoolSourceJson)
         return body + "\nz|chk=crc32:" + SleepyNativeFormat.crc32(body.data(using: .utf8)!)
     }
 
     /// 分享文本形态: 【来自Sleepy】+ 包裹 marker + 无 chk(规范 §1.1)
     static func exportShareText(tableName: String, startDate: String, maxWeek: Int,
                                 nodesPerDay: Int, timeJson: String, courses: [CourseEntity],
-                                periodTable: PeriodTableExport? = nil, importSourceJson: String = "") -> String {
+                                periodTable: PeriodTableExport? = nil, importSourceJson: String = "",
+                           jwSchoolSourceJson: String = "") -> String {
         let body = buildBody(tableName: tableName, startDate: startDate, maxWeek: maxWeek,
                              nodesPerDay: nodesPerDay, timeJson: timeJson, courses: courses,
-                             periodTable: periodTable, importSourceJson: importSourceJson)
+                             periodTable: periodTable, importSourceJson: importSourceJson, jwSchoolSourceJson: jwSchoolSourceJson)
         return "【来自Sleepy】\n课程分享：\n\n<<<SLEEPY-BEGIN>>>\n\(body)\n<<<SLEEPY-END>>>"
     }
 
@@ -39,7 +41,8 @@ enum SleepyNativeExporter {
 
     private static func buildBody(tableName: String, startDate: String, maxWeek: Int,
                                   nodesPerDay: Int, timeJson: String, courses: [CourseEntity],
-                                  periodTable: PeriodTableExport? = nil, importSourceJson: String = "") -> String {
+                                  periodTable: PeriodTableExport? = nil, importSourceJson: String = "",
+                           jwSchoolSourceJson: String = "") -> String {
         var sb = ""
         sb += "#sleepy-v1\n"
 
@@ -55,6 +58,7 @@ enum SleepyNativeExporter {
         let partitionedCount = countAfterPartition(courses)
         sb += "|n=\(partitionedCount)"
         if !importSourceJson.isEmpty { sb += "|source=" + SleepyNativeFormat.escape(importSourceJson) }
+        if !jwSchoolSourceJson.isEmpty { sb += "|jw=" + SleepyNativeFormat.escape(jwSchoolSourceJson) }
         sb += "\n"
 
         // ---- issue#40: P 行(独立时间节次表, §6 新格式可选区块) ----

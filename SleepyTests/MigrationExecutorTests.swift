@@ -61,6 +61,148 @@ final class MigrationExecutorTests: XCTestCase {
         return try AppDatabase.inMemory()
     }
 
+    func testAndroidSchoolSourceSurvivesBothArchiveRestoreModes() throws {
+        let identity = #"{"schemaVersion":1,"sourceType":"jw","school":{"name":"Ａ校🍂","sortKey":"A","type":"qz","url":"https://jw.example.edu/"}}"#
+        let rows: [String: Any] = ["timeTables": [
+            ["id": 7, "name": "Imported", "startDate": "2026-09-07", "createdAt": 123, "timeJson": "[]",
+             "jwSchoolSourceJson": identity, "jwSchoolSourceVerified": true]
+        ]]
+        let module = String(decoding: try JSONSerialization.data(withJSONObject: rows), as: UTF8.self)
+        let raw = try MigrationPackageCodec.write(modules: [.DATABASE: module], createdAt: 1)
+        for mode: MigrationExecutor.ImportMode in [.MERGE, .OVERWRITE] {
+            let database = try AppDatabase.inMemory()
+            let store = makeStore()
+            _ = try MigrationExecutor.import(bytes: raw, mode: mode, prefsStore: store,
+                courseDao: database.courseDao, timeTableDao: database.timeTableDao, periodTableDao: database.periodTableDao,
+                importDraftDao: database.importDraftDao, dbQueue: database.dbQueue)
+            XCTAssertEqual(try database.timeTableDao.getAll().first?.jwSchoolSourceJson, identity)
+            XCTAssertEqual(try database.timeTableDao.getAll().first?.jwSchoolSourceVerified, false)
+            let exported = try MigrationExecutor.export(selected: [.DATABASE], prefsStore: store,
+                courseDao: database.courseDao, timeTableDao: database.timeTableDao, periodTableDao: database.periodTableDao,
+                importDraftDao: database.importDraftDao, dbQueue: database.dbQueue).bytes
+            let db = try XCTUnwrap(MigrationPackageCodec.read(exported).modules[.DATABASE])
+            let roundTrip = try MigrationDatabaseCodec.decode(db)
+            XCTAssertEqual(roundTrip.timeTables.first?.jwSchoolSourceJson, identity)
+            XCTAssertFalse(db.contains("jwSchoolSourceVerified"))
+        }
+    }
+
+    func testAndroidCombinedPeriodArchiveRoundTripsBothRestoreModes() throws {
+        let combo = """
+        { "name":"Seasonal","publicSchedules":[{"name":"Summer","startDate":"2026-09-14","endDate":"2026-09-30","timeSlots":[{"number":1,"startTime":"09:00","endTime":"09:45"}]}] }
+        """
+        let staticTimes = #"[{"node":1,"start":"08:00","end":"08:45"}]"#
+        // Use the Android wire keys, not the iOS encoder, to supply the archive input.
+        let androidDB: [String: Any] = [
+            "periodTables": [
+                ["id": 9, "name": "Dated", "timeJson": staticTimes, "nodesPerDay": 1,
+                 "createdAt": 1, "updatedAt": 2, "comboScheduleJson": combo],
+                ["id": 10, "name": "Legacy", "timeJson": staticTimes, "createdAt": 1, "updatedAt": 2]
+            ],
+            "timeTables": [
+                ["id": 20, "name": "Term", "startDate": "2026-09-07",
+                 "periodTableId": 9, "timeJson": staticTimes, "createdAt": 1]
+            ],
+            "courses": [
+                ["id": 21, "groupId": "lab", "tableId": 20, "courseName": "Lab", "day": 1,
+                 "startNode": 1, "step": 1, "startWeek": 1, "endWeek": 16, "color": "#FF6750A4"]
+            ]
+        ]
+        let input = String(decoding: try JSONSerialization.data(withJSONObject: androidDB), as: UTF8.self)
+        let bytes = try MigrationPackageCodec.write(modules: [.DATABASE: input], createdAt: 1)
+        let store = makeStore()
+        for mode: MigrationExecutor.ImportMode in [.MERGE, .OVERWRITE] {
+            let db = try newDb()
+            try db.periodTableDao.insert(.init(name: "Keep this local", id: 9))
+            try db.timeTableDao.insert(.init(name: "Local", startDate: "2026-01-05", periodTableId: 9, id: 20))
+            _ = try MigrationExecutor.import(bytes: bytes, mode: mode, prefsStore: store,
+                courseDao: db.courseDao, timeTableDao: db.timeTableDao, periodTableDao: db.periodTableDao,
+                importDraftDao: db.importDraftDao, dbQueue: db.dbQueue)
+            let encoded = try MigrationExecutor.export(selected: [.DATABASE], prefsStore: store,
+                courseDao: db.courseDao, timeTableDao: db.timeTableDao, periodTableDao: db.periodTableDao,
+                importDraftDao: db.importDraftDao, dbQueue: db.dbQueue).bytes
+            let payload = try XCTUnwrap(MigrationPackageCodec.read(encoded).modules[.DATABASE])
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any])
+            let periods = try XCTUnwrap(root["periodTables"] as? [[String: Any]])
+            let dated = try XCTUnwrap(periods.first(where: { $0["name"] as? String == "Dated" }))
+            let legacy = try XCTUnwrap(periods.first(where: { $0["name"] as? String == "Legacy" }))
+            let tables = try XCTUnwrap(root["timeTables"] as? [[String: Any]])
+            let term = try XCTUnwrap(tables.first(where: { $0["name"] as? String == "Term" }))
+            let courses = try XCTUnwrap(root["courses"] as? [[String: Any]])
+            XCTAssertEqual(dated["comboScheduleJson"] as? String, combo)
+            XCTAssertEqual(dated["timeJson"] as? String, staticTimes)
+            XCTAssertEqual(legacy["comboScheduleJson"] as? String, "")
+            XCTAssertEqual(term["periodTableId"] as? Int, dated["id"] as? Int)
+            XCTAssertEqual(courses.first?["tableId"] as? Int, term["id"] as? Int)
+            XCTAssertEqual(courses.first?["courseName"] as? String, "Lab")
+            XCTAssertEqual(dated["id"] as? Int == 9, mode == .OVERWRITE)
+            XCTAssertEqual(term["id"] as? Int == 20, mode == .OVERWRITE)
+            if mode == .MERGE {
+                XCTAssertEqual(try db.periodTableDao.getById(9)?.name, "Keep this local")
+                XCTAssertEqual(try db.timeTableDao.getById(20)?.periodTableId, 9)
+            }
+        }
+    }
+
+    func testUpgradeAddsAnEmptyComboColumnWithoutChangingExistingRows() throws {
+        let template = try newDb()
+        let queue = try DatabaseQueue()
+        try template.migrator.migrate(queue, upTo: "v15.addImportSource")
+        try queue.write { db in
+            try db.execute(sql: """
+                INSERT INTO period_tables (id,name,nodesPerDay,timeJson,smartConfigJson,createdAt,updatedAt)
+                VALUES (42,'Original',1,'[]','',123,456)
+                """)
+        }
+        let upgraded = try AppDatabase(queue: queue)
+        let period = try XCTUnwrap(upgraded.periodTableDao.getById(42))
+        XCTAssertEqual(period.name, "Original")
+        XCTAssertEqual(period.timeJson, "[]")
+        XCTAssertEqual(period.createdAt, 123)
+        XCTAssertEqual(period.updatedAt, 456)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(period)) as? [String: Any])
+        XCTAssertEqual(json["comboScheduleJson"] as? String, "")
+    }
+
+    func testOlderWatchPeriodPayloadStillDecodes() throws {
+        let legacy = #"{"id":42,"name":"Old phone","nodesPerDay":1,"timeJson":"[]","smartConfigJson":"","createdAt":123,"updatedAt":456}"#
+        let period = try JSONDecoder().decode(PeriodTableEntity.self, from: Data(legacy.utf8))
+        XCTAssertEqual(period.id, 42)
+        XCTAssertEqual(period.name, "Old phone")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(period)) as? [String: Any])
+        XCTAssertEqual(json["comboScheduleJson"] as? String, "")
+    }
+
+    func testRemoteArchiveIsReadOnlyBeforeSharedMergeOrOverwrite() throws {
+        let source = try newDb()
+        let tableId = try source.timeTableDao.insert(.init(name: "Remote term", startDate: "2026-09-07"))
+        _ = try source.courseDao.insert(.init(groupId: "lab", tableId: tableId, courseName: "Lab",
+                                               day: 1, startNode: 1, step: 2, startWeek: 1, endWeek: 2,
+                                               color: "#FF6750A4"))
+        let store = makeStore()
+        let data = try MigrationExecutor.export(selected: [.DATABASE], prefsStore: store,
+            courseDao: source.courseDao, timeTableDao: source.timeTableDao, periodTableDao: source.periodTableDao,
+            importDraftDao: source.importDraftDao, dbQueue: source.dbQueue).bytes
+
+        for mode: MigrationExecutor.ImportMode in [.MERGE, .OVERWRITE] {
+            let target = try newDb()
+            _ = try target.timeTableDao.insert(.init(name: "Local term", startDate: "2026-08-31"))
+            let ready = try MigrationPreparedArchive.decodeRemote(data)
+            // Choosing Cancel would stop here. Decoding has not opened or touched the target.
+            XCTAssertEqual(try target.timeTableDao.getAll().map(\.name), ["Local term"])
+            XCTAssertTrue(try target.courseDao.getAllCourses().isEmpty)
+
+            let report = try MigrationExecutor.apply(ready, mode: mode, prefsStore: store,
+                courseDao: target.courseDao, timeTableDao: target.timeTableDao, periodTableDao: target.periodTableDao,
+                importDraftDao: target.importDraftDao, dbQueue: target.dbQueue)
+            let tables = try target.timeTableDao.getAll()
+            let remote = try XCTUnwrap(tables.first { $0.name == "Remote term" })
+            XCTAssertEqual(try target.courseDao.getByTable(remote.id).map(\.courseName), ["Lab"])
+            XCTAssertEqual(tables.contains { $0.name == "Local term" }, mode == .MERGE)
+            XCTAssertEqual(report.counts.courses, 1)
+        }
+    }
+
     // ← export with database pulls persisted_state dependency into package
     func testExportWithDatabasePullsPersistedStateDependency() throws {
         let db = try newDb()
