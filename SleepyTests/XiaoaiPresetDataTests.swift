@@ -206,6 +206,43 @@ final class XiaoaiPresetDataTests: XCTestCase {
             table: table(), courses: [course(startWeek: 2, endWeek: 2, type: 1)]))
     }
 
+    func testReportsFirstMissingPeriodInAContinuingCourse() {
+        XCTAssertThrowsError(try XiaoaiPresetData.build(table: table(),
+            courses: [course(name: "Optics lab", startNode: 9, step: 4)])) { error in
+            XCTAssertEqual(error as? XiaoaiPresetDataError, .missingPeriodTime(courseName: "Optics lab", period: 11))
+        }
+    }
+
+    func testReportsCourseStartWhenItsEntireRangeFallsPastTheLastPeriod() {
+        XCTAssertThrowsError(try XiaoaiPresetData.build(table: table(),
+            courses: [course(name: "Late lab", startNode: 13, step: 1)])) { error in
+            XCTAssertEqual(error as? XiaoaiPresetDataError, .missingPeriodTime(courseName: "Late lab", period: 13))
+        }
+    }
+
+    func testUsesBoundScheduleWhenDeterminingMissingPeriods() throws {
+        let bound = PeriodTableEntity(name: "Short bell schedule",
+            timeJson: #"[{"node":1,"start":"08:00","end":"08:45"},{"node":2,"start":"08:55","end":"09:40"}]"#)
+        let courses = [course(name: "Engineering", startNode: 2, step: 2)]
+        let unbound = try parseImportData(XiaoaiPresetData.build(table: table(), courses: courses))
+        let parser = try XCTUnwrap(unbound["parserRes"] as? [String: Any])
+        let rows = try XCTUnwrap(parser["courseInfos"] as? [[String: Any]])
+        XCTAssertEqual(rows.first?["sections"] as? [Int], [2, 3])
+
+        XCTAssertThrowsError(try XiaoaiPresetData.build(table: table(), courses: courses, periodTable: bound)) { error in
+            XCTAssertEqual(error as? XiaoaiPresetDataError, .missingPeriodTime(courseName: "Engineering", period: 3))
+        }
+    }
+
+    func testOverflowedCourseRangeRemainsInvalid() {
+        XCTAssertThrowsError(try XiaoaiPresetData.build(table: table(),
+            courses: [course(startNode: Int.max, step: 2)])) { error in
+            guard case .invalid = error as? XiaoaiPresetDataError else {
+                return XCTFail("An overflowing course range is invalid, not a missing bell time")
+            }
+        }
+    }
+
     func testInvalidPeriods_areRejectedBeforeReceiverRenumbersOrIgnoresThem() {
         let invalid = [
             #"[{"node":1,"start":"08:00","end":"08:45"},{"node":1,"start":"09:00","end":"09:45"}]"#,

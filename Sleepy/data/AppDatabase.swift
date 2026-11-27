@@ -76,6 +76,17 @@ final class AppDatabase {
         self.calendarImportRecordDao = CalendarImportRecordDao(db: queue)
         self.courseColorDao = CourseColorDao(db: queue)
         try migrator.migrate(queue)
+        // Older editors could save a non-positive semester length. Repair only
+        // those rows; neither course IDs nor a valid user-selected length changes.
+        try queue.write { db in
+            try db.execute(sql: """
+                UPDATE time_tables
+                SET maxWeek = MAX(1, COALESCE(
+                    (SELECT MAX(endWeek) FROM courses WHERE tableId = time_tables.id), 1
+                ))
+                WHERE maxWeek < 1
+                """)
+        }
     }
 
     /// Room @Database version=3 的建表 DDL(逐列对齐 @Entity 注解)
@@ -259,6 +270,16 @@ final class AppDatabase {
         }
         m.registerMigration("v15.addImportSource") { db in
             try db.execute(sql: "ALTER TABLE time_tables ADD COLUMN importSourceJson TEXT NOT NULL DEFAULT ''")
+        }
+        // Android v1.0.67 stores the original dated combination separately from base clocks.
+        m.registerMigration("v16.addPeriodTableCombination") { db in
+            try db.execute(sql: "ALTER TABLE period_tables ADD COLUMN comboScheduleJson TEXT NOT NULL DEFAULT ''")
+        }
+        m.registerMigration("v17.addJwSchoolSource") { db in
+            try db.execute(sql: "ALTER TABLE time_tables ADD COLUMN jwSchoolSourceJson TEXT NOT NULL DEFAULT ''")
+        }
+        m.registerMigration("v18.addLocalJwSchoolAuthorization") { db in
+            try db.execute(sql: "ALTER TABLE time_tables ADD COLUMN jwSchoolSourceVerified INTEGER NOT NULL DEFAULT 0")
         }
         return m
     }

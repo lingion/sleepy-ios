@@ -8,6 +8,14 @@ import Foundation
 import Combine
 import GRDB
 
+struct ScheduleExportSnapshot {
+    let table: TimeTableEntity
+    let courses: [CourseEntity]
+    let periodTable: PeriodTableEntity?
+
+    var effectiveTable: TimeTableEntity { table.hydratedWith(periodTable) }
+}
+
 final class ScheduleRepository {
     enum TableEditSaveError: Error {
         case missingTable
@@ -15,6 +23,7 @@ final class ScheduleRepository {
         case missingPolicy
         case staleTimeTable
         case invalidCourseDraft
+        case invalidWeekCount
     }
     private let db: AppDatabase
     private let courseDao: CourseDao
@@ -140,11 +149,32 @@ final class ScheduleRepository {
 
     func getTable(_ id: Int64) throws -> TimeTableEntity? { try tableDao.getById(id) }
 
+    /// A single read ties metadata, the period binding, and all courses to the requested ID.
+    func loadExportSnapshot(tableId: Int64) throws -> ScheduleExportSnapshot {
+        try db.dbQueue.read { connection in
+            guard let table = try TimeTableEntity.fetchOne(connection, key: tableId) else {
+                throw TableEditSaveError.missingTable
+            }
+            let period = try table.periodTableId.flatMap { id in
+                try PeriodTableEntity.fetchOne(connection, key: id)
+            }
+            let courses = try CourseEntity.fetchAll(connection, sql: """
+                SELECT * FROM courses WHERE tableId = ? ORDER BY day, startNode, startWeek
+                """, arguments: [tableId])
+            return ScheduleExportSnapshot(table: table, courses: courses, periodTable: period)
+        }
+    }
+
     func getDefaultTable() throws -> TimeTableEntity? { try tableDao.getDefault() }
+
+    private func requirePositiveWeekCount(_ table: TimeTableEntity) throws {
+        guard table.maxWeek > 0 else { throw TableEditSaveError.invalidWeekCount }
+    }
 
     @discardableResult
     func insertTable(_ table: TimeTableEntity) throws -> Int64 {
-        try writeWithUndo { db in
+        try requirePositiveWeekCount(table)
+        return try writeWithUndo { db in
             let id = try tableDao.insertInDb(db, table)
             let count = try TimeTableEntity.fetchCount(db)
             if table.isDefault || count == 1 {
@@ -178,6 +208,8 @@ final class ScheduleRepository {
             copy.name = name
             copy.isDefault = false
             copy.reminderOverride = nil
+            copy.jwSchoolSourceJson = ""
+            copy.jwSchoolSourceVerified = false
             copy.createdAt = Int64(Date().timeIntervalSince1970 * 1000)
             let newID = try tableDao.insertInDb(db, copy)
             var groupMap: [String: String] = [:]
@@ -213,6 +245,7 @@ final class ScheduleRepository {
                         periodTable: PeriodTableEntity?,
                         bindPeriodTableId: Int64? = nil,
                         keepGroups: Bool = false) throws -> Int64 {
+        try requirePositiveWeekCount(table)
         // Confirmation can become stale while another editor changes the shared bell schedule.
         let store = GRDBNewTableImportStore(db: db) { dbw in
             let confirmedTimeJson: String
@@ -237,6 +270,7 @@ final class ScheduleRepository {
     }
 
     func updateTable(_ table: TimeTableEntity) throws {
+        try requirePositiveWeekCount(table)
         try writeWithUndo { db in try table.update(db) }
         onDataChanged()
     }
@@ -268,9 +302,14 @@ final class ScheduleRepository {
 
     /// Apply a reviewed school refresh without replacing timetable preferences or local customizations.
     func updateImportedCourses(tableId: Int64, courses: [CourseEntity], incomingTimeJson: String = "",
-                               expectedCourses: [CourseEntity]? = nil) throws {
+                               expectedCourses: [CourseEntity]? = nil,
+                               authorizedSource: String? = nil, capturedCombination: String? = nil) throws {
         try writeWithUndo { db in
             guard var table = try TimeTableEntity.fetchOne(db, key: tableId) else { throw TableEditSaveError.missingTable }
+            if let authorizedSource = authorizedSource,
+               !table.jwSchoolSourceVerified || table.jwSchoolSourceJson != authorizedSource {
+                throw TableEditSaveError.staleTimeTable
+            }
             let existing = try CourseEntity.fetchAll(db, sql: "SELECT * FROM courses WHERE tableId = ? ORDER BY id", arguments: [tableId])
             if let expectedCourses, existing != expectedCourses.sorted(by: { $0.id < $1.id }) {
                 throw TableEditSaveError.staleTimeTable
@@ -279,7 +318,7 @@ final class ScheduleRepository {
             guard Set(ids).count == ids.count, Set(ids).isSubset(of: Set(existing.map(\.id))) else {
                 throw TableEditSaveError.invalidCourseDraft
             }
-            var period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
+            let period = try table.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
             if table.periodTableId != nil && period == nil { throw TableEditSaveError.missingPeriodTable }
             let effective = table.hydratedWith(period)
             let reach = try courses.map { row -> Int in
@@ -288,8 +327,21 @@ final class ScheduleRepository {
                 guard !overflow else { throw TableEditSaveError.invalidCourseDraft }
                 return end
             }.max() ?? 0
-            let extended = CourseImportPolicy.mergeTimeJson(current: effective.timeJson, incoming: incomingTimeJson,
+            if let capturedCombination = capturedCombination {
+                guard let bound = period, bound.comboScheduleJson == capturedCombination,
+                      TimeTableUtils.strictPeriodRows(bound.timeJson) == TimeTableUtils.strictPeriodRows(incomingTimeJson) else {
+                    throw TableEditSaveError.staleTimeTable
+                }
+            }
+            let extended: String
+            if authorizedSource != nil, let bound = period {
+                // Refresh course rows without altering a possibly shared bell schedule.
+                try CourseImportPolicy.requirePeriodCoverage(courses, timeJson: bound.timeJson)
+                extended = bound.timeJson
+            } else {
+                extended = CourseImportPolicy.mergeTimeJson(current: effective.timeJson, incoming: incomingTimeJson,
                                                             requiredNodes: max(effective.nodesPerDay, reach))
+            }
             var groups: [String: String] = [:]
             var rows = courses
             for index in rows.indices {
@@ -309,7 +361,7 @@ final class ScheduleRepository {
             _ = CourseColorWriteGlue.persistNewGroupHuesInDb(dbw: db, dao: courseColorDao, entities: inserts)
             let maxNode = TimeTableUtils.parseTimeSlotRows(extended).map(\.node).max() ?? effective.nodesPerDay
             if var bound = period {
-                if bound.timeJson != extended || bound.nodesPerDay != maxNode {
+                if authorizedSource == nil && (bound.timeJson != extended || bound.nodesPerDay != maxNode) {
                     bound.timeJson = extended; bound.nodesPerDay = maxNode
                     bound.updatedAt = Int64(Date().timeIntervalSince1970 * 1000)
                     try bound.update(db)
@@ -332,6 +384,7 @@ final class ScheduleRepository {
     /// [writeTimeDomain]=true 时同步写 timeJson/smartConfigJson/nodesPerDay — 仅用于
     /// 解绑场景: 用户编辑的是旧源兼容列, 解绑后兼容列是真值。
     func updateTableMetadata(_ table: TimeTableEntity, writeTimeDomain: Bool = false) throws {
+        try requirePositiveWeekCount(table)
         let found = try writeWithUndo { db -> Bool in
             guard let current = try TimeTableEntity.fetchOne(db, key: table.id) else { throw TableEditSaveError.missingTable }
             var merged = current
@@ -361,6 +414,7 @@ final class ScheduleRepository {
     /// 两条独立写(updateTable + updatePeriodTableContent)顺序不保证, 撤回快照
     /// 也可能只拍到一半。本方法一次快照一次事务同时落两行, 要么都成要么都不成。
     func updateTableMetadataWithPeriodTable(table: TimeTableEntity, periodTable: PeriodTableEntity) throws {
+        try requirePositiveWeekCount(table)
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let changed = try writeWithUndo { db -> Bool in
             guard let current = try TimeTableEntity.fetchOne(db, key: table.id),
@@ -389,6 +443,7 @@ final class ScheduleRepository {
         periodTableId: Int64?,
         periodContent: PeriodTableEntity? = nil
     ) throws {
+        try requirePositiveWeekCount(table)
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let changed = try writeWithUndo { db -> Bool in
             guard let current = try TimeTableEntity.fetchOne(db, key: table.id) else { throw TableEditSaveError.missingTable }
@@ -444,6 +499,7 @@ final class ScheduleRepository {
     /// remapCourseNodes 重排; 无法映射的课保持原节次。与 updateTable 同为单动作
     /// 撤回单元(首快照 = 改表前)。
     func updateTableRemappingCourses(_ table: TimeTableEntity) throws {
+        try requirePositiveWeekCount(table)
         try writeWithUndo { db in
             guard let old = try TimeTableEntity.fetchOne(db, key: table.id) else { throw TableEditSaveError.missingTable }
             try updateTableRemappingCoursesInDb(db, table: table, oldTimeJson: old.timeJson)
@@ -454,6 +510,7 @@ final class ScheduleRepository {
     /// A policy save is one database transaction and one undo action. No nested DAO writes.
     func executeScheduleEditPolicy(editedTable: TimeTableEntity, draft: PeriodTableEntity,
                                    policy: SchedulePolicy) throws {
+        try requirePositiveWeekCount(editedTable)
         try writeWithUndo { db in
             guard let current = try TimeTableEntity.fetchOne(db, key: editedTable.id) else { throw TableEditSaveError.missingTable }
             let oldPeriod = try current.periodTableId.flatMap { try PeriodTableEntity.fetchOne(db, key: $0) }
@@ -472,7 +529,8 @@ final class ScheduleRepository {
                     courseTableNames: try TimeTableEntity.fetchAll(db).map(\.name),
                     periodTableNames: try PeriodTableEntity.fetchAll(db).map(\.name), defaultName: current.name)
                 let period = PeriodTableEntity(name: name, nodesPerDay: draft.nodesPerDay,
-                                              timeJson: draft.timeJson, smartConfigJson: draft.smartConfigJson)
+                                              timeJson: draft.timeJson, smartConfigJson: draft.smartConfigJson,
+                                              comboScheduleJson: draft.comboScheduleJson)
                 let newID = try periodTableDao.insertInDb(db, period)
                 let bound = current.periodTableId == nil
                     ? TimeTableEntity.snapshotForBind(table: current, targetId: newID) : current
@@ -1194,11 +1252,14 @@ final class ScheduleRepository {
     }
 
     func replaceImportedTable(_ tableId: Int64, name: String, startDate: String, maxWeek: Int,
-                              nodesPerDay: Int, timeJson: String, courses: [CourseEntity], keepGroups: Bool) throws {
+                              nodesPerDay: Int, timeJson: String, courses: [CourseEntity], keepGroups: Bool,
+                              jwSchoolSourceJson: String = "") throws {
         try writeWithUndo { db in
             guard var table = try TimeTableEntity.fetchOne(db, key: tableId) else { throw ImportMutationError.tableMissing }
             table.name = name
             table.startDate = startDate
+            table.jwSchoolSourceJson = jwSchoolSourceJson
+            table.jwSchoolSourceVerified = false
             if maxWeek > 0 { table.maxWeek = maxWeek }
             if let periodId = table.periodTableId {
                 guard var period = try PeriodTableEntity.fetchOne(db, key: periodId) else { throw ImportMutationError.periodMissing }

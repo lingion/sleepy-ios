@@ -1,6 +1,7 @@
 // ConflictLayoutEngineTests.swift — ← ConflictLayoutEngineTest.kt + ConflictCardGeometryTest.kt
 // (忠实对齐安卓 107 用例的引擎子集, GPL-3.0) Sleepy iOS — 100% port of 原版本
 
+import SwiftUI
 import XCTest
 @testable import Sleepy
 
@@ -771,5 +772,50 @@ final class ConflictLayoutEngineTests: XCTestCase {
             XCTAssertEqual(segs.map { $0.course.day }, expectedDays)
             XCTAssertEqual(segs.map { $0.course.id }, [1, 2, 3, 4])
         }
+    }
+}
+
+final class WeekAgendaReadabilityTests: XCTestCase {
+    func testOnlyShareWidthWhenEveryConflictLaneCanFit() throws {
+        let width = try XCTUnwrap(WeekAgendaLayout.conflictLaneWidth(
+            available: 331, count: 3, scale: 1, textSize: 12))
+        XCTAssertEqual(width, 106, accuracy: 0.001)
+        XCTAssertFalse(WeekAgendaLayout.showsSideLabel(width: width, textSize: 12))
+        XCTAssertTrue(WeekAgendaLayout.showsSideLabel(width: 160, textSize: 12))
+        XCTAssertNil(WeekAgendaLayout.conflictLaneWidth(
+            available: 276, count: 3, scale: 1, textSize: 12), "Stack the lanes on a compact phone")
+        XCTAssertNil(WeekAgendaLayout.conflictLaneWidth(
+            available: 331, count: 3, scale: 1, textSize: 20), "Stack the lanes with larger text")
+        XCTAssertNil(WeekAgendaLayout.conflictLaneWidth(
+            available: 130, count: 2, scale: 1.3, textSize: 15.6), "Stack inside a narrow day column")
+    }
+
+    @MainActor
+    func testLongCourseNameGrowsPastTwoLinesAtCompactWidth() {
+        func renderedHeight(_ name: String) -> CGFloat {
+            let course = CourseEntity(groupId: "test", tableId: 1, courseName: name,
+                                      day: 3, startNode: 1, step: 2, startWeek: 1, endWeek: 4, color: "")
+            let lesson = LessonRow(course: course, displayMode: "time", timeJson: TimeTableUtils.DEFAULT_TIME_JSON,
+                                   showsSideLabel: false, onClick: {})
+            let host = UIHostingController(rootView: lesson)
+            return host.sizeThatFits(in: CGSize(width: 110, height: 1000)).height
+        }
+        let short = renderedHeight("Math")
+        let long = renderedHeight("International Economics and Comparative Public Policy Seminar in Economic History")
+        XCTAssertGreaterThanOrEqual(short, 44)
+        XCTAssertGreaterThan(long, short + 35, "The name must wrap past the old two-line cap")
+    }
+
+    func testWeekAgendaPaddingScaledAndTodayAgendaStacking() throws {
+        // When scale = 1.5, 27pt card horizontal padding reduces inner width below 86pt at lane width 106pt.
+        XCTAssertNil(WeekAgendaLayout.conflictLaneWidth(available: 336, count: 3, scale: 1.5, textSize: 12))
+        XCTAssertTrue(WeekAgendaLayout.showsSideLabel(width: 160, textSize: 12, scale: 1))
+        XCTAssertFalse(WeekAgendaLayout.showsSideLabel(width: 160, textSize: 12, scale: 2.0))
+
+        // TodayAgendaLayout stacks conflict lanes when horizontal lane width is too narrow.
+        XCTAssertNil(TodayAgendaLayout.laneWidth(available: 320, count: 3, textSize: 16))
+        let wideLane = try XCTUnwrap(TodayAgendaLayout.laneWidth(available: 382, count: 2, textSize: 16))
+        XCTAssertFalse(TodayAgendaLayout.showsSideSlot(width: wideLane, textSize: 16))
+        XCTAssertTrue(TodayAgendaLayout.showsSideSlot(width: 360, textSize: 16))
     }
 }

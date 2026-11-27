@@ -293,9 +293,19 @@ enum WakeUpShareProtocol {
             // parser 的 lossless 会计算 startNode + step - 1；输出前校验完整跨度。
             let (end, overflow) = start.addingReportingOverflow(step - 1)
             guard !overflow, nodeRange.contains(end) else { throw WakeUpShareError.incompleteSchedule }
-            return ["name": name, "teacher": primitiveString(detail["teacher"]) ?? "",
-                    "position": primitiveString(detail["room"]) ?? "", "day": day,
-                    "startNode": start, "step": step, "startWeek": first, "endWeek": last, "type": type]
+            var row: [String: Any] = [
+                "name": name, "teacher": primitiveString(detail["teacher"]) ?? "",
+                "position": primitiveString(detail["room"]) ?? "", "note": primitiveString(detail["courseNote"]) ?? "",
+                "day": day, "startNode": start, "step": step, "startWeek": first, "endWeek": last, "type": type
+            ]
+            let ownTime = detail["ownTime"]
+            let enabled = (ownTime as? String) == "true"
+                || (ownTime as? NSNumber).map { CFGetTypeID($0) == CFBooleanGetTypeID() && $0.boolValue } == true
+            if enabled {
+                row["startTime"] = primitiveString(detail["startTime"]) ?? ""
+                row["endTime"] = primitiveString(detail["endTime"]) ?? ""
+            }
+            return row
         }
         let times: [[String: Any]] = try parts.timeSlots.compactMap { slot in
             guard let rawNode = slot["node"] else { return nil }
@@ -310,7 +320,8 @@ enum WakeUpShareProtocol {
         if let weeks = parts.uiConfig["maxWeek"] {
             info["maxWeek"] = try boundedInt(weeks, in: 1...Int(Int32.max))
         }
-        var root: [String: Any] = ["name": "WakeUP 分享课表", "courses": courses, "tableInfo": info]
+        let name = primitiveString(parts.uiConfig["tableName"]).flatMap { $0.isEmpty ? nil : $0 } ?? "WakeUP 分享课表"
+        var root: [String: Any] = ["name": name, "courses": courses, "tableInfo": info]
         if let date = convertToSemesterStartDate(parts.uiConfig["startDate"] as? String) { root["startDate"] = date }
         return String(decoding: try JSONSerialization.data(withJSONObject: root, options: [.sortedKeys]), as: UTF8.self)
     }

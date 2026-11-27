@@ -11,6 +11,7 @@ enum ScheduleExporter {
     /// startDate 无法按 ISO yyyy-MM-dd 解析 ← 原版本 LocalDate.parse 抛 DateTimeParseException
     enum ExportError: Error {
         case invalidStartDate(String)
+        case invalidPeriodTime(courseName: String, date: String)
     }
 
     // MARK: - JSON 底层(逐字节对齐 kotlinx Json { prettyPrint = true })
@@ -87,7 +88,8 @@ enum ScheduleExporter {
                 ("maxWeek", .int(table.maxWeek)),
                 ("nodesPerDay", .int(table.nodesPerDay)),
                 ("time", .string(table.timeJson)),
-                ("importSourceJson", .string(table.importSourceJson))
+                ("importSourceJson", .string(table.importSourceJson)),
+                ("jwSchoolSourceJson", .string(table.jwSchoolSourceJson))
             ])),
             ("courses", courseArray(courses))
         ])
@@ -104,7 +106,11 @@ enum ScheduleExporter {
         let root: JsonValue = .object([
             ("name", .string(table.name)),
             ("startDate", .string(table.startDate)),
-            ("courseDetailJson", .string(encoded))
+            ("courseDetailJson", .string(encoded)),
+            ("tableInfo", .object([
+                ("importSourceJson", .string(table.importSourceJson)),
+                ("jwSchoolSourceJson", .string(table.jwSchoolSourceJson))
+            ]))
         ])
 
         // ← 原版本 实字节: 课程分享 后跟全角冒号 U+FF1A(EF BC 9A), 非 ASCII ':'
@@ -142,12 +148,14 @@ enum ScheduleExporter {
     /// ← 原 `LocalDate.parse` 对非法 startDate 抛异常; 旧实现静默返回缺
     /// `END:VCALENDAR` 的 header-only 残缺日历(非法 ICS)。这里改为拒绝输出:
     /// 非法日期返回空串, 需要错误传播的新调用点走 exportIcsOrThrow。
-    static func exportIcs(_ table: TimeTableEntity, _ courses: [CourseEntity], transfers: [HolidayTransferEntry] = []) -> String {
-        return (try? exportIcsOrThrow(table, courses, transfers: transfers)) ?? ""
+    static func exportIcs(_ table: TimeTableEntity, _ courses: [CourseEntity], transfers: [HolidayTransferEntry] = [],
+                          periodTable: PeriodTableEntity? = nil) -> String {
+        return (try? exportIcsOrThrow(table, courses, transfers: transfers, periodTable: periodTable)) ?? ""
     }
 
     /// ← exportIcs 真身: startDate 无法按 ISO yyyy-MM-dd 解析时抛 ExportError.invalidStartDate
-    static func exportIcsOrThrow(_ table: TimeTableEntity, _ courses: [CourseEntity], transfers: [HolidayTransferEntry] = []) throws -> String {
+    static func exportIcsOrThrow(_ table: TimeTableEntity, _ courses: [CourseEntity],
+                                 transfers: [HolidayTransferEntry] = [], periodTable: PeriodTableEntity? = nil) throws -> String {
         var lines: [String] = []
         lines.append("BEGIN:VCALENDAR")
         lines.append("VERSION:2.0")
@@ -164,7 +172,11 @@ enum ScheduleExporter {
             throw ExportError.invalidStartDate(table.startDate)
         }
         let start = mondayOfWeek(parsedStart, cal)
-        let nodeStartTimes = parseNodeTimes(table.timeJson)
+        let nodeStartTimes = parseNodeTimes(table.hydratedWith(periodTable).timeJson)
+        let hasDatedBells = periodTable.map {
+            !$0.comboScheduleJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } ?? false
+        var bellCache: [String: ReminderBellTimes] = [:]
 
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
@@ -172,10 +184,16 @@ enum ScheduleExporter {
         df.dateFormat = "yyyyMMdd"
 
         let exported: [CourseEntity]
-        if transfers.isEmpty {
+        if transfers.isEmpty && !hasDatedBells {
             exported = courses
         } else {
-            exported = CourseOccurrences.dates(table: table, transfers: transfers).flatMap { date in
+            // Floating clocks in a weekly RRULE cannot vary by date; emit each real occurrence.
+            var days = Set(CourseOccurrences.dates(table: table, transfers: transfers))
+            for key in courses.compactMap(\.fixedDate) {
+                guard let day = CourseOccurrences.parseDate(key) else { throw ExportError.invalidStartDate(key) }
+                days.insert(day)
+            }
+            exported = days.sorted().flatMap { date in
                 CourseOccurrences.coursesForDate(date, startDate: table.startDate, maxWeek: table.maxWeek,
                     courses: courses, transfers: transfers).map { course in
                     var course = course
@@ -193,7 +211,7 @@ enum ScheduleExporter {
             default: firstWeek = c.startWeek
             }
             // 起止周奇偶不符导致无实际发生周时跳过,避免生成错误事件
-            if firstWeek > c.endWeek { continue }
+            if c.fixedDate == nil && firstWeek > c.endWeek { continue }
 
             // ← start.plusWeeks(firstWeek-1).plusDays(day-1)
             let startDate: Date
@@ -210,7 +228,18 @@ enum ScheduleExporter {
             // ← 原 isNotBlank(): 纯空白视同缺失, 与 JSON 导出两路同一闸
             let startTime: String
             let endTime: String
-            if c.ownTime && isNotBlank(c.startTime) && isNotBlank(c.endTime) {
+            let usesOwnTime = c.ownTime || c.isIrregularTime
+            if hasDatedBells, let key = c.fixedDate, let period = periodTable {
+                let resolved = period.timeJson(forDateKey: key)
+                let bells = bellCache[resolved] ?? ReminderBellTimes(resolved)
+                bellCache[resolved] = bells
+                let times = bells.bounds(for: c)
+                guard let start = times.start, let end = times.end, end > start else {
+                    throw ExportError.invalidPeriodTime(courseName: c.courseName, date: key)
+                }
+                startTime = compactTime(ReminderBellTimes.clockText(start))
+                endTime = compactTime(ReminderBellTimes.clockText(end))
+            } else if usesOwnTime && isNotBlank(c.startTime) && isNotBlank(c.endTime) {
                 startTime = compactTime(c.startTime)
                 endTime = compactTime(c.endTime)
             } else {
@@ -261,7 +290,7 @@ enum ScheduleExporter {
             // 第X - Y节\n教室\n教师)。旧版只写"老师：X", 导入端读不到节次,
             // 只能按钟点估算 → 11-13节被估成第1节。
             // issue#55: ownTime 卡再追加 "\nHH:mm-HH:mm" 行(导入端 descLines[3] 恢复 ownTime)。
-            let ownTimeLine = (c.ownTime && isNotBlank(c.startTime) && isNotBlank(c.endTime))
+            let ownTimeLine = (usesOwnTime && isNotBlank(c.startTime) && isNotBlank(c.endTime))
                 ? "\\n\(c.startTime)-\(c.endTime)" : ""
             lines.append("DESCRIPTION:第\(c.startNode) - \(c.startNode + c.step - 1)节" +
                 (isNotBlank(c.room) ? "\\n\(escapeIcs(c.room))" : "") +

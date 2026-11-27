@@ -122,7 +122,7 @@ final class AppPrefs {
     /// 主题色 key 的进程内 Flow — ← themeKeyFlow(callbackFlow+distinctUntilChanged)
     /// 订阅即收当前值,变更推送新值,去重。
     private let themeKeySubject = CurrentValueSubject<String, Never>(ThemePresets.KEY_DEFAULT)
-    lazy private(set) var themeKeyPublisher: AnyPublisher<String, Never> = themeKeySubject.eraseToAnyPublisher()
+    lazy private(set) var themeKeyPublisher: AnyPublisher<String, Never> = themeKeySubject.removeDuplicates().eraseToAnyPublisher()
 
     private let uiStyleSubject = CurrentValueSubject<String, Never>("classic")
     lazy private(set) var uiStylePublisher: AnyPublisher<String, Never> = uiStyleSubject.removeDuplicates().eraseToAnyPublisher()
@@ -166,6 +166,7 @@ final class AppPrefs {
         self.widgetSharedDefaults = role == .application ? widgetSharedDefaults : nil
         // Publish existing installations' saved settings without requiring another toggle.
         syncWidgetPreferences()
+        themeKeySubject.send(getThemeKey())
         uiStyleSubject.send(getUiStyle())
     }
 

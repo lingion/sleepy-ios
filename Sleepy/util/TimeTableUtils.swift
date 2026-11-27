@@ -817,37 +817,68 @@ enum TimeTableUtils {
 
     /// v7.10.16k 无损合并 — "哪个大用哪个"(用户 2026-09-03):
     /// 双方作息逐节合并, 结果 = max(两边节次数, requiredNodeCount), 任何一方不得把另一方压小。
-    /// 同一节次: 导入源非空时间优先(空串视为没声明), 否则原表, 都没有用 smart 默认。
-    /// 超出双方声明的节次(requiredNodeCount=导入课程实际到达的最大节)用 smart 默认铺底。
+    /// 导入源非空时间优先。缺少的钟点只填在前后节次之间有空档的位置。
+    /// 显式来源时间始终保留，留给确认页展示并校验。
     static func mergeMostComplete(currentJson: String, incomingJson: String, requiredNodeCount: Int = 0) -> String {
-        // 空串 = 没声明 — 不能进 parseTimeSlotRows(它会 catch 出 12 行 smart 伪声明,
-        // 反过来把有真实作息的一方当"缺省"盖掉)。
-        // ← 原 takeIf { it.isNotBlank() }: 纯空白串同样 = 没声明(旧 !isEmpty
-        // 让 " " 进 parseTimeSlotRows → JSON 解析失败 catch 出 12 行伪声明覆盖真实表)。
-        var currentRows: [TimeSlotRow] = []
-        if !currentJson.isBlank { currentRows = parseTimeSlotRows(currentJson) }
-        var incomingRows: [TimeSlotRow] = []
-        if !incomingJson.isBlank { incomingRows = parseTimeSlotRows(incomingJson) }
-        let cur = Dictionary(currentRows.map { ($0.node, $0) }, uniquingKeysWith: { a, _ in a })
-        let inc = Dictionary(incomingRows.map { ($0.node, $0) }, uniquingKeysWith: { a, _ in a })
-        let declared = max(currentRows.map { $0.node }.max() ?? 0,
-                           incomingRows.map { $0.node }.max() ?? 0)
-        if declared == 0 && requiredNodeCount <= 0 { return DEFAULT_TIME_JSON }
-        let count = max(declared, requiredNodeCount, 1)
-        let rows = (1...count).map { node -> TimeSlotRow in
-            let i = inc[node]
-            let c = cur[node]
-            // ← 原 takeIf { it.isNotBlank() }: 纯空白时间 = 没声明
-            return TimeSlotRow(
-                node: node,
-                start: i.flatMap { $0.start.isBlank ? nil : $0.start }
-                    ?? c.flatMap { $0.start.isBlank ? nil : $0.start }
-                    ?? smartStartDefault(node),
-                end: i.flatMap { $0.end.isBlank ? nil : $0.end }
-                    ?? c.flatMap { $0.end.isBlank ? nil : $0.end }
-                    ?? smartEndDefault(node))
+        let currentRows = currentJson.isBlank ? [] : parseTimeSlotRows(currentJson)
+        let incomingRows = incomingJson.isBlank ? [] : parseTimeSlotRows(incomingJson)
+        let current = Dictionary(currentRows.map { ($0.node, $0) }, uniquingKeysWith: { _, last in last })
+        let incoming = Dictionary(incomingRows.map { ($0.node, $0) }, uniquingKeysWith: { _, last in last })
+        let declared = max(current.keys.max() ?? 0, incoming.keys.max() ?? 0)
+        let count = max(declared, requiredNodeCount)
+        guard count > 0 else { return DEFAULT_TIME_JSON }
+
+        func selected(_ incoming: String?, _ current: String?) -> String? {
+            incoming.flatMap { $0.isBlank ? nil : $0 } ?? current.flatMap { $0.isBlank ? nil : $0 }
+        }
+        let defaults = Dictionary(uniqueKeysWithValues: parseTimeSlotRows(DEFAULT_TIME_JSON).map { ($0.node, $0) })
+        let sourceStarts = Set(current.keys).union(incoming.keys).sorted().compactMap { node -> (Int, Int)? in
+            guard let start = selected(incoming[node]?.start, current[node]?.start).flatMap(parsePeriodClock)
+            else { return nil }
+            return (node, start)
+        }
+
+        var rows: [TimeSlotRow] = []
+        var next = 0
+        for node in 1...count {
+            while next < sourceStarts.count, sourceStarts[next].0 <= node { next += 1 }
+            let nextStart = next < sourceStarts.count ? sourceStarts[next].1 : nil
+            let previous = rows.last
+            let start = selected(incoming[node]?.start, current[node]?.start)
+            let end = selected(incoming[node]?.end, current[node]?.end)
+            if let start = start, let end = end {
+                rows.append(TimeSlotRow(node: node, start: start, end: end))
+                continue
+            }
+
+            let fallback = importedDefault(node: node, previous: previous, standard: defaults[node], nextStart: nextStart)
+            let candidate = TimeSlotRow(node: node, start: start ?? fallback.start, end: end ?? fallback.end)
+            rows.append(fitsImportedGap(candidate, previous: previous, nextStart: nextStart)
+                        ? candidate : TimeSlotRow(node: node, start: start ?? "", end: end ?? ""))
         }
         return buildTimeJsonFromRows(rows)
+    }
+
+    private static func importedDefault(node: Int, previous: TimeSlotRow?, standard: TimeSlotRow?,
+                                        nextStart: Int?) -> TimeSlotRow {
+        if let standard = standard, fitsImportedGap(standard, previous: previous, nextStart: nextStart) {
+            return standard
+        }
+        let blank = TimeSlotRow(node: node, start: "", end: "")
+        guard let previousEnd = previous.flatMap({ parsePeriodClock($0.end) }) else { return blank }
+        let start = previousEnd + 10
+        let end = start + 45
+        guard end < 24 * 60 else { return blank }
+        func clock(_ minute: Int) -> String { String(format: "%02d:%02d", minute / 60, minute % 60) }
+        let generated = TimeSlotRow(node: node, start: clock(start), end: clock(end))
+        return fitsImportedGap(generated, previous: previous, nextStart: nextStart) ? generated : blank
+    }
+
+    private static func fitsImportedGap(_ row: TimeSlotRow, previous: TimeSlotRow?, nextStart: Int?) -> Bool {
+        guard let start = parsePeriodClock(row.start), let end = parsePeriodClock(row.end), end > start,
+              nextStart.map({ end <= $0 }) ?? true else { return false }
+        guard let previous = previous else { return true }
+        return parsePeriodClock(previous.end).map { start >= $0 } ?? false
     }
 
     private static func smartStartDefault(_ node: Int) -> String {
