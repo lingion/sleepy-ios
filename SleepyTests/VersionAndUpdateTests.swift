@@ -143,6 +143,9 @@ final class AppPrefsTests: XCTestCase {
         //   holiday 规则总开关=false(四类子开关=true), 实验室组默认关
     //   (例外: 双指捏放 1.0.64 转正默认开)
         XCTAssertEqual("cards", prefs.getStartView())
+        prefs.setStartView("today")
+        XCTAssertEqual("today", prefs.getStartView())
+        prefs.setStartView("cards")
         XCTAssertTrue(prefs.isCompactWindowTodayFirst())
         XCTAssertTrue(prefs.isCalendarApplyTransfers())
         XCTAssertFalse(prefs.isHolidayReminderRulesEnabled())

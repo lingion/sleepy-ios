@@ -324,9 +324,23 @@ struct GeneralSettingsScreen: View {
     private var startViewCard: some View {
         SettingsFlatCard(title: L10n.format("settings_appearance_default_view"),
                          subtitle: L10n.format("settings_appearance_default_view_sub"),
-                         options: [L10n.format("settings_start_view_full"), L10n.format("settings_start_view_cards")],
-                         selectedIndex: Binding(get: { startView == "cards" ? 1 : 0 }, set: {
-                             startView = $0 == 1 ? "cards" : "full"
+                         options: [
+                             L10n.format("settings_start_view_full"),
+                             L10n.format("settings_start_view_cards"),
+                             L10n.format("tab_today")
+                         ],
+                         selectedIndex: Binding(get: {
+                             switch startView {
+                             case "full": return 0
+                             case "today": return 2
+                             default: return 1
+                             }
+                         }, set: {
+                             switch $0 {
+                             case 0: startView = "full"
+                             case 2: startView = "today"
+                             default: startView = "cards"
+                             }
                              prefs.setStartView(startView)
                          }))
     }
