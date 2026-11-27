@@ -5,6 +5,7 @@
 
 import Foundation
 
+#if DEBUG
 enum SleepyUITestSeeder {
     static func seed(database: AppDatabase) {
         // 语言复位: 语言切换测试会持久化 KEY_LANG/AppleLanguages, 残留会污染
@@ -139,3 +140,4 @@ enum SleepyUITestSeeder {
         }
     }
 }
+#endif

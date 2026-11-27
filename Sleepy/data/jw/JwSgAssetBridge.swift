@@ -60,21 +60,31 @@ enum JwSgAssetBridge {
         return choice
     }
 
+    static func loadManifestData(resourceRoot: URL?) -> Data? {
+        BundledAssetLoader.loadShiguangEntryData(path: manifestPath, resourceRoot: resourceRoot)
+    }
+
+    static func loadScriptText(path: String, resourceRoot: URL?) -> String? {
+        guard let data = BundledAssetLoader.loadShiguangEntryData(path: path, resourceRoot: resourceRoot) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
     static func entries(schoolName: String, resourceRoot: URL? = Bundle.main.resourceURL) throws -> [Manifest.Adapter] {
-        guard let root = resourceRoot, let manifest = try? Data(contentsOf: root.appendingPathComponent(manifestPath)) else { throw AssetError.missingManifest }
+        guard let manifest = loadManifestData(resourceRoot: resourceRoot) else { throw AssetError.missingManifest }
         return try entries(schoolName: schoolName, manifest: manifest)
     }
 
     static func bridgeJs(schoolName: String, resourceRoot: URL? = Bundle.main.resourceURL,
                          selectedAdapterId: String = "", sessionId: String = UUID().uuidString) throws -> String {
-        guard let root = resourceRoot,
-              let manifest = try? Data(contentsOf: root.appendingPathComponent(manifestPath)) else { throw AssetError.missingManifest }
+        guard let manifest = loadManifestData(resourceRoot: resourceRoot) else { throw AssetError.missingManifest }
         let adapter = try entry(schoolName: schoolName, manifest: manifest, selectedAdapterId: selectedAdapterId)
         let parts = adapter.jsPath.split(separator: "/", omittingEmptySubsequences: false)
         guard adapter.jsPath.hasPrefix("third_party/shiguang/js/"), adapter.jsPath.hasSuffix(".js"),
               !parts.contains(where: { $0 == ".." || $0 == "." || $0.isEmpty }),
               !adapter.jsPath.contains("\\") else { throw AssetError.invalidPath }
-        guard let vendor = try? String(contentsOf: root.appendingPathComponent(adapter.jsPath), encoding: .utf8),
+        guard let vendor = loadScriptText(path: adapter.jsPath, resourceRoot: resourceRoot),
               !vendor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AssetError.missingScript }
         return assemble(vendorJs: vendor, sessionId: sessionId)
     }

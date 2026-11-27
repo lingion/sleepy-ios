@@ -638,11 +638,12 @@ final class JwJsonParserTests: XCTestCase {
     }
 
     func testCquSchoolEntryRegisteredAndSupported() throws {  // ← CQU entry in schools json is registered and supported
-        // ← JwParserTests.loadSchools: app bundle 的 schools.json
+        // ← JwParserTests.loadSchools: app bundle 的 schools.json(.lzma)
         let bundle = Bundle(for: JwImportViewModel.self) // @testable → 用 app 类型
-        let url = Bundle.main.url(forResource: "schools", withExtension: "json")
-            ?? bundle.url(forResource: "schools", withExtension: "json")
-        let raw = try String(contentsOf: XCTUnwrap(url, "测试资源 schools.json 应存在"), encoding: .utf8)
+        let raw = try XCTUnwrap(
+            BundledAssetLoader.loadText(name: "schools", ext: "json", bundles: [.main, bundle]),
+            "测试资源 schools.json 应存在"
+        )
         let cqu = try XCTUnwrap(JwImportViewModel.parseSchoolsJson(raw).first { $0.name == "重庆大学" },
                                 "重庆大学 条目缺失")
         XCTAssertEqual("cqu", cqu.type)

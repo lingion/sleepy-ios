@@ -15,12 +15,13 @@ final class JwCatalogueTests: XCTestCase {
 
     // MARK: - 载入工具
 
-    /// 走生产同源解析路径 + app bundle 的 schools.json
+    /// 走生产同源解析路径 + app bundle 的 schools.json(.lzma)
     private func loadSchools() throws -> [JwSchoolInfo] {
         let bundle = Bundle(for: JwImportViewModel.self)
-        let url = Bundle.main.url(forResource: "schools", withExtension: "json")
-            ?? bundle.url(forResource: "schools", withExtension: "json")
-        let raw = try String(contentsOf: try XCTUnwrap(url, "schools.json 应存在"), encoding: .utf8)
+        let raw = try XCTUnwrap(
+            BundledAssetLoader.loadText(name: "schools", ext: "json", bundles: [.main, bundle]),
+            "schools.json 应存在"
+        )
         return JwImportViewModel.parseSchoolsJson(raw)
     }
 

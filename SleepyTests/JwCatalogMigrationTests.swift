@@ -12,7 +12,14 @@ final class JwCatalogMigrationTests: XCTestCase {
     }
 
     private func catalog() throws -> [[String: Any]] {
-        let data = try Data(contentsOf: resource("schools"))
+        let data = try XCTUnwrap(
+            BundledAssetLoader.loadData(
+                name: "schools",
+                ext: "json",
+                bundles: [bundle, Bundle(for: JwImportViewModel.self), .main]
+            ),
+            "schools.json 应存在"
+        )
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
     }
 
@@ -64,11 +71,12 @@ final class JwCatalogMigrationTests: XCTestCase {
     }
 
     func testEverySgSchoolLoadsItsRealBundledAdapterAndLicense() throws {
-        let roots = [bundle.resourceURL, Bundle.main.resourceURL].compactMap { $0 }
+        let roots = [Bundle(for: JwImportViewModel.self).resourceURL, bundle.resourceURL, Bundle.main.resourceURL].compactMap { $0 }
         let root = try XCTUnwrap(roots.first {
             FileManager.default.fileExists(atPath: $0.appendingPathComponent(JwSgAssetBridge.manifestPath).path)
+                || FileManager.default.fileExists(atPath: $0.appendingPathComponent("third_party/shiguang.pack.lzma").path)
         })
-        let manifest = try Data(contentsOf: root.appendingPathComponent(JwSgAssetBridge.manifestPath))
+        let manifest = try XCTUnwrap(JwSgAssetBridge.loadManifestData(resourceRoot: root))
         let license = try String(contentsOf: root.appendingPathComponent("third_party/shiguang/LICENSE-MIT.txt"), encoding: .utf8)
         XCTAssertTrue(license.contains("Copyright (c) 2025 星河欲转"))
         XCTAssertTrue(license.contains("Permission is hereby granted"))
@@ -84,7 +92,7 @@ final class JwCatalogMigrationTests: XCTestCase {
             for choice in choices {
                 let entry = try JwSgAssetBridge.entry(schoolName: name, manifest: manifest, selectedAdapterId: choice.id)
                 XCTAssertEqual(entry, choice)
-                let original = try String(contentsOf: root.appendingPathComponent(entry.jsPath), encoding: .utf8)
+                let original = try XCTUnwrap(JwSgAssetBridge.loadScriptText(path: entry.jsPath, resourceRoot: root), name)
                 let bridge = try JwSgAssetBridge.bridgeJs(schoolName: name, resourceRoot: root, selectedAdapterId: choice.id)
                 XCTAssertTrue(bridge.contains(original), name)
                 XCTAssertTrue(bridge.contains("window.webkit.messageHandlers.__sleepyBridge"), name)

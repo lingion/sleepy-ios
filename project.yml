@@ -34,6 +34,17 @@ settings:
       ONLY_ACTIVE_ARCH: NO
       CODE_SIGN_STYLE: Manual
       CODE_SIGN_IDENTITY: "-"
+      SWIFT_OPTIMIZATION_LEVEL: -Osize
+      GCC_OPTIMIZATION_LEVEL: s
+      DEAD_CODE_STRIPPING: YES
+      DEPLOYMENT_POSTPROCESSING: YES
+      STRIP_INSTALLED_PRODUCT: YES
+      COPY_PHASE_STRIP: YES
+      STRIP_SWIFT_SYMBOLS: YES
+      LLVM_LTO: YES
+      SWIFT_COMPILATION_MODE: wholemodule
+      OTHER_SWIFT_FLAGS: "$(inherited) -Xfrontend -disable-reflection-metadata -Xfrontend -conditional-runtime-records -Xfrontend -disable-cmo"
+      OTHER_LDFLAGS: "$(inherited) -Wl,-dead_strip -Wl,-dead_strip_dylibs"
 
 packages:
   GRDB:
@@ -58,11 +69,12 @@ targets:
     platform: iOS
     sources:
       - path: Sleepy
-        excludes: ["resources"]
+        excludes: ["resources", "resources-src", "resources-ext"]
       - path: Sleepy/resources
         # iOS 标准:lproj 目录直接作为 resources bundle 根(xcodegen 默认逐文件拷贝)
         buildPhase: resources
-        excludes: ["third_party"]
+        excludes: ["third_party", "schools.json", "SchoolCity/school_cities.json",
+                   "SchoolCity/school_city_boundaries.bin.gz", "SchoolCity/school_city_boundaries.source.json"]
       - path: Sleepy/resources/third_party
         buildPhase: resources
         type: folder
@@ -158,6 +170,7 @@ targets:
         # App Store 分发:手动签名 + 付费账号 Distribution 证书 + 专用 profile(2026-10-26)
         Release:
           CODE_SIGN_STYLE: Manual
+          STRIP_STYLE: all
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "Sleepy AppStore"
 
@@ -175,25 +188,38 @@ targets:
       # + util/NavStyleResolver(UIApplication.shared.connectedScenes 探测设备形态,
       #   extension 里禁用; 仅 SleepyApp/AppPrefs 消费, widget 无引用)
       - path: Sleepy
-        excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
-                   "debug", "data/share",
-                   "data/migration/WebDAVClient.swift", "data/migration/WebDAVConnectionStore.swift",
-                   "widget/notification/BatterySettingsLauncher.swift",
+        excludes: ["resources", "resources-src", "resources-ext", "SleepyApp.swift", "Info.plist", "ui", "app",
+                   "debug", "data/share", "data/jw", "data/parser", "data/calendar", "data/migration",
+                   "data/diff", "data/undo",
+                   "Assets.xcassets", "LaunchScreen.storyboard",
+                   "data/dao/CalendarImportRecordDao.swift", "data/dao/ImportDraftDao.swift",
+                   "data/entity/CalendarImportRecordEntity.swift", "data/entity/ImportDraftEntity.swift",
+                   "data/repository/ImportDraftRepository.swift", "data/repository/ImportRoster.swift",
+                   "data/repository/NewTableImport.swift", "data/repository/PeriodTableEdgeRemapping.swift",
+                   "widget/notification/BackgroundReliabilityProbe.swift", "widget/notification/BackgroundReliabilitySnapshot.swift",
+                   "widget/notification/BatteryOptimizationIntents.swift", "widget/notification/BatterySettingsLauncher.swift",
+                   "widget/notification/ClassDndScheduler.swift", "widget/notification/DailyAgenda.swift",
+                   "widget/notification/DailyAgendaLoader.swift", "widget/notification/DailyScheduleSummary.swift",
+                   "widget/notification/DailySummaryNotificationMigration.swift", "widget/notification/NotificationScheduler.swift",
+                   "widget/notification/ReminderRescheduler.swift", "widget/notification/VendorCapabilityState.swift",
                    "widget/liveactivity/ClassDayActivityManager.swift",
-                   "util/NavStyleResolver.swift",
+                   "util/NavStyleResolver.swift", "util/BundledAssetLoader.swift",
+                   "util/AppearanceColorActions.swift", "util/ConflictDetailReporter.swift",
+                   "util/CourseColorWriteGlue.swift", "util/CourseImportPolicy.swift",
+                   "util/DialogButtonsLayoutPolicy.swift",
+                   "util/FeedbackComposer.swift", "util/ImportedPeriodTableDraft.swift",
+                   "util/MarkdownBlocks.swift", "util/PinyinMatcher.swift",
+                   "util/PlatformParityNotes.swift", "util/QqJoin.swift",
+                   "util/ScheduleToolbarGeometry.swift",
+                   "util/TimetableViewportPolicy.swift",
+                   "util/VersionUtils.swift",
+                   "util/WeekRangeOverlap.swift", "util/SleepyUITestSeeder.swift",
+                   "widget/WatchTimeStripCore.swift", "widget/WatchTimeStripPreferences.swift",
+                   "sync",
                    "gamecenter",
-                   # 主 app 的隐私清单只归 Sleepy target; widget 用自己的
-                   # SleepyWidget/PrivacyInfo.xcprivacy (下方 path: SleepyWidget 已含)。
-                   # 不排除 → archive 时 widget target 同时拷两份 PrivacyInfo.xcprivacy
-                   # → "Multiple commands produce" (CI macos-15 archive 实测复现)。
                    "PrivacyInfo.xcprivacy"]
-      - path: Sleepy/resources
+      - path: Sleepy/resources-ext
         buildPhase: resources
-        excludes: ["third_party"]
-    dependencies:
-      - package: GRDB
-      - package: SwiftSoup
-      - package: ZIPFoundation
     info:
       path: SleepyWidget/Info.plist
       properties:
@@ -215,10 +241,12 @@ targets:
         GENERATE_INFOPLIST_FILE: "NO"
         # 共源编译条件: Sleepy/widget/** 双 target 均编, extension 进程内禁 app-only 分支
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: WIDGET_EXT
+        LD_RUNPATH_SEARCH_PATHS: ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"]
       configs:
         # 同主 app:App Store 分发手动签名 + widget 专用 profile
         Release:
           CODE_SIGN_STYLE: Manual
+          STRIP_STYLE: non-global
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "Sleepy Widget AppStore"
 
@@ -232,15 +260,16 @@ targets:
       #   data/calendar (EventKit 系统日历写入)、data/jw (CoreLocation/SwiftSoup
       #   教务导入)、data/migration (仅 ui/ 引用, 手表镜像库不做迁移包)。
       - path: Sleepy
-        excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
+        excludes: ["resources", "resources-src", "resources-ext", "SleepyApp.swift", "Info.plist", "ui", "app",
                    "debug", "data/share",
                    "gamecenter",
                    "Assets.xcassets", "LaunchScreen.storyboard",
                    "data/calendar", "data/jw", "data/migration",
-                   "data/repository/ImportDraftRepository.swift",
-                   # iOS WidgetKit 渲染层 (systemSmall/Medium/Large 档位与
-                   # WidgetCenter 深链是 iPhone 桌面小组件专有; 手表 UI 原生重做,
-                   # 只取 Foundation 级装载器)
+                   "data/parser", "data/diff", "data/undo",
+                   "data/dao/CalendarImportRecordDao.swift", "data/dao/ImportDraftDao.swift",
+                   "data/entity/CalendarImportRecordEntity.swift", "data/entity/ImportDraftEntity.swift",
+                   "data/repository/ImportDraftRepository.swift", "data/repository/ImportRoster.swift",
+                   "data/repository/NewTableImport.swift", "data/repository/PeriodTableEdgeRemapping.swift",
                    "widget/TodayWidgetView.swift", "widget/TwoDayWidgetView.swift",
                    "widget/WeekGridWidgetView.swift", "widget/WeekGridWideWidgetView.swift", "widget/WeekListWidgetView.swift",
                    "widget/WeekViewWidgetView.swift", "widget/WidgetWindowCore.swift",
@@ -251,15 +280,26 @@ targets:
                    "widget/WidgetResizeCore.swift", "widget/WidgetScrollStore.swift",
                    "widget/WidgetBoundaryScheduler.swift",
                    "widget/SleepyWidgetIntents.swift",
+                   "widget/LockScreenCourseWidget.swift",
                    "widget/notification/BatterySettingsLauncher.swift",
                    "widget/notification/BatteryOptimizationIntents.swift",
-                   "util/NavStyleResolver.swift",
+                   "util/NavStyleResolver.swift", "util/BundledAssetLoader.swift",
+                   "util/AppearanceColorActions.swift", "util/ConflictDetailReporter.swift",
+                   "util/CourseColorWriteGlue.swift", "util/CourseImportPolicy.swift",
+                   "util/DialogButtonsLayoutPolicy.swift",
+                   "util/FeedbackComposer.swift", "util/ImportedPeriodTableDraft.swift",
+                   "util/GridSeparatorGeometry.swift",
+                   "util/MarkdownBlocks.swift", "util/PinyinMatcher.swift",
+                   "util/PeriodHeaderFormatter.swift", "util/PeriodHeaderLayoutModel.swift",
+                   "util/PlatformParityNotes.swift", "util/QqJoin.swift",
+                   "util/ScheduleToolbarGeometry.swift",
+                   "util/TimetableViewportPolicy.swift",
+                   "util/VersionUtils.swift",
+                   "util/WeekRangeOverlap.swift", "util/SleepyUITestSeeder.swift",
                    "widget/liveactivity"]
-      - path: Sleepy/resources
+      - path: Sleepy/resources-ext
         buildPhase: resources
-        excludes: ["third_party"]
     dependencies:
-      - package: GRDB
       # 嵌入表盘复杂功能 + Control Center extension (PR#16 阶段四)
       - target: SleepyWatchWidgets
         embed: true
@@ -292,9 +332,12 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # 共源编译条件: 通知调度等共享文件里 watch 不适用分支按此裁剪
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: WATCH_APP
+        LD_RUNPATH_SEARCH_PATHS: ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"]
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
+          STRIP_STYLE: all
+          ARCHS: arm64_32
           CODE_SIGN_IDENTITY: "Apple Distribution"
           # 开发者门户待建: Sleepy Watch AppStore profile (步骤 6 前补, 未建则 Release 构建失败)
           PROVISIONING_PROFILE_SPECIFIER: "Sleepy Watch AppStore"
@@ -312,12 +355,16 @@ targets:
     sources:
       - path: SleepyWatchWidgets
       - path: Sleepy
-        excludes: ["resources", "SleepyApp.swift", "Info.plist", "ui", "app",
+        excludes: ["resources", "resources-src", "resources-ext", "SleepyApp.swift", "Info.plist", "ui", "app",
                    "debug", "data/share",
                    "gamecenter",
                    "Assets.xcassets", "LaunchScreen.storyboard",
                    "data/calendar", "data/jw", "data/migration",
-                   "data/repository/ImportDraftRepository.swift",
+                   "data/parser", "data/diff", "data/undo",
+                   "data/dao/CalendarImportRecordDao.swift", "data/dao/ImportDraftDao.swift",
+                   "data/entity/CalendarImportRecordEntity.swift", "data/entity/ImportDraftEntity.swift",
+                   "data/repository/ImportDraftRepository.swift", "data/repository/ImportRoster.swift",
+                   "data/repository/NewTableImport.swift", "data/repository/PeriodTableEdgeRemapping.swift",
                    "widget/TodayWidgetView.swift", "widget/TwoDayWidgetView.swift",
                    "widget/WeekGridWidgetView.swift", "widget/WeekGridWideWidgetView.swift", "widget/WeekListWidgetView.swift",
                    "widget/WeekViewWidgetView.swift", "widget/WidgetWindowCore.swift",
@@ -328,15 +375,29 @@ targets:
                    "widget/WidgetResizeCore.swift", "widget/WidgetScrollStore.swift",
                    "widget/WidgetBoundaryScheduler.swift",
                    "widget/SleepyWidgetIntents.swift",
-                   "widget/notification/BatterySettingsLauncher.swift",
-                   "widget/notification/BatteryOptimizationIntents.swift",
-                   "util/NavStyleResolver.swift",
+                   "widget/LockScreenCourseWidget.swift",
+                   "widget/notification/BackgroundReliabilityProbe.swift", "widget/notification/BackgroundReliabilitySnapshot.swift",
+                   "widget/notification/BatteryOptimizationIntents.swift", "widget/notification/BatterySettingsLauncher.swift",
+                   "widget/notification/ClassDndScheduler.swift", "widget/notification/DailyAgenda.swift",
+                   "widget/notification/DailyAgendaLoader.swift", "widget/notification/DailyScheduleSummary.swift",
+                   "widget/notification/DailySummaryNotificationMigration.swift", "widget/notification/NotificationScheduler.swift",
+                   "widget/notification/ReminderRescheduler.swift", "widget/notification/VendorCapabilityState.swift",
+                   "util/NavStyleResolver.swift", "util/BundledAssetLoader.swift",
+                   "util/AppearanceColorActions.swift", "util/ConflictDetailReporter.swift",
+                   "util/CourseColorWriteGlue.swift", "util/CourseImportPolicy.swift",
+                   "util/DialogButtonsLayoutPolicy.swift",
+                   "util/FeedbackComposer.swift", "util/ImportedPeriodTableDraft.swift",
+                   "util/GridSeparatorGeometry.swift",
+                   "util/MarkdownBlocks.swift", "util/PinyinMatcher.swift",
+                   "util/PeriodHeaderFormatter.swift", "util/PeriodHeaderLayoutModel.swift",
+                   "util/PlatformParityNotes.swift", "util/QqJoin.swift",
+                   "util/ScheduleToolbarGeometry.swift",
+                   "util/TimetableViewportPolicy.swift",
+                   "util/VersionUtils.swift",
+                   "util/WeekRangeOverlap.swift", "util/SleepyUITestSeeder.swift",
                    "widget/liveactivity"]
-      - path: Sleepy/resources
+      - path: Sleepy/resources-ext
         buildPhase: resources
-        excludes: ["third_party"]
-    dependencies:
-      - package: GRDB
     info:
       path: SleepyWatchWidgets/Info.plist
       properties:
@@ -355,10 +416,13 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: D9UP75W466
         GENERATE_INFOPLIST_FILE: "NO"
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: WATCH_APP
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "WATCH_APP WATCH_WIDGET_EXT"
+        LD_RUNPATH_SEARCH_PATHS: ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"]
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
+          STRIP_STYLE: non-global
+          ARCHS: arm64_32
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "Sleepy Watch Widgets AppStore"
 
@@ -367,7 +431,7 @@ targets:
     platform: iOS
     sources:
       - path: SleepyTests
-        excludes: ["resources"]
+        excludes: ["resources", "resources-src"]
       - path: SleepyTests/resources
         buildPhase: resources
         type: folder

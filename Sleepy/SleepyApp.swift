@@ -46,9 +46,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         database = AppDatabase.getShared()
         // UI 测试种子钩子: -SLEEPY_UI_TEST_SEED 1 → 清库+注入确定性测试数据
         // (XCUITest 无法直接触 DB;真实建表/导课走 UI 流程另有专项测试)
+        #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-SLEEPY_UI_TEST_SEED") {
             SleepyUITestSeeder.seed(database: AppDatabase.getShared())
         }
+        #endif
         repository = ScheduleRepository(database)
         notificationScheduler = NotificationScheduler.shared
         rootViewModel = AppRootViewModel(repository: repository)

@@ -59,15 +59,21 @@ final class JwImportViewModel: ObservableObject {
     private func loadSchools() {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
-                guard let url = Bundle.main.url(forResource: "schools", withExtension: "json") else {
+                guard let text = BundledAssetLoader.loadText(
+                    name: "schools",
+                    ext: "json",
+                    bundles: [.main, Bundle(for: JwImportViewModel.self)]
+                ) else {
                     throw NSError(domain: "JwImport", code: 1,
                                   userInfo: [NSLocalizedDescriptionKey: "schools.json missing"])
                 }
-                let text = try String(contentsOf: url, encoding: .utf8)
                 // v1.0.60: 城市元数据与导入目录分离 — 解析失败绝不能阻止加载学校列表。
                 var cityIndex: [String: [String]] = [:]
-                if let cityUrl = Bundle.main.url(forResource: "school_cities", withExtension: "json"),
-                   let cityText = try? String(contentsOf: cityUrl, encoding: .utf8) {
+                if let cityText = BundledAssetLoader.loadText(
+                    name: "school_cities",
+                    ext: "json",
+                    bundles: [.main, Bundle(for: JwImportViewModel.self)]
+                ) {
                     cityIndex = (try? SchoolCityIndex.parse(cityText)) ?? [:]
                 }
                 let list = Self.parseSchoolsJson(text).map { info -> JwSchoolInfo in
