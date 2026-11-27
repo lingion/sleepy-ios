@@ -20,17 +20,75 @@ enum CourseOccurrences {
         }
     }
 
+    private static let shanghaiTimeZone = TimeZone(identifier: "Asia/Shanghai")!
+
     /// 与调休日键共用民事日时区，避免 CI / 海外设备将零点解释成前一天。
-    static var calendar: Calendar {
+    static let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        calendar.timeZone = shanghaiTimeZone
         calendar.firstWeekday = 2
         return calendar
+    }()
+
+    private static let cacheLock = NSLock()
+    private static var parsedDateCache: [String: Date] = [:]
+    private static var anchorDateCache: [String: (anchor: Date, dayOffset: Int)] = [:]
+    private static var weekDayDateCache: [WeekDayCacheKey: Date] = [:]
+    private static var weekForDateCache: [WeekLookupCacheKey: Int] = [:]
+
+    private struct WeekDayCacheKey: Hashable {
+        let startDate: String
+        let week: Int
+        let day: Int
+    }
+
+    private struct WeekLookupCacheKey: Hashable {
+        let startDate: String
+        let timeInterval: TimeInterval
+    }
+
+    private static func fastParseASCIIYMD(_ value: String) -> (Int, Int, Int)? {
+        let bytes = Array(value.utf8)
+        guard bytes.count == 10, bytes[4] == 45, bytes[7] == 45 else { return nil }
+        func digit(_ index: Int) -> Int? {
+            let b = bytes[index]
+            guard b >= 48 && b <= 57 else { return nil }
+            return Int(b - 48)
+        }
+        guard let y0 = digit(0), let y1 = digit(1), let y2 = digit(2), let y3 = digit(3),
+              let m0 = digit(5), let m1 = digit(6),
+              let d0 = digit(8), let d1 = digit(9) else { return nil }
+        let year = y0 * 1000 + y1 * 100 + y2 * 10 + y3
+        let month = m0 * 10 + m1
+        let day = d0 * 10 + d1
+        guard (1...12).contains(month), (1...31).contains(day) else { return nil }
+        return (year, month, day)
     }
 
     static func parseDate(_ value: String, calendar: Calendar? = nil) -> Date? {
-        guard value.range(of: #"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"#, options: .regularExpression) != nil,
-              let date = DateUtils.parseDate(value), HolidayTransferOps.dayKey(date) == value else { return nil }
+        guard let (year, month, day) = fastParseASCIIYMD(value) else { return nil }
+        if calendar == nil {
+            cacheLock.lock()
+            if let hit = parsedDateCache[value] {
+                cacheLock.unlock()
+                return hit
+            }
+            cacheLock.unlock()
+        }
+        let cal = calendar ?? Self.calendar
+        var comps = DateComponents()
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        guard let date = cal.date(from: comps) else { return nil }
+        let roundTrip = Self.calendar.dateComponents([.year, .month, .day], from: date)
+        guard roundTrip.year == year, roundTrip.month == month, roundTrip.day == day else { return nil }
+        if calendar == nil {
+            cacheLock.lock()
+            if parsedDateCache.count >= 512 { parsedDateCache.removeAll(keepingCapacity: true) }
+            parsedDateCache[value] = date
+            cacheLock.unlock()
+        }
         return date
     }
 
@@ -40,31 +98,89 @@ enum CourseOccurrences {
     }
 
     static func date(startDate: String, week: Int, day: Int, calendar: Calendar? = nil) -> Date? {
+        guard week >= 1, week <= Int.max / 7, (1...7).contains(day) else { return nil }
+        let useDefaultCal = (calendar == nil)
+        let key = WeekDayCacheKey(startDate: startDate, week: week, day: day)
+        if useDefaultCal {
+            cacheLock.lock()
+            if let hit = weekDayDateCache[key] {
+                cacheLock.unlock()
+                return hit
+            }
+            if let anchorInfo = anchorDateCache[startDate] {
+                cacheLock.unlock()
+                let value = (week - 1) * 7 + day - anchorInfo.dayOffset
+                guard let resolved = Self.calendar.date(byAdding: .day, value: value, to: anchorInfo.anchor) else { return nil }
+                cacheLock.lock()
+                if weekDayDateCache.count >= 1024 { weekDayDateCache.removeAll(keepingCapacity: true) }
+                weekDayDateCache[key] = resolved
+                cacheLock.unlock()
+                return resolved
+            }
+            cacheLock.unlock()
+        }
         let cal = calendar ?? Self.calendar
-        guard week >= 1, week <= Int.max / 7, (1...7).contains(day), let start = parseDate(startDate, calendar: cal) else { return nil }
-        return cal.date(byAdding: .day, value: (week - 1) * 7 + day - Self.day(start, calendar: cal), to: start)
+        guard let start = parseDate(startDate, calendar: cal) else { return nil }
+        let startDay = Self.day(start, calendar: cal)
+        guard let resolved = cal.date(byAdding: .day, value: (week - 1) * 7 + day - startDay, to: start) else { return nil }
+        if useDefaultCal {
+            cacheLock.lock()
+            if anchorDateCache.count >= 128 { anchorDateCache.removeAll(keepingCapacity: true) }
+            anchorDateCache[startDate] = (start, startDay)
+            if weekDayDateCache.count >= 1024 { weekDayDateCache.removeAll(keepingCapacity: true) }
+            weekDayDateCache[key] = resolved
+            cacheLock.unlock()
+        }
+        return resolved
     }
 
     static func week(startDate: String, date: Date, calendar: Calendar? = nil) -> Int? {
+        let useDefaultCal = (calendar == nil)
+        let cacheKey = WeekLookupCacheKey(startDate: startDate, timeInterval: date.timeIntervalSinceReferenceDate)
+        if useDefaultCal {
+            cacheLock.lock()
+            if let hit = weekForDateCache[cacheKey] {
+                cacheLock.unlock()
+                return hit
+            }
+            cacheLock.unlock()
+        }
         let cal = calendar ?? Self.calendar
         guard let start = Self.date(startDate: startDate, week: 1, day: 1, calendar: cal),
               let days = cal.dateComponents([.day], from: start, to: cal.startOfDay(for: date)).day,
               days >= 0 else { return nil }
-        return days / 7 + 1
+        let result = days / 7 + 1
+        if useDefaultCal {
+            cacheLock.lock()
+            if weekForDateCache.count >= 1024 { weekForDateCache.removeAll(keepingCapacity: true) }
+            weekForDateCache[cacheKey] = result
+            cacheLock.unlock()
+        }
+        return result
     }
 
     static func coursesForDate(_ date: Date, startDate: String, maxWeek: Int,
                                courses: [CourseEntity], transfers: [HolidayTransferEntry]) -> [CourseEntity] {
         guard !courses.isEmpty else { return [] }
-        let displayDayKey = HolidayTransferOps.dayKey(date)
-        let fixed = courses.filter { $0.fixedDate == displayDayKey }
-        guard let source = HolidayTransferOps.courseDateForDate(date, transfers),
-              let week = week(startDate: startDate, date: source), week <= maxWeek else {
-            return fixed.sorted { $0.startNode < $1.startNode }
+        let hasFixed = courses.contains { $0.fixedDate != nil }
+        let displayDayKey = hasFixed ? HolidayTransferOps.dayKey(date) : ""
+        let source = HolidayTransferOps.courseDateForDate(date, transfers)
+        let resolvedWeek = source.flatMap { Self.week(startDate: startDate, date: $0) }
+        let validSourceDay: Int? = (resolvedWeek != nil && resolvedWeek! <= maxWeek && source != nil) ? day(source!) : nil
+
+        var matched: [CourseEntity] = []
+        matched.reserveCapacity(courses.count)
+        for c in courses {
+            if let fixed = c.fixedDate {
+                if hasFixed && fixed == displayDayKey { matched.append(c) }
+            } else if let sDay = validSourceDay, let w = resolvedWeek, c.day == sDay && c.inWeek(w) {
+                matched.append(c)
+            }
         }
-        let sourceDay = day(source)
-        return (courses.filter { $0.fixedDate == nil && $0.day == sourceDay && $0.inWeek(week) } + fixed)
-            .sorted { $0.startNode < $1.startNode }
+        if matched.count > 1 {
+            matched.sort { $0.startNode < $1.startNode }
+        }
+        return matched
     }
 
     static func resolve(course: CourseEntity, displayDate: Date,
@@ -198,6 +314,7 @@ enum CourseOccurrences {
         }
     }
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// 保存预览和冲突确认走同一日历展开，跨周调休也参与判断。
     static func conflictDetails(drafts: [CourseEntity], stored: [CourseEntity],
                                 table: TimeTableEntity, transfers: [HolidayTransferEntry]) -> [String] {
@@ -230,4 +347,5 @@ enum CourseOccurrences {
         }
         return details
     }
+    #endif
 }

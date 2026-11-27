@@ -126,12 +126,40 @@ enum CourseColorUtil {
         return 0.299 * r + 0.587 * g + 0.114 * b
     }
 
+    private struct ColorResolveKey: Hashable {
+        let color: Color
+        let traitStyle: Int
+    }
+    private static let colorCacheLock = NSLock()
+    private static var luminanceCache: [ColorResolveKey: Float] = [:]
+    private static var hueCache: [ColorResolveKey: Float] = [:]
+
+    private static func currentTraitStyle() -> Int {
+        #if canImport(UIKit) && !os(watchOS)
+        UITraitCollection.current.userInterfaceStyle.rawValue
+        #else
+        0
+        #endif
+    }
+
     /// SwiftUI Color 版本 — 同 BT.601 权重
     static func luminance(_ color: Color) -> Float {
+        let key = ColorResolveKey(color: color, traitStyle: currentTraitStyle())
+        colorCacheLock.lock()
+        if let hit = luminanceCache[key] {
+            colorCacheLock.unlock()
+            return hit
+        }
+        colorCacheLock.unlock()
         let ui = UIColor(color)
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         ui.getRed(&r, green: &g, blue: &b, alpha: &a)
-        return Float(0.299 * r + 0.587 * g + 0.114 * b)
+        let value = Float(0.299 * r + 0.587 * g + 0.114 * b)
+        colorCacheLock.lock()
+        if luminanceCache.count >= 512 { luminanceCache.removeAll(keepingCapacity: true) }
+        luminanceCache[key] = value
+        colorCacheLock.unlock()
+        return value
     }
 
     /// 按背景亮度自适应选文字色 — 深色自定义课色上文字必须可读（决策 D5-13）：
@@ -205,15 +233,38 @@ enum CourseColorUtil {
     /// ARGB>Int32.max 的自定义课色经 Int 中间态会运行时崩溃 (Int(4293589503)),
     /// 本入口从根上绕开; 64 位 iOS 语义与 parseColor 逐位一致。2026-10 watch 伴侣 App。
     static func parseColorUInt32(_ hex: String) -> UInt32? {
-        guard hex.hasPrefix("#") else { return nil }
-        var s = String(hex.dropFirst())
-        if s.count == 6 {
-            s = "FF" + s
+        guard let result = hex.utf8.withContiguousStorageIfAvailable({ buf -> UInt32? in
+            Self.parseHexUTF8(buf)
+        }) ?? Self.parseHexUTF8(Array(hex.utf8)) else {
+            return nil
         }
-        guard s.count == 8,
-              s.allSatisfy({ $0.isHexDigit }),
-              let v = UInt32(s, radix: 16) else { return nil }
-        return v
+        return result
+    }
+
+    private static func parseHexUTF8<C: RandomAccessCollection>(_ utf8: C) -> UInt32? where C.Element == UInt8, C.Index == Int {
+        let count = utf8.count
+        guard count == 7 || count == 9 else { return nil }
+        let start = utf8.startIndex
+        guard utf8[start] == 35 else { return nil } // '#'
+        var acc: UInt32 = count == 7 ? 0xFF : 0
+        var i = start + 1
+        let end = utf8.endIndex
+        while i < end {
+            let byte = utf8[i]
+            let digit: UInt32
+            if byte >= 48 && byte <= 57 {
+                digit = UInt32(byte - 48)
+            } else if byte >= 65 && byte <= 70 {
+                digit = UInt32(byte - 55)
+            } else if byte >= 97 && byte <= 102 {
+                digit = UInt32(byte - 87)
+            } else {
+                return nil
+            }
+            acc = (acc << 4) | digit
+            i += 1
+        }
+        return acc
     }
 
     /// SwiftUI 路径取色入口（TodayScreen / CourseTableView / watch App）
@@ -360,12 +411,24 @@ enum CourseColorUtil {
 
     /// Color → HSL 色相 (0..360)。SwiftUI 路径用 UIColor 取色。
     static func hueOf(_ color: Color) -> Float {
+        let key = ColorResolveKey(color: color, traitStyle: currentTraitStyle())
+        colorCacheLock.lock()
+        if let hit = hueCache[key] {
+            colorCacheLock.unlock()
+            return hit
+        }
+        colorCacheLock.unlock()
         // SwiftUI Color → UIColor → ARGB
         let ui = UIColor(color)
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         ui.getRed(&r, green: &g, blue: &b, alpha: &a)
         let argb = (Int(a * 255) << 24) | (Int(r * 255) << 16) | (Int(g * 255) << 8) | Int(b * 255)
-        return hueOf(argb)
+        let h = hueOf(argb)
+        colorCacheLock.lock()
+        if hueCache.count >= 512 { hueCache.removeAll(keepingCapacity: true) }
+        hueCache[key] = h
+        colorCacheLock.unlock()
+        return h
     }
 
     /// 主题和谐化色相 — 安全弧公式（spec §2.2）。

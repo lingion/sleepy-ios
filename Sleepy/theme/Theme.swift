@@ -16,7 +16,7 @@ import Foundation
 
 // MARK: - ← WakeUpColorScheme data class
 
-struct WakeUpColorScheme {
+struct WakeUpColorScheme: Equatable, Hashable {
     let primary: Color
     let onPrimary: Color
     let primaryContainer: Color
@@ -163,7 +163,7 @@ let darkScheme = WakeUpColorScheme(
 
 /// 原有 10 个命名色全库零读取已删;仅保留 primary — CourseColorUtil.isPaletteDark 读它的亮度判定明暗模式。
 /// 课程实际配色走 CourseColorUtil 黄金角 HSL(groupId 撒色),不走本调色板。
-struct CoursePalette {
+struct CoursePalette: Equatable, Hashable {
     /// 明暗探针用(亮=0xFFEADDFF / 暗=0xFF4F378B),勿用于课程底色
     let primary: Color
 }
@@ -347,7 +347,11 @@ struct SleepyThemeProvider: ViewModifier {
     @Environment(\.systemColorSnapshot) private var systemSnapshot
     @Environment(\.colorSchemeContrast) private var contrast
     #if os(iOS) && !WIDGET_EXT && !WATCH_APP
-    @State private var uiStyle = SleepyUIStyle(preference: AppPrefs.shared.getUiStyle())
+    @State private var uiStyle = Self.resolvedRuntimeStyle(AppPrefs.shared.getUiStyle())
+
+    private static func resolvedRuntimeStyle(_ preference: String) -> SleepyUIStyle {
+        SleepyUIStyle.effectiveStyle(for: preference)
+    }
     #endif
     let darkTheme: Bool
     let themeKey: String
@@ -386,7 +390,7 @@ struct SleepyThemeProvider: ViewModifier {
             .environment(\.localCoursePalette, palette)
             .environment(\.sleepyUIStyle, uiStyle)
             .toggleStyle(SleepyToggleStyle())
-            .onReceive(AppPrefs.shared.uiStylePublisher) { uiStyle = SleepyUIStyle(preference: $0) }
+            .onReceive(AppPrefs.shared.uiStylePublisher) { uiStyle = Self.resolvedRuntimeStyle($0) }
         #else
         let wakeColors = Self.resolve(themeKey: themeKey, dark: darkTheme,
             snapshot: snapshot, increasedContrast: contrast == .increased)

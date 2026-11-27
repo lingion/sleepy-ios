@@ -46,16 +46,50 @@ enum TimeTableUtils {
     /// issue#40 预览读旧格式 timeJson(如迁移生成的 period_tables 行)时不再整体解析失败。
     /// ← 原 parseNodes `o.optInt("node", i + 1)` + 整体 try/catch:
     /// 任一行缺 start/end 或时间非法 → 整体返回空数组(不是丢弃单行)。
+    private static let nodeRefLock = NSLock()
+    private static var cachedReferenceDayStart: TimeInterval = 0
+    private static var cachedReferenceDay: Date = Date.distantPast
+    private static var cachedCalendarId: Calendar.Identifier = .gregorian
+    private static var cachedTzOffset: Int = Int.min
+    private static let formatTimeLock = NSLock()
+    private static var formatTimeCache: [TimeInterval: String] = [:]
+
+    private static func currentReferenceDay() -> (Date, TimeInterval) {
+        let now = Date()
+        let cal = Calendar.current
+        let calId = cal.identifier
+        let tzOffset = cal.timeZone.secondsFromGMT(for: now)
+        let nowRef = now.timeIntervalSinceReferenceDate
+
+        nodeRefLock.lock()
+        if calId == cachedCalendarId, tzOffset == cachedTzOffset,
+           nowRef >= cachedReferenceDayStart, nowRef < cachedReferenceDayStart + 86_400 {
+            let day = cachedReferenceDay
+            let startEpoch = day.timeIntervalSince1970
+            nodeRefLock.unlock()
+            return (day, startEpoch)
+        }
+        nodeRefLock.unlock()
+
+        let start = cal.startOfDay(for: now)
+        nodeRefLock.lock()
+        cachedCalendarId = calId
+        cachedTzOffset = tzOffset
+        cachedReferenceDay = start
+        cachedReferenceDayStart = start.timeIntervalSinceReferenceDate
+        nodeRefLock.unlock()
+        return (start, start.timeIntervalSince1970)
+    }
+
     static func parseNodes(_ timeJson: String) -> [NodeTime] {
         // NodeTime uses Date on iOS; refresh its reference day when the date or time zone changes.
-        let referenceDay = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970
+        let (_, referenceDay) = currentReferenceDay()
         return nodeReadCache.value(for: "\(referenceDay)|\(timeJson)") { parseNodesUncached(timeJson) }
     }
 
     private static func parseNodesUncached(_ timeJson: String) -> [NodeTime] {
         guard let rows = strictPeriodRows(timeJson), Set(rows.map(\.node)).count == rows.count else { return [] }
-        let cal = Calendar(identifier: .gregorian)
-        let today = cal.startOfDay(for: Date())
+        let (today, _) = currentReferenceDay()
         var out: [NodeTime] = []
         out.reserveCapacity(rows.count)
         for row in rows {
@@ -75,8 +109,22 @@ enum TimeTableUtils {
     }
 
     static func formatTime(_ d: Date) -> String {
+        let key = d.timeIntervalSinceReferenceDate
+        formatTimeLock.lock()
+        if let hit = formatTimeCache[key] {
+            formatTimeLock.unlock()
+            return hit
+        }
+        formatTimeLock.unlock()
         let c = Calendar.current.dateComponents([.hour, .minute], from: d)
-        return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
+        let h = c.hour ?? 0
+        let m = c.minute ?? 0
+        let str = String(format: "%02d:%02d", h, m)
+        formatTimeLock.lock()
+        if formatTimeCache.count >= 512 { formatTimeCache.removeAll(keepingCapacity: true) }
+        formatTimeCache[key] = str
+        formatTimeLock.unlock()
+        return str
     }
 
     /// 把节点时间表转为每节独立的 TimeSlotRow 展示行(D5 TimeSlot 的数据来源)
@@ -166,14 +214,19 @@ enum TimeTableUtils {
 
     /// LocalTime.parse 等价严格解析(数字位数+范围双闸)。
     private static func localTimeParse(_ s: String) -> Int? {
-        let parts = s.split(separator: ":", omittingEmptySubsequences: false)
-        guard parts.count == 2 || parts.count == 3 else { return nil }
-        guard parts[0].count == 2, parts[1].count == 2,
-              let h = Int(parts[0]), let m = Int(parts[1]),
-              (0...23).contains(h), (0...59).contains(m) else { return nil }
+        let bytes = Array(s.utf8)
+        let count = bytes.count
+        guard count == 5 || count == 8, bytes[2] == 58 else { return nil }
+        func twoDigits(_ i: Int) -> Int? {
+            let a = bytes[i], b = bytes[i + 1]
+            guard a >= 48 && a <= 57 && b >= 48 && b <= 57 else { return nil }
+            return Int(a - 48) * 10 + Int(b - 48)
+        }
+        guard let h = twoDigits(0), let m = twoDigits(3),
+              h <= 23, m <= 59 else { return nil }
         var sec = 0
-        if parts.count == 3 {
-            guard parts[2].count == 2, let ss = Int(parts[2]), (0...59).contains(ss) else { return nil }
+        if count == 8 {
+            guard bytes[5] == 58, let ss = twoDigits(6), ss <= 59 else { return nil }
             sec = ss
         }
         return h * 3600 + m * 60 + sec
@@ -937,6 +990,7 @@ extension TimeTableUtils {
      *
      * 纯函数 — 不触库不写库; 取消保存时丢弃结果即可, 数据库零改动。
      */
+    #if !WIDGET_EXT && !WATCH_APP
     static func previewPeriodTableChange(
         oldTimeJson: String,
         newTimeJson: String,
@@ -993,6 +1047,7 @@ extension TimeTableUtils {
         }
         return PeriodTablePreview(changedCourses: changed, unchangedCount: unchanged)
     }
+    #endif
 }
 
 // MARK: - 全局唯一名 (← isTableNameTaken / suggestUniqueName, v1.0.60)

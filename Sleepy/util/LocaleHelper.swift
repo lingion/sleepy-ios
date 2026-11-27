@@ -10,15 +10,34 @@ import Foundation
 
 enum LocaleHelper {
 
+    private static let cacheLock = NSLock()
+    private static var bundleCache: [String: Bundle] = [:]
+    private static var localeCache: [String: Locale] = [:]
+
     /// ← getLocale: langCode → Locale
     static func locale(for langCode: String) -> Locale {
+        if let id = localeIdentifier(for: langCode) {
+            cacheLock.lock()
+            if let hit = localeCache[id] {
+                cacheLock.unlock()
+                return hit
+            }
+            let loc = Locale(identifier: id)
+            localeCache[id] = loc
+            cacheLock.unlock()
+            return loc
+        }
+        return Locale.current
+    }
+
+    private static func localeIdentifier(for langCode: String) -> String? {
         switch langCode {
-        case "zh-CN": return Locale(identifier: "zh-Hans")
-        case "zh-TW": return Locale(identifier: "zh-Hant")
-        case "en": return Locale(identifier: "en")
-        case "ja": return Locale(identifier: "ja")
-        case "es": return Locale(identifier: "es")
-        default: return Locale.current
+        case "zh-CN": return "zh-Hans"
+        case "zh-TW": return "zh-Hant"
+        case "en": return "en"
+        case "ja": return "ja"
+        case "es": return "es"
+        default: return nil
         }
     }
 
@@ -35,24 +54,38 @@ enum LocaleHelper {
     /// 用法: LocaleHelper.bundle(for: lang).string(key) / L10n 走它
     static func bundle(for langCode: String) -> Bundle {
         let name = lprojName(for: langCode)
-        if let path = Bundle.main.path(forResource: name, ofType: "lproj"),
-           let b = Bundle(path: path) {
-            return b
+        cacheLock.lock()
+        if let hit = bundleCache[name] {
+            cacheLock.unlock()
+            return hit
         }
-        // 针对测试运行期 (Bundle.main 为 xctest 而非 Sleepy.app):
-        for b in Bundle.allBundles + Bundle.allFrameworks {
-            if let path = b.path(forResource: name, ofType: "lproj"),
-               let bundle = Bundle(path: path) {
-                return bundle
+        cacheLock.unlock()
+
+        let resolved: Bundle = {
+            if let path = Bundle.main.path(forResource: name, ofType: "lproj"),
+               let b = Bundle(path: path) {
+                return b
             }
-            let siblingApp = b.bundleURL.deletingLastPathComponent().appendingPathComponent("Sleepy.app")
-            if let appBundle = Bundle(url: siblingApp),
-               let path = appBundle.path(forResource: name, ofType: "lproj"),
-               let bundle = Bundle(path: path) {
-                return bundle
+            // 针对测试运行期 (Bundle.main 为 xctest 而非 Sleepy.app):
+            for b in Bundle.allBundles + Bundle.allFrameworks {
+                if let path = b.path(forResource: name, ofType: "lproj"),
+                   let bundle = Bundle(path: path) {
+                    return bundle
+                }
+                let siblingApp = b.bundleURL.deletingLastPathComponent().appendingPathComponent("Sleepy.app")
+                if let appBundle = Bundle(url: siblingApp),
+                   let path = appBundle.path(forResource: name, ofType: "lproj"),
+                   let bundle = Bundle(path: path) {
+                    return bundle
+                }
             }
-        }
-        return .main // 找不到(如 default→系统语言)回退 main
+            return .main // 找不到(如 default→系统语言)回退 main
+        }()
+
+        cacheLock.lock()
+        bundleCache[name] = resolved
+        cacheLock.unlock()
+        return resolved
     }
 
     /// ← wrapDefault: 从 AppPrefs 读取当前语言并定向

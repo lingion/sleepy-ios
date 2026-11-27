@@ -128,33 +128,248 @@ final class AppPrefs {
     lazy private(set) var uiStylePublisher: AnyPublisher<String, Never> = uiStyleSubject.removeDuplicates().eraseToAnyPublisher()
 
     func getUiStyle() -> String {
-        let stored = d.string(forKey: Self.KEY_UI_STYLE) ?? d.string(forKey: Self.KEY_DOCK_THEME) ?? "classic"
+        let stored = sp().string(forKey: Self.KEY_UI_STYLE) ?? sp().string(forKey: Self.KEY_DOCK_THEME) ?? "classic"
         return stored == "liquid_glass" ? "liquid_glass" : "classic"
     }
     func setUiStyle(_ style: String) {
         let value = style == "liquid_glass" ? "liquid_glass" : "classic"
-        d.set(value, forKey: Self.KEY_UI_STYLE)
+        cachedDefaults.set(value, forKey: Self.KEY_UI_STYLE)
         uiStyleSubject.send(value)
     }
     func getDockTheme() -> String { getUiStyle() }
     func setDockTheme(_ style: String) { setUiStyle(style) }
 
     var recentJwSchoolKeys: [String] {
-        guard let raw = d.string(forKey: Self.KEY_RECENT_JW_SCHOOL_KEYS),
-              let bytes = raw.data(using: .utf8),
+        guard let raw = sp().string(forKey: Self.KEY_RECENT_JW_SCHOOL_KEYS) else { return [] }
+        parsedCacheLock.lock()
+        if let hit = cachedRecentJwSchoolKeys, hit.raw == raw {
+            parsedCacheLock.unlock()
+            return hit.value
+        }
+        parsedCacheLock.unlock()
+        guard let bytes = raw.data(using: .utf8),
               let list = try? JSONDecoder().decode([String].self, from: bytes) else { return [] }
-        return Array(list.filter { !$0.isEmpty }.prefix(3))
+        let result = Array(list.filter { !$0.isEmpty }.prefix(3))
+        parsedCacheLock.lock()
+        cachedRecentJwSchoolKeys = (raw, result)
+        parsedCacheLock.unlock()
+        return result
     }
     func recordRecentJwSchool(key: String) {
         guard !key.isEmpty else { return }
         let keys = Array(([key] + recentJwSchoolKeys.filter { $0 != key }).prefix(3))
         if let data = try? JSONEncoder().encode(keys), let value = String(data: data, encoding: .utf8) {
-            d.set(value, forKey: Self.KEY_RECENT_JW_SCHOOL_KEYS)
+            cachedDefaults.set(value, forKey: Self.KEY_RECENT_JW_SCHOOL_KEYS)
+        }
+    }
+
+    private final class CachedDefaultsProxy {
+        private let defaults: UserDefaults
+        private let cacheEnabled: Bool
+        private let lock = NSLock()
+        private var objectCache: [String: Any?] = [:]
+        private var boolCache: [String: Bool] = [:]
+        private var intCache: [String: Int] = [:]
+        private var doubleCache: [String: Double] = [:]
+        private var floatCache: [String: Float] = [:]
+        private var stringCache: [String: String?] = [:]
+        private var stringArrayCache: [String: [String]?] = [:]
+        private var writeDepth = 0
+        var onExternalInvalidation: (() -> Void)?
+        var onKeyWritten: ((String) -> Void)?
+
+        init(defaults: UserDefaults, cacheEnabled: Bool = true) {
+            self.defaults = defaults
+            self.cacheEnabled = cacheEnabled
+        }
+
+        func invalidateAll(fromNotificationObject noteObject: AnyObject? = nil) {
+            lock.lock()
+            if let noteObject, noteObject === defaults && writeDepth > 0 {
+                lock.unlock()
+                return
+            }
+            objectCache.removeAll(keepingCapacity: true)
+            boolCache.removeAll(keepingCapacity: true)
+            intCache.removeAll(keepingCapacity: true)
+            doubleCache.removeAll(keepingCapacity: true)
+            floatCache.removeAll(keepingCapacity: true)
+            stringCache.removeAll(keepingCapacity: true)
+            stringArrayCache.removeAll(keepingCapacity: true)
+            lock.unlock()
+            onExternalInvalidation?()
+        }
+
+        func object(forKey key: String) -> Any? {
+            guard cacheEnabled else { return defaults.object(forKey: key) }
+            lock.lock()
+            if let hit = objectCache[key] {
+                lock.unlock()
+                return hit
+            }
+            lock.unlock()
+            let v = defaults.object(forKey: key)
+            lock.lock()
+            objectCache[key] = v
+            lock.unlock()
+            return v
+        }
+
+        func data(forKey key: String) -> Data? {
+            object(forKey: key) as? Data
+        }
+
+        func string(forKey key: String) -> String? {
+            guard cacheEnabled else { return defaults.string(forKey: key) }
+            lock.lock()
+            if let hit = stringCache[key] {
+                lock.unlock()
+                return hit
+            }
+            lock.unlock()
+            let v = defaults.string(forKey: key)
+            lock.lock()
+            stringCache[key] = v
+            lock.unlock()
+            return v
+        }
+
+        func bool(forKey key: String) -> Bool {
+            guard cacheEnabled else { return defaults.bool(forKey: key) }
+            lock.lock()
+            if let hit = boolCache[key] {
+                lock.unlock()
+                return hit
+            }
+            lock.unlock()
+            let v = defaults.bool(forKey: key)
+            lock.lock()
+            boolCache[key] = v
+            lock.unlock()
+            return v
+        }
+
+        func integer(forKey key: String) -> Int {
+            guard cacheEnabled else { return defaults.integer(forKey: key) }
+            lock.lock()
+            if let hit = intCache[key] {
+                lock.unlock()
+                return hit
+            }
+            lock.unlock()
+            let v = defaults.integer(forKey: key)
+            lock.lock()
+            intCache[key] = v
+            lock.unlock()
+            return v
+        }
+
+        func double(forKey key: String) -> Double {
+            guard cacheEnabled else { return defaults.double(forKey: key) }
+            lock.lock()
+            if let hit = doubleCache[key] {
+                lock.unlock()
+                return hit
+            }
+            lock.unlock()
+            let v = defaults.double(forKey: key)
+            lock.lock()
+            doubleCache[key] = v
+            lock.unlock()
+            return v
+        }
+
+        func float(forKey key: String) -> Float {
+            guard cacheEnabled else { return defaults.float(forKey: key) }
+            lock.lock()
+            if let hit = floatCache[key] {
+                lock.unlock()
+                return hit
+            }
+            lock.unlock()
+            let v = defaults.float(forKey: key)
+            lock.lock()
+            floatCache[key] = v
+            lock.unlock()
+            return v
+        }
+
+        func stringArray(forKey key: String) -> [String]? {
+            guard cacheEnabled else { return defaults.stringArray(forKey: key) }
+            lock.lock()
+            if let hit = stringArrayCache[key] {
+                lock.unlock()
+                return hit
+            }
+            lock.unlock()
+            let v = defaults.stringArray(forKey: key)
+            lock.lock()
+            stringArrayCache[key] = v
+            lock.unlock()
+            return v
+        }
+
+        func set(_ value: Any?, forKey key: String) {
+            lock.lock()
+            objectCache.removeValue(forKey: key)
+            boolCache.removeValue(forKey: key)
+            intCache.removeValue(forKey: key)
+            doubleCache.removeValue(forKey: key)
+            floatCache.removeValue(forKey: key)
+            stringCache.removeValue(forKey: key)
+            stringArrayCache.removeValue(forKey: key)
+            writeDepth += 1
+            lock.unlock()
+            defaults.set(value, forKey: key)
+            lock.lock()
+            writeDepth -= 1
+            lock.unlock()
+            onKeyWritten?(key)
+        }
+
+        func removeObject(forKey key: String) {
+            lock.lock()
+            objectCache.removeValue(forKey: key)
+            boolCache.removeValue(forKey: key)
+            intCache.removeValue(forKey: key)
+            doubleCache.removeValue(forKey: key)
+            floatCache.removeValue(forKey: key)
+            stringCache.removeValue(forKey: key)
+            stringArrayCache.removeValue(forKey: key)
+            writeDepth += 1
+            lock.unlock()
+            defaults.removeObject(forKey: key)
+            lock.lock()
+            writeDepth -= 1
+            lock.unlock()
+            onKeyWritten?(key)
         }
     }
 
     /// 单测注入用:默认 UserDefaults.standard。测试用 suiteName 隔离。
     private let d: UserDefaults
+    private let cachedDefaults: CachedDefaultsProxy
+    private let parsedCacheLock = NSLock()
+    private let mutationLock = NSLock()
+    private var _mutationRevision: UInt64 = 0
+    private var cachedVisibleDays: (raw: String, value: Set<Int>)?
+    private var cachedHolidayRanges: (raw: String, value: [HolidayRange])?
+    private var cachedHolidayTransfers: [Int64: (raw: String, value: [HolidayTransferEntry])] = [:]
+    private var cachedRecentJwSchoolKeys: (raw: String, value: [String])?
+    private var notificationObservers: [NSObjectProtocol] = []
+
+    var mutationRevision: UInt64 {
+        mutationLock.lock()
+        let rev = _mutationRevision
+        mutationLock.unlock()
+        return rev
+    }
+
+    private func bumpMutationRevision() {
+        mutationLock.lock()
+        _mutationRevision &+= 1
+        mutationLock.unlock()
+    }
 
     private let widgetSharedDefaults: UserDefaults?
 
@@ -162,12 +377,73 @@ final class AppPrefs {
     /// Explicit stores and roles let tests model the two process domains independently.
     init(defaults: UserDefaults = .standard, widgetSharedDefaults: UserDefaults? = nil,
          role: ProcessRole = .application) {
-        self.d = role == .widgetExtension ? widgetSharedDefaults ?? defaults : defaults
+        let backing = role == .widgetExtension ? widgetSharedDefaults ?? defaults : defaults
+        self.d = backing
+        self.cachedDefaults = CachedDefaultsProxy(defaults: backing, cacheEnabled: role == .application)
         self.widgetSharedDefaults = role == .application ? widgetSharedDefaults : nil
+        self.cachedDefaults.onExternalInvalidation = { [weak self] in
+            self?.clearParsedCaches()
+        }
+        self.cachedDefaults.onKeyWritten = { [weak self] key in
+            self?.invalidateParsedCache(forKey: key)
+        }
+        let nc = NotificationCenter.default
+        let observedDefaults: AnyObject? = (role == .application && backing === UserDefaults.standard) ? backing : nil
+        notificationObservers.append(
+            nc.addObserver(forName: UserDefaults.didChangeNotification, object: observedDefaults, queue: nil) { [weak self] note in
+                guard let self else { return }
+                let noteObj = note.object as AnyObject?
+                if let shared = self.widgetSharedDefaults, noteObj === shared { return }
+                self.cachedDefaults.invalidateAll(fromNotificationObject: noteObj)
+            }
+        )
+        notificationObservers.append(
+            nc.addObserver(forName: Notification.Name("UIApplicationWillEnterForegroundNotification"),
+                           object: nil, queue: nil) { [weak self] _ in
+                self?.cachedDefaults.invalidateAll()
+            }
+        )
         // Publish existing installations' saved settings without requiring another toggle.
         syncWidgetPreferences()
         themeKeySubject.send(getThemeKey())
         uiStyleSubject.send(getUiStyle())
+    }
+
+    deinit {
+        let nc = NotificationCenter.default
+        for token in notificationObservers { nc.removeObserver(token) }
+    }
+
+    private func clearParsedCaches() {
+        parsedCacheLock.lock()
+        cachedVisibleDays = nil
+        cachedHolidayRanges = nil
+        cachedHolidayTransfers.removeAll(keepingCapacity: true)
+        cachedRecentJwSchoolKeys = nil
+        parsedCacheLock.unlock()
+        bumpMutationRevision()
+    }
+
+    private func invalidateParsedCache(forKey key: String) {
+        parsedCacheLock.lock()
+        switch key {
+        case Self.KEY_VISIBLE_DAYS:
+            cachedVisibleDays = nil
+        case Self.KEY_HOLIDAY_OVERRIDES:
+            cachedHolidayRanges = nil
+        case Self.KEY_RECENT_JW_SCHOOL_KEYS:
+            cachedRecentJwSchoolKeys = nil
+        default:
+            if key.hasPrefix("holiday_transfer_") {
+                if let id = Int64(key.dropFirst("holiday_transfer_".count)) {
+                    cachedHolidayTransfers.removeValue(forKey: id)
+                } else {
+                    cachedHolidayTransfers.removeAll(keepingCapacity: true)
+                }
+            }
+        }
+        parsedCacheLock.unlock()
+        bumpMutationRevision()
     }
 
     private static let widgetPreferenceKeys: Set<String> = [
@@ -188,7 +464,7 @@ final class AppPrefs {
     }
 
     private func setPreference(_ value: Any?, forKey key: String) {
-        d.set(value, forKey: key)
+        cachedDefaults.set(value, forKey: key)
         if Self.isWidgetPreference(key) { widgetSharedDefaults?.set(value, forKey: key) }
     }
 
@@ -206,7 +482,7 @@ final class AppPrefs {
         for (key, value) in values { shared.set(value, forKey: key) }
     }
 
-    private func sp() -> UserDefaults { d }
+    private func sp() -> CachedDefaultsProxy { cachedDefaults }
 
     /// HolidayManager 磁盘缓存与业务 prefs 共用同一存储(← PREFS_NAME 同文件语义)
     var sharedBackedStore: UserDefaults { d }
@@ -601,8 +877,18 @@ final class AppPrefs {
 
     func getVisibleDays() -> Set<Int> {
         let raw = sp().string(forKey: Self.KEY_VISIBLE_DAYS) ?? "1,2,3,4,5,6,7"
+        parsedCacheLock.lock()
+        if let hit = cachedVisibleDays, hit.raw == raw {
+            parsedCacheLock.unlock()
+            return hit.value
+        }
+        parsedCacheLock.unlock()
         // ← mapNotNull { it.trim().toIntOrNull() }:非数字段丢弃
-        return Set(raw.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) })
+        let parsed = Set(raw.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) })
+        parsedCacheLock.lock()
+        cachedVisibleDays = (raw, parsed)
+        parsedCacheLock.unlock()
+        return parsed
     }
 
     func setVisibleDays(_ days: Set<Int>) {
@@ -711,7 +997,18 @@ final class AppPrefs {
 
     /// 用户范围化覆盖段: 编辑/新增/删除节日段 ← getHolidayRanges/setHolidayRanges
     func getHolidayRanges() -> [HolidayRange] {
-        HolidayRangeOps.decodeOverrides(sp().string(forKey: Self.KEY_HOLIDAY_OVERRIDES) ?? "[]")
+        let raw = sp().string(forKey: Self.KEY_HOLIDAY_OVERRIDES) ?? "[]"
+        parsedCacheLock.lock()
+        if let hit = cachedHolidayRanges, hit.raw == raw {
+            parsedCacheLock.unlock()
+            return hit.value
+        }
+        parsedCacheLock.unlock()
+        let decoded = HolidayRangeOps.decodeOverrides(raw)
+        parsedCacheLock.lock()
+        cachedHolidayRanges = (raw, decoded)
+        parsedCacheLock.unlock()
+        return decoded
     }
     func setHolidayRanges(_ ranges: [HolidayRange]) {
         setPreference(HolidayRangeOps.encodeOverrides(ranges), forKey: Self.KEY_HOLIDAY_OVERRIDES)
@@ -797,7 +1094,19 @@ final class AppPrefs {
 
     /// 某课表的调休映射; 无表/未设置 = 空(全部按自然星期取课)
     func getHolidayTransfers(_ tableId: Int64) -> [HolidayTransferEntry] {
-        HolidayTransferOps.decodeTransfers(sp().string(forKey: Self.transferKey(tableId)) ?? "[]")
+        let raw = sp().string(forKey: Self.transferKey(tableId)) ?? "[]"
+        parsedCacheLock.lock()
+        if let hit = cachedHolidayTransfers[tableId], hit.raw == raw {
+            parsedCacheLock.unlock()
+            return hit.value
+        }
+        parsedCacheLock.unlock()
+        let decoded = HolidayTransferOps.decodeTransfers(raw)
+        parsedCacheLock.lock()
+        if cachedHolidayTransfers.count >= 32 { cachedHolidayTransfers.removeAll(keepingCapacity: true) }
+        cachedHolidayTransfers[tableId] = (raw, decoded)
+        parsedCacheLock.unlock()
+        return decoded
     }
 
     func setHolidayTransfers(_ tableId: Int64, _ transfers: [HolidayTransferEntry]) {
