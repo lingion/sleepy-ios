@@ -1,6 +1,6 @@
 # Sleepy iOS 对齐 Android 1.0.67 改动与验证记录
 
-最后更新日期：2026-11-27
+最后更新日期：2026-11-28
 
 ## 基线与工作区
 
@@ -131,3 +131,43 @@
     - 定向 UI 回归（`CourseEditorUITests/testSaveCourseAppearsInSchedule`、`MineSettingsUITests/testBackupShowsWebDAVSetupWithoutRequiringAConnection`、`NavigationTransitionCanvasUITests`、`ScheduleFlowUITests`、`SwipeBackGestureUITests`，`build/nav-fix-ui.log`）：共执行 **24** 项，失败 **0** 项，耗时 `949.021` 秒，`TEST SUCCEEDED`。
     - watchOS 编译 `Sleepy Watch`（`build/nav-fix-watch.log`）：`BUILD SUCCEEDED`。
     - `iPhone 6s Plus`（`iOS 15.8.8`）Debug `1.0.67 (67)` 重新构建（`build/nav-fix-device.log`）并非破坏性安装成功（`build/nav-fix-install.log`）。
+
+## 系统能力隐藏、体积压缩与流畅度全链路优化（2026-11-28）
+
+### 1. 系统版本与硬件能力门控（隐藏不支持的设置入口）
+
+- **液态玻璃界面风格门控**：在 [UIStyle.swift](../../Sleepy/theme/UIStyle.swift) 新增 `SleepyUIStyle.supportsLiquidGlass` 与 `effectiveStyle`，在低于 `iOS 26` 且未显式传入 `-ui_style` 测试参数时强制回退 `.classic`；在 [AppearanceScreen.swift](../../Sleepy/ui/screen/mine/AppearanceScreen.swift) 当不支持液态玻璃时隐藏整个界面风格选择卡片（不再展示二选一选项）。
+- **Watch 时间带与设备支持门控**：在 [WidgetSettingsScreen.swift](../../Sleepy/ui/screen/mine/WidgetSettingsScreen.swift) 通过 `WidgetSettingsScreen.supportsWatchTimeStrip` 校验 `WCSession.isSupported()` 及 `#available(iOS 17.0, *)`，对不支持配对或低于 `iOS 17` 的设备隐藏 Apple Watch 课程时间带配置区块。
+- **时效性通知与实况活动门控**：在 [BackgroundReliabilityProbe.swift](../../Sleepy/widget/notification/BackgroundReliabilityProbe.swift) 与 [BackgroundReliabilitySnapshot.swift](../../Sleepy/widget/notification/BackgroundReliabilitySnapshot.swift) 采集 `timeSensitiveSupported`（`settings.timeSensitiveSetting != .notSupported`），并在 [ReminderScreen.swift](../../Sleepy/ui/screen/mine/ReminderScreen.swift) 按该标记隐藏不受支持的时效性通知状态行，定时实况活动状态继续受 `ClassDayActivityCore.supportsScheduledActivities` 门控。
+- **验证覆盖**：新增 [OSCapabilityGatingTests.swift](../../SleepyTests/OSCapabilityGatingTests.swift)（4/4 通过），并在 [BackgroundReliabilityTests.swift](../../SleepyTests/BackgroundReliabilityTests.swift)、[MineSettingsUITests.swift](../../SleepyUITests/MineSettingsUITests.swift) 与 [WatchTimeStripSettingsUITests.swift](../../SleepyUITests/WatchTimeStripSettingsUITests.swift) 中补充低于 `iOS 26` 与低于 `iOS 17` 的入口隐藏断言；[QuickAddCourseUITests.swift](../../SleepyUITests/QuickAddCourseUITests.swift) 补充液态玻璃测试覆盖 `testLiquidGlassQuickAddEdgeHandlesDragCleanly`。
+
+### 2. 应用安装包体积压缩（由 27,183,745 字节降至 9,956,945 字节）
+
+- **Widget 与 Watch 脱离 GRDB**：新增基于系统 `sqlite3` C 接口的轻量级封装 [LiteSQLite.swift](../../Sleepy/data/LiteSQLite.swift)，将 `SleepyWidget`、`SleepyWatch`、`SleepyWatchWidgets` 所用到的数据库访问（`AppDatabase.swift`、DAO、Entity、`ScheduleRepository.swift`、`WatchSyncSnapshot.swift`、`CourseHueStore.swift`、`CourseReminderOccurrence.swift` 与 `SleepyWatchApp.swift`）切换至 `LiteSQLite`。
+- **静态大资源增量编码与 LZMA 打包**：新增 [pack-resources.py](../../scripts/pack-resources.py) 与 [BundledAssetLoader.swift](../../Sleepy/util/BundledAssetLoader.swift)，将 `schools.json` 压为 `schools.json.lzma`（`953,948` 字节降至 `101,684` 字节），将 `school_cities.json` 剥离开发字段后压为 `school_cities.json.lzma`（`165,677` 字节降至 `23,408` 字节），将城市边界编码为 `SCB2` 差分 varint 并压为 `school_city_boundaries.bin.lzma`（`627,086` 字节降至 `434,796` 字节），将 `shiguang` 原始脚本移至 `Sleepy/resources-src/shiguang` 并经 `esbuild` 精简空白与语法及精简运行时 `manifest.json` 后打包为 `shiguang.pack.lzma`（`2,860,664` 字节降至 `333,852` 字节）；同时生成小组件与手表专用精简多语言表 `Sleepy/resources-ext/*.lproj`（原始文本共计 `29,065` 字节）。相关读取点（`JwImportViewModel.swift`、`JwSgAssetBridge.swift`、`OfflineSchoolCityIndex.swift`、`SchoolCityLocator.swift` 及对应 `Jw*Tests`、`OfflineSchoolCityIndexTests`）已同步适配解包。
+- **图像调色板压缩与冗余字符串清理**：移除未使用的 `SleepyLogo.imageset`；将 iOS 与 Watch 端 `AppIcon-1024.png` 无损视觉量化为 256 色调色板（`37,891` 字节降至 `17,570` 字节），将 `LaunchLogo.png` 量化为 128 色带透明通道 PNG（`14,763` 字节降至 `2,889` 字节）；并从 5 语言 `Sleepy/resources/*.lproj/Localizable.strings` 删除 67 条零引用遗留键。
+- **构建与打包参数收敛**：在 [project.yml](../../project.yml) 与 [build-ipa.sh](../../scripts/build-ipa.sh) 的 `Release` 分支配置 `SWIFT_OPTIMIZATION_LEVEL=-Osize`、`GCC_OPTIMIZATION_LEVEL=z`、`STRINGS_FILE_OUTPUT_ENCODING=UTF-8`、`LLVM_LTO=YES`、`DEAD_CODE_STRIPPING=YES`、`-Xfrontend -disable-reflection-metadata`、`-Xfrontend -conditional-runtime-records`、`-Wl,-dead_strip` 与 `-Wl,-dead_strip_dylibs`。
+- **精确字节对照**：优化前基准包 `build/Sleepy-baseline.ipa` 为 `27,183,745` 字节（约 `25.92 MiB`）；终版 `./scripts/build-ipa.sh Release` 生成 `build/Sleepy-unsigned.ipa` 为 `9,956,945` 字节（约 `9.50 MiB`），较基线缩减 `63.4%`，且严格低于 `10,000,000` 十进制字节与 `10 MiB` 上限。
+
+### 3. 渲染热路径缓存、页签保活与翻页流畅度优化
+
+- **偏好与高频计算缓存**：在 [AppPrefs.swift](../../Sleepy/util/AppPrefs.swift) 为主应用进程加入线程安全 `CachedDefaultsProxy` 缓存与解析结果缓存（小组件扩展进程维持禁用以保障跨进程读取一致性），将 `UserDefaults.didChangeNotification` 主域监听收窄至 `UserDefaults.standard` 并配合 `mutationRevision` 追踪变化；为 [CourseOccurrences.swift](../../Sleepy/data/repository/CourseOccurrences.swift)、[DateUtils.swift](../../Sleepy/util/DateUtils.swift)、[HolidayManager.swift](../../Sleepy/util/HolidayManager.swift)、[HolidayReminderPolicy.swift](../../Sleepy/util/HolidayReminderPolicy.swift)、[TimeTableUtils.swift](../../Sleepy/util/TimeTableUtils.swift)、[CourseColorUtil.swift](../../Sleepy/util/CourseColorUtil.swift)、[LocaleHelper.swift](../../Sleepy/util/LocaleHelper.swift)、[L10n.swift](../../Sleepy/util/L10n.swift)、[PeriodHeaderCellContent.swift](../../Sleepy/ui/component/PeriodHeaderCellContent.swift) 与 [WeekGridWidgetView.swift](../../Sleepy/widget/WeekGridWidgetView.swift) 补充 `NSLock` 缓存与快速 ASCII 解析；在 [CourseTableView.swift](../../Sleepy/ui/component/CourseTableView.swift)、[TodayScreen.swift](../../Sleepy/ui/screen/today/TodayScreen.swift) 与 [AppearanceScreen.swift](../../Sleepy/ui/screen/mine/AppearanceScreen.swift) 预分组课程字典并把外观预览分组读取改为异步后台加载。
+- **页签保活与周分页零重绘**：在 [SleepyNavHost.swift](../../Sleepy/ui/nav/SleepyNavHost.swift) 与 [SleepyApp.swift](../../Sleepy/SleepyApp.swift) 引入 `SleepyKeepAliveTabContainer` 保留四个首页签的独立托管视图控制器并延迟刷新非活跃推入页；在 [NativeWeekPager.swift](../../Sleepy/ui/component/NativeWeekPager.swift) 与 [ScheduleScreen.swift](../../Sleepy/ui/screen/schedule/ScheduleScreen.swift) 引入 `WeekPageSignature`、最多 8 页 MRU 缓存、`refreshGreyDays` 整学期预计算以及独立 `PageAccessibilityWrapper`（避免改变 UIKit 容器的无障碍隐藏属性导致 [QuickAddCourse.swift](../../Sleepy/ui/component/QuickAddCourse.swift) 快速加课确认按钮命中点计算失效）。
+- **热路径微基准实测（`RenderHotPathBenchTests`，`SLEEPY_RUN_PERFORMANCE_TESTS=1`，校验和前后一致）**：
+  - `app_prefs_1500` 中位数耗时由 `2035.33058 ms` 降至 `18.35299 ms`（加速 `110.9` 倍，校验和 `2404729`）；
+  - `date_occurrence_2000` 中位数耗时由 `1569.553253 ms` 降至 `14.058184 ms`（加速 `111.6` 倍，校验和 `356905`）；
+  - `grid_pipeline_200` 中位数耗时由 `2397.541477 ms` 降至 `271.100251 ms`（加速 `8.84` 倍，校验和 `561801`）。
+- **端到端交互性能实测（`InteractionPerformanceUITests`，`iOS 16.4` Debug 模拟器）**：
+  - `testProcessLaunchToResponsive` 冷启动至首帧可交互均值 `2.916 s`；
+  - `testTabsAndSettingsRoundTrip` 应用 CPU 耗时均值由 `7.222 s`（CPU 周期 `17,292,598.789 kC`）降至 `3.309 s`（CPU 周期 `7,692,044.645 kC`，提速 `2.18` 倍，峰值内存 `107,787.878 kB`）；
+  - `testWarmWeekPaging` 应用 CPU 耗时均值由 `20.835 s`（CPU 周期 `49,886,291.904 kC`）降至 `8.984 s`（CPU 周期 `21,288,750.290 kC`，提速 `2.32` 倍，峰值内存 `121,448.858 kB`）。
+
+### 4. 终版全量复验与 iPhone 6s Plus 真机 Release 安装（2026-11-28）
+
+以下测试与真机安装均在全部代码、资源和构建参数定稿后执行：
+
+- **watchOS 目标编译（`Sleepy Watch`）**：在 Xcode `14.3.1` 针对 watchOS 模拟器构建，结果 **`BUILD SUCCEEDED`**。
+- **全量单元测试（`SleepyTests`）**：共执行 **2761** 项，跳过 **15** 项，失败 **0** 项（`** TEST SUCCEEDED **`）。跳过的 15 项中包含 3 项需 iOS 26 SDK 的测试（`ScheduledActivitySystemTests` 2 项、`SleepyControlsGeometryTests` 1 项），以及 12 项未传 `SLEEPY_RUN_PERFORMANCE_TESTS=1` 时按约定跳过的基准用例（`HolidayViewportTests` 1 项、`RenderHotPathBenchTests` 3 项、`ThemeCacheProbeTests` 7 项、`WeekProjectionCacheTests` 1 项）。
+- **OS 门控与热路径基准复测（`SLEEPY_RUN_PERFORMANCE_TESTS=1`）**：`OSCapabilityGatingTests`（4/4）与 `RenderHotPathBenchTests`（3/3）共 **7/7** 全部通过（`** TEST SUCCEEDED **`）。
+- **核心 UI 自动化回归（11 个套件，共 74 项）**：`DeviceAdaptationUITests`（8）、`MineSettingsUITests`（30）、`NavigationTransitionCanvasUITests`（9）、`QuickAddCourseUITests`（4）、`ReminderPermissionUITests`（5）、`ScheduleFlowUITests`（9）、`SwipeBackGestureUITests`（4）、`TopBarOverlapEnUITests`（1）、`TopBarOverlapGlassUITests`（2）、`TopBarOverlapZhUITests`（1）、`WatchTimeStripSettingsUITests`（1）全部 **74/74** 通过，失败 **0** 项（`** TEST SUCCEEDED **`）。
+- **`iPhone 6s Plus` 真机 Release 安装（`iOS 15.8.8`，UDID `3e9ae5414eeea7342fb15d596a5e2c5e26731f59`）**：使用去 Watch 临时工程构建 `-configuration Release`（`-Osize` + `LLVM_LTO=YES` + `Apple Development: Lingion Kong (WMY7J93AC3)` 自动开发签名，安装后立即移除临时工程），通过 `ios-deploy -W` 非破坏性覆盖安装成功（`[100%] Installed package`），设备上确认已注册 `com.lingion.sleepy` `1.0.67 (67)` 且原有用户数据保持完整；真机上 `iOS 15.8.8` 实际目视流畅度与隐藏项效果仍由用户在设备上交互最终确认。
