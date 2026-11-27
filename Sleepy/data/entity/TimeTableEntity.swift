@@ -1,10 +1,12 @@
 // TimeTableEntity.swift — ← data/entity/TimeTableEntity.kt (逐行翻译, GPL-3.0)
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
+#endif
 
 /// 课表实体 (TimeTable) — 一个课表包含多个课程
-struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Identifiable {
+struct TimeTableEntity: Codable, Identifiable, Hashable {
     static let databaseTableName = "time_tables"
 
     var name: String
@@ -47,6 +49,7 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
     /// 主键 autoGenerate
     var id: Int64 = 0
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// GRDB: 自增主键插入后回填
     mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
@@ -73,6 +76,7 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
         container["jwSchoolSourceJson"] = jwSchoolSourceJson
         container["jwSchoolSourceVerified"] = jwSchoolSourceVerified
     }
+    #endif
 
     /// issue#40 有效时间表水合(设计 §5.1): 绑定存在 → 节次时间/智慧节次/节次数
     /// 全部以所绑 periodTable 为准覆盖本表对应字段(兼容列保留不动, 仅作回退);
@@ -106,7 +110,8 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
 }
 
 
-extension TimeTableEntity {
+#if !WIDGET_EXT && !WATCH_APP
+extension TimeTableEntity: FetchableRecord, MutablePersistableRecord {
     init(row: Row) {
         id = row["id"]
         name = row["name"]
@@ -126,7 +131,10 @@ extension TimeTableEntity {
         jwSchoolSourceJson = row["jwSchoolSourceJson"]
         jwSchoolSourceVerified = row["jwSchoolSourceVerified"]
     }
+}
+#endif
 
+extension TimeTableEntity {
     enum CodingKeys: String, CodingKey {
         case name, startDate, maxWeek, nodesPerDay, timeJson, color, isDefault,
              smartConfigJson, createdAt, periodTableId, preBindSnapshotJson,

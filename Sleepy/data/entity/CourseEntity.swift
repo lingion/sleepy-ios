@@ -2,11 +2,13 @@
 // Sleepy iOS — 100% port of 原版本
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
+#endif
 
 /// 课程实体 — Room @Entity(tableName = "courses") 的 GRDB 对应
 /// 表结构/列名/索引/FK 与 Room schema 逐列一致(建表 SQL 见 AppDatabase.swift)
-struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identifiable, Equatable {
+struct CourseEntity: Codable, Identifiable, Hashable {
     static let databaseTableName = "courses"
 
     /// 课程组 ID — 同一门课的所有节次共享，编辑/删除时按此操作
@@ -69,6 +71,7 @@ struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identif
     var fixedDate: String? = nil
 
     /// GRDB: 自增主键插入后回填
+    #if !WIDGET_EXT && !WATCH_APP
     mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
     }
@@ -101,7 +104,12 @@ struct CourseEntity: Codable, FetchableRecord, MutablePersistableRecord, Identif
         container["level"] = level
         container["fixedDate"] = fixedDate
     }
+    #endif
 }
+
+#if !WIDGET_EXT && !WATCH_APP
+extension CourseEntity: FetchableRecord, MutablePersistableRecord {}
+#endif
 
 /// ← CourseColorMode (issue#22): 0=GROUP 跟随组色 / 1=AUTO 自动色 / 2=CUSTOM 自定义色
 enum CourseColorMode {

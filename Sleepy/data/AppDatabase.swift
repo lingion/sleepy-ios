@@ -16,6 +16,7 @@
 //      11.json 与其测试先入库; iOS 按 11.json 契约建列, SQL 形状逐字一致。
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
 
 final class AppDatabase {
@@ -42,8 +43,10 @@ final class AppDatabase {
     let courseDao: CourseDao
     let timeTableDao: TimeTableDao
     let periodTableDao: PeriodTableDao
+    #if !WIDGET_EXT && !WATCH_APP
     let importDraftDao: ImportDraftDao
     let calendarImportRecordDao: CalendarImportRecordDao
+    #endif
     let courseColorDao: CourseColorDao
 
     /// 默认走共享目录(AppGroupResolver: AltStore 侧载共享给 widget;Xcode 直跑回退沙箱)
@@ -72,8 +75,10 @@ final class AppDatabase {
         self.courseDao = CourseDao(db: queue)
         self.timeTableDao = TimeTableDao(db: queue)
         self.periodTableDao = PeriodTableDao(db: queue)
+        #if !WIDGET_EXT && !WATCH_APP
         self.importDraftDao = ImportDraftDao(db: queue)
         self.calendarImportRecordDao = CalendarImportRecordDao(db: queue)
+        #endif
         self.courseColorDao = CourseColorDao(db: queue)
         try migrator.migrate(queue)
         // Older editors could save a non-positive semester length. Repair only
@@ -284,3 +289,49 @@ final class AppDatabase {
         return m
     }
 }
+#else
+final class AppDatabase {
+    static let DB_NAME = "sleepy.db"
+
+    private static var instance: AppDatabase?
+    private static let lock = NSLock()
+
+    static func getShared() -> AppDatabase {
+        lock.lock(); defer { lock.unlock() }
+        if let i = instance { return i }
+        let i = AppDatabase()
+        instance = i
+        return i
+    }
+
+    let dbQueue: LiteDatabase
+    let courseDao: CourseDao
+    let timeTableDao: TimeTableDao
+    let periodTableDao: PeriodTableDao
+    let courseColorDao: CourseColorDao
+
+    convenience init() {
+        let url = AppGroupResolver.sharedDirectory().appendingPathComponent(Self.DB_NAME)
+        do {
+            try self.init(persistentURL: url)
+        } catch {
+            fatalError("AppDatabase persistent open failed: \(error)")
+        }
+    }
+
+    convenience init(persistentURL: URL) throws {
+        try FileManager.default.createDirectory(at: persistentURL.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        let queue = try LiteDatabase(path: persistentURL.path)
+        self.init(queue: queue)
+    }
+
+    init(queue: LiteDatabase) {
+        self.dbQueue = queue
+        self.courseDao = CourseDao(db: queue)
+        self.timeTableDao = TimeTableDao(db: queue)
+        self.periodTableDao = PeriodTableDao(db: queue)
+        self.courseColorDao = CourseColorDao(db: queue)
+    }
+}
+#endif

@@ -285,6 +285,29 @@ enum WatchSyncSnapshot {
     /// (Room autoGenerate 语义, GRDB 注释见各实体), 镜像实体 id 恒非 0,
     /// dao.insertInDb(onConflict: .replace) 直接按提供 id 落 rowid。
     static func apply(db: AppDatabase, body: Body) throws {
+        #if WATCH_APP || WIDGET_EXT
+        try db.dbQueue.write { conn in
+            try conn.execute("DELETE FROM courses")
+            try conn.execute("DELETE FROM time_tables")
+            try conn.execute("DELETE FROM period_tables")
+            for pt in body.periodTables {
+                try db.periodTableDao.insertInDb(conn, pt)
+            }
+            for t in body.timeTables {
+                try db.timeTableDao.insertInDb(conn, t)
+            }
+            for c in body.courses {
+                try db.courseDao.insertInDb(conn, c)
+            }
+            try conn.execute("DELETE FROM course_colors")
+            for (gid, hue) in body.courseColors {
+                try conn.execute(
+                    "INSERT OR REPLACE INTO course_colors (tableKey, groupId, hue) VALUES (?, ?, ?)",
+                    arguments: [.text(CourseColorEntity.globalTableKey), .text(gid), .double(Double(hue))]
+                )
+            }
+        }
+        #else
         try db.dbQueue.write { writDB in
             try writDB.execute(sql: "DELETE FROM courses")
             try writDB.execute(sql: "DELETE FROM time_tables")
@@ -306,5 +329,6 @@ enum WatchSyncSnapshot {
                 try row.insert(writDB, onConflict: .replace)
             }
         }
+        #endif
     }
 }

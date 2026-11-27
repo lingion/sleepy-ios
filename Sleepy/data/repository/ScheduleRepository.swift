@@ -6,7 +6,9 @@
 
 import Foundation
 import Combine
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
+#endif
 
 struct ScheduleExportSnapshot {
     let table: TimeTableEntity
@@ -40,10 +42,15 @@ final class ScheduleRepository {
         self.db = db
         self.courseDao = db.courseDao
         self.tableDao = db.timeTableDao
+        #if !WIDGET_EXT && !WATCH_APP
         self.periodTableDao = PeriodTableDao(db: db.dbQueue)
+        #else
+        self.periodTableDao = db.periodTableDao
+        #endif
         self.courseColorDao = db.courseColorDao
     }
 
+    #if !WIDGET_EXT && !WATCH_APP
     // ========== v7.10.16 单级撤回 + 2026-09-21 单级 redo ==========
 
     var canUndo: Bool { UndoManager.shared.hasSnapshot }
@@ -142,6 +149,7 @@ final class ScheduleRepository {
         pruneDefaultTopPrefs()
         return true
     }
+    #endif
 
     // ========== TimeTable ==========
 
@@ -149,6 +157,7 @@ final class ScheduleRepository {
 
     func getTable(_ id: Int64) throws -> TimeTableEntity? { try tableDao.getById(id) }
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// A single read ties metadata, the period binding, and all courses to the requested ID.
     func loadExportSnapshot(tableId: Int64) throws -> ScheduleExportSnapshot {
         try db.dbQueue.read { connection in
@@ -164,9 +173,11 @@ final class ScheduleRepository {
             return ScheduleExportSnapshot(table: table, courses: courses, periodTable: period)
         }
     }
+    #endif
 
     func getDefaultTable() throws -> TimeTableEntity? { try tableDao.getDefault() }
 
+    #if !WIDGET_EXT && !WATCH_APP
     private func requirePositiveWeekCount(_ table: TimeTableEntity) throws {
         guard table.maxWeek > 0 else { throw TableEditSaveError.invalidWeekCount }
     }
@@ -274,12 +285,14 @@ final class ScheduleRepository {
         try writeWithUndo { db in try table.update(db) }
         onDataChanged()
     }
+    #endif
 
     func getReminderTables() throws -> [TimeTableEntity] {
         let tables = try getAllTables()
         return resolveReminderTableScope(tables: tables, selectedTableId: tables.first { $0.isDefault }?.id)
     }
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// The first manual toggle freezes the complete effective selection atomically.
     func setTableReminderEnabled(id: Int64, enabled: Bool) throws {
         let changed = try writeWithUndo { db -> Bool in
@@ -662,6 +675,7 @@ final class ScheduleRepository {
         try tableDao.setDefault(id)
         onDataChanged()
     }
+    #endif
 
     func tableCount() throws -> Int { try tableDao.count() }
 
@@ -687,6 +701,7 @@ final class ScheduleRepository {
         try tableDao.getAllBoundTo(periodTableId)
     }
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// 新建时间节次表, 返回新 id。独立写动作 = 独立撤回单元。
     @discardableResult
     func insertPeriodTable(_ table: PeriodTableEntity) throws -> Int64 {
@@ -800,6 +815,7 @@ final class ScheduleRepository {
         if deleted { onDataChanged() }
         return deleted
     }
+    #endif
 
     // ========== Course ==========
 
@@ -822,6 +838,7 @@ final class ScheduleRepository {
 
     func getCourse(_ id: Int64) throws -> CourseEntity? { try courseDao.getById(id) }
 
+    #if !WIDGET_EXT && !WATCH_APP
     @discardableResult
     func insertCourse(_ course: CourseEntity) throws -> Int64 {
         let id = try writeWithUndo { db in try courseDao.insertInDb(db, course) }
@@ -1050,12 +1067,14 @@ final class ScheduleRepository {
         range.endWeek = last
         return range
     }
+    #endif
 
     /// 查同 groupId 下所有课程(用于编辑回填,按时段分 block)
     func getGroupCourses(_ tableId: Int64, _ groupId: String) throws -> [CourseEntity] {
         try courseDao.getByGroupId(tableId, groupId)
     }
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// 编辑课程组:原子地删除同 groupId 全部记录并插入新草稿。
     /// 防呆: groupId 空串(早期版本导入的存量数据)禁止走组替换 — 否则 DELETE WHERE groupId=''
     /// 会把该表全部空组课程一起删掉。空组时退化为逐条插入。
@@ -1236,11 +1255,13 @@ final class ScheduleRepository {
         }
         return json
     }
+    #endif
 
     func countCourses(_ tableId: Int64) throws -> Int { try courseDao.countByTable(tableId) }
 
     func totalCourseCount() throws -> Int { try courseDao.totalCount() }
 
+    #if !WIDGET_EXT && !WATCH_APP
     enum ImportMutationError: LocalizedError {
         case tableMissing, periodMissing
         var errorDescription: String? {
@@ -1450,7 +1471,9 @@ final class ScheduleRepository {
             AppPrefs.shared.setConflictDefaultTop(pruned)
         }
     }
+    #endif
 
+    #if !WIDGET_EXT && !WATCH_APP
     // ========== Flow 观察 ← observeAllTables / observeCourses(Room Flow) ==========
 
     /// Room Flow → GRDB ValueObservation(Combine Publisher)。
@@ -1505,7 +1528,9 @@ final class ScheduleRepository {
             .switchToLatest()
             .eraseToAnyPublisher()
     }
+    #endif
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// 认亲 + 重写 groupId — ← 原版本 ScheduleRepository.assignGroupIds。
     /// 身份键 = trim + 空白折叠 + 小写(ImportRoster.importNameKey)。
     /// 优先级: 全局名册(同名历史课程) > 该行自带非空 groupId > 新 UUID。
@@ -1522,4 +1547,5 @@ final class ScheduleRepository {
     private func persistNewGroupColors(_ entities: [CourseEntity]) {
         _ = CourseColorWriteGlue.persistNewGroupHues(dao: courseColorDao, entities: entities)
     }
+    #endif
 }

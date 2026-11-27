@@ -15,7 +15,6 @@
 // 配色是增值数据, 任何异常不得影响课程渲染主流程。
 
 import Foundation
-import GRDB
 import SwiftUI
 
 /// 进程级持久色相缓存 — 单例, iOS 无 changeBus 用 NotificationCenter 通知刷新。

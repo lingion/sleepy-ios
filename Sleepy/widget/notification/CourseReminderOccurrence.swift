@@ -127,6 +127,7 @@ struct CourseReminderOccurrence: Equatable {
     }
 }
 
+#if !WIDGET_EXT && !WATCH_WIDGET_EXT
 enum CourseReminderLoader {
     static func load(tables: [TimeTableEntity], dataSource: NotificationSchedulerBeforeClassDataSource,
                      from date: Date, days: Int, calendar: CourseReminderCalendar) async throws -> [CourseReminderOccurrence] {
@@ -154,3 +155,4 @@ enum CourseReminderLoader {
         return CourseReminderOccurrence.ordered(result)
     }
 }
+#endif

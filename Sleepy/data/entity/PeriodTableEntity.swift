@@ -1,7 +1,9 @@
 // PeriodTableEntity.swift — ← data/entity/PeriodTableEntity.kt (逐行翻译, GPL-3.0)
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
+#endif
 
 /// 独立时间节次表 (issue#40) — "第 N 节是几点到几点"的真源, 与课程表(TimeTable)平行的层级。
 ///
@@ -10,7 +12,7 @@ import GRDB
 /// 节次绑定, 不因本表修改而重算 (2026-09-15 用户拍板)。
 ///
 /// timeJson/smartConfigJson 沿用 TimeTableUtils 的 JSON 形状, 单一解析来源。
-struct PeriodTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Identifiable {
+struct PeriodTableEntity: Codable, Identifiable, Hashable {
     static let databaseTableName = "period_tables"
 
     /// 用户可见名称, 如"春季作息"
@@ -29,6 +31,7 @@ struct PeriodTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Id
     /// 主键 autoGenerate
     var id: Int64 = 0
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// GRDB: 自增主键插入后回填
     mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
@@ -45,6 +48,7 @@ struct PeriodTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Id
         container["createdAt"] = createdAt
         container["updatedAt"] = updatedAt
     }
+    #endif
 
     private static let combinedPlans = PeriodReadCache<EffectivePeriodResolver.ValidatedSchedule?>()
 
@@ -117,3 +121,7 @@ extension PeriodTableEntity {
         updatedAt = try record.decode(Int64.self, forKey: .updatedAt)
     }
 }
+
+#if !WIDGET_EXT && !WATCH_APP
+extension PeriodTableEntity: FetchableRecord, MutablePersistableRecord {}
+#endif

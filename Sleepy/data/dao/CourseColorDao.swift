@@ -3,6 +3,7 @@
 // 渲染路径只读；写仅发生在 ViewModel/导入层。
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
 
 /// course_colors 纯读 DAO — 渲染层使用，写侧经 CourseColorWriteGlue。
@@ -73,3 +74,37 @@ struct CourseColorDao {
         }
     }
 }
+#else
+struct CourseColorDao {
+    let db: LiteDatabase
+
+    func getHueMap(_ tableKey: String) throws -> [String: Float] {
+        try db.read { conn in
+            try getHueMapInDb(conn, tableKey)
+        }
+    }
+
+    func getHueMapInDb(_ conn: LiteDatabase.Connection, _ tableKey: String) throws -> [String: Float] {
+        var result: [String: Float] = [:]
+        let pairs: [(String, Float)] = try conn.fetchAll(
+            "SELECT groupId, hue FROM course_colors WHERE tableKey = ?",
+            arguments: [.text(tableKey)]
+        ) { s in
+            (s.colString(0), Float(s.colDouble(1)))
+        }
+        for (gid, hue) in pairs {
+            result[gid] = hue
+        }
+        return result
+    }
+
+    func getHue(_ tableKey: String, _ groupId: String) -> Float? {
+        try? db.read { conn in
+            try conn.fetchOne(
+                "SELECT hue FROM course_colors WHERE tableKey = ? AND groupId = ?",
+                arguments: [.text(tableKey), .text(groupId)]
+            ) { Float($0.colDouble(0)) }
+        }
+    }
+}
+#endif

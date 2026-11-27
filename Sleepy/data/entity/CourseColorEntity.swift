@@ -10,9 +10,11 @@
 // 写路径仅 ViewModel/导入层（spec §2.3），渲染层纯读；CLASSIC 档不读本表。
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
+#endif
 
-struct CourseColorEntity: Codable, FetchableRecord, MutablePersistableRecord {
+struct CourseColorEntity: Codable {
     var tableKey: String
     var groupId: String
     var hue: Float
@@ -28,6 +30,7 @@ struct CourseColorEntity: Codable, FetchableRecord, MutablePersistableRecord {
     // 旧同步胶水及测试使用的 Swift 风格名称，与跨端常量同源。
     static let globalTableKey = GLOBAL_TABLE_KEY
 
+    #if !WIDGET_EXT && !WATCH_APP
     // MARK: - PersistableRecord
 
     static var databaseTableName = "course_colors"
@@ -47,6 +50,7 @@ struct CourseColorEntity: Codable, FetchableRecord, MutablePersistableRecord {
     mutating func didInsert(_ inserted: InsertionSuccess) {
         rowid = inserted.rowID
     }
+    #endif
 
     init(tableKey: String = GLOBAL_TABLE_KEY, groupId: String, hue: Float, rowid: Int64? = nil) {
         self.tableKey = tableKey
@@ -55,3 +59,7 @@ struct CourseColorEntity: Codable, FetchableRecord, MutablePersistableRecord {
         self.rowid = rowid
     }
 }
+
+#if !WIDGET_EXT && !WATCH_APP
+extension CourseColorEntity: FetchableRecord, MutablePersistableRecord {}
+#endif
