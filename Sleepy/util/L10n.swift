@@ -10,23 +10,47 @@ enum L10n {
     /// 语言变更通知 — AppRoot 监听后整树重建(Activity.recreate())
     static let didChangeNotification = Notification.Name("L10n.didChange")
 
+    private struct TemplateKey: Hashable {
+        let lang: String
+        let key: String
+    }
+    private static let cacheLock = NSLock()
+    private static var templateCache: [TemplateKey: String] = [:]
+
+    private static func localizedTemplate(for key: String, lang: String) -> String {
+        let cacheKey = TemplateKey(lang: lang, key: key)
+        cacheLock.lock()
+        if let hit = templateCache[cacheKey] {
+            cacheLock.unlock()
+            return hit
+        }
+        cacheLock.unlock()
+        let value = NSLocalizedString(key, bundle: LocaleHelper.bundle(for: lang), comment: "")
+        cacheLock.lock()
+        if templateCache.count >= 2048 { templateCache.removeAll(keepingCapacity: true) }
+        templateCache[cacheKey] = value
+        cacheLock.unlock()
+        return value
+    }
+
     /// L10n.t("key") — 无参
     static func t(_ key: String) -> String {
-        NSLocalizedString(key, bundle: LocaleHelper.currentBundle(), comment: "")
+        localizedTemplate(for: key, lang: AppPrefs.shared.getLanguage())
     }
 
     /// L10n.format("key", args...) — 原版本 context.getString(key, args) 等价
     /// 注: strings 已迁移为 %1$@ / %1$d 位置参数格式
     static func format(_ key: String, _ args: CVarArg...) -> String {
-        String(format: NSLocalizedString(key, bundle: LocaleHelper.currentBundle(), comment: ""),
-               locale: LocaleHelper.locale(for: AppPrefs.shared.getLanguage()), arguments: args)
+        let lang = AppPrefs.shared.getLanguage()
+        return String(format: localizedTemplate(for: key, lang: lang),
+                      locale: LocaleHelper.locale(for: lang), arguments: args)
     }
 
     /// 复数格式(原 plurals 等价) — .stringsdict 走 localizedStringWithFormat 展开;
     /// 只有普通 .strings 键时退化为 format(城市在前, 数量在后)。
     static func plural(_ key: String, _ count: Int, _ args: CVarArg...) -> String {
         String.localizedStringWithFormat(
-            NSLocalizedString(key, bundle: LocaleHelper.currentBundle(), comment: ""),
+            localizedTemplate(for: key, lang: AppPrefs.shared.getLanguage()),
             args[0], count)
     }
 
@@ -37,7 +61,7 @@ enum L10n {
 
     /// key 是否存在(缺失时 NSLocalizedString 返回 key 本身 → 判不等即可)
     static func has(_ key: String) -> Bool {
-        let v = NSLocalizedString(key, bundle: LocaleHelper.currentBundle(), comment: "")
+        let v = t(key)
         return !v.isEmpty && v != key
     }
 }

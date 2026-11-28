@@ -6,6 +6,7 @@ import Combine
 
 struct AppearanceScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sizeCategory) private var sizeCategory
     let onDismiss: () -> Void
     var themeMode: String = AppPrefs.THEME_MODE_SYSTEM
     var onThemeModeChange: (String) -> Void = { _ in }
@@ -51,6 +52,42 @@ struct AppearanceScreen: View {
             + [ThemeGridCell.newTheme]
     }
 
+    private var selectedKey: String {
+        if currentKey == ThemePresets.KEY_SYSTEM || customThemes.contains(where: {
+            ThemePresets.CUSTOM_KEY_PREFIX + $0.id == currentKey
+        }) {
+            return currentKey
+        }
+        return ThemePresets.byKey(currentKey).key
+    }
+
+    private var themePicker: some View {
+        let columns = sizeCategory.isAccessibilityCategory ? 1 : 2
+        let cells = Self.gridCells(presets: ThemePresets.all, customs: customThemes)
+        let selection = selectedKey
+        let isDarkBg = isDarkBackgroundByRedChannel(colors.background)
+        return SettingsSection(title: L10n.format("appearance_section_theme")) {
+            SystemThemeCard(selected: selection == ThemePresets.KEY_SYSTEM) {
+                selectThemeKey(ThemePresets.KEY_SYSTEM)
+            }
+            VStack(spacing: 12) {
+                ForEach(Array(cells.chunked(into: columns).enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: 12) {
+                        ForEach(row) { cell in
+                            ThemeGridCellView(cell: cell, currentKey: selection,
+                                              isDarkBackground: isDarkBg,
+                                              onSelect: selectThemeKey, onEdit: openEditor)
+                        }
+                        if row.count < columns {
+                            Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("mine_appearance"), onBack: onDismiss)
@@ -71,36 +108,7 @@ struct AppearanceScreen: View {
                             }, containerColor: colors.surfaceContainerHighest)
                             .accessibilityIdentifier("settings_mode_segment")
                     }
-                    SettingsSection(title: L10n.format("appearance_section_theme")) {
-                    SystemThemeCard(selected: currentKey == ThemePresets.KEY_SYSTEM) {
-                        selectThemeKey(ThemePresets.KEY_SYSTEM)
-                    }
-
-                    // 2 列网格:5 套预设 → 各自定义卡 → 新建入口(加号)
-                    // ★ 顺序不变量(d87eade3 + c1c166f9):预设 → 自定义 → 加号,加号永远
-                    //   排在整网格末尾,与自定义主题数量无关;自定义卡与预设卡同尺寸同构。
-                    let cells: [ThemeGridCell] = Self.gridCells(presets: ThemePresets.all, customs: customThemes)
-                    VStack(spacing: 12) {
-                        ForEach(Array(cells.chunked(into: 2).enumerated()), id: \.offset) { _, row in
-                            HStack(spacing: 12) {
-                                ForEach(row) { cell in
-                                    ThemeGridCellView(
-                                        cell: cell,
-                                        currentKey: currentKey,
-                                        onSelect: selectThemeKey,
-                                        onEdit: openEditor
-                                    )
-                                }
-                                // 奇数行补空位:用等弹性占位而非 Spacer,保证单卡也严格半宽
-                                // (与 原版本 Box(Modifier.weight(1f)) 等价)
-                                if row.count == 1 {
-                                    Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
-                                }
-                            }
-                        }
-                    }
-
-                    }
+                    themePicker
                     SettingsSection(title: L10n.format("settings_appearance_navigation")) {
                     SettingsFlatCard(title: L10n.format("settings_nav_style"),
                                      options: [L10n.format("settings_nav_style_docked"),
@@ -110,16 +118,18 @@ struct AppearanceScreen: View {
                                      }))
                         .accessibilityIdentifier("appearance_navigation_shape")
                     }
-                    VStack(alignment: .leading, spacing: SettingsLayout.headerGap) {
-                        Text(L10n.format("appearance_section_dock_theme")).font(SettingsLayout.headingStyle).foregroundColor(colors.onSurface)
-                    SettingsFlatCard(title: L10n.format("appearance_section_dock_theme")) {
-                        SegmentedSwitcher(options: [("classic", L10n.format("dock_theme_classic")),
-                                                    ("liquid_glass", L10n.format("dock_theme_liquid_glass"))],
-                                          selected: uiStyle, onSelect: { value in
-                                              uiStyle = value; prefs.setUiStyle(value)
-                                          }, containerColor: colors.surfaceContainerHighest)
-                            .accessibilityIdentifier("appearance_ui_style")
-                    }
+                    if SleepyUIStyle.supportsLiquidGlass {
+                        VStack(alignment: .leading, spacing: SettingsLayout.headerGap) {
+                            Text(L10n.format("appearance_section_dock_theme")).font(SettingsLayout.headingStyle).foregroundColor(colors.onSurface)
+                        SettingsFlatCard(title: L10n.format("appearance_section_dock_theme")) {
+                            SegmentedSwitcher(options: [("classic", L10n.format("dock_theme_classic")),
+                                                        ("liquid_glass", L10n.format("dock_theme_liquid_glass"))],
+                                              selected: uiStyle, onSelect: { value in
+                                                  uiStyle = value; prefs.setUiStyle(value)
+                                              }, containerColor: colors.surfaceContainerHighest)
+                                .accessibilityIdentifier("appearance_ui_style")
+                        }
+                        }
                     }
                     SettingsSection(title: L10n.format("appearance_section_course_color")) {
                     CourseColorSection(
@@ -149,6 +159,12 @@ struct AppearanceScreen: View {
             }
         }
         .background(colors.background)
+        .onReceive(prefs.themeKeyPublisher.receive(on: DispatchQueue.main)) { _ in
+            let stored = prefs.getThemeKey()
+            guard currentKey != stored else { return }
+            currentKey = stored
+            onThemeKeyChange()
+        }
         .onReceive(prefs.uiStylePublisher) { uiStyle = $0 }
         .sleepyNavigationPage(isPresented: $showEditor, changes: _showEditor.changes,
                              onDismiss: { editingTheme = nil }, canvas: {
@@ -182,8 +198,13 @@ struct AppearanceScreen: View {
         courseColorless = prefs.isCourseColorless()
         courseColorMode = prefs.getCourseColorMode()
         // 同一视图身份的会话基线不在 onAppear/提交时重置。
-        let courses = (try? AppDatabase.getShared().courseDao.getAllCourses()) ?? []
-        previewGroups = CourseColorPreview.groups(from: courses)
+        Task.detached(priority: .userInitiated) {
+            let courses = (try? AppDatabase.getShared().courseDao.getAllCourses()) ?? []
+            let groups = CourseColorPreview.groups(from: courses)
+            await MainActor.run {
+                previewGroups = groups
+            }
+        }
     }
 
     private func selectCourseColorMode(_ raw: Int) {
@@ -219,9 +240,13 @@ struct AppearanceScreen: View {
     }
 
     private func selectThemeKey(_ key: String) {
-        guard key != currentKey else { return }
-        prefs.setThemeKey(key)
+        applyThemeKey(key, refreshOnReselect: false)
+    }
+
+    private func applyThemeKey(_ key: String, refreshOnReselect: Bool) {
+        guard key != prefs.getThemeKey() || refreshOnReselect else { return }
         currentKey = key
+        prefs.setThemeKey(key)
         onThemeKeyChange()
         refreshThemeCourseColors()
         refreshWidgets()
@@ -244,13 +269,8 @@ struct AppearanceScreen: View {
     /// 从不生效, 正是 原版本 明确修掉的「保存了但从没被应用过」行为。
     private func saveTheme(_ saved: CustomTheme) {
         CustomThemeStore.save(saved)
-        let savedKey = ThemePresets.CUSTOM_KEY_PREFIX + saved.id
-        prefs.setThemeKey(savedKey)
-        currentKey = savedKey
         customThemes = CustomThemeStore.getAll()
-        onThemeKeyChange()
-        refreshThemeCourseColors()
-        refreshWidgets()
+        applyThemeKey(ThemePresets.CUSTOM_KEY_PREFIX + saved.id, refreshOnReselect: true)
         showEditor = false
         editingTheme = nil
     }
@@ -286,17 +306,20 @@ enum ThemeGridCell: Identifiable {
 private struct ThemeGridCellView: View {
     let cell: ThemeGridCell
     let currentKey: String
+    let isDarkBackground: Bool
     let onSelect: (String) -> Void
     let onEdit: (CustomTheme?) -> Void
 
     var body: some View {
         switch cell {
         case .preset(let preset):
-            PresetThemeCard(preset: preset, selected: currentKey == preset.key) {
+            PresetThemeCard(preset: preset, selected: currentKey == preset.key,
+                            isDarkBackground: isDarkBackground) {
                 onSelect(preset.key)
             }
         case .custom(let theme):
-            CustomThemeCard(theme: theme, selected: currentKey == ThemePresets.CUSTOM_KEY_PREFIX + theme.id) {
+            CustomThemeCard(theme: theme, selected: currentKey == ThemePresets.CUSTOM_KEY_PREFIX + theme.id,
+                            isDarkBackground: isDarkBackground) {
                 onSelect(ThemePresets.CUSTOM_KEY_PREFIX + theme.id)
             } onEdit: {
                 onEdit(theme)
@@ -324,26 +347,25 @@ private struct SystemThemeCard: View {
                     .cornerRadius(SleepyShapes.large)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L10n.format("theme_system"))
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.body.weight(.medium))
                         .foregroundColor(colors.onSurface)
                     Text(systemSourceDescription)
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(colors.onSurfaceVariant)
                         .accessibilityIdentifier("system_color_source")
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                if selected {
-                    AndroidMaterialIcon(name: .check, size: 24)
-                        .foregroundColor(colors.primary)
-                        .accessibilityLabel(L10n.format("selected"))
-                        .accessibilityHidden(false)
-                }
+                CheckmarkSlot(selected: selected, size: 24)
             }
             .padding(16)
             .background(selected ? colors.primaryContainer : colors.surfaceContainer)
             .cornerRadius(SleepyShapes.large)
         }
         .buttonStyle(SleepyButtonStyle())
+        .accessibilityLabel(L10n.format("theme_system"))
+        .accessibilityValue(systemSourceDescription)
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("theme_system_card")
     }
 
@@ -361,40 +383,22 @@ private struct SystemThemeCard: View {
 
 // ← PresetThemeCard
 private struct PresetThemeCard: View {
-    @Environment(\.localWakeUpColors) private var colors
     let preset: ThemePreset
     let selected: Bool
+    let isDarkBackground: Bool
     let onClick: () -> Void
 
     var body: some View {
         // ← 原版本: if (colors.background.red < 0.5f) preset.light else preset.dark
         //   探针是红通道(非亮度), 且分支方向: 深色底展示 light 预览板
-        let scheme = isDarkBackgroundByRedChannel(colors.background) ? preset.light : preset.dark
+        let scheme = isDarkBackground ? preset.light : preset.dark
+        let name = L10n.format(preset.nameKey)
         Button(action: onClick) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    ColorSwatch(color: scheme.primary)
-                    ColorSwatch(color: scheme.secondary)
-                    ColorSwatch(color: scheme.tertiary)
-                }
-                HStack(spacing: 0) {
-                    Text(L10n.format(preset.nameKey))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(colors.onSurface)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    // ✓槽位恒定 20pt 占位,图标仅在选中时渲染进槽位 —— 禁改回 raw
-                    // `if selected { Image }`(2026-09-22 用户实测: 条件渲染
-                    // =选中那刻凭空多一个决定行高的孩子=选中卡比未选中卡高)。
-                    // 不用 opacity(0) 隐藏: 读屏会照常播报"已选中", 占位槽才是布局+a11y 双正确。
-                    CheckmarkSlot(selected: selected)
-                }
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(selected ? colors.primaryContainer : colors.surfaceContainer)
-            .cornerRadius(SleepyShapes.large)
+            ThemePaletteCardLabel(name: name, scheme: scheme, selected: selected)
         }
         .buttonStyle(SleepyButtonStyle())
+        .accessibilityLabel(Text(name))
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("theme_preset_\(preset.key)")
     }
 }
@@ -403,18 +407,17 @@ private struct PresetThemeCard: View {
 private struct CheckmarkSlot: View {
     @Environment(\.localWakeUpColors) private var colors
     let selected: Bool
+    var size: CGFloat = 20
 
     var body: some View {
         ZStack {
-            Color.clear.frame(width: 20, height: 20)
             if selected {
-                AndroidMaterialIcon(name: .check, size: 20)
+                AndroidMaterialIcon(name: .check, size: size)
                     .foregroundColor(colors.primary)
-                    .accessibilityLabel(L10n.format("selected"))
-                    .accessibilityHidden(false)
             }
         }
-        .frame(width: 20, height: 20)
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
@@ -428,73 +431,86 @@ private func isDarkBackgroundByRedChannel(_ color: Color) -> Bool {
     return r < 0.5
 }
 
-// ← ColorSwatch
-private struct ColorSwatch: View {
-    let color: Color
+private struct ThemePaletteCardLabel: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let name: String
+    let scheme: WakeUpColorScheme
+    let selected: Bool
+    var reservesEditSlot = false
+
+    static let inset: CGFloat = 16
+    static let actionSize: CGFloat = 48
 
     var body: some View {
-        RoundedRectangle(cornerRadius: SleepyShapes.small)
-            .fill(color)
-            .frame(width: 28, height: 28)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 4) {
+                ForEach(Array([scheme.primary, scheme.secondary, scheme.tertiary].enumerated()), id: \.offset) { _, color in
+                    RoundedRectangle(cornerRadius: SleepyShapes.small)
+                        .fill(color)
+                        .frame(minWidth: 0, maxWidth: 28)
+                        .frame(height: 28)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, reservesEditSlot ? Self.actionSize + 8 : 0)
+            .frame(height: Self.actionSize)
+            .accessibilityHidden(true)
+
+            HStack(spacing: 4) {
+                Text(name)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(colors.onSurface)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                CheckmarkSlot(selected: selected)
+            }
+        }
+        .padding(Self.inset)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? colors.primaryContainer : colors.surfaceContainer)
+        .cornerRadius(SleepyShapes.large)
     }
 }
 
-/// 自定义主题卡 — 与 PresetThemeCard 完全同构(三色板 + 名称 + 选中对勾,大小一模一样)。
-/// edit 图标在色板行右端:色块包裹(可点性可见)+ 与 3 色块同行,不撑高卡片。
 private struct CustomThemeCard: View {
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.sleepyUIStyle) private var uiStyle
     let theme: CustomTheme
     let selected: Bool
+    let isDarkBackground: Bool
     let onClick: () -> Void
     let onEdit: () -> Void
 
     var body: some View {
-        // 卡片色板预览按当前深浅模式派生(与 PresetThemeCard 的探针逻辑一致:
-        // ← 原 `colors.background.red < 0.5f` 红通道语义)
-        let isDark = isDarkBackgroundByRedChannel(colors.background)
-        let scheme = CustomSchemeDeriver.derive(theme: theme, isDark: isDark)
-        Button(action: onClick) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    ColorSwatch(color: scheme.primary)
-                    ColorSwatch(color: scheme.secondary)
-                    ColorSwatch(color: scheme.tertiary)
-                    Spacer(minLength: 0)
-                    Button(action: onEdit) {
-                        AndroidSettingsIcon(name: .edit, size: 18)
-                            .foregroundColor(colors.onSurfaceVariant)
-                            .frame(width: uiStyle == .liquidGlass ? nil : 36,
-                                   height: uiStyle == .liquidGlass ? nil : 36)
-                            .background(uiStyle == .liquidGlass ? Color.clear : colors.surfaceContainerHighest,
-                                        in: Circle())
-                            .frame(width: uiStyle == .liquidGlass ? nil : 48,
-                                   height: uiStyle == .liquidGlass ? nil : 48)
-                    }
-                    .buttonStyle(SleepyPlatformButtonStyle(compact: true, shape: .circle))
-                    .frame(width: 48, height: 48)
-                    .accessibilityIdentifier("theme_custom_edit_\(theme.id)")
-                    .accessibilityLabel(L10n.format("theme_custom_edit"))
-                }
-                HStack(spacing: 0) {
-                    Text(theme.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? L10n.format("theme_new") : theme.name)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(colors.onSurface)
-                        .lineLimit(1)
-                        // ← 原版本 Text(modifier = Modifier.weight(1f))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    // 与预设卡相同:固定 20pt 槽位,避免选中态改变标题行高度。
-                    CheckmarkSlot(selected: selected)
-                }
+        let scheme = CustomSchemeDeriver.derive(theme: theme, isDark: isDarkBackground)
+        let name = theme.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? L10n.format("theme_new") : theme.name
+        // Keep the two actions as sibling buttons: tapping the selection surface and editing have separate targets.
+        ZStack(alignment: .topTrailing) {
+            Button(action: onClick) {
+                ThemePaletteCardLabel(name: name, scheme: scheme, selected: selected, reservesEditSlot: true)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(selected ? colors.primaryContainer : colors.surfaceContainer)
-            .cornerRadius(SleepyShapes.large)
+            .buttonStyle(SleepyButtonStyle())
+            .accessibilityIdentifier("theme_custom_\(theme.id)")
+            .accessibilityLabel(Text(name))
+            .accessibilityAddTraits(selected ? .isSelected : [])
+            .accessibilityActivationPoint(UnitPoint(x: 0.25, y: 0.75))
+
+            Button(action: onEdit) {
+                AndroidSettingsIcon(name: .edit, size: 18)
+                    .foregroundColor(colors.onSurfaceVariant)
+                    .frame(width: uiStyle == .liquidGlass ? nil : 36,
+                           height: uiStyle == .liquidGlass ? nil : 36)
+                    .background(uiStyle == .liquidGlass ? Color.clear : colors.surfaceContainerHighest, in: Circle())
+                    .frame(width: ThemePaletteCardLabel.actionSize, height: ThemePaletteCardLabel.actionSize)
+                    .contentShape(Rectangle())
+            }
+            .sleepyPlatformButtonStyle(compact: true, shape: .circle)
+            .accessibilityIdentifier("theme_custom_edit_\(theme.id)")
+            .accessibilityLabel(L10n.format("theme_custom_edit"))
+            .accessibilityHint(Text(name))
+            .padding(ThemePaletteCardLabel.inset)
         }
-        .buttonStyle(SleepyButtonStyle())
-        .accessibilityIdentifier("theme_custom_\(theme.id)")
     }
 }
 
@@ -532,5 +548,6 @@ private struct DashedCircleWithPlus: View {
                 .foregroundColor(colors.onSurface)
         }
         .frame(width: size, height: size)
+        .sleepyAccessibleShapeAnchor()
     }
 }

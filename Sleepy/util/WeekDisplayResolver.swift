@@ -42,12 +42,28 @@ enum WeekDisplayResolver {
         courses: [CourseEntity],
         timeJson: String,
         enabled: Bool,
-        transfers: [HolidayTransferEntry] = []
+        transfers: [HolidayTransferEntry] = [],
+        civilTimeZone: TimeZone? = nil
     ) -> WeekDisplayContext {
         let safeMaxWeek = max(maxWeek, 1)
-        let today = DateUtils.dayStart(now)
-        let semesterStatus = DateUtils.semesterStatus(startDate: startDate, maxWeek: safeMaxWeek, today: today)
-        let actualWeek = min(max(DateUtils.currentWeek(startDate: startDate, today: today), 1), safeMaxWeek)
+        let today = civilTimeZone.flatMap { CourseReminderCalendar(timeZone: $0).civilDay(containing: now) }
+            ?? DateUtils.dayStart(now)
+        func status(on day: Date) -> DateUtils.SemesterStatus {
+            civilTimeZone == nil
+                ? DateUtils.semesterStatus(startDate: startDate, maxWeek: safeMaxWeek, today: day)
+                : civilSemesterStatus(startDate: startDate, maxWeek: safeMaxWeek, day: day)
+        }
+        func week(on day: Date) -> Int {
+            civilTimeZone == nil ? DateUtils.currentWeek(startDate: startDate, today: day)
+                : (CourseOccurrences.week(startDate: startDate, date: day) ?? 1)
+        }
+        let semesterStatus = status(on: today)
+        let actualWeek = min(max(week(on: today), 1), safeMaxWeek)
+        var wall = Calendar(identifier: .gregorian)
+        wall.timeZone = civilTimeZone ?? DateUtils.isoCalendar.timeZone
+        let nowParts = wall.dateComponents([.hour, .minute], from: now)
+        let nowMinute = (nowParts.hour ?? 0) * 60 + (nowParts.minute ?? 0)
+        let bells = ReminderBellTimes(timeJson)
 
         // ← Kotlin: todayHasRemaining 改走 coursesForDate(today) 调休感知口径
         // (非开关门控的 semesterStatus==IN_RANGE && hasRemainingCourse 旧式):
@@ -56,8 +72,8 @@ enum WeekDisplayResolver {
             today, startDate: startDate, maxWeek: safeMaxWeek,
             courses: courses, transfers: transfers
         ).contains { course in
-            guard let end = courseEndMinutes(course, timeJson) else { return true }
-            return end > nowMinutesOf(now)
+            guard let end = bells.bounds(for: course).end else { return true }
+            return end / 60 > nowMinute
         }
 
         let targetDate: Date
@@ -71,34 +87,28 @@ enum WeekDisplayResolver {
                 today: today,
                 courses: courses,
                 count: 1,
-                transfers: transfers
+                transfers: transfers,
+                civilDates: civilTimeZone != nil
             ).first ?? today
         }
         // ← Kotlin targetWeek 门补调休条件: 今天有"补班映射" (targetDate==today 且其
         // sourceDate 在学期内) 时不取 actualWeek, 按 currentWeek 反解。
         let hasWorkdayTransferToday = transfers.contains(where: {
             HolidayTransferOps.dayKey($0.targetDate) == HolidayTransferOps.dayKey(today)
-                && DateUtils.semesterStatus(startDate: startDate, maxWeek: safeMaxWeek,
-                                            today: $0.sourceDate) == .inRange
+                && status(on: $0.sourceDate) == .inRange
         })
         let targetWeek = (targetDate == today && !hasWorkdayTransferToday)
             ? actualWeek
-            : min(max(DateUtils.currentWeek(startDate: startDate, today: targetDate), 1), safeMaxWeek)
+            : min(max(week(on: targetDate), 1), safeMaxWeek)
 
-        let status: WeekDisplayStatus
-        if !enabled || semesterStatus != .inRange {
-            status = .normal
-        } else if targetDate == today {
-            status = .normal
-        } else {
-            status = .nearestBusyDay
-        }
+        let displayStatus: WeekDisplayStatus = !enabled || semesterStatus != .inRange || targetDate == today
+            ? .normal : .nearestBusyDay
         return WeekDisplayContext(
             actualWeek: actualWeek,
             targetDate: targetDate,
             targetWeek: targetWeek,
             todayHasRemaining: todayHasRemaining,
-            status: status,
+            status: displayStatus,
             semesterStatus: semesterStatus,
             today: today,
             enabled: enabled
@@ -130,17 +140,21 @@ enum WeekDisplayResolver {
         today: Date,
         courses: [CourseEntity],
         count: Int = 2,
-        transfers: [HolidayTransferEntry] = []
+        transfers: [HolidayTransferEntry] = [],
+        civilDates: Bool = false
     ) -> [Date] {
         if count <= 0 { return [] }
-        guard let semesterEnd = DateUtils.dateOfWeek(startDate: startDate, week: maxWeek, dayOfWeek: 7) else { return [today] }
+        let last = civilDates ? CourseOccurrences.date(startDate: startDate, week: maxWeek, day: 7)
+            : DateUtils.dateOfWeek(startDate: startDate, week: maxWeek, dayOfWeek: 7)
+        guard let semesterEnd = last else { return [today] }
         // ← Kotlin: endDate = maxOf(semesterEnd, 学期内 source 的最大 targetDate)
         let endDate = transfers.compactMap {
-            DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek, today: $0.sourceDate) == .inRange
-                ? $0.targetDate : nil
+            let status = civilDates ? civilSemesterStatus(startDate: startDate, maxWeek: maxWeek, day: $0.sourceDate)
+                : DateUtils.semesterStatus(startDate: startDate, maxWeek: maxWeek, today: $0.sourceDate)
+            return status == .inRange ? $0.targetDate : nil
         }.max().map { $0 > semesterEnd ? $0 : semesterEnd } ?? semesterEnd
         var result: [Date] = []
-        let cal = DateUtils.isoCalendar
+        let cal = civilDates ? CourseOccurrences.calendar : DateUtils.isoCalendar
         var cursor = cal.date(byAdding: .day, value: 1, to: today) ?? today
         while cursor <= endDate && result.count < count {
             if !HolidayTransferOps.coursesForDate(
@@ -154,23 +168,9 @@ enum WeekDisplayResolver {
         return result.isEmpty ? [today] : result
     }
 
-    /// now 的"当日分钟数" ← Kotlin now.hour*60+now.minute (Asia/Shanghai 口径)
-    private static func nowMinutesOf(_ now: Date) -> Int {
-        // isoCalendar 已固定锚 Asia/Shanghai (DateUtils L22), 与其余日期口径同源
-        let comps = DateUtils.isoCalendar.dateComponents([.hour, .minute], from: now)
-        return (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
-    }
-
-    private static func courseEndMinutes(_ course: CourseEntity, _ timeJson: String) -> Int? {
-        guard let effective = TimeTableUtils.effectiveCourseTime(
-            isIrregularTime: course.isIrregularTime || course.ownTime,
-            startTime: course.startTime,
-            endTime: course.endTime,
-            startNode: course.startNode,
-            step: course.step,
-            timeJson: timeJson
-        ) else { return nil }
-        guard let end = TimeTableUtils.hmMinutes(effective.1) else { return nil }
-        return end
+    static func civilSemesterStatus(startDate: String, maxWeek: Int, day: Date) -> DateUtils.SemesterStatus {
+        guard let first = CourseOccurrences.date(startDate: startDate, week: 1, day: 1) else { return .inRange }
+        if day < first { return .beforeStart }
+        return (CourseOccurrences.week(startDate: startDate, date: day) ?? 1) > maxWeek ? .afterEnd : .inRange
     }
 }

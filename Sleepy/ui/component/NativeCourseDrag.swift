@@ -192,6 +192,7 @@ struct CourseDragSource: ViewModifier {
         }
     }
 
+    @MainActor
     private func register(_ frame: CGRect, in drag: CourseDragContext) {
         drag.cards[identity] = .init(course: course, week: week, frame: frame, isGrey: isGrey)
     }
@@ -447,6 +448,7 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
     private weak var host: UIView?
     private var longPress: UILongPressGestureRecognizer?
     private var outsideTap: UITapGestureRecognizer?
+    private var outsideBackdrop: CourseFloatingOutsideView?
     private var sourceSubscription: AnyCancellable?
     private var activeToken: NSObject?
     private var sourceFrame: CGRect?
@@ -510,18 +512,30 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         finishDrag(commit: false)
         if let longPress { host?.removeGestureRecognizer(longPress) }
         if let outsideTap { host?.removeGestureRecognizer(outsideTap) }
+        outsideBackdrop?.removeFromSuperview()
+        outsideBackdrop = nil
         longPress = nil
         outsideTap = nil
         host = nil
+    }
+
+    fileprivate func shouldInterceptOutsideTap(at windowPoint: CGPoint) -> Bool {
+        guard let window, activeToken != nil, drag?.awaitingConfirmation != true else { return false }
+        let inPreview = preview.map { $0.point(inside: $0.convert(windowPoint, from: window), with: nil) } ?? false
+        return !inPreview && actions?.frame.contains(windowPoint) != true
+    }
+
+    fileprivate func handleOutsideTap() {
+        guard drag?.awaitingConfirmation != true else { return }
+        if spanChanged, let range = currentRange { finishDrag(commit: true, resized: range) }
+        else { finishDrag(commit: false) }
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         guard let window else { return false }
         let point = touch.location(in: window)
         if gestureRecognizer === outsideTap {
-            let inPreview = preview.map { $0.point(inside: $0.convert(point, from: window), with: nil) } ?? false
-            return activeToken != nil && drag?.awaitingConfirmation != true && !inPreview
-                && actions?.frame.contains(point) != true
+            return shouldInterceptOutsideTap(at: point)
         }
         if gestureRecognizer.view === preview {
             guard let preview else { return false }
@@ -627,6 +641,11 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         let pan = UIPanGestureRecognizer(target: self, action: #selector(moveFloating(_:)))
         pan.delegate = self
         floating.addGestureRecognizer(pan)
+        let backdrop = CourseFloatingOutsideView(frame: window.bounds)
+        backdrop.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        backdrop.owner = self
+        window.addSubview(backdrop)
+        outsideBackdrop = backdrop
         window.addSubview(floating)
         preview = floating
         previewTargetFrame = liftedFrame
@@ -775,9 +794,8 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
     }
 
     @objc private func dismissFloating(_ recognizer: UITapGestureRecognizer) {
-        guard recognizer.state == .ended, drag?.awaitingConfirmation != true else { return }
-        if spanChanged, let range = currentRange { finishDrag(commit: true, resized: range) }
-        else { finishDrag(commit: false) }
+        guard recognizer.state == .ended else { return }
+        handleOutsideTap()
     }
 
     @objc private func moveFloating(_ recognizer: UIPanGestureRecognizer) {
@@ -1008,8 +1026,12 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         restoreScrolling()
         let oldPreview = preview
         let oldActions = actions
+        let oldBackdrop = outsideBackdrop
         preview = nil
         actions = nil
+        outsideBackdrop = nil
+        oldBackdrop?.owner = nil
+        oldBackdrop?.removeFromSuperview()
         resizeOrigin = nil
         movementAnchor = nil
         currentRange = nil
@@ -1072,5 +1094,32 @@ final class CourseDropTargetView: UIView, UIGestureRecognizerDelegate {
         target = nil
         targetStartTime = nil
         if drag?.projection != nil { drag?.projection = nil }
+    }
+}
+
+/// Window-level backdrop underneath the floating preview/action bar so taps on
+/// navigation controls above `host` still dismiss or commit the lifted card first.
+private final class CourseFloatingOutsideView: UIView {
+    weak var owner: CourseDropTargetView?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isAccessibilityElement = false
+        accessibilityElementsHidden = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard !isHidden, isUserInteractionEnabled, bounds.contains(point),
+              let owner, owner.shouldInterceptOutsideTap(at: convert(point, to: nil)) else { return nil }
+        return self
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first, bounds.contains(touch.location(in: self)) else { return }
+        owner?.handleOutsideTap()
     }
 }

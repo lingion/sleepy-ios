@@ -14,12 +14,24 @@ ipa_export_dir="$ipa_repo_root/build/export"
 ipa_archive="$ipa_export_dir/Sleepy.xcarchive"
 ipa_file="$ipa_repo_root/build/Sleepy-unsigned.ipa"
 
+if [ -d "$HOME/bin" ]; then export PATH="$HOME/bin:$PATH"; fi
 echo "▸ xcodegen generate"
 xcodegen generate
 
 echo "▸ xcodebuild archive (unsigned)"
 mkdir -p "$ipa_export_dir"
 rm -rf "$ipa_archive"
+ipa_extra_flags=()
+if [ "$ipa_config" = "Release" ]; then
+  ipa_extra_flags+=(
+    SWIFT_OPTIMIZATION_LEVEL=-Osize
+    GCC_OPTIMIZATION_LEVEL=z
+    STRINGS_FILE_OUTPUT_ENCODING=UTF-8
+    DEAD_CODE_STRIPPING=YES
+    LLVM_LTO=NO
+    OTHER_LDFLAGS='$(inherited) -Wl,-dead_strip -Wl,-dead_strip_dylibs'
+  )
+fi
 xcodebuild archive \
   -project Sleepy.xcodeproj \
   -scheme Sleepy \
@@ -28,6 +40,7 @@ xcodebuild archive \
   -archivePath "$ipa_archive" \
   CODE_SIGNING_ALLOWED=NO \
   AD_HOC_CODE_SIGNING_ALLOWED=YES \
+  "${ipa_extra_flags[@]}" \
   2>&1 | tee "$ipa_repo_root/build/ipa-build.log"
 
 echo "▸ 打包 IPA"
@@ -37,6 +50,6 @@ rm -rf "$ipa_export_dir/Payload"
 rm -f "$ipa_file"
 mkdir -p "$ipa_export_dir/Payload"
 cp -R "$ipa_app" "$ipa_export_dir/Payload/"
-(cd "$ipa_export_dir" && zip -qry "$ipa_file" Payload)
+(cd "$ipa_export_dir" && zip -9 -qry "$ipa_file" Payload)
 echo "✓ $ipa_file"
 ls -lh "$ipa_file"

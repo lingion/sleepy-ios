@@ -207,10 +207,10 @@ struct HolidaySettingsScreen: View {
                 if year > MIN_YEAR { year -= 1 }
             } label: {
                 AndroidMaterialIcon(name: .chevronLeft, size: 24)
-                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                    .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                     .foregroundColor(year > MIN_YEAR ? colors.onSurface : colors.onSurfaceVariant.opacity(0.4))
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
             .frame(width: 48, height: 48)
             .accessibilityLabel(L10n.format("holiday_year_prev"))
             .disabled(year <= MIN_YEAR)
@@ -224,10 +224,10 @@ struct HolidaySettingsScreen: View {
                 if year < MAX_YEAR { year += 1 }
             } label: {
                 AndroidMaterialIcon(name: .chevronRight, size: 24)
-                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                    .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                     .foregroundColor(year < MAX_YEAR ? colors.onSurface : colors.onSurfaceVariant.opacity(0.4))
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
             .frame(width: 48, height: 48)
             .accessibilityLabel(L10n.format("holiday_year_next"))
             .disabled(year >= MAX_YEAR)
@@ -265,9 +265,9 @@ struct HolidaySettingsScreen: View {
                     } label: {
                         AndroidSettingsIcon(name: .refresh, size: 20)
                             .foregroundColor(colors.onSurfaceVariant)
-                            .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                            .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 18, compact: true, shape: .circle))
+                    .sleepyPlatformButtonStyle(cornerRadius: 18, compact: true, shape: .circle)
                     .frame(width: 48, height: 48)
                     .accessibilityIdentifier("holiday_refresh")
                     .accessibilityLabel(L10n.format("holiday_data_refresh"))
@@ -431,7 +431,7 @@ struct HolidaySettingsScreen: View {
                 .frame(height: uiStyle == .liquidGlass ? nil : 48)
                 .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
         }
-        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
         .frame(maxWidth: .infinity, minHeight: 48)
         .tint(colors.secondaryContainer)
         .accessibilityIdentifier("holiday_add_entry")
@@ -589,7 +589,7 @@ private struct HolidayOrphanCard: View {
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                     .frame(minHeight: 48)
                     .tint(colors.secondaryContainer)
                 }
@@ -716,7 +716,7 @@ private struct HolidayTransferRow: View {
                             .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.secondaryContainer, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium)
                     .frame(maxWidth: .infinity, minHeight: uiStyle == .liquidGlass ? 44 : 40)
                     .tint(colors.secondaryContainer)
                     Button {
@@ -731,7 +731,7 @@ private struct HolidayTransferRow: View {
                             .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.primary, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium)
                     .frame(maxWidth: .infinity, minHeight: uiStyle == .liquidGlass ? 44 : 40)
                     .tint(colors.primary)
                     .accessibilityIdentifier("holiday_date_confirm")
@@ -779,7 +779,7 @@ private struct HolidayRemovedCard: View {
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                     .frame(minHeight: 48)
                     .tint(colors.secondaryContainer)
                 }
@@ -924,7 +924,7 @@ private struct HolidayRangeEditDialog: View {
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .tint(colors.errorContainer)
                 }

@@ -113,7 +113,7 @@ private struct ImportDraftRow: View {
                     .font(.system(size: 22, weight: .medium))   // ← Icon size(22.dp)
                     .foregroundColor(colors.primary)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+            .sleepyPlatformButtonStyle(shape: .circle)
             .tint(colors.primary)
             .frame(width: style == .liquidGlass ? 48 : nil,
                    height: style == .liquidGlass ? 48 : nil)
@@ -123,7 +123,7 @@ private struct ImportDraftRow: View {
                     .font(.system(size: 22, weight: .medium))   // ← Icon size(22.dp)
                     .foregroundColor(colors.error)              // ← colors.error (主题派生,非固定红)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+            .sleepyPlatformButtonStyle(shape: .circle)
             .tint(colors.error)
             .frame(width: style == .liquidGlass ? 48 : nil,
                    height: style == .liquidGlass ? 48 : nil)

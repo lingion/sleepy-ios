@@ -40,24 +40,28 @@ final class WidgetArchivingUITests: XCTestCase {
             "WeekListWidgetRV",
             "WeekViewWidgetRV",
             "WeekGridWidgetV19",
-            "WeekGridWideWidget",
+            "WeekGridVerticalWidget",
+            "WeekGridHorizontalWidget",
         ]
 
-        // kind×family 组合(supportedFamilies 总计 11):
-        // Today: sm+md+lg, 其余 4 个: md+lg
+        // kind×family 组合按各 Widget 实际 supportedFamilies 验证
         let expectedKindFamilies: [(String, String)] =
             [("TodayWidgetRV", "systemSmall"),
              ("TodayWidgetRV", "systemMedium"),
              ("TodayWidgetRV", "systemLarge"),
+             ("TwoDayWidgetRV", "systemSmall"),
              ("TwoDayWidgetRV", "systemMedium"),
              ("TwoDayWidgetRV", "systemLarge"),
+             ("WeekListWidgetRV", "systemSmall"),
              ("WeekListWidgetRV", "systemMedium"),
              ("WeekListWidgetRV", "systemLarge"),
+             ("WeekViewWidgetRV", "systemSmall"),
              ("WeekViewWidgetRV", "systemMedium"),
              ("WeekViewWidgetRV", "systemLarge"),
-             ("WeekGridWidgetV19", "systemMedium"),
+             ("WeekGridWidgetV19", "systemSmall"),
              ("WeekGridWidgetV19", "systemLarge"),
-             ("WeekGridWideWidget", "systemMedium")]
+             ("WeekGridVerticalWidget", "systemMedium"),
+             ("WeekGridHorizontalWidget", "systemMedium")]
 
         // 归档批次在 app 安装/启动后 1-3 秒内跑完; 轮询 Mine 页日志钩子最多 60s
         let logEl = app.descendants(matching: .any)["widget_archive_log"]

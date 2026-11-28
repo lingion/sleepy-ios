@@ -73,13 +73,19 @@ struct QuickAddCourseCells: View {
     var canSelect: () -> Bool = { true }
 
     var body: some View {
+        let addTitle = L10n.t("schedule_add_course")
+        let dayLabels = Dictionary(uniqueKeysWithValues: days.map { ($0, DateUtils.localizedDay($0)) })
+        let nodeLabels = Dictionary(uniqueKeysWithValues: rows.map { ($0.node, L10n.format("period_format_node", "\($0.node)")) })
         ZStack(alignment: .topLeading) {
             ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                let x = timeWidth + gap + CGFloat(index) * (columnWidth + gap)
+                let dayLabel = dayLabels[day] ?? ""
                 ForEach(rows, id: \.node) { row in
+                    let nodeLabel = nodeLabels[row.node] ?? ""
                     QuickAddCourseCell(state: state, day: day, node: row.node, canSelect: canSelect)
                     .frame(width: columnWidth, height: max(0, row.bottom - row.top))
-                    .offset(x: timeWidth + gap + CGFloat(index) * (columnWidth + gap), y: row.top)
-                    .accessibilityLabel("\(L10n.t("schedule_add_course")), \(DateUtils.localizedDay(day)), \(L10n.format("period_format_node", "\(row.node)"))")
+                    .offset(x: x, y: row.top)
+                    .accessibilityLabel("\(addTitle), \(dayLabel), \(nodeLabel)")
                     .accessibilityIdentifier("add-course-\(day)-\(row.node)")
                 }
             }
@@ -130,11 +136,13 @@ struct QuickAddCourseLayer: View {
     let timeWidth: CGFloat
     let columnWidth: CGFloat
     let gap: CGFloat
+    var canDisplayCapsule: () -> Bool = { true }
     let onConfirm: (QuickAddRange) -> Void
 
     var body: some View {
+        let activeSelection = canDisplayCapsule() ? state.selection : nil
         ZStack(alignment: .topLeading) {
-            if let selection = state.selection,
+            if let selection = activeSelection,
                let day = days.firstIndex(of: selection.day),
                let start = rows.first(where: { $0.node == selection.startNode }),
                let end = rows.first(where: { $0.node == selection.endNode }) {
@@ -146,9 +154,9 @@ struct QuickAddCourseLayer: View {
             }
         }
         // 仅可见性触发，拖动手柄改变范围时不补间网格几何。
-        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: state.selection != nil)
-        .allowsHitTesting(state.selection != nil)
-        .accessibilityHidden(state.selection == nil)
+        .animation(SleepyMotionPolicy(reduceMotion: reduceMotion).fastEffects, value: activeSelection != nil)
+        .allowsHitTesting(activeSelection != nil)
+        .accessibilityHidden(activeSelection == nil)
     }
 }
 
@@ -160,26 +168,25 @@ private struct QuickAddCourseCapsule: View {
     let rows: [QuickAddRow]
     let maxStandard: Int
     let onConfirm: (QuickAddRange) -> Void
-    @State private var resizeOrigin: CGFloat?
 
     var body: some View {
         ZStack {
-            if style == .liquidGlass {
-                confirmButton
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: 14, compact: true))
-                    .tint(colors.primaryContainer)
-            } else {
-                confirmButton.buttonStyle(.plain)
-            }
-            VStack(spacing: 0) {
-                handle(top: true)
-                Spacer(minLength: 0).allowsHitTesting(false)
-                handle(top: false)
-            }
+            capsuleSurface
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            QuickAddCapsuleInteractiveOverlay(
+                state: state,
+                selection: selection,
+                rows: rows,
+                maxStandard: maxStandard,
+                confirmLabel: "\(L10n.t("schedule_add_course")), \(L10n.format("course_period_range", selection.startNode, selection.endNode))",
+                topLabel: L10n.t("start_node"),
+                bottomLabel: "\(L10n.t("end_label")) \(L10n.t("step_count"))",
+                primaryColor: UIColor(colors.primary),
+                onConfirm: onConfirm
+            )
         }
         .foregroundColor(colors.onPrimaryContainer)
-        .background(RoundedRectangle(cornerRadius: 14).fill(style == .classic ? colors.primaryContainer : .clear))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(style == .classic ? colors.primary : .clear, lineWidth: 1).allowsHitTesting(false))
         .background(GeometryReader { geometry in
             Color.clear
                 .onAppear { state.capsuleBounds = geometry.frame(in: .global) }
@@ -188,43 +195,173 @@ private struct QuickAddCourseCapsule: View {
         .accessibilityAction(named: Text(L10n.t("cancel"))) { state.dismiss() }
     }
 
-    private var confirmButton: some View {
-        Button { state.confirm(onConfirm) } label: {
+    @ViewBuilder
+    private var capsuleSurface: some View {
+        if style == .liquidGlass {
             Text("+").font(.system(size: 24))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
+                .sleepyControlSurface(cornerRadius: 14, tint: colors.primaryContainer, prominent: true)
+        } else {
+            Text("+").font(.system(size: 24))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(RoundedRectangle(cornerRadius: 14).fill(colors.primaryContainer))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(colors.primary, lineWidth: 1))
         }
-        .accessibilityLabel("\(L10n.t("schedule_add_course")), \(L10n.format("course_period_range", selection.startNode, selection.endNode))")
-        .accessibilityIdentifier("quick-add-capsule")
+    }
+}
+
+/// Separate UIKit hit-test/AX layer so 1-slot 48pt capsules never let top/bottom
+/// resize handles eclipse `quick-add-capsule` center hit testing in XCTest/VoiceOver.
+private struct QuickAddCapsuleInteractiveOverlay: UIViewRepresentable {
+    let state: QuickAddCourseState
+    let selection: QuickAddRange
+    let rows: [QuickAddRow]
+    let maxStandard: Int
+    let confirmLabel: String
+    let topLabel: String
+    let bottomLabel: String
+    let primaryColor: UIColor
+    let onConfirm: (QuickAddRange) -> Void
+
+    func makeUIView(context: Context) -> QuickAddCapsuleOverlayView {
+        QuickAddCapsuleOverlayView()
     }
 
-    private func handle(top: Bool) -> some View {
-        Capsule().fill(colors.primary).frame(width: 16, height: 3)
-            .frame(maxWidth: .infinity).frame(height: 14)
-            .contentShape(Rectangle())
-            .highPriorityGesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                .onChanged { value in
-                    if resizeOrigin == nil {
-                        resizeOrigin = rows.first(where: {
-                            $0.node == (top ? selection.startNode : selection.endNode)
-                        }).map { top ? $0.top : $0.bottom }
-                    }
-                    guard let resizeOrigin, let current = state.selection else { return }
-                    state.selection = QuickAddCoursePolicy.resized(current, top: top,
-                        position: resizeOrigin + value.translation.height, rows: rows, maxStandard: maxStandard)
-                }
-                .onEnded { _ in resizeOrigin = nil })
-            .accessibilityElement()
-            .accessibilityLabel(top ? L10n.t("start_node") : "\(L10n.t("end_label")) \(L10n.t("step_count"))")
-            .accessibilityValue("\(top ? selection.startNode : selection.endNode)")
-            .accessibilityIdentifier(top ? "quick-add-top" : "quick-add-bottom")
-            .accessibilityAdjustableAction { direction in
-                let node = top ? selection.startNode : selection.endNode
-                let next = node + (direction == .increment ? 1 : -1)
-                guard let row = rows.first(where: { $0.node == next }) else { return }
-                state.selection = QuickAddCoursePolicy.resized(selection, top: top,
-                    position: top ? row.top : row.bottom, rows: rows, maxStandard: maxStandard)
+    func updateUIView(_ view: QuickAddCapsuleOverlayView, context: Context) {
+        view.state = state
+        view.selection = selection
+        view.rows = rows
+        view.maxStandard = maxStandard
+        view.onConfirm = onConfirm
+        view.confirmButton.accessibilityLabel = confirmLabel
+        view.topHandle.accessibilityLabel = topLabel
+        view.topHandle.accessibilityValue = "\(selection.startNode)"
+        view.bottomHandle.accessibilityLabel = bottomLabel
+        view.bottomHandle.accessibilityValue = "\(selection.endNode)"
+        view.updateHandleColors(primaryColor)
+    }
+}
+
+private final class QuickAddCapsuleHandleView: UIView {
+    var onAdjust: (Int) -> Void = { _ in }
+    let pill = UIView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isAccessibilityElement = true
+        accessibilityTraits = .adjustable
+        pill.layer.cornerRadius = 1.5
+        pill.isUserInteractionEnabled = false
+        addSubview(pill)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        pill.frame = CGRect(x: (bounds.width - 16) / 2, y: (bounds.height - 3) / 2, width: 16, height: 3)
+    }
+
+    override func accessibilityIncrement() { onAdjust(1) }
+    override func accessibilityDecrement() { onAdjust(-1) }
+}
+
+private final class QuickAddCapsuleOverlayView: UIView {
+    weak var state: QuickAddCourseState?
+    var selection = QuickAddRange(day: 1, startNode: 1, endNode: 1)
+    var rows: [QuickAddRow] = []
+    var maxStandard = 12
+    var onConfirm: (QuickAddRange) -> Void = { _ in }
+
+    let confirmButton = UIButton(type: .custom)
+    let topHandle = QuickAddCapsuleHandleView()
+    let bottomHandle = QuickAddCapsuleHandleView()
+    private var topResizeOrigin: CGFloat?
+    private var bottomResizeOrigin: CGFloat?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isAccessibilityElement = false
+
+        confirmButton.backgroundColor = .clear
+        confirmButton.accessibilityIdentifier = "quick-add-capsule"
+        confirmButton.addAction(UIAction { [weak self] _ in
+            guard let self, let state = self.state else { return }
+            state.confirm(self.onConfirm)
+        }, for: .touchUpInside)
+        addSubview(confirmButton)
+
+        topHandle.accessibilityIdentifier = "quick-add-top"
+        topHandle.onAdjust = { [weak self] delta in self?.adjust(top: true, by: delta) }
+        topHandle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragTop(_:))))
+        addSubview(topHandle)
+
+        bottomHandle.accessibilityIdentifier = "quick-add-bottom"
+        bottomHandle.onAdjust = { [weak self] delta in self?.adjust(top: false, by: delta) }
+        bottomHandle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragBottom(_:))))
+        addSubview(bottomHandle)
+
+        accessibilityElements = [topHandle, bottomHandle, confirmButton]
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    func updateHandleColors(_ color: UIColor) {
+        topHandle.pill.backgroundColor = color
+        bottomHandle.pill.backgroundColor = color
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        confirmButton.frame = bounds
+        let handleHeight = min(12, max(8, floor(bounds.height / 4)))
+        topHandle.frame = CGRect(x: 0, y: 0, width: bounds.width, height: handleHeight)
+        bottomHandle.frame = CGRect(x: 0, y: bounds.height - handleHeight, width: bounds.width, height: handleHeight)
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard !isHidden, isUserInteractionEnabled, bounds.contains(point) else { return nil }
+        if topHandle.frame.contains(point) { return topHandle }
+        if bottomHandle.frame.contains(point) { return bottomHandle }
+        return confirmButton
+    }
+
+    @objc private func dragTop(_ recognizer: UIPanGestureRecognizer) {
+        handleDrag(recognizer, top: true, origin: &topResizeOrigin)
+    }
+
+    @objc private func dragBottom(_ recognizer: UIPanGestureRecognizer) {
+        handleDrag(recognizer, top: false, origin: &bottomResizeOrigin)
+    }
+
+    private func handleDrag(_ recognizer: UIPanGestureRecognizer, top: Bool, origin: inout CGFloat?) {
+        switch recognizer.state {
+        case .began, .changed:
+            if origin == nil {
+                origin = rows.first(where: {
+                    $0.node == (top ? selection.startNode : selection.endNode)
+                }).map { top ? $0.top : $0.bottom }
             }
+            guard let base = origin, let state, let current = state.selection else { return }
+            let dy = recognizer.translation(in: nil).y
+            state.selection = QuickAddCoursePolicy.resized(current, top: top,
+                position: base + dy, rows: rows, maxStandard: maxStandard)
+        case .ended, .cancelled, .failed:
+            origin = nil
+        default:
+            break
+        }
+    }
+
+    private func adjust(top: Bool, by delta: Int) {
+        let node = (top ? selection.startNode : selection.endNode) + delta
+        guard let state, let row = rows.first(where: { $0.node == node }) else { return }
+        state.selection = QuickAddCoursePolicy.resized(selection, top: top,
+            position: top ? row.top : row.bottom, rows: rows, maxStandard: maxStandard)
     }
 }
 
@@ -338,19 +475,22 @@ private final class QuickAddOutsidePressAnchorView: UIView {
 
     private func resolveShieldHost(in window: UIWindow) -> (container: UIView, above: UIView?) {
         var cur = superview
+        var navChildView: UIView?
         var vcView: UIView?
         var highestHosting: UIView?
         while let view = cur, view !== window {
-            if view.next is UIViewController, vcView == nil {
-                vcView = view
+            if let vc = view.next as? UIViewController {
+                if vcView == nil { vcView = view }
+                if vc.parent is UINavigationController { navChildView = view }
             }
             if String(describing: type(of: view)).contains("HostingView") {
                 highestHosting = view
             }
             cur = view.superview
         }
-        if let vcView, let container = vcView.superview, container.isUserInteractionEnabled {
-            return (container, vcView)
+        if let targetVCView = navChildView ?? vcView,
+           let container = targetVCView.superview, container.isUserInteractionEnabled {
+            return (container, targetVCView)
         }
         if let highestHosting, let container = highestHosting.superview, container.isUserInteractionEnabled {
             return (container, highestHosting)

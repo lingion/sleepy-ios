@@ -19,7 +19,7 @@ enum SleepyWidgetRenderingMode: Equatable {
 /// TimelineProvider 在后台拉数据,组装成这个 model 喂给 SwiftUI 视图。 ← WidgetData
 struct WidgetData {
     /// 今日日期
-    let date: Date
+    var date: Date
     /// 今日课程(已按当前周次过滤 + 排序)
     let courses: [CourseEntity]
     /// timeJson(用于查开始/结束时间)
@@ -192,10 +192,17 @@ struct DayData {
     /// 节假日/周末灰显 (← v1.0.60 DayData.isGrey; compact 窗口列/WeekList 列渲染用)
     var isGrey: Bool = false
 
-    var dayLabel: String { DateUtils.shortDate(date) }
+    var dayLabel: String { WidgetDateLabel.monthDay(date) }
     var dayName: String { DateUtils.localizedDay(dayOfWeek) }
     var isToday: Bool { Calendar.current.isDateInToday(date) }
     var isTomorrow: Bool { Calendar.current.isDateInTomorrow(date) }
+}
+
+enum WidgetDateLabel {
+    static func monthDay(_ date: Date) -> String {
+        let fields = Calendar.current.dateComponents([.month, .day], from: date)
+        return String(format: "%02d-%02d", fields.month ?? 1, fields.day ?? 1)
+    }
 }
 
 /// 周视图数据 ← WeekData

@@ -541,6 +541,95 @@ final class WidgetSemanticsTests: XCTestCase {
 
     // MARK: - 课程边界刷新 (← f7e80c84)
 
+    @available(iOS 16.0, *)
+    func testLockScreenCoursesKeepCurrentAndUpcomingClassesInChronologicalOrder() throws {
+        let calendar = DateUtils.isoCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 9)))
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
+        let today = WidgetData(date: now, courses: [
+            course(4, start: "13:00", end: "13:45"),
+            course(1, start: "08:00", end: "08:45"),
+            course(3, start: "11:00", end: "11:45"),
+            course(2, start: "09:00", end: "09:45"),
+        ], timeJson: "", hasTable: true)
+        let rows = LockScreenCourseWidget.visibleCourses(data: today, nowMin: 540, limit: 3)
+        XCTAssertEqual(rows.map(\.course.id), [2, 3, 4])
+        XCTAssertEqual(rows.map(\.timeLabel), ["09:00–09:45", "11:00–11:45", "13:00–13:45"])
+        XCTAssertEqual(rows.first.map(\.startMinute), 540)
+        XCTAssertEqual(rows.first.map(\.endMinute), 585)
+
+        var future = today
+        future.date = tomorrow
+        future.isToday = false
+        XCTAssertEqual(LockScreenCourseWidget.visibleCourses(data: future, nowMin: 1_000, limit: 10)
+            .map(\.course.id), [1, 2, 3, 4])
+        XCTAssertEqual(LockScreenCourseWidget.title(for: future), "\(L10n.format("tomorrow")) · \(future.dayName)")
+    }
+
+    @available(iOS 16.0, *)
+    func testLockScreenCoursesRetainUnknownTimesInsteadOfHidingThem() throws {
+        let now = try XCTUnwrap(DateUtils.parseDate("2026-11-09"))
+        var unknown = course(1, start: "", end: "")
+        unknown.isIrregularTime = true
+        unknown.ownTime = true
+        let data = WidgetData(date: now, courses: [unknown], timeJson: "", hasTable: true)
+        let rows = LockScreenCourseWidget.visibleCourses(data: data, nowMin: 1_000, limit: 3)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertNil(rows.first?.startMinute)
+        XCTAssertEqual(rows.first?.timeLabel, "")
+    }
+
+    func testTodayWidgetRollsOverAfterTheFinalClassAndKeepsTomorrowBoundaries() throws {
+        let calendar = DateUtils.isoCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 8)))
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
+        let today = WidgetData(date: now, courses: [
+            course(1, start: "08:00", end: "08:45"),
+            course(2, startNode: 3, start: "10:00", end: "10:45"),
+        ], timeJson: "", hasTable: true)
+        let nextDay = WidgetData(date: tomorrow, courses: [
+            course(3, start: "09:00", end: "09:45"),
+        ], timeJson: "", hasTable: true, isToday: false)
+        let rollover = try XCTUnwrap(TodayWidgetProvider.rolloverDate(data: today, from: now))
+        XCTAssertEqual(WidgetWindows.nowMinutes(rollover), 646)
+
+        let entries = TodayWidgetProvider.timelineEntries(data: today, nextDayData: nextDay, from: now)
+        XCTAssertEqual(entries.map { WidgetWindows.nowMinutes($0.date) }, [480, 526, 646, 586])
+        XCTAssertEqual(entries.map { Calendar.epochDay($0.data.date) },
+                       [Calendar.epochDay(now), Calendar.epochDay(now),
+                        Calendar.epochDay(tomorrow), Calendar.epochDay(tomorrow)])
+        XCTAssertEqual(entries.map(\.nowMin), [480, 526, nil, 586])
+        XCTAssertEqual(entries[2].data.courses.first?.id, 3)
+        XCTAssertEqual(entries[3].data.courses.first?.id, 3)
+    }
+
+    func testTodayWidgetShowsTomorrowImmediatelyAfterTheFinalClass() throws {
+        let calendar = DateUtils.isoCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 8)))
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
+        let nextDay = WidgetData(date: tomorrow, courses: [course(3, start: "09:00", end: "09:45")],
+                                 timeJson: "", hasTable: true, isToday: false)
+        let finished = WidgetData(date: now, courses: [course(1, start: "08:00", end: "08:45")],
+                                  timeJson: "", hasTable: true)
+        let afterClass = now.addingTimeInterval(60 * 60)
+        XCTAssertNil(TodayWidgetProvider.rolloverDate(data: finished, from: afterClass))
+
+        let entries = TodayWidgetProvider.timelineEntries(data: finished, nextDayData: nextDay, from: afterClass)
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].data.date, tomorrow)
+        XCTAssertEqual(entries[0].data.courses.first?.id, 3)
+
+        for data in [
+            WidgetData(date: now, courses: [], timeJson: "", hasTable: true),
+            WidgetData(date: now, courses: finished.courses, timeJson: "", hasTable: false),
+            WidgetData(date: tomorrow, courses: finished.courses, timeJson: "", hasTable: true, isToday: false),
+        ] {
+            let entries = TodayWidgetProvider.timelineEntries(data: data, nextDayData: nextDay, from: now)
+            XCTAssertEqual(entries.count, 1)
+            XCTAssertEqual(entries[0].data.date, data.date)
+        }
+    }
+
     func testNextBoundaryMinOffsetsByOneMinute() {
         XCTAssertNil(WidgetWindows.nextBoundaryMin([], nowMin: 540))
         XCTAssertEqual(WidgetWindows.nextBoundaryMin([700, 600], nowMin: 550), 601)
@@ -732,5 +821,146 @@ final class WidgetSemanticsTests: XCTestCase {
         let early = WidgetWindows.today(courses: [c], timeJson: timeJson, heightDp: 250, tier: .large, nowMin: h("18:00"))
         XCTAssertEqual(early.status, .none)
         XCTAssertEqual(early.visible.count, 1)
+    }
+
+    func testTwoDayAndWeekGridTimelinesRollOverAtNearestBusyDeadline() throws {
+        let calendar = DateUtils.isoCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 8)))
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
+        let todayDay = DayData(date: calendar.startOfDay(for: now), dayOfWeek: DateUtils.todayDayOfWeek(today: now),
+                               courses: [course(1, start: "08:00", end: "08:45")], timeJson: "")
+        let futureDay = DayData(date: calendar.startOfDay(for: tomorrow), dayOfWeek: DateUtils.todayDayOfWeek(today: tomorrow),
+                                courses: [course(2, day: DateUtils.todayDayOfWeek(today: tomorrow), start: "10:00", end: "10:45")],
+                                timeJson: "")
+        let rollover = try XCTUnwrap(now.addingTimeInterval(46 * 60))
+        let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
+
+        let twoDayCurrent = TwoDayData(days: [todayDay, futureDay], hasTable: true, weekDisplayStatus: .normal)
+        let twoDayNext = TwoDayData(days: [futureDay], hasTable: true, weekDisplayStatus: .nearestBusyDay)
+        let twoDayEntries = TwoDayWidgetProvider.timelineEntries(
+            data: twoDayCurrent, nextData: twoDayNext, rollover: rollover, from: now, refresh: refresh)
+        XCTAssertEqual(twoDayEntries.map(\.date), [now, rollover])
+        XCTAssertEqual(twoDayEntries.last?.data.weekDisplayStatus, .nearestBusyDay)
+        XCTAssertEqual(twoDayEntries.last?.data.days.first?.courses.first?.id, 2)
+
+        let gridCurrent = WeekData(days: [todayDay, futureDay], hasTable: true, weekDisplayStatus: .normal)
+        let gridNext = WeekData(days: [futureDay], hasTable: true, weekDisplayStatus: .nearestBusyDay,
+                                nearestBusyTargetDate: futureDay.date)
+        let gridSmall = WeekGridWidgetProvider.timelineEntries(
+            data: gridCurrent, nextData: gridNext, rollover: rollover, family: .systemSmall, width: 149, from: now)
+        XCTAssertEqual(gridSmall.map(\.date), [now, rollover])
+        XCTAssertEqual(gridSmall.last?.data.weekDisplayStatus, .nearestBusyDay)
+        XCTAssertEqual(gridSmall.last?.minimumTodayEntry.data.courses.first?.id, 2)
+
+        let gridLarge = WeekGridWidgetProvider.timelineEntries(
+            data: gridCurrent, nextData: gridNext, rollover: rollover, family: .systemLarge, width: 329, from: now)
+        XCTAssertEqual(gridLarge.map(\.date), [now, rollover])
+        XCTAssertEqual(gridLarge.last?.data.weekDisplayStatus, .nearestBusyDay)
+    }
+
+    func testLocalizedCourseCountFormatInRemainingLocales() {
+        let prev = AppPrefs.shared.getLanguage()
+        defer { LocaleHelper.applyLanguage(prev) }
+        for (lang, expected) in [("es", "3 cursos"), ("ja", "3 コマ"), ("zh-TW", "3 門")] {
+            LocaleHelper.applyLanguage(lang)
+            XCTAssertEqual(L10n.format("course_count_format", 3), expected, "locale \(lang)")
+        }
+    }
+
+    func testExplicitTableOverrideIsolatesAllWidgetLoadersAndFallsBackWhenDeleted() async throws {
+        let prev = WidgetBindingStore.get("TodayWidgetRV")
+        let prevTwo = WidgetBindingStore.get("TwoDayWidgetRV")
+        let prevList = WidgetBindingStore.get("WeekListWidgetRV")
+        let prevGrid = WidgetBindingStore.get("WeekGridWidgetV19")
+        let prevWide = WidgetBindingStore.get(WeekGridWideMode.vertical.widgetKind)
+        defer {
+            if let prev { WidgetBindingStore.put("TodayWidgetRV", tableId: prev) } else { WidgetBindingStore.remove("TodayWidgetRV") }
+            if let prevTwo { WidgetBindingStore.put("TwoDayWidgetRV", tableId: prevTwo) } else { WidgetBindingStore.remove("TwoDayWidgetRV") }
+            if let prevList { WidgetBindingStore.put("WeekListWidgetRV", tableId: prevList) } else { WidgetBindingStore.remove("WeekListWidgetRV") }
+            if let prevGrid { WidgetBindingStore.put("WeekGridWidgetV19", tableId: prevGrid) } else { WidgetBindingStore.remove("WeekGridWidgetV19") }
+            if let prevWide { WidgetBindingStore.put(WeekGridWideMode.vertical.widgetKind, tableId: prevWide) } else { WidgetBindingStore.remove(WeekGridWideMode.vertical.widgetKind) }
+        }
+
+        let repo = ScheduleRepository(try AppDatabase.inMemory())
+        let tableA = try repo.insertTable(TimeTableEntity(
+            name: "Alpha", startDate: "2026-11-02", maxWeek: 16,
+            timeJson: TimeTableUtils.DEFAULT_TIME_JSON, isDefault: true))
+        let tableB = try repo.insertTable(TimeTableEntity(
+            name: "Beta", startDate: "2026-11-02", maxWeek: 16,
+            timeJson: TimeTableUtils.DEFAULT_TIME_JSON, isDefault: false))
+        try repo.insertCourse(CourseEntity(
+            groupId: "gAlpha", tableId: tableA, courseName: "AlphaMath",
+            day: 1, startNode: 1, step: 2, startWeek: 1, endWeek: 16, color: "blue"))
+        try repo.insertCourse(CourseEntity(
+            groupId: "gBeta", tableId: tableB, courseName: "BetaPhysics",
+            day: 1, startNode: 3, step: 2, startWeek: 1, endWeek: 16, color: "green"))
+
+        for kind in ["TodayWidgetRV", "TwoDayWidgetRV", "WeekListWidgetRV",
+                     "WeekGridWidgetV19", WeekGridWideMode.vertical.widgetKind] {
+            WidgetBindingStore.put(kind, tableId: tableA)
+        }
+
+        let monday = try XCTUnwrap(DateUtils.isoCalendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 9, hour: 7)))
+
+        let defaultToday = await TodayWidgetLoader.loadData(kind: "TodayWidgetRV", now: monday, repository: repo)
+        let overrideToday = await TodayWidgetLoader.loadData(kind: "TodayWidgetRV", now: monday,
+                                                             overrideTableId: tableB, repository: repo)
+        let deletedFallbackToday = await TodayWidgetLoader.loadData(kind: "TodayWidgetRV", now: monday,
+                                                                    overrideTableId: 999_999, repository: repo)
+        XCTAssertEqual(defaultToday.courses.map(\.courseName), ["AlphaMath"])
+        XCTAssertEqual(overrideToday.courses.map(\.courseName), ["BetaPhysics"])
+        XCTAssertEqual(deletedFallbackToday.courses.map(\.courseName), ["AlphaMath"])
+
+        let overrideTwoDay = await TwoDayWidgetDataLoader.loadData(kind: "TwoDayWidgetRV", now: monday,
+                                                                   overrideTableId: tableB, repository: repo)
+        let overrideWeekList = await WeekListWidgetDataLoader.loadData(kind: "WeekListWidgetRV", now: monday,
+                                                                       overrideTableId: tableB, repository: repo)
+        let overrideWeekGrid = await WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19", now: monday,
+                                                                       overrideTableId: tableB, repository: repo)
+        let overrideWide = await WeekGridWideDataLoader.load(kind: WeekGridWideMode.vertical.widgetKind, now: monday,
+                                                             overrideTableId: tableB, repository: repo)
+
+        XCTAssertEqual(overrideTwoDay.days.first?.courses.map(\.courseName), ["BetaPhysics"])
+        XCTAssertEqual(overrideWeekList.days.first?.courses.map(\.courseName), ["BetaPhysics"])
+        XCTAssertEqual(overrideWeekGrid.days.first?.courses.map(\.courseName), ["BetaPhysics"])
+        XCTAssertEqual(overrideWide.days.first?.courses.map(\.courseName), ["BetaPhysics"])
+    }
+
+    func testTodayNavDeepLinkShiftsResetsAndIsolatesKeys() throws {
+        let baseKey = "WidgetSemanticsNavBase"
+        let secondaryKey = TodayDateNavStore.widgetKey(kind: baseKey, tableId: 42)
+        defer {
+            TodayDateNavStore.remove(baseKey)
+            TodayDateNavStore.remove(secondaryKey)
+        }
+        TodayDateNavStore.remove(baseKey)
+        TodayDateNavStore.remove(secondaryKey)
+
+        let today = try XCTUnwrap(DateUtils.isoCalendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 9, hour: 9)))
+        XCTAssertNil(TodayDateNavStore.applyDeepLink(URL(string: "sleepy://open")!, now: today))
+        XCTAssertNil(TodayDateNavStore.applyDeepLink(URL(string: "sleepy://today-nav")!, now: today))
+
+        let nextURL = TodayDateNavStore.navURL(delta: 1, widgetKey: baseKey)
+        XCTAssertEqual(TodayDateNavStore.applyDeepLink(nextURL, now: today), baseKey)
+        XCTAssertTrue(TodayDateNavStore.hasNavigation(baseKey))
+        XCTAssertFalse(TodayDateNavStore.hasNavigation(secondaryKey))
+        XCTAssertEqual(Calendar.epochDay(TodayDateNavStore.target(baseKey, today)),
+                       Calendar.epochDay(today) + 1)
+
+        let prevURL = TodayDateNavStore.navURL(delta: -2, widgetKey: secondaryKey)
+        XCTAssertEqual(TodayDateNavStore.applyDeepLink(prevURL, now: today), secondaryKey)
+        XCTAssertEqual(Calendar.epochDay(TodayDateNavStore.target(baseKey, today)),
+                       Calendar.epochDay(today) + 1)
+        XCTAssertEqual(Calendar.epochDay(TodayDateNavStore.target(secondaryKey, today)),
+                       Calendar.epochDay(today) - 2)
+
+        let resetURL = TodayDateNavStore.navURL(delta: 0, widgetKey: baseKey)
+        XCTAssertEqual(TodayDateNavStore.applyDeepLink(resetURL, now: today), baseKey)
+        XCTAssertFalse(TodayDateNavStore.hasNavigation(baseKey))
+        XCTAssertTrue(TodayDateNavStore.hasNavigation(secondaryKey))
+        XCTAssertEqual(Calendar.epochDay(TodayDateNavStore.target(baseKey, today)),
+                       Calendar.epochDay(today))
     }
 }

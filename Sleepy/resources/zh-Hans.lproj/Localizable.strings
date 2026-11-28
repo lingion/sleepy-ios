@@ -25,14 +25,10 @@
 "table_created_at" = "导入于 %1$@";
 "schedule_undo_none" = "没有可撤回的操作";
 "schedule_no_course_today" = "今天没有课哦";
-"import_title" = "导入课表";
 "manage_current_table" = "当前课表";
 "manage_import" = "导入课表";
-"manage_import_sub" = "从文件 / 文本 / CSV 导入课表";
 "manage_new_table" = "新建课表";
-"manage_new_table_sub" = "创建一张空白课表，手动添加课程";
 "manage_edit_current" = "编辑当前课表";
-"manage_edit_current_sub" = "编辑当前课表名称、日期、节次时间";
 "manage_export" = "导出当前课表";
 "manage_export_sub" = "以文件分享当前课表";
 "manage_manual_add" = "添加课程";
@@ -46,7 +42,6 @@
 "edit_table_basic_info" = "基础信息";
 "edit_table_name" = "课表名称";
 "edit_table_start_date" = "学期开始日期";
-"edit_table_start_date_hint" = "例如 2026-02-24";
 "edit_table_max_week" = "总周数";
 "edit_table_time_slots" = "作息表";
 "edit_table_delete" = "删除课表";
@@ -59,7 +54,6 @@
 "import_paste" = "粘贴课表文本";
 "import_paste_hint" = "粘贴课表文本…";
 "import_file" = "从文件导入";
-"import_qr" = "扫码导入";
 "import_jw" = "教务直连";
 "import_manual" = "手动添加";
 "import_success" = "导入成功";
@@ -92,10 +86,7 @@
 "import_confirm" = "确认导入";
 "import_all_conflict" = "没有可追加课程，全部与现有课表冲突";
 "import_content_empty" = "内容为空";
-"import_select_table" = "请先选择课表";
 "read_failed" = "读取失败: %1$@";
-"cannot_read_file" = "无法读取文件";
-"import_preview_sub" = "先预览，再导入，不让课表被一把覆盖";
 "format_wakeup_share" = "WakeUp 分享文本";
 "format_wakeup_desc" = "【来自WakeUp课程表】开头";
 "format_wakeup_json" = "WakeUp JSON";
@@ -118,8 +109,6 @@
 "collapse" = "点击收起";
 "n_periods" = "%1$d 节课";
 "course_detail_title" = "课程详情";
-"course_detail_edit" = "编辑";
-"course_detail_delete" = "删除";
 "course_detail_edit_course" = "编辑这节课";
 "conflict_default_top_title" = "选择默认置顶课程";
 "course_field_name" = "课程";
@@ -127,7 +116,6 @@
 "course_field_room" = "地点";
 "course_field_note" = "备注";
 "course_field_week" = "时间";
-"course_field_color" = "颜色";
 "edit_course" = "编辑课程";
 "create_course" = "手动创建课程";
 "course_basic_info" = "课程基础信息";
@@ -154,15 +142,11 @@
 "step_count" = "连上几节";
 "start_time" = "开始时间";
 "end_time" = "结束时间";
-"mode_by_node" = "按节次";
-"mode_by_time" = "按时间";
 "course_name_empty" = "课程名不能为空";
 "week_must_be_positive" = "周次必须大于 0";
 "slot_at_least_one_day" = "时段 %1$d 至少选择一天";
 "slot_start_node_positive" = "时段 %1$d 的开始节必须大于 0";
 "slot_step_positive" = "时段 %1$d 的连上节数必须大于 0";
-"slot_time_format" = "时段 %1$d 的开始/结束时间格式应为 HH:mm";
-"slot_time_order" = "时段 %1$d 的开始时间必须早于结束时间";
 "slot_time_overlap" = "时段 %1$d 与时段 %2$d 在 %3$@ 存在时间重叠";
 "fix_issues_first" = "请先修正这些问题";
 "more_unexpanded" = "还有 %1$d 条未展开";
@@ -180,8 +164,6 @@
 "conflict_detail_line" = "%1$@：第 %2$@ 节，%3$@，与「%4$@」冲突";
 "create_course_btn" = "创建课程";
 "selected_days" = "已选：%1$@";
-"time_format_hint" = "格式 HH:mm";
-"mine_title" = "我的";
 "mine_subtitle" = "管理你的课表与设置";
 "mine_refresh_widgets" = "刷新所有小组件";
 "mine_refresh_widgets_done" = "已刷新全部小组件";
@@ -199,61 +181,42 @@
 "export_xiaoai_title" = "小爱课程表";
 "export_xiaoai_subtitle" = "本地准备课表后交给小爱 App 预览并导入";
 "export_xiaoai_invalid" = "课表超出小爱支持范围或时间表无效，请检查周次、日期及节次设置";
+"export_xiaoai_missing_period_time" = "“%1$@”用到第 %2$d 节，但作息表未设置该节时间。请补全作息表或核对课程节次后重试";
 "export_xiaoai_empty" = "当前课表没有课程，无法导出";
 "export_xiaoai_not_installed" = "未检测到小爱，请先安装小爱 App（含小爱课程表）";
 "export_xiaoai_launched" = "已跳转小爱课程表，请在预览页确认导入";
 "export_ics_title" = "ICS 日历";
 "export_ics_subtitle" = "标准 iCalendar 格式，可导入系统日历 / Google / Apple Calendar";
-"export_share_chooser" = "分享课表";
 "export_saved_to" = "已保存到 Download/Sleepy/%1$@";
 "export_copied_hint" = "已调起分享面板";
 "export_failed" = "导出失败，请重试";
 "mine_stat_tables" = "课表数";
 "mine_stat_courses" = "课程数";
-"mine_stat_week" = "当前周";
 "mine_stat_period_tables" = "作息表数";
 "settings_language" = "语言 / Language";
 "settings_display_mode" = "课程时间显示";
 "settings_grid_sub_info" = "网格卡片副信息";
 "settings_grid_sub_room" = "教室";
-"settings_grid_sub_room_sub" = "课程名下方显示上课地点（无教室则不显示）";
 "settings_grid_sub_teacher" = "教师";
-"settings_grid_sub_teacher_sub" = "课程名下方显示授课教师（无教师则不显示）";
 "settings_grid_sub_none" = "无";
-"settings_grid_sub_none_sub" = "网格卡片只显示课程名";
 "settings_display_node" = "节次";
-"settings_display_node_sub" = "所有课程显示为「第N节」";
 "settings_display_time" = "时间";
-"settings_display_time_sub" = "所有课程显示为「HH:mm–HH:mm」";
-"settings_show_date" = "课表显示日期";
-"settings_show_date_sub" = "在每列表头显示具体日期（月/日）";
 "settings_visible_days" = "显示星期";
 "settings_visible_days_sub" = "取消勾选的星期将在课表页和小组件中隐藏";
-"settings_start_view" = "启动默认视图";
 "settings_start_view_full" = "周视图";
 "settings_start_view_cards" = "网格";
-"settings_vert_punct" = "竖排标点优化";
 "settings_vert_punct_sub" = "网格小组件课名竖排时将（）《》等横排符号替换为专用竖排符号（实验功能）";
-"settings_widget" = "小组件设置";
 "settings_widget_colorless" = "小组件统一课程底色";
 "settings_widget_colorless_sub" = "仅将带课程背景的小组件课程统一为中性底色；纯文字周视图不受影响，自定义颜色课程不受影响";
-"settings_course_colorless" = "课程胶囊统一底色";
-"settings_course_colorless_sub" = "仅将 App 内课程胶囊统一为中性底色；小组件设置不受影响，自定义颜色课程不受影响";
 "settings_conflict_style" = "冲突课程样式";
 "settings_conflict_stack" = "叠层偏移";
-"settings_conflict_stack_sub" = "冲突课程层叠错位，下层课程露出边角";
 "settings_conflict_fold" = "折角揭示";
-"settings_conflict_fold_sub" = "卡片右上折角，提示该格还有下层课程";
 "settings_conflict_rail" = "侧边竖轨";
-"settings_conflict_rail_sub" = "右侧色轨并排展示冲突课程，课名竖排";
 "settings_conflict_stack_inset" = "叠层偏移量";
 "settings_conflict_rail_inset" = "右缘让宽";
 "settings_conflict_fold_size" = "折角幅度";
-"settings_conflict_fold_size_sub" = "折角符号的大小，拖动同步调整视觉与点按区域";
 "settings_widget_separator" = "周视图分隔线";
 "settings_widget_separator_sub" = "纯文字周视图中课程名之间是否显示分隔线";
-"settings_section_display" = "画面";
-"settings_high_refresh" = "高刷新率";
 "settings_nav_style" = "底栏样式";
 "settings_nav_style_docked" = "贴底";
 "settings_nav_style_floating" = "悬浮";
@@ -273,7 +236,6 @@
 "action_settings" = "设置";
 "confirm_delete" = "确认删除";
 "no_course" = "无课";
-"n_courses" = "%1$d 门";
 "action_close" = "关闭";
 "widget_create_schedule" = "请先创建课表";
 "widget_open_sleepy" = "打开 Sleepy 开始添加";
@@ -282,24 +244,12 @@
 "n_course_periods" = "%1$d 节课程";
 "course_node_format" = "第%1$@节";
 "course_period_range" = "%1$d-%2$d节";
-"jw_no_url" = "该学校暂未配置教务 URL";
-"jw_pending_title" = "该学校暂未实现教务导入";
-"jw_pending_msg" = "%1$@ 的教务系统未在 Sleepy 适配列表中。\n\n你可以：\n1. 点击「申请适配」提交给开发者\n2. 点击「手动输入 URL」在 WebView 打开并登录\n3. 暂用 HTML / CSV 文件导入，或手动添加课程";
-"jw_pending_supported" = "已支持";
 "jw_pending_pending" = "待适配";
 "jw_pending_grad" = "研究生";
 "jw_pending_legacy" = "旧版";
-"jw_pending_apply" = "申请适配";
-"jw_pending_input_url" = "手动输入 URL";
-"jw_pending_use_html" = "用 HTML 文件导入";
-"jw_pending_use_csv" = "用 CSV 文件导入";
-"jw_pending_manual" = "手动添加课程";
 "jw_pending_close" = "关闭";
-"school_count_supported" = "已支持 %1$d";
-"school_count_total" = "共 %1$d 所";
 "school_pinyin_hint" = "支持拼音首字母 / 学校英文简称 (如 hrbeu)";
 "jw_parse_empty" = "解析结果为空，请确认已到达「个人课表」页（而非首页/登录页）";
-"jw_import_success" = "成功导入 %1$d 门课程";
 "jw_parse_failed" = "解析失败：%1$@";
 "jw_parse_failed_hint" = "\n\n提示：HEU 需在浏览器中登录后导航到『个人课表』页面再点导入";
 "jw_webview_not_ready" = "WebView 未就绪";
@@ -312,7 +262,6 @@
 "jw_nav_hint" = "导航到「个人课表」页，再点右侧按钮";
 "jw_import_page" = "导入此页";
 "select_school" = "选择学校";
-"search_school" = "搜索学校…";
 "search_school_url" = "搜索学校或输入教务系统 URL…";
 "loading" = "加载中…";
 "no_school_found" = "未找到匹配的学校";
@@ -327,10 +276,7 @@
 "end_label" = "结束";
 "delete_period" = "删除此节";
 "mine_about" = "关于";
-"mine_about_body" = "Sleepy 课程表 v%1$@\n\n一个极简、干净、本地优先的课表工具。\n所有数据均存储在你的设备上，不上传任何服务器。\n\n· 无广告\n· 无追踪\n· 支持 WakeUp / ICS / CSV / HTML / 纯文本 导入";
 "date_long_format" = "%1$d月%2$d日";
-"notif_title" = "今日课程 — %1$@ %2$@";
-"notif_text" = "点击查看今日课程安排";
 "reminder_title" = "提醒";
 "reminder_master_title" = "开启提醒";
 "reminder_master_sub" = "允许 Sleepy 发送课程通知";
@@ -344,41 +290,20 @@
 "reminder_before_minutes_unit" = "分钟";
 "reminder_before_class_preview" = "示例：下节课 高等数学 于 08:00 在 教学楼A101 上课";
 "reminder_fluid_title" = "流体云 / 超级岛";
-"reminder_mode_label" = "提醒形态";
 "reminder_mode_banner" = "横幅";
-"reminder_mode_fluid" = "实况活动（灵动岛）";
 "reminder_mode_banner_sub" = "系统通知栏普通横幅,可手动划掉;手环/手表同步不受影响";
-"reminder_mode_fluid_sub" = "按课前提前时间和各课表提醒开关显示课程。Sleepy 在前台时会更新、切课和结束卡片。退到后台后已有倒计时可继续，但无法保证新卡片、课程切换或下课后自动移除；再次打开应用即可刷新。需要 iOS 16.1+，系统实况活动权限与通知权限独立。";
-"reminder_fluid_fields" = "胶囊主显示内容";
-"reminder_fluid_fields_hint" = "选择一个主显示内容";
-"reminder_fluid_field_name" = "课程名称";
-"reminder_fluid_field_time" = "上课时间";
-"reminder_fluid_field_room" = "上课地点";
-"reminder_fluid_field_teacher" = "任课老师";
-"reminder_fluid_note" = "按课前提前时间和各课表提醒开关显示课程。Sleepy 在前台时会更新、切课和结束卡片。退到后台后已有倒计时可继续，但无法保证新卡片、课程切换或下课后自动移除；再次打开应用即可刷新。需要 iOS 16.1+，系统实况活动权限与通知权限独立。";
 "reminder_notif_denied_title" = "通知权限已被拒绝";
 "reminder_notif_denied_sub" = "iOS 不会再次弹出授权请求，请前往系统设置手动开启通知。";
 "reminder_pick_time" = "选择提醒时间";
 "action_confirm" = "确定";
 "action_cancel" = "取消";
-"notif_channel_daily" = "每日课程提醒";
-"notif_channel_daily_desc" = "每天在指定时间推送今日课程摘要";
-"notif_channel_before_class" = "课前提醒";
-"notif_channel_before_class_desc" = "每节课开始前推送下节课信息";
-"notif_channel_fluid" = "流体云 / 超级岛";
-"notif_channel_fluid_desc" = "课前显示可展开的课程实时卡片";
 "notif_daily_title" = "今天有 %1$d 次课";
-"notif_daily_text_first" = "第一节课 %1$@ 于 %2$@ 在 %3$@ 上课";
 "notif_daily_title_no_course" = "今天没有课";
 "notif_daily_text_no_course" = "好好休息，享受一天！";
-"notif_before_class_title" = "课前提醒";
-"notif_before_class_text" = "下节课 %1$@ 于 %2$@ 在 %3$@ 上课";
-"notif_before_class_text_with_teacher" = "下节课 %1$@ 于 %2$@ 在 %3$@ 上课，老师：%4$@";
 "notif_room_unknown" = "未知教室";
 "about_title" = "关于";
 "about_version" = "版本信息";
 "about_version_detail" = "版本 %1$@（构建 %2$d）";
-"semester_out_of_range" = "当前不在学期范围内";
 "about_author" = "作者";
 "about_author_name" = "Lingion";
 "about_source" = "开源地址";
@@ -403,7 +328,6 @@
 "new_course" = "新课程";
 "jw_import_title" = "教务导入 - %1$@";
 "month_day_format" = "%1$d月%2$d日";
-"section_short" = "%1$d";
 "day_short_1" = "一";
 "day_short_2" = "二";
 "day_short_3" = "三";
@@ -411,8 +335,6 @@
 "day_short_5" = "五";
 "day_short_6" = "六";
 "day_short_7" = "日";
-"section_node_format" = "第%1$d-%2$d节";
-"section_single" = "第%1$d 节";
 "mine_appearance" = "外观与主题";
 "mine_general" = "通用";
 "theme_appearance" = "外观";
@@ -420,8 +342,6 @@
 "theme_mode_light" = "浅色";
 "theme_mode_dark" = "深色";
 "appearance_section_theme" = "主题色彩";
-"appearance_section_display" = "课程显示";
-"appearance_section_widget" = "小组件";
 "course_color_uniform" = "统一底色";
 "edit_period_input" = "输入";
 "edit_period_duration_label" = "每节时长";
@@ -444,15 +364,12 @@
 "mode_auto" = "自动模式";
 "label_from" = "自";
 "schedule_jump_week" = "跳转到周次";
-"schedule_jump_current" = "跳回当前周";
 "schedule_empty_name" = "「%1$@」还是空的";
 "schedule_empty_name_hint" = "往这张课表里加课，或导入新的课表";
 "course_count_format" = "%1$d 门";
 "today_suffix" = " · 今天";
 "no_course_today" = " · 无课程";
 "default_course_name" = "课程";
-"default_room" = "上课地点";
-"error_unknown" = "未知错误";
 "array_day_names_0" = "周一";
 "array_day_names_1" = "周二";
 "array_day_names_2" = "周三";
@@ -530,8 +447,6 @@
 
 "settings_holiday_holiday" = "法定节假日课程灰显";
 "settings_holiday_holiday_sub" = "法定节假日（如国庆、春节）当天的课程显示为灰色";
-"settings_holiday_entry_sub" = "设置灰显规则，查看节假日和补班日数据";
-"holiday_page_title" = "节假日与补班日";
 "holiday_data_source" = "数据源";
 "holiday_source_label" = "unpkg.com/holiday-calendar · CN";
 "holiday_data_failed" = "节假日和补班日数据获取失败，请检查网络后重试";
@@ -543,13 +458,11 @@
 "holiday_list_holidays" = "法定节假日";
 "holiday_list_workdays" = "补班日";
 "holiday_workday_badge" = "补班";
-"settings_holiday_title" = "节假日课程灰显";
 "settings_holiday_weekend" = "周末课程灰显";
 "settings_holiday_weekend_sub" = "自动将周六、周日的课程显示为灰色";
 "settings_holiday_style" = "灰显样式";
 "settings_holiday_style_grey" = "灰色";
 "settings_holiday_style_strikethrough" = "灰色加删除线";
-"settings_holiday_workday" = "忽略补班日";
 "settings_holiday_workday_sub" = "开启周末灰显时，补班的周六、周日不灰显";
 "holiday_edit_title" = "编辑自定义日期";
 "holiday_add_title" = "添加自定义日期";
@@ -562,9 +475,7 @@
 "holiday_delete_range" = "删除";
 "holiday_type_holiday" = "法定节假日";
 "holiday_type_workday" = "补班日";
-"holiday_custom_badge" = "自定义";
 "holiday_add_entry" = "添加自定义日期";
-"settings_holiday_style_sub" = "选择灰显课程的样子";
 "about_license_detail" = "开源许可与致谢";
 "license_page_title" = "开源许可与致谢";
 "license_gpl_section" = "许可证";
@@ -575,40 +486,21 @@
 "license_perschool_section" = "按学校致谢";
 "change_group_color" = "改组色";
 "color_auto" = "自动";
-"color_custom" = "自定义";
-"color_follow_group" = "跟随组色";
-"color_refresh" = "换自动色";
-"color_toast_last_group" = "最后一节将跟随组色";
-"color_use_different" = "使用不同颜色";
-"custom_duration_section_sub" = "这门课的开始/结束时间与课表默认节次不一致";
-"custom_duration_section_title" = "非标准时长";
-"edge_add_after" = "+ 后加一个";
-"edge_add_before" = "+ 前加一个";
-"edge_dropdown_label" = "选择课表外节次";
-"edge_insert_dialog_title" = "添加课表外节次";
 "edge_insert_end_label" = "结束时间";
 "edge_insert_ok" = "添加";
 "edge_insert_start_label" = "起始时间";
-"edge_no_nodes" = "当前没有课表外节次";
 "edge_node_label" = "第 %1$d 节";
 "edge_node_range" = "%1$@ – %2$@";
-"edge_section_sub" = "在标准节次之外额外加一节（第 0 节 / 第 N+1 节 / 第 -1 节 / …）";
-"edge_section_title" = "课表外节次";
 "import_multi_location_warning" = "部分课程存在多个上课地点";
 "import_multi_location_warning_detail" = "「%1$@」有 %2$d 个不同上课地点,导入后会作为独立节次展示";
-"irregular_at_least_one" = "非常规课程至少启用「课表外节次」或「非标准时长」其中一项";
-"irregular_switch" = "非常规";
-"irregular_switch_sub" = "课表外节次 · 非标准时长";
 "widget_edit_default_label" = "默认（跟随当前课表）";
 "widget_edit_section_schedule" = "呈现的课表";
 "widget_edit_title" = "编辑小组件";
-"widget_manage_empty" = "暂未在桌面添加 Sleepy 小组件。长按桌面空白处 → 小组件 → 选 Sleepy 即可添加。";
 "widget_manage_entry" = "管理桌面小组件";
 "widget_manage_title" = "管理桌面小组件";
 
 /* sleepy-v1 对齐补齐 (iOS native) */
 "course_alias" = "别名 (可选)";
-"exit_press_back_again" = "再按一次返回退出";
 "export_native_subtitle" = "完整备份·体积最小·推荐迁移分享";
 "export_native_title" = "Sleepy 原生格式";
 "import_three_layers_dropped" = "以下日期存在超过两层的冲突课程，已跳过：%1$@";
@@ -653,11 +545,9 @@
 "settings_grid_alias" = "网格视图显示别名";
 "settings_name_alias" = "别名";
 "settings_name_original" = "原名";
-"settings_pill" = "主页显示设置";
 "settings_pill_corner" = "卡片圆角";
 "settings_pill_scale" = "网格视图缩放";
 "settings_pill_week_scale" = "周视图缩放";
-"settings_start_view_sub" = "仅影响启动时进入的视图，随时可在课表页顶部切换";
 "settings_week_alias" = "周视图显示别名";
 "settings_week_hide_empty" = "周视图隐藏无课日";
 "settings_week_two_column" = "周视图两栏显示";
@@ -733,15 +623,9 @@
 "appearance_header_layout" = "布局";
 "appearance_header_preview" = "实时预览";
 "appearance_header_show_x" = "显示“第 X 节”";
-"appearance_header_style" = "节次样式";
-"appearance_home_style" = "主页样式";
-"appearance_layout_horizontal" = "横排布局";
 "appearance_layout_legacy" = "旧式表头";
-"appearance_layout_legacy_sub" = "保持原有的节次与时间显示方式";
 "appearance_layout_three_line" = "三行表头";
-"appearance_layout_vertical" = "竖排布局";
 "appearance_period_header" = "节次表头";
-"appearance_section_schedule_display" = "课表显示";
 "calendar_alarm_disclaimer" = "实验性：日程写入成功不代表闹钟一定响铃，效果取决于系统日历与账户。重要课程请在日历中检查。";
 "calendar_alarm_mark" = "尝试闹钟";
 "calendar_alarm_minutes_before" = "第 1 节提前分钟";
@@ -758,7 +642,6 @@
 "calendar_final_import_action" = "添加课程";
 "calendar_first_period_alarm" = "第 1 节课程尝试使用闹钟提醒";
 "calendar_first_period_scope" = "仅当天确有第 1 节课程时设置；若第 1 节无课，即使稍后有课也不会设置此闹钟。";
-"calendar_import_loading" = "正在读取所选课表…";
 "calendar_import_subtitle" = "选择日历与课程范围，预览后添加";
 "calendar_import_title" = "添加到系统日历";
 "calendar_invalid_skipped" = "另有 %lld 条课程因时间无效将跳过";
@@ -766,9 +649,7 @@
 "calendar_more_rows" = "另有 %lld 条";
 "calendar_no_writable_calendar" = "没有找到可写入的日历。请先在系统日历中启用一个账户或本地日历。";
 "calendar_normal_reminder" = "为课程添加普通日历提醒";
-"calendar_permission_action" = "授权并继续";
 "calendar_permission_denied" = "日历权限未授予，无法列出或写入日历。";
-"calendar_permission_explanation" = "Sleepy 需要读取可写日历列表，并将你选定的课程写入所选日历。权限只在你使用此功能时申请。";
 "calendar_preview_action" = "生成导入预览";
 "calendar_preview_count" = "将添加 %lld 条课程";
 "calendar_range_label" = "导入范围";
@@ -783,7 +664,6 @@
 "course_group_color" = "组色";
 "course_list_arrangements" = "%lld个上课安排";
 "course_list_empty" = "当前课表还没有课程";
-"course_list_subtitle" = "当前课表的全部课程";
 "course_list_title" = "课程清单";
 "custom_url_entry" = "自定义教务链接";
 "custom_url_entry_hint" = "学校不在列表？粘贴教务系统网址直接导入";
@@ -791,17 +671,12 @@
 "duration_min_one_period" = "至少 1 节才能分配课程时长";
 "duration_period_n" = "%lld 分钟 %@";
 "edit_table_period_loading" = "作息表数据尚未加载完成，请稍候重试";
-"fluid_coloros_capsule" = "%lld 分钟后";
-"fluid_coloros_capsule_compact" = "%@·%lld分";
-"fluid_coloros_countdown" = "%lld 分钟后上课";
 "holiday_makeup_no_table" = "请先创建课表，再设置调休";
 "holiday_makeup_subtitle" = "每张课表单独设置。未设置的放假日按当天星期取课，不会替你猜。";
 "holiday_makeup_title" = "调休日按哪天上课";
 "holiday_makeup_unset" = "无";
 "holiday_mapping_explanation" = "未配置的法定节假日仍按法定节假日处理；映射仅对当前课表生效，补班日以数据为准。映射会影响课程来源和四种提醒路径（每日摘要、课前提醒、流体云、自动勿扰）。普通用户无需设置，除非学校有特殊安排。";
 "holiday_transfer_clear" = "清除";
-"holiday_transfer_edit_segment" = "编辑本假期段";
-"holiday_transfer_editable_segments_title" = "可编辑假期段";
 "holiday_transfer_orphan_hint" = "对应的放假日已不存在（改年份或删除假期段后残留），可手动清除。";
 "holiday_transfer_orphan_title" = "失效的映射";
 "holiday_transfer_pick_other" = "其他日期…";
@@ -839,20 +714,16 @@
 "jw_url_invalid" = "请输入有效的 HTTP 或 HTTPS 网址";
 "jw_url_submit" = "访问网址";
 "long_duration" = "长课时";
-"manage_new_period_table" = "新建作息表";
-"manage_new_period_table_sub" = "创建一张空白作息表，供多张课表共用";
 "manage_view_all_tables" = "查看全部";
 "mine_period_tables" = "作息表";
 "notif_tomorrow_text_no_course" = "明日无课,好好休息!";
 "notif_tomorrow_title" = "明天有 %1$d 次课";
 "notif_tomorrow_title_no_course" = "明天没有课";
-"period_table_bind_label" = "作息表";
 "period_table_bind_preview_body" = "切换后本课表按新作息表解释节次；自定义时间的课程不受影响";
 "period_table_bind_preview_title" = "换绑确认";
 "period_table_bound_count" = "已绑定 %lld 张课表";
 "period_table_copy" = "复制作息表";
 "period_table_copy_dialog_title" = "复制作息表";
-"period_table_delete_blocked" = "该作息表仍被 %lld 张课表绑定，请先改绑";
 "period_table_delete_confirm" = "删除作息表";
 "period_table_delete_msg_body" = "确定要删除作息表「%@」吗？";
 "period_table_import_body" = "检测到输入仅包含作息表内容，将只创建一张作息表。";
@@ -885,7 +756,6 @@
 "reminder_daily_today_toggle_title" = "今日摘要";
 "reminder_date_rules_advanced_button" = "打开节假日调休设置";
 "reminder_date_rules_advanced_subtitle" = "仅在开启时生效。映射按当前课表区分，周末不等于法定节假日，并影响四类提醒。";
-"reminder_date_rules_advanced_title" = "节假日调休高级设置";
 "reminder_date_rules_inactive" = "当前未生效。关闭时所有日期照常提醒，子选项会保留。";
 "reminder_date_rules_makeup_workday" = "补班日提醒";
 "reminder_date_rules_ordinary_weekend" = "普通周末提醒";
@@ -893,19 +763,6 @@
 "reminder_date_rules_subtitle" = "关闭时所有日期照常发送提醒；开启后可分别设置日期类型，同时影响每日摘要、课前提醒、流体云提醒和上课自动勿扰。";
 "reminder_date_rules_title" = "按日期设置提醒";
 "reminder_date_rules_transfer_holiday" = "调休放假日提醒";
-"reminder_experimental_tag" = "实验";
-"reminder_fluid_field_countdown" = "倒计时";
-"reminder_fluid_go_to_settings" = "去设置";
-"reminder_fluid_status_enabled" = "已开启流体云 / 超级岛授权";
-"reminder_fluid_status_not_supported" = "当前设备系统不支持流体云 / 超级岛";
-"reminder_fluid_status_notification_required" = "需要通知权限才能开启此功能";
-"reminder_fluid_status_settings_required" = "需要先在系统设置中开启流体云 / 超级岛授权";
-"reminder_fluid_status_title" = "流体云 / 超级岛状态";
-"reminder_fluid_status_unknown" = "无法直接读取流体云 / 超级岛的授权状态。点击下方按钮跳转到通知设置，确认系统权限。";
-"reminder_fluid_test_button" = "流体云测试";
-"reminder_fluid_test_course" = "测试课程";
-"reminder_fluid_test_room" = "测试地点";
-"reminder_fluid_test_started" = "流体云测试已发送, 查看通知栏顶部卡片";
 "reminder_preview_date" = "%@（%@）";
 "reminder_preview_teacher" = "，老师：%@";
 "reminder_preview_today_date" = "今日 %@（%@）";
@@ -914,14 +771,8 @@
 "reminder_reliability_degraded" = "降级运行";
 "reminder_reliability_exact_alarm" = "精确提醒：%@";
 "reminder_reliability_missing" = "未满足";
-"reminder_reliability_not_applicable" = "系统不适用";
 "reminder_reliability_notification" = "通知权限：%@";
-"reminder_reliability_promoted" = "系统实时更新授权：%@";
 "reminder_reliability_ready" = "已满足";
-"reminder_reliability_title" = "后台可靠性";
-"reminder_reliability_unknown" = "未知";
-"reminder_reliability_vendor" = "厂商实时卡片：%@";
-"reminder_reliability_widget" = "桌面小组件：%@";
 "reminder_tomorrow_preview" = "示例：明日 16 号 您有 3 节课 第一节课 高等数学 于 08:00 在 教学楼A101 上课";
 "reminder_tomorrow_time_label" = "明日预告时间";
 "reminder_tomorrow_toggle_sub" = "前一天晚上推送明日课程摘要";
@@ -970,8 +821,6 @@
 "settings_grid_pinch_zoom_sub" = "在课表上用双指上下捏放改变行高；关闭后不可捏放";
 "settings_grid_show_separators" = "显示网格分隔线";
 "settings_grid_show_separators_sub" = "在课表网格中显示额外的行列分隔线";
-"settings_lab" = "实验室";
-"settings_lab_sub" = "实验性功能，默认关闭，可能随版本调整";
 "settings_migration" = "数据迁移";
 "settings_migration_export" = "导出全量迁移配置";
 "settings_migration_export_fail" = "导出失败";
@@ -988,7 +837,6 @@
 "settings_migration_sub" = "打包全部课表、作息、偏好与小组件配置为 .sleepybackup 文件，可在新设备上恢复";
 "settings_nearest_busy_day" = "没课时显示最近有课的一天";
 "settings_nearest_busy_day_sub" = "今天没有剩余课程时，主界面和小组件自动显示最近一个还有课的日子";
-"settings_section_display_navigation" = "画面与导航";
 "settings_show_view_switcher" = "显示周视图/网格视图切换栏";
 "short_duration" = "短课时";
 "slot_summary_period_range" = "第 %lld–%lld 节（共 %lld 节）";
@@ -998,19 +846,10 @@
 "slot_summary_time_range" = "%@–%@";
 "slot_summary_week_range" = "第 %lld–%lld 周";
 "slot_summary_week_single" = "第 %lld 周";
-"today_nav_today_short" = "今天";
 "widget_edit_compact_title" = "三天窗口";
 "widget_edit_compact_today_first" = "今日居于第一位";
 "widget_edit_compact_today_second" = "今日居于第二位";
-"widget_edit_scroll_subtitle" = "默认固定窗口，全部厂商桌面可用；开启后课程超出时可滚动（实验，仅本小组件）";
 "widget_edit_section_scroll" = "滚动方式";
-"widget_footer_more" = "+%lld 节待上";
-"widget_footer_more_short" = "+%lld";
-"widget_scroll_dialog_body" = "滚动依赖系统小组件服务，部分厂商 ROM（小米、vivo 等）上可能空白、卡顿或无法刷新；出现异常请关闭本开关回到固定窗口。";
-"widget_scroll_dialog_cancel" = "取消";
-"widget_scroll_dialog_confirm" = "开启实验";
-"widget_scroll_dialog_title" = "开启强制滚动（实验）？";
-"widget_status_all_done" = "今日课程已结束";
 "widget_today_description" = "显示今天的课程安排";
 "widget_today_small_description" = "以紧凑卡片显示今天的课程";
 "widget_today_wide_description" = "以宽卡片显示今天的课程";
@@ -1031,7 +870,6 @@
 "timeslot_longpress_to_reorder" = "长按整行可上下拖拽排序";
 "timeslot_row_blank_hint" = "空白行可拖到任意位置";
 "timeslot_drop_invalid" = "目标位置不合法，时间顺序不正确";
-"timeslot_drop_success" = "已重排第 %1$d 节到第 %2$d 位";
 "timeslot_reorder_in_progress" = "排序中";
 "timeslot_row_drop_target" = "插入位置";
 
@@ -1048,7 +886,6 @@
 "watch_never_sync" = "尚未同步";
 "watch_resync_now" = "立即同步";
 "watch_settings_reminders_header" = "提醒";
-"watch_settings_readonly_hint" = "提醒开关请在 iPhone 上管理";
 "watch_detail_day" = "星期";
 "watch_synced_ack" = "手表已同步";
 "watch_countdown_title" = "倒计时";
@@ -1067,7 +904,6 @@
 "course_color_seed_label" = "基准色相";
 "course_color_preview" = "预览";
 "course_color_recalc" = "重新编排所有课程配色";
-"course_color_recalc_done" = "已重新编排 %1$d 门课程的配色";
 "jw_catalog_unverified_message" = "此入口和协议尚未在该校验证。你可以先尝试登录，结果可能不完整或无法导入。";
 "jw_catalog_pending_message" = "此学校尚无可尝试的已核实入口。可稍后再试或申请适配。";
 "jw_catalog_try" = "仍要尝试";
@@ -1078,13 +914,10 @@
 "jw_import_report_copy" = "复制报告";
 "jw_import_report_join_qq" = "加入 QQ 群";
 "jw_import_report_done" = "完成";
-"table_reminder_title" = "课表提醒";
 "table_reminder_subtitle" = "选择需要接收提醒的课表";
 "table_reminder_master_off" = "总开关已关闭。可以先设置各课表，开启总开关后生效。";
 "table_reminder_empty" = "还没有课表，请先添加或导入课表。";
 "table_reminder_save_failed" = "保存失败，请重试";
-"edit_table_reminder_enable" = "本表参与提醒";
-"edit_table_reminder_desc" = "关闭后，本课表不再发送课前提醒、每日课表摘要与流体云";
 
 /* ---- sleepy v1.0.62 B4 alignment ---- */
 "appearance_header_hide_time" = "隐藏时间行";
@@ -1102,7 +935,6 @@
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "每日议程";
-"agenda_first" = "首课 %1$@";
 "agenda_more" = "另有 %1$d 次课";
 "agenda_time_unknown" = "时间待定";
 "agenda_count" = "%1$d 次课程 · %2$d 张课表";
@@ -1110,8 +942,6 @@
 "agenda_load_error" = "暂时无法加载议程，请重试";
 "agenda_table_unknown" = "未命名课表";
 "agenda_source_count" = "%1$d 张课表";
-"notif_date_title" = "%1$@ · %2$d 次课";
-"notif_date_no_course" = "%1$@ 没有课";
 "notif_before_class_compact" = "%1$@ 开始 · %2$@";
 "manage_title" = "课表管理";
 "manage_add_table" = "添加课表";
@@ -1121,9 +951,7 @@
 "manage_no_table" = "暂无课表";
 "manage_no_table_hint" = "点击下方“添加课表”导入或创建课表";
 "settings_undo_depth" = "撤回保留步数";
-"settings_undo_depth_sub" = "负数为无限，0 为关闭，正数为保留步数。默认 5。历史仅存于内存，结束进程即清空。";
 "settings_undo_depth_label" = "撤回保留步数输入框";
-"period_table_delete_freeze" = "删除“%@”？已绑定的课表将保留当前作息，并解除绑定。";
 "period_table_delete_failed" = "删除未完成，数据未改动，请刷新后重试。";
 "wakeup_share_import_title" = "导入 WakeUP 分享口令";
 "wakeup_share_import_hint" = "粘贴 WakeUP 分享口令或完整分享文案，联网获取课表后预览。";
@@ -1133,9 +961,7 @@
 "wakeup_share_fetch" = "获取并预览";
 "occurrence_date" = "上课日期";
 "occurrence_fixed_date" = "固定日期（不随调休移动）";
-"occurrence_time" = "本次上课时间";
 "occurrence_end_node" = "结束节次";
-"occurrence_original_nodes" = "原节次：%1$d–%2$d";
 "occurrence_custom_time" = "自定义时间";
 "occurrence_start_time" = "开始 HH:mm";
 "occurrence_end_time" = "结束 HH:mm";
@@ -1151,7 +977,6 @@
 "occurrence_outgoing_message" = "%1$@ · %2$@\n该日课程将调至 %3$@。";
 "occurrence_transfer_day" = "补班日";
 "occurrence_follow_transfer" = "随调休安排";
-"occurrence_keep_date" = "按原日保存";
 "occurrence_continue" = "继续";
 "occurrence_stale" = "课表或调休设置已变化，请重新打开本次课程。";
 "occurrence_invalid_date" = "请选择当前学期内的日期。";
@@ -1255,7 +1080,6 @@
 "widget_size_medium" = "中号";
 "widget_size_large" = "大号";
 
-"table_copy_title" = "复制课表";
 
 "table_copy_duplicate" = "课表名称已存在";
 
@@ -1301,37 +1125,21 @@
 
 "license_recent_source_notice" = "以下为上游 Sleepy Android v1.0.64 的源码、依赖与研究记录；Android 专用依赖及厂商组件属于该版本，调研条目不表示已集成到 iOS。\n\n本项目的液态玻璃源码模块基于 SleepDown课程表 修改；原作者：xiaomanjun233；原项目：https://github.com/xiaomanjun233/SleepDown-Schedule。Sleepy 由本项目维护，修改包括 Android 构建接线、Compose 版本适配及 FLClash 底栏集成。SleepDown 自有内容采用非商业、源码可见许可 1.1；Kyant 原始代码保留 Apache-2.0。FLClash 的 Kotlin 与 AGSL 移植保留 GPL-3.0，Flutter 超椭圆算法移植保留 BSD-3-Clause。许可与第三方声明原文随应用分发。";
 
-"license_recent_sources_title" = "源码移植与素材来源";
 
-"license_recent_sources_body" = "Kyant0/AndroidLiquidGlass\nApache-2.0\nhttps://github.com/Kyant0/AndroidLiquidGlass\n\nchen08209/FlClash\nGPL-3.0\nhttps://github.com/chen08209/FlClash\n\nflutter/flutter\nBSD-3-Clause\nhttps://github.com/flutter/flutter\n\nxiaomanjun233/SleepDown-Schedule\nSleepDown source-available non-commercial 1.1\nhttps://github.com/xiaomanjun233/SleepDown-Schedule\n\nHaoZai000/NexioSchedule\nAGPL-3.0\nhttps://github.com/HaoZai000/NexioSchedule";
 
-"license_recent_libraries_title" = "运行、构建与测试依赖";
 
-"license_recent_libraries_body" = "Kyant0/Shapes\nApache-2.0\nhttps://github.com/Kyant0/Shapes\n\nLunabeeStudio/Lunabee_Compose_Android\nApache-2.0\nhttps://github.com/LunabeeStudio/LBAndroid\n\nmaterial-foundation/material-color-utilities\nApache-2.0\nhttps://github.com/material-foundation/material-color-utilities\n\nJetBrains/kotlin\nApache-2.0\nhttps://github.com/JetBrains/kotlin\n\nKotlin/kotlinx.coroutines\nApache-2.0\nhttps://github.com/Kotlin/kotlinx.coroutines\n\nKotlin/kotlinx.serialization\nApache-2.0\nhttps://github.com/Kotlin/kotlinx.serialization\n\nandroidx/androidx\nApache-2.0\nhttps://github.com/androidx/androidx\n\ngoogle/ksp\nApache-2.0\nhttps://github.com/google/ksp\n\njhy/jsoup\nMIT\nhttps://github.com/jhy/jsoup\n\ncoil-kt/coil\nApache-2.0\nhttps://github.com/coil-kt/coil\n\nNanoHttpd/nanohttpd\nBSD-3-Clause\nhttps://github.com/NanoHttpd/nanohttpd\n\njunit-team/junit4\nEPL-1.0\nhttps://github.com/junit-team/junit4\n\njunit-team/junit5\nEPL-2.0\nhttps://github.com/junit-team/junit-framework\n\nstleary/JSON-java\nPublic Domain\nhttps://github.com/stleary/JSON-java\n\nxerial/sqlite-jdbc\nApache-2.0\nhttps://github.com/xerial/sqlite-jdbc\n\nrobolectric/robolectric\nMIT\nhttps://github.com/robolectric/robolectric\n\nchromedp/chromedp\nMIT\nhttps://github.com/chromedp/chromedp\n\nchromedp/cdproto\nMIT\nhttps://github.com/chromedp/cdproto\n\ngo-json-experiment/json\nBSD-3-Clause\nhttps://github.com/go-json-experiment/json";
 
-"license_recent_data_title" = "日历与地理数据";
 
-"license_recent_data_body" = "zhChuXiao/ChinaGeoJson\nMIT\nhttps://github.com/zhChuXiao/ChinaGeoJson\n\npublicHoliday / holiday-calendar\nMIT (source comment; not independently reverified)\nhttps://gitcode.com/zy-mayong/publicHoliday\n\nDataV administrative boundaries\nData redistribution authorization not confirmed\nhttps://datav.aliyun.com/portal/school/atlas/area_selector\n\nTaiwan county boundaries 1140318\nOpen Government Data License 1.0\nhttps://data.gov.tw/dataset/7442";
 
-"license_recent_design_title" = "设计规范与官方资料";
 
-"license_recent_design_body" = "Apple Liquid Glass design guidance\nOfficial documentation; no code license claimed\nhttps://developer.apple.com/videos/play/wwdc2025/219/\n\nAndroid window blur guidance\nOfficial documentation; no code license claimed\nhttps://source.android.google.cn/docs/core/display/window-blurs\n\nMaterial Design 3 and Compose animation\nOfficial documentation; no code license claimed\nhttps://developer.android.com/develop/ui/compose/animation";
 
-"license_recent_glass_research_title" = "液态玻璃调研";
 
-"license_recent_glass_research_body" = "QWEA0/Liquid-Glass-Android\nMIT\nhttps://github.com/QWEA0/Liquid-Glass-Android\n\nQmDeve/AndroidLiquidGlassView\nMIT\nhttps://github.com/QmDeve/AndroidLiquidGlassView\n\nskydoves/Cloudy\nApache-2.0\nhttps://github.com/skydoves/Cloudy\n\nFletchMcKee/liquid\nApache-2.0\nhttps://github.com/FletchMcKee/liquid\n\nKashif-E/KMPLiquidGlass\nApache-2.0\nhttps://github.com/Kashif-E/KMPLiquidGlass\n\nMortd3kay/liquid-glass-android\nNot verified\nhttps://github.com/Mortd3kay/liquid-glass-android\n\nstyropyr0/Prismal\nMIT\nhttps://github.com/styropyr0/Prismal\n\nanixitea/GlassDock\nNot verified\nhttps://github.com/anixitea/GlassDock\n\nlesnolie/Tigris\nMIT\nhttps://github.com/lesnolie/Tigris\n\nsjtt2/HeyBox-LiquidGlass\nMIT\nhttps://github.com/sjtt2/HeyBox-LiquidGlass\n\nsuqi8/OShin\nAGPL-3.0\nhttps://github.com/suqi8/OShin\n\ntranquilitysmile/pixel_launcher_glass_dock\nNot verified\nhttps://github.com/tranquilitysmile/pixel_launcher_glass_dock\n\ncallstack/liquid-glass\nMIT\nhttps://github.com/callstack/liquid-glass\n\nhimanshu-lal4/react-native-liquid-glassmorphism\nMIT\nhttps://github.com/himanshu-lal4/react-native-liquid-glassmorphism\n\nsssajjad007/react-native-liquid-glass-android\nMIT\nhttps://github.com/sssajjad007/react-native-liquid-glass-android\n\nryohsuke1231/liquid-glass\nMIT\nhttps://github.com/ryohsuke1231/liquid-glass\n\nvladmdgolam/dock-ui\nNot verified\nhttps://github.com/vladmdgolam/dock-ui\n\nsdegenaar/liquid_glass_widgets\nMIT\nhttps://github.com/sdegenaar/liquid_glass_widgets\n\nGuoMie-OvO/liquid-glass-tapper\nApache-2.0\nhttps://github.com/GuoMie-OvO/liquid-glass-tapper\n\nadmin0330/liquid-music-android\nMIT\nhttps://github.com/admin0330/liquid-music-android\n\nchrisbanes/haze\nApache-2.0\nhttps://github.com/chrisbanes/haze";
 
-"license_recent_vendor_title" = "厂商通知与小组件调研";
 
-"license_recent_vendor_body" = "appsfolder/livebridge\nGPL-3.0\nhttps://github.com/appsfolder/livebridge\n\n1812z/HyperIsland\nMIT\nhttps://github.com/1812z/HyperIsland\n\nHMS-Core/hms-push-clientdemo-android\nApache-2.0\nhttps://github.com/HMS-Core/hms-push-clientdemo-android\n\nHMS-Core/hms-pushkit-ohos-demo\nApache-2.0\nhttps://github.com/HMS-Core/hms-pushkit-ohos-demo\n\nD4vidDf/HyperBridge\nApache-2.0\nhttps://github.com/D4vidDf/HyperBridge\n\nabh80/smart-edge\nMIT\nhttps://github.com/abh80/smart-edge\n\ncengiztoru/JetIsland_Dynamic-Island-Jetpack-Compose\nNot verified\nhttps://github.com/cengiztoru/JetIsland_Dynamic-Island-Jetpack-Compose\n\nAngel-Studio/MaterialYou-Dynamic-Island\nNot verified\nhttps://github.com/Angel-Studio/MaterialYou-Dynamic-Island\n\nagupta07505/SmartIsland\nGPL-3.0\nhttps://github.com/agupta07505/SmartIsland\n\nEvanKoe/expressive-cutout\nGPL-3.0\nhttps://github.com/EvanKoe/expressive-cutout\n\nTheSerphh/NothingLand\nMIT\nhttps://github.com/sginit/NothingLand\n\nclearw5/Dynamic-Island.js\nApache-2.0\nhttps://github.com/clearw5/Dynamic-Island.js\n\nNoobDigital/react-native-dynamic-island\nMIT\nhttps://github.com/NoobDigital/react-native-dynamic-island\n\nMarcoZorn/lost-island\nMIT\nhttps://github.com/MarcoZorn/lost-island\n\nHONORDevelopers/suggestionskit-demo\nApache-2.0\nhttps://github.com/HONORDevelopers/suggestionskit-demo\n\nliasica/harmonyos-skills\nMIT\nhttps://github.com/liasica/harmonyos-skills\n\nHMS-Core/hms-push-serverdemo-java\nApache-2.0\nhttps://github.com/HMS-Core/hms-push-serverdemo-java\n\nyonglunyao/harmonyos-docs-fetcher\nNot verified\nhttps://github.com/yonglunyao/harmonyos-docs-fetcher\n\nRuyue-Kinsenka/Flyme-Live-Notification-Demo\nNot verified\nhttps://github.com/Ruyue-Kinsenka/Flyme-Live-Notification-Demo\n\nBryceWG/Pinme\nApache-2.0\nhttps://github.com/BryceWG/Pinme\n\nSoilZhu/ChillEast\nNot verified\nhttps://github.com/SoilZhu/ChillEast\n\nphotometro/guanji-app\nNot verified\nhttps://github.com/photometro/guanji-app\n\nAIXINJUELUOAI/Will-do\nGPL-3.0\nhttps://github.com/AIXINJUELUOAI/Will-do\n\nYXMAX/OrderAgents\nNot verified\nhttps://github.com/YXMAX/OrderAgents\n\nRelianttt/lightxin\nMIT\nhttps://github.com/Relianttt/lightxin\n\nlightStarrr/starSchedule\nApache-2.0\nhttps://github.com/lightStarrr/starSchedule\n\nchuk-development/Besser-Bahn\nWTFPL\nhttps://github.com/chuk-development/Besser-Bahn\n\nMukulBolt9/NowBrief\nNot verified\nhttps://github.com/MukulBolt9/NowBrief\n\nYetAnotherBusDeveloper/yetanotherbusapp\nAGPL-3.0\nhttps://github.com/YetAnotherBusDeveloper/yetanotherbusapp\n\nJoshAtticus/CompressorEdge\nMIT\nhttps://github.com/JoshAtticus/CompressorEdge\n\nMyxoz/SamsungNowbarProxy\nNot verified\nhttps://github.com/Myxoz/SamsungNowbarProxy\n\n488315/samsung_framework\nNot verified\nhttps://github.com/488315/samsung_framework\n\n488315/android_samsung_frameworks_base\nNot verified\nhttps://github.com/488315/android_samsung_frameworks_base\n\ncameleonnbss/originos-toolkit\nMIT\nhttps://github.com/cameleonnbss/originos-toolkit\n\nlladlam/MeloX-Android\nGPL-3.0\nhttps://github.com/lladlam/MeloX-Android\n\nimwangwang/vivo-service\nNot verified\nhttps://github.com/imwangwang/vivo-service\n\nimwangwang/vivo-apps\nNot verified\nhttps://github.com/imwangwang/vivo-apps\n\nfvhde/origin-isle\nNot verified\nhttps://github.com/fvhde/origin-isle\n\ndeath34018-hue/AionsHome\nMIT\nhttps://github.com/death34018-hue/AionsHome\n\nSTAR-10086/ShuiKeBang\nMIT\nhttps://github.com/STAR-10086/ShuiKeBang\n\n2756826865/android-sms-forwarder\nGPL-3.0\nhttps://github.com/2756826865/android-sms-forwarder\n\nD4vidDf/HyperIsland-ToolKit\nApache-2.0\nhttps://github.com/D4vidDf/HyperIsland-ToolKit\n\nMercury000/xiaoaiisland\nNot verified\nhttps://github.com/Mercury000/xiaoaiisland\n\nkmod-midori/WearFocus\nNot verified\nhttps://github.com/kmod-midori/WearFocus\n\nwxxsfxyzm/IslandRecorder\nGPL-3.0\nhttps://github.com/wxxsfxyzm/IslandRecorder\n\nFrancoGiudans/Capsulyric\nGPL-3.0\nhttps://github.com/FrancoGiudans/Capsulyric\n\nC4RL-DANIEL/HyperNotify-Lab\nNot verified\nhttps://github.com/C4RL-DANIEL/HyperNotify-Lab\n\ncxxsheng/TiktokSource\nNot verified\nhttps://github.com/cxxsheng/TiktokSource\n\nmeltingscales/com.snapchat.android\nNot verified\nhttps://github.com/meltingscales/com.snapchat.android\n\nDroidDumps/oplus_ossi_dump\nNot verified\nhttps://github.com/DroidDumps/oplus_ossi_dump\n\nOPPO-OpenPlatform/physray_mp_sdk\nNot verified\nhttps://github.com/OPPO-OpenPlatform/physray_mp_sdk\n\nFlymeOS/flyme-release\nNot verified\nhttps://github.com/FlymeOS/flyme-release\n\nLive-Block/Flyme-FreeForm\nGPL-3.0\nhttps://github.com/Live-Block/Flyme-FreeForm\n\nMangi-11/FlymeFreeform\nGPL-3.0\nhttps://github.com/Mangi-11/FlymeFreeform\n\nDtHnAme/Mi-FreeForm\nNot verified\nhttps://github.com/DtHnAme/Mi-FreeForm\n\ncoderstory/FlymeHelper\nNot verified\nhttps://github.com/coderstory/FlymeHelper\n\nReChronoRain/HyperCeiler\nAGPL-3.0\nhttps://github.com/ReChronoRain/HyperCeiler\n\nqqlittleice/MiuiHome\nGPL-3.0\nhttps://github.com/qqlittleice/MiuiHome\n\nMods-Center/Miui_Launcher_Mod\nGPL-3.0\nhttps://github.com/Mods-Center/Miui_Launcher_Mod\n\nxzakota/HyperOShape\nNot verified\nhttps://github.com/xzakota/HyperOShape\n\nwuyou-123/FocusNotifLyric\nApache-2.0\nhttps://github.com/wuyou-123/FocusNotifLyric\n\nleowalk0613/LyricFocus\nMIT\nhttps://github.com/leowalk0613/LyricFocus\n\nghhccghk/HyperFocusNotifDemo\nNot verified\nhttps://github.com/ghhccghk/HyperFocusNotifDemo\n\nL-aros/HyperFocus\nMIT\nhttps://github.com/L-aros/HyperFocus\n\nImKani/HyperOS3FocusRestore\nGPL-3.0\nhttps://github.com/ImKani/FocusRestore\n\nAppGalleryConnect/agc-template-market-harmonyos-demos\nApache-2.0\nhttps://github.com/AppGalleryConnect/agc-template-market-harmonyos-demos\n\nminkiapps/HarmonyOS-Widget-Demo\nNot verified\nhttps://github.com/minkiapps/HarmonyOS-Widget-Demo\n\nopenharmony/applications_app_samples\nNot verified\nhttps://github.com/openharmony/applications_app_samples";
 
-"license_recent_background_title" = "后台提醒可靠性调研";
 
-"license_recent_background_body" = "xzakota/HyperNotification\nApache-2.0\nhttps://github.com/xzakota/HyperNotification\n\nwxxsfxyzm/InstallerX-Revived\nGPL-3.0\nhttps://github.com/wxxsfxyzm/InstallerX-Revived\n\nAliothmoon/MAA-Meow\nAGPL-3.0\nhttps://github.com/Aliothmoon/MAA-Meow\n\nyusufyorunc/IslandKit\nNot verified\nhttps://github.com/yusufyorunc/islandkit\n\n1812z/HyperCopy\nNot verified\nhttps://github.com/1812z/HyperCopy\n\nFoedusProgramme/Gramophone\nGPL-3.0\nhttps://github.com/FoedusProgramme/Gramophone\n\ncwuom/NeriPlayer\nGPL-3.0\nhttps://github.com/cwuom/NeriPlayer\n\nxfqwdsj/Knowmad\nGPL-3.0\nhttps://github.com/xfqwdsj/Knowmad\n\nybhgl/Reminder\nGPL-3.0\nhttps://github.com/ybhgl/Reminder\n\nXomaDev/MIUI-Autostart\nMIT\nhttps://github.com/XomaDev/MIUI-Autostart\n\njudemanutd/AutoStarter\nMIT\nhttps://github.com/judemanutd/AutoStarter\n\nankidroid/Anki-Android\nGPL-3.0\nhttps://github.com/ankidroid/Anki-Android\n\nywwynm/EverythingDone\nGPL-3.0\nhttps://github.com/ywwynm/EverythingDone\n\ncdz-hy/LiteTask\nMIT\nhttps://github.com/cdz-hy/LiteTask\n\neasychen/PushDeer\nNot verified\nhttps://github.com/easychen/pushdeer\n\nGetStream/stream-android-push\nNot verified\nhttps://github.com/GetStream/stream-android-push\n\naliyun/alicloud-android-demo\nNot verified\nhttps://github.com/aliyun/alicloud-android-demo\n\nmichaelbel/LiveUpdateNotifications\nNot verified\nhttps://github.com/michaelbel/LiveUpdateNotifications\n\niVamsi/Live-Notifications-Demo\nMIT\nhttps://github.com/iVamsi/Live-Notifications-Demo\n\nNicosNicolaou16/Live_Update_Notifcation_Android\nApache-2.0\nhttps://github.com/NicosNicolaou16/Live_Update_Notifcation_Android\n\ngkhnakbs/GALiveNotification\nMIT\nhttps://github.com/gkhnakbs/GALiveNotification\n\nKaushalVasava/LiveUpdateNotification\nNot verified\nhttps://github.com/KaushalVasava/LiveUpdateNotification\n\nLawnchairLauncher/lawnchair\nNot verified\nhttps://github.com/LawnchairLauncher/lawnchair\n\ntiann/KernelSU\nGPL-3.0\nhttps://github.com/tiann/KernelSU\n\noasisfeng/island\nApache-2.0\nhttps://github.com/oasisfeng/island\n\nguolindev/giffun\nApache-2.0\nhttps://github.com/guolindev/giffun\n\nnekomangaorg/Neko\nApache-2.0\nhttps://github.com/nekomangaorg/Neko\n\nSuperMonster003/AutoJs6\nMPL-2.0\nhttps://github.com/SuperMonster003/AutoJs6\n\nSagerNet/sing-box-for-android\nNot verified\nhttps://github.com/SagerNet/sing-box-for-android\n\nprincekin-f/EasyFloat\nApache-2.0\nhttps://github.com/princekin-f/EasyFloat\n\nZackratos/UltimateBarX\nApache-2.0\nhttps://github.com/Zackratos/UltimateBarX\n\ncaiyonglong/MusicLake\nApache-2.0\nhttps://github.com/caiyonglong/MusicLake\n\nDSAppTeam/PanelSwitchHelper\nApache-2.0\nhttps://github.com/DSAppTeam/PanelSwitchHelper\n\njd1378/otphelper\nAGPL-3.0\nhttps://github.com/jd1378/otphelper\n\nAndroidCSOfficial/android-code-studio\nGPL-3.0\nhttps://github.com/AndroidCSOfficial/android-code-studio\n\nIReaderorg/IReader\nApache-2.0\nhttps://github.com/IReaderorg/IReader\n\nDimensionDev/Flare\nAGPL-3.0\nhttps://github.com/DimensionDev/Flare\n\nappdevforall/CodeOnTheGo\nGPL-3.0\nhttps://github.com/appdevforall/CodeOnTheGo\n\nPool-Of-Tears/Myne\nApache-2.0\nhttps://github.com/Pool-Of-Tears/Myne\n\neasybangumiorg/EasyBangumi\nGPL-3.0\nhttps://github.com/easybangumiorg/EasyBangumi\n\nxiaowine/Lyric-Getter\nApache-2.0\nhttps://github.com/xiaowine/Lyric-Getter\n\nxfqwdsj/IAmNotADeveloper\nMIT\nhttps://github.com/xfqwdsj/IAmNotADeveloper\n\nsyncthing/syncthing-android\nMPL-2.0\nhttps://github.com/syncthing/syncthing-android\n\nvideolan/vlc-android\nGPL-2.0\nhttps://github.com/videolan/vlc-android\n\nbitfireAT/davx5-ose\nGPL-3.0\nhttps://github.com/bitfireAT/davx5-ose\n\nsignalapp/Signal-Android\nAGPL-3.0\nhttps://github.com/signalapp/Signal-Android\n\nsignalapp/Signal-Chat-Backup\nNot verified\nhttps://github.com/signalapp/Signal-Chat-Backup\nHistorical link not confirmed on 2026-11-03.\n\nopenMF/mifos-mobile\nMPL-2.0\nhttps://github.com/openMF/mifos-mobile\n\nHMS-Core/hms-push-serverdemo-go\nApache-2.0\nhttps://github.com/HMS-Core/hms-push-serverdemo-go\n\nHMS-Core/hms-push-serverdemo-php\nApache-2.0\nhttps://github.com/HMS-Core/hms-push-serverdemo-php\n\nHMS-Core/hms-push-serverdemo-python\nNot verified\nhttps://github.com/HMS-Core/hms-push-serverdemo-python\n\nMEIZUPUSH/PushDemo\nNot verified\nhttps://github.com/MEIZUPUSH/PushDemo\n\nLuomingbear/Push\nNot verified\nhttps://github.com/Luomingbear/Push\n\nMarafon228/Push\nNot verified\nhttps://github.com/Marafon228/Push\n\nahmedelfateh/huawei_pushkit\nApache-2.0\nhttps://github.com/ahmedelfateh/huawei_pushkit\n\nmiosegit/MiPushSDK\nNot verified\nhttps://github.com/miosegit/MiPushSDK\nHistorical link not confirmed on 2026-11-03.\n\nnextcloud/talk-android\nNot verified\nhttps://github.com/nextcloud/talk-android\n\nAdditional names in the archived review have no uniquely recorded repository: LinkSheet, Fankes, NewPipe, tusky, kdeconnect, osmand, organicmaps, libretorrent, droid-ify, MiPushFramework.";
 
-"license_recent_protocol_research_title" = "教务协议调研补充";
 
-"license_recent_protocol_research_body" = "sunjingquan/jianghaidai-release\nNot verified\nhttps://github.com/sunjingquan/jianghaidai-release\n\nyv1ing/AHU-QQbot\nNot verified\nhttps://github.com/yv1ing/AHU-QQbot\n\nTonyseth/AHU-IC-Design-personal-Repository\nNot verified\nhttps://github.com/Tonyseth/AHU-IC-Design-personal-Repository\n\nyoki-Clark/AHU_card_records\nNot verified\nhttps://github.com/yoki-Clark/AHU_card_records\n\nFangnan700/AHU-QQbot\nNot verified\nhttps://github.com/Fangnan700/AHU-QQbot\n\nxiangwentao666/ECSA-Thu\nNot verified\nhttps://github.com/xiangwentao666/ECSA-Thu\nHistorical link not confirmed on 2026-11-03.\n\nq1123421666/jxutcm\nNot verified\nhttps://github.com/q1123421666/jxutcm\n\nWenswell/jxutcm-net-auto-click\nNot verified\nhttps://github.com/Wenswell/jxutcm-net-auto-click\n\niihcy/JXUTCM_DAS\nNot verified\nhttps://github.com/iihcy/JXUTCM_DAS\n\niihcy/JXUTCM_BestFeature\nNot verified\nhttps://github.com/iihcy/JXUTCM_BestFeature\n\nyinwoods/Fuck-BUAA-JiaoWu-Anyway\nGPL-3.0\nhttps://github.com/yinwoods/Fuck-BUAA-JiaoWu-Anyway\n\nxunux/WeixinScoreGetter\nNot verified\nhttps://github.com/xunux/WeixinScoreGetter\n\nSE2020-TopUnderstanding/BUAA-Campus-Tools-Frontend\nNot verified\nhttps://github.com/SE2020-TopUnderstanding/BUAA-Campus-Tools-Frontend\n\nLabiKyo/buaa-jwgl-evaluator\nNot verified\nhttps://github.com/LabiKyo/buaa-jwgl-evaluator\n\nwyx-1236/BUAA-Java-ACP\nNot verified\nhttps://github.com/wyx-1236/BUAA-Java-ACP";
 
 // Android v1.0.64 strict bell-schedule diagnostics
 "period_validation_empty" = "节次列表不能为空";
@@ -1341,7 +1149,6 @@
 "period_validation_duplicate_node" = "节次编号 %1$d 重复，请先修正作息表";
 "period_validation_overlap" = "第 %1$d 节与第 %3$d 节时间冲突：第 %1$d 节于 %2$@ 结束，晚于第 %3$d 节开始时间 %4$@";
 "period_conflict_detected_banner" = "作息表需要检查：%1$@。请到作息表编辑页修正，原始时间未被自动更改。";
-"period_conflict_detected_title" = "作息时间冲突提示";
 
 // Android 1.0.64 export sections and native file description.
 "settings_export_sharing" = "分享";
@@ -1398,3 +1205,62 @@
 
 "widget_week_grid_vertical_label" = "本周课表（竖向网格）· 4×2";
 "widget_week_grid_horizontal_label" = "三天课表（横向网格）· 4×2";
+
+"occurrence_add_title" = "添加单次课";
+"occurrence_add_more" = "更多";
+
+/* WebDAV backup */
+"webdav_config_forgotten" = "已移除此设备上的 WebDAV 配置";
+"webdav_config_saved" = "WebDAV 配置已验证并保存";
+"webdav_config_title" = "设置 WebDAV 服务器";
+"webdav_configured_sub" = "服务器：%1$@";
+"webdav_confirm_upload" = "确认上传";
+"webdav_date_unknown" = "未知";
+"webdav_directory" = "备份目录";
+"webdav_directory_create_notice" = "测试连接时，Sleepy 可能会在此账户下创建填写的备份目录。";
+"webdav_error_archive_size" = "备份解压后的数据量超过限制。";
+"webdav_error_authentication" = "服务器拒绝了用户名或密码，请检查后重试。";
+"webdav_error_configuration" = "请检查服务器地址、备份目录和用户名。";
+"webdav_error_exists" = "同名备份已经存在，未覆盖任何文件。";
+"webdav_error_forbidden" = "服务器拒绝访问此目录，请检查账户权限。";
+"webdav_error_generic" = "WebDAV 操作失败，请检查配置后重试。";
+"webdav_error_http_status" = "服务器返回错误（HTTP %1$d）。";
+"webdav_error_https" = "服务器地址必须使用 HTTPS。";
+"webdav_error_network" = "无法连接服务器，请检查网络和 HTTPS 证书。";
+"webdav_error_redirect" = "服务器重定向了请求。请输入最终的 HTTPS WebDAV 地址。";
+"webdav_error_response" = "服务器返回的 WebDAV 数据无法识别。";
+"webdav_error_too_large" = "备份文件超过 100 MB 限制。";
+"webdav_forget_configuration" = "移除此设备上的配置";
+"webdav_forget_title" = "移除 WebDAV 配置？";
+"webdav_forget_warning" = "这会从此设备移除服务器地址和已保存的密码。服务器上的备份不会删除。";
+"webdav_password" = "密码（可选）";
+"webdav_password_keep_hint" = "留空会保留已保存的密码；如需清除，请先移除配置";
+"webdav_password_optional_hint" = "无需认证的服务器可留空";
+"webdav_privacy_notice" = "服务器上的备份未加密。连接设置和密码存放在本机钥匙串中，不会写入备份。";
+"webdav_remote_empty" = "服务器目录中没有找到 .sleepybackup 文件";
+"webdav_remote_file_detail" = "修改时间：%1$@ · 大小：%2$@";
+"webdav_remote_title" = "选择远端备份";
+"webdav_restore" = "从服务器选择备份恢复";
+"webdav_section_sub" = "可选：备份到你自己的 WebDAV 服务器";
+"webdav_section_title" = "WebDAV 备份";
+"webdav_server_url" = "HTTPS WebDAV 地址";
+"webdav_test_and_save" = "测试连接并保存";
+"webdav_testing" = "正在测试";
+"webdav_upload" = "上传当前完整备份";
+"webdav_upload_confirm_target" = "备份会发送到：%1$@/%2$@";
+"webdav_upload_confirm_title" = "上传完整备份？";
+"webdav_upload_done" = "已上传：%1$@";
+"webdav_username" = "用户名（可选）";
+"webdav_working" = "正在处理";
+"jw_combo_new_table_required" = "请将此课表导入为新课表，以保留按日期切换的作息。不会更改已有课表或共享作息。";
+"jw_combo_invalid" = "日期作息与基础钟点不匹配，请核对节次时间或重新采集。";
+"jw_combo_saved_with_new_timetable" = "新课表会保留来源中按日期切换的作息。";
+"jw_update_source_unavailable" = "原教务入口已变更或不可用。请从新建导入选择学校。";
+"edit_table_max_week_error" = "总周数必须是大于 0 的整数";
+"settings_undo_experiment" = "实验功能。历史仅保存在内存中，应用进程结束后清空。";
+"settings_undo_mode" = "保留方式";
+"settings_undo_off" = "关闭";
+"settings_undo_limited" = "指定步数";
+"settings_undo_unlimited" = "无限";
+"settings_undo_count_hint" = "请输入大于零的保留步数。";
+"done" = "完成";

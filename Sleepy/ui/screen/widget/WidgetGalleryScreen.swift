@@ -78,9 +78,9 @@ struct WidgetGalleryScreen: View {
                     withAnimation { expandedGroupKey = nil }
                 } label: {
                     AndroidSettingsIcon(name: .expandLess, size: 24)
-                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                        .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 22, compact: true, shape: .circle))
+                .sleepyPlatformButtonStyle(cornerRadius: 22, compact: true, shape: .circle)
                 .frame(width: 48, height: 48)
                 .accessibilityLabel(L10n.format("widget_gallery_collapse"))
                 .accessibilityIdentifier("widget_gallery_collapse_\(group.id)")

@@ -56,7 +56,7 @@ struct CourseDetailSheet: View {
                             Image(systemName: "xmark")
                                 .foregroundColor(colors.onSurfaceVariant)
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+                        .sleepyPlatformButtonStyle(shape: .circle)
                         .frame(width: style == .liquidGlass ? 48 : nil,
                                height: style == .liquidGlass ? 48 : nil)
                         .accessibilityIdentifier("detail_close")
@@ -104,7 +104,7 @@ struct CourseDetailSheet: View {
                                     .frame(height: style == .liquidGlass ? nil : 40)
                                     .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
                             }
-                            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                            .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                             .frame(maxWidth: .infinity, minHeight: style == .liquidGlass ? 44 : nil)
                             .tint(colors.primary)
                             .accessibilityIdentifier("detail_edit")

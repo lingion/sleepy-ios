@@ -58,9 +58,15 @@ final class SchoolSelectUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS '北京'")).firstMatch.waitForExistence(timeout: 5))
         for _ in 0..<4 { search.typeText("\u{8}") }
         // 恢复全列表(任一大学行)
-        XCTAssertTrue(app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS '大学'")).firstMatch
-            .waitForExistence(timeout: 5), "清空搜索应恢复列表")
+        let restored = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '大学'")).firstMatch
+        if !restored.waitForExistence(timeout: 3) {
+            // Drag inside the list area above the on-screen keyboard so short viewports realize offscreen rows.
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(dx: app.frame.midX, dy: 340))
+            let end = origin.withOffset(CGVector(dx: app.frame.midX, dy: 160))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+        XCTAssertTrue(restored.waitForExistence(timeout: 5), "清空搜索应恢复列表")
     }
 
     // MARK: URL 直连行

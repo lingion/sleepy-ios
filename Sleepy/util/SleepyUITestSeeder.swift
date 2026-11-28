@@ -5,6 +5,7 @@
 
 import Foundation
 
+#if DEBUG
 enum SleepyUITestSeeder {
     static func seed(database: AppDatabase) {
         // 语言复位: 语言切换测试会持久化 KEY_LANG/AppleLanguages, 残留会污染
@@ -31,6 +32,12 @@ enum SleepyUITestSeeder {
         // A restart without the seed flag still verifies the committed scale unchanged.
         d.removeObject(forKey: AppPrefs.KEY_GRID_ROW_SCALE)  // 出厂 1.0
         d.removeObject(forKey: AppPrefs.KEY_NAV_DOCK)       // 出厂 false(贴底)
+        d.removeObject(forKey: AppPrefs.KEY_DISPLAY_MODE)   // 出厂 time(允许 launchArgs 覆盖)
+        d.removeObject(forKey: AppPrefs.KEY_WEEK_TWO_COLUMN)
+        d.removeObject(forKey: AppPrefs.KEY_WEEK_TWO_COLUMN_MODE)
+        d.removeObject(forKey: AppPrefs.KEY_WEEK_HIDE_EMPTY_DAYS)
+        d.removeObject(forKey: AppPrefs.KEY_UNDO_DEPTH)
+        UndoManager.shared.applyMaxDepth(AppPrefs.DEFAULT_UNDO_DEPTH)
         d.removeObject(forKey: "settings_expanded_sections") // 折叠卡展开集(GeneralSettings 持久化)
         // 竖排标点替换开关(方案B): testGeneralToggles 真实点按 → 持久化; UI 测试
         // terminate 不清容器, 残留经 Xcode14 串行的共享 app 容器渗入 SleepyTests
@@ -42,6 +49,7 @@ enum SleepyUITestSeeder {
             try database.dbQueue.write { db in
                 try db.execute(sql: "DELETE FROM courses")
                 try db.execute(sql: "DELETE FROM time_tables")
+                try? db.execute(sql: "DELETE FROM sqlite_sequence WHERE name IN ('courses', 'time_tables')")
             }
         } catch { return }
 
@@ -57,6 +65,14 @@ enum SleepyUITestSeeder {
             name: "我的课表", startDate: startDate, maxWeek: 20,
             nodesPerDay: 12, timeJson: TimeTableUtils.DEFAULT_TIME_JSON,
             color: "#FF6750A4", isDefault: true)
+        #if !os(watchOS)
+        if ProcessInfo.processInfo.arguments.contains("-SLEEPY_UI_TEST_VERIFIED_JW") {
+            let fixture = JwSchoolInfo(sortKey: "", name: "Fixture School",
+                url: "http://127.0.0.1:1/", type: "qz")
+            table.jwSchoolSourceJson = JwImportDraftCodec.toSchoolSourceJson(fixture)
+            table.jwSchoolSourceVerified = true
+        }
+        #endif
         guard (try? database.timeTableDao.insert(table)).map({ $0 > 0 }) == true else { return }
         table.id = (try? database.timeTableDao.getAll().first?.id) ?? 0
         guard table.id > 0 else { return }
@@ -89,7 +105,7 @@ enum SleepyUITestSeeder {
             // 2026-10-29: 周四课 — 让"今日"tab 截图非空态(ASC 商店图); 测试断言已核过无影响
             (5, 4, 3, 4, "数据结构", "刘老师", "理楼 408", "#FFF48FB1"),
         ]
-        for (id, day, sn, en, name, teacher, room, color) in courses {
+        var seededCourses: [CourseEntity] = courses.map { (id, day, sn, en, name, teacher, room, color) in
             var c = CourseEntity(
                 groupId: "seed-group-\(id)", tableId: table.id,
                 courseName: name, teacher: teacher, room: room,
@@ -97,7 +113,31 @@ enum SleepyUITestSeeder {
                 startWeek: 1, endWeek: 20, type: 0, color: color)
             c.id = id
             c.note = ""
-            _ = try? database.courseDao.insert(c)
+            return c
+        }
+
+        if ProcessInfo.processInfo.arguments.contains("-SLEEPY_UI_TEST_DENSE_WEEK") {
+            let conflicting: [(Int64, String, String, String)] = [
+                (101, "International Economics and Comparative Public Policy", "08:30", "09:55"),
+                (102, "Introduction to Applied Mathematics and Data Modeling", "08:45", "10:20"),
+                (103, "Mechanical Engineering Design and Systems Analysis", "08:50", "10:30")
+            ]
+            for (id, name, start, end) in conflicting {
+                var course = CourseEntity(groupId: "dense-week-\(id)", tableId: table.id, courseName: name,
+                                          day: 3, startNode: 1, step: 3, startWeek: 1, endWeek: 20, color: "")
+                course.id = id
+                course.ownTime = true
+                course.startTime = start
+                course.endTime = end
+                seededCourses.append(course)
+            }
+        }
+
+        try? database.dbQueue.write { db in
+            for course in seededCourses {
+                try database.courseDao.insertKeepIdInDb(db, course)
+            }
         }
     }
 }
+#endif

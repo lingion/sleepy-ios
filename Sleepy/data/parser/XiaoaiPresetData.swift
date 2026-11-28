@@ -33,9 +33,10 @@
 
 import Foundation
 
-/// 校验失败 ← 原版本 IllegalArgumentException(require 抛出, 调用方报 export_xiaoai_invalid)
-enum XiaoaiPresetDataError: Error {
+/// 缺少节次时间单独报告；其他不受接收端支持的输入仍然拒绝。
+enum XiaoaiPresetDataError: Error, Equatable {
     case invalid(String)
+    case missingPeriodTime(courseName: String, period: Int)
 }
 
 enum XiaoaiPresetData {
@@ -98,15 +99,22 @@ enum XiaoaiPresetData {
         let counts = inferSessionCounts(sections)
         guard (1...10).contains(counts.morning), (0...10).contains(counts.afternoon), (0...10).contains(counts.night)
             else { throw reject("上午/下午/晚间节数越界: \(counts)") }
+        let canonicalTimeJson = canonical(timeJson)
         for course in courses {
             guard (1...7).contains(course.day) else { throw reject("day 越界: \(course.day)") }
             guard (1...30).contains(course.startWeek), course.endWeek >= course.startWeek, (1...30).contains(course.endWeek)
                 else { throw reject("周次越界: \(course.startWeek)-\(course.endWeek)") }
             guard !expandWeeks(course).isEmpty else { throw reject("单双周过滤后无周次") }
-            let normalized = course.normalizeNode(timeJson: canonical(timeJson))
-            guard (1...sections.count).contains(normalized.startNode), (1...sections.count).contains(normalized.step)
-                else { throw reject("节次落位越界: \(normalized.startNode)+\(normalized.step)") }
-            guard normalized.startNode + normalized.step - 1 <= sections.count else { throw reject("节次落位越界") }
+            let normalized = course.normalizeNode(timeJson: canonicalTimeJson)
+            guard normalized.startNode >= 1, normalized.step >= 1 else {
+                throw reject("节次落位非法: \(normalized.startNode)+\(normalized.step)")
+            }
+            let (end, overflow) = normalized.startNode.addingReportingOverflow(normalized.step - 1)
+            guard !overflow, end <= Int(Int32.max) else { throw reject("节次落位越界") }
+            if end > sections.count {
+                let firstMissing = max(normalized.startNode, sections.count + 1)
+                throw XiaoaiPresetDataError.missingPeriodTime(courseName: course.courseName, period: firstMissing)
+            }
         }
     }
 

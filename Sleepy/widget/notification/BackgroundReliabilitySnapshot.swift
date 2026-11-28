@@ -31,6 +31,20 @@ struct BackgroundReliabilitySnapshot {
     let timeSensitiveAllowed: Bool
     /// ≙ 原版本 batteryOptimizationIgnored(取反)
     let lowPowerModeActive: Bool
+    /// 系统与当前签名配置是否实际支持时效性通知权限开关。
+    let timeSensitiveSupported: Bool
+
+    init(
+        notificationPermissionGranted: Bool,
+        timeSensitiveAllowed: Bool,
+        lowPowerModeActive: Bool,
+        timeSensitiveSupported: Bool = true
+    ) {
+        self.notificationPermissionGranted = notificationPermissionGranted
+        self.timeSensitiveAllowed = timeSensitiveAllowed
+        self.lowPowerModeActive = lowPowerModeActive
+        self.timeSensitiveSupported = timeSensitiveSupported
+    }
 
     /// ← reminderTransportState(): 权限 > 精确通道, 短路判定
     func reminderTransportState() -> ReminderTransportState {

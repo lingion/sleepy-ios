@@ -107,11 +107,11 @@ final class AddCoursesEntryUITests: XCTestCase {
         XCTAssertTrue(blank.waitForExistence(timeout: 5))
         for _ in 0..<8 {
             let keyboard = app.keyboards.firstMatch
-            if blank.isHittable && (!keyboard.exists || !blank.frame.intersects(keyboard.frame)) { break }
             var viewport = scroll.frame.intersection(app.frame)
             if keyboard.exists, viewport.intersects(keyboard.frame) {
                 viewport.size.height = max(0, keyboard.frame.minY - viewport.minY - 12)
             }
+            if blank.isHittable && viewport.contains(blank.frame) { break }
             XCTAssertGreaterThan(viewport.height, 60,
                                  "The methods sheet must retain a scrollable area above the keyboard")
             // The input consumes drags inside its text; use the outer sheet gutter.
@@ -121,14 +121,22 @@ final class AddCoursesEntryUITests: XCTestCase {
                 .press(forDuration: 0.05, thenDragTo:
                     origin.withOffset(CGVector(dx: x, dy: viewport.minY + viewport.height * 0.25)))
         }
-        XCTAssertTrue(blank.isHittable)
+        XCTAssertTrue(waitUntil { blank.isHittable })
         XCTAssertFalse(app.keyboards.firstMatch.exists && blank.frame.intersects(app.keyboards.firstMatch.frame),
                        "Create Blank Timetable must be reachable above the text keyboard")
         capture("manual-new-table-methods-draft")
         blank.tap()
 
         let name = app.textFields["field_Schedule Name"].firstMatch
-        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        if !name.waitForExistence(timeout: 8) {
+            capture("manual-new-table-editor-missing")
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "manual-new-table-editor-missing-ax"
+            tree.lifetime = .keepAlways
+            add(tree)
+            XCTFail("Expected Schedule Name field after tapping manage_new_table")
+            return
+        }
         let oldName = name.value as? String ?? ""
         name.tap()
         app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldName.count))

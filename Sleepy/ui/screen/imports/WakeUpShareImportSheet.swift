@@ -106,7 +106,7 @@ struct WakeUpShareImportSheet: View {
         let button = Button(text("wakeup_share_cancel_request", "取消请求")) { model.cancel() }
             .accessibilityIdentifier("wakeup_share_cancel_request")
         if style == .liquidGlass {
-            button.buttonStyle(SleepyPlatformButtonStyle(shape: .capsule))
+            button.sleepyPlatformButtonStyle(shape: .capsule)
                 .frame(minHeight: 44)
         } else {
             button
@@ -122,7 +122,7 @@ struct WakeUpShareImportSheet: View {
         .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         .accessibilityIdentifier("wakeup_share_fetch")
         if style == .liquidGlass {
-            button.buttonStyle(SleepyPlatformButtonStyle(prominent: true, shape: .capsule))
+            button.sleepyPlatformButtonStyle(prominent: true, shape: .capsule)
                 .frame(minHeight: 44)
         } else {
             button.buttonStyle(.borderedProminent)

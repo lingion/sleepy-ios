@@ -5,7 +5,7 @@
 // 选中作息表 → 自动只剩两项(Sleepy 原生 + JSON), 其余格式对纯作息无意义。
 // 平台映射: MediaStore Downloads + ACTION_SEND → ShareLink/UIActivityViewController +
 // 写临时文件(tmp)经 UIActivityViewController 分享(等价适配:iOS 沙箱无公共 Downloads)。
-// RequestMultiplePermissions(READ/WRITE_CALENDAR) → EventKit requestAccess(状态机在
+// 日历读取与写入权限由 EventKit 管理(状态机在
 // SystemCalendarManager.ensureCalendarPermissions)。
 
 import SwiftUI
@@ -24,8 +24,9 @@ struct ExportScreen: View {
     @State private var exportPeriodTableId: Int64? = nil
     // 全部作息表(展开框下半 + P 区块绑定 + 顶卡作息态)— ← 原版本 viewModel.allPeriodTables
     @State private var allPeriodTables: [PeriodTableEntity] = []
-    // 选中表的课程: 当前表直接用 state.courses(已观察), 其他表选中时本地加载一次
-    @State private var loadedCourses: [CourseEntity]? = nil
+    /// A count is only used for the subtitle. Each export reloads its own transactional snapshot.
+    @State private var pinnedCourseCount: (id: Int64, count: Int)?
+    @State private var calendarSnapshot: ScheduleExportSnapshot?
     @State private var showTablePicker = false
     @State private var showCalendarImport = false
 
@@ -33,15 +34,16 @@ struct ExportScreen: View {
         let state = viewModel.state
         // ← 原版本: effectiveId = if (exportPeriodTableId != null) null else (exportTableId ?: selectedTableId)
         let effectiveId = exportPeriodTableId != nil ? nil : (exportTableId ?? state.selectedTableId)
-        let table = state.tables.first { $0.id == effectiveId } ?? state.currentTable
+        let table = state.tables.first { $0.id == effectiveId }
         let selectedPeriodTable = allPeriodTables.first { $0.id == exportPeriodTableId }
-        let courses = loadedCourses ?? state.courses
+        let courseCount = effectiveId == state.selectedTableId ? state.courses.count :
+            (pinnedCourseCount?.id == effectiveId ? pinnedCourseCount?.count : nil)
 
         VStack(spacing: 0) {
             SettingsTopBar(title: L10n.format("export_title"), onBack: onDismiss)
             // 空态只在课表与作息表都不存在时成立; 无课表但有作息表时正常渲染,
             // 用户经顶部展开框选作息表导出(原生 + JSON) — 用户反馈 bug, 见契约测试(L184)。
-            if table == nil && selectedPeriodTable == nil && allPeriodTables.isEmpty {
+            if state.tables.isEmpty && allPeriodTables.isEmpty {
                 Text(L10n.format("export_no_table"))
                     .font(.system(size: 16)) // ← 原默认 bodyLarge 16(未显式指定 style)
                     .foregroundColor(colors.onSurfaceVariant)
@@ -56,7 +58,7 @@ struct ExportScreen: View {
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
-                                    Text(selectedPeriodTable?.name ?? table?.name ?? "")
+                                    Text(selectedPeriodTable?.name ?? table?.name ?? L10n.format("export_pick_table"))
                                         .font(.system(size: 16, weight: .bold))
                                         .foregroundColor(colors.onPrimaryContainer)
                                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -66,7 +68,7 @@ struct ExportScreen: View {
                                         .accessibilityLabel(L10n.format("export_pick_table"))
                                         .accessibilityHidden(false)
                                 }
-                                Text(periodSubtitle(pt: selectedPeriodTable, table: table, courses: courses))
+                                Text(periodSubtitle(pt: selectedPeriodTable, table: table, courseCount: courseCount))
                                     .font(.system(size: 14))
                                     .foregroundColor(colors.onPrimaryContainer)
                             }
@@ -108,19 +110,22 @@ struct ExportScreen: View {
                                                title: L10n.format("settings_export_native_file_title"),
                                                subtitle: L10n.format("settings_export_native_file_sub"),
                                                id: "export_native_row") {
+                                        guard let snapshot = snapshotForExport(table.id) else { return }
+                                        let table = snapshot.table
                                         // MIME 用 text/plain 规避 ImportReceiverActivity MIME 收窄问题(调查报告 P3)
                                         exportFile(displayName: table.name,
                                                    ext: "sleepy", mime: "text/plain",
                                                    content: SleepyNativeExporter.exportFile(
                                                        tableName: table.name, startDate: table.startDate,
                                                        maxWeek: table.maxWeek, nodesPerDay: table.nodesPerDay,
-                                                       timeJson: table.timeJson, courses: courses,
+                                                       timeJson: table.timeJson, courses: snapshot.courses,
                                                        // issue#40 §6: 绑定了独立时间节次表时携带 P 区块(共享关系可往返)
-                                                       periodTable: boundPeriodTable(table).map {
+                                                       periodTable: snapshot.periodTable.map {
                                                            SleepyNativeExporter.PeriodTableExport(
                                                                id: $0.id, name: $0.name,
                                                                nodesPerDay: $0.nodesPerDay, timeJson: $0.timeJson)
-                                                       }, importSourceJson: table.importSourceJson))
+                                                       }, importSourceJson: table.importSourceJson,
+                                                       jwSchoolSourceJson: table.jwSchoolSourceJson))
                                     }
                                     RowDivider()
                                     ExportItem(icon: "square.and.arrow.up",
@@ -129,15 +134,17 @@ struct ExportScreen: View {
                                                id: "export_share_row") {
                                         // ← shareText: sleepy-v1 文本(【来自Sleepy】包裹), 与原实现
                                         //   SleepyNativeExporter.exportShareText 同构(不再用 WakeUp URL JSON)
-                                        let period = boundPeriodTable(table)
-                                        let effective = table.hydratedWith(period)
+                                        guard let snapshot = snapshotForExport(table.id) else { return }
+                                        let period = snapshot.periodTable
+                                        let effective = snapshot.effectiveTable
                                         shareSheet = ShareItem(text: SleepyNativeExporter.exportShareText(
                                                     tableName: effective.name, startDate: effective.startDate,
                                                     maxWeek: effective.maxWeek, nodesPerDay: effective.nodesPerDay,
-                                                    timeJson: effective.timeJson, courses: courses,
+                                                    timeJson: effective.timeJson, courses: snapshot.courses,
                                                     periodTable: period.map { .init(id: $0.id, name: $0.name,
-                                                        nodesPerDay: $0.nodesPerDay, timeJson: $0.timeJson) }, importSourceJson: table.importSourceJson),
-                                                    subject: table.name, url: nil)
+                                                        nodesPerDay: $0.nodesPerDay, timeJson: $0.timeJson) }, importSourceJson: table.importSourceJson,
+                                                       jwSchoolSourceJson: table.jwSchoolSourceJson),
+                                                    subject: effective.name, url: nil)
                                         snackMessage = L10n.format("export_copied_hint")
                                     }
                                     RowDivider()
@@ -145,9 +152,10 @@ struct ExportScreen: View {
                                                title: L10n.format("export_json_title"),
                                                subtitle: L10n.format("export_json_subtitle"),
                                                id: "export_json_row") {
-                                        exportFile(displayName: table.name,
+                                        guard let snapshot = snapshotForExport(table.id) else { return }
+                                        exportFile(displayName: snapshot.table.name,
                                                    ext: "json", mime: "application/json",
-                                                   content: ScheduleExporter.exportWakeUpJson(table.hydratedWith(boundPeriodTable(table)), courses))
+                                                   content: ScheduleExporter.exportWakeUpJson(snapshot.effectiveTable, snapshot.courses))
                                     }
                                 }
                                 .background(colors.surfaceContainer)
@@ -157,35 +165,24 @@ struct ExportScreen: View {
                                 VStack(spacing: 0) {
                                     ExportItem(icon: "calendar",
                                                title: L10n.format("calendar_import_title"),
-                                               subtitle: (effectiveId != state.selectedTableId && loadedCourses == nil)
-                                                   ? L10n.format("calendar_import_loading")
-                                                   : L10n.format("calendar_import_subtitle"),
+                                               subtitle: L10n.format("calendar_import_subtitle"),
                                                id: "export_calendar_import_row") {
-                                        if SystemCalendarManager.shared.hasCalendarPermissions() {
-                                            openCalendarImportForCurrentTarget()
-                                        } else {
-                                            Task { @MainActor in
-                                                if await SystemCalendarManager.shared.ensureCalendarPermissions() {
-                                                    openCalendarImportForCurrentTarget()
-                                                } else {
-                                                    showCalendarImport = false
-                                                }
-                                            }
-                                        }
+                                        openCalendarImport(tableId: table.id)
                                     }
                                     RowDivider()
                                     ExportItem(icon: "calendar",
                                                title: L10n.format("export_ics_title"),
                                                subtitle: L10n.format("export_ics_subtitle"),
                                                id: "export_ics_row") {
+                                        guard let snapshot = snapshotForExport(table.id) else { return }
                                         // ← 原 `LocalDate.parse` 对非法 startDate 抛异常、不产出文件;
                                         //   iOS 等价: 走 exportIcsOrThrow, catch 报 export_failed —
                                         //   不再用 exportIcs 包装器静默分享空 ICS(用户会看到「已保存」假成功)。
                                         do {
-                                            exportFile(displayName: table.name,
+                                            exportFile(displayName: snapshot.table.name,
                                                        ext: "ics", mime: "text/calendar",
-                                                       content: try ScheduleExporter.exportIcsOrThrow(table.hydratedWith(boundPeriodTable(table)), courses,
-                                                           transfers: AppPrefs.shared.getHolidayTransfers(table.id)))
+                                                       content: try ScheduleExporter.exportIcsOrThrow(snapshot.effectiveTable, snapshot.courses,
+                                                           transfers: AppPrefs.shared.getHolidayTransfers(snapshot.table.id), periodTable: snapshot.periodTable))
                                         } catch {
                                             snackMessage = L10n.format("export_failed")
                                         }
@@ -195,9 +192,9 @@ struct ExportScreen: View {
                                                title: L10n.format("export_xiaoai_title"),
                                                subtitle: L10n.format("export_xiaoai_subtitle"),
                                                id: "export_xiaoai_row") {
-                                        launchXiaoaiImport(table: table,
-                                                           courses: courses,
-                                                           boundPeriodTable: boundPeriodTable(table))
+                                        guard let snapshot = snapshotForExport(table.id) else { return }
+                                        launchXiaoaiImport(table: snapshot.table, courses: snapshot.courses,
+                                                           boundPeriodTable: snapshot.periodTable)
                                     }
                                 }
                                 .background(colors.surfaceContainer)
@@ -239,10 +236,10 @@ struct ExportScreen: View {
         }
         .onAppear {
             allPeriodTables = viewModel.loadAllPeriodTables()
-            reloadPinnedCourses(viewModel.state)
+            refreshPinnedCourseCount(viewModel.state)
         }
-        .onChange(of: exportTableId) { _ in reloadPinnedCourses(viewModel.state) }
-        .onChange(of: exportPeriodTableId) { _ in reloadPinnedCourses(viewModel.state) }
+        .onChange(of: exportTableId) { _ in refreshPinnedCourseCount(viewModel.state) }
+        .onChange(of: exportPeriodTableId) { _ in refreshPinnedCourseCount(viewModel.state) }
         // ← 导出目标课表/作息表选择弹层 — 行样式对齐 ScheduleScreen TableSwitcherSheet(用户定版视觉)
         .centeredDialog(isPresented: $showTablePicker) {
             ExportTablePickerSheet(
@@ -266,47 +263,52 @@ struct ExportScreen: View {
         // ← 系统日历导入配置弹窗(CalendarImportDialog):
         // 仅已授权 + hydratedTable 非空时呈现; 传入绑定作息水合后的表 + 目标表课程。
         .centeredDialog(isPresented: $showCalendarImport) {
-            let state = viewModel.state
-            let effectiveId = exportPeriodTableId != nil ? nil : (exportTableId ?? state.selectedTableId)
-            let table = state.tables.first { $0.id == effectiveId } ?? state.currentTable
-            if let table = table, SystemCalendarManager.shared.hasCalendarPermissions() {
+            if let snapshot = calendarSnapshot {
                 CalendarImportDialog(
-                    table: table.hydratedWith(boundPeriodTable(table)),
-                    courses: loadedCourses ?? state.courses,
+                    table: snapshot.effectiveTable,
+                    courses: snapshot.courses,
+                    periodTable: snapshot.periodTable,
                     onDismiss: { showCalendarImport = false })
             }
         }
     }
 
-    // 顶卡副标题 — ← 原版本: 作息态「作息表 · N 节/天」; 课表态「N 门课程 · 起始日期」
-    private func periodSubtitle(pt: PeriodTableEntity?, table: TimeTableEntity?, courses: [CourseEntity]) -> String {
+    private func periodSubtitle(pt: PeriodTableEntity?, table: TimeTableEntity?, courseCount: Int?) -> String {
         if let pt = pt {
             return L10n.format("period_tables_title") + " · " + L10n.format("period_table_nodes_count", pt.nodesPerDay)
         }
-        return "\(L10n.format("export_course_count", courses.count)) · \(L10n.format("export_start_date", table?.startDate ?? ""))"
+        guard let table = table else { return "" }
+        let startDate = L10n.format("export_start_date", table.startDate)
+        guard let courseCount = courseCount else { return startDate }
+        return "\(L10n.format("export_course_count", courseCount)) · \(startDate)"
     }
 
-    // 课表绑定的作息表(issue#40) — ← 原版本 allPeriodTables.find { it.id == table.periodTableId }
-    private func boundPeriodTable(_ table: TimeTableEntity) -> PeriodTableEntity? {
-        guard let pid = table.periodTableId else { return nil }
-        return allPeriodTables.first { $0.id == pid }
-    }
-
-    // 日历导入入口(openCalendarImportForCurrentTarget):
-    // 载入目标表课程后打开配置弹窗
-    private func openCalendarImportForCurrentTarget() {
-        reloadPinnedCourses(viewModel.state)
-        showCalendarImport = true
-    }
-
-    // 选中表的课程: 当前表直接用 state.courses(已观察), 其他表选中时本地加载一次
-    private func reloadPinnedCourses(_ state: ScheduleState) {
-        let effectiveId = exportPeriodTableId != nil ? nil : (exportTableId ?? state.selectedTableId)
-        if let tid = effectiveId, tid != state.selectedTableId {
-            loadedCourses = try? ScheduleRepository(AppDatabase.getShared()).getCourses(tid)
-        } else {
-            loadedCourses = nil
+    private func snapshotForExport(_ id: Int64) -> ScheduleExportSnapshot? {
+        do {
+            return try viewModel.loadExportSnapshot(tableId: id)
+        } catch {
+            snackMessage = L10n.format("export_failed")
+            return nil
         }
+    }
+
+    private func openCalendarImport(tableId: Int64) {
+        Task { @MainActor in
+            guard await SystemCalendarManager.shared.ensureCalendarPermissions() else {
+                snackMessage = L10n.format("calendar_permission_denied")
+                return
+            }
+            guard let snapshot = snapshotForExport(tableId) else { return }
+            calendarSnapshot = snapshot
+            showCalendarImport = true
+        }
+    }
+
+    private func refreshPinnedCourseCount(_ state: ScheduleState) {
+        pinnedCourseCount = nil
+        guard exportPeriodTableId == nil, let id = exportTableId, id != state.selectedTableId,
+              let snapshot = try? viewModel.loadExportSnapshot(tableId: id) else { return }
+        pinnedCourseCount = (id, snapshot.courses.count)
     }
 
     // v1.0.62 B6 ← 原版本 launchXiaoaiImport: 小爱课程表一键导入。
@@ -323,8 +325,11 @@ struct ExportScreen: View {
         let presetData: String
         do {
             presetData = try XiaoaiPresetData.build(table: table, courses: courses, periodTable: boundPeriodTable)
+        } catch XiaoaiPresetDataError.missingPeriodTime(let name, let period) {
+            snackMessage = L10n.format("export_xiaoai_missing_period_time", name, period)
+            return
         } catch {
-            // ← 原版本 IllegalArgumentException → export_xiaoai_invalid
+            // Other unsupported data still uses the generic failure.
             snackMessage = L10n.format("export_xiaoai_invalid")
             return
         }

@@ -160,4 +160,170 @@ final class NativeWeekPagerTests: XCTestCase {
             window.rootViewController = nil
         }
     }
+
+    func testLegacySafeAreaPolyfillClearsSafeAreaInsetsAndAllowsDeallocation() async throws {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        weak var weakHost: UIViewController?
+        weak var weakView: UIView?
+        do {
+            let window = scene.map { UIWindow(windowScene: $0) } ?? UIWindow(frame: CGRect(x: 0, y: 0, width: 414, height: 736))
+            window.frame = CGRect(x: 0, y: 0, width: 414, height: 736)
+            let host = UIHostingController(rootView: AnyView(
+                GeometryReader { _ in
+                    ScrollView(.vertical) {
+                        Color.yellow.frame(height: 900)
+                    }
+                    .padding(8)
+                }
+                .background(Color.gray)
+            ))
+            SleepyLegacyHostingSafeArea.disable(for: host.view)
+            SleepyLegacyHostingSafeArea.disable(for: host.view) // Idempotent when called twice.
+            weakHost = host
+            weakView = host.view
+            window.rootViewController = host
+            window.isHidden = false
+            for _ in 0..<10 {
+                await flushMainQueue()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+            }
+            XCTAssertEqual(host.view.safeAreaInsets, .zero)
+            func firstScrollView(in view: UIView) -> UIScrollView? {
+                if let s = view as? UIScrollView { return s }
+                return view.subviews.lazy.compactMap { firstScrollView(in: $0) }.first
+            }
+            let scroll = try XCTUnwrap(firstScrollView(in: host.view))
+            XCTAssertEqual(scroll.convert(scroll.bounds, to: host.view).minY, 8, accuracy: 1)
+            XCTAssertEqual(scroll.bounds.height, host.view.bounds.height - 16, accuracy: 1)
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        await flushMainQueue()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertNil(weakHost)
+        XCTAssertNil(weakView)
+    }
+
+    func testPagingControllerPreservesTopOriginAndQueueScrollBehaviorDuringTransition() async throws {
+        let db = try AppDatabase.inMemory()
+        var t = TimeTableEntity(name: "PagerTable", startDate: "2026-11-02", maxWeek: 20)
+        t.id = try db.timeTableDao.insert(t)
+        try db.timeTableDao.setDefault(t.id)
+        try db.courseDao.insert(CourseEntity(groupId: "g1", tableId: t.id, courseName: "高数",
+            day: 1, startNode: 1, step: 2, startWeek: 1, endWeek: 20, type: 0, color: "#FF6750A4"))
+        let repo = ScheduleRepository(db)
+        let rootVM = AppRootViewModel(repository: repo)
+        rootVM.scheduleViewMode = .cards
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        let window = scene.map { UIWindow(windowScene: $0) } ?? UIWindow(frame: CGRect(x: 0, y: 0, width: 414, height: 736))
+        window.frame = CGRect(x: 0, y: 0, width: 414, height: 736)
+        let rootHost = UIHostingController(rootView: AppRoot().environmentObject(rootVM))
+        window.rootViewController = rootHost
+        window.isHidden = false
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+
+        func findPager(_ v: UIView) -> UIPageViewController? {
+            if let pvc = v.next as? UIPageViewController { return pvc }
+            for c in v.subviews { if let p = findPager(c) { return p } }
+            return nil
+        }
+        for _ in 0..<40 {
+            await flushMainQueue()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            if rootVM.scheduleViewModel.state.tables.count == 1,
+               let pvc = findPager(window),
+               let cur = pvc.viewControllers?.first,
+               pvc.dataSource?.pageViewController(pvc, viewControllerAfter: cur) != nil {
+                break
+            }
+        }
+        let pvc = try XCTUnwrap(findPager(window))
+        XCTAssertFalse(pvc.automaticallyAdjustsScrollViewInsets)
+        let queueScroll = try XCTUnwrap(pvc.view.subviews.compactMap { $0 as? UIScrollView }.first)
+        XCTAssertEqual(queueScroll.contentInsetAdjustmentBehavior, .never)
+        XCTAssertFalse(queueScroll.alwaysBounceVertical)
+        XCTAssertEqual(queueScroll.contentOffset.y, 0, accuracy: 0.5)
+        XCTAssertEqual(queueScroll.contentInset.top, 0, accuracy: 0.5)
+
+        let cur = try XCTUnwrap(pvc.viewControllers?.first)
+        func firstScrollView(in view: UIView) -> UIScrollView? {
+            if let s = view as? UIScrollView { return s }
+            return view.subviews.lazy.compactMap { firstScrollView(in: $0) }.first
+        }
+        let curScroll = try XCTUnwrap(firstScrollView(in: cur.view))
+        XCTAssertEqual(curScroll.convert(curScroll.bounds, to: cur.view).minY, 8, accuracy: 1)
+        XCTAssertEqual(curScroll.bounds.height, cur.view.bounds.height - 16, accuracy: 1)
+        XCTAssertEqual(curScroll.adjustedContentInset, .zero)
+
+        let ds = try XCTUnwrap(pvc.dataSource)
+        let nextVC = try XCTUnwrap(ds.pageViewController(pvc, viewControllerAfter: cur))
+        pvc.delegate?.pageViewController?(pvc, willTransitionTo: [nextVC])
+        pvc.setViewControllers([nextVC], direction: .forward, animated: true, completion: nil)
+        for _ in 0..<12 {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+            XCTAssertEqual(queueScroll.contentOffset.y, 0, accuracy: 0.5)
+            XCTAssertEqual(queueScroll.contentInset.top, 0, accuracy: 0.5)
+            XCTAssertEqual(nextVC.view.safeAreaInsets.top, 0, accuracy: 0.5)
+            if let nextScroll = firstScrollView(in: nextVC.view) {
+                XCTAssertEqual(nextScroll.convert(nextScroll.bounds, to: nextVC.view).minY, 8, accuracy: 1)
+                XCTAssertEqual(nextScroll.bounds.height, nextVC.view.bounds.height - 16, accuracy: 1)
+                XCTAssertEqual(nextScroll.adjustedContentInset, .zero)
+            }
+        }
+    }
+
+    func testNavigationHostKeepsNavigationBarHiddenAcrossHostingBarRequestsAndPaging() async throws {
+        let db = try AppDatabase.inMemory()
+        var t = TimeTableEntity(name: "NavBarTable", startDate: "2026-11-02", maxWeek: 20)
+        t.id = try db.timeTableDao.insert(t)
+        try db.timeTableDao.setDefault(t.id)
+        try db.courseDao.insert(CourseEntity(groupId: "g1", tableId: t.id, courseName: "高数",
+            day: 1, startNode: 1, step: 2, startWeek: 1, endWeek: 20, type: 0, color: "#FF6750A4"))
+        let repo = ScheduleRepository(db)
+        let rootVM = AppRootViewModel(repository: repo)
+        rootVM.scheduleViewMode = .cards
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        let window = scene.map { UIWindow(windowScene: $0) } ?? UIWindow(frame: CGRect(x: 0, y: 0, width: 414, height: 736))
+        window.frame = CGRect(x: 0, y: 0, width: 414, height: 736)
+        let rootHost = UIHostingController(rootView: AppRoot().environmentObject(rootVM))
+        window.rootViewController = rootHost
+        window.isHidden = false
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+
+        func find<T>(_ type: T.Type, in view: UIView) -> T? {
+            if let match = view.next as? T { return match }
+            for child in view.subviews {
+                if let match = find(type, in: child) { return match }
+            }
+            return nil
+        }
+
+        for _ in 0..<40 {
+            await flushMainQueue()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            if rootVM.scheduleViewModel.state.tables.count == 1,
+               find(UIPageViewController.self, in: window)?.viewControllers?.first != nil,
+               find(UINavigationController.self, in: window) != nil {
+                break
+            }
+        }
+        let nav = try XCTUnwrap(find(UINavigationController.self, in: window))
+        let pvc = try XCTUnwrap(find(UIPageViewController.self, in: window))
+        let baselineTop = pvc.view.convert(pvc.view.bounds, to: window).minY
+
+        // Simulate iOS 15 UIHostingController pushing its default navigationBarHidden=false onto ancestor UINavigationController.
+        nav.setNavigationBarHidden(false, animated: true)
+        nav.isNavigationBarHidden = false
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+
+        XCTAssertTrue(nav.isNavigationBarHidden,
+                      "SleepyNativeNavigationHost must keep UINavigationBar hidden even when a child hosting controller attempts to show it")
+        XCTAssertEqual(pvc.view.convert(pvc.view.bounds, to: window).minY, baselineTop, accuracy: 0.5)
+    }
 }

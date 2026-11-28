@@ -28,28 +28,108 @@ struct WeekGridWideWidgetProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekGridWideWidgetEntry>) -> Void) {
         Task {
-            let now = Date(), settings = WeekGridWideSettingsStore.read(kind: mode.widgetKind)
-            let data = await WeekGridWideDataLoader.load(kind: mode.widgetKind, now: now)
-            let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
-            let entries = Self.timelineDates(data: data, mode: settings.mode, from: now, before: refresh).map {
+            let timeline = await Self.timeline(mode: mode, familyDescription: context.family.description)
+            completion(timeline)
+        }
+    }
+
+    static func timeline(mode: WeekGridWideMode, familyDescription: String,
+                         overrideTableId: Int64? = nil) async -> Timeline<WeekGridWideWidgetEntry> {
+        let now = Date(), settings = WeekGridWideSettingsStore.read(kind: mode.widgetKind)
+        let data = await WeekGridWideDataLoader.load(kind: mode.widgetKind, now: now,
+                                                     overrideTableId: overrideTableId)
+        let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
+        let entries: [WeekGridWideWidgetEntry]
+        if let rollover = WidgetBoundaryScheduler.nearestBusyRolloverDate(days: data.days, from: now),
+           rollover < refresh {
+            let nextData = await WeekGridWideDataLoader.load(kind: mode.widgetKind, now: rollover,
+                                                             overrideTableId: overrideTableId)
+            if nextData.weekDisplayStatus == .nearestBusyDay {
+                let pre = timelineDates(data: data, mode: settings.mode, from: now, before: rollover).map {
+                    WeekGridWideWidgetEntry(date: $0, data: data, settings: settings)
+                }
+                let post = timelineDates(data: nextData, mode: settings.mode, from: rollover, before: refresh).map {
+                    WeekGridWideWidgetEntry(date: $0, data: nextData, settings: settings)
+                }
+                entries = pre + post
+            } else {
+                entries = timelineDates(data: data, mode: settings.mode, from: now, before: refresh).map {
+                    WeekGridWideWidgetEntry(date: $0, data: data, settings: settings)
+                }
+            }
+        } else {
+            entries = timelineDates(data: data, mode: settings.mode, from: now, before: refresh).map {
                 WeekGridWideWidgetEntry(date: $0, data: data, settings: settings)
             }
-            WidgetArchiveLog.append(kind: mode.widgetKind, family: context.family.description, result: "success")
-            completion(Timeline(entries: entries, policy: .after(refresh)))
         }
+        WidgetArchiveLog.append(kind: mode.widgetKind, family: familyDescription, result: "success")
+        return Timeline(entries: entries, policy: .after(refresh))
     }
 
     /// Period boundaries apply even on empty days and when no course ends at this time.
     static func timelineDates(data: WeekData, mode: WeekGridWideMode, from now: Date,
                               before refresh: Date, calendar: Calendar = .current) -> [Date] {
         guard mode == .vertical else { return [now] }
-        let midnight = calendar.startOfDay(for: now)
-        let dates = WeekGridWideWindowCore.periods(timeJson: data.days.first?.timeJson ?? "")
-            .compactMap(\.endMinute).compactMap { calendar.date(byAdding: .minute, value: $0, to: midnight) }
+        let today = data.days.first { calendar.isDate($0.date, inSameDayAs: now) }
+        let clock = CourseReminderCalendar(timeZone: calendar.timeZone)
+        guard let day = clock.civilDay(containing: now) else { return [now] }
+        let dates = WeekGridWideWindowCore.periods(timeJson: today?.timeJson ?? data.days.first?.timeJson ?? "")
+            .compactMap(\.endMinute).compactMap { clock.instant(on: day, wallSeconds: $0 * 60) }
             .filter { $0 > now && $0 < refresh }
         return [now] + Set(dates).sorted()
     }
 }
+
+#if compiler(>=5.9)
+@available(iOS 17.0, *)
+struct WeekGridWideIntentWidgetProvider: AppIntentTimelineProvider {
+    let mode: WeekGridWideMode
+
+    func placeholder(in context: Context) -> WeekGridWideWidgetEntry {
+        WeekGridWideWidgetProvider(mode: mode).placeholder(in: context)
+    }
+
+    func snapshot(for configuration: SelectTimetableIntent, in context: Context) async -> WeekGridWideWidgetEntry {
+        let now = Date(), settings = WeekGridWideSettingsStore.read(kind: mode.widgetKind)
+        let data = await WeekGridWideDataLoader.load(kind: mode.widgetKind, now: now,
+                                                     overrideTableId: configuration.timetable?.id)
+        WidgetArchiveLog.append(kind: mode.widgetKind, family: context.family.description, result: "success")
+        return WeekGridWideWidgetEntry(date: now, data: data, settings: settings)
+    }
+
+    func timeline(for configuration: SelectTimetableIntent,
+                  in context: Context) async -> Timeline<WeekGridWideWidgetEntry> {
+        await WeekGridWideWidgetProvider.timeline(mode: mode, familyDescription: context.family.description,
+                                                  overrideTableId: configuration.timetable?.id)
+    }
+}
+
+@available(iOS 17.0, *)
+struct WeekGridVerticalIntentWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: WeekGridWideMode.vertical.widgetKind, intent: SelectTimetableIntent.self,
+                               provider: WeekGridWideIntentWidgetProvider(mode: .vertical)) {
+            WeekGridWideWidgetEntryView(entry: $0)
+        }
+        .configurationDisplayName(L10n.format(WeekGridWideMode.vertical.displayNameKey))
+        .supportedFamilies([.systemMedium])
+        .sleepyContentMarginsDisabled()
+    }
+}
+
+@available(iOS 17.0, *)
+struct WeekGridHorizontalIntentWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: WeekGridWideMode.horizontal.widgetKind, intent: SelectTimetableIntent.self,
+                               provider: WeekGridWideIntentWidgetProvider(mode: .horizontal)) {
+            WeekGridWideWidgetEntryView(entry: $0)
+        }
+        .configurationDisplayName(L10n.format(WeekGridWideMode.horizontal.displayNameKey))
+        .supportedFamilies([.systemMedium])
+        .sleepyContentMarginsDisabled()
+    }
+}
+#endif
 
 struct WeekGridWideCard: Identifiable {
     let course: CourseEntity
@@ -69,7 +149,8 @@ struct WeekGridWideGeometry {
     static func make(data: WeekData, settings: WeekGridWideSettings, now: Date,
                      size: CGSize, fontScale: CGFloat = 1) -> WeekGridWideGeometry {
         let dates = WeekGridWideWindowCore.visibleDates(today: now, mode: settings.mode)
-        let periods = WeekGridWideWindowCore.periods(timeJson: data.days.first?.timeJson ?? "")
+        let today = data.days.first { Calendar.current.isDate($0.date, inSameDayAs: now) }
+        let periods = WeekGridWideWindowCore.periods(timeJson: today?.timeJson ?? data.days.first?.timeJson ?? "")
         let vertical = settings.mode == .vertical
         let window = vertical
             ? WeekGridWideWindowCore.visiblePeriods(periods, nowMinute: WidgetWindows.nowMinutes(now),
@@ -79,6 +160,8 @@ struct WeekGridWideGeometry {
         var cards: [WeekGridWideCard] = []
         for (dayIndex, date) in dates.enumerated() {
             guard let day = data.days.first(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }) else { continue }
+            // Match the common node axis, but project an explicit clock against this column's own bells.
+            let dayPeriods = WeekGridWideWindowCore.periods(timeJson: day.timeJson)
             let validCourses = day.courses.filter {
                 WeekGridWideWindowCore.periodNodeSpan(startNode: $0.startNode, step: $0.step) != nil
             }
@@ -92,7 +175,7 @@ struct WeekGridWideGeometry {
                 if course.ownTime || course.isIrregularTime,
                    let start = WeekGridWideWindowCore.minute(course.startTime),
                    let end = WeekGridWideWindowCore.minute(course.endTime),
-                   let fractional = WeekGridWideWindowCore.fractionalSpan(startMinute: start, endMinute: end, periods: periods) {
+                   let fractional = WeekGridWideWindowCore.fractionalSpan(startMinute: start, endMinute: end, periods: dayPeriods) {
                     span = fractional
                 }
                 guard let visible = WeekGridWideWindowCore.intersectPeriodSpan(start: span.lowerBound,
@@ -158,7 +241,7 @@ struct WeekGridWideWidgetEntryView: View {
             ForEach(Array(geometry.dates.enumerated()), id: \.offset) { index, date in
                 VStack(spacing: 2) {
                     Text(DateUtils.localizedDay(DateUtils.todayDayOfWeek(today: date))).font(.system(size: 9))
-                    Text(DateUtils.shortDate(date)).font(.system(size: 8))
+                    Text(WidgetDateLabel.monthDay(date)).font(.system(size: 8))
                 }
                 .foregroundColor(scheme.onSurfaceVariant)
                 .frame(width: 34, height: dayExtent)
@@ -302,7 +385,7 @@ struct WeekGridVerticalWidget: Widget {
         }
         .configurationDisplayName(L10n.format(WeekGridWideMode.vertical.displayNameKey))
         .supportedFamilies([.systemMedium])
-        .contentMarginsDisabled()
+        .sleepyContentMarginsDisabled()
     }
 }
 
@@ -314,6 +397,6 @@ struct WeekGridHorizontalWidget: Widget {
         }
         .configurationDisplayName(L10n.format(WeekGridWideMode.horizontal.displayNameKey))
         .supportedFamilies([.systemMedium])
-        .contentMarginsDisabled()
+        .sleepyContentMarginsDisabled()
     }
 }

@@ -48,9 +48,9 @@ struct PeriodTablesScreen: View {
         HStack {
             Button(action: onBack) {
                 AndroidSettingsIcon(name: .arrowBack, size: 24)
-                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                    .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
             .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("back")))
             .accessibilityIdentifier("period_tables_back")
@@ -95,10 +95,10 @@ struct PeriodTablesScreen: View {
                 onOpenEdit(pt.id)
             } label: {
                 AndroidSettingsIcon(name: .edit, size: 24)
-                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                    .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                     .foregroundColor(colors.onSurfaceVariant)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
             .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("edit_table_title")))
             .accessibilityIdentifier("period_table_edit_\(pt.id)")
@@ -109,10 +109,10 @@ struct PeriodTablesScreen: View {
                 }
             } label: {
                 AndroidSettingsIcon(name: .contentCopy, size: 24)
-                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                    .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                     .foregroundColor(colors.onSurfaceVariant)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
             .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("period_table_copy")))
             .accessibilityIdentifier("period_table_copy_\(pt.id)")
@@ -138,7 +138,7 @@ struct PeriodTablesScreen: View {
             .frame(height: uiStyle == .liquidGlass ? nil : 56)   // ← SleepyTheme.Buttons.ctaHeight
             .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)   // ← SleepyTheme.Buttons.shape
         }
-        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
         .frame(maxWidth: .infinity, minHeight: 56)
         .tint(colors.primary)
         .accessibilityIdentifier("period_tables_new")
@@ -172,9 +172,10 @@ struct PeriodTablesScreen: View {
                 dismissIdentifier: "period_table_copy_cancel")
         )) {
             VStack(alignment: .leading, spacing: 8) {
-                FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
+                FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"),
+                               identifier: "period_table_copy_name")
                     .disableAutocorrection(true)
-                    .accessibilityIdentifier("period_table_copy_name")
+                    .textInputAutocapitalization(.never)
                 if nameTaken {
                     Text(L10n.t("period_table_name_taken"))
                         .font(.system(size: 12))

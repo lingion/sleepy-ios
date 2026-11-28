@@ -16,12 +16,15 @@ struct WatchTomorrowEntryView: View {
     let entry: WatchWidgetEntry<WatchTomorrowSnapshot>
 
     var body: some View {
-        switch family {
-        case .accessoryCircular: WatchTomorrowCircular(snap: entry.snapshot)
-        case .accessoryCorner: WatchTomorrowCorner(snap: entry.snapshot)
-        case .accessoryInline: WatchTomorrowInline(snap: entry.snapshot)
-        default: WatchTomorrowRectangular(snap: entry.snapshot)
+        Group {
+            switch family {
+            case .accessoryCircular: WatchTomorrowCircular(snap: entry.snapshot)
+            case .accessoryCorner: WatchTomorrowCorner(snap: entry.snapshot)
+            case .accessoryInline: WatchTomorrowInline(snap: entry.snapshot)
+            default: WatchTomorrowRectangular(snap: entry.snapshot)
+            }
         }
+        .watchMaterialSurface(family)
     }
 }
 
@@ -30,7 +33,7 @@ private struct WatchTomorrowCircular: View {
     let snap: WatchTomorrowSnapshot
     var body: some View {
         ZStack {
-            Circle().stroke(.foreground.opacity(0.3), lineWidth: 2)
+            WatchProgressRing(progress: 0)
             if !snap.inSemester {
                 Text(L10n.t("watch_holiday")).font(.system(size: 11))
             } else if !snap.items.isEmpty {
@@ -69,23 +72,25 @@ private struct WatchTomorrowCorner: View {
 
 /// rectangular — 明日前 3 节 (时间 + 课名)
 private struct WatchTomorrowRectangular: View {
+    @Environment(\.watchMaterialPalette) private var palette
     let snap: WatchTomorrowSnapshot
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             if !snap.inSemester {
-                Text(L10n.t("watch_holiday")).font(.system(size: 12)).foregroundColor(.secondary)
+                Text(L10n.t("watch_holiday")).font(.system(size: 12)).foregroundColor(palette.secondaryText)
             } else if snap.items.isEmpty {
                 Text(L10n.t("watch_tomorrow_no_class"))
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(palette.secondaryText)
             } else {
                 ForEach(Array(snap.items.prefix(3).enumerated()), id: \.offset) { _, item in
                     HStack(spacing: 6) {
                         Text(TimeTableUtils.formatTime(item.startDate))
                             .font(.system(size: 11).monospacedDigit())
-                            .foregroundColor(.secondary)
+                            .foregroundColor(palette.secondaryText)
                         Text(item.courseName)
                             .font(.system(size: 12))
+                            .foregroundColor(palette.primaryText)
                             .lineLimit(1)
                     }
                 }

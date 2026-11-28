@@ -190,14 +190,15 @@ final class SchoolCityLocator: NSObject, CLLocationManagerDelegate {
     /// Task.isCancelled 传进 200 万点扫描(原 `{ coroutineContext.ensureActive() }`
     /// 等价): 12s 超时/任务取消可中途 abort。取消/异常/缺资源 → nil。
     fileprivate static func parseOffline() -> OfflineSchoolCityIndex? {
-        // AAPT 解包 .gz 资源会去掉后缀 — iOS 侧同样 .bin.gz 优先、.bin 兜底。
-        guard let url = Bundle.main.url(forResource: "school_city_boundaries", withExtension: "bin.gz")
-            ?? Bundle.main.url(forResource: "school_city_boundaries", withExtension: "bin") else {
+        guard let decompressed = BundledAssetLoader.loadData(
+            name: "school_city_boundaries",
+            ext: "bin",
+            fallbackExts: ["bin.gz"],
+            bundles: [.main, Bundle(for: SchoolCityLocator.self)]
+        ) else {
             return nil
         }
         do {
-            let raw = try Data(contentsOf: url)
-            let decompressed = url.pathExtension == "gz" ? (raw.gunzipped() ?? raw) : raw
             let stream = InputStream(data: decompressed)
             return try OfflineSchoolCityIndex.parse(stream) {
                 if Task.isCancelled { throw OfflineSchoolCityIndex.ParseError.cancelled }

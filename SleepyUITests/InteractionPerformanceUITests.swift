@@ -37,7 +37,9 @@ final class InteractionPerformanceUITests: XCTestCase {
         var metrics: [XCTMetric] = [XCTCPUMetric(application: app),
                                    XCTMemoryMetric(application: app),
                                    XCTStorageMetric(application: app)]
+        #if compiler(>=6.0)
         if #available(iOS 26, *) { metrics.append(XCTHitchMetric(application: app)) }
+        #endif
         return metrics
     }
 

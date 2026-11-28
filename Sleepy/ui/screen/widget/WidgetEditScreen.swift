@@ -126,6 +126,7 @@ struct WidgetEditScreen: View {
         .onAppear {
             reloadScope()
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("widget_edit_screen_\(kind)")
     }
 

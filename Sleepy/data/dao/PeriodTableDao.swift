@@ -1,6 +1,7 @@
 // PeriodTableDao.swift — ← data/dao/PeriodTableDao.kt 逐条 SQL 翻译 (GPL-3.0)
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
 
 struct PeriodTableDao {
@@ -109,3 +110,89 @@ struct PeriodTableDao {
         }
     }
 }
+#else
+struct PeriodTableDao {
+    let db: LiteDatabase
+
+    private static let selectColumns = """
+        id, name, nodesPerDay, timeJson, smartConfigJson, comboScheduleJson, createdAt, updatedAt
+        """
+
+    private static func mapRow(_ s: LiteStatement) -> PeriodTableEntity {
+        PeriodTableEntity(
+            name: s.colString(1),
+            nodesPerDay: s.colInt(2),
+            timeJson: s.colString(3),
+            smartConfigJson: s.colString(4),
+            comboScheduleJson: s.colString(5),
+            createdAt: s.colInt64(6),
+            updatedAt: s.colInt64(7),
+            id: s.colInt64(0)
+        )
+    }
+
+    func getById(_ id: Int64) throws -> PeriodTableEntity? {
+        try db.read { conn in
+            try conn.fetchOne(
+                "SELECT \(Self.selectColumns) FROM period_tables WHERE id = ? LIMIT 1",
+                arguments: [.int64(id)],
+                map: Self.mapRow
+            )
+        }
+    }
+
+    func getAll() throws -> [PeriodTableEntity] {
+        try db.read { conn in
+            try conn.fetchAll(
+                "SELECT \(Self.selectColumns) FROM period_tables ORDER BY createdAt DESC",
+                map: Self.mapRow
+            )
+        }
+    }
+
+    func count() throws -> Int {
+        try db.read { conn in
+            try conn.fetchOne("SELECT COUNT(*) FROM period_tables") { $0.colInt(0) } ?? 0
+        }
+    }
+
+    func boundTableCount(_ id: Int64) throws -> Int {
+        try db.read { conn in
+            try conn.fetchOne(
+                "SELECT COUNT(*) FROM time_tables WHERE periodTableId = ?",
+                arguments: [.int64(id)]
+            ) { $0.colInt(0) } ?? 0
+        }
+    }
+
+    func boundTableIds(_ id: Int64) throws -> [Int64] {
+        try db.read { conn in
+            try conn.fetchAll(
+                "SELECT id FROM time_tables WHERE periodTableId = ?",
+                arguments: [.int64(id)]
+            ) { $0.colInt64(0) }
+        }
+    }
+
+    @discardableResult
+    func insertInDb(_ conn: LiteDatabase.Connection, _ p: PeriodTableEntity) throws -> Int64 {
+        try conn.execute("""
+            INSERT OR REPLACE INTO period_tables (
+                id, name, nodesPerDay, timeJson, smartConfigJson, comboScheduleJson, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [
+                p.id == 0 ? .null : .int64(p.id),
+                .text(p.name),
+                .int(p.nodesPerDay),
+                .text(p.timeJson),
+                .text(p.smartConfigJson),
+                .text(p.comboScheduleJson),
+                .int64(p.createdAt),
+                .int64(p.updatedAt)
+            ]
+        )
+        return p.id == 0 ? conn.lastInsertRowId : p.id
+    }
+}
+#endif

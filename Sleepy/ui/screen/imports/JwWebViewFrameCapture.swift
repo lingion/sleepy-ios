@@ -113,7 +113,6 @@ struct FrameSnapshotList {
 
 // MARK: - 树遍历与锚点判定
 enum FrameTraversalTree {
-    private static let declaredHtmlTypes = Set("pku huat seu_2017 shu2024 tju hqu changzhou sicnu nuist sit sysu jz_1 jz_x wist xmu swjtu_post kg_zx hbut hnjm lz nau nju cqupt xhtd xytc cidp sdpei shu jmpt lngd vatuu yzzy cqu hit jz gxic gxnu jxnu nnutc shcc hbmzu nua gdei aic hust gliet cnu cdut gzhuyjs dhu ecjtu zptc ctgu nyist jxau hniu uic cityu stu nfu jmucy nuaajc qmu javtc hitsz bjtu scau jnu swust xjtu_post uestc_post bfa_post gdbyxy cupl_post ysu_post whu_post hrbeu_post shtu_post ustc_post xauat_post shuwei_old urp".split(separator: " ").map(String.init))
 
     // ← 原版本 JwWebViewFrameCapture.kt:125 (v1.0.62): 14 锚点。
     // 后 5 个 (pageRpt/mytable/reportArea/xkinfo/sample-table-1) 是 Kingosoft 正选报表
@@ -167,16 +166,17 @@ enum FrameTraversalTree {
         } else {
             oldQzAnchors = anchors
         }
-        let thuAnchors = isThuCoursePage(html)
+        var structural = isThuCoursePage(html)
             ? oldQzAnchors + [THU_SCRIPT_ANCHOR] : oldQzAnchors
+        if JwChengFangParser(html).confidenceValue > 0 { structural.append("cf-course-schema") }
         // Some URP pages embed the timetable as a flat JSON array in a script,
         // without a table id/class. Validate its structure before selecting frame.
         // ← 原版本 :158-162
         if html.contains("\"skzc\"") && html.contains("\"kcm\"")
             && JwNewUrpSuperParser(html).hasFlatArraySchema() {
-            return thuAnchors + ["new-urp-array"]
+            return structural + ["new-urp-array"]
         }
-        return thuAnchors
+        return structural
     }
 
     /// 跨域 frame 列表: "frameName@domain"
@@ -235,7 +235,9 @@ enum FrameTraversalTree {
         for (kw, _) in LOGIN_FINGERPRINTS {
             if lower.contains(kw.lowercased()) { score += 1 }
         }
-        return score >= 2
+        let passwordField = lower.range(of: #"<input\b[^>]*\btype\s*=\s*(?:"password"|'password'|password(?=[\s/>]))"#,
+                                        options: .regularExpression) != nil
+        return score >= 2 || (score >= 1 && passwordField)
     }
 
     /// Kotlin maxByOrNull 语义: 并列取最先出现者 (Swift max(by:) 取最后, 故自实现)。
@@ -334,15 +336,42 @@ enum FrameTraversalTree {
                 allFrames: allFrames
             )
         }
-        if let declaredType, declaredHtmlTypes.contains(declaredType),
-           !reachable.contains(where: { looksLikeLoginPage($0.outerHTML ?? "") }),
-           let frame = reachable.sorted(by: { $0.depth > $1.depth }).first(where: { frame in
-               guard let parser = try? JwParserRegistry.parserFor(declaredType, frame.outerHTML ?? "") else { return false }
-               return ((try? parser.generateCourseList().isEmpty) == false)
-           }) {
-            return FrameCaptureResult(selectedFramePath: frame.parentPath + [frame.frameName ?? ""],
-                                      html: frame.outerHTML ?? "", matchedAnchors: ["declared-" + declaredType], status: .ok,
-                                      blockedFrames: blocked, maxDepthReached: maxDepthReached, allFrames: allFrames)
+        if let loginFrame = deepestFirst(reachable.filter { looksLikeLoginPage($0.outerHTML ?? "") }) {
+            return FrameCaptureResult(
+                selectedFramePath: loginFrame.parentPath + [loginFrame.frameName ?? ""],
+                html: loginFrame.outerHTML ?? "",
+                matchedAnchors: [],
+                status: .sessionExpired,
+                blockedFrames: blocked,
+                maxDepthReached: maxDepthReached,
+                skippedFrames: [],
+                diagnosticHint: "检测到登录页/会话过期特征(frame=\(loginFrame.frameName ?? "(top)"))，请重新登录后再点「导入此页」",
+                allFrames: allFrames
+            )
+        }
+        let anchored = rankedCandidates(snapshots, maxDepth: maxDepth)
+        let seen = Set(anchored.map(\.snapshot))
+        let unanchored = reachable.enumerated()
+            .filter { !seen.contains($0.element) }
+            .sorted { $0.element.depth != $1.element.depth ? $0.element.depth > $1.element.depth : $0.offset < $1.offset }
+            .map { Candidate(snapshot: $0.element, anchors: [], order: $0.offset) }
+        // Reuse the production parser registry instead of requiring a second protocol allowlist.
+        for candidate in anchored + unanchored {
+            guard let html = candidate.snapshot.outerHTML else { continue }
+            let count: Int
+            if let type = declaredType, type != JwProtocol.TYPE_JW_HOME {
+                guard let parser = try? JwParserRegistry.parserFor(type, html) else { continue }
+                count = (try? parser.generateCourseList().count) ?? 0
+            } else {
+                count = JwParserRegistry.selectBest(html).0.count
+            }
+            if count > 0 {
+                let frame = candidate.snapshot
+                let labels = candidate.anchors.isEmpty ? [declaredType.map { "declared-" + $0 } ?? "course-schema"] : candidate.anchors
+                return FrameCaptureResult(selectedFramePath: frame.parentPath + [frame.frameName ?? ""],
+                    html: html, matchedAnchors: labels, courseCount: count, status: .ok,
+                    blockedFrames: blocked, maxDepthReached: maxDepthReached, allFrames: allFrames)
+            }
         }
         // ②③ 候选
         let candidates = rankedCandidates(snapshots, maxDepth: maxDepth)
@@ -385,19 +414,6 @@ enum FrameTraversalTree {
         //  - 任一可达 frame looksLikeLoginPage → SESSION_EXPIRED
         //    多个 frame 同时命中时取最深的(顶层 frameset 可能因注释/说明文字含弱指纹词,
         //    真正的登录表单在更深的内层 frame — case #8)
-        if let loginFrame = deepestFirst(reachable.filter { looksLikeLoginPage($0.outerHTML!) }) {
-            return FrameCaptureResult(
-                selectedFramePath: loginFrame.parentPath + [loginFrame.frameName ?? ""],
-                html: loginFrame.outerHTML ?? "",
-                matchedAnchors: [],
-                status: .sessionExpired,
-                blockedFrames: blocked,
-                maxDepthReached: maxDepthReached,
-                skippedFrames: skipped,
-                diagnosticHint: "检测到登录页/会话过期特征(frame=\(loginFrame.frameName ?? "(top)"))，请重新登录后再点「导入此页」",
-                allFrames: allFrames
-            )
-        }
         //  - 存在 blocked frame → CROSS_DOMAIN_IFRAME_BLOCKED
         if !blocked.isEmpty {
             return FrameCaptureResult(
@@ -453,12 +469,20 @@ enum FrameTraversalTree {
                 diagnosticHint: "检测到登录页/会话过期特征(\(logoutFrame.frameName ?? "(top)") 含 logout.aspx 跳转脚本)，请重新登录后再点「导入此页」"
             )
         }
+        let reachable = snapshots.frames.filter { $0.outerHTML != nil && $0.depth <= maxDepth }
+        if reachable.contains(where: { looksLikeLoginPage($0.outerHTML ?? "") }) {
+            return selectBestFrame(snapshots, maxDepth: maxDepth)
+        }
         let candidates = rankedCandidates(snapshots, maxDepth: maxDepth)
+        let seen = Set(candidates.map(\.snapshot))
+        let unanchored = reachable.enumerated().filter { !seen.contains($0.element) }.map {
+            Candidate(snapshot: $0.element, anchors: [], order: $0.offset)
+        }
         let skipped = computeSkipped(snapshots, maxDepth: maxDepth, candidates: candidates)
 
         var bestCount = 0
         var bestCandidate: Candidate? = nil
-        for c in candidates {
+        for c in candidates + unanchored {
             let count = ((try? parse(c.snapshot.outerHTML!))?.count) ?? 0
             if count > bestCount {
                 bestCount = count

@@ -52,20 +52,19 @@ final class OfflineSchoolCityIndexTests: XCTestCase {
         return Data(out[0..<n])
     }
 
-    /// 生产入口的镜像: .bin.gz 优先、.bin 兜底 → gunzip → SCB1 流式解析。
+    /// 生产入口的镜像: .bin.lzma 优先、.bin.gz / .bin 兜底 → SCB1 流式解析。
     private static func loadRealIndex() throws -> OfflineSchoolCityIndex {
         let bundle = Bundle(for: OfflineSchoolCityIndexTests.self)
         let appBundle = Bundle(for: JwImportViewModel.self) // @testable → app 类型定位 app bundle
-        func asset(_ ext: String) -> Data? {
-            guard let url = appBundle.url(forResource: "school_city_boundaries", withExtension: ext)
-                ?? bundle.url(forResource: "school_city_boundaries", withExtension: ext)
-                ?? Bundle.main.url(forResource: "school_city_boundaries", withExtension: ext)
-            else { return nil }
-            return try? Data(contentsOf: url)
-        }
-        let raw = try XCTUnwrap(asset("bin.gz") ?? asset("bin"),
-                               "school_city_boundaries 资产未打进测试可见的 bundle")
-        let decompressed = (raw.count > 1 && raw[0] == 0x1f && raw[1] == 0x8b) ? (gunzip(raw) ?? raw) : raw
+        let decompressed = try XCTUnwrap(
+            BundledAssetLoader.loadData(
+                name: "school_city_boundaries",
+                ext: "bin",
+                fallbackExts: ["bin.gz"],
+                bundles: [appBundle, bundle, .main]
+            ),
+            "school_city_boundaries 资产未打进测试可见的 bundle"
+        )
         return try OfflineSchoolCityIndex.parse(InputStream(data: decompressed))
     }
 
@@ -73,12 +72,15 @@ final class OfflineSchoolCityIndexTests: XCTestCase {
     private static func loadSchoolCitiesText() throws -> String {
         let appBundle = Bundle(for: JwImportViewModel.self)
         let bundle = Bundle(for: OfflineSchoolCityIndexTests.self)
-        guard let url = appBundle.url(forResource: "school_cities", withExtension: "json")
-            ?? bundle.url(forResource: "school_cities", withExtension: "json")
-            ?? Bundle.main.url(forResource: "school_cities", withExtension: "json")
-        else { throw NSError(domain: "OfflineSchoolCityIndexTests", code: 1,
-                             userInfo: [NSLocalizedDescriptionKey: "school_cities.json 未打进测试可见的 bundle"]) }
-        return try String(contentsOf: url, encoding: .utf8)
+        guard let text = BundledAssetLoader.loadText(
+            name: "school_cities",
+            ext: "json",
+            bundles: [appBundle, bundle, .main]
+        ) else {
+            throw NSError(domain: "OfflineSchoolCityIndexTests", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "school_cities.json 未打进测试可见的 bundle"])
+        }
+        return text
     }
 
     // MARK: - ← SchoolBoundaryFixture.kt (SCB1 字节构造器, JSON [lon, lat] 度数)

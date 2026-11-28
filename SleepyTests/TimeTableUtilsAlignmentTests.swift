@@ -46,8 +46,10 @@ final class TimeTableUtilsMergeTests: XCTestCase {
         XCTAssertEqual(13, rows.count, "13 节可达就必须是 13 节")
         XCTAssertEqual("08:00", rows[0].start, "1..10 保留原表真实时间")
         XCTAssertEqual("19:50", rows[9].start)
-        XCTAssertEqual("20:50", rows[10].start, "11..13 用 smart 默认起始")
-        XCTAssertEqual("22:30", rows[12].end)
+        XCTAssertEqual("20:50", rows[10].start)
+        XCTAssertEqual("22:40", rows[12].start)
+        XCTAssertEqual("23:25", rows[12].end)
+        XCTAssertEqual(TimeTableUtils.validatePeriodRows(rows), .valid)
     }
 
     func testIncomingShorterThanCurrentNeverShrinks() {

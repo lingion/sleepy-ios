@@ -25,6 +25,7 @@ enum SleepyNativeParser {
         var nodesPerDayRaw: Int?
         var declaredCount: Int?
         var importSourceJson = ""
+        var jwSchoolSourceJson = ""
         var bodyStart = 0
         var foundMagic = false
 
@@ -54,6 +55,7 @@ enum SleepyNativeParser {
                             let v = String(kv[kv.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
                             if k == "n" { declaredCount = javaInt(v) }
                             if k == "source" { importSourceJson = SleepyNativeFormat.unescape(v) }
+                            if k == "jw" { jwSchoolSourceJson = SleepyNativeFormat.unescape(v) }
                             // 未知键静默忽略(v2 契约)
                         }
                     }
@@ -265,7 +267,7 @@ enum SleepyNativeParser {
             warnings: warnings,
             maxWeek: maxWeekClamped ?? 20,
             groupIdsAuthoritative: true,
-            periodTable: periodTable, importSourceJson: importSourceJson)
+            periodTable: periodTable, importSourceJson: importSourceJson, jwSchoolSourceJson: jwSchoolSourceJson)
     }
 
     /// 本地 isMagicLine — 恒等移植自原版本 SleepyNativeParser.kt:266-267

@@ -25,7 +25,7 @@ struct AndroidSettingsIcon: View {
             .fill()
             .frame(width: size, height: size)
             .scaleEffect(x: mirrorsInRTL && layoutDirection == .rightToLeft ? -1 : 1, y: 1)
-            .accessibilityHidden(true)
+            .sleepyAccessibleShapeAnchor()
     }
 
     private var mirrorsInRTL: Bool {

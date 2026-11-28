@@ -77,6 +77,43 @@ final class UndoHistoryDepthTests: XCTestCase {
         XCTAssertEqual(history.poll()?.defaultTableId, 6)
     }
 
+    func testSettingsModeValuesApplyImmediatelyToBothStacks() {
+        let history = Sleepy.UndoManager(maxDepth: 5)
+        for id in 1...6 {
+            capture(Int64(id), in: history)
+            history.recordRedo(snapshot(Int64(id + 10)))
+        }
+        history.applyMaxDepth(UndoDepthMode.off.storedDepth)
+        XCTAssertFalse(history.hasSnapshot)
+        XCTAssertFalse(history.hasRedoSnapshot)
+        capture(1, in: history)
+        XCTAssertNil(history.poll())
+
+        history.applyMaxDepth(UndoDepthMode.limited.storedDepth)
+        for id in 1...7 { capture(Int64(id), in: history) }
+        for id in 11...17 { history.recordRedo(snapshot(Int64(id))) }
+        for id in stride(from: 7, through: 3, by: -1) {
+            XCTAssertEqual(history.poll()?.defaultTableId, Int64(id))
+        }
+        XCTAssertNil(history.poll())
+        for id in stride(from: 17, through: 13, by: -1) {
+            XCTAssertEqual(history.pollRedo()?.defaultTableId, Int64(id))
+        }
+        XCTAssertNil(history.pollRedo())
+
+        history.applyMaxDepth(UndoDepthMode.unlimited.storedDepth)
+        for id in 21...50 { capture(Int64(id), in: history) }
+        for id in 51...80 { history.recordRedo(snapshot(Int64(id))) }
+        for id in stride(from: 50, through: 21, by: -1) {
+            XCTAssertEqual(history.poll()?.defaultTableId, Int64(id))
+        }
+        for id in stride(from: 80, through: 51, by: -1) {
+            XCTAssertEqual(history.pollRedo()?.defaultTableId, Int64(id))
+        }
+        XCTAssertNil(history.poll())
+        XCTAssertNil(history.pollRedo())
+    }
+
     func testEveryNegativeDepthIsUnlimitedForBothStacks() {
         for depth in [-1, -17, Int.min] {
             let history = Sleepy.UndoManager(maxDepth: depth)

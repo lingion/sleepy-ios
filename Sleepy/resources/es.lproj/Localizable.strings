@@ -25,14 +25,10 @@
 "table_created_at" = "Importado %1$@";
 "schedule_undo_none" = "Nada que deshacer";
 "schedule_no_course_today" = "No hay clases hoy";
-"import_title" = "Importar horario";
 "manage_current_table" = "Horario actual";
 "manage_import" = "Importar";
-"manage_import_sub" = "Importar desde archivo / texto / CSV";
 "manage_new_table" = "Nuevo horario";
-"manage_new_table_sub" = "Crear un horario vacío, añadir cursos manualmente";
 "manage_edit_current" = "Editar actual";
-"manage_edit_current_sub" = "Editar nombre, fechas y horarios";
 "manage_export" = "Exportar horario actual";
 "manage_export_sub" = "Comparte el horario actual como archivo";
 "manage_manual_add" = "Añadir curso";
@@ -46,7 +42,6 @@
 "edit_table_basic_info" = "Información básica";
 "edit_table_name" = "Nombre del horario";
 "edit_table_start_date" = "Fecha de inicio";
-"edit_table_start_date_hint" = "Ej. 2026-02-24";
 "edit_table_max_week" = "Semanas totales";
 "edit_table_time_slots" = "Horario de períodos";
 "edit_table_delete" = "Eliminar horario";
@@ -59,7 +54,6 @@
 "import_paste" = "Pegar texto";
 "import_paste_hint" = "Pega el texto del horario…";
 "import_file" = "Importar archivo";
-"import_qr" = "Escanear QR";
 "import_jw" = "Conectar escuela";
 "import_manual" = "Añadir manualmente";
 "import_success" = "Importación exitosa";
@@ -91,10 +85,7 @@
 "import_confirm" = "Confirmar importación";
 "import_all_conflict" = "Todos los cursos tienen conflictos — nada que añadir";
 "import_content_empty" = "El contenido está vacío";
-"import_select_table" = "Selecciona un horario primero";
 "read_failed" = "Error de lectura: %1$@";
-"cannot_read_file" = "No se puede leer el archivo";
-"import_preview_sub" = "Vista previa primero, luego importar";
 "format_wakeup_share" = "Texto compartido de WakeUp";
 "format_wakeup_desc" = "Comienza con 【来自WakeUp课程表】";
 "format_wakeup_json" = "WakeUp JSON";
@@ -115,8 +106,6 @@
 "collapse" = "Tocar para colapsar";
 "n_periods" = "%1$d períodos";
 "course_detail_title" = "Detalles del curso";
-"course_detail_edit" = "Editar";
-"course_detail_delete" = "Eliminar";
 "course_detail_edit_course" = "Editar esta clase";
 "conflict_default_top_title" = "Elegir curso fijado predeterminado";
 "course_field_name" = "Curso";
@@ -124,7 +113,6 @@
 "course_field_room" = "Aula";
 "course_field_note" = "Nota";
 "course_field_week" = "Hora";
-"course_field_color" = "Color";
 "edit_course" = "Editar curso";
 "create_course" = "Crear curso";
 "course_basic_info" = "Información básica";
@@ -150,15 +138,11 @@
 "step_count" = "Períodos";
 "start_time" = "Hora de inicio";
 "end_time" = "Hora de fin";
-"mode_by_node" = "Por período";
-"mode_by_time" = "Por hora";
 "course_name_empty" = "Nombre del curso requerido";
 "week_must_be_positive" = "La semana debe ser mayor que 0";
 "slot_at_least_one_day" = "El horario %1$d debe tener al menos un día";
 "slot_start_node_positive" = "El período de inicio del horario %1$d debe ser mayor que 0";
 "slot_step_positive" = "Los períodos consecutivos del horario %1$d deben ser mayores que 0";
-"slot_time_format" = "El formato de hora inicio/fin del horario %1$d debe ser HH:mm";
-"slot_time_order" = "La hora de inicio del horario %1$d debe ser anterior a la hora de fin";
 "slot_time_overlap" = "El horario %1$d y el horario %2$d se superponen en %3$@";
 "fix_issues_first" = "Por favor corrija estos problemas primero";
 "more_unexpanded" = "%1$d más sin expandir";
@@ -176,32 +160,21 @@
 "conflict_detail_line" = "%1$@: períodos %2$@, %3$@, entra en conflicto con %4$@";
 "create_course_btn" = "Crear curso";
 "selected_days" = "Seleccionado: %1$@";
-"time_format_hint" = "Formato HH:mm";
-"mine_title" = "Ajustes";
 "mine_subtitle" = "Gestiona horarios y configuración";
 "mine_export" = "Exportar";
 "mine_stat_tables" = "Horarios";
 "mine_stat_courses" = "Cursos";
-"mine_stat_week" = "Semana";
 "mine_stat_period_tables" = "Horarios de períodos";
 "settings_language" = "Idioma / Language";
 "settings_display_mode" = "Visualización de hora";
 "settings_grid_sub_info" = "Sub-info de la tarjeta";
 "settings_grid_sub_room" = "Aula";
-"settings_grid_sub_room_sub" = "Mostrar aula bajo el nombre (oculto si está vacío)";
 "settings_grid_sub_teacher" = "Profesor";
-"settings_grid_sub_teacher_sub" = "Mostrar profesor bajo el nombre (oculto si está vacío)";
 "settings_grid_sub_none" = "Ninguno";
-"settings_grid_sub_none_sub" = "Las tarjetas solo muestran el nombre";
 "settings_display_node" = "Períodos";
-"settings_display_node_sub" = "Todos los cursos muestran \"Período N\"";
 "settings_display_time" = "Horas";
-"settings_display_time_sub" = "Todos los cursos muestran \"HH:mm–HH:mm\"";
-"settings_show_date" = "Mostrar fechas en el horario";
-"settings_show_date_sub" = "Mostrar fecha específica (M/D) en cada encabezado";
 "settings_visible_days" = "Días visibles";
 "settings_visible_days_sub" = "Los días desmarcados se ocultan en la página del horario y en los widgets";
-"settings_start_view" = "Vista inicial";
 "settings_start_view_full" = "Vista semanal";
 "settings_start_view_cards" = "Cuadrícula";
 "theme_system" = "Seguir sistema";
@@ -220,7 +193,6 @@
 "selected" = "Seleccionado";
 "confirm_delete" = "Confirmar eliminación";
 "no_course" = "Libre";
-"n_courses" = "%1$d";
 "action_close" = "Cerrar";
 "widget_create_schedule" = "Por favor cree un horario primero";
 "widget_open_sleepy" = "Abre Sleepy para agregar";
@@ -229,9 +201,7 @@
 "n_course_periods" = "%1$d períodos de curso";
 "course_node_format" = "Período %1$@";
 "course_period_range" = "%1$d-%2$d";
-"jw_no_url" = "URL de registro no configurada para esta escuela";
 "jw_parse_empty" = "Resultado de análisis vacío. Asegúrate de estar en la página \"Mi horario\" (no inicio de sesión)";
-"jw_import_success" = "%1$d cursos importados exitosamente";
 "jw_parse_failed" = "Error de análisis: %1$@";
 "jw_parse_failed_hint" = "\n\nSugerencia: Para HEU, inicia sesión en el navegador y navega a \"Mi horario\" antes de importar";
 "jw_webview_not_ready" = "WebView no está listo";
@@ -244,7 +214,6 @@
 "jw_nav_hint" = "Navega a \"Mi horario\", luego toca el botón derecho";
 "jw_import_page" = "Importar esta página";
 "select_school" = "Seleccionar escuela";
-"search_school" = "Buscar escuelas…";
 "search_school_url" = "Buscar escuelas o introducir URL…";
 "loading" = "Cargando…";
 "no_school_found" = "No se encontraron escuelas";
@@ -259,10 +228,7 @@
 "end_label" = "Fin";
 "delete_period" = "Eliminar este período";
 "mine_about" = "Acerca de";
-"mine_about_body" = "Sleepy Horario v%1$@\n\nUna aplicación de horario minimalista, limpia y local.\nTodos los datos se guardan en tu dispositivo — nada se sube a servidores.\n\n· Sin anuncios\n· Sin rastreo\n· Compatible con WakeUp / ICS / CSV / HTML / texto plano";
 "date_long_format" = "%1$d/%2$d";
-"notif_title" = "Clases de hoy — %1$@ %2$@";
-"notif_text" = "Toca para ver el horario de hoy";
 "theme_name_default" = "Lila";
 "theme_name_spring" = "Primavera";
 "theme_name_ocean" = "Océano";
@@ -272,7 +238,6 @@
 "new_course" = "Nueva materia";
 "jw_import_title" = "Importar - %1$@";
 "month_day_format" = "%1$d/%2$d";
-"section_short" = "%1$d";
 "day_short_1" = "L";
 "day_short_2" = "M";
 "day_short_3" = "X";
@@ -280,8 +245,6 @@
 "day_short_5" = "V";
 "day_short_6" = "S";
 "day_short_7" = "D";
-"section_node_format" = "Período %1$d–%2$d";
-"section_single" = "Período %1$d";
 "mine_appearance" = "Apariencia y tema";
 "mine_general" = "General";
 "theme_appearance" = "Apariencia";
@@ -289,11 +252,7 @@
 "theme_mode_light" = "Claro";
 "theme_mode_dark" = "Oscuro";
 "appearance_section_theme" = "Colores del tema";
-"appearance_section_display" = "Visualización de cursos";
-"appearance_section_widget" = "Widget";
 "course_color_uniform" = "Uniforme";
-"settings_section_display" = "Pantalla";
-"settings_high_refresh" = "Alta frecuencia de actualización";
 "settings_nav_style" = "Estilo de la barra de navegación";
 "settings_nav_style_docked" = "Acoplada";
 "settings_nav_style_floating" = "Flotante";
@@ -329,7 +288,6 @@
 "export_pick_table" = "Elige un horario para exportar";
 "export_current_table_badge" = "Horario actual";
 "export_saved_to" = "Guardado en Download/Sleepy/%1$@";
-"export_share_chooser" = "Compartir horario";
 "export_share_subtitle" = "Formato de texto corto, pegable en cualquier app de chat";
 "export_share_title" = "Compartir como texto";
 "export_start_date" = "Inicio del semestre %1$@";
@@ -337,36 +295,19 @@
 "export_xiaoai_title" = "Horario XiaoAI";
 "export_xiaoai_subtitle" = "Prepara el horario localmente y abre XiaoAI para revisarlo e importarlo";
 "export_xiaoai_invalid" = "Horario no compatible o períodos no válidos. Revisa semanas, fechas y períodos.";
+"export_xiaoai_missing_period_time" = "%1$@ usa el período %2$d, pero falta su hora en la tabla de períodos. Añade la hora o revisa los períodos de la clase e inténtalo de nuevo.";
 "export_xiaoai_empty" = "Esta tabla no tiene cursos para exportar";
 "export_xiaoai_not_installed" = "No se encontró XiaoAI; instala la app XiaoAI (con Horario XiaoAI) primero";
 "export_xiaoai_launched" = "Se abrió Horario XiaoAI; confirma la importación en la vista previa";
 "import_new_table_hint" = "(se creará como un horario nuevo)";
 "jw_config_confirm" = "Confirmar importación";
 "jw_config_title" = "Confirmar períodos del horario";
-"jw_pending_apply" = "Solicitar soporte";
 "jw_pending_close" = "Cerrar";
 "jw_pending_grad" = "Posgrado";
-"jw_pending_input_url" = "Introducir URL manualmente";
 "jw_pending_legacy" = "Versión antigua";
-"jw_pending_manual" = "Añadir curso manualmente";
-"jw_pending_msg" = "El sistema de matrícula de %1$@ aún no es compatible con Sleepy.\n\nPuedes:\n1. Pulsar \"Solicitar soporte\" para enviarlo al desarrollador\n2. Pulsar \"Introducir URL manualmente\" para abrir e iniciar sesión en WebView\n3. Importar temporalmente vía archivo HTML / CSV, o añadir cursos manualmente";
 "jw_pending_pending" = "Pendiente";
-"jw_pending_supported" = "Compatible";
-"jw_pending_title" = "La importación de matrícula de esta escuela aún no está disponible";
-"jw_pending_use_csv" = "Importar vía archivo CSV";
-"jw_pending_use_html" = "Importar vía archivo HTML";
 "mine_refresh_widgets" = "Actualizar todos los widgets";
 "mine_refresh_widgets_done" = "Todos los widgets actualizados";
-"notif_before_class_text" = "Próxima clase: %1$@ a las %2$@ en %3$@";
-"notif_before_class_text_with_teacher" = "Próxima clase: %1$@ a las %2$@ en %3$@, Profesor: %4$@";
-"notif_before_class_title" = "Recordatorio de clase";
-"notif_channel_before_class" = "Recordatorio antes de clase";
-"notif_channel_before_class_desc" = "Te notifica sobre la próxima clase antes de que comience cada una";
-"notif_channel_daily" = "Recordatorio diario de horario";
-"notif_channel_daily_desc" = "Envía un resumen diario de cursos a una hora especificada";
-"notif_channel_fluid" = "Nube Fluida / Súper Isla";
-"notif_channel_fluid_desc" = "Muestra una tarjeta expandible de curso en tiempo real antes de clase";
-"notif_daily_text_first" = "Primera clase: %1$@ a las %2$@ en %3$@";
 "notif_daily_text_no_course" = "¡Descansa y disfruta el día!";
 "notif_daily_title" = "Hoy · Clases: %1$d";
 "notif_daily_title_no_course" = "Hoy no hay clases";
@@ -380,47 +321,26 @@
 "reminder_daily_sub" = "Enviar un resumen diario de cursos a una hora especificada";
 "reminder_daily_time_label" = "Hora del recordatorio";
 "reminder_daily_title" = "Recordatorio diario";
-"reminder_fluid_field_name" = "Nombre del curso";
-"reminder_fluid_field_room" = "Ubicación";
-"reminder_fluid_field_teacher" = "Profesor";
-"reminder_fluid_field_time" = "Hora";
-"reminder_fluid_fields" = "Contenido principal de la cápsula";
-"reminder_fluid_fields_hint" = "Elige un campo de visualización principal";
-"reminder_fluid_note" = "Respeta la antelación y los horarios con recordatorios activados. Sleepy actualiza, cambia y finaliza las tarjetas mientras está en primer plano. En segundo plano continúa el temporizador existente, pero no se garantizan nuevas tarjetas, cambios de clase ni retirada automática. Abre Sleepy para actualizar. Requiere iOS 16.1+; su permiso es independiente del de notificaciones.";
 "reminder_fluid_title" = "Nube Fluida / Súper Isla";
-"reminder_mode_label" = "Estilo de aviso";
 "reminder_mode_banner" = "Banner";
-"reminder_mode_fluid" = "Actividades en directo";
 "reminder_mode_banner_sub" = "Banner normal deslizable en la barra de notificaciones; compatible con la sincronización de reloj y pulsera";
-"reminder_mode_fluid_sub" = "Respeta la antelación y los horarios con recordatorios activados. Sleepy actualiza, cambia y finaliza las tarjetas mientras está en primer plano. En segundo plano continúa el temporizador existente, pero no se garantizan nuevas tarjetas, cambios de clase ni retirada automática. Abre Sleepy para actualizar. Requiere iOS 16.1+; su permiso es independiente del de notificaciones.";
 "reminder_master_sub" = "Permitir que Sleepy envíe notificaciones de cursos";
 "reminder_master_title" = "Activar recordatorios";
 "reminder_notif_denied_title" = "Notificaciones denegadas";
 "reminder_notif_denied_sub" = "iOS no volverá a pedir permiso. Abre Ajustes y activa las notificaciones manualmente.";
 "reminder_pick_time" = "Elegir hora de recordatorio";
 "reminder_title" = "Recordatorios";
-"school_count_supported" = "%1$d compatibles";
-"school_count_total" = "%1$d en total";
 "school_pinyin_hint" = "Admite iniciales de pinyin / abreviaturas de escuela (ej. hrbeu)";
-"semester_out_of_range" = "La fecha actual está fuera del rango del semestre";
-"settings_vert_punct" = "Optimización de puntuación vertical";
 "settings_vert_punct_sub" = "En el widget de cuadrícula, reemplazar signos de puntuación horizontales como （）《》 con signos verticales dedicados cuando los nombres de cursos se muestran verticalmente (experimental)";
-"settings_widget" = "Ajustes del widget";
 "settings_widget_colorless" = "Colores uniformes de cursos en widgets";
 "settings_widget_colorless_sub" = "Solo los cursos con fondo en los widgets usan un gris neutro; la vista semanal de texto no se ve afectada y los cursos con color personalizado no se ven afectados";
-"settings_course_colorless" = "Colores uniformes de cápsulas de cursos";
-"settings_course_colorless_sub" = "Solo las cápsulas de cursos en la app usan un gris neutro; los ajustes de widgets no se ven afectados y los cursos con color personalizado no se ven afectados";
 "settings_conflict_style" = "Estilo de clases en conflicto";
 "settings_conflict_stack" = "Apilado con desplazamiento";
-"settings_conflict_stack_sub" = "Las clases se apilan desplazadas y la inferior asoma por el borde";
 "settings_conflict_fold" = "Esquina doblada";
-"settings_conflict_fold_sub" = "Una esquina doblada en la tarjeta indica que hay más clases debajo";
 "settings_conflict_rail" = "Raíl lateral";
-"settings_conflict_rail_sub" = "Una barra de color a la derecha lista las clases con nombre vertical";
 "settings_conflict_stack_inset" = "Distancia de desfase";
 "settings_conflict_rail_inset" = "Margen derecho";
 "settings_conflict_fold_size" = "Tamaño de la esquina doblada";
-"settings_conflict_fold_size_sub" = "Tamaño de la marca doblada; ajusta el aspecto y su zona táctil";
 "settings_widget_separator" = "Separador vista semanal";
 "settings_widget_separator_sub" = "Mostrar un divisor entre los nombres de cursos en la vista semanal de texto";
 "edit_period_input" = "Entrada";
@@ -444,15 +364,12 @@
 "mode_auto" = "Modo automático";
 "label_from" = "Desde";
 "schedule_jump_week" = "Ir a semana";
-"schedule_jump_current" = "Ir a la semana actual";
 "schedule_empty_name" = "Horario \"%1$@\" está vacío";
 "schedule_empty_name_hint" = "Añade cursos o importa un nuevo horario";
 "course_count_format" = "%1$d cursos";
 "today_suffix" = " · Hoy";
 "no_course_today" = " · Sin clase";
 "default_course_name" = "Curso";
-"default_room" = "Ubicación";
-"error_unknown" = "Error desconocido";
 "array_day_names_0" = "Lun";
 "array_day_names_1" = "Mar";
 "array_day_names_2" = "Mié";
@@ -530,8 +447,6 @@
 
 "settings_holiday_holiday" = "Atenuar festivos oficiales";
 "settings_holiday_holiday_sub" = "Los cursos en festivos oficiales (p. ej., Día Nacional, Año Nuevo Chino) se muestran en gris";
-"settings_holiday_entry_sub" = "Configurar reglas de atenuación y ver datos de festivos y días de recuperación";
-"holiday_page_title" = "Festivos y días de recuperación";
 "holiday_data_source" = "Fuente de datos";
 "holiday_source_label" = "unpkg.com/holiday-calendar · CN";
 "holiday_data_failed" = "No se pudieron obtener los datos de festivos y días de recuperación. Comprueba la red y reintenta";
@@ -543,13 +458,11 @@
 "holiday_list_holidays" = "Festivos oficiales";
 "holiday_list_workdays" = "Días de recuperación";
 "holiday_workday_badge" = "Laborable";
-"settings_holiday_title" = "Atenuar cursos en festivos";
 "settings_holiday_weekend" = "Atenuar cursos del fin de semana";
 "settings_holiday_weekend_sub" = "Mostrar automáticamente en gris los cursos del sábado y domingo";
 "settings_holiday_style" = "Estilo de atenuación";
 "settings_holiday_style_grey" = "Gris";
 "settings_holiday_style_strikethrough" = "Gris con tachado";
-"settings_holiday_workday" = "Ignorar días de recuperación";
 "settings_holiday_workday_sub" = "Los sábados y domingos de recuperación no se atenúan cuando el atenuado de fin de semana está activado";
 "holiday_edit_title" = "Editar fechas personalizadas";
 "holiday_add_title" = "Añadir fechas personalizadas";
@@ -562,9 +475,7 @@
 "holiday_delete_range" = "Eliminar";
 "holiday_type_holiday" = "Festivo";
 "holiday_type_workday" = "Día de recuperación";
-"holiday_custom_badge" = "Personalizado";
 "holiday_add_entry" = "Añadir fechas personalizadas";
-"settings_holiday_style_sub" = "Elige el aspecto de los cursos atenuados";
 "about_license_detail" = "Licencia y agradecimientos";
 "license_page_title" = "Licencia y agradecimientos";
 "license_gpl_section" = "Licencia";
@@ -576,39 +487,20 @@
 "widget_edit_default_label" = "Predeterminado (sigue el horario actual)";
 "widget_edit_section_schedule" = "Horario mostrado";
 "widget_edit_title" = "Editar widget";
-"widget_manage_empty" = "Aún no se ha añadido ningún widget de Sleepy al escritorio. Mantén pulsado un espacio vacío → Widgets → elige Sleepy para añadir.";
 "widget_manage_entry" = "Administrar widgets del escritorio";
 "widget_manage_title" = "Administrar widgets del escritorio";
 "change_group_color" = "Cambiar color del grupo";
 "color_auto" = "Automático";
-"color_custom" = "Personalizado";
-"color_follow_group" = "Seguir el color del grupo";
-"color_refresh" = "Nuevo color automático";
-"color_toast_last_group" = "La última clase seguirá el color del grupo";
-"color_use_different" = "Usar colores diferentes";
-"custom_duration_section_sub" = "La hora de inicio/fin de esta clase no coincide con las franjas predeterminadas";
-"custom_duration_section_title" = "Duración personalizada";
-"edge_add_after" = "+ Añadir después";
-"edge_add_before" = "+ Añadir antes";
-"edge_dropdown_label" = "Seleccionar franja fuera de horario";
-"edge_insert_dialog_title" = "Añadir franja fuera de horario";
 "edge_insert_end_label" = "Hora de fin";
 "edge_insert_ok" = "Añadir";
 "edge_insert_start_label" = "Hora de inicio";
-"edge_no_nodes" = "Aún no hay franjas fuera de horario";
 "edge_node_label" = "Clase %1$d";
 "edge_node_range" = "%1$@ – %2$@";
-"edge_section_sub" = "Añade una clase extra fuera de las franjas estándar (clase 0 / N+1 / -1 / …)";
-"edge_section_title" = "Franjas fuera de horario";
 "import_multi_location_warning" = "Algunas clases tienen varias ubicaciones";
 "import_multi_location_warning_detail" = "「%1$@」tiene %2$d ubicaciones distintas; tras importar se mostrarán como franjas independientes";
-"irregular_at_least_one" = "Un curso irregular requiere al menos una de: franjas fuera de horario o duración personalizada";
-"irregular_switch" = "Irregular";
-"irregular_switch_sub" = "Franjas fuera de horario · duración personalizada";
 
 /* sleepy-v1 对齐补齐 (iOS native) */
 "course_alias" = "Alias (opcional)";
-"exit_press_back_again" = "Pulsa atrás de nuevo para salir";
 "export_native_subtitle" = "Copia completa · tamaño mínimo · ideal para migrar";
 "export_native_title" = "Nativo de Sleepy";
 "import_three_layers_dropped" = "以下日期存在超过两层的冲突课程，已跳过：%1$@";
@@ -653,11 +545,9 @@
 "settings_grid_alias" = "Mostrar alias en la vista de cuadrícula";
 "settings_name_alias" = "Alias";
 "settings_name_original" = "Original";
-"settings_pill" = "Ajustes de pantalla de inicio";
 "settings_pill_corner" = "Esquinas de tarjetas";
 "settings_pill_scale" = "Zoom de la vista de cuadrícula";
 "settings_pill_week_scale" = "Zoom de la vista semanal";
-"settings_start_view_sub" = "Solo afecta la vista al abrir la app; se puede cambiar en la barra superior del horario";
 "settings_week_alias" = "Mostrar alias en la vista semanal";
 "settings_week_hide_empty" = "Ocultar días vacíos en la vista semanal";
 "settings_week_two_column" = "Vista semanal en dos columnas";
@@ -669,11 +559,11 @@
 "today_nav_prev_day" = "Día anterior";
 "url_match_school" = "Escuela coincidente: %@";
 "widget_edit_section_alias" = "Visualización del nombre";
-"widget_today_small_label" = "今日课程 · 小";
-"widget_twoday_small_label" = "最近两天 · 小";
-"widget_week_grid_small_label" = "本周课表（网格）· 小";
-"widget_week_list_small_label" = "本周课表（列表）· 小";
-"widget_week_view_small_label" = "本周课表（周视图）· 小";
+"widget_today_small_label" = "Hoy · Pequeño";
+"widget_twoday_small_label" = "Próximos dos días · Pequeño";
+"widget_week_grid_small_label" = "Esta semana (cuadrícula) · Pequeño";
+"widget_week_list_small_label" = "Esta semana (lista) · Pequeño";
+"widget_week_view_small_label" = "Esta semana (vista) · Pequeño";
 
 "schedule_empty_import" = "Importar primer horario";
 "schedule_empty_create_table" = "Crear primer horario";
@@ -732,15 +622,9 @@
 "appearance_header_layout" = "Diseño";
 "appearance_header_preview" = "Vista previa en vivo";
 "appearance_header_show_x" = "Mostrar «Período X»";
-"appearance_header_style" = "Estilo de período";
-"appearance_home_style" = "Estilo de inicio";
-"appearance_layout_horizontal" = "Horizontal";
 "appearance_layout_legacy" = "Encabezado clásico";
-"appearance_layout_legacy_sub" = "Mantener la vista original de periodos y horas";
 "appearance_layout_three_line" = "Encabezado de tres líneas";
-"appearance_layout_vertical" = "Vertical";
 "appearance_period_header" = "Encabezados de período";
-"appearance_section_schedule_display" = "Visualización del horario";
 "calendar_alarm_disclaimer" = "Experimental: guardar el evento no garantiza que suene una alarma. Depende de la app de calendario y de la cuenta. Comprueba las clases importantes en tu calendario.";
 "calendar_alarm_mark" = "Intentar alarma";
 "calendar_alarm_minutes_before" = "Minutos antes de la primera clase";
@@ -757,7 +641,6 @@
 "calendar_final_import_action" = "Añadir clases";
 "calendar_first_period_alarm" = "Intentar una alarma para la primera clase del día";
 "calendar_first_period_scope" = "Solo se configura si hay clase en el primer periodo ese día. Si está libre, las clases posteriores no activan esta alarma.";
-"calendar_import_loading" = "Cargando el horario seleccionado…";
 "calendar_import_subtitle" = "Elige calendario y fechas, revisa antes de añadir";
 "calendar_import_title" = "Añadir al calendario del sistema";
 "calendar_invalid_skipped" = "Se omitirán %lld clases con horas no válidas";
@@ -765,9 +648,7 @@
 "calendar_more_rows" = "y %lld más";
 "calendar_no_writable_calendar" = "No se encontró ningún calendario editable. Activa una cuenta o un calendario local en la app de calendario.";
 "calendar_normal_reminder" = "Añadir recordatorio normal del calendario";
-"calendar_permission_action" = "Conceder y continuar";
 "calendar_permission_denied" = "No se concedió el permiso del calendario.";
-"calendar_permission_explanation" = "Sleepy necesita acceso al calendario para mostrar calendarios editables y añadir las clases que elijas. El permiso solo se solicita al usar esta función.";
 "calendar_preview_action" = "Vista previa";
 "calendar_preview_count" = "Se añadirán %lld clases";
 "calendar_range_label" = "Periodo";
@@ -782,7 +663,6 @@
 "course_group_color" = "Color del grupo";
 "course_list_arrangements" = "%lld clases";
 "course_list_empty" = "No hay cursos en el horario actual";
-"course_list_subtitle" = "Todos los cursos del horario actual";
 "course_list_title" = "Lista de cursos";
 "custom_url_entry" = "URL personalizada";
 "custom_url_entry_hint" = "¿No está tu escuela? Pega la URL de tu sistema académico";
@@ -790,17 +670,12 @@
 "duration_min_one_period" = "Necesitas al menos 1 período para asignar duraciones";
 "duration_period_n" = "%lld min %@";
 "edit_table_period_loading" = "Los datos del horario aún se están cargando. Inténtalo de nuevo en breve.";
-"fluid_coloros_capsule" = "%lld min";
-"fluid_coloros_capsule_compact" = "%@·%lld′";
-"fluid_coloros_countdown" = "En %lld min";
 "holiday_makeup_no_table" = "Crea un horario antes de configurar días de recuperación";
 "holiday_makeup_subtitle" = "Se configura por horario. Los días de recuperación sin asignar conservan su propio horario; no se hacen suposiciones.";
 "holiday_makeup_title" = "Asignación de días de recuperación";
 "holiday_makeup_unset" = "Ninguno";
 "holiday_mapping_explanation" = "Un festivo oficial sin configurar sigue siendo festivo legal. Las asignaciones solo se aplican al horario actual y los días de recuperación proceden de los datos. Una asignación afecta al origen de los cursos y a las cuatro vías de recordatorio: resumen diario, aviso previo, Fluid Cloud y DND automático. Los usuarios normales no necesitan asignarla salvo que su centro tenga una disposición especial.";
 "holiday_transfer_clear" = "Borrar";
-"holiday_transfer_edit_segment" = "Editar este periodo";
-"holiday_transfer_editable_segments_title" = "Tramos editables";
 "holiday_transfer_orphan_hint" = "El día festivo ya no existe (residuo tras cambiar de año o eliminar un tramo). Borra manualmente.";
 "holiday_transfer_orphan_title" = "Asignaciones caducadas";
 "holiday_transfer_pick_other" = "Otra fecha…";
@@ -838,20 +713,16 @@
 "jw_url_invalid" = "Introduce una URL HTTP o HTTPS válida";
 "jw_url_submit" = "Abrir URL";
 "long_duration" = "Duración larga";
-"manage_new_period_table" = "Nuevo horario de períodos";
-"manage_new_period_table_sub" = "Crea un horario de períodos vacío para compartir entre horarios";
 "manage_view_all_tables" = "Ver todos";
 "mine_period_tables" = "Horario de períodos";
 "notif_tomorrow_text_no_course" = "Mañana no hay clases. ¡Descansa!";
 "notif_tomorrow_title" = "Mañana · Clases: %1$d";
 "notif_tomorrow_title_no_course" = "Mañana no hay clases";
-"period_table_bind_label" = "Horario de períodos";
 "period_table_bind_preview_body" = "Tras cambiar, este horario interpreta los períodos según el nuevo horario de períodos; los cursos con hora propia no se afectan";
 "period_table_bind_preview_title" = "Confirmar cambio";
 "period_table_bound_count" = "Vinculado a %lld horario(s)";
 "period_table_copy" = "Duplicar horario de períodos";
 "period_table_copy_dialog_title" = "Copiar horario de períodos";
-"period_table_delete_blocked" = "Aún vinculado a %lld horario(s), revincula primero";
 "period_table_delete_confirm" = "Eliminar horario de períodos";
 "period_table_delete_msg_body" = "¿Eliminar el horario de períodos «%@»?";
 "period_table_import_body" = "Solo se detectó contenido del horario; se creará únicamente un horario.";
@@ -884,7 +755,6 @@
 "reminder_daily_today_toggle_title" = "Resumen de hoy";
 "reminder_date_rules_advanced_button" = "Abrir ajustes de festivos";
 "reminder_date_rules_advanced_subtitle" = "Solo se aplican al activarlos. Las asignaciones son por horario, el fin de semana no equivale a festivo oficial y afectan las cuatro vías de recordatorio.";
-"reminder_date_rules_advanced_title" = "Ajustes avanzados de festivos";
 "reminder_date_rules_inactive" = "No está activo. Todas las fechas siguen enviando recordatorios y tus opciones se conservan.";
 "reminder_date_rules_makeup_workday" = "Recordatorios de días de recuperación";
 "reminder_date_rules_ordinary_weekend" = "Recordatorios de fines de semana normales";
@@ -892,19 +762,6 @@
 "reminder_date_rules_subtitle" = "Desactivado, todas las fechas siguen enviando recordatorios. Activado, puedes configurar cada tipo. Afecta resúmenes diarios, avisos antes de clase, Nube Fluida y No molestar en clase.";
 "reminder_date_rules_title" = "Recordatorios por fecha";
 "reminder_date_rules_transfer_holiday" = "Recordatorios de festivos asignados";
-"reminder_experimental_tag" = "Experimental";
-"reminder_fluid_field_countdown" = "Cuenta atrás";
-"reminder_fluid_go_to_settings" = "Ir a ajustes";
-"reminder_fluid_status_enabled" = "Nube Fluida / Súper Isla está autorizada.";
-"reminder_fluid_status_not_supported" = "El sistema actual no admite Nube Fluida / Súper Isla.";
-"reminder_fluid_status_notification_required" = "Se requiere permiso de notificación para activar esta función.";
-"reminder_fluid_status_settings_required" = "Abra la configuración del sistema para habilitar Nube Fluida / Súper Isla.";
-"reminder_fluid_status_title" = "Estado de Nube Fluida / Súper Isla";
-"reminder_fluid_status_unknown" = "No se puede leer directamente el estado de autorización de Nube Fluida / Súper Isla. Use el botón para abrir la configuración de notificaciones y confirmar el permiso del sistema.";
-"reminder_fluid_test_button" = "Prueba de tarjeta en vivo";
-"reminder_fluid_test_course" = "Clase de prueba";
-"reminder_fluid_test_room" = "Aula de prueba";
-"reminder_fluid_test_started" = "Tarjeta de prueba enviada; revisa la parte superior del panel de notificaciones";
 "reminder_preview_date" = "%@ (%@)";
 "reminder_preview_teacher" = ", Profesor: %@";
 "reminder_preview_today_date" = "Hoy %@ (%@)";
@@ -913,14 +770,8 @@
 "reminder_reliability_degraded" = "degradado";
 "reminder_reliability_exact_alarm" = "Alarmas exactas: %@";
 "reminder_reliability_missing" = "no habilitado";
-"reminder_reliability_not_applicable" = "no aplicable";
 "reminder_reliability_notification" = "Notificaciones: %@";
-"reminder_reliability_promoted" = "Permiso de Live Updates: %@";
 "reminder_reliability_ready" = "listo";
-"reminder_reliability_title" = "Fiabilidad en segundo plano";
-"reminder_reliability_unknown" = "desconocido";
-"reminder_reliability_vendor" = "Tarjeta en vivo del fabricante: %@";
-"reminder_reliability_widget" = "Widgets de escritorio: %@";
 "reminder_tomorrow_preview" = "Ejemplo: Mañana 16, tienes 3 clases. Primera clase Cálculo Avanzado a las 08:00 en Edificio A101";
 "reminder_tomorrow_time_label" = "Hora de la vista previa de mañana";
 "reminder_tomorrow_toggle_sub" = "Envía el resumen de mañana la noche anterior";
@@ -969,8 +820,6 @@
 "settings_grid_pinch_zoom_sub" = "Pellizco vertical con dos dedos en el horario para cambiar la altura de fila; desactivado si está apagado";
 "settings_grid_show_separators" = "Mostrar separadores de cuadrícula";
 "settings_grid_show_separators_sub" = "Mostrar separadores adicionales en la cuadrícula del horario";
-"settings_lab" = "Laboratorio";
-"settings_lab_sub" = "Funciones experimentales, desactivadas por defecto; pueden cambiar entre versiones";
 "settings_migration" = "Migración de datos";
 "settings_migration_export" = "Exportar copia de migración completa";
 "settings_migration_export_fail" = "Error al exportar";
@@ -987,7 +836,6 @@
 "settings_migration_sub" = "Empaqueta todos los horarios, cuadros de periodos, preferencias y ajustes de widgets en un archivo .sleepybackup que puedes restaurar en otro dispositivo";
 "settings_nearest_busy_day" = "Mostrar el próximo día con clases si no hay clase";
 "settings_nearest_busy_day_sub" = "Muestra el día más cercano con clases en la app y los widgets cuando no queden clases hoy";
-"settings_section_display_navigation" = "Pantalla y navegación";
 "settings_show_view_switcher" = "Mostrar barra de cambio de vista";
 "short_duration" = "Duración corta";
 "slot_summary_period_range" = "Periodos %lld–%lld (%lld en total)";
@@ -997,19 +845,10 @@
 "slot_summary_time_range" = "%@–%@";
 "slot_summary_week_range" = "Semanas %lld–%lld";
 "slot_summary_week_single" = "Semana %lld";
-"today_nav_today_short" = "Hoy";
 "widget_edit_compact_title" = "Ventana de 3 días";
 "widget_edit_compact_today_first" = "Hoy primero";
 "widget_edit_compact_today_second" = "Hoy segundo";
-"widget_edit_scroll_subtitle" = "Ventana fija de forma predeterminada, compatible con todos los launchers. Al activarla, el contenido excedente se puede desplazar (experimental).";
 "widget_edit_section_scroll" = "Desplazamiento";
-"widget_footer_more" = "+%lld más";
-"widget_footer_more_short" = "+%lld";
-"widget_scroll_dialog_body" = "El desplazamiento depende del servicio de widgets del sistema. En algunas ROM de fabricantes (Xiaomi, vivo, etc.) puede mostrar un espacio en blanco, ir con retardo o no actualizarse. Si algo va mal, desactiva este interruptor para volver a la ventana fija.";
-"widget_scroll_dialog_cancel" = "Cancelar";
-"widget_scroll_dialog_confirm" = "Activar experimental";
-"widget_scroll_dialog_title" = "¿Activar el desplazamiento forzado (experimental)?";
-"widget_status_all_done" = "Clases de hoy terminadas";
 "widget_today_description" = "Clases de hoy";
 "widget_today_small_description" = "Clases de hoy en una tarjeta compacta";
 "widget_today_wide_description" = "Clases de hoy en una tarjeta ancha";
@@ -1030,7 +869,6 @@
 "timeslot_longpress_to_reorder" = "Mantén pulsada una fila para arrastrar y reorganizar";
 "timeslot_row_blank_hint" = "Las filas en blanco se pueden arrastrar a cualquier posición";
 "timeslot_drop_invalid" = "Posición de colocación no válida: el orden de tiempo sería incorrecto";
-"timeslot_drop_success" = "Reordenado período %1$d a posición %2$d";
 "timeslot_reorder_in_progress" = "Reordenando";
 "timeslot_row_drop_target" = "Soltar aquí";
 
@@ -1047,7 +885,6 @@
 "watch_never_sync" = "Nunca";
 "watch_resync_now" = "Sincronizar ahora";
 "watch_settings_reminders_header" = "Recordatorios";
-"watch_settings_readonly_hint" = "Los recordatorios se gestionan en el iPhone.";
 "watch_detail_day" = "Día";
 "watch_synced_ack" = "Watch sincronizado";
 "watch_countdown_title" = "Cuenta atrás";
@@ -1066,7 +903,6 @@
 "course_color_seed_label" = "Tono base";
 "course_color_preview" = "Vista previa";
 "course_color_recalc" = "Reorganizar todos los colores";
-"course_color_recalc_done" = "Se reorganizaron los colores de %1$d asignaturas";
 "jw_catalog_unverified_message" = "Esta entrada y su protocolo aún no se han verificado para esta institución. Puedes intentar iniciar sesión, pero la importación podría ser incompleta o fallar.";
 "jw_catalog_pending_message" = "Aún no hay una entrada verificada para esta institución. Inténtalo más tarde o solicita asistencia.";
 "jw_catalog_try" = "Intentar de todos modos";
@@ -1077,13 +913,10 @@
 "jw_import_report_copy" = "Copiar informe";
 "jw_import_report_join_qq" = "Unirse al grupo";
 "jw_import_report_done" = "Listo";
-"table_reminder_title" = "Avisos por horario";
 "table_reminder_subtitle" = "Elige qué horarios reciben avisos";
 "table_reminder_master_off" = "Los avisos están desactivados. Tu selección se aplicará al activar el interruptor principal.";
 "table_reminder_empty" = "No hay horarios. Añade o importa uno primero.";
 "table_reminder_save_failed" = "No se pudo guardar. Inténtalo de nuevo.";
-"edit_table_reminder_enable" = "Recordatorios de este horario";
-"edit_table_reminder_desc" = "Al desactivarlo, este horario deja de enviar avisos previos, resúmenes diarios y nube fluida";
 
 /* ---- sleepy v1.0.62 B4 alignment ---- */
 "appearance_header_hide_time" = "Ocultar fila de hora";
@@ -1101,7 +934,6 @@
 
 // <- v1.0.62 B5: agenda + dated summary notification (Android values same source)
 "agenda_title" = "Agenda diaria";
-"agenda_first" = "Primera clase: %1$@";
 "agenda_more" = "Clases adicionales: %1$d";
 "agenda_time_unknown" = "Hora desconocida";
 "agenda_count" = "%1$d clases · %2$d horarios";
@@ -1109,8 +941,6 @@
 "agenda_load_error" = "No se pudo cargar la agenda. Inténtalo de nuevo.";
 "agenda_table_unknown" = "Horario sin nombre";
 "agenda_source_count" = "Horarios: %1$d";
-"notif_date_title" = "%1$@ · Clases: %2$d";
-"notif_date_no_course" = "%1$@ · Sin clases";
 "notif_before_class_compact" = "Empieza a las %1$@ · %2$@";
 "manage_title" = "Gestión del horario";
 "manage_add_table" = "Añadir horario";
@@ -1120,9 +950,7 @@
 "manage_no_table" = "No hay horarios";
 "manage_no_table_hint" = "Usa Añadir horario para importar o crear uno";
 "settings_undo_depth" = "Pasos del historial de deshacer";
-"settings_undo_depth_sub" = "Negativo: ilimitado. Cero: desactivado. Positivo: pasos conservados. Predeterminado: 5. El historial se guarda en memoria y se borra al finalizar el proceso.";
 "settings_undo_depth_label" = "Número de pasos de deshacer";
-"period_table_delete_freeze" = "¿Eliminar «%@»? Los horarios vinculados conservarán sus horas actuales y se desvincularán.";
 "period_table_delete_failed" = "No se completó la eliminación. Los datos no cambiaron. Actualiza e inténtalo de nuevo.";
 "wakeup_share_import_title" = "Importar código de WakeUP";
 "wakeup_share_import_hint" = "Pega un código de WakeUP o el mensaje completo para obtener y previsualizar el horario en línea.";
@@ -1132,9 +960,7 @@
 "wakeup_share_fetch" = "Obtener y previsualizar";
 "occurrence_date" = "Fecha de la clase";
 "occurrence_fixed_date" = "Fecha fija (ignorar traslados por festivos)";
-"occurrence_time" = "Hora de esta sesión";
 "occurrence_end_node" = "Último período";
-"occurrence_original_nodes" = "Períodos originales: %1$d–%2$d";
 "occurrence_custom_time" = "Hora personalizada";
 "occurrence_start_time" = "Inicio HH:mm";
 "occurrence_end_time" = "Fin HH:mm";
@@ -1150,7 +976,6 @@
 "occurrence_outgoing_message" = "%1$@ · %2$@\nLas clases de este día se trasladan al %3$@.";
 "occurrence_transfer_day" = "día de recuperación";
 "occurrence_follow_transfer" = "Aplicar la reprogramación";
-"occurrence_keep_date" = "Conservar la fecha original";
 "occurrence_continue" = "Continuar";
 "occurrence_stale" = "El horario o los traslados han cambiado. Vuelve a abrir esta sesión.";
 "occurrence_invalid_date" = "Elige una fecha dentro de este semestre.";
@@ -1254,7 +1079,6 @@
 "widget_size_medium" = "Mediano";
 "widget_size_large" = "Grande";
 
-"table_copy_title" = "Copiar horario";
 
 "table_copy_duplicate" = "Ya existe un horario con este nombre";
 
@@ -1300,37 +1124,21 @@
 
 "license_recent_source_notice" = "Estos registros de código, dependencias e investigación proceden de Sleepy Android v1.0.64. Las dependencias y los componentes específicos de Android pertenecen a esa versión; las referencias de investigación no implican integración en iOS.\n\nEl módulo de cristal líquido se modificó a partir de SleepDown Schedule, de xiaomanjun233: https://github.com/xiaomanjun233/SleepDown-Schedule. Este proyecto mantiene Sleepy. Los cambios incluyen la configuración de Android, la adaptación de Compose y la integración de la barra FLClash. El contenido propio de SleepDown utiliza su licencia no comercial de código visible 1.1; el código original de Kyant conserva Apache-2.0. Las adaptaciones de FLClash a Kotlin y AGSL conservan GPL-3.0 y la de las superelipses de Flutter conserva BSD-3-Clause. La aplicación incluye las licencias originales y los avisos de terceros.";
 
-"license_recent_sources_title" = "Código portado y recursos";
 
-"license_recent_sources_body" = "Kyant0/AndroidLiquidGlass\nApache-2.0\nhttps://github.com/Kyant0/AndroidLiquidGlass\n\nchen08209/FlClash\nGPL-3.0\nhttps://github.com/chen08209/FlClash\n\nflutter/flutter\nBSD-3-Clause\nhttps://github.com/flutter/flutter\n\nxiaomanjun233/SleepDown-Schedule\nSleepDown source-available non-commercial 1.1\nhttps://github.com/xiaomanjun233/SleepDown-Schedule\n\nHaoZai000/NexioSchedule\nAGPL-3.0\nhttps://github.com/HaoZai000/NexioSchedule";
 
-"license_recent_libraries_title" = "Dependencias de ejecución, compilación y pruebas";
 
-"license_recent_libraries_body" = "Kyant0/Shapes\nApache-2.0\nhttps://github.com/Kyant0/Shapes\n\nLunabeeStudio/Lunabee_Compose_Android\nApache-2.0\nhttps://github.com/LunabeeStudio/LBAndroid\n\nmaterial-foundation/material-color-utilities\nApache-2.0\nhttps://github.com/material-foundation/material-color-utilities\n\nJetBrains/kotlin\nApache-2.0\nhttps://github.com/JetBrains/kotlin\n\nKotlin/kotlinx.coroutines\nApache-2.0\nhttps://github.com/Kotlin/kotlinx.coroutines\n\nKotlin/kotlinx.serialization\nApache-2.0\nhttps://github.com/Kotlin/kotlinx.serialization\n\nandroidx/androidx\nApache-2.0\nhttps://github.com/androidx/androidx\n\ngoogle/ksp\nApache-2.0\nhttps://github.com/google/ksp\n\njhy/jsoup\nMIT\nhttps://github.com/jhy/jsoup\n\ncoil-kt/coil\nApache-2.0\nhttps://github.com/coil-kt/coil\n\nNanoHttpd/nanohttpd\nBSD-3-Clause\nhttps://github.com/NanoHttpd/nanohttpd\n\njunit-team/junit4\nEPL-1.0\nhttps://github.com/junit-team/junit4\n\njunit-team/junit5\nEPL-2.0\nhttps://github.com/junit-team/junit-framework\n\nstleary/JSON-java\nPublic Domain\nhttps://github.com/stleary/JSON-java\n\nxerial/sqlite-jdbc\nApache-2.0\nhttps://github.com/xerial/sqlite-jdbc\n\nrobolectric/robolectric\nMIT\nhttps://github.com/robolectric/robolectric\n\nchromedp/chromedp\nMIT\nhttps://github.com/chromedp/chromedp\n\nchromedp/cdproto\nMIT\nhttps://github.com/chromedp/cdproto\n\ngo-json-experiment/json\nBSD-3-Clause\nhttps://github.com/go-json-experiment/json";
 
-"license_recent_data_title" = "Datos de calendario y geografía";
 
-"license_recent_data_body" = "zhChuXiao/ChinaGeoJson\nMIT\nhttps://github.com/zhChuXiao/ChinaGeoJson\n\npublicHoliday / holiday-calendar\nMIT (source comment; not independently reverified)\nhttps://gitcode.com/zy-mayong/publicHoliday\n\nDataV administrative boundaries\nData redistribution authorization not confirmed\nhttps://datav.aliyun.com/portal/school/atlas/area_selector\n\nTaiwan county boundaries 1140318\nOpen Government Data License 1.0\nhttps://data.gov.tw/dataset/7442";
 
-"license_recent_design_title" = "Guías de diseño y documentación oficial";
 
-"license_recent_design_body" = "Apple Liquid Glass design guidance\nOfficial documentation; no code license claimed\nhttps://developer.apple.com/videos/play/wwdc2025/219/\n\nAndroid window blur guidance\nOfficial documentation; no code license claimed\nhttps://source.android.google.cn/docs/core/display/window-blurs\n\nMaterial Design 3 and Compose animation\nOfficial documentation; no code license claimed\nhttps://developer.android.com/develop/ui/compose/animation";
 
-"license_recent_glass_research_title" = "Investigación sobre cristal líquido";
 
-"license_recent_glass_research_body" = "QWEA0/Liquid-Glass-Android\nMIT\nhttps://github.com/QWEA0/Liquid-Glass-Android\n\nQmDeve/AndroidLiquidGlassView\nMIT\nhttps://github.com/QmDeve/AndroidLiquidGlassView\n\nskydoves/Cloudy\nApache-2.0\nhttps://github.com/skydoves/Cloudy\n\nFletchMcKee/liquid\nApache-2.0\nhttps://github.com/FletchMcKee/liquid\n\nKashif-E/KMPLiquidGlass\nApache-2.0\nhttps://github.com/Kashif-E/KMPLiquidGlass\n\nMortd3kay/liquid-glass-android\nNot verified\nhttps://github.com/Mortd3kay/liquid-glass-android\n\nstyropyr0/Prismal\nMIT\nhttps://github.com/styropyr0/Prismal\n\nanixitea/GlassDock\nNot verified\nhttps://github.com/anixitea/GlassDock\n\nlesnolie/Tigris\nMIT\nhttps://github.com/lesnolie/Tigris\n\nsjtt2/HeyBox-LiquidGlass\nMIT\nhttps://github.com/sjtt2/HeyBox-LiquidGlass\n\nsuqi8/OShin\nAGPL-3.0\nhttps://github.com/suqi8/OShin\n\ntranquilitysmile/pixel_launcher_glass_dock\nNot verified\nhttps://github.com/tranquilitysmile/pixel_launcher_glass_dock\n\ncallstack/liquid-glass\nMIT\nhttps://github.com/callstack/liquid-glass\n\nhimanshu-lal4/react-native-liquid-glassmorphism\nMIT\nhttps://github.com/himanshu-lal4/react-native-liquid-glassmorphism\n\nsssajjad007/react-native-liquid-glass-android\nMIT\nhttps://github.com/sssajjad007/react-native-liquid-glass-android\n\nryohsuke1231/liquid-glass\nMIT\nhttps://github.com/ryohsuke1231/liquid-glass\n\nvladmdgolam/dock-ui\nNot verified\nhttps://github.com/vladmdgolam/dock-ui\n\nsdegenaar/liquid_glass_widgets\nMIT\nhttps://github.com/sdegenaar/liquid_glass_widgets\n\nGuoMie-OvO/liquid-glass-tapper\nApache-2.0\nhttps://github.com/GuoMie-OvO/liquid-glass-tapper\n\nadmin0330/liquid-music-android\nMIT\nhttps://github.com/admin0330/liquid-music-android\n\nchrisbanes/haze\nApache-2.0\nhttps://github.com/chrisbanes/haze";
 
-"license_recent_vendor_title" = "Investigación de notificaciones y widgets";
 
-"license_recent_vendor_body" = "appsfolder/livebridge\nGPL-3.0\nhttps://github.com/appsfolder/livebridge\n\n1812z/HyperIsland\nMIT\nhttps://github.com/1812z/HyperIsland\n\nHMS-Core/hms-push-clientdemo-android\nApache-2.0\nhttps://github.com/HMS-Core/hms-push-clientdemo-android\n\nHMS-Core/hms-pushkit-ohos-demo\nApache-2.0\nhttps://github.com/HMS-Core/hms-pushkit-ohos-demo\n\nD4vidDf/HyperBridge\nApache-2.0\nhttps://github.com/D4vidDf/HyperBridge\n\nabh80/smart-edge\nMIT\nhttps://github.com/abh80/smart-edge\n\ncengiztoru/JetIsland_Dynamic-Island-Jetpack-Compose\nNot verified\nhttps://github.com/cengiztoru/JetIsland_Dynamic-Island-Jetpack-Compose\n\nAngel-Studio/MaterialYou-Dynamic-Island\nNot verified\nhttps://github.com/Angel-Studio/MaterialYou-Dynamic-Island\n\nagupta07505/SmartIsland\nGPL-3.0\nhttps://github.com/agupta07505/SmartIsland\n\nEvanKoe/expressive-cutout\nGPL-3.0\nhttps://github.com/EvanKoe/expressive-cutout\n\nTheSerphh/NothingLand\nMIT\nhttps://github.com/sginit/NothingLand\n\nclearw5/Dynamic-Island.js\nApache-2.0\nhttps://github.com/clearw5/Dynamic-Island.js\n\nNoobDigital/react-native-dynamic-island\nMIT\nhttps://github.com/NoobDigital/react-native-dynamic-island\n\nMarcoZorn/lost-island\nMIT\nhttps://github.com/MarcoZorn/lost-island\n\nHONORDevelopers/suggestionskit-demo\nApache-2.0\nhttps://github.com/HONORDevelopers/suggestionskit-demo\n\nliasica/harmonyos-skills\nMIT\nhttps://github.com/liasica/harmonyos-skills\n\nHMS-Core/hms-push-serverdemo-java\nApache-2.0\nhttps://github.com/HMS-Core/hms-push-serverdemo-java\n\nyonglunyao/harmonyos-docs-fetcher\nNot verified\nhttps://github.com/yonglunyao/harmonyos-docs-fetcher\n\nRuyue-Kinsenka/Flyme-Live-Notification-Demo\nNot verified\nhttps://github.com/Ruyue-Kinsenka/Flyme-Live-Notification-Demo\n\nBryceWG/Pinme\nApache-2.0\nhttps://github.com/BryceWG/Pinme\n\nSoilZhu/ChillEast\nNot verified\nhttps://github.com/SoilZhu/ChillEast\n\nphotometro/guanji-app\nNot verified\nhttps://github.com/photometro/guanji-app\n\nAIXINJUELUOAI/Will-do\nGPL-3.0\nhttps://github.com/AIXINJUELUOAI/Will-do\n\nYXMAX/OrderAgents\nNot verified\nhttps://github.com/YXMAX/OrderAgents\n\nRelianttt/lightxin\nMIT\nhttps://github.com/Relianttt/lightxin\n\nlightStarrr/starSchedule\nApache-2.0\nhttps://github.com/lightStarrr/starSchedule\n\nchuk-development/Besser-Bahn\nWTFPL\nhttps://github.com/chuk-development/Besser-Bahn\n\nMukulBolt9/NowBrief\nNot verified\nhttps://github.com/MukulBolt9/NowBrief\n\nYetAnotherBusDeveloper/yetanotherbusapp\nAGPL-3.0\nhttps://github.com/YetAnotherBusDeveloper/yetanotherbusapp\n\nJoshAtticus/CompressorEdge\nMIT\nhttps://github.com/JoshAtticus/CompressorEdge\n\nMyxoz/SamsungNowbarProxy\nNot verified\nhttps://github.com/Myxoz/SamsungNowbarProxy\n\n488315/samsung_framework\nNot verified\nhttps://github.com/488315/samsung_framework\n\n488315/android_samsung_frameworks_base\nNot verified\nhttps://github.com/488315/android_samsung_frameworks_base\n\ncameleonnbss/originos-toolkit\nMIT\nhttps://github.com/cameleonnbss/originos-toolkit\n\nlladlam/MeloX-Android\nGPL-3.0\nhttps://github.com/lladlam/MeloX-Android\n\nimwangwang/vivo-service\nNot verified\nhttps://github.com/imwangwang/vivo-service\n\nimwangwang/vivo-apps\nNot verified\nhttps://github.com/imwangwang/vivo-apps\n\nfvhde/origin-isle\nNot verified\nhttps://github.com/fvhde/origin-isle\n\ndeath34018-hue/AionsHome\nMIT\nhttps://github.com/death34018-hue/AionsHome\n\nSTAR-10086/ShuiKeBang\nMIT\nhttps://github.com/STAR-10086/ShuiKeBang\n\n2756826865/android-sms-forwarder\nGPL-3.0\nhttps://github.com/2756826865/android-sms-forwarder\n\nD4vidDf/HyperIsland-ToolKit\nApache-2.0\nhttps://github.com/D4vidDf/HyperIsland-ToolKit\n\nMercury000/xiaoaiisland\nNot verified\nhttps://github.com/Mercury000/xiaoaiisland\n\nkmod-midori/WearFocus\nNot verified\nhttps://github.com/kmod-midori/WearFocus\n\nwxxsfxyzm/IslandRecorder\nGPL-3.0\nhttps://github.com/wxxsfxyzm/IslandRecorder\n\nFrancoGiudans/Capsulyric\nGPL-3.0\nhttps://github.com/FrancoGiudans/Capsulyric\n\nC4RL-DANIEL/HyperNotify-Lab\nNot verified\nhttps://github.com/C4RL-DANIEL/HyperNotify-Lab\n\ncxxsheng/TiktokSource\nNot verified\nhttps://github.com/cxxsheng/TiktokSource\n\nmeltingscales/com.snapchat.android\nNot verified\nhttps://github.com/meltingscales/com.snapchat.android\n\nDroidDumps/oplus_ossi_dump\nNot verified\nhttps://github.com/DroidDumps/oplus_ossi_dump\n\nOPPO-OpenPlatform/physray_mp_sdk\nNot verified\nhttps://github.com/OPPO-OpenPlatform/physray_mp_sdk\n\nFlymeOS/flyme-release\nNot verified\nhttps://github.com/FlymeOS/flyme-release\n\nLive-Block/Flyme-FreeForm\nGPL-3.0\nhttps://github.com/Live-Block/Flyme-FreeForm\n\nMangi-11/FlymeFreeform\nGPL-3.0\nhttps://github.com/Mangi-11/FlymeFreeform\n\nDtHnAme/Mi-FreeForm\nNot verified\nhttps://github.com/DtHnAme/Mi-FreeForm\n\ncoderstory/FlymeHelper\nNot verified\nhttps://github.com/coderstory/FlymeHelper\n\nReChronoRain/HyperCeiler\nAGPL-3.0\nhttps://github.com/ReChronoRain/HyperCeiler\n\nqqlittleice/MiuiHome\nGPL-3.0\nhttps://github.com/qqlittleice/MiuiHome\n\nMods-Center/Miui_Launcher_Mod\nGPL-3.0\nhttps://github.com/Mods-Center/Miui_Launcher_Mod\n\nxzakota/HyperOShape\nNot verified\nhttps://github.com/xzakota/HyperOShape\n\nwuyou-123/FocusNotifLyric\nApache-2.0\nhttps://github.com/wuyou-123/FocusNotifLyric\n\nleowalk0613/LyricFocus\nMIT\nhttps://github.com/leowalk0613/LyricFocus\n\nghhccghk/HyperFocusNotifDemo\nNot verified\nhttps://github.com/ghhccghk/HyperFocusNotifDemo\n\nL-aros/HyperFocus\nMIT\nhttps://github.com/L-aros/HyperFocus\n\nImKani/HyperOS3FocusRestore\nGPL-3.0\nhttps://github.com/ImKani/FocusRestore\n\nAppGalleryConnect/agc-template-market-harmonyos-demos\nApache-2.0\nhttps://github.com/AppGalleryConnect/agc-template-market-harmonyos-demos\n\nminkiapps/HarmonyOS-Widget-Demo\nNot verified\nhttps://github.com/minkiapps/HarmonyOS-Widget-Demo\n\nopenharmony/applications_app_samples\nNot verified\nhttps://github.com/openharmony/applications_app_samples";
 
-"license_recent_background_title" = "Fiabilidad de recordatorios en segundo plano";
 
-"license_recent_background_body" = "xzakota/HyperNotification\nApache-2.0\nhttps://github.com/xzakota/HyperNotification\n\nwxxsfxyzm/InstallerX-Revived\nGPL-3.0\nhttps://github.com/wxxsfxyzm/InstallerX-Revived\n\nAliothmoon/MAA-Meow\nAGPL-3.0\nhttps://github.com/Aliothmoon/MAA-Meow\n\nyusufyorunc/IslandKit\nNot verified\nhttps://github.com/yusufyorunc/islandkit\n\n1812z/HyperCopy\nNot verified\nhttps://github.com/1812z/HyperCopy\n\nFoedusProgramme/Gramophone\nGPL-3.0\nhttps://github.com/FoedusProgramme/Gramophone\n\ncwuom/NeriPlayer\nGPL-3.0\nhttps://github.com/cwuom/NeriPlayer\n\nxfqwdsj/Knowmad\nGPL-3.0\nhttps://github.com/xfqwdsj/Knowmad\n\nybhgl/Reminder\nGPL-3.0\nhttps://github.com/ybhgl/Reminder\n\nXomaDev/MIUI-Autostart\nMIT\nhttps://github.com/XomaDev/MIUI-Autostart\n\njudemanutd/AutoStarter\nMIT\nhttps://github.com/judemanutd/AutoStarter\n\nankidroid/Anki-Android\nGPL-3.0\nhttps://github.com/ankidroid/Anki-Android\n\nywwynm/EverythingDone\nGPL-3.0\nhttps://github.com/ywwynm/EverythingDone\n\ncdz-hy/LiteTask\nMIT\nhttps://github.com/cdz-hy/LiteTask\n\neasychen/PushDeer\nNot verified\nhttps://github.com/easychen/pushdeer\n\nGetStream/stream-android-push\nNot verified\nhttps://github.com/GetStream/stream-android-push\n\naliyun/alicloud-android-demo\nNot verified\nhttps://github.com/aliyun/alicloud-android-demo\n\nmichaelbel/LiveUpdateNotifications\nNot verified\nhttps://github.com/michaelbel/LiveUpdateNotifications\n\niVamsi/Live-Notifications-Demo\nMIT\nhttps://github.com/iVamsi/Live-Notifications-Demo\n\nNicosNicolaou16/Live_Update_Notifcation_Android\nApache-2.0\nhttps://github.com/NicosNicolaou16/Live_Update_Notifcation_Android\n\ngkhnakbs/GALiveNotification\nMIT\nhttps://github.com/gkhnakbs/GALiveNotification\n\nKaushalVasava/LiveUpdateNotification\nNot verified\nhttps://github.com/KaushalVasava/LiveUpdateNotification\n\nLawnchairLauncher/lawnchair\nNot verified\nhttps://github.com/LawnchairLauncher/lawnchair\n\ntiann/KernelSU\nGPL-3.0\nhttps://github.com/tiann/KernelSU\n\noasisfeng/island\nApache-2.0\nhttps://github.com/oasisfeng/island\n\nguolindev/giffun\nApache-2.0\nhttps://github.com/guolindev/giffun\n\nnekomangaorg/Neko\nApache-2.0\nhttps://github.com/nekomangaorg/Neko\n\nSuperMonster003/AutoJs6\nMPL-2.0\nhttps://github.com/SuperMonster003/AutoJs6\n\nSagerNet/sing-box-for-android\nNot verified\nhttps://github.com/SagerNet/sing-box-for-android\n\nprincekin-f/EasyFloat\nApache-2.0\nhttps://github.com/princekin-f/EasyFloat\n\nZackratos/UltimateBarX\nApache-2.0\nhttps://github.com/Zackratos/UltimateBarX\n\ncaiyonglong/MusicLake\nApache-2.0\nhttps://github.com/caiyonglong/MusicLake\n\nDSAppTeam/PanelSwitchHelper\nApache-2.0\nhttps://github.com/DSAppTeam/PanelSwitchHelper\n\njd1378/otphelper\nAGPL-3.0\nhttps://github.com/jd1378/otphelper\n\nAndroidCSOfficial/android-code-studio\nGPL-3.0\nhttps://github.com/AndroidCSOfficial/android-code-studio\n\nIReaderorg/IReader\nApache-2.0\nhttps://github.com/IReaderorg/IReader\n\nDimensionDev/Flare\nAGPL-3.0\nhttps://github.com/DimensionDev/Flare\n\nappdevforall/CodeOnTheGo\nGPL-3.0\nhttps://github.com/appdevforall/CodeOnTheGo\n\nPool-Of-Tears/Myne\nApache-2.0\nhttps://github.com/Pool-Of-Tears/Myne\n\neasybangumiorg/EasyBangumi\nGPL-3.0\nhttps://github.com/easybangumiorg/EasyBangumi\n\nxiaowine/Lyric-Getter\nApache-2.0\nhttps://github.com/xiaowine/Lyric-Getter\n\nxfqwdsj/IAmNotADeveloper\nMIT\nhttps://github.com/xfqwdsj/IAmNotADeveloper\n\nsyncthing/syncthing-android\nMPL-2.0\nhttps://github.com/syncthing/syncthing-android\n\nvideolan/vlc-android\nGPL-2.0\nhttps://github.com/videolan/vlc-android\n\nbitfireAT/davx5-ose\nGPL-3.0\nhttps://github.com/bitfireAT/davx5-ose\n\nsignalapp/Signal-Android\nAGPL-3.0\nhttps://github.com/signalapp/Signal-Android\n\nsignalapp/Signal-Chat-Backup\nNot verified\nhttps://github.com/signalapp/Signal-Chat-Backup\nHistorical link not confirmed on 2026-11-03.\n\nopenMF/mifos-mobile\nMPL-2.0\nhttps://github.com/openMF/mifos-mobile\n\nHMS-Core/hms-push-serverdemo-go\nApache-2.0\nhttps://github.com/HMS-Core/hms-push-serverdemo-go\n\nHMS-Core/hms-push-serverdemo-php\nApache-2.0\nhttps://github.com/HMS-Core/hms-push-serverdemo-php\n\nHMS-Core/hms-push-serverdemo-python\nNot verified\nhttps://github.com/HMS-Core/hms-push-serverdemo-python\n\nMEIZUPUSH/PushDemo\nNot verified\nhttps://github.com/MEIZUPUSH/PushDemo\n\nLuomingbear/Push\nNot verified\nhttps://github.com/Luomingbear/Push\n\nMarafon228/Push\nNot verified\nhttps://github.com/Marafon228/Push\n\nahmedelfateh/huawei_pushkit\nApache-2.0\nhttps://github.com/ahmedelfateh/huawei_pushkit\n\nmiosegit/MiPushSDK\nNot verified\nhttps://github.com/miosegit/MiPushSDK\nHistorical link not confirmed on 2026-11-03.\n\nnextcloud/talk-android\nNot verified\nhttps://github.com/nextcloud/talk-android\n\nAdditional names in the archived review have no uniquely recorded repository: LinkSheet, Fankes, NewPipe, tusky, kdeconnect, osmand, organicmaps, libretorrent, droid-ify, MiPushFramework.";
 
-"license_recent_protocol_research_title" = "Investigación adicional de sistemas académicos";
 
-"license_recent_protocol_research_body" = "sunjingquan/jianghaidai-release\nNot verified\nhttps://github.com/sunjingquan/jianghaidai-release\n\nyv1ing/AHU-QQbot\nNot verified\nhttps://github.com/yv1ing/AHU-QQbot\n\nTonyseth/AHU-IC-Design-personal-Repository\nNot verified\nhttps://github.com/Tonyseth/AHU-IC-Design-personal-Repository\n\nyoki-Clark/AHU_card_records\nNot verified\nhttps://github.com/yoki-Clark/AHU_card_records\n\nFangnan700/AHU-QQbot\nNot verified\nhttps://github.com/Fangnan700/AHU-QQbot\n\nxiangwentao666/ECSA-Thu\nNot verified\nhttps://github.com/xiangwentao666/ECSA-Thu\nHistorical link not confirmed on 2026-11-03.\n\nq1123421666/jxutcm\nNot verified\nhttps://github.com/q1123421666/jxutcm\n\nWenswell/jxutcm-net-auto-click\nNot verified\nhttps://github.com/Wenswell/jxutcm-net-auto-click\n\niihcy/JXUTCM_DAS\nNot verified\nhttps://github.com/iihcy/JXUTCM_DAS\n\niihcy/JXUTCM_BestFeature\nNot verified\nhttps://github.com/iihcy/JXUTCM_BestFeature\n\nyinwoods/Fuck-BUAA-JiaoWu-Anyway\nGPL-3.0\nhttps://github.com/yinwoods/Fuck-BUAA-JiaoWu-Anyway\n\nxunux/WeixinScoreGetter\nNot verified\nhttps://github.com/xunux/WeixinScoreGetter\n\nSE2020-TopUnderstanding/BUAA-Campus-Tools-Frontend\nNot verified\nhttps://github.com/SE2020-TopUnderstanding/BUAA-Campus-Tools-Frontend\n\nLabiKyo/buaa-jwgl-evaluator\nNot verified\nhttps://github.com/LabiKyo/buaa-jwgl-evaluator\n\nwyx-1236/BUAA-Java-ACP\nNot verified\nhttps://github.com/wyx-1236/BUAA-Java-ACP";
 
 // Android v1.0.64 strict bell-schedule diagnostics
 "period_validation_empty" = "La lista de períodos no puede estar vacía";
@@ -1340,7 +1148,6 @@
 "period_validation_duplicate_node" = "El identificador %1$d está duplicado. Corrige el horario primero.";
 "period_validation_overlap" = "Conflicto entre el período %1$d y el %3$d: el período %1$d termina a las %2$@, después del inicio del período %3$d a las %4$@";
 "period_conflict_detected_banner" = "Revisa el horario: %1$@. Corrígelo en el editor; las horas originales no se han cambiado automáticamente.";
-"period_conflict_detected_title" = "Aviso de conflicto de horarios";
 
 // Android 1.0.64 export sections and native file description.
 "settings_export_sharing" = "Compartir";
@@ -1397,3 +1204,62 @@
 
 "widget_week_grid_vertical_label" = "Cuadrícula semanal vertical · 4×2";
 "widget_week_grid_horizontal_label" = "Cuadrícula de tres días horizontal · 4×2";
+
+"occurrence_add_title" = "Añadir una clase única";
+"occurrence_add_more" = "Más";
+
+/* WebDAV backup */
+"webdav_config_forgotten" = "Configuración WebDAV eliminada de este dispositivo";
+"webdav_config_saved" = "Conexión WebDAV verificada y configuración guardada";
+"webdav_config_title" = "Configurar WebDAV";
+"webdav_configured_sub" = "Servidor: %1$@";
+"webdav_confirm_upload" = "Confirmar subida";
+"webdav_date_unknown" = "Desconocido";
+"webdav_directory" = "Carpeta de copias";
+"webdav_directory_create_notice" = "Al probar la conexión, Sleepy puede crear la carpeta indicada en esta cuenta.";
+"webdav_error_archive_size" = "El archivo contiene demasiados datos al descomprimirse.";
+"webdav_error_authentication" = "El servidor rechazó el nombre de usuario o la contraseña. Compruébalos e inténtalo de nuevo.";
+"webdav_error_configuration" = "Comprueba la dirección del servidor, la carpeta de copias y el nombre de usuario.";
+"webdav_error_exists" = "Ya existe una copia con ese nombre. No se ha sobrescrito nada.";
+"webdav_error_forbidden" = "El servidor denegó el acceso a esta carpeta. Comprueba los permisos de la cuenta.";
+"webdav_error_generic" = "Falló WebDAV. Comprueba la configuración e inténtalo de nuevo.";
+"webdav_error_http_status" = "El servidor devolvió un error (HTTP %1$d).";
+"webdav_error_https" = "La dirección del servidor debe usar HTTPS.";
+"webdav_error_network" = "No se pudo conectar. Comprueba la red y el certificado HTTPS.";
+"webdav_error_redirect" = "El servidor redirigió la solicitud. Introduce la dirección HTTPS final de WebDAV.";
+"webdav_error_response" = "La respuesta WebDAV del servidor no se reconoce.";
+"webdav_error_too_large" = "La copia supera el límite de 100 MB.";
+"webdav_forget_configuration" = "Eliminar la configuración de este dispositivo";
+"webdav_forget_title" = "¿Eliminar la configuración WebDAV?";
+"webdav_forget_warning" = "Se eliminarán de este dispositivo la dirección del servidor y la contraseña guardada. Las copias que ya estén en el servidor seguirán allí.";
+"webdav_password" = "Contraseña (opcional)";
+"webdav_password_keep_hint" = "Déjalo en blanco para conservar la contraseña guardada. Elimina la configuración para borrarla.";
+"webdav_password_optional_hint" = "Déjalo en blanco si el servidor no requiere autenticación";
+"webdav_privacy_notice" = "La copia no está cifrada en el servidor. La conexión y la contraseña se guardan en el llavero de este dispositivo y no se incluyen en las copias.";
+"webdav_remote_empty" = "No se encontraron archivos .sleepybackup en esta carpeta del servidor";
+"webdav_remote_file_detail" = "Modificado: %1$@ · Tamaño: %2$@";
+"webdav_remote_title" = "Elegir una copia remota";
+"webdav_restore" = "Elegir una copia del servidor para restaurar";
+"webdav_section_sub" = "Opcional: guarda una copia en tu propio servidor WebDAV";
+"webdav_section_title" = "Copia de seguridad WebDAV";
+"webdav_server_url" = "Dirección WebDAV HTTPS";
+"webdav_test_and_save" = "Probar conexión y guardar";
+"webdav_testing" = "Probando";
+"webdav_upload" = "Subir una copia completa";
+"webdav_upload_confirm_target" = "La copia se enviará a: %1$@/%2$@";
+"webdav_upload_confirm_title" = "¿Subir una copia completa?";
+"webdav_upload_done" = "Subida: %1$@";
+"webdav_username" = "Nombre de usuario (opcional)";
+"webdav_working" = "Procesando";
+"jw_combo_new_table_required" = "Importa este horario como uno nuevo para conservar las horas que cambian según la fecha. No se modificará ningún horario existente ni compartido.";
+"jw_combo_invalid" = "Las horas específicas por fecha no coinciden con las horas base. Comprueba los periodos o vuelve a obtener el horario.";
+"jw_combo_saved_with_new_timetable" = "El horario nuevo conserva las horas específicas por fecha del origen.";
+"jw_update_source_unavailable" = "La entrada de origen no está disponible o ha cambiado. Inicia una nueva importación para elegir un centro.";
+"edit_table_max_week_error" = "El total de semanas debe ser un número entero positivo";
+"settings_undo_experiment" = "Función experimental. El historial se guarda en memoria y se borra al finalizar el proceso de la aplicación.";
+"settings_undo_mode" = "Límite del historial";
+"settings_undo_off" = "Desactivado";
+"settings_undo_limited" = "Limitado";
+"settings_undo_unlimited" = "Ilimitado";
+"settings_undo_count_hint" = "Introduce un número positivo de pasos.";
+"done" = "Listo";

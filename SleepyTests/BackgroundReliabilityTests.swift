@@ -56,6 +56,16 @@ final class BackgroundReliabilityTests: XCTestCase {
         XCTAssertEqual(s.reminderTransportState(), .blockedNotificationPermission)
         XCTAssertFalse(s.timeSensitiveAllowed)
         XCTAssertTrue(s.lowPowerModeActive)
+        XCTAssertTrue(s.timeSensitiveSupported)
+
+        probe.factsOverride = .init(
+            notificationPermissionGranted: true,
+            timeSensitiveAllowed: false,
+            lowPowerModeActive: false,
+            timeSensitiveSupported: false
+        )
+        let unsupported = await probe.snapshot()
+        XCTAssertFalse(unsupported.timeSensitiveSupported)
     }
 
     // MARK: - ← BatteryOptimizationIntentsTest: Boolean 返回语义(全败落空)

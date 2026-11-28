@@ -2,8 +2,7 @@
 //
 // 平台映射:
 // - 内容库 ContentProvider 写系统日历 → EventKit EKEventStore (系统 framework, 无新 SPM 依赖)
-// - WRITE/READ_CALENDAR 权限 → EKEventStore.requestAccess(to: .event);
-//   16.4 SDK 无 .fullAccess/.writeOnly 分支, 授权即 authorizationStatus == .authorized
+// - iOS 17 起申请完整日历权限，因为去重与清理需要读取现有事件；旧系统使用旧授权接口。
 // - 可写日历 = allowsContentModifications && type != .local/.calDAV (ACCESS_LEVEL >= CONTRIBUTOR && VISIBLE, 16.4 无 isSelectable)
 // - v1.0.62 B6: writableCalendars 改走 LocalCalendarFallback — 可写日历为空时
 //   ensureCalendar 兜底自建「Sleepy」本地日历(LocalCalendarFallback);
@@ -153,18 +152,28 @@ final class SystemCalendarManager {
 
     // MARK: - 权限 / 日历发现
 
-    /// ← 原 hasCalendarPermissions (iOS 16.4: 静态 authorizationStatus, 授权即 .authorized)
     func hasCalendarPermissions() -> Bool {
-        EKEventStore.authorizationStatus(for: .event) == .authorized
+        let status = EKEventStore.authorizationStatus(for: .event)
+        #if compiler(>=5.9)
+        if #available(iOS 17.0, *) {
+            return status == .fullAccess
+        }
+        #endif
+        return status == .authorized
     }
 
-    /// 未授权时弹一次授权; 用户拒绝/未决 = false
     @MainActor
     func ensureCalendarPermissions() async -> Bool {
         if hasCalendarPermissions() { return true }
-        return await withCheckedContinuation { cont in
+        #if compiler(>=5.9)
+        if #available(iOS 17.0, *) {
+            _ = try? await store.requestFullAccessToEvents()
+            return hasCalendarPermissions()
+        }
+        #endif
+        return await withCheckedContinuation { continuation in
             store.requestAccess(to: .event) { granted, _ in
-                cont.resume(returning: granted)
+                continuation.resume(returning: granted)
             }
         }
     }
@@ -202,7 +211,9 @@ final class SystemCalendarManager {
         let today = cal.startOfDay(for: today)
         let tableStart = CourseOccurrences.parseDate(table.startDate, calendar: cal) ?? today
         let semesterStart = cal.date(byAdding: .day, value: 1 - CourseOccurrences.day(tableStart, calendar: cal), to: tableStart) ?? tableStart
-        let semesterEnd = cal.date(byAdding: .day, value: 7 * table.maxWeek, to: semesterStart) ?? semesterStart
+        guard (1...10_000).contains(table.maxWeek),
+              let semesterEnd = cal.date(byAdding: .day, value: 7 * table.maxWeek, to: semesterStart)
+        else { return (today, today) }
         // ← 原版本 validTargets: 源日仍在学期内的映射才参与区间扩展
         let validTargets = transfers
             .filter {
@@ -231,12 +242,14 @@ final class SystemCalendarManager {
         table: TimeTableEntity,
         courses: [CourseEntity],
         options: CalendarImportOptions,
-        today: Date = Date()
+        today: Date = CourseReminderCalendar(timeZone: .current).civilDay(containing: Date()) ?? Date(),
+        periodTable: PeriodTableEntity? = nil
     ) -> CalendarImportPreview {
         // ← 原版本: 区间扩展用与事件展开同一份调休映射(applyHolidayTransfers 闸门一致)
         let transfers = options.applyHolidayTransfers ? AppPrefs.shared.getHolidayTransfers(table.id) : []
         let (from, until) = selectedDateRange(table: table, range: options.range, today: today, transfers: transfers)
-        let (specs, invalid) = shared.buildEventSpecs(table: table, courses: courses, options: options, from: from, until: until)
+        let (specs, invalid) = shared.buildEventSpecs(table: table, courses: courses, options: options,
+            from: from, until: until, periodTable: periodTable, timeZone: .current)
         let alarmKeys = shared.firstPeriodAlarmKeys(specs)
         let rows = specs.map { spec -> CalendarPreviewRow in
             CalendarPreviewRow(
@@ -261,7 +274,9 @@ final class SystemCalendarManager {
         options: CalendarImportOptions,
         from: Date,
         until: Date,
-        calendar: Calendar? = nil
+        calendar: Calendar? = nil,
+        periodTable: PeriodTableEntity? = nil,
+        timeZone: TimeZone = CourseOccurrences.calendar.timeZone
     ) -> (specs: [EventSpec], invalid: Int) {
         var invalid = 0
         var specs: [EventSpec] = []
@@ -272,6 +287,7 @@ final class SystemCalendarManager {
         let cal = calendar ?? CourseOccurrences.calendar
         var day = cal.startOfDay(for: from)
         let limit = cal.startOfDay(for: until)
+        let clock = CourseReminderCalendar(timeZone: timeZone)
         while day < limit {
             // v1.0.62 B6 ← 原版本: 事件内容按源日、显示与闹钟按目标日 —
             // sourceDate = 该展示日的课实际来自哪天(放假日 nil / 补班日 = 被调走的源日);
@@ -281,25 +297,21 @@ final class SystemCalendarManager {
                 day, startDate: table.startDate, maxWeek: table.maxWeek,
                 courses: courses, transfers: transfers
             )
+            let effective = table.hydratedWith(periodTable, forDateKey: HolidayTransferOps.dayKey(day))
+            let bells = ReminderBellTimes(effective.timeJson)
             for course in selected {
-                // 定日事件的周次/星期属于展示自然日，循环课才继承调休源日。
                 let courseDate = course.fixedDate != nil ? day : (sourceDate ?? day)
                 let week = CourseOccurrences.week(startDate: table.startDate, date: courseDate, calendar: cal) ?? 1
                 let classDay = CourseOccurrences.day(courseDate, calendar: cal)
-                guard let (startHHmm, endHHmm) = TimeTableUtils.effectiveCourseTime(
-                    isIrregularTime: course.isIrregularTime || course.ownTime,
-                    startTime: course.startTime,
-                    endTime: course.endTime,
-                    startNode: course.startNode,
-                    step: course.step,
-                    timeJson: table.timeJson
-                ) else {
+                let times = bells.bounds(for: course)
+                guard let startSeconds = times.start, let endSeconds = times.end, endSeconds > startSeconds,
+                      let start = clock.instant(on: day, wallSeconds: startSeconds),
+                      let end = clock.instant(on: day, wallSeconds: endSeconds), end > start else {
                     invalid += 1
                     continue
                 }
-                let start = appendTime(day, startHHmm)
-                let end = appendTime(day, endHHmm)
-                guard end > start else { invalid += 1; continue }
+                let startHHmm = ReminderBellTimes.clockText(startSeconds)
+                let endHHmm = ReminderBellTimes.clockText(endSeconds)
                 // ← 原 transferred = sourceDate != date: 仅补班日为 true(放假日 sourceDate=nil → false)
                 let transferred = course.fixedDate == nil
                     && (sourceDate.map { HolidayTransferOps.dayKey($0) != HolidayTransferOps.dayKey(day) } ?? false)
@@ -317,7 +329,7 @@ final class SystemCalendarManager {
                     wantsAlarm: options.firstPeriodAlarmEnabled
                         && course.startNode <= 1
                         && course.startNode + course.step > 1
-                        && (TimeTableUtils.hmMinutes(startHHmm) ?? 0) < 720
+                        && startSeconds < 12 * 3600
                 ))
             }
             day = cal.date(byAdding: .day, value: 1, to: day) ?? until
@@ -362,12 +374,14 @@ final class SystemCalendarManager {
         options: CalendarImportOptions,
         from: Date,
         until: Date,
-        batchId: String
+        batchId: String,
+        periodTable: PeriodTableEntity? = nil
     ) throws -> CalendarImportResult {
         guard hasCalendarPermissions() else { throw CalendarImportError.permissionDenied }
         let db = AppDatabase.getShared()
         // batchId = 调用方生成并持久化 (import(batchId) 透传, 不再重新生成)
-        let (specs, invalid) = buildEventSpecs(table: table, courses: courses, options: options, from: from, until: until)
+        let (specs, invalid) = buildEventSpecs(table: table, courses: courses, options: options,
+            from: from, until: until, periodTable: periodTable, timeZone: .current)
         let alarmKeys = firstPeriodAlarmKeys(specs)
 
         let startInclusive = DateUtils.fullDate(from)
@@ -526,9 +540,11 @@ final class SystemCalendarManager {
         table: TimeTableEntity,
         courses: [CourseEntity],
         options: CalendarImportOptions,
-        batchId: String
+        batchId: String,
+        periodTable: PeriodTableEntity? = nil
     ) async -> CalendarImportResult {
-        let today = Date()
+        let now = Date()
+        let today = CourseReminderCalendar(timeZone: .current).civilDay(containing: now) ?? now
         // ← 原版本: 区间扩展与事件展开用同一份调休映射
         let transfers = options.applyHolidayTransfers ? AppPrefs.shared.getHolidayTransfers(table.id) : []
         let (from, until) = selectedDateRange(table: table, range: options.range, today: today, transfers: transfers)
@@ -540,7 +556,7 @@ final class SystemCalendarManager {
                 throw CalendarImportError.noWritableCalendar
             }
             return try shared.importCourses(table: table, courses: courses, options: options,
-                                            from: from, until: until, batchId: batchId)
+                                            from: from, until: until, batchId: batchId, periodTable: periodTable)
         } catch {
             // ← 原版本 L166/L169: permissionDenied / noWritableCalendar → errors = 1
             //   (全零结果在对话框结果行(CalendarImportDialog L400 显示 r.errors)与空成功不可区分)
@@ -582,9 +598,11 @@ final class SystemCalendarManager {
     /// marker 恢复: 当天窗口内按 notes 尾部 key 精确匹配 (LIKE %"Sleepy import key:…"% 于当天事件)
     private func findEventByMarker(calendarId: String, key: String, date: Date) -> EKEvent? {
         guard let cal = store.calendar(withIdentifier: calendarId) else { return nil }
-        let rangeEnd = Calendar.isoAddDays(date, 1)
-        // 16.4 Swift 改名: predicateForEventsWithStartDate: → predicateForEvents(withStart:end:calendars:)
-        let predicate = store.predicateForEvents(withStart: date, end: rangeEnd, calendars: [cal])
+        let clock = CourseReminderCalendar(timeZone: .current)
+        guard let nextDay = CourseOccurrences.calendar.date(byAdding: .day, value: 1, to: date),
+              let start = clock.instant(on: date, wallSeconds: 0),
+              let end = clock.instant(on: nextDay, wallSeconds: 0) else { return nil }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: [cal])
         let suffix = "\(markerPrefix)\(key)"
         for candidate in store.events(matching: predicate) where candidate.calendar?.calendarIdentifier == calendarId {
             if candidate.notes?.hasSuffix(suffix) == true { return candidate }
@@ -675,7 +693,8 @@ final class SystemCalendarManager {
         // Old hashes stored the device zone without recording its identifier.
         // Only accept a complete legacy hash match; changed event fields remain
         // protected. Reuse the matched zone within this import/delete operation.
-        let preferred = [preferredLegacyTimeZone, event.timeZone?.identifier, TimeZone.current.identifier].compactMap { $0 }
+        let preferred = [preferredLegacyTimeZone, event.timeZone?.identifier,
+                         Calendar.autoupdatingCurrent.timeZone.identifier].compactMap { $0 }
         var tried = Set<String>()
         for zone in preferred + Self.legacyTimeZoneIdentifiers where tried.insert(zone).inserted {
             if fingerprintDigest(event, reminders, timeZoneIdentifier: zone) == saved {
@@ -714,17 +733,6 @@ final class SystemCalendarManager {
     }
 
     // MARK: - 工具
-
-    /// "HH:mm" 拼到当日零点起 (24:00 = 次日 0 点, 对齐节次时间解析语义)
-    private func appendTime(_ day: Date, _ hm: String) -> Date {
-        switch hm {
-        case "24:00": return Calendar.isoAddDays(day, 1)
-        default:
-            let parts = hm.split(separator: ":").compactMap { Int($0) }
-            guard parts.count == 2 else { return day }
-            return day.addingTimeInterval(TimeInterval(parts[0] * 3600 + parts[1] * 60))
-        }
-    }
 
     private static func hhmmString(_ minutes: Int) -> String {
         String(format: "%02d:%02d", minutes / 60, minutes % 60)

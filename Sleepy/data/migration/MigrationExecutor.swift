@@ -303,48 +303,51 @@ enum MigrationExecutor {
         importDraftDao: ImportDraftDao,
         dbQueue: DatabaseQueue
     ) throws -> ImportReport {
-        // 先完整校验并解码, 任何坏包都在触碰本机数据之前失败
-        let content = try MigrationPackageCodec.read(bytes)
-        // Decode and validate every module before the first database/defaults/file write.
-        var databaseSnapshot: MigrationDatabaseCodec.DatabaseSnapshot?
-        var preferenceSnapshots: [MigrationModule: MigrationPrefsCodec.PrefsSnapshot] = [:]
+        let prepared = try MigrationPreparedArchive.decode(bytes)
+        return try apply(prepared, mode: mode, prefsStore: prefsStore, courseDao: courseDao,
+                         timeTableDao: timeTableDao, periodTableDao: periodTableDao,
+                         importDraftDao: importDraftDao, dbQueue: dbQueue)
+    }
+
+    static func apply(
+        _ prepared: MigrationPreparedArchive,
+        mode: ImportMode,
+        prefsStore: MigrationPrefsStoreProtocol,
+        courseDao: CourseDao,
+        timeTableDao: TimeTableDao,
+        periodTableDao: PeriodTableDao,
+        importDraftDao: ImportDraftDao,
+        dbQueue: DatabaseQueue
+    ) throws -> ImportReport {
+        // Prepare and validate every preference write before touching any live state.
         var preferenceWrites: [MigrationModule: [([Int64: Int64]) throws -> Void]] = [:]
-        let remapWidgetBindings = mode == .MERGE && content.modules[.DATABASE] != nil
-        for (module, payload) in content.modules {
-            switch module {
-            case .DATABASE:
-                databaseSnapshot = try MigrationDatabaseCodec.decode(payload)
-            case .PREFERENCES, .WIDGETS, .PERSISTED_STATE:
-                let snapshot = try MigrationPrefsCodec.decode(payload)
-                // Main-domain themes came from older iOS packages. The dedicated logical file
-                // takes precedence if a package contains both locations.
-                let names = snapshot.files.keys.sorted { left, right in
-                    if left == AppPrefs.FILE { return right != AppPrefs.FILE }
-                    if right == AppPrefs.FILE { return false }
-                    if left == CustomThemeCore.PREFS_NAME { return false }
-                    if right == CustomThemeCore.PREFS_NAME { return true }
-                    return left < right
+        let remapWidgetBindings = mode == .MERGE && prepared.database != nil
+        for (module, snapshot) in prepared.preferences {
+            // Main-domain themes came from older iOS packages. The dedicated logical file
+            // takes precedence if a package contains both locations.
+            let names = snapshot.files.keys.sorted { left, right in
+                if left == AppPrefs.FILE { return right != AppPrefs.FILE }
+                if right == AppPrefs.FILE { return false }
+                if left == CustomThemeCore.PREFS_NAME { return false }
+                if right == CustomThemeCore.PREFS_NAME { return true }
+                return left < right
+            }
+            preferenceWrites[module] = try names.map { name in
+                if remapWidgetBindings, module == .WIDGETS, name == "widget_bindings" {
+                    return try prefsStore.prepareWidgetBindingMerge(snapshot.files[name]!)
                 }
-                preferenceWrites[module] = try names.map { name in
-                    if remapWidgetBindings, module == .WIDGETS, name == "widget_bindings" {
-                        return try prefsStore.prepareWidgetBindingMerge(snapshot.files[name]!)
-                    }
-                    let write = try prefsStore.prepareApply(snapshot.files[name]!, fileName: name, merge: mode == .MERGE)
-                    return { _ in try write() }
-                }
-                preferenceSnapshots[module] = snapshot
-            case .CREDENTIALS: break
+                let write = try prefsStore.prepareApply(snapshot.files[name]!, fileName: name, merge: mode == .MERGE)
+                return { _ in try write() }
             }
         }
         var counts = ImportCounts()
         var applied: [MigrationModule] = []
         var tableIdMap: [Int64: Int64] = [:]
 
-        let sorted = content.modules.keys.sorted()
-        for module in sorted {
+        for module in prepared.modules {
             switch module {
             case .DATABASE:
-                guard let snapshot = databaseSnapshot else { continue }
+                guard let snapshot = prepared.database else { continue }
                 switch mode {
                 case .OVERWRITE:
                     try MigrationDatabaseCodec.applyOverwrite(
@@ -370,7 +373,7 @@ enum MigrationExecutor {
                 applied.append(module)
 
             case .PREFERENCES, .WIDGETS, .PERSISTED_STATE:
-                guard let snapshot = preferenceSnapshots[module] else { continue }
+                guard let snapshot = prepared.preferences[module] else { continue }
                 // Missing files stay untouched. Each prepared write already validated both
                 // the incoming snapshot and any local file needed for a merge.
                 for write in preferenceWrites[module] ?? [] { try write(tableIdMap) }
@@ -393,7 +396,7 @@ enum MigrationExecutor {
         return ImportReport(
             mode: mode,
             appliedModules: applied.sorted(),
-            unknownModules: content.unknownModules,
+            unknownModules: prepared.unknownModules,
             counts: counts
         )
     }

@@ -16,7 +16,12 @@ final class CourseColorPreviewTests: XCTestCase {
             row(1, mode: CourseColorMode.CUSTOM, color: "#FFFF0000")
         ]).first)
         let color = item.color(isDark: false, neutral: .blue, colorless: true, persistedHue: 120)
-        XCTAssertEqual(UIColor(color), UIColor.red)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        XCTAssertTrue(UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a))
+        XCTAssertEqual(r, 1, accuracy: 0.001)
+        XCTAssertEqual(g, 0, accuracy: 0.001)
+        XCTAssertEqual(b, 0, accuracy: 0.001)
+        XCTAssertEqual(a, 1, accuracy: 0.001)
     }
 
     func testMissingPersistedHueUsesHomeFallbackInsteadOfPlannedHue() throws {

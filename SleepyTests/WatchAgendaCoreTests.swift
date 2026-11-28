@@ -89,9 +89,10 @@ final class WatchAgendaCoreTests: XCTestCase {
 
     func testDayItemsAfterEndKeepsTransferDay() {
         let t = table(startDate: "2026-06-01", maxWeek: 9)
-        // 补班日 = 调休映射 sourceDate (上班日→换日上课): 11-05 按 targetDate(11-02 周一) 星期取课
+        // A valid teaching day in June moves to a makeup day after semester end.
         AppPrefs.shared.setHolidayTransfers(tableId, [
-            HolidayTransferEntry(sourceDate: d(2026, 11, 5), targetDate: d(2026, 11, 2), segmentId: "s")
+            HolidayTransferEntry(sourceDate: CourseOccurrences.parseDate("2026-06-08")!,
+                                 targetDate: CourseOccurrences.parseDate("2026-11-05")!, segmentId: "s")
         ])
         let mondayCourse = course("MonMakeup", day: 1, startNode: 1, endWeek: 30)
         let items = WatchAgendaCore.dayItems(table: t, courses: [mondayCourse], date: d(2026, 11, 5, 12))
@@ -100,7 +101,7 @@ final class WatchAgendaCoreTests: XCTestCase {
         XCTAssertEqual(WatchAgendaCore.dayItems(table: t, courses: [mondayCourse], date: d(2026, 11, 4, 12)), [])
     }
 
-    func testTomorrowTransferMapsToTargetWeekday() {
+    func testTomorrowTransferUsesSourceTeachingDay() {
         let t = table()
         let courses = [course("Wed", day: 3, startNode: 1), course("Fri", day: 5, startNode: 1)]
         let tomorrow = d(2026, 11, 6)   // 周五
@@ -109,9 +110,9 @@ final class WatchAgendaCoreTests: XCTestCase {
         XCTAssertEqual(WatchAgendaCore.dayItems(table: t, courses: courses, date: tomorrow).map(\.courseName),
                        ["Fri"])
 
-        // 调休: 周五是补班日, 上 targetDate(11-04 周三) 的课
         AppPrefs.shared.setHolidayTransfers(tableId, [
-            HolidayTransferEntry(sourceDate: tomorrow, targetDate: d(2026, 11, 4), segmentId: "s")
+            HolidayTransferEntry(sourceDate: CourseOccurrences.parseDate("2026-11-04")!,
+                                 targetDate: CourseOccurrences.parseDate("2026-11-06")!, segmentId: "s")
         ])
         XCTAssertEqual(WatchAgendaCore.dayItems(table: t, courses: courses, date: tomorrow).map(\.courseName),
                        ["Wed"])
@@ -122,6 +123,58 @@ final class WatchAgendaCoreTests: XCTestCase {
         // node 13 不存在 (DEFAULT_TIME_JSON 到 node 12) → 反解失败跳过
         XCTAssertEqual(WatchAgendaCore.dayItems(table: t, courses: [course("X", day: 4, startNode: 12)],
                                                 date: d(2026, 11, 5, 12)), [])
+    }
+
+    func testDatedMakeupUsesSourceTeachingWeekAndDestinationBellSchedule() throws {
+        let sourceDate = try XCTUnwrap(CourseOccurrences.parseDate("2026-08-24"))
+        let targetDate = try XCTUnwrap(CourseOccurrences.parseDate("2026-09-12"))
+        let transfer = HolidayTransferEntry(sourceDate: sourceDate, targetDate: targetDate, segmentId: "fixture")
+        let rows = [
+            course("Moved", day: 1, startNode: 1, step: 1, endWeek: 1),
+            course("Ordinary Saturday", day: 6, startNode: 1, step: 1)
+        ]
+        var fixed = course("Fixed", day: 4, startNode: 1, step: 1, ownTime: true,
+                           startTime: "13:10", endTime: "13:55")
+        fixed.fixedDate = "2026-09-12"
+        let period = PeriodTableEntity(name: "Dated", nodesPerDay: 1,
+            timeJson: #"[{"node":1,"start":"08:00","end":"08:45"}]"#,
+            comboScheduleJson: """
+              {"publicSchedules":[{"name":"Makeup","startDate":"2026-09-12","endDate":"2026-09-12",
+                "timeSlots":[{"number":1,"startTime":"09:30","endTime":"10:15"}]}]}
+              """)
+        let zone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let clock = CourseReminderCalendar(timeZone: zone)
+        let instant = try XCTUnwrap(clock.instant(on: targetDate, wallSeconds: 9 * 3600))
+        let items = WatchAgendaCore.dayItems(table: table(), courses: rows + [fixed], date: instant,
+            displayMode: "time", transfers: [transfer], period: period, timeZone: zone)
+        XCTAssertEqual(items.map(\.courseName), ["Moved", "Fixed"])
+        XCTAssertEqual(items.map(\.startLabel), ["09:30–10:15", "13:10–13:55"])
+        XCTAssertEqual(items.map { clock.timeText(for: $0.startDate) }, ["09:30", "13:10"])
+        let holiday = try XCTUnwrap(clock.instant(on: sourceDate, wallSeconds: 9 * 3600))
+        XCTAssertTrue(WatchAgendaCore.dayItems(table: table(), courses: rows, date: holiday,
+            displayMode: "time", transfers: [transfer], period: period, timeZone: zone).isEmpty)
+    }
+
+    func testDatedWatchTimelineUsesWallClockAfterSpringTransition() throws {
+        let row = course("Sunday", day: 7, startNode: 1, step: 1)
+        let term = table(startDate: "2026-02-23")
+        let zone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let clock = CourseReminderCalendar(timeZone: zone)
+        let day = try XCTUnwrap(CourseOccurrences.parseDate("2026-03-08"))
+        let instant = try XCTUnwrap(clock.instant(on: day, wallSeconds: 0))
+        let slot = try XCTUnwrap(WatchAgendaCore.dayItems(table: term, courses: [row], date: instant,
+            displayMode: "time", transfers: [], timeZone: zone).first)
+        XCTAssertEqual(clock.timeText(for: slot.startDate), "08:00")
+        XCTAssertEqual(slot.startDate.timeIntervalSince(instant) / 3600, 7)
+    }
+
+    func testBeforeSemesterPreviewDoesNotLeakIntoComplications() throws {
+        let day = try XCTUnwrap(CourseOccurrences.parseDate("2026-08-17"))
+        let table = table()
+        let row = course("First week class", day: 1, startNode: 1, step: 1, endWeek: 1)
+        XCTAssertTrue(WatchAgendaCore.coursesOnCivilDay(day, table: table, courses: [row], transfers: []).isEmpty)
+        XCTAssertEqual(WatchAgendaCore.coursesOnCivilDay(day, table: table, courses: [row], transfers: [],
+            previewBeforeStart: true).map(\.courseName), ["First week class"])
     }
 
     // MARK: - currentClass / nextClass

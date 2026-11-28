@@ -1,6 +1,7 @@
 // TimeTableDao.swift — ← data/dao/TimeTableDao.kt 逐条 SQL 翻译 (GPL-3.0)
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
 
 struct TimeTableDao {
@@ -103,3 +104,113 @@ struct TimeTableDao {
         }
     }
 }
+#else
+struct TimeTableDao {
+    let db: LiteDatabase
+
+    private static let selectColumns = """
+        id, name, startDate, maxWeek, nodesPerDay, timeJson, color, isDefault, \
+        smartConfigJson, createdAt, periodTableId, preBindSnapshotJson, reminderEnabled, \
+        reminderOverride, importSourceJson, jwSchoolSourceJson, jwSchoolSourceVerified
+        """
+
+    private static func mapRow(_ s: LiteStatement) -> TimeTableEntity {
+        TimeTableEntity(
+            name: s.colString(1),
+            startDate: s.colString(2),
+            maxWeek: s.colInt(3),
+            nodesPerDay: s.colInt(4),
+            timeJson: s.colString(5),
+            color: s.colString(6),
+            isDefault: s.colBool(7),
+            smartConfigJson: s.colString(8),
+            createdAt: s.colInt64(9),
+            periodTableId: s.colOptInt64(10),
+            preBindSnapshotJson: s.colString(11),
+            reminderEnabled: s.colBool(12),
+            reminderOverride: s.colOptBool(13),
+            importSourceJson: s.colString(14),
+            jwSchoolSourceJson: s.colString(15),
+            jwSchoolSourceVerified: s.colBool(16),
+            id: s.colInt64(0)
+        )
+    }
+
+    func getById(_ id: Int64) throws -> TimeTableEntity? {
+        try db.read { conn in
+            try conn.fetchOne(
+                "SELECT \(Self.selectColumns) FROM time_tables WHERE id = ? LIMIT 1",
+                arguments: [.int64(id)],
+                map: Self.mapRow
+            )
+        }
+    }
+
+    func getAll() throws -> [TimeTableEntity] {
+        try db.read { conn in
+            try conn.fetchAll(
+                "SELECT \(Self.selectColumns) FROM time_tables ORDER BY createdAt DESC",
+                map: Self.mapRow
+            )
+        }
+    }
+
+    func count() throws -> Int {
+        try db.read { conn in
+            try conn.fetchOne("SELECT COUNT(*) FROM time_tables") { $0.colInt(0) } ?? 0
+        }
+    }
+
+    func getDefault() throws -> TimeTableEntity? {
+        try db.read { conn in
+            try conn.fetchOne(
+                "SELECT \(Self.selectColumns) FROM time_tables WHERE isDefault = 1 LIMIT 1",
+                map: Self.mapRow
+            )
+        }
+    }
+
+    func getAllBoundTo(_ periodTableId: Int64) throws -> [TimeTableEntity] {
+        try db.read { conn in
+            try conn.fetchAll(
+                "SELECT \(Self.selectColumns) FROM time_tables WHERE periodTableId = ? ORDER BY createdAt DESC",
+                arguments: [.int64(periodTableId)],
+                map: Self.mapRow
+            )
+        }
+    }
+
+    @discardableResult
+    func insertInDb(_ conn: LiteDatabase.Connection, _ t: TimeTableEntity) throws -> Int64 {
+        try conn.execute("""
+            INSERT OR REPLACE INTO time_tables (
+                id, name, startDate, maxWeek, nodesPerDay, timeJson, color, isDefault,
+                smartConfigJson, createdAt, periodTableId, preBindSnapshotJson,
+                reminderEnabled, reminderOverride, importSourceJson, jwSchoolSourceJson,
+                jwSchoolSourceVerified
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [
+                t.id == 0 ? .null : .int64(t.id),
+                .text(t.name),
+                .text(t.startDate),
+                .int(t.maxWeek),
+                .int(t.nodesPerDay),
+                .text(t.timeJson),
+                .text(t.color),
+                .bool(t.isDefault),
+                .text(t.smartConfigJson),
+                .int64(t.createdAt),
+                t.periodTableId.map(LiteBindValue.int64) ?? .null,
+                .text(t.preBindSnapshotJson),
+                .bool(t.reminderEnabled),
+                t.reminderOverride.map(LiteBindValue.bool) ?? .null,
+                .text(t.importSourceJson),
+                .text(t.jwSchoolSourceJson),
+                .bool(t.jwSchoolSourceVerified)
+            ]
+        )
+        return t.id == 0 ? conn.lastInsertRowId : t.id
+    }
+}
+#endif

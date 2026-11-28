@@ -52,17 +52,15 @@ enum HolidayManager {
     private static func date(_ y: Int, _ m: Int, _ d: Int) -> Date {
         var c = DateComponents()
         c.year = y; c.month = m; c.day = d; c.hour = 12
-        c.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
-        return Calendar(identifier: .gregorian).date(from: c) ?? Date.distantPast
+        return Calendar.gregorianCST.date(from: c) ?? Date.distantPast
     }
 
     private static func yearOf(_ d: Date) -> Int {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
-        return cal.component(.year, from: d)
+        Calendar.gregorianCST.component(.year, from: d)
     }
 
     private static var entriesCache: [Int: [HolidayEntry]] = [:]
+    private static var diskParsedCache: [String: [HolidayEntry]] = [:]
     /// 各年数据是否拉取成功过(空结果+成功=false => 网络失败)
     private static var yearFetchFailed: [Int: Bool] = [:]
 
@@ -102,13 +100,21 @@ enum HolidayManager {
     private static func diskCache(_ year: Int) -> [HolidayEntry]? {
         // loaded 标记与数据同写: 空年份(该年确实无数据)也视为已缓存, 否则每次启动都会重复请求
         guard prefs.bool(forKey: loadedKey(year)) else { return nil }
-        guard let json = prefs.string(forKey: cacheKey(year)),
-              let data = json.data(using: .utf8),
-              let dates = (try? JSONSerialization.jsonObject(with: data)) as? [Any] else { return nil }
-        // ← 原版本 JSONObject().put("dates", dates) 再 parseEntries: 落盘是裸数组串, 解析要求根 {"dates":[...]}
-        guard let wrapped = try? JSONSerialization.data(withJSONObject: ["dates": dates]),
-              let wrappedJson = String(data: wrapped, encoding: .utf8) else { return nil }
-        return parseEntries(wrappedJson)
+        guard let json = prefs.string(forKey: cacheKey(year)) else { return nil }
+        cacheLock.lock()
+        if let cached = diskParsedCache[json] {
+            cacheLock.unlock()
+            return cached
+        }
+        cacheLock.unlock()
+        guard let data = json.data(using: .utf8),
+              let dates = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return nil }
+        let parsed = parseEntryObjects(dates)
+        cacheLock.lock()
+        if diskParsedCache.count >= 16 { diskParsedCache.removeAll(keepingCapacity: true) }
+        diskParsedCache[json] = parsed
+        cacheLock.unlock()
+        return parsed
     }
 
     private static func writeDiskCache(_ year: Int, _ entries: [HolidayEntry]) {
@@ -392,10 +398,16 @@ enum HolidayManager {
         guard let data = json.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let dates = root["dates"] as? [[String: Any]] else { return [] }
+        return parseEntryObjects(dates)
+    }
+
+    private static func parseEntryObjects(_ dates: [[String: Any]]) -> [HolidayEntry] {
         var entries: [HolidayEntry] = []
+        entries.reserveCapacity(dates.count)
         for entry in dates {
             guard let dateStr = entry["date"] as? String,
-                  let d = dateFormat.date(from: dateStr) else { continue }
+                  let d = CourseOccurrences.parseDate(dateStr, calendar: Calendar.gregorianCST)
+                      ?? dateFormat.date(from: dateStr) else { continue }
             entries.append(HolidayEntry(
                 date: d,
                 name: entry["name"] as? String ?? "",

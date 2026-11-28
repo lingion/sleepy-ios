@@ -17,7 +17,7 @@ import Foundation
  * API 只给"哪天补班", 不给"补的谁的课"(各校自定), 因此映射由用户手选,
  * 默认空 = 不映射(该天按自然星期取课)。
  */
-struct HolidayTransferEntry: Equatable {
+struct HolidayTransferEntry: Hashable {
     let sourceDate: Date
     let targetDate: Date
     let segmentId: String
@@ -27,7 +27,7 @@ struct HolidayTransferEntry: Equatable {
 
 /** 映射纯函数集(无系统依赖); 互斥写入由 AppPrefs 组合本对象完成 */
 enum HolidayTransferOps {
-    // 固定配置只初始化一次；后台装载的解析与界面的格式化共用同一把锁。
+    // 固定配置只初始化一次；后台装载的解析与界面的格式化共用同一把锁与有界缓存。
     private static let formatterLock = NSLock()
     private static let fmt: DateFormatter = {
         let f = DateFormatter()
@@ -36,18 +36,38 @@ enum HolidayTransferOps {
         f.locale = Locale(identifier: "en_US_POSIX")
         return f
     }()
+    private static var dayKeyCache: [TimeInterval: String] = [:]
+    private static var parsedDayCache: [String: Date] = [:]
 
     /// 日键 "yyyy-MM-dd" (Asia/Shanghai) — internal: widget 装载器按日期口径去重/比较用
     static func dayKey(_ d: Date) -> String {
+        let key = d.timeIntervalSinceReferenceDate
         formatterLock.lock()
-        defer { formatterLock.unlock() }
-        return fmt.string(from: d)
+        if let hit = dayKeyCache[key] {
+            formatterLock.unlock()
+            return hit
+        }
+        let s = fmt.string(from: d)
+        if dayKeyCache.count >= 2048 { dayKeyCache.removeAll(keepingCapacity: true) }
+        dayKeyCache[key] = s
+        formatterLock.unlock()
+        return s
     }
 
     private static func parseDay(_ s: String) -> Date? {
         formatterLock.lock()
-        defer { formatterLock.unlock() }
-        return fmt.date(from: s)
+        if let hit = parsedDayCache[s] {
+            formatterLock.unlock()
+            return hit
+        }
+        guard let d = fmt.date(from: s) else {
+            formatterLock.unlock()
+            return nil
+        }
+        if parsedDayCache.count >= 512 { parsedDayCache.removeAll(keepingCapacity: true) }
+        parsedDayCache[s] = d
+        formatterLock.unlock()
+        return d
     }
 
     /// 星期几(1=周一 7=周日), 与 DateUtils.todayDayOfWeek 同语义

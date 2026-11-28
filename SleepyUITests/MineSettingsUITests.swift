@@ -5,6 +5,7 @@
 //       Reminder(总开关 + 子开关 + 时间选择) + About(检查更新按钮)。
 
 import XCTest
+import UIKit
 
 final class MineSettingsUITests: XCTestCase {
 
@@ -316,18 +317,28 @@ final class MineSettingsUITests: XCTestCase {
                       "新建应进表编辑页")
     }
 
-    func testAllTablesSchoolUpdateOpensImportForTheSelectedRow() {
+    func testAllTablesHidesSchoolUpdateForOrdinaryTimetable() {
         app.descendants(matching: .any)["mine_all_tables"].tap()
         XCTAssertTrue(app.staticTexts["All Schedules"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format:
+            "identifier BEGINSWITH %@", "table_update_from_school_")).firstMatch.exists)
+    }
+
+    func testAllTablesSchoolUpdateOpensTheVerifiedEntryDirectly() {
+        app.terminate()
+        app.launchArguments.append("-SLEEPY_UI_TEST_VERIFIED_JW")
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        let all = app.descendants(matching: .any)["mine_all_tables"]
+        XCTAssertTrue(all.waitForExistence(timeout: 5))
+        all.tap()
         let refresh = app.buttons.matching(NSPredicate(format:
             "identifier BEGINSWITH %@", "table_update_from_school_")).firstMatch
         XCTAssertTrue(refresh.waitForExistence(timeout: 5))
-        refresh.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).tap()
-        XCTAssertTrue(app.staticTexts["Select School"].waitForExistence(timeout: 10))
-        let close = app.buttons["topbar_close"].firstMatch
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
-        close.tap()
-        XCTAssertTrue(app.staticTexts["All Schedules"].waitForExistence(timeout: 5))
+        refresh.tap()
+        XCTAssertTrue(app.staticTexts["Fixture School"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Select School"].exists)
+        XCTAssertFalse(app.buttons["jw_edit_url"].exists)
     }
 
     func testNativeAllTablesActionsKeepIndependentTargets() {
@@ -336,7 +347,7 @@ final class MineSettingsUITests: XCTestCase {
         app.descendants(matching: .any)["mine_all_tables"].tap()
         XCTAssertTrue(app.staticTexts["All Schedules"].waitForExistence(timeout: 5))
         let identity = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'table_select_'" )).firstMatch
-        let actions = ["table_duplicate_", "table_update_from_school_", "table_edit_"].map { prefix in
+        let actions = ["table_duplicate_", "table_edit_"].map { prefix in
             app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).firstMatch
         }
         XCTAssertTrue(identity.waitForExistence(timeout: 5))
@@ -358,7 +369,7 @@ final class MineSettingsUITests: XCTestCase {
         }
         retainScreenshot("native-all-tables-actions")
         actions[1].coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).tap()
-        XCTAssertTrue(app.staticTexts["Select School"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Edit Schedule"].waitForExistence(timeout: 10))
     }
 
     // MARK: Appearance — 3 态模式分段切换
@@ -367,7 +378,7 @@ final class MineSettingsUITests: XCTestCase {
         let entrance = app.buttons["mine_appearance"].firstMatch
         XCTAssertTrue(scrollUntil(entrance), "外观入口应滚出底部导航遮挡区")
         entrance.tap()
-        let title = app.staticTexts["Appearance & display"]
+        let title = app.staticTexts["Appearance & theme"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
 
         let light = app.buttons.matching(NSPredicate(format: "label == 'Light'")).firstMatch
@@ -396,7 +407,7 @@ final class MineSettingsUITests: XCTestCase {
         let entrance = app.buttons["mine_appearance"].firstMatch
         XCTAssertTrue(scrollUntil(entrance), "外观入口应滚出底部导航遮挡区")
         entrance.tap()
-        let title = app.staticTexts["Appearance & display"]
+        let title = app.staticTexts["Appearance & theme"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         // 预设网格(2 列 N 个)— 任一预设按钮可点不崩
         let preset = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'theme_preset_'")).firstMatch
@@ -405,6 +416,70 @@ final class MineSettingsUITests: XCTestCase {
         preset.tap()
         XCTAssertTrue(title.waitForExistence(timeout: 3))
         XCTAssertTrue(title.exists)
+    }
+
+    func testMainThemeSelectionAppliesToPageAndPersistsAfterRelaunch() {
+        func openAppearance() {
+            let entry = app.buttons["mine_appearance"].firstMatch
+            XCTAssertTrue(scrollUntil(entry), "Appearance must be reachable")
+            entry.tap()
+            XCTAssertTrue(app.buttons["theme_system_card"].firstMatch.waitForExistence(timeout: 5))
+        }
+        func select(_ button: XCUIElement) {
+            XCTAssertTrue(scrollUntil(button, reservedBottomInset: 0))
+            button.tap()
+            XCTAssertTrue(pollUntil { button.isSelected }, "The new theme must be selected after one tap")
+        }
+        openAppearance()
+        let light = app.buttons.matching(NSPredicate(format: "label == 'Light'")).firstMatch
+        XCTAssertTrue(light.waitForExistence(timeout: 5))
+        light.tap()
+        XCTAssertTrue(pollUntil { light.isSelected })
+
+        let system = app.buttons["theme_system_card"].firstMatch
+        let spring = app.buttons["theme_preset_spring"].firstMatch
+        let ocean = app.buttons["theme_preset_ocean"].firstMatch
+        select(system)
+        select(spring)
+        XCTAssertFalse(system.isSelected)
+        XCTAssertTrue(pollUntil { self.appearanceBackgroundMatches(252, 253, 246) }, "Spring must recolor the page")
+        select(ocean)
+        XCTAssertFalse(spring.isSelected)
+        XCTAssertTrue(pollUntil { self.appearanceBackgroundMatches(253, 252, 255) }, "Ocean must recolor the page")
+
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        openAppearance()
+        XCTAssertTrue(ocean.isSelected, "The chosen palette must survive a cold launch")
+        XCTAssertTrue(pollUntil { self.appearanceBackgroundMatches(253, 252, 255) })
+
+        select(app.buttons["theme_preset_default"].firstMatch)
+        app.scrollViews.firstMatch.swipeDown()
+        let auto = app.buttons.matching(NSPredicate(format: "label == 'Auto (light/dark)'")).firstMatch
+        XCTAssertTrue(scrollUntil(auto, reservedBottomInset: 0))
+        auto.tap()
+        XCTAssertTrue(pollUntil { auto.isSelected })
+    }
+
+    private func appearanceBackgroundMatches(_ red: Int, _ green: Int, _ blue: Int) -> Bool {
+        let title = app.staticTexts["settings_topbar_title"].firstMatch
+        guard title.exists, let image = UIImage(data: app.screenshot().pngRepresentation)?.cgImage else { return false }
+        let screen = app.frame
+        // Unobscured trailing end of the top bar, outside of both the back button and the title.
+        let x = (screen.width - 12) * CGFloat(image.width) / screen.width
+        let y = (title.frame.midY - screen.minY) * CGFloat(image.height) / screen.height
+        guard let pixel = image.cropping(to: CGRect(x: floor(x), y: floor(y), width: 1, height: 1)) else { return false }
+        var bytes = [UInt8](repeating: 0, count: 4)
+        return bytes.withUnsafeMutableBufferPointer { buffer in
+            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let context = CGContext(data: buffer.baseAddress, width: 1, height: 1,
+                                          bitsPerComponent: 8, bytesPerRow: 4, space: space,
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            return zip(buffer.prefix(3), [red, green, blue]).allSatisfy { abs(Int($0.0) - $0.1) <= 2 }
+        }
     }
 
     // MARK: General — 设置卡交互(平卡选项即时点选; 卡已原生化: Time Display/
@@ -416,13 +491,13 @@ final class MineSettingsUITests: XCTestCase {
         openScheduleDisplay()
 
         // Time Display 卡: 分段控件两选项(ScheduleFlowUITests 同款 seg_ 锚点)
-        let periods = app.descendants(matching: .any)["seg_Show as periods"]
+        let periods = app.descendants(matching: .any)["seg_Periods"]
         XCTAssertTrue(scrollUntil(periods.firstMatch),
                       "Time Display 卡应有 periods 段选项")
-        XCTAssertTrue(app.descendants(matching: .any)["seg_Show as times"].firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any)["seg_Times"].firstMatch.exists)
 
         // 点选 times 段 → 切回 periods 段
-        app.descendants(matching: .any)["seg_Show as times"].firstMatch.tap()
+        app.descendants(matching: .any)["seg_Times"].firstMatch.tap()
         periods.firstMatch.tap()
 
         // Grid card sub-info 卡(同为平卡): Room / Teacher / None 三段
@@ -550,13 +625,173 @@ final class MineSettingsUITests: XCTestCase {
     // MARK: General — Widget 设置组(widgetcolorless/separator/vertPunct)
 
     func testGeneralKeepsLanguageAndEditingSettings() {
+        openGeneralSettings()
+        XCTAssertTrue(app.buttons["card_language"].firstMatch.exists)
+        for label in ["Off", "Limited", "Unlimited"] {
+            XCTAssertTrue(undoMode(label).waitForExistence(timeout: 5), "应有原生 \(label) 档位")
+        }
+        XCTAssertTrue(scrollUntil(app.textFields["general_undo_depth_field"].firstMatch),
+                      "默认 Limited 应显示数量输入")
+        XCTAssertTrue(app.staticTexts["general_undo_depth_hint"].firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any)["appearance_navigation_shape"].exists)
+    }
+
+    private func replaceUndoDigits(in field: XCUIElement, with text: String) {
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)).tap()
+        _ = app.keyboards.firstMatch.waitForExistence(timeout: 3)
+        let current = field.value as? String ?? ""
+        if !current.isEmpty {
+            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        }
+        if !text.isEmpty {
+            app.typeText(text)
+        }
+    }
+
+    private func tapUndoKeyboardDone() {
+        let doneToolbar = app.buttons["general_undo_depth_done"].firstMatch
+        if doneToolbar.waitForExistence(timeout: 3) && doneToolbar.isHittable {
+            doneToolbar.tap()
+            return
+        }
+        let keyboardDone = app.keyboards.buttons["Done"].firstMatch
+        if keyboardDone.exists { keyboardDone.tap() }
+    }
+
+    func testUndoHistoryModesPersistAndShowCountOnlyWhenLimited() {
+        openGeneralSettings()
+
+        let off = undoMode("Off")
+        XCTAssertTrue(scrollUntil(off))
+        off.tap()
+        XCTAssertTrue(pollUntil { off.isSelected })
+        XCTAssertFalse(app.textFields["general_undo_depth_field"].firstMatch.exists)
+
+        let unlimited = undoMode("Unlimited")
+        unlimited.tap()
+        XCTAssertTrue(pollUntil { unlimited.isSelected })
+        XCTAssertFalse(app.textFields["general_undo_depth_field"].firstMatch.exists)
+
+        let limited = undoMode("Limited")
+        limited.tap()
+        XCTAssertTrue(pollUntil { limited.isSelected })
+        let field = app.textFields["general_undo_depth_field"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollUntil(field, reservedBottomInset: 24))
+        XCTAssertEqual(field.value as? String, "5")
+        replaceUndoDigits(in: field, with: "12")
+        XCTAssertTrue(pollUntil { (field.value as? String) == "12" })
+        tapUndoKeyboardDone()
+
+        // A cold launch must preserve the Limited mode and custom step count.
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        openGeneralSettings()
+        let reopenedLimited = undoMode("Limited")
+        XCTAssertTrue(scrollUntil(reopenedLimited))
+        XCTAssertTrue(reopenedLimited.isSelected)
+        XCTAssertFalse(undoMode("Off").isSelected)
+        XCTAssertFalse(undoMode("Unlimited").isSelected)
+        let reopenedField = app.textFields["general_undo_depth_field"].firstMatch
+        XCTAssertTrue(scrollUntil(reopenedField))
+        XCTAssertEqual(reopenedField.value as? String, "12")
+    }
+
+    func testUndoHistoryLimitedCountRejectsIllegalInputWithoutChangingSavedDepth() {
+        openGeneralSettings()
+        let field = app.textFields["general_undo_depth_field"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollUntil(field, reservedBottomInset: 24))
+        replaceUndoDigits(in: field, with: "12")
+        XCTAssertTrue(pollUntil { (field.value as? String) == "12" })
+
+        // Non-digit characters and strings > 6 digits are rejected.
+        for text in ["-abc", "abc", "1000000", "1.5"] {
+            replaceUndoDigits(in: field, with: "12")
+            field.typeText(text)
+            if text == "1000000" {
+                XCTAssertEqual((field.value as? String)?.count ?? 0, 6)
+            } else if text == "abc" {
+                XCTAssertEqual(field.value as? String, "12", "非数字输入不能改写字段: \(text)")
+            }
+        }
+
+        // Restore saved valid 12, then enter invalid zero draft and commit/Done.
+        replaceUndoDigits(in: field, with: "12")
+        tapUndoKeyboardDone()
+        replaceUndoDigits(in: field, with: "0")
+        XCTAssertTrue(pollUntil { (field.value as? String) == "0" })
+        XCTAssertTrue(app.descendants(matching: .any)["general_undo_depth_invalid"].firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["general_undo_depth_hint"].firstMatch.exists)
+
+        tapUndoKeyboardDone()
+        XCTAssertTrue(pollUntil { (field.value as? String) == "12" }, "提交应恢复最后有效数量")
+        XCTAssertFalse(app.descendants(matching: .any)["general_undo_depth_invalid"].firstMatch.exists)
+    }
+
+    func testDarkModeCustomPrimaryThemePersistsAcrossColdRelaunch() {
+        let appearance = app.descendants(matching: .any)["mine_appearance"].firstMatch
+        XCTAssertTrue(scrollUntil(appearance))
+        appearance.tap()
+        XCTAssertTrue(app.staticTexts["Appearance & theme"].waitForExistence(timeout: 5))
+
+        let darkOption = app.buttons.matching(NSPredicate(format: "identifier == 'seg_Dark' OR label == 'Dark'")).firstMatch
+        XCTAssertTrue(scrollUntil(darkOption))
+        darkOption.tap()
+        XCTAssertTrue(pollUntil { darkOption.isSelected }, "应切换到 Dark 外观模式")
+
+        let newTheme = app.buttons["theme_new_entry"].firstMatch
+        XCTAssertTrue(scrollUntil(newTheme, reservedBottomInset: 24))
+        newTheme.tap()
+        XCTAssertTrue(app.buttons["theme_editor_save"].waitForExistence(timeout: 5))
+
+        let manualRow = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Manual'")).firstMatch
+        if manualRow.waitForExistence(timeout: 3) {
+            manualRow.tap()
+            let primaryRow = app.buttons["theme_role_Primary"].firstMatch
+            if primaryRow.waitForExistence(timeout: 3) {
+                primaryRow.tap()
+                let confirm = app.buttons["theme_color_confirm"].firstMatch
+                if confirm.waitForExistence(timeout: 5) {
+                    confirm.tap()
+                }
+            }
+        }
+
+        let saveButton = app.buttons["theme_editor_save"].firstMatch
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
+        saveButton.tap()
+        let firstCustom = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'theme_custom_' AND NOT (identifier BEGINSWITH 'theme_custom_edit_')")).firstMatch
+        XCTAssertTrue(firstCustom.waitForExistence(timeout: 5), "保存后应在外观页出现自定义主题卡")
+        let customId = firstCustom.identifier
+
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-SLEEPY_UI_TEST_SEED" }
+        app.sleepyLaunch()
+        app.switchToPillTab("mine")
+        let reopenedAppearance = app.descendants(matching: .any)["mine_appearance"].firstMatch
+        XCTAssertTrue(scrollUntil(reopenedAppearance))
+        reopenedAppearance.tap()
+
+        let reopenedDark = app.buttons.matching(NSPredicate(format: "identifier == 'seg_Dark' OR label == 'Dark'")).firstMatch
+        XCTAssertTrue(scrollUntil(reopenedDark))
+        XCTAssertTrue(reopenedDark.isSelected, "冷重启后 Dark 模式必须持久化")
+        let reopenedCustom = app.buttons[customId].firstMatch
+        XCTAssertTrue(scrollUntil(reopenedCustom), "冷重启后自定义主题必须持久化")
+    }
+
+    private func openGeneralSettings() {
         let general = app.buttons["mine_general"].firstMatch
         XCTAssertTrue(scrollUntil(general), "通用设置入口应完整显示在底部导航上方")
         general.tap()
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["card_language"].firstMatch.exists)
-        XCTAssertTrue(scrollUntil(app.textFields["general_undo_depth_field"].firstMatch))
-        XCTAssertFalse(app.descendants(matching: .any)["appearance_navigation_shape"].exists)
+    }
+
+    private func undoMode(_ label: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@",
+                                         "seg_\(label)", label)).firstMatch
     }
 
     func testMineBackupEntryKeepsMigrationActions() {
@@ -564,6 +799,25 @@ final class MineSettingsUITests: XCTestCase {
         XCTAssertTrue(scrollUntil(backup))
         backup.tap()
         XCTAssertTrue(app.descendants(matching: .any)["settings_migration_export_row"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["settings_migration_import_row"].exists)
+    }
+
+    func testBackupShowsWebDAVSetupWithoutRequiringAConnection() {
+        let backup = app.descendants(matching: .any)["mine_backup"].firstMatch
+        XCTAssertTrue(scrollUntil(backup))
+        backup.tap()
+        let setup = app.buttons["backup_webdav_setup"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollUntil(setup, reservedBottomInset: 24))
+        setup.tap()
+
+        XCTAssertTrue(app.textFields["backup_webdav_server"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["backup_webdav_directory"].exists)
+        XCTAssertTrue(app.secureTextFields["backup_webdav_password"].exists)
+        app.buttons["backup_webdav_cancel"].tap()
+
+        XCTAssertTrue(pollUntil { !app.textFields["backup_webdav_server"].exists })
+        XCTAssertTrue(app.descendants(matching: .any)["settings_migration_export_row"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["settings_migration_import_row"].exists)
     }
 
@@ -577,24 +831,40 @@ final class MineSettingsUITests: XCTestCase {
             app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@",
                                              "seg_\(label)", label)).firstMatch
         }
-        let classic = option("Material Design")
-        XCTAssertTrue(scrollUntil(classic, reservedBottomInset: 0))
-        classic.tap()
-        XCTAssertTrue(pollUntil { classic.isSelected })
         let docked = option("Docked")
-        XCTAssertTrue(scrollUntil(docked))
+        XCTAssertTrue(scrollUntil(docked, reservedBottomInset: 0))
         docked.tap()
-        XCTAssertTrue(docked.isSelected)
-        let glass = option("Liquid Glass")
-        XCTAssertTrue(glass.exists)
-        glass.tap()
-        XCTAssertTrue(pollUntil { glass.isSelected })
-        XCTAssertTrue(docked.isSelected, "界面材质不能改导航形态")
-        let widthTargets = [app.staticTexts["Appearance & display"].firstMatch,
-                            option("Material Design"), glass, docked, option("Floating"),
-                            app.buttons["theme_new_entry"].firstMatch]
-            + app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'theme_preset_'"))
-                .allElementsBoundByIndex
+        XCTAssertTrue(pollUntil { docked.isSelected })
+
+        let supportsLiquidGlass = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26
+        var widthTargets: [XCUIElement] = [
+            app.staticTexts["Appearance & theme"].firstMatch,
+            docked,
+            option("Floating"),
+            app.buttons["theme_new_entry"].firstMatch
+        ] + app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'theme_preset_'"))
+            .allElementsBoundByIndex
+
+        if supportsLiquidGlass {
+            let classic = option("Material Design")
+            XCTAssertTrue(scrollUntil(classic, reservedBottomInset: 0))
+            classic.tap()
+            XCTAssertTrue(pollUntil { classic.isSelected })
+            let glass = option("Liquid Glass")
+            XCTAssertTrue(glass.exists)
+            glass.tap()
+            XCTAssertTrue(pollUntil { glass.isSelected })
+            XCTAssertTrue(docked.isSelected, "界面材质不能改导航形态")
+            widthTargets.append(contentsOf: [classic, glass])
+        } else {
+            XCTAssertFalse(app.descendants(matching: .any)["appearance_ui_style"].exists,
+                           "低于 iOS 26 时不应向用户呈现界面风格切换控件")
+            XCTAssertFalse(app.staticTexts["Interface style"].exists,
+                           "低于 iOS 26 时不应呈现不支持的液态玻璃分组标题")
+            XCTAssertFalse(option("Liquid Glass").exists)
+            XCTAssertFalse(option("Material Design").exists)
+        }
+
         XCTAssertTrue(pollUntil {
             let window = self.app.frame
             return widthTargets.allSatisfy { target in
@@ -604,7 +874,13 @@ final class MineSettingsUITests: XCTestCase {
             }
         }, "Switching to native segments must keep the title, theme grid and every option inside the window width")
         retainScreenshot("native-glass-docked-selection")
-        option("Material Design").tap()
+        if supportsLiquidGlass {
+            option("Material Design").tap()
+        } else {
+            option("Floating").tap()
+            XCTAssertTrue(pollUntil { option("Floating").isSelected })
+            docked.tap()
+        }
         XCTAssertTrue(docked.isSelected)
     }
 
@@ -655,17 +931,12 @@ final class MineSettingsUITests: XCTestCase {
         openScheduleDisplay()
         let entry = app.descendants(matching: .any)["settings_holiday_entry"].firstMatch
         XCTAssertTrue(entry.waitForExistence(timeout: 5), "General 页应有节假日入口卡")
-        // issue#26 别名开关折叠进 pill 卡后 General 页整体变矮, 固定 swipeUp 会把入口
-        // 划出视口上沿(tap 落空)→ 按需双向滚动把入口送进可视区再点
-        let screenH = app.frame.height
-        for _ in 0..<4 {
-            let f = entry.frame
-            if f.minY > 80 && f.maxY < screenH - 80 { break }
-            if f.minY <= 80 { app.swipeDown() } else { app.swipeUp() }
-        }
+        XCTAssertTrue(scrollUntil(entry, reservedBottomInset: 0))
         entry.tap()
-        // 二级页标题 "Holidays & Make-up Days"
-        let title = app.staticTexts["Holidays & Make-up Days"].firstMatch
+        // 二级页标题 "Holidays and make-up classes" (settings_holiday_title_rules)
+        let title = app.staticTexts.matching(NSPredicate(
+            format: "identifier == 'settings_topbar_title' AND label == %@",
+            "Holidays and make-up classes")).firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 5), "点入口应打开节假日设置页")
         // 返回(onBack = overlayScreen = null) → 回主界面, Mine tab 仍在。
         // Holiday 经 .sheet 呈现(GeneralSettingsScreen.swift:521), 背景 General 页仍在

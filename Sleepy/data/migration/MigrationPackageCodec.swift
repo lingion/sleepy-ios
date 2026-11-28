@@ -9,6 +9,15 @@ import ZIPFoundation
 /// ZIP 容器读写 — 兼容 原版本 java.util.zip 输出(标准 DEFLATE 模式)。
 enum MigrationPackageCodec {
 
+    struct ReadLimits {
+        let maximumExpandedBytes: Int
+        let maximumEntries: Int
+
+        static let remoteBackup = ReadLimits(maximumExpandedBytes: 256 * 1024 * 1024, maximumEntries: 1_024)
+    }
+
+    enum ReadLimitError: Error, Equatable { case expandedBytes, entries }
+
     static func moduleEntryName(_ module: MigrationModule) -> String {
         return "\(MigrationBackup.ENTRY_MODULES_DIR)/\(module.entryName).json"
     }
@@ -54,7 +63,7 @@ enum MigrationPackageCodec {
 
     /// 读包 + 校验: illegal path / duplicate entry / missing manifest / wrong format /
     /// newer-version 包 → 全部 throw MigrationPackageException,在写本机数据前 fail-fast。
-    static func read(_ bytes: Data) throws -> MigrationPackageContent {
+    static func read(_ bytes: Data, limits: ReadLimits? = nil) throws -> MigrationPackageContent {
         // 解到临时文件, ZIPFoundation 不支持 Data 入参 → URL only
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("sleepy-migration-read-\(UUID().uuidString)", isDirectory: true)
@@ -74,9 +83,25 @@ enum MigrationPackageCodec {
         var manifest: MigrationBackup.Manifest?
         var seenEntries: Set<String> = []
 
+        var remaining = limits.map { max(0, $0.maximumExpandedBytes) }
+        func readPayload(_ entry: Entry) throws -> String {
+            do {
+                let (text, length) = try readEntryAsString(archive: archive, entry: entry, remaining: remaining)
+                if let budget = remaining { remaining = budget - length }
+                return text
+            } catch let limit as ReadLimitError {
+                throw limit
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw MigrationPackageException(message: "backup ZIP unreadable", cause: error)
+            }
+        }
+
         for entry in archive {
+            try Task.checkCancellation()
+            if let limits = limits, seenEntries.count >= limits.maximumEntries { throw ReadLimitError.entries }
             let name = entry.path
-            // Path traversal 防御: 与 原版本 1:1
             if name.hasPrefix("/") || name.contains("..") {
                 throw MigrationPackageException(message: "illegal zip entry: \(name)")
             }
@@ -84,14 +109,7 @@ enum MigrationPackageCodec {
                 throw MigrationPackageException(message: "duplicate zip entry: \(name)")
             }
             if name == MigrationBackup.ENTRY_MANIFEST {
-                // 原版本: entry 解压异常走外层 catch → "backup ZIP unreadable" 整体失败;
-                // 仅 decode 失败才是 "manifest unreadable"。fail-fast, 不留半成品。
-                let text: String
-                do {
-                    text = try readEntryAsString(archive: archive, entry: entry)
-                } catch {
-                    throw MigrationPackageException(message: "backup ZIP unreadable", cause: error)
-                }
+                let text = try readPayload(entry)
                 do {
                     manifest = try MigrationBackup.decodeManifest(text)
                 } catch {
@@ -100,14 +118,7 @@ enum MigrationPackageCodec {
             } else if name.hasPrefix("\(MigrationBackup.ENTRY_MODULES_DIR)/") && name.hasSuffix(".json") {
                 let prefix = "\(MigrationBackup.ENTRY_MODULES_DIR)/"
                 let base = String(name.dropFirst(prefix.count).dropLast(".json".count))
-                // 与 原版本 fail-fast 对齐: 坏 entry 必须中止整个 read(),
-                // 禁止 `try? ... else { continue }` 静默丢模块后半包导入(坏包在写入本机数据前被拒绝)。
-                let text: String
-                do {
-                    text = try readEntryAsString(archive: archive, entry: entry)
-                } catch {
-                    throw MigrationPackageException(message: "backup ZIP unreadable", cause: error)
-                }
+                let text = try readPayload(entry)
                 if let module = MigrationModule.fromEntryName(base) {
                     known[module] = text
                 } else {
@@ -147,11 +158,59 @@ enum MigrationPackageCodec {
         }
     }
 
-    private static func readEntryAsString(archive: Archive, entry: Entry) throws -> String {
+    private static func readEntryAsString(archive: Archive, entry: Entry, remaining: Int?) throws -> (String, Int) {
+        guard entry.type == .file else { throw MigrationPackageException(message: "non-file backup entry") }
+        if let limit = remaining, entry.uncompressedSize > UInt64(limit) { throw ReadLimitError.expandedBytes }
         var buffer = Data()
-        _ = try archive.extract(entry, bufferSize: 32 * 1024) { chunk in
+        let checksum = try archive.extract(entry, bufferSize: 32 * 1024) { chunk in
+            try Task.checkCancellation()
+            if let limit = remaining, chunk.count > limit - buffer.count { throw ReadLimitError.expandedBytes }
             buffer.append(chunk)
         }
-        return String(data: buffer, encoding: .utf8) ?? ""
+        guard checksum == entry.checksum, UInt64(buffer.count) == entry.uncompressedSize,
+              let text = String(data: buffer, encoding: .utf8) else {
+            throw MigrationPackageException(message: "damaged backup entry")
+        }
+        return (text, buffer.count)
+    }
+}
+
+/// Decoded, not applied. Both Files and WebDAV can present a confirmation without
+/// opening the production database or capturing a preference write.
+struct MigrationPreparedArchive {
+    let modules: [MigrationModule]
+    let unknownModules: [String]
+    let database: MigrationDatabaseCodec.DatabaseSnapshot?
+    let preferences: [MigrationModule: MigrationPrefsCodec.PrefsSnapshot]
+
+    static func decode(_ bytes: Data, limits: MigrationPackageCodec.ReadLimits? = nil) throws -> Self {
+        let content = try MigrationPackageCodec.read(bytes, limits: limits)
+        var database: MigrationDatabaseCodec.DatabaseSnapshot?
+        var preferences: [MigrationModule: MigrationPrefsCodec.PrefsSnapshot] = [:]
+        for (module, payload) in content.modules {
+            try Task.checkCancellation()
+            switch module {
+            case .DATABASE: database = try MigrationDatabaseCodec.decode(payload)
+            case .PREFERENCES, .WIDGETS, .PERSISTED_STATE: preferences[module] = try MigrationPrefsCodec.decode(payload)
+            case .CREDENTIALS: break
+            }
+        }
+        return Self(modules: content.modules.keys.sorted(), unknownModules: content.unknownModules,
+                    database: database, preferences: preferences)
+    }
+
+    static func decodeRemote(_ bytes: Data) throws -> Self {
+        let prepared = try decode(bytes, limits: .remoteBackup)
+        // A server archive cannot use a file name as an arbitrary UserDefaults domain.
+        // Keep known cross-platform files; platform-specific file names do not acquire a local destination.
+        let supported = prepared.preferences.reduce(into: [MigrationModule: MigrationPrefsCodec.PrefsSnapshot]()) { result, item in
+            let allowed = Set(MigrationPrefsFileMap.files(of: item.key))
+            result[item.key] = .init(files: item.value.files.filter { allowed.contains($0.key) })
+        }
+        guard prepared.database != nil || supported.values.contains(where: { !$0.files.isEmpty }) else {
+            throw MigrationPackageException(message: "remote backup has no restorable modules")
+        }
+        return Self(modules: prepared.modules, unknownModules: prepared.unknownModules,
+                    database: prepared.database, preferences: supported)
     }
 }

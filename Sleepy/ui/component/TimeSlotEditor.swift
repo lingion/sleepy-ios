@@ -314,7 +314,7 @@ private struct ManualTimeSlotEditor: View {
                     .frame(minHeight: style == .liquidGlass ? nil : 40)       // ← M3 Button 最小高 40dp
                     .sleepyControlSurface(cornerRadius: SleepyShapes.medium, tint: colors.secondaryContainer, prominent: true)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium))
+                .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.medium)
                 .frame(minHeight: style == .liquidGlass ? 44 : nil)
                 .tint(colors.secondaryContainer)
                 .accessibilityIdentifier("slot_add")
@@ -573,7 +573,7 @@ private struct TimeSlotRowItem: View {
                                height: style == .liquidGlass ? 20 : 48)
                         .contentShape(Circle())
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 22, compact: true, shape: .circle))
+                .sleepyPlatformButtonStyle(cornerRadius: 22, compact: true, shape: .circle)
                 .tint(colors.error)
                 .frame(width: 48, height: 48)
                 .contentShape(Circle())

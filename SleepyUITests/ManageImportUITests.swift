@@ -254,6 +254,11 @@ final class ManageImportUITests: XCTestCase {
         let saveBtn = app.staticTexts["Save Settings"].firstMatch
         XCTAssertTrue(saveBtn.waitForExistence(timeout: 3))
         saveBtn.tap()
+        // PR #52 keeps ImportSheet mounted beneath EditTable when saving a blank table;
+        // verify the editor closed, then pop ImportSheet to inspect Manage.
+        XCTAssertTrue(waitUntil { !saveBtn.exists && self.app.scrollViews["import_methods_scroll"].firstMatch.isHittable },
+                      "保存新建空白课表应关掉编辑页并回到导入方式页")
+        tapForegroundBack()
         // 保存后回管理页, 新表成为当前表
         XCTAssertTrue(app.staticTexts["Manage"].waitForExistence(timeout: 5)
                       || app.staticTexts["测试表2"].firstMatch.waitForExistence(timeout: 5),

@@ -156,17 +156,18 @@ struct EditTableScreen: View {
                             FieldTextField(text: $name, label: L10n.format("edit_table_name"))
                             // 学期开始日期: 文本 + 日历图标弹原生 DatePicker(与导入确认弹窗同款组件)。
                             //   ← 原版本 DatePickerField(value, onValueChange, label, isError)
+                            let weekCountError = L10n.format("edit_table_max_week_error")
                             DatePickerField(
                                 value: startDate,
                                 onValueChange: { startDate = $0 },
                                 label: L10n.format("edit_table_start_date"),
-                                isError: error != nil,
+                                isError: error != nil && error != weekCountError,
                                 fillsWidth: true)
-                            // 周数 ← 原版本 数字 TextField: 过滤非数字、任意值, 保存 toIntOrNull ?: 20
-                            // (原 Stepper 1...60 硬顶 — 超出 60 的课表在 iOS 无法保存, 已对齐语义)
+                            // 周数 ← 原版本 数字 TextField: 仅接收正整数，0/空拒存并提示
                             FieldTextField(text: $maxWeekText,
                                            label: L10n.format("edit_table_max_week"),
-                                           keyboardType: .numberPad)
+                                           keyboardType: .numberPad,
+                                           isError: error == weekCountError)
                                 .onChange(of: maxWeekText) { newValue in
                                     // ← 原 onValueChange = it.filter { ch.isDigit() }
                                     //   isDigit() = Unicode Nd(十进制数字); Swift isNumber 含
@@ -293,7 +294,7 @@ struct EditTableScreen: View {
                         .frame(height: uiStyle == .liquidGlass ? nil : 56)
                         .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                     .frame(maxWidth: .infinity, minHeight: 56)
                     .tint(colors.primary)
                     .disabled(editState == nil)
@@ -312,7 +313,7 @@ struct EditTableScreen: View {
                             .frame(height: uiStyle == .liquidGlass ? nil : 48)
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .tint(colors.errorContainer)
                         .accessibilityIdentifier("edit_table_delete")
@@ -482,7 +483,12 @@ struct EditTableScreen: View {
     }
 
     private func save(table: TimeTableEntity, effective: PeriodTableEntity?) {
-        let maxWeek = Int(maxWeekText) ?? 20
+        let weekCountError = L10n.format("edit_table_max_week_error")
+        guard let maxWeek = Int(maxWeekText.trimmingCharacters(in: .whitespacesAndNewlines)),
+              maxWeek >= 1 else {
+            error = weekCountError
+            return
+        }
         // ← 原版本 startDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) 全串匹配
         let dateOK = matchesFull(startDate, #"\d{4}-\d{2}-\d{2}"#)
         guard dateOK else {
@@ -648,6 +654,7 @@ struct FieldTextField: View {
     var placeholder: String = ""
     var keyboardType: UIKeyboardType = .default
     var identifier: String? = nil
+    var isError: Bool = false
     @FocusState private var focused: Bool
 
     private var floatingLabelVisible: Bool { focused || !text.isEmpty || !placeholder.isEmpty }
@@ -657,7 +664,7 @@ struct FieldTextField: View {
             if floatingLabelVisible {
                 Text(label)
                     .font(.system(size: 12))
-                    .foregroundColor(colors.onSurfaceVariant)
+                    .foregroundColor(isError ? colors.error : colors.onSurfaceVariant)
             }
             TextField(placeholder.isEmpty ? (floatingLabelVisible ? "" : label) : placeholder, text: $text)
                 .keyboardType(keyboardType)
@@ -671,6 +678,13 @@ struct FieldTextField: View {
         .padding(.vertical, 10)
         .frame(minHeight: 56, alignment: .bottom)
         .background(colors.surfaceContainerLowest)
+        .overlay(alignment: .bottom) {
+            if isError || focused {
+                Rectangle()
+                    .fill(isError ? colors.error : colors.primary)
+                    .frame(height: 2)
+            }
+        }
         .cornerRadius(SleepyTheme.fieldShape)
     }
 }

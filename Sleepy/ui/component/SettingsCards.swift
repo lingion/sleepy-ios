@@ -58,7 +58,7 @@ struct SectionHeader: View {
 // ← 原版本 AnimatedVisibility/expandVertically 默认 spec = spring(NoBouncy, StiffnessMediumLow≈400)
 //   → iOS 等价 dampingFraction 1.0(无回弹), response = 2π/√400 ≈ 0.31。
 //   thumb 类弹簧另见 SleepyMotion.sleepyThumbSpring(High 硬度 0.18, 不同用途不同档)。
-private let sleepySettingsExpand = Animation.spring(response: 0.31, dampingFraction: 1.0)
+let sleepySettingsExpand = Animation.spring(response: 0.31, dampingFraction: 1.0)
 
 // ← SettingsCard: 折叠卡(箭头随展开旋转, 内容高度+淡入同拍)
 //

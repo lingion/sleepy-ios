@@ -8,6 +8,7 @@ struct CalendarImportDialog: View {
     @Environment(\.sleepyUIStyle) private var style
     let table: TimeTableEntity
     let courses: [CourseEntity]
+    var periodTable: PeriodTableEntity? = nil
     let onDismiss: () -> Void
 
     @State private var calendars: [SystemCalendarInfo] = []
@@ -291,7 +292,7 @@ struct CalendarImportDialog: View {
         }
         .disabled(busy || selectedCalendarId.isEmpty)
         if style == .liquidGlass {
-            button.buttonStyle(SleepyPlatformButtonStyle(prominent: true))
+            button.sleepyPlatformButtonStyle(prominent: true)
                 .frame(maxWidth: .infinity, minHeight: 44)
         } else {
             button.buttonStyle(.borderedProminent)
@@ -346,7 +347,7 @@ struct CalendarImportDialog: View {
                     .font(.caption)
                     .foregroundColor(colors.error)
                 if style == .liquidGlass {
-                    confirmButton.buttonStyle(SleepyPlatformButtonStyle(prominent: true))
+                    confirmButton.sleepyPlatformButtonStyle(prominent: true)
                         .frame(maxWidth: .infinity, minHeight: 44)
                 } else {
                     confirmButton.buttonStyle(.bordered)
@@ -386,7 +387,7 @@ struct CalendarImportDialog: View {
             }
             .disabled(busy)
             if style == .liquidGlass {
-                button.buttonStyle(SleepyPlatformButtonStyle())
+                button.sleepyPlatformButtonStyle()
             } else {
                 button
             }
@@ -458,7 +459,7 @@ struct CalendarImportDialog: View {
         prefs.setCalendarTargetId(options.calendarId)
         Task {
             let p = await Task.detached(priority: .userInitiated) {
-                SystemCalendarManager.buildPreview(table: table, courses: courses, options: options)
+                SystemCalendarManager.buildPreview(table: table, courses: courses, options: options, periodTable: periodTable)
             }.value
             await MainActor.run {
                 preview = p
@@ -475,7 +476,8 @@ struct CalendarImportDialog: View {
         busy = true
         let options = currentOptions()
         Task {
-            let r = await SystemCalendarManager.import(table: table, courses: courses, options: options, batchId: UUID().uuidString)
+            let r = await SystemCalendarManager.import(table: table, courses: courses, options: options,
+                batchId: UUID().uuidString, periodTable: periodTable)
             let dao = CalendarImportRecordDao(db: AppDatabase.getShared().dbQueue)
             let count = (try? dao.forTable(table.id))?.count ?? 0
             await MainActor.run {

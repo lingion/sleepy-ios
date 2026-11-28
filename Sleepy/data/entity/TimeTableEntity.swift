@@ -1,10 +1,12 @@
 // TimeTableEntity.swift — ← data/entity/TimeTableEntity.kt (逐行翻译, GPL-3.0)
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
+#endif
 
 /// 课表实体 (TimeTable) — 一个课表包含多个课程
-struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Identifiable {
+struct TimeTableEntity: Codable, Identifiable, Hashable {
     static let databaseTableName = "time_tables"
 
     var name: String
@@ -40,9 +42,14 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
     var reminderOverride: Bool? = nil
     /// Source suggestions remain separate from confirmed timetable fields.
     var importSourceJson: String = ""
+    /// Portable school identity only. This field never grants local update authorization.
+    var jwSchoolSourceJson: String = ""
+    /// SQLite-only permission set by a successful live in-app import, never by a portable decoder.
+    var jwSchoolSourceVerified: Bool = false
     /// 主键 autoGenerate
     var id: Int64 = 0
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// GRDB: 自增主键插入后回填
     mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
@@ -66,7 +73,10 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
         container["reminderEnabled"] = reminderEnabled
         container["reminderOverride"] = reminderOverride
         container["importSourceJson"] = importSourceJson
+        container["jwSchoolSourceJson"] = jwSchoolSourceJson
+        container["jwSchoolSourceVerified"] = jwSchoolSourceVerified
     }
+    #endif
 
     /// issue#40 有效时间表水合(设计 §5.1): 绑定存在 → 节次时间/智慧节次/节次数
     /// 全部以所绑 periodTable 为准覆盖本表对应字段(兼容列保留不动, 仅作回退);
@@ -74,11 +84,12 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
     ///
     /// 渲染/通知/widget 路径统一经此函数取"节次→时间"的真源;
     /// 课程行按 startNode/step 节次绑定, 不因水合而变。
-    func hydratedWith(_ periodTable: PeriodTableEntity?) -> TimeTableEntity {
+    func hydratedWith(_ periodTable: PeriodTableEntity?, forDateKey date: String? = nil) -> TimeTableEntity {
         guard let pt = periodTable else { return self }
         var t = self
         t.nodesPerDay = pt.nodesPerDay
-        t.timeJson = pt.timeJson
+        // Date-less operations, including editing and static exports, keep the base clocks.
+        t.timeJson = date.map { pt.timeJson(forDateKey: $0) } ?? pt.timeJson
         t.smartConfigJson = pt.smartConfigJson
         return t
     }
@@ -99,11 +110,35 @@ struct TimeTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Iden
 }
 
 
+#if !WIDGET_EXT && !WATCH_APP
+extension TimeTableEntity: FetchableRecord, MutablePersistableRecord {
+    init(row: Row) {
+        id = row["id"]
+        name = row["name"]
+        startDate = row["startDate"]
+        maxWeek = row["maxWeek"]
+        nodesPerDay = row["nodesPerDay"]
+        timeJson = row["timeJson"]
+        color = row["color"]
+        isDefault = row["isDefault"]
+        smartConfigJson = row["smartConfigJson"]
+        createdAt = row["createdAt"]
+        periodTableId = row["periodTableId"]
+        preBindSnapshotJson = row["preBindSnapshotJson"]
+        reminderEnabled = row["reminderEnabled"]
+        reminderOverride = row["reminderOverride"]
+        importSourceJson = row["importSourceJson"]
+        jwSchoolSourceJson = row["jwSchoolSourceJson"]
+        jwSchoolSourceVerified = row["jwSchoolSourceVerified"]
+    }
+}
+#endif
+
 extension TimeTableEntity {
     enum CodingKeys: String, CodingKey {
         case name, startDate, maxWeek, nodesPerDay, timeJson, color, isDefault,
              smartConfigJson, createdAt, periodTableId, preBindSnapshotJson,
-             reminderEnabled, reminderOverride, importSourceJson, id
+             reminderEnabled, reminderOverride, importSourceJson, jwSchoolSourceJson, id
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -121,6 +156,7 @@ extension TimeTableEntity {
         reminderEnabled = try c.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? true
         reminderOverride = try c.decodeIfPresent(Bool.self, forKey: .reminderOverride)
         importSourceJson = try c.decodeIfPresent(String.self, forKey: .importSourceJson) ?? ""
+        jwSchoolSourceJson = try c.decodeIfPresent(String.self, forKey: .jwSchoolSourceJson) ?? ""
         id = try c.decodeIfPresent(Int64.self, forKey: .id) ?? 0
     }
 }

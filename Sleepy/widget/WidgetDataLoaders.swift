@@ -39,48 +39,53 @@ enum WidgetLoader {
 /// weekDisplayStatus (statusForSelectedDate)。
 /// 原 runBlocking → iOS async (与 TwoDay/WeekList loader 同模式)。
 enum TodayWidgetLoader {
-    static func loadData(kind: String) async -> WidgetData {
+    static func loadData(kind: String, now today: Date = Date(),
+                         overrideTableId: Int64? = nil,
+                         navKey: String? = nil,
+                         repository: ScheduleRepository? = nil) async -> WidgetData {
         // now 只取一次贯穿全程 (原版本 注释: 两次 now() 跨午夜 = 单次渲染口径分裂)
-        let today = Date()
         let prefs = AppPrefs.shared
         // ← 原版本 TodayWidget.kt:465: isSystemDark 取 widget 宿主 Context 的
         //   uiMode 夜间标志; iOS 默认参数 false 会让 system 主题下 widget 永远浅色。
         let isDark = prefs.isDarkMode(isSystemDark: currentSystemDark())
         let themeKey = prefs.getThemeKey()
         let themeMode = prefs.getThemeMode()
-        // 导航锚定日 (无导航态 → today; iOS 无翻页 UI 入口, Store 语义仍对齐)
-        let manualNavigation = TodayDateNavStore.hasNavigation(kind)
-        let target = TodayDateNavStore.target(kind, today)
+        // 导航锚定日 (无导航态 → today)
+        let effectiveNavKey = navKey ?? TodayDateNavStore.widgetKey(kind: kind, tableId: overrideTableId)
+        let manualNavigation = TodayDateNavStore.hasNavigation(effectiveNavKey)
+        let target = TodayDateNavStore.target(effectiveNavKey, today)
         let autoNearestBusyDay = !manualNavigation
         let fallback = WidgetData(date: target, courses: [], timeJson: TimeTableUtils.DEFAULT_TIME_JSON,
                                   hasTable: false, isDark: isDark, themeKey: themeKey, themeMode: themeMode,
                                   isToday: Calendar.current.isDate(target, inSameDayAs: today))
-        guard let source = await WidgetWeekDataLoader.resolve(kind) else { return fallback }
+        guard let source = await WidgetWeekDataLoader.resolve(kind, repository: repository, now: today,
+                                                              overrideTableId: overrideTableId) else {
+            return fallback
+        }
         let table = source.table
         let effectiveTarget: Date
         if autoNearestBusyDay, source.display.status == .nearestBusyDay {
-            effectiveTarget = source.display.targetDate
+            effectiveTarget = source.resolvedToday(today)
         } else {
             effectiveTarget = target
         }
         // 学期状态按"课实际来自哪天"判 (原 courseDateForDate ?: effectiveTarget)
-        let status = DateUtils.semesterStatus(
-            startDate: table.startDate, maxWeek: table.maxWeek,
-            today: HolidayTransferHelper.courseDateForDate(table.id, effectiveTarget) ?? effectiveTarget)
-        let visible = source.coursesOn(effectiveTarget)
+        let status = source.semesterStatus(onDisplayDate: effectiveTarget, usesTransfer: true)
+        let visible = source.coursesOnDisplayDate(effectiveTarget)
+        let civil = source.civilDay(onDisplayDate: effectiveTarget)
         return WidgetData(
             date: effectiveTarget,
             courses: visible,
-            timeJson: table.timeJson,
+            timeJson: source.table(on: civil).timeJson,
             hasTable: true,
             isDark: isDark,
             themeKey: themeKey,
             themeMode: themeMode,
             semesterStatus: status,
             isToday: Calendar.current.isDate(effectiveTarget, inSameDayAs: today),
-            isGrey: await HolidayManager.shouldGrey(effectiveTarget, tableId: table.id),
+            isGrey: await HolidayManager.shouldGrey(civil, tableId: table.id),
             weekDisplayStatus: WeekDisplayResolver.statusForSelectedDate(
-                context: source.display, selectedDate: effectiveTarget)
+                context: source.display, selectedDate: civil)
         )
     }
 }
@@ -103,7 +108,9 @@ enum WeekGridWidgetLoader {
     /// WidgetWeekDataLoader.resolve → dateFor(dow)/coursesOn(previewBeforeStart)
     /// 调休按日期取课 → isGrey → AFTER_END 有课改 IN_RANGE → weekDisplayStatus +
     /// nearestBusyTargetDate; 无表/异常回退 hasTable=false 空数据。
-    static func loadWeekData(kind: String? = nil) async -> WeekData {
+    static func loadWeekData(kind: String? = nil, now: Date = Date(),
+                             overrideTableId: Int64? = nil,
+                             repository: ScheduleRepository? = nil) async -> WeekData {
         let prefs = AppPrefs.shared
         // ← 原版本 WeekGridWidgetProvider.kt:1016: 同上, system 主题须取宿主夜间标志。
         let isDark = prefs.isDarkMode(isSystemDark: currentSystemDark())
@@ -115,16 +122,19 @@ enum WeekGridWidgetLoader {
             WeekData(days: [], hasTable: false, isDark: isDark, themeKey: themeKey,
                      themeMode: themeMode, showDate: showDate, visibleDays: visibleDays)
         }
-        guard let source = await WidgetWeekDataLoader.resolve(kind ?? "") else { return empty() }
+        guard let source = await WidgetWeekDataLoader.resolve(kind ?? "", repository: repository, now: now,
+                                                              overrideTableId: overrideTableId) else {
+            return empty()
+        }
         let table = source.table
         // ← 原版本 L1029: 学期前: 第 1 周课照常显示(预习); 学期后: 课程清空, renderer 画状态行
         var days: [DayData] = []
         for dow in 1...7 {
             let date = source.dateFor(dayOfWeek: dow)
-            let courses = source.coursesOn(date, previewBeforeStart: true)
+            let courses = source.coursesOnDisplayDate(date, previewBeforeStart: true)
             days.append(DayData(date: date, dayOfWeek: dow, courses: courses,
-                                timeJson: table.timeJson,
-                                isGrey: await HolidayManager.shouldGrey(date, tableId: table.id)))
+                                timeJson: source.table(onDisplayDate: date).timeJson,
+                                isGrey: await HolidayManager.shouldGrey(source.civilDay(onDisplayDate: date), tableId: table.id)))
         }
         // ← 原版本 L1046: 任一天有课且学期后 → IN_RANGE (补班日课程照常渲染)
         let status = days.contains(where: { !$0.courses.isEmpty }) && source.display.semesterStatus == .afterEnd
@@ -134,34 +144,22 @@ enum WeekGridWidgetLoader {
                         semesterStatus: status,
                         weekDisplayStatus: source.display.status,
                         nearestBusyTargetDate: source.display.status == .nearestBusyDay
-                            ? source.display.targetDate : nil)
+                            ? source.localDate(onCivilDay: source.display.targetDate) : nil)
     }
 }
 
 /// Each independent 4×2 kind resolves its own binding before selecting its fixed date window.
 enum WeekGridWideDataLoader {
-    static func load(kind: String, now: Date = Date(), repository: ScheduleRepository? = nil) async -> WeekData {
+    static func load(kind: String, now: Date = Date(), overrideTableId: Int64? = nil,
+                     repository: ScheduleRepository? = nil) async -> WeekData {
         guard let mode = WeekGridWideMode(kind: kind) else { return WeekData(days: [], hasTable: false) }
-        let source = await WidgetWeekDataLoader.resolve(kind, repository: repository, now: now)
+        let source = await WidgetWeekDataLoader.resolve(kind, repository: repository, now: now,
+                                                          overrideTableId: overrideTableId)
         return await dataForSource(source, mode: mode, now: now)
     }
 
     static func coursesForDate(_ source: WidgetWeekSource, date: Date) -> [CourseEntity] {
-        let actual = HolidayTransferOps.coursesForDate(date, startDate: source.table.startDate,
-            maxWeek: source.table.maxWeek, courses: source.courses, transfers: source.transfers)
-        let key = HolidayTransferOps.dayKey(date)
-        let preview: [CourseEntity]
-        if !source.transfers.contains(where: {
-            HolidayTransferOps.dayKey($0.sourceDate) == key || HolidayTransferOps.dayKey($0.targetDate) == key
-        }) && DateUtils.semesterStatus(startDate: source.table.startDate,
-            maxWeek: source.table.maxWeek, today: date) == .beforeStart {
-            preview = source.courses.filter {
-                $0.fixedDate == nil && $0.day == DateUtils.todayDayOfWeek(today: date) && $0.inWeek(1)
-            }
-        } else {
-            preview = []
-        }
-        return (actual + preview).sorted { $0.startNode < $1.startNode }
+        source.coursesOnDisplayDate(date, previewBeforeStart: true)
     }
 
     static func dataForSource(_ source: WidgetWeekSource?, mode: WeekGridWideMode,
@@ -175,8 +173,8 @@ enum WeekGridWideDataLoader {
         for date in WeekGridWideWindowCore.visibleDates(today: now, mode: mode) {
             // Use each real date, including weekends crossing a week/semester boundary.
             data.days.append(DayData(date: date, dayOfWeek: DateUtils.todayDayOfWeek(today: date),
-                courses: coursesForDate(source, date: date), timeJson: source.table.timeJson,
-                isGrey: await HolidayManager.shouldGrey(date, tableId: source.table.id)))
+                courses: coursesForDate(source, date: date), timeJson: source.table(onDisplayDate: date).timeJson,
+                isGrey: await HolidayManager.shouldGrey(source.civilDay(onDisplayDate: date), tableId: source.table.id)))
         }
         data.visibleDays = Set(data.days.map(\.dayOfWeek))
         data.semesterStatus = data.days.contains { !$0.courses.isEmpty } && source.display.semesterStatus == .afterEnd

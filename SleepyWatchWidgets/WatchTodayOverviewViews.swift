@@ -16,12 +16,15 @@ struct WatchTodayOverviewEntryView: View {
     let entry: WatchWidgetEntry<WatchOverviewSnapshot>
 
     var body: some View {
-        switch family {
-        case .accessoryCircular: WatchOverviewCircular(snap: entry.snapshot)
-        case .accessoryCorner: WatchOverviewCorner(snap: entry.snapshot)
-        case .accessoryInline: WatchOverviewInline(snap: entry.snapshot)
-        default: WatchOverviewRectangular(snap: entry.snapshot)
+        Group {
+            switch family {
+            case .accessoryCircular: WatchOverviewCircular(snap: entry.snapshot)
+            case .accessoryCorner: WatchOverviewCorner(snap: entry.snapshot)
+            case .accessoryInline: WatchOverviewInline(snap: entry.snapshot)
+            default: WatchOverviewRectangular(snap: entry.snapshot)
+            }
         }
+        .watchMaterialSurface(family)
     }
 }
 
@@ -30,7 +33,7 @@ private struct WatchOverviewCircular: View {
     let snap: WatchOverviewSnapshot
     var body: some View {
         ZStack {
-            Circle().stroke(.foreground.opacity(0.3), lineWidth: 2)
+            WatchProgressRing(progress: 0)
             if !snap.inSemester {
                 Text(L10n.t("watch_holiday")).font(.system(size: 11))
             } else if snap.totalCount > 0 {
@@ -69,26 +72,28 @@ private struct WatchOverviewCorner: View {
 
 /// rectangular — 第 N 周 / 今日 N 节 / 首末时间
 private struct WatchOverviewRectangular: View {
+    @Environment(\.watchMaterialPalette) private var palette
     let snap: WatchOverviewSnapshot
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             if !snap.inSemester {
-                Text(L10n.t("watch_holiday")).font(.system(size: 12)).foregroundColor(.secondary)
+                Text(L10n.t("watch_holiday")).font(.system(size: 12)).foregroundColor(palette.secondaryText)
             } else {
                 Text(L10n.format("schedule_week_prefix", snap.week))
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(palette.usesMaterial ? palette.accent : palette.primaryText)
                     .widgetAccentable()
                 Text("\(L10n.t("tab_today")) \(snap.totalCount)\(L10n.t("unit_periods"))")
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(palette.secondaryText)
                 if let f = snap.first, let l = snap.last {
                     Text("\(TimeTableUtils.formatTime(f.startDate))–\(TimeTableUtils.formatTime(l.endDate))")
                         .font(.system(size: 11).monospacedDigit())
-                        .foregroundColor(.secondary)
+                        .foregroundColor(palette.secondaryText)
                 } else {
                     Text(L10n.t("no_course"))
                         .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(palette.secondaryText)
                 }
             }
         }

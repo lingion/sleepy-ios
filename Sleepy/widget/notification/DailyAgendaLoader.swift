@@ -13,40 +13,26 @@ struct LoadedDailyAgenda {
     let suppressed: Bool
 }
 
-/// ← loadDailyAgenda(context, targetDate):
-/// 每表独立提醒: 聚合所有开启提醒的课表; 若全部被节假日策略豁免则整体静默。
-/// 取课走反向查 ← HolidayTransferHelper.courseDateForDate:
-/// 补班日 = sourceDate(上被挪走那天的课), 放假日 = nil(无课)。
-func loadDailyAgenda(repository: ScheduleRepository, targetDate: Date) async throws -> LoadedDailyAgenda {
-    let tables = try repository.getReminderTables().map { t -> TimeTableEntity in
-        var pt: PeriodTableEntity? = nil
-        if let pid = t.periodTableId { pt = try? repository.getPeriodTable(pid) }
-        return t.hydratedWith(pt)
+/// Aggregate the effective reminder tables for a single timetable civil day.
+func loadDailyAgenda(repository: ScheduleRepository, targetDate: Date,
+                     allowsReminder: (Date, Int64) async -> Bool = { date, id in
+                         await HolidayReminderPolicyAdapter.decide(date: date, tableId: id).allowReminder
+                     },
+                     transfersFor: (Int64) -> [HolidayTransferEntry] = HolidayTransferHelper.transfers(for:)) async throws -> LoadedDailyAgenda {
+    let enabledTables = try repository.getReminderTables().filter(\.reminderEnabled)
+    let dateKey = HolidayTransferOps.dayKey(targetDate)
+    var summaries: [DailyTableCourses] = []
+    for table in enabledTables {
+        guard await allowsReminder(targetDate, table.id) else { continue }
+        let period = try table.periodTableId.flatMap { try repository.getPeriodTable($0) }
+        // A fixed-date course stays on its natural day, even outside the term.
+        // Recurring courses use the transfer source's weekday and teaching week.
+        let courses = CourseOccurrences.coursesForDate(targetDate, startDate: table.startDate,
+            maxWeek: table.maxWeek, courses: try repository.getCourses(table.id),
+            transfers: transfersFor(table.id))
+        summaries.append(DailyTableCourses(table: table.hydratedWith(period, forDateKey: dateKey), courses: courses))
     }
-    let enabledTables = tables.filter { $0.reminderEnabled }
-    var activeTables: [TimeTableEntity] = []
-    for t in enabledTables {
-        if await HolidayReminderPolicyAdapter.decide(date: targetDate, tableId: t.id).allowReminder {
-            activeTables.append(t)
-        }
-    }
-    let suppressed = !enabledTables.isEmpty && activeTables.isEmpty
-
-    let summaries: [DailyTableCourses] = activeTables.map { table -> DailyTableCourses in
-        // 取课走反向查: 补班日=sourceDate 的课, 放假日=nil(无课)
-        guard let sourceDate = HolidayTransferHelper.courseDateForDate(table.id, targetDate) else {
-            return DailyTableCourses(table: table, courses: [])
-        }
-        // 周次/学期判定 ← 原 sourceDate ?: targetDate (放假日 courses 恒空, 该值不参与取课)
-        let week = DateUtils.currentWeek(startDate: table.startDate, today: sourceDate)
-        let inSemester = DateUtils.semesterStatus(
-            startDate: table.startDate, maxWeek: table.maxWeek, today: sourceDate) == .inRange
-        let courses: [CourseEntity] = inSemester
-            ? ((try? repository.getCoursesByDay(table.id, day: DateUtils.todayDayOfWeek(today: sourceDate)))
-                ?? []).filter { $0.inWeek(week) }
-            : []
-        return DailyTableCourses(table: table, courses: courses)
-    }
+    let suppressed = !enabledTables.isEmpty && summaries.isEmpty
     let agenda = buildDailyAgenda(
         date: targetDate,
         summary: buildDailyScheduleSummary(summaries),

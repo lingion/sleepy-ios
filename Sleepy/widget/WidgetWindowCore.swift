@@ -423,14 +423,13 @@ enum WidgetWindows {
     static func boundaryDates(courses: [CourseEntity], timeJson: String?, from date: Date) -> [Date] {
         let endMins = rowEndMins(courses: courses, timeJson: timeJson)
         guard !endMins.isEmpty else { return [] }
-        let cal = DateUtils.isoCalendar
-        let dayStart = cal.startOfDay(for: date)
+        let clock = CourseReminderCalendar(timeZone: .current)
+        guard let day = clock.civilDay(containing: date) else { return [] }
         var out: [Date] = []
         var cursor = nowMinutes(date)
         while let next = nextBoundaryMin(endMins, nowMin: cursor) {
-            guard let at = cal.date(byAdding: .minute, value: next, to: dayStart) else { break }
-            if at > date { out.append(at) }
             cursor = next
+            if let at = clock.instant(on: day, wallSeconds: next * 60), at > date { out.append(at) }
             if out.count >= 16 { break }
         }
         return out

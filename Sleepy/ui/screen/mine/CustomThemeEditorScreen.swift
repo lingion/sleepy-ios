@@ -164,7 +164,7 @@ struct CustomThemeEditorScreen: View {
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large,
                                                   tint: isValid ? colors.primary : colors.surfaceVariant, prominent: true)   // ← SleepyTheme.Buttons.shape = shapes.large
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                     .frame(maxWidth: .infinity, minHeight: 56)
                     .tint(isValid ? colors.primary : colors.surfaceVariant)
                     .disabled(!isValid)
@@ -182,7 +182,7 @@ struct CustomThemeEditorScreen: View {
                             .frame(height: uiStyle == .liquidGlass ? nil : 48)   // ← SleepyTheme.Buttons.regularHeight
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)   // ← SleepyTheme.Buttons.shape = shapes.large
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .tint(colors.errorContainer)
                         .accessibilityIdentifier("theme_editor_delete")
@@ -194,9 +194,8 @@ struct CustomThemeEditorScreen: View {
         .background(colors.background)
         // ── 取色器(公共组件)──
         .sheet(item: $pickingRole) { role in
-            NativeColorPicker(initialHex: initialHexFor(role)) { hex in
+            NativeColorPicker(initialHex: initialHexFor(role), requiresConfirmation: true) { hex in
                 applyPicked(hex: hex, role: role)
-                pickingRole = nil
             }
         }
         // ── 删除确认 ──
@@ -406,6 +405,9 @@ private struct EditorRoleRow: View {
         }
         .buttonStyle(SleepyButtonStyle())
         .accessibilityIdentifier("theme_role_\(title)")
+        .accessibilityLabel(Text(title))
+        .accessibilityValue(Text(swatchHex.uppercased()))
+        .accessibilityHint(Text(desc))
     }
 }
 

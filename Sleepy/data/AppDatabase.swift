@@ -16,6 +16,7 @@
 //      11.json 与其测试先入库; iOS 按 11.json 契约建列, SQL 形状逐字一致。
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
 
 final class AppDatabase {
@@ -42,8 +43,10 @@ final class AppDatabase {
     let courseDao: CourseDao
     let timeTableDao: TimeTableDao
     let periodTableDao: PeriodTableDao
+    #if !WIDGET_EXT && !WATCH_APP
     let importDraftDao: ImportDraftDao
     let calendarImportRecordDao: CalendarImportRecordDao
+    #endif
     let courseColorDao: CourseColorDao
 
     /// 默认走共享目录(AppGroupResolver: AltStore 侧载共享给 widget;Xcode 直跑回退沙箱)
@@ -72,10 +75,23 @@ final class AppDatabase {
         self.courseDao = CourseDao(db: queue)
         self.timeTableDao = TimeTableDao(db: queue)
         self.periodTableDao = PeriodTableDao(db: queue)
+        #if !WIDGET_EXT && !WATCH_APP
         self.importDraftDao = ImportDraftDao(db: queue)
         self.calendarImportRecordDao = CalendarImportRecordDao(db: queue)
+        #endif
         self.courseColorDao = CourseColorDao(db: queue)
         try migrator.migrate(queue)
+        // Older editors could save a non-positive semester length. Repair only
+        // those rows; neither course IDs nor a valid user-selected length changes.
+        try queue.write { db in
+            try db.execute(sql: """
+                UPDATE time_tables
+                SET maxWeek = MAX(1, COALESCE(
+                    (SELECT MAX(endWeek) FROM courses WHERE tableId = time_tables.id), 1
+                ))
+                WHERE maxWeek < 1
+                """)
+        }
     }
 
     /// Room @Database version=3 的建表 DDL(逐列对齐 @Entity 注解)
@@ -260,6 +276,67 @@ final class AppDatabase {
         m.registerMigration("v15.addImportSource") { db in
             try db.execute(sql: "ALTER TABLE time_tables ADD COLUMN importSourceJson TEXT NOT NULL DEFAULT ''")
         }
+        // Android v1.0.67 stores the original dated combination separately from base clocks.
+        m.registerMigration("v16.addPeriodTableCombination") { db in
+            try db.execute(sql: "ALTER TABLE period_tables ADD COLUMN comboScheduleJson TEXT NOT NULL DEFAULT ''")
+        }
+        m.registerMigration("v17.addJwSchoolSource") { db in
+            try db.execute(sql: "ALTER TABLE time_tables ADD COLUMN jwSchoolSourceJson TEXT NOT NULL DEFAULT ''")
+        }
+        m.registerMigration("v18.addLocalJwSchoolAuthorization") { db in
+            try db.execute(sql: "ALTER TABLE time_tables ADD COLUMN jwSchoolSourceVerified INTEGER NOT NULL DEFAULT 0")
+        }
         return m
     }
 }
+#else
+final class AppDatabase {
+    static let DB_NAME = "sleepy.db"
+
+    private static var instance: AppDatabase?
+    private static let lock = NSLock()
+
+    static func getShared() -> AppDatabase {
+        lock.lock(); defer { lock.unlock() }
+        if let i = instance { return i }
+        let i = AppDatabase()
+        instance = i
+        return i
+    }
+
+    let dbQueue: LiteDatabase
+    let courseDao: CourseDao
+    let timeTableDao: TimeTableDao
+    let periodTableDao: PeriodTableDao
+    let courseColorDao: CourseColorDao
+
+    convenience init() {
+        let url = AppGroupResolver.sharedDirectory().appendingPathComponent(Self.DB_NAME)
+        do {
+            try self.init(persistentURL: url)
+        } catch {
+            fatalError("AppDatabase persistent open failed: \(error)")
+        }
+    }
+
+    convenience init(persistentURL: URL) throws {
+        try FileManager.default.createDirectory(at: persistentURL.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        #if WIDGET_EXT
+        // The widget never owns migrations: only the main app's GRDB migrator may create the shared schema.
+        let queue = try LiteDatabase(path: persistentURL.path, createSchema: false)
+        #else
+        let queue = try LiteDatabase(path: persistentURL.path, createSchema: true)
+        #endif
+        self.init(queue: queue)
+    }
+
+    init(queue: LiteDatabase) {
+        self.dbQueue = queue
+        self.courseDao = CourseDao(db: queue)
+        self.timeTableDao = TimeTableDao(db: queue)
+        self.periodTableDao = PeriodTableDao(db: queue)
+        self.courseColorDao = CourseColorDao(db: queue)
+    }
+}
+#endif

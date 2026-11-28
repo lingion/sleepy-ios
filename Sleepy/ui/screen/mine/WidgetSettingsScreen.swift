@@ -13,9 +13,16 @@
 //   回本页, 刷新按钮出现/消失态不滞留), 首次进入走 .task。
 
 import SwiftUI
+import WatchConnectivity
 import WidgetKit
 
 struct WidgetSettingsScreen: View {
+    /// 伴侣 Watch App 部署目标为 watchOS 10（对应 iOS 17+ 配对），且 iPad 不支持 WatchConnectivity。
+    static var supportsWatchTimeStrip: Bool {
+        guard WCSession.isSupported() else { return false }
+        if #available(iOS 17.0, *) { return true }
+        return false
+    }
     @Environment(\.localWakeUpColors) private var colors
     @Environment(\.sleepyUIStyle) private var style
     @Environment(\.localNavExtraBottomPadding) private var navExtra
@@ -95,9 +102,11 @@ struct WidgetSettingsScreen: View {
                         .cornerRadius(SleepyShapes.large)
                     }
 
-                    // 独立于桌面小组件和最近有课日选项; 不改变现有开关语义。
-                    SectionHeader(title: L10n.format("settings_watch_time_strip_section"))
-                    watchTimeStripCard
+                    if Self.supportsWatchTimeStrip {
+                        // 独立于桌面小组件和最近有课日选项; 不改变现有开关语义。
+                        SectionHeader(title: L10n.format("settings_watch_time_strip_section"))
+                        watchTimeStripCard
+                    }
 
                     // 刷新所有小组件: 桌面已有已放置实例才出现(空桌面 = 无可刷, 按钮隐藏)
                     if !placedItems.isEmpty {
@@ -191,7 +200,6 @@ struct WidgetSettingsScreen: View {
             }
             .toggleStyle(SleepyToggleStyle(showsLabel: true))
             .tint(colors.primary)
-            .accessibilityLabel(Text(L10n.format("settings_watch_time_strip_tomorrow")))
             .accessibilityHint(Text(L10n.format("settings_watch_time_strip_tomorrow_hint")))
             .accessibilityIdentifier("watch_time_strip_tomorrow_toggle")
 
@@ -246,7 +254,7 @@ struct WidgetSettingsScreen: View {
             .frame(height: style == .liquidGlass ? nil : 48)   // ← SleepyTheme.Buttons.regularHeight
             .sleepyControlSurface(cornerRadius: 24, tint: colors.secondaryContainer)
         }
-        .buttonStyle(SleepyPlatformButtonStyle(shape: .capsule))
+        .sleepyPlatformButtonStyle(shape: .capsule)
         .frame(maxWidth: .infinity, minHeight: 48)
         .tint(colors.secondaryContainer)
         .accessibilityIdentifier("widget_settings_refresh")

@@ -15,3 +15,27 @@ func importedPeriodTableDraft(bindingId: Int64?,
         nodesPerDay: max(TimeTableUtils.parseTimeSlotRows(confirmedTimeJson).count, 1),
         timeJson: confirmedTimeJson)
 }
+
+
+enum ImportedDatedPeriodError: LocalizedError {
+    case requiresNewTimetable
+    case invalidSchedule
+    var errorDescription: String? {
+        switch self {
+        case .requiresNewTimetable: return L10n.t("jw_combo_new_table_required")
+        case .invalidSchedule: return L10n.t("jw_combo_invalid")
+        }
+    }
+}
+
+/// Construct the confirmed period table from explicit base clocks. A selected
+/// shared schedule must never receive rules from an unrelated capture.
+func importedDatedPeriodTable(name: String, bindingId: Int64?, baseJson: String,
+                              comboScheduleJson: String) throws -> PeriodTableEntity {
+    guard bindingId == -1 else { throw ImportedDatedPeriodError.requiresNewTimetable }
+    guard !comboScheduleJson.isEmpty, comboScheduleJson.utf16.count <= 262_144,
+          let plan = try? EffectivePeriodResolver.validate(baseJson: baseJson, comboJson: comboScheduleJson)
+    else { throw ImportedDatedPeriodError.invalidSchedule }
+    return PeriodTableEntity(name: name, nodesPerDay: TimeTableUtils.parseTimeSlotRows(plan.baseTimeJson).count,
+                             timeJson: plan.baseTimeJson, comboScheduleJson: comboScheduleJson)
+}

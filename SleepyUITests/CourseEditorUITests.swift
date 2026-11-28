@@ -226,6 +226,14 @@ final class CourseEditorUITests: XCTestCase {
         if saveAnywayBtn.waitForExistence(timeout: 5) {
             saveAnywayBtn.tap()
         }
+        // PR #52 keeps ImportSheet open beneath manual course creation so the user can add
+        // multiple items or retain a draft; verify the editor closed, then pop ImportSheet.
+        let saveGone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: createBtn)
+        XCTAssertEqual(XCTWaiter.wait(for: [saveGone], timeout: 6), .completed)
+        let sheetBack = app.buttons["topbar_back"].firstMatch
+        if sheetBack.exists && sheetBack.isHittable {
+            sheetBack.tap()
+        }
         // 保存后回课表 Tab — 新课可能在冲突簇隐藏层(网格)或 Week 列表, 用 descendants 锚点
         let newCourse = app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS '数据结构'")).firstMatch

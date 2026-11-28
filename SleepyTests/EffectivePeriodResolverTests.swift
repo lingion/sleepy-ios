@@ -19,6 +19,35 @@ final class EffectivePeriodResolverTests: XCTestCase {
         XCTAssertThrowsError(try EffectivePeriodResolver.validate(baseJson: base ?? basic, comboJson: combination ?? combo()), file: file, line: line)
     }
 
+    func testHydratedTableUsesExplicitDateAndKeepsTheBaseForEditing() throws {
+        let base = try json(slots("08:00-08:45 09:00-09:45", native: true))
+        let raw = try combo([
+            rule("2026-09-14", "2026-09-20", slots("10:00-10:45", first: 2)),
+            rule("2026-09-12", "2026-09-16", slots("11:00-11:45", first: 2))
+        ])
+        let table = TimeTableEntity(name: "Test", startDate: "2026-09-07", timeJson: "[]", periodTableId: 37)
+        var period = PeriodTableEntity(name: "Bound", nodesPerDay: 2, timeJson: base, comboScheduleJson: raw, id: 37)
+        func secondStart(_ date: String) -> String {
+            TimeTableUtils.parseTimeSlotRows(table.hydratedWith(period, forDateKey: date).timeJson)[1].start
+        }
+        XCTAssertEqual(table.hydratedWith(period).timeJson, base)
+        XCTAssertEqual(secondStart("2026-09-11"), "09:00")
+        XCTAssertEqual(secondStart("2026-09-12"), "11:00")
+        XCTAssertEqual(secondStart("2026-09-14"), "10:00")
+        XCTAssertEqual(secondStart("2026-09-20"), "10:00")
+        XCTAssertEqual(secondStart("2026-09-21"), "09:00")
+        XCTAssertEqual(secondStart("2027-09-14"), "09:00")
+        XCTAssertEqual(secondStart("invalid"), "09:00")
+        XCTAssertEqual(period.comboScheduleJson, raw)
+        XCTAssertEqual(table.hydratedWith(nil, forDateKey: "2026-09-14").timeJson, "[]")
+        XCTAssertEqual(table.hydratedWith(period, forDateKey: "2026-09-14").nodesPerDay, 2)
+
+        period.comboScheduleJson = "{ bad"
+        XCTAssertEqual(secondStart("2026-09-14"), "09:00")
+        period.comboScheduleJson = try combo([rule("2026-09-14", "2026-09-14", slots("12:00-12:45", first: 2))])
+        XCTAssertEqual(secondStart("2026-09-14"), "12:00")
+    }
+
     func testPartialSeasonClosedBoundsAndGapFallback() throws {
         let winter = slots("08:00-08:50 09:00-09:50 10:10-11:00 11:10-12:00 14:00-14:50 15:00-15:50 16:10-17:00 17:10-18:00 19:30-20:20 20:30-21:20")
         var summer = rule("2026-05-01", "2026-10-04", slots("14:30-15:20 15:30-16:20 16:40-17:30 17:40-18:30", first: 5))

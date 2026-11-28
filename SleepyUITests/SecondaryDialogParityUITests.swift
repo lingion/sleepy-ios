@@ -81,11 +81,13 @@ final class SecondaryDialogParityUITests: XCTestCase {
 
     private func replaceName(with text: String, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(waitUntil { self.nameField.isHittable }, file: file, line: line)
-        let oldValue = nameField.value as? String ?? ""
-        nameField.tap()
+        nameField.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)).tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), file: file, line: line)
-        if !oldValue.isEmpty {
-            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldValue.count))
+        for _ in 0..<5 {
+            let current = nameField.value as? String ?? ""
+            if current.isEmpty { break }
+            nameField.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)).tap()
+            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count + 2))
         }
         if !text.isEmpty { app.typeText(text) }
         XCTAssertEqual(nameField.value as? String, text, file: file, line: line)

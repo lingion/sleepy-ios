@@ -152,7 +152,7 @@ enum EffectivePeriodResolver {
 
         static func read(_ raw: String) throws -> JSONValue {
             var reader = JSONReader(bytes: Array(raw.utf8))
-            let value = try reader.value()
+            let value = try reader.value(depth: 0)
             reader.whitespace()
             guard reader.index == reader.bytes.count else { throw invalid("trailing JSON input") }
             return value
@@ -168,7 +168,8 @@ enum EffectivePeriodResolver {
             return true
         }
 
-        mutating func value() throws -> JSONValue {
+        mutating func value(depth: Int) throws -> JSONValue {
+            guard depth <= 32 else { throw invalid("JSON nesting exceeds schedule depth") }
             whitespace()
             guard index < bytes.count else { throw invalid("incomplete JSON") }
             switch bytes[index] {
@@ -184,7 +185,7 @@ enum EffectivePeriodResolver {
                     guard keys.insert(Array(key.utf16)).inserted else { throw invalid("duplicate JSON key") }
                     whitespace()
                     guard take(58) else { throw invalid("missing JSON colon") }
-                    object[key] = try value()
+                    object[key] = try value(depth: depth + 1)
                     whitespace()
                     if take(125) { return .object(object) }
                     guard take(44) else { throw invalid("missing JSON comma") }
@@ -195,7 +196,7 @@ enum EffectivePeriodResolver {
                 var array: [JSONValue] = []
                 if take(93) { return .array(array) }
                 while true {
-                    array.append(try value())
+                    array.append(try value(depth: depth + 1))
                     whitespace()
                     if take(93) { return .array(array) }
                     guard take(44) else { throw invalid("missing JSON comma") }

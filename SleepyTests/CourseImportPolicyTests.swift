@@ -44,7 +44,7 @@ final class CourseImportPolicyTests: XCTestCase {
         XCTAssertEqual(CourseImportPolicy.mergeTimeJson(current: current, incoming: "", requiredNodes: 1), current)
     }
 
-    func testNoTimesJsonConfirmsWithLegacyMergedDefaults() throws {
+    func testNoTimesJsonConfirmsWithNonoverlappingDefaultPeriods() throws {
         let json = """
         {"name":"测试导入表","startDate":"2026-08-24","courses":[{"name":"编译原理","teacher":"陈老师","position":"教3-401","day":4,"startNode":7,"step":2,"startWeek":1,"endWeek":16,"type":0}]}
         """
@@ -56,15 +56,12 @@ final class CourseImportPolicyTests: XCTestCase {
         let rows = TimeTableUtils.initialManualRows(timeJson: merged).rows
         XCTAssertEqual(rows.count, 8)
         XCTAssertEqual(rows[0].start, "08:00")
-        XCTAssertEqual(rows[0].end, "09:40")
-        XCTAssertEqual(rows[1].start, rows[0].start)
-        XCTAssertEqual(rows[1].end, rows[0].end)
+        XCTAssertEqual(rows[0].end, "08:45")
+        XCTAssertEqual(rows[1].start, "08:55")
+        XCTAssertEqual(rows[1].end, "09:40")
         XCTAssertNil(TimeTableUtils.firstMissingCourseNode(courses: parsed.courses, rows: rows))
         XCTAssertTrue(rows.allSatisfy { !$0.start.isBlank && !$0.end.isBlank })
         XCTAssertEqual(CourseImportPolicy.validateConfirmationRows(rows), .valid)
-        XCTAssertEqual(TimeTableUtils.validatePeriodRows(rows),
-                       .overlap(prevNode: 1, prevEnd: "09:40", nextNode: 2, nextStart: "08:00"),
-                       "Bell-schedule editing must retain its strict overlap check")
     }
 
     func testConfirmationRejectsOutOfDayAndReversedClocks() {

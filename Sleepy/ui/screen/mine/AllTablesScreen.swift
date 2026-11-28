@@ -13,10 +13,9 @@ struct AllTablesScreen: View {
     let onCreateNewTable: () -> Void
     let onOpenEditTable: (Int64) -> Void
     @State private var copyTarget: TimeTableEntity?
-    @State private var copyName = ""
-    @State private var copying = false
     @State private var duplicateError: String? = nil
-    @State private var updateTarget: TimeTableEntity?
+    @StateObject private var jwCatalog = JwImportViewModel()
+    @State private var updateTarget: JwImportDraftCodec.AuthorizedSchoolUpdate?
     @State private var updateActive = false
     @State private var periodTables: [PeriodTableEntity] = []
 
@@ -53,7 +52,7 @@ struct AllTablesScreen: View {
                             .frame(height: uiStyle == .liquidGlass ? nil : 48)
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .tint(colors.secondaryContainer)
                         Spacer().frame(height: 16)
@@ -72,57 +71,29 @@ struct AllTablesScreen: View {
             JwImportFlow(onFinish: { _ in updateTarget = nil },
                          onActiveImportChanged: { updateActive = $0 },
                          targetTableId: target.id, updateExistingCourses: true,
-                         updateRepository: viewModel.occurrenceRepository)
+                         updateRepository: viewModel.occurrenceRepository,
+                         authorizedUpdate: target)
                 .interactiveDismissDisabled(updateActive)
         }
         .centeredDialog(isPresented: Binding(
             get: { copyTarget != nil },
-            set: { if !$0 { dismissCopy() } }
+            set: { if !$0 { copyTarget = nil } }
         )) {
             if let target = copyTarget {
-                copyDialog(target)
+                CopyTableDialogContent(
+                    target: target,
+                    initialName: TimeTableUtils.suggestUniqueName(target.name,
+                        courseTableNames: viewModel.state.tables.map(\.name),
+                        periodTableNames: periodTables.map(\.name)),
+                    courseTableNames: viewModel.state.tables.map(\.name),
+                    periodTableNames: periodTables.map(\.name),
+                    duplicateTable: { id, name, onFailure in
+                        viewModel.duplicateTable(id, newName: name, onFailure: onFailure)
+                    },
+                    onDismiss: { copyTarget = nil }
+                )
             }
         }
-    }
-
-    private func dismissCopy() {
-        guard !copying else { return }
-        copyTarget = nil
-    }
-
-    private func copyDialog(_ target: TimeTableEntity) -> some View {
-        let candidate = copyName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let valid = !candidate.isEmpty && !TimeTableUtils.isTableNameTaken(candidate,
-            courseTableNames: viewModel.state.tables.map(\.name), periodTableNames: periodTables.map(\.name))
-        let actions = DialogActionButtons(confirmText: L10n.t("ok"), onConfirm: {
-            guard valid, !copying else { return }
-            copying = true
-            if viewModel.duplicateTable(target.id, newName: candidate, onFailure: { duplicateError = $0 }) {
-                copyTarget = nil
-            }
-            copying = false
-        }, dismissText: L10n.t("cancel"), onDismiss: dismissCopy, confirmEnabled: valid && !copying,
-            confirmIdentifier: "table_copy_confirm", dismissIdentifier: "table_copy_cancel")
-        return CenteredPickerDialog(title: L10n.t("all_tables_duplicate"), onDismiss: dismissCopy,
-                                    footer: AnyView(actions)) {
-            VStack(alignment: .leading, spacing: 20) {
-                FieldTextField(text: $copyName, label: L10n.t("edit_table_name"))
-                    .disabled(copying)
-                    .accessibilityIdentifier("table_copy_name")
-                if !candidate.isEmpty && !valid {
-                    Text(L10n.t("table_copy_duplicate"))
-                        .foregroundColor(colors.error)
-                        .accessibilityIdentifier("table_copy_name_error")
-                }
-                if let duplicateError {
-                    Text(duplicateError)
-                        .font(.system(size: 12))
-                        .foregroundColor(colors.error)
-                        .accessibilityIdentifier("table_copy_save_error")
-                }
-            }
-        }
-        .foregroundColor(colors.onSurface)
     }
 
     private func tableCard(_ table: TimeTableEntity, availableWidth: CGFloat) -> some View {
@@ -131,7 +102,8 @@ struct AllTablesScreen: View {
             .font: UIFont.systemFont(ofSize: 14, weight: .semibold)
         ]).width)
         let contentWidth = availableWidth - 28
-        let actionsWidth: CGFloat = 48 * 3
+        let actionsWidth: CGFloat = JwImportDraftCodec.authorizedUpdate(for: table, catalog: jwCatalog.schools) == nil
+            ? 48 * 2 : 48 * 3
         let regularFits = contentWidth >= 24 + 12 + titleWidth + actionsWidth
         let markerSize: CGFloat = regularFits ? 24 : 20
         let titleGap: CGFloat = regularFits ? 12 : 8
@@ -205,35 +177,38 @@ struct AllTablesScreen: View {
             Button {
                 duplicateError = nil
                 copyTarget = table
-                copyName = TimeTableUtils.suggestUniqueName(table.name,
-                    courseTableNames: viewModel.state.tables.map(\.name), periodTableNames: periodTables.map(\.name))
             } label: {
                 AndroidSettingsIcon(name: .contentCopy, size: 20)
-                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                    .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                     .foregroundColor(colors.onSurfaceVariant)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle)
             .frame(width: 48, height: 48)
             .accessibilityIdentifier("table_duplicate_\(table.id)")
             .accessibilityLabel(L10n.format("all_tables_duplicate"))
-            Button { updateTarget = table } label: {
-                AndroidSettingsIcon(name: .refresh, size: 20)
-                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
-                    .foregroundColor(colors.onSurfaceVariant)
-                    .contentShape(Rectangle())
+            if JwImportDraftCodec.authorizedUpdate(for: table, catalog: jwCatalog.schools) != nil {
+                Button {
+                    guard let latest = try? viewModel.occurrenceRepository.getTable(table.id) else { return }
+                    updateTarget = JwImportDraftCodec.authorizedUpdate(for: latest, catalog: jwCatalog.schools)
+                } label: {
+                    AndroidSettingsIcon(name: .refresh, size: 20)
+                        .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
+                        .foregroundColor(colors.onSurfaceVariant)
+                        .contentShape(Rectangle())
+                }
+                .sleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle)
+                .frame(width: 48, height: 48)
+                .accessibilityIdentifier("table_update_from_school_\(table.id)")
+                .accessibilityLabel(L10n.t("course_update_from_school"))
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
-            .frame(width: 48, height: 48)
-            .accessibilityIdentifier("table_update_from_school_\(table.id)")
-            .accessibilityLabel(L10n.t("course_update_from_school"))
             Button { onOpenEditTable(table.id) } label: {
                 AndroidSettingsIcon(name: .settings, size: 20)
-                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                    .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                     .foregroundColor(colors.onSurfaceVariant)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(cornerRadius: 24, compact: true, shape: .circle)
             .frame(width: 48, height: 48)
             .accessibilityIdentifier("table_edit_\(table.id)")
             .accessibilityLabel(L10n.format("action_settings"))
@@ -241,6 +216,73 @@ struct AllTablesScreen: View {
         .fixedSize(horizontal: true, vertical: false)
     }
 
+}
+
+/// Keep copy dialog text input local to the presented dialog so typing never
+/// re-evaluates the parent hosting controller mid-keystroke.
+private struct CopyTableDialogContent: View {
+    @Environment(\.localWakeUpColors) private var colors
+    let target: TimeTableEntity
+    let courseTableNames: [String]
+    let periodTableNames: [String]
+    let duplicateTable: (Int64, String, @escaping (String) -> Void) -> Bool
+    let onDismiss: () -> Void
+    @State private var copyName: String
+    @State private var copying = false
+    @State private var duplicateError: String? = nil
+
+    init(target: TimeTableEntity, initialName: String,
+         courseTableNames: [String], periodTableNames: [String],
+         duplicateTable: @escaping (Int64, String, @escaping (String) -> Void) -> Bool,
+         onDismiss: @escaping () -> Void) {
+        self.target = target
+        self.courseTableNames = courseTableNames
+        self.periodTableNames = periodTableNames
+        self.duplicateTable = duplicateTable
+        self.onDismiss = onDismiss
+        _copyName = State(initialValue: initialName)
+    }
+
+    var body: some View {
+        let candidate = copyName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let valid = !candidate.isEmpty && !TimeTableUtils.isTableNameTaken(candidate,
+            courseTableNames: courseTableNames, periodTableNames: periodTableNames)
+        let dismissIfIdle: () -> Void = {
+            guard !copying else { return }
+            onDismiss()
+        }
+        let actions = DialogActionButtons(confirmText: L10n.t("ok"), onConfirm: {
+            guard valid, !copying else { return }
+            copying = true
+            if duplicateTable(target.id, candidate, { duplicateError = $0 }) {
+                onDismiss()
+            }
+            copying = false
+        }, dismissText: L10n.t("cancel"), onDismiss: dismissIfIdle, confirmEnabled: valid && !copying,
+            confirmIdentifier: "table_copy_confirm", dismissIdentifier: "table_copy_cancel")
+        return CenteredPickerDialog(title: L10n.t("all_tables_duplicate"), onDismiss: dismissIfIdle,
+                                    footer: AnyView(actions)) {
+            VStack(alignment: .leading, spacing: 20) {
+                FieldTextField(text: $copyName, label: L10n.t("edit_table_name"),
+                               identifier: "table_copy_name", isError: !valid)
+                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
+                    .disabled(copying)
+                if !candidate.isEmpty && !valid {
+                    Text(L10n.t("table_copy_duplicate"))
+                        .foregroundColor(colors.error)
+                        .accessibilityIdentifier("table_copy_name_error")
+                }
+                if let duplicateError {
+                    Text(duplicateError)
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.error)
+                        .accessibilityIdentifier("table_copy_save_error")
+                }
+            }
+        }
+        .foregroundColor(colors.onSurface)
+    }
 }
 
 extension AllTablesScreen {
@@ -254,7 +296,7 @@ extension AllTablesScreen {
 }
 
 // 设置页统一顶栏(← TopAppBar 模式, 各设置页共用)
-struct SettingsTopBar: View {
+struct SettingsTopBar<Trailing: View>: View {
     enum LeadingStyle {
         case back      // Push navigation: chevron.left, id: "topbar_back", label: "back"
         case close     // Modal presentation: xmark.circle.fill, id: "topbar_close", label: "action_close"
@@ -266,6 +308,30 @@ struct SettingsTopBar: View {
     var leadingStyle: LeadingStyle = .back
     var titleIdentifier: String = "settings_topbar_title"
     let onBack: () -> Void
+    @ViewBuilder var trailing: () -> Trailing
+
+    init(title: String,
+         leadingStyle: LeadingStyle = .back,
+         titleIdentifier: String = "settings_topbar_title",
+         onBack: @escaping () -> Void) where Trailing == EmptyView {
+        self.title = title
+        self.leadingStyle = leadingStyle
+        self.titleIdentifier = titleIdentifier
+        self.onBack = onBack
+        self.trailing = { EmptyView() }
+    }
+
+    init(title: String,
+         leadingStyle: LeadingStyle = .back,
+         titleIdentifier: String = "settings_topbar_title",
+         onBack: @escaping () -> Void,
+         @ViewBuilder trailing: @escaping () -> Trailing) {
+        self.title = title
+        self.leadingStyle = leadingStyle
+        self.titleIdentifier = titleIdentifier
+        self.onBack = onBack
+        self.trailing = trailing
+    }
 
     var body: some View {
         // ← M3 TopAppBar: 容器高 64, 标题 titleLarge 22 Normal。
@@ -275,17 +341,19 @@ struct SettingsTopBar: View {
                 switch leadingStyle {
                 case .back:
                     AndroidSettingsIcon(name: .arrowBack, size: 24)
-                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                        .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                         .foregroundColor(colors.onBackground)
+                        .contentShape(Rectangle())
                 case .close:
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 22))
                         .symbolRenderingMode(.hierarchical)
-                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                        .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                         .foregroundColor(colors.onSurfaceVariant)
+                        .contentShape(Rectangle())
                 }
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
             .frame(width: 48, height: 48)
             .accessibilityIdentifier(leadingStyle == .close ? "topbar_close" : "topbar_back")
             .accessibilityLabel(L10n.format(leadingStyle == .close ? "action_close" : "back"))
@@ -296,6 +364,7 @@ struct SettingsTopBar: View {
                 .foregroundColor(colors.onBackground)
                 .padding(.leading, 4)   // ← 标题盒水平内边距 4dp
             Spacer()
+            trailing()
         }
         .frame(height: 64)   // ← TopAppBarSmallTokens.ContainerHeight 64dp
         .background(colors.background)

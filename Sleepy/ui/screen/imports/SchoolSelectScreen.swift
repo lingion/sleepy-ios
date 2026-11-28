@@ -498,7 +498,7 @@ private struct PossibleSchoolsCard: View {
                     Button(action: onLocate) {
                         Text(actionLabel)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+                    .sleepyPlatformButtonStyle(cornerRadius: 20)
                 }
             }
 
@@ -537,12 +537,12 @@ private struct PossibleSchoolsCard: View {
                             Text(isExpanded ? L10n.t("school_location_collapse")
                                             : L10n.t("school_location_show_all"))
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+                        .sleepyPlatformButtonStyle(cornerRadius: 20)
                     }
                     Button(action: onPermissionSettings) {
                         Text(L10n.t("school_location_permission_settings"))
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20))
+                    .sleepyPlatformButtonStyle(cornerRadius: 20)
                 }
             }
         }

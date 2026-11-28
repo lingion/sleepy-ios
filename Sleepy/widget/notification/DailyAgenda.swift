@@ -89,21 +89,11 @@ func buildDailyAgenda(
     var identities: [AgendaIdentity: [Int]] = [:]
     for entry in summary.entries {
         let course = entry.course
-        // ← end: ownTime → 严格解析 endTime(畸形=null); 否则取末节点的节点终时
-        let endMinutes: Int?
-        if course.ownTime || course.isIrregularTime {
-            endMinutes = TimeTableUtils.hmMinutes(course.endTime)
-        } else {
-            endMinutes = TimeTableUtils
-                .parseNodes(entry.table.timeJson)
-                .first(where: { $0.node == course.startNode + course.step - 1 })
-                .map { DailyAgendaTime.minutes(of: $0.end) }
-        }
-        let start = entry.startTimeMinutes
+        let end = entry.endTimeSeconds
         let identity: AgendaIdentity?
-        if let start, let endMinutes, endMinutes > start,
+        if let start = entry.startTimeSeconds, let end, end > start,
            !course.courseName.isBlank, !course.room.isBlank {
-            identity = AgendaIdentity(start: start, end: endMinutes,
+            identity = AgendaIdentity(start: start, end: end,
                                       name: course.courseName, room: course.room,
                                       teacher: course.teacher)
         } else {
@@ -119,7 +109,7 @@ func buildDailyAgenda(
             if let identity {
                 identities[identity, default: []].append(groups.count)
             }
-            groups.append(DailyAgendaItem(sources: [entry], endTimeMinutes: endMinutes))
+            groups.append(DailyAgendaItem(sources: [entry], endTimeMinutes: end.map { $0 / 60 }))
         }
     }
     return DailyAgenda(date: date, items: groups, sourceTables: effectiveSourceTables)

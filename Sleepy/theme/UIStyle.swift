@@ -6,6 +6,28 @@ enum SleepyUIStyle: String, CaseIterable {
     case liquidGlass = "liquid_glass"
 
     init(preference: String) { self = Self(rawValue: preference) ?? .classic }
+
+    /// 液态玻璃原生材质仅在 iOS 26 及以上系统可用。
+    static var supportsLiquidGlass: Bool {
+        if #available(iOS 26.0, *) { return true }
+        return false
+    }
+
+    /// UI 测试通过启动参数 `-ui_style liquid_glass` 显式验证外观分支；真实用户旧系统不生效。
+    static var hasCommandLineStyleOverride: Bool {
+        UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[AppPrefs.KEY_UI_STYLE] != nil
+    }
+
+    /// 在不支持液态玻璃的系统版本上强制回退为经典 Material 风格（除非显式测试启动参数覆盖）。
+    static func effectiveStyle(
+        for preference: String,
+        supportsLiquidGlass: Bool = SleepyUIStyle.supportsLiquidGlass,
+        allowLaunchArgumentOverride: Bool = SleepyUIStyle.hasCommandLineStyleOverride
+    ) -> SleepyUIStyle {
+        let parsed = SleepyUIStyle(preference: preference)
+        guard parsed == .liquidGlass else { return .classic }
+        return (supportsLiquidGlass || allowLaunchArgumentOverride) ? .liquidGlass : .classic
+    }
 }
 
 private struct SleepyUIStyleKey: EnvironmentKey {
@@ -134,11 +156,31 @@ private struct SleepyNativeGlassSurface: ViewModifier {
         } else {
             content.background(.ultraThinMaterial, in: shape)
         }
-        #else
+        #elseif os(iOS)
         content.background(.ultraThinMaterial, in: shape)
+        #else
+        #if compiler(>=5.9)
+        if #available(watchOS 10.0, *) {
+            content.background(.ultraThinMaterial, in: shape)
+        } else {
+            content.background(Color.black.opacity(0.28), in: shape)
+        }
+        #else
+        content.background(Color.black.opacity(0.28), in: shape)
         #endif
-        #else
+        #endif
+        #elseif os(iOS)
         content.background(.ultraThinMaterial, in: shape)
+        #else
+        #if compiler(>=5.9)
+        if #available(watchOS 10.0, *) {
+            content.background(.ultraThinMaterial, in: shape)
+        } else {
+            content.background(Color.black.opacity(0.28), in: shape)
+        }
+        #else
+        content.background(Color.black.opacity(0.28), in: shape)
+        #endif
         #endif
     }
 }

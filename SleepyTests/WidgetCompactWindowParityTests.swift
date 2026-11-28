@@ -35,6 +35,53 @@ final class WidgetCompactWindowParityTests: XCTestCase {
 
     private func date(_ key: String) -> Date { DateUtils.parseDate(key)! }
 
+    func testWidgetSourceUsesEachDisplayedDaysBellsAcrossARuleBoundary() throws {
+        let base = #"[{"node":1,"start":"08:00","end":"08:45"}]"#
+        let period = PeriodTableEntity(name: "Bells", nodesPerDay: 1, timeJson: base,
+            comboScheduleJson: """
+            {"publicSchedules":[{"name":"Summer","startDate":"2026-09-20","endDate":"2026-09-20",
+              "timeSlots":[{"number":1,"startTime":"09:00","endTime":"09:45"}]}]}
+            """)
+        let dates = try ["2026-09-19", "2026-09-20", "2026-09-21"].map { try XCTUnwrap(CourseOccurrences.parseDate($0)) }
+        let table = TimeTableEntity(name: "Term", startDate: "2026-09-07")
+        let display = WeekDisplayResolver.resolve(startDate: table.startDate, maxWeek: table.maxWeek, now: dates[0],
+                                                   courses: [], timeJson: base, enabled: false)
+        let source = WidgetWeekSource(table: table.hydratedWith(period), courses: [], display: display,
+                                      transfers: [], periodTable: period)
+        XCTAssertEqual(dates.map { TimeTableUtils.parseTimeSlotRows(source.table(on: $0).timeJson).first?.start },
+                       ["08:00", "09:00", "08:00"])
+    }
+
+    func testWidgetTreatsLateEveningInLosAngelesAsTheLocalTeachingDay() throws {
+        let zone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let clock = CourseReminderCalendar(timeZone: zone)
+        let today = try XCTUnwrap(CourseOccurrences.parseDate("2026-09-20"))
+        let late = try XCTUnwrap(clock.instant(on: today, wallSeconds: 18 * 3600))
+        let future = try XCTUnwrap(CourseOccurrences.parseDate("2026-09-21"))
+        let bell = PeriodTableEntity(name: "Late", nodesPerDay: 1,
+            timeJson: #"[{"node":1,"start":"08:00","end":"08:45"}]"#,
+            comboScheduleJson: """
+            {"publicSchedules":[{"name":"Evening","startDate":"2026-09-20","endDate":"2026-09-20",
+              "timeSlots":[{"number":1,"startTime":"18:30","endTime":"19:15"}]}]}
+            """)
+        let table = TimeTableEntity(name: "Term", startDate: "2026-09-07")
+        let first = CourseEntity(groupId: "a", tableId: table.id, courseName: "Sunday", day: 7,
+            startNode: 1, step: 1, startWeek: 1, endWeek: 20, color: "")
+        var monday = first
+        monday.day = 1
+        monday.courseName = "Monday"
+        let source = WidgetWeekSource.resolve(table: table, courses: [first, monday], period: bell,
+            transfers: [], now: late, nearestBusyDay: true, timeZone: zone)
+        XCTAssertEqual(source.display.status, .normal)
+        XCTAssertEqual(source.display.today, today)
+        XCTAssertEqual(source.coursesOnDisplayDate(late).map(\.courseName), ["Sunday"])
+        XCTAssertEqual(TimeTableUtils.parseTimeSlotRows(source.table(onDisplayDate: late).timeJson).first?.start, "18:30")
+        let mondayLocal = try XCTUnwrap(clock.instant(on: future, wallSeconds: 0))
+        XCTAssertEqual(source.dateFor(dayOfWeek: 7), clock.instant(on: today, wallSeconds: 0))
+        XCTAssertEqual(source.coursesOnDisplayDate(mondayLocal).map(\.courseName), ["Monday"])
+        XCTAssertEqual(TimeTableUtils.parseTimeSlotRows(source.table(onDisplayDate: mondayLocal).timeJson).first?.start, "08:00")
+    }
+
     func testDedicatedWideGridLoadsEachRealDateAcrossSundayFromTheSameSource() async throws {
         let database = try AppDatabase.inMemory()
         let table = TimeTableEntity(name: "Bound wide timetable", startDate: startDate, maxWeek: 3,

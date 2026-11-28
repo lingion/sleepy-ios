@@ -3,6 +3,7 @@
 // SQL 文本与 Room 生成的语句语义一致(列名/ORDER BY/冲突策略)。
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
 
 struct CourseDao {
@@ -166,3 +167,143 @@ struct CourseDao {
         }
     }
 }
+#else
+struct CourseDao {
+    let db: LiteDatabase
+
+    private static let selectColumns = """
+        id, groupId, tableId, courseName, teacher, room, note, day, startNode, step, \
+        startWeek, endWeek, type, color, colorMode, isIrregularNode, isIrregularTime, \
+        ownTime, startTime, endTime, alias, credit, level, fixedDate
+        """
+
+    private static func mapRow(_ s: LiteStatement) -> CourseEntity {
+        CourseEntity(
+            groupId: s.colString(1),
+            tableId: s.colInt64(2),
+            courseName: s.colString(3),
+            teacher: s.colString(4),
+            room: s.colString(5),
+            note: s.colString(6),
+            day: s.colInt(7),
+            startNode: s.colInt(8),
+            step: s.colInt(9),
+            startWeek: s.colInt(10),
+            endWeek: s.colInt(11),
+            type: s.colInt(12),
+            color: s.colString(13),
+            colorMode: s.colInt(14),
+            isIrregularNode: s.colBool(15),
+            isIrregularTime: s.colBool(16),
+            ownTime: s.colBool(17),
+            startTime: s.colString(18),
+            endTime: s.colString(19),
+            alias: s.colString(20),
+            credit: s.colDouble(21),
+            level: s.colInt(22),
+            id: s.colInt64(0),
+            fixedDate: s.colOptString(23)
+        )
+    }
+
+    func getById(_ id: Int64) throws -> CourseEntity? {
+        try db.read { conn in
+            try conn.fetchOne(
+                "SELECT \(Self.selectColumns) FROM courses WHERE id = ? LIMIT 1",
+                arguments: [.int64(id)],
+                map: Self.mapRow
+            )
+        }
+    }
+
+    func getByTable(_ tableId: Int64) throws -> [CourseEntity] {
+        try db.read { conn in
+            try conn.fetchAll(
+                "SELECT \(Self.selectColumns) FROM courses WHERE tableId = ? ORDER BY day, startNode, startWeek",
+                arguments: [.int64(tableId)],
+                map: Self.mapRow
+            )
+        }
+    }
+
+    func getAllCourses() throws -> [CourseEntity] {
+        try db.read { conn in
+            try conn.fetchAll("SELECT \(Self.selectColumns) FROM courses", map: Self.mapRow)
+        }
+    }
+
+    func getByTableAndDay(_ tableId: Int64, day: Int) throws -> [CourseEntity] {
+        try db.read { conn in
+            try conn.fetchAll(
+                "SELECT \(Self.selectColumns) FROM courses WHERE tableId = ? AND day = ? ORDER BY startNode",
+                arguments: [.int64(tableId), .int(day)],
+                map: Self.mapRow
+            )
+        }
+    }
+
+    func getByGroupId(_ tableId: Int64, _ groupId: String) throws -> [CourseEntity] {
+        try db.read { conn in
+            try conn.fetchAll(
+                "SELECT \(Self.selectColumns) FROM courses WHERE tableId = ? AND groupId = ?",
+                arguments: [.int64(tableId), .text(groupId)],
+                map: Self.mapRow
+            )
+        }
+    }
+
+    func countByTable(_ tableId: Int64) throws -> Int {
+        try db.read { conn in
+            try conn.fetchOne(
+                "SELECT COUNT(*) FROM courses WHERE tableId = ?",
+                arguments: [.int64(tableId)]
+            ) { $0.colInt(0) } ?? 0
+        }
+    }
+
+    func totalCount() throws -> Int {
+        try db.read { conn in
+            try conn.fetchOne("SELECT COUNT(*) FROM courses") { $0.colInt(0) } ?? 0
+        }
+    }
+
+    @discardableResult
+    func insertInDb(_ conn: LiteDatabase.Connection, _ c: CourseEntity) throws -> Int64 {
+        try conn.execute("""
+            INSERT OR REPLACE INTO courses (
+                id, groupId, tableId, courseName, teacher, room, note, day, startNode, step,
+                startWeek, endWeek, type, color, colorMode, isIrregularNode, isIrregularTime,
+                ownTime, startTime, endTime, alias, credit, level, fixedDate
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [
+                c.id == 0 ? .null : .int64(c.id),
+                .text(c.groupId),
+                .int64(c.tableId),
+                .text(c.courseName),
+                .text(c.teacher),
+                .text(c.room),
+                .text(c.note),
+                .int(c.day),
+                .int(c.startNode),
+                .int(c.step),
+                .int(c.startWeek),
+                .int(c.endWeek),
+                .int(c.type),
+                .text(c.color),
+                .int(c.colorMode),
+                .bool(c.isIrregularNode),
+                .bool(c.isIrregularTime),
+                .bool(c.ownTime),
+                .text(c.startTime),
+                .text(c.endTime),
+                .text(c.alias),
+                .double(c.credit),
+                .int(c.level),
+                c.fixedDate.map(LiteBindValue.text) ?? .null
+            ]
+        )
+        return c.id == 0 ? conn.lastInsertRowId : c.id
+    }
+}
+#endif

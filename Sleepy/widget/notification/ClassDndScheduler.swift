@@ -121,29 +121,41 @@ final class ClassDndScheduler {
 
     /// 与今日页、实况活动共用日期取课规则；定日课留在自然日，循环课跟随调休源周。
     static func intervalsForDate(_ date: Date, table: TimeTableEntity,
-                                 courses: [CourseEntity], transfers: [HolidayTransferEntry]) -> [(Date, Date)] {
-        let nodes = TimeTableUtils.parseNodes(table.timeJson)
+                                 courses: [CourseEntity], transfers: [HolidayTransferEntry],
+                                 period: PeriodTableEntity? = nil,
+                                 timeZone: TimeZone = CourseOccurrences.calendar.timeZone) -> [(Date, Date)] {
+        let effective = table.hydratedWith(period, forDateKey: HolidayTransferOps.dayKey(date))
+        let bells = ReminderBellTimes(effective.timeJson)
+        let clock = CourseReminderCalendar(timeZone: timeZone)
         return CourseOccurrences.coursesForDate(date, startDate: table.startDate, maxWeek: table.maxWeek,
-            courses: courses, transfers: transfers).compactMap {
-                courseInterval(date: date, course: $0, nodes: nodes, calendar: CourseOccurrences.calendar)
+            courses: courses, transfers: transfers).compactMap { course in
+                let own = bells.bounds(for: course)
+                let fallback = bells.nodeBounds(for: course)
+                // Preserve the fallback for old rows with a blank custom-time endpoint.
+                let custom = course.ownTime || course.isIrregularTime
+                let start = custom && !isNotBlank(course.startTime) ? fallback.start : own.start
+                let end = custom && !isNotBlank(course.endTime) ? fallback.end : own.end
+                guard let start = start, let end = end,
+                      let begins = clock.instant(on: date, wallSeconds: start),
+                      let finishes = clock.instant(on: date, wallSeconds: end),
+                      finishes > begins else { return nil }
+                return (begins, finishes)
             }
     }
 
-    /// 枚举未来 WINDOW_DAYS 天的课程区间。
-    func buildIntervals(table: TimeTableEntity) async -> [(Date, Date)] {
-        let cal = CourseOccurrences.calendar
-        let today = cal.startOfDay(for: AppClock.now)
+    /// The notification gate checks absolute instants, with bounds in the device's wall-clock zone.
+    func buildIntervals(table: TimeTableEntity, now: Date = AppClock.now) async -> [(Date, Date)] {
+        let zone = TimeZone.current
+        let clock = CourseReminderCalendar(timeZone: zone)
         var result: [(Date, Date)] = []
         guard let repo = repositoryProvider?() else { return result }
         let courses = (try? repo.getCourses(table.id)) ?? []
+        let period = table.periodTableId.flatMap { try? repo.getPeriodTable($0) }
         let transfers = HolidayTransferHelper.transfers(for: table.id)
-        for offset in 0..<Self.WINDOW_DAYS {
-            guard let date = cal.date(byAdding: .day, value: offset, to: today) else { continue }
-            // 与课前通知同一日期语义 — 节假日策略门控
-            if !(await HolidayReminderPolicyAdapter.decide(date: date, tableId: table.id)).allowReminder {
-                continue
-            }
-            result += Self.intervalsForDate(date, table: table, courses: courses, transfers: transfers)
+        for date in clock.days(startingAt: now, count: Self.WINDOW_DAYS) {
+            if !(await HolidayReminderPolicyAdapter.decide(date: date, tableId: table.id)).allowReminder { continue }
+            result += Self.intervalsForDate(date, table: table, courses: courses, transfers: transfers,
+                                            period: period, timeZone: zone)
         }
         return result
     }
@@ -175,8 +187,9 @@ final class ClassDndScheduler {
             clearOwnership()
             return
         }
-        let intervals = await buildIntervals(table: table)
-        let inClass = Self.isCurrentlyInClass(intervals, now: Date())
+        let now = AppClock.now
+        let intervals = await buildIntervals(table: table, now: now)
+        let inClass = Self.isCurrentlyInClass(intervals, now: now)
         setDndOwned(inClass)
     }
 
@@ -192,7 +205,7 @@ final class ClassDndScheduler {
         guard AppPrefs.shared.isClassDndEnabled() else { return false }
         guard let repo = ClassDndScheduler.shared.repositoryProvider?(),
               let table = WidgetTableResolver.resolveCurrentTable(repo) else { return false }
-        let intervals = await ClassDndScheduler.shared.buildIntervals(table: table)
+        let intervals = await ClassDndScheduler.shared.buildIntervals(table: table, now: now)
         return isCurrentlyInClass(intervals, now: now)
     }
 

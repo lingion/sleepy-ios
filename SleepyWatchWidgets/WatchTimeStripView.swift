@@ -2,6 +2,7 @@ import SwiftUI
 import WidgetKit
 
 struct WatchTimeStripView: View {
+    @Environment(\.watchMaterialPalette) private var palette
     let entry: WatchTimeStripEntry
 
     private var snapshot: WatchTimeStripCore.Snapshot { entry.snapshot }
@@ -9,15 +10,37 @@ struct WatchTimeStripView: View {
     private var locale: Locale { LocaleHelper.locale(for: entry.language) }
 
     var body: some View {
+        WatchTimeStripContent(entry: entry, snapshot: snapshot, bundle: bundle, locale: locale,
+                              palette: palette)
+            .watchMaterialSurface(.accessoryRectangular)
+            .widgetURL(URL(string: "sleepy://watch?tab=today"))
+    }
+}
+
+private struct WatchTimeStripContent: View {
+    @Environment(\.watchMaterialPalette) private var envPalette
+    let entry: WatchTimeStripEntry
+    let snapshot: WatchTimeStripCore.Snapshot
+    let bundle: Bundle
+    let locale: Locale
+    let palette: WatchMaterialPalette
+
+    private var activePalette: WatchMaterialPalette {
+        envPalette.usesMaterial ? envPalette : palette
+    }
+
+    var body: some View {
+        let p = activePalette
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
                 Text(snapshot.isTomorrow ? text("watch_time_strip_preview") : text("watch_time_strip_display_name"))
+                    .foregroundColor(p.usesMaterial ? p.accent : p.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                     .widgetAccentable()
                 Spacer(minLength: 0)
                 Text(snapshot.isTomorrow ? dayLabel : text("watch_time_strip_scale"))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(p.secondaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
@@ -26,34 +49,32 @@ struct WatchTimeStripView: View {
             if snapshot.segments.isEmpty {
                 Text(emptyMessage)
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(p.secondaryText)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             } else {
-                strip
+                strip(p)
                 HStack(spacing: 2) {
                     Text(snapshot.isTomorrow ? time(snapshot.windowStart) : "\(text("watch_mark_now")) \(time(snapshot.windowStart))")
                     Spacer(minLength: 0)
                     Text(time(snapshot.windowEnd))
                 }
                 .font(.system(size: 9).monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundColor(p.secondaryText)
                 .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .containerBackground(for: .widget) { Color.clear }
-        .widgetURL(URL(string: "sleepy://watch?tab=today"))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary)
     }
 
-    private var strip: some View {
+    private func strip(_ p: WatchMaterialPalette) -> some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 ForEach(Array(snapshot.segments.enumerated()), id: \.offset) { _, segment in
                     let width = max(0, geometry.size.width * segment.widthFraction)
-                    segmentView(segment, width: width)
+                    segmentView(segment, width: width, palette: p)
                         .frame(width: width, height: geometry.size.height)
                         .offset(x: geometry.size.width * segment.offsetFraction(from: snapshot.windowStart))
                 }
@@ -65,18 +86,19 @@ struct WatchTimeStripView: View {
         .environment(\.layoutDirection, .leftToRight)
     }
 
-    private func segmentView(_ segment: WatchTimeStripCore.Segment, width: CGFloat) -> some View {
+    private func segmentView(_ segment: WatchTimeStripCore.Segment, width: CGFloat,
+                             palette p: WatchMaterialPalette) -> some View {
         ZStack {
             if !segment.courses.isEmpty {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(.primary.opacity(0.18))
+                RoundedRectangle(cornerRadius: SleepyShapes.extraSmall)
+                    .fill(p.stripCourseFill)
                     .widgetAccentable()
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(.primary, lineWidth: 1)
+                RoundedRectangle(cornerRadius: SleepyShapes.extraSmall)
+                    .strokeBorder(p.stripCourseStroke, lineWidth: 1)
                     .widgetAccentable()
             } else {
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(.secondary, style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                RoundedRectangle(cornerRadius: SleepyShapes.extraSmall)
+                    .strokeBorder(p.stripFreeStroke, style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
             }
             if width >= 26 {
                 ViewThatFits(in: .horizontal) {
@@ -86,6 +108,7 @@ struct WatchTimeStripView: View {
                     Image(systemName: segment.courses.isEmpty ? "cup.and.saucer" : "book.closed")
                         .font(.system(size: 10))
                 }
+                .foregroundColor(segment.courses.isEmpty ? p.secondaryText : p.stripActiveText)
                 .padding(.horizontal, 3)
             }
         }

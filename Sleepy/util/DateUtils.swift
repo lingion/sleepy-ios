@@ -6,6 +6,14 @@ import Foundation
 /// 日期/周次工具 — 完全不依赖 UI,单元测试方便。
 enum DateUtils {
 
+    static let shanghaiTimeZone = TimeZone(identifier: "Asia/Shanghai")!
+
+    private static let gregorianCST: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = shanghaiTimeZone
+        return c
+    }()
+
     static let isoCalendar: Calendar = {
         var c = Calendar(identifier: .iso8601)
         c.firstWeekday = 2  // Monday
@@ -13,14 +21,53 @@ enum DateUtils {
         return c
     }()
 
+    private static let dateCacheLock = NSLock()
+    private static var parsedDateCache: [String: Date] = [:]
+    private static var dateOfWeekCache: [DateOfWeekCacheKey: Date] = [:]
+
+    private struct DateOfWeekCacheKey: Hashable {
+        let startDate: String
+        let week: Int
+        let dayOfWeek: Int
+    }
+
     static func parseDate(_ s: String) -> Date? {
-        let parts = s.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
+        dateCacheLock.lock()
+        if let hit = parsedDateCache[s] {
+            dateCacheLock.unlock()
+            return hit
+        }
+        dateCacheLock.unlock()
+
+        let year: Int
+        let month: Int
+        let day: Int
+        let bytes = Array(s.utf8)
+        if bytes.count == 10, bytes[4] == 45, bytes[7] == 45,
+           let y0 = (bytes[0] >= 48 && bytes[0] <= 57) ? Int(bytes[0] - 48) : nil,
+           let y1 = (bytes[1] >= 48 && bytes[1] <= 57) ? Int(bytes[1] - 48) : nil,
+           let y2 = (bytes[2] >= 48 && bytes[2] <= 57) ? Int(bytes[2] - 48) : nil,
+           let y3 = (bytes[3] >= 48 && bytes[3] <= 57) ? Int(bytes[3] - 48) : nil,
+           let m0 = (bytes[5] >= 48 && bytes[5] <= 57) ? Int(bytes[5] - 48) : nil,
+           let m1 = (bytes[6] >= 48 && bytes[6] <= 57) ? Int(bytes[6] - 48) : nil,
+           let d0 = (bytes[8] >= 48 && bytes[8] <= 57) ? Int(bytes[8] - 48) : nil,
+           let d1 = (bytes[9] >= 48 && bytes[9] <= 57) ? Int(bytes[9] - 48) : nil {
+            year = y0 * 1000 + y1 * 100 + y2 * 10 + y3
+            month = m0 * 10 + m1
+            day = d0 * 10 + d1
+        } else {
+            let parts = s.split(separator: "-").compactMap { Int($0) }
+            guard parts.count == 3 else { return nil }
+            year = parts[0]; month = parts[1]; day = parts[2]
+        }
         var comps = DateComponents()
-        comps.year = parts[0]; comps.month = parts[1]; comps.day = parts[2]
-        var c = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone(identifier: "Asia/Shanghai")!  // LocalDate 无时区,固定锚
-        return c.date(from: comps)
+        comps.year = year; comps.month = month; comps.day = day
+        guard let parsed = gregorianCST.date(from: comps) else { return nil }
+        dateCacheLock.lock()
+        if parsedDateCache.count >= 512 { parsedDateCache.removeAll(keepingCapacity: true) }
+        parsedDateCache[s] = parsed
+        dateCacheLock.unlock()
+        return parsed
     }
 
     static func dayStart(_ d: Date, calendar: Calendar = isoCalendar) -> Date {
@@ -87,10 +134,22 @@ enum DateUtils {
 
     /// 从周数和星期几得到具体日期
     static func dateOfWeek(startDate: String, week: Int, dayOfWeek: Int) -> Date? {
+        let key = DateOfWeekCacheKey(startDate: startDate, week: week, dayOfWeek: dayOfWeek)
+        dateCacheLock.lock()
+        if let hit = dateOfWeekCache[key] {
+            dateCacheLock.unlock()
+            return hit
+        }
+        dateCacheLock.unlock()
         guard let raw = parseDate(startDate) else { return nil }
         let start = mondayOf(raw)  // ← DateUtils.kt:69 锚定所在周周一 (issue #5)
         let cal = isoCalendar
-        return cal.date(byAdding: DateComponents(day: dayOfWeek - 1 + (week - 1) * 7), to: start)
+        guard let resolved = cal.date(byAdding: DateComponents(day: dayOfWeek - 1 + (week - 1) * 7), to: start) else { return nil }
+        dateCacheLock.lock()
+        if dateOfWeekCache.count >= 1024 { dateOfWeekCache.removeAll(keepingCapacity: true) }
+        dateOfWeekCache[key] = resolved
+        dateCacheLock.unlock()
+        return resolved
     }
 
     /// 同一周内指定星期几的日期（以 ref 为参照，1=周一 7=周日）
@@ -116,21 +175,62 @@ enum DateUtils {
 
     private static let shortDateFormatter = makeDisplayFormatter("MM-dd")
     private static let fullDateFormatter = makeDisplayFormatter("yyyy-MM-dd")
+    private static let isoDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = isoCalendar
+        f.timeZone = isoCalendar.timeZone
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
     private static let shortDateLock = NSLock()
     private static let fullDateLock = NSLock()
+    private static let formatCacheLock = NSLock()
+    private static var shortDateCache: [TimeInterval: String] = [:]
+    private static var fullDateCache: [TimeInterval: String] = [:]
 
     /// 短日期 (MM-dd)
     static func shortDate(_ date: Date) -> String {
+        let key = date.timeIntervalSinceReferenceDate
+        formatCacheLock.lock()
+        if let hit = shortDateCache[key] {
+            formatCacheLock.unlock()
+            return hit
+        }
+        formatCacheLock.unlock()
         shortDateLock.lock()
-        defer { shortDateLock.unlock() }
-        return shortDateFormatter.string(from: date)
+        let str = shortDateFormatter.string(from: date)
+        shortDateLock.unlock()
+        formatCacheLock.lock()
+        if shortDateCache.count >= 1024 { shortDateCache.removeAll(keepingCapacity: true) }
+        shortDateCache[key] = str
+        formatCacheLock.unlock()
+        return str
     }
 
     /// 完整日期 (yyyy-MM-dd)
     static func fullDate(_ date: Date) -> String {
+        let key = date.timeIntervalSinceReferenceDate
+        formatCacheLock.lock()
+        if let hit = fullDateCache[key] {
+            formatCacheLock.unlock()
+            return hit
+        }
+        formatCacheLock.unlock()
+        fullDateLock.lock()
+        let str = fullDateFormatter.string(from: date)
+        fullDateLock.unlock()
+        formatCacheLock.lock()
+        if fullDateCache.count >= 1024 { fullDateCache.removeAll(keepingCapacity: true) }
+        fullDateCache[key] = str
+        formatCacheLock.unlock()
+        return str
+    }
+
+    fileprivate static func cachedIsoString(_ d: Date) -> String {
         fullDateLock.lock()
         defer { fullDateLock.unlock() }
-        return fullDateFormatter.string(from: date)
+        return isoDateFormatter.string(from: d)
     }
 
     /// 中文星期
@@ -192,12 +292,7 @@ extension Calendar {
 
     /// yyyy-MM-dd(无时区歧义,当日零点)
     static func isoString(_ d: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.calendar = DateUtils.isoCalendar
-        f.timeZone = DateUtils.isoCalendar.timeZone
-        f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: d)
+        DateUtils.cachedIsoString(d)
     }
 
     // MARK: - epochDay ↔ Date (← Kotlin LocalDate.toEpochDay/ofEpochDay; 供 widget 导航态)

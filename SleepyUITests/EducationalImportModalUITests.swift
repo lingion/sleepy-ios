@@ -94,12 +94,28 @@ final class EducationalImportModalUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
 
-        // Wait for webView or top bar back button
-        let backButton = app.buttons.matching(NSPredicate(format: "label IN {'Back', 'chevron.left', '返回'}")).firstMatch
-        if backButton.waitForExistence(timeout: 5) {
-            backButton.tap()
-            // Back in school select
-            XCTAssertTrue(search.waitForExistence(timeout: 5), "Should return to school select after tapping back")
+        // Unverified schools show an advisory confirmation sheet before entering WebView.
+        let tryAnyway = app.buttons["Try anyway"].firstMatch
+        if tryAnyway.waitForExistence(timeout: 2) {
+            tryAnyway.tap()
         }
+
+        // Wait for WebView stage to replace SchoolSelect before tapping topbar_back.
+        XCTAssertTrue(waitUntilNotExists(search, timeout: 6), "Selecting school should advance to WebView")
+        let backButton = app.buttons.matching(identifier: "topbar_back")
+            .allElementsBoundByIndex.last { $0.exists && $0.isHittable }
+            ?? app.buttons["topbar_back"].firstMatch
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5))
+        backButton.tap()
+        XCTAssertTrue(search.waitForExistence(timeout: 5), "Should return to school select after tapping back")
+    }
+
+    private func waitUntilNotExists(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if !element.exists { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        } while Date() < deadline
+        return !element.exists
     }
 }

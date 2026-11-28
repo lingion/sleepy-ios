@@ -181,12 +181,10 @@ private struct HeaderStylePreviews: View {
                 .foregroundColor(colors.onSurface)
 
             // ← FlowRow 等价: 换行流式布局
-            FlowLayout(spacing: 8) {
-                ForEach(Array(Self.styles.enumerated()), id: \.element.0) { idx, pair in
-                    styleCard(value: pair.0, label: pair.1,
-                              contentWidth: contentWidths[idx],
-                              sharedFont: previewFont)
-                }
+            FlowLayout(spacing: 8, estimatedWidths: contentWidths.map { max($0 + 12, 76) }, items: Self.styles) { idx, pair in
+                styleCard(value: pair.0, label: pair.1,
+                          contentWidth: contentWidths[idx],
+                          sharedFont: previewFont)
             }
         }
     }
@@ -241,16 +239,112 @@ private struct HeaderStylePreviews: View {
 
 // MARK: - 简易流式布局(← Compose FlowRow)
 
-/// 水平流式排列, 放不下自动换行 — Compose FlowRow 的 SwiftUI 等价(轻实现)。
-private struct FlowLayout<Content: View>: View {
+/// 水平流式排列, 放不下自动换行 — Compose FlowRow 的 SwiftUI 等价。
+private struct FlowLayout<Item, Content: View>: View {
     let spacing: CGFloat
-    @ViewBuilder let content: () -> Content
+    let estimatedWidths: [CGFloat]
+    let items: [Item]
+    @ViewBuilder let content: (Int, Item) -> Content
+    @State private var containerWidth: CGFloat = 0
 
     var body: some View {
-        // iOS 15 兼容: 无 Layout 协议 → 用 LazyVGrid adaptive 列近似流式换行
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: spacing)],
-                  alignment: .leading, spacing: spacing) {
-            content()
+        Group {
+            if #available(iOS 16.0, *) {
+                FlowWrappingLayout(spacing: spacing) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+                        content(idx, item)
+                    }
+                }
+            } else {
+                let rows = Self.wrappedRows(widths: estimatedWidths, maxWidth: containerWidth, spacing: spacing)
+                VStack(alignment: .leading, spacing: spacing) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, indices in
+                        HStack(spacing: spacing) {
+                            ForEach(indices, id: \.self) { idx in
+                                content(idx, items[idx])
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: FlowWidthPreferenceKey.self, value: proxy.size.width)
+                    }
+                )
+                .onPreferenceChange(FlowWidthPreferenceKey.self) { containerWidth = $0 }
+            }
+        }
+    }
+
+    private static func wrappedRows(widths: [CGFloat], maxWidth: CGFloat, spacing: CGFloat) -> [[Int]] {
+        guard !widths.isEmpty else { return [] }
+        let limit = maxWidth > 0 ? maxWidth : CGFloat.greatestFiniteMagnitude
+        var rows: [[Int]] = [[]]
+        var rowWidth: CGFloat = 0
+        for (idx, w) in widths.enumerated() {
+            let needed = rows[rows.count - 1].isEmpty ? w : rowWidth + spacing + w
+            if !rows[rows.count - 1].isEmpty && needed > limit {
+                rows.append([idx])
+                rowWidth = w
+            } else {
+                rows[rows.count - 1].append(idx)
+                rowWidth = needed
+            }
+        }
+        return rows
+    }
+}
+
+private struct FlowWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 { value = next }
+    }
+}
+
+@available(iOS 16.0, *)
+private struct FlowWrappingLayout: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let limit = proposal.width ?? .infinity
+        var y: CGFloat = 0
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var maxUsedWidth: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let needed = rowWidth == 0 ? size.width : rowWidth + spacing + size.width
+            if rowWidth > 0 && needed > limit {
+                maxUsedWidth = max(maxUsedWidth, rowWidth)
+                y += rowHeight + spacing
+                rowWidth = size.width
+                rowHeight = size.height
+            } else {
+                rowWidth = needed
+                rowHeight = max(rowHeight, size.height)
+            }
+        }
+        maxUsedWidth = max(maxUsedWidth, rowWidth)
+        return CGSize(width: proposal.width ?? maxUsedWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX && x + size.width > bounds.maxX + 0.5 {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }

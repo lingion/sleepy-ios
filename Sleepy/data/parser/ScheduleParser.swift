@@ -40,6 +40,7 @@ enum ScheduleParser {
         /// null = 旧格式/未携带 — 导入流程须为每张课表各建一张(不误共享)。
         var periodTable: ParsedPeriodTable? = nil
         var importSourceJson: String = ""
+        var jwSchoolSourceJson: String = ""
     }
 
     /// P 区块 / tableInfo 收割产物: sourceId = 导出时的 period_tables.id(恢复共享关系的键; 0 = 无既有表可指)
@@ -116,7 +117,10 @@ enum ScheduleParser {
             }
             if SleepyNativeFormat.detectVersion(trimmed) == 1 {
                 var result = try SleepyNativeParser.parse(trimmed, defaultTableId: defaultTableId, defaultColor: defaultColor)
-                if let source = originalNativeImportSource(raw) { result.importSourceJson = source }
+                if let fields = originalNativeSources(raw) {
+                    result.importSourceJson = fields["source"] ?? ""
+                    result.jwSchoolSourceJson = fields["jw"] ?? ""
+                }
                 return result
             }
             // Excel "另存为网页" 的 Frameset HTML (issue #6): 顶层只有 <frame> 引用,
@@ -126,12 +130,16 @@ enum ScheduleParser {
             }
             if body.contains("\"courseDetailJson\"") {
                 var result = try parseWakeUpShareText(body, defaultTableId)
-                result.importSourceJson = originalImportSource(raw)
+                let sources = originalJsonSources(raw)
+                result.importSourceJson = sources.suggestions
+                result.jwSchoolSourceJson = sources.school
                 return result
             }
             if body.hasPrefix("{") && (body.contains("\"courses\"") || body.contains("\"tableInfo\"")) {
                 var result = try parseWakeUpJson(body, defaultTableId, defaultColor)
-                result.importSourceJson = originalImportSource(raw)
+                let sources = originalJsonSources(raw)
+                result.importSourceJson = sources.suggestions
+                result.jwSchoolSourceJson = sources.school
                 return result
             }
             if body.hasPrefix("BEGIN:VCALENDAR") || body.hasPrefix("BEGIN:VEVENT") {
@@ -149,16 +157,18 @@ enum ScheduleParser {
         }
     }
 
-    private static func originalImportSource(_ raw: String) -> String {
+    private static func originalJsonSources(_ raw: String) -> (suggestions: String, school: String) {
         let text = extractMarkedBody(raw)
         guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start <= end,
               let data = String(text[start...end]).data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return "" }
-        return (object["tableInfo"] as? [String: Any])?["importSourceJson"] as? String ?? ""
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return ("", "") }
+        let info = object["tableInfo"] as? [String: Any]
+        return (info?["importSourceJson"] as? String ?? "",
+                info?["jwSchoolSourceJson"] as? String ?? object["jwSchoolSourceJson"] as? String ?? "")
     }
 
     /// Match the accepted header while keeping opaque provenance outside course-text normalization.
-    private static func originalNativeImportSource(_ raw: String) -> String? {
+    private static func originalNativeSources(_ raw: String) -> [String: String]? {
         var foundMagic = false
         for rawLine in SleepyNativeFormat.linesJava(extractMarkedBody(raw)) {
             let original = String(rawLine.drop { normalizeFullWidth(String($0)).allSatisfy(\.isWhitespace) })
@@ -169,12 +179,16 @@ enum ScheduleParser {
             }
             guard line.uppercased().hasPrefix("T"), !line.uppercased().hasPrefix("ND") else { continue }
             let fields = SleepyNativeParser.splitRespectingEscape(String(original.dropFirst()))
+            var sourceFields: [String: String] = [:]
             for field in fields.dropFirst(4) {
-                guard let equal = field.firstIndex(of: "="),
-                      normalizeFullWidth(String(field[..<equal])).trimmingCharacters(in: .whitespaces) == "source" else { continue }
-                return SleepyNativeFormat.unescape(String(field[field.index(after: equal)...]))
+                guard let equal = field.firstIndex(of: "=") else { continue }
+                let key = normalizeFullWidth(String(field[..<equal])).trimmingCharacters(in: .whitespaces)
+                guard key == "source" || key == "jw" else { continue }
+                if sourceFields[key] == nil {
+                    sourceFields[key] = SleepyNativeFormat.unescape(String(field[field.index(after: equal)...]))
+                }
             }
-            return ""
+            return sourceFields
         }
         return nil
     }
@@ -488,8 +502,7 @@ enum ScheduleParser {
 
         // 节次时间表: Sleepy 自家导出把 timeJson 放在 tableInfo.time — 往返保真
         // v1.0.56 T10: 同时收割独立作息表(混合导入自动建表+绑定)
-        let harvested = harvestTimeFromTableInfo(root, name)
-        return lossless(name, startDate, courses, harvested.timeJson, harvested.nodesPerDay, harvested.periodTable)
+        return wakeUpResult(root: root, name: name, startDate: startDate, courses: courses)
     }
 
     /// ← JsonPrimitive.intOrNull: 数字或数字串→Int, 否则 nil(键缺失与非法值都 nil)
@@ -562,8 +575,16 @@ enum ScheduleParser {
 
         // 节次时间表: tableInfo.time(Sleepy 导出) / timeList(WakeUp 原生)
         // v1.0.56 T10: 同时收割独立作息表(混合导入自动建表+绑定)
+        return wakeUpResult(root: root, name: name, startDate: startDate, courses: courses)
+    }
+
+    private static func wakeUpResult(root: [String: Any], name: String, startDate: String,
+                                     courses: [CourseEntity]) -> ParseResult {
         let harvested = harvestTimeFromTableInfo(root, name)
-        return lossless(name, startDate, courses, harvested.timeJson, harvested.nodesPerDay, harvested.periodTable)
+        var parsed = lossless(name, startDate, courses, harvested.timeJson, harvested.nodesPerDay, harvested.periodTable)
+        let info = root["tableInfo"] as? [String: Any]
+        parsed.maxWeek = max(0, intOrNull(info?["maxWeek"]) ?? 0)
+        return parsed
     }
 
     private static func parseCourseJsonArray(_ jsonStr: String, _ tableId: Int64) throws -> [CourseEntity] {
@@ -586,8 +607,8 @@ enum ScheduleParser {
                 tableId: tableId,
                 courseName: (obj["name"] as? String) ?? (obj["courseName"] as? String) ?? "未命名",
                 teacher: obj["teacher"] as? String ?? "",
-                room: obj["position"] as? String ?? "",
-                note: "",
+                room: (obj["position"] as? String) ?? (obj["room"] as? String) ?? "",
+                note: obj["note"] as? String ?? "",
                 day: intField(obj, "day", def: 1),
                 startNode: intField(obj, "startNode", def: 1),
                 step: intField(obj, "step", def: 1),

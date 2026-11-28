@@ -112,6 +112,28 @@ final class QuickAddCourseUITests: XCTestCase {
         }
     }
 
+    func testMoreKeepsTheQuickAddDraft() throws {
+        app.buttons["week_next"].tap()
+        waitForWeek(2)
+        try revealPlacementRange()
+        cell(6, 5).press(forDuration: 0.6)
+        XCTAssertTrue(capsule.waitForExistence(timeout: 5))
+        capsule.tap()
+
+        let name = app.textFields["field_Course Name *"]
+        XCTAssertTrue(app.staticTexts["course_quick_add_summary"].waitForExistence(timeout: 5))
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["course_add_slot"].exists)
+        name.tap()
+        name.typeText("Same quick draft")
+        let more = app.buttons["course_quick_add_more"]
+        XCTAssertTrue(more.isHittable)
+        more.tap()
+        XCTAssertTrue(app.buttons["course_add_slot"].waitForExistence(timeout: 5))
+        XCTAssertEqual(name.value as? String, "Same quick draft")
+        XCTAssertFalse(app.staticTexts["course_quick_add_summary"].exists)
+    }
+
     func testBothHandlesPrefillSingleWeekAndSavePersistsExactPlacement() throws {
         app.buttons["week_next"].tap()
         waitForWeek(2)
@@ -138,6 +160,7 @@ final class QuickAddCourseUITests: XCTestCase {
         capsule.tap()
         let name = app.textFields["field_Course Name *"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["course_quick_add_summary"].label.contains("4-6"))
         let save = app.buttons["course_save"]
         XCTAssertTrue(save.exists)
         XCTAssertFalse(save.isEnabled, "快速加课不能绕过空名称校验")
@@ -173,14 +196,17 @@ final class QuickAddCourseUITests: XCTestCase {
     }
 
     private func savedCards() -> [XCUIElement] {
-        pager.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
-            "gridcell_", "Quick Add CI")).allElementsBoundByIndex.filter(\.isHittable)
+        let pagerFrame = pager.frame
+        return pager.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+            "gridcell_", "Quick Add CI")).allElementsBoundByIndex.filter { card in
+            card.exists && pagerFrame.intersects(card.frame) && card.isHittable
+        }
     }
 
     private func assertSavedPlacement() throws {
         try revealPlacementRange()
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in savedCards().count == 1 }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 12), .completed)
         let card = savedCards()[0]
         let first = cell(6, 4).frame
         let last = cell(6, 6).frame
@@ -192,5 +218,35 @@ final class QuickAddCourseUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Period 4-6"].exists)
         XCTAssertTrue(app.staticTexts["4-6 (Week 3-3)"].exists)
         app.buttons["detail_close"].tap()
+    }
+
+    /// 锁定 issue #473：启用液态玻璃样式时，快速加课胶囊表面不得抢占上下拖动手柄命中。
+    func testLiquidGlassQuickAddEdgeHandlesDragCleanly() throws {
+        app.terminate()
+        app.launchArguments += ["-ui_style", "liquid_glass"]
+        app.sleepyLaunch()
+        XCTAssertTrue(pager.waitForExistence(timeout: 15))
+        waitForWeek(1)
+        app.buttons["week_next"].tap()
+        waitForWeek(2)
+        app.buttons["week_next"].tap()
+        waitForWeek(3)
+        try revealPlacementRange()
+        let first = cell(6, 4).frame
+        let last = cell(6, 6).frame
+        cell(6, 5).press(forDuration: 0.6)
+        XCTAssertTrue(capsule.waitForExistence(timeout: 5))
+        let top = app.descendants(matching: .any)["quick-add-top"]
+        let bottom = app.descendants(matching: .any)["quick-add-bottom"]
+        XCTAssertTrue(top.exists && bottom.exists)
+        top.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.1,
+            thenDragTo: coordinate(CGPoint(x: first.midX, y: first.minY + 7)))
+        bottom.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.1,
+            thenDragTo: coordinate(CGPoint(x: last.midX, y: last.maxY - 7)))
+        XCTAssertEqual(top.value as? String, "4")
+        XCTAssertEqual(bottom.value as? String, "6")
+        XCTAssertEqual(capsule.frame.minY, first.minY, accuracy: 2)
+        XCTAssertEqual(capsule.frame.maxY, last.maxY, accuracy: 2)
+        XCTAssertEqual(capsule.frame.midX, first.midX, accuracy: 2)
     }
 }

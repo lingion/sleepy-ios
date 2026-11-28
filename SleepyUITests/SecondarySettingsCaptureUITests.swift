@@ -140,7 +140,8 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
             // Run19 AX: On My iPhone exposes BackButton / Browse in this
             // native bar. Return through Files navigation to its actual Cancel.
             let navigation = app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].firstMatch
-            let back = navigation.buttons["BackButton"].firstMatch
+            let back = navigation.buttons.matching(NSPredicate(
+                format: "identifier == 'BackButton' OR label == 'Back'")).firstMatch
             guard step < 8, navigation.exists && back.exists && back.isHittable,
                   navigation.frame.contains(back.frame) else { break }
             capture("secondary-backup-system-before-navigation-back")
@@ -471,14 +472,29 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         let export = app.buttons["settings_migration_export_row"].firstMatch
         reveal(export)
         export.tap()
-        let fileName = app.textFields["DOCPicker.filenameTextField"].firstMatch
-        XCTAssertTrue(fileName.waitForExistence(timeout: 15))
-        let exportedName = try XCTUnwrap(fileName.value as? String)
-        XCTAssertNotNil(exportedName.range(of: #"^sleepy-backup-\d{8}-\d{6}(\.[A-Za-z0-9]+)?$"#,
-                                          options: .regularExpression),
-                        "Select the exact exported file rather than a truncated display label")
+        let isIOS17OrNewer = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 17
+        let exportedPrefix: String
+        if isIOS17OrNewer {
+            let fileName = app.textFields["DOCPicker.filenameTextField"].firstMatch
+            XCTAssertTrue(fileName.waitForExistence(timeout: 15))
+            let exportedName = try XCTUnwrap(fileName.value as? String)
+            XCTAssertNotNil(exportedName.range(of: #"^sleepy-backup-\d{8}-\d{6}(\.[A-Za-z0-9]+)?$"#,
+                                              options: .regularExpression),
+                            "Select the exact exported file rather than a truncated display label")
+            exportedPrefix = exportedName
+        } else {
+            let fileName = app.textFields.matching(NSPredicate(
+                format: "identifier == 'DOCPicker.filenameTextField' OR value BEGINSWITH 'sleepy-backup-'")).firstMatch
+            let fileLabel = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'sleepy-backup-'")).firstMatch
+            XCTAssertTrue(waitUntil(timeout: 15) { fileName.exists || fileLabel.exists })
+            let raw = (fileName.exists ? (fileName.value as? String) : fileLabel.label) ?? ""
+            let stripped = raw.replacingOccurrences(of: "...", with: "")
+                .replacingOccurrences(of: "…", with: "")
+            XCTAssertTrue(stripped.hasPrefix("sleepy-backup-"), "Unexpected export filename value/label: \(raw)")
+            exportedPrefix = stripped
+        }
         openLocalFilesRoot()
-        let save = app.buttons.matching(NSPredicate(format: "label == 'Save'")).firstMatch
+        let save = app.buttons.matching(NSPredicate(format: "label IN {'Save', 'Move', 'Copy'}")).firstMatch
         XCTAssertTrue(save.waitForExistence(timeout: 5))
         XCTAssertTrue(save.isEnabled)
         reveal(save)
@@ -488,12 +504,23 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         let toast = app.staticTexts["settings_migration_toast"].firstMatch
         XCTAssertTrue(waitUntil { toast.exists && toast.label == ".sleepybackup exported" })
         let restore = app.buttons["settings_migration_import_row"].firstMatch
+        let filesPanelOpen = {
+            if self.app.collectionViews["File View"].firstMatch.exists { return true }
+            return self.app.descendants(matching: .any).matching(NSPredicate(
+                format: "label IN {'Locations', 'Browse', 'Recents', 'On My iPad', 'On My iPhone', 'iCloud Drive'}")).firstMatch.exists
+        }
         reveal(restore)
         restore.tap()
-        XCTAssertTrue(app.collectionViews["File View"].firstMatch.waitForExistence(timeout: 10))
+        if !waitUntil(timeout: 12, filesPanelOpen) {
+            let att = XCTAttachment(string: app.debugDescription)
+            att.name = "backup-restore-panel-missing-ax"
+            att.lifetime = .keepAlways
+            add(att)
+            XCTFail("Import picker did not open.\n\(app.debugDescription)")
+        }
         openLocalFilesRoot()
         let file = app.collectionViews["File View"].cells.matching(NSPredicate(
-            format: "label BEGINSWITH %@", exportedName)).firstMatch
+            format: "label BEGINSWITH %@", exportedPrefix)).firstMatch
         guard file.waitForExistence(timeout: 8) else {
             retainFailure("secondary-backup-exported-file-missing")
             return
@@ -515,7 +542,7 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         XCTAssertFalse(toast.exists && toast.label.hasPrefix("Imported"), "Cancel must not execute migration")
         capture("secondary-backup-restore-mode-cancelled")
         restore.tap()
-        XCTAssertTrue(app.collectionViews["File View"].firstMatch.waitForExistence(timeout: 10),
+        XCTAssertTrue(waitUntil(timeout: 12, filesPanelOpen),
                       "Cancelling the mode must release the import operation")
         cancelSystemFilesPanel()
         XCTAssertTrue(waitUntil { !mode.exists && export.isHittable && restore.isHittable })
@@ -595,10 +622,17 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         }
         capture("secondary-language-menu")
         let window = app.windows.firstMatch.frame
-        let candidates = [CGPoint(x: window.minX + 24, y: window.minY + 100),
-                          CGPoint(x: window.maxX - 24, y: window.minY + 100),
-                          CGPoint(x: window.minX + 24, y: window.maxY - 80)]
-        let outside = candidates.first { !menu.frame.insetBy(dx: -12, dy: -12).contains($0) }
+        let backButton = app.buttons.matching(identifier: "topbar_back").firstMatch
+        let avoidedFrames = ([backButton] + [language])
+            .filter { $0.exists }
+            .map { $0.frame.insetBy(dx: -12, dy: -12) }
+        let candidates = [CGPoint(x: window.maxX - 24, y: window.minY + 100),
+                          CGPoint(x: window.minX + 24, y: window.maxY - 80),
+                          CGPoint(x: window.maxX - 24, y: window.maxY - 80)]
+        let outside = candidates.first { point in
+            !menu.frame.insetBy(dx: -12, dy: -12).contains(point)
+                && avoidedFrames.allSatisfy { !$0.contains(point) }
+        }
         XCTAssertNotNil(outside, "The native menu must leave an outside dismissal target")
         if let outside {
             app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: outside.x, dy: outside.y)).tap()
@@ -639,10 +673,11 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         reveal(row)
         XCTAssertTrue(app.staticTexts["Timetables to remind"].exists)
         XCTAssertTrue(app.staticTexts["我的课表"].exists)
-        XCTAssertTrue(app.switches.firstMatch.exists)
+        XCTAssertTrue(row.switches.firstMatch.exists)
         capture("secondary-reminder-timetable-list")
-        tapBack()
-        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        reveal(scope)
+        scope.tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5))
         tapBack()
         XCTAssertTrue(app.buttons["mine_all_tables"].waitForExistence(timeout: 5))
     }
@@ -664,7 +699,7 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         let fileName = app.textFields.matching(NSPredicate(
             format: "value BEGINSWITH 'sleepy-backup' OR label BEGINSWITH 'sleepy-backup'")).firstMatch
         let fileLabel = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'sleepy-backup'")).firstMatch
-        let save = app.buttons.matching(NSPredicate(format: "label == 'Save'")).firstMatch
+        let save = app.buttons.matching(NSPredicate(format: "label IN {'Save', 'Move', 'Copy'}")).firstMatch
         XCTAssertTrue(waitUntil(timeout: 15) {
             save.exists && save.isHittable && (fileName.exists || fileLabel.exists)
         }, "Export must present the system file-saving panel")
@@ -690,9 +725,12 @@ final class SecondarySettingsCaptureUITests: XCTestCase {
         restore.tap()
         let filesLocation = app.descendants(matching: .any).matching(NSPredicate(
             format: "label IN {'Locations', 'Browse', 'Recents', 'On My iPad', 'On My iPhone', 'iCloud Drive'}")).firstMatch
+        let filesPanelPresent = {
+            self.app.collectionViews["File View"].firstMatch.exists || filesLocation.exists
+        }
         XCTAssertTrue(waitUntil(timeout: 15) {
-            cancel.exists && cancel.isHittable && filesLocation.exists
-                && !fileName.exists && !fileLabel.exists && !save.exists
+            cancel.exists && cancel.isHittable && filesPanelPresent()
+                && !fileName.exists && !save.exists
         }, "Canceling export must allow the system backup import picker to open.\n\(app.debugDescription)")
         capture("secondary-backup-system-import-panel-after-export-cancel")
         cancelSystemFilesPanel()

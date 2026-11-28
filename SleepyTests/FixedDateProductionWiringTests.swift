@@ -93,11 +93,82 @@ final class FixedDateProductionWiringTests: XCTestCase {
         XCTAssertEqual(preview.specs.map(\.date), [date("2026-09-21")])
     }
 
+    func testSystemCalendarUsesDatedBellsAndRealLocalInstants() throws {
+        let period = PeriodTableEntity(name: "Later", nodesPerDay: 1,
+            timeJson: #"[{"node":1,"start":"08:00","end":"08:45"}]"#,
+            comboScheduleJson: """
+            {"publicSchedules":[{"name":"Late start","startDate":"2026-09-14","endDate":"2026-09-14",
+              "timeSlots":[{"number":1,"startTime":"09:30","endTime":"10:15"}]}]}
+            """)
+        let zone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let options = CalendarImportOptions(calendarId: "fixture", range: .SEMESTER,
+                                           applyHolidayTransfers: false, reminderMinutes: nil,
+                                           firstPeriodAlarmEnabled: false, firstPeriodAlarmMinutes: 60)
+        var explicit = course(id: 10, fixed: "2026-09-14")
+        explicit.ownTime = true
+        explicit.startTime = "13:10:45"
+        explicit.endTime = "13:55:50"
+        var regular = course()
+        regular.step = 1
+        let projected = SystemCalendarManager().buildEventSpecs(table: table, courses: [regular, explicit],
+            options: options, from: date("2026-09-07"), until: date("2026-09-21"),
+            periodTable: period, timeZone: zone)
+        XCTAssertEqual(projected.invalid, 0)
+        XCTAssertEqual(projected.specs.map(\.startHHmm), ["08:00", "09:30", "13:10:45"])
+        let clock = CourseReminderCalendar(timeZone: zone)
+        XCTAssertEqual(projected.specs[1].start, clock.instant(on: date("2026-09-14"), wallSeconds: 9 * 3600 + 30 * 60))
+        XCTAssertEqual(projected.specs[2].end, clock.instant(on: date("2026-09-14"), wallSeconds: 13 * 3600 + 55 * 60 + 50))
+    }
+
     func testCalendarRangeExtendsThroughPostSemesterTransferTarget() {
         let later = HolidayTransferEntry(sourceDate: date("2026-09-21"), targetDate: date("2026-10-04"), segmentId: "holiday")
         let range = SystemCalendarManager.selectedDateRange(table: table, range: .SEMESTER,
             today: date("2026-09-07"), transfers: [later])
         XCTAssertEqual(range.end, date("2026-10-05"))
+    }
+
+    func testDailyAgendaUsesOnlySelectedTableAndBellsForTheDisplayDate() async throws {
+        let database = try AppDatabase.inMemory()
+        let repository = ScheduleRepository(database)
+        let periodID = try database.periodTableDao.insert(PeriodTableEntity(name: "Autumn bells", nodesPerDay: 2,
+            timeJson: #"[{"node":1,"start":"09:30","end":"10:15"},{"node":2,"start":"10:30","end":"11:15"}]"#,
+            comboScheduleJson: """
+              {"publicSchedules":[{"name":"Makeup schedule","startDate":"2026-09-20","endDate":"2026-09-20",
+                "timeSlots":[{"number":1,"startTime":"08:30","endTime":"09:15"}]}]}
+              """))
+        var selected = table
+        selected.periodTableId = periodID
+        try database.timeTableDao.insert(selected)
+        let backup = TimeTableEntity(name: "Backup", startDate: table.startDate, id: table.id + 1)
+        try database.timeTableDao.insert(backup)
+        try database.timeTableDao.setDefault(selected.id)
+
+        var recurring = course()
+        recurring.type = 1 // Transfer lands in an even week, but must use the odd source week.
+        try database.courseDao.insert(recurring)
+        let fixed = course(id: 8, fixed: "2026-09-07")
+        try database.courseDao.insert(fixed)
+        var old = course(id: 9)
+        old.tableId = backup.id
+        old.courseName = "Backup course"
+        try database.courseDao.insert(old)
+
+        let transfers: (Int64) -> [HolidayTransferEntry] = { id in id == selected.id ? [self.transfer] : [] }
+        let holiday = try await loadDailyAgenda(repository: repository, targetDate: transfer.sourceDate,
+            allowsReminder: { _, _ in true }, transfersFor: transfers).agenda
+        let makeup = try await loadDailyAgenda(repository: repository, targetDate: transfer.targetDate,
+            allowsReminder: { _, _ in true }, transfersFor: transfers).agenda
+        XCTAssertEqual(holiday.sourceTables.map(\.id), [selected.id])
+        XCTAssertEqual(holiday.items.map { $0.first.course.id }, [fixed.id])
+        XCTAssertEqual(makeup.items.map { $0.first.course.id }, [recurring.id])
+        XCTAssertEqual(holiday.items.first?.first.startTimeText, "09:30")
+        XCTAssertEqual(makeup.items.first?.first.startTimeText, "08:30")
+
+        try database.timeTableDao.setDefault(backup.id)
+        let switched = try await loadDailyAgenda(repository: repository, targetDate: transfer.sourceDate,
+            allowsReminder: { _, _ in true }, transfersFor: transfers).agenda
+        XCTAssertEqual(switched.sourceTables.map(\.id), [backup.id])
+        XCTAssertEqual(switched.items.map { $0.first.course.id }, [old.id])
     }
 
     private final class Source: NotificationSchedulerBeforeClassDataSource {

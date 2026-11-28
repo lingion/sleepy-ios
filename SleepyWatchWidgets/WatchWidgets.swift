@@ -133,12 +133,15 @@ struct WatchComplicationEntryView: View {
     let entry: WatchComplicationEntry
 
     var body: some View {
-        switch family {
-        case .accessoryCircular: WatchCircularView(next: entry.next)
-        case .accessoryInline:   WatchInlineView(next: entry.next)
-        case .accessoryCorner:   WatchCornerView(next: entry.next)
-        default:                 WatchRectangularView(next: entry.next)
+        Group {
+            switch family {
+            case .accessoryCircular: WatchCircularView(next: entry.next)
+            case .accessoryInline:   WatchInlineView(next: entry.next)
+            case .accessoryCorner:   WatchCornerView(next: entry.next)
+            default:                 WatchRectangularView(next: entry.next)
+            }
         }
+        .watchMaterialSurface(family)
     }
 }
 

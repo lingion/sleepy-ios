@@ -196,7 +196,7 @@ struct PeriodTableEditScreen: View {
                         .frame(height: uiStyle == .liquidGlass ? nil : 56)   // ← SleepyTheme.Buttons.ctaHeight
                         .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                    .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                     .frame(maxWidth: .infinity, minHeight: 56)
                     .tint(colors.primary)
                     .accessibilityIdentifier("period_table_save")
@@ -214,7 +214,7 @@ struct PeriodTableEditScreen: View {
                             .frame(height: uiStyle == .liquidGlass ? nil : 48)   // ← SleepyTheme.Buttons.regularHeight
                             .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.errorContainer, prominent: true)
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+                        .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .tint(colors.errorContainer)
                     }
@@ -261,9 +261,9 @@ struct PeriodTableEditScreen: View {
         HStack {
             Button(action: handleBack) {
                 AndroidSettingsIcon(name: .arrowBack, size: 24)
-                    .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                    .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
             .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("back")))
             Spacer()
@@ -275,10 +275,10 @@ struct PeriodTableEditScreen: View {
                 // v1.0.56 T11: 分享作息表(原生格式 / JSON 二选一)
                 Button(action: { showShareSheet = true }) {
                     AndroidSettingsIcon(name: .share, size: 24)
-                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                        .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                         .foregroundColor(colors.onBackground)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+                .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
                 .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("period_table_share_sheet_title")))
                 Spacer().frame(width: 16)
@@ -290,10 +290,10 @@ struct PeriodTableEditScreen: View {
                     }
                 } label: {
                     AndroidSettingsIcon(name: .contentCopy, size: 24)
-                        .frame(width: uiStyle == .classic ? 48 : nil, height: uiStyle == .classic ? 48 : nil)
+                        .frame(width: uiStyle == .classic ? 48 : 34, height: uiStyle == .classic ? 48 : 34)
                         .foregroundColor(colors.onBackground)
                 }
-                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle))
+                .sleepyPlatformButtonStyle(cornerRadius: 20, compact: true, shape: .circle)
                 .frame(width: 48, height: 48)
             .accessibilityLabel(Text(L10n.t("period_table_copy")))
                 .accessibilityIdentifier("period_table_copy")
@@ -498,8 +498,10 @@ struct PeriodTableEditScreen: View {
                     dismissIdentifier: "period_table_copy_cancel")
         )) {
             VStack(alignment: .leading, spacing: 8) {
-                FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"))
-                    .accessibilityIdentifier("period_table_copy_name")
+                FieldTextField(text: $copyName, label: L10n.t("period_table_name_label"),
+                               identifier: "period_table_copy_name")
+                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
                     // ← 原版本 TextField(isError = nameTaken) (ktl L494): 输入框本体错误态。
                     //   在调用处补 M3 active indicator 底线，错误说明行紧随其下。
                     .overlay(alignment: .bottom) {

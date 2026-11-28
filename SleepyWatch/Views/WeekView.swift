@@ -1,9 +1,9 @@
 // WeekView.swift — 整周视图 (2026-10 watch 伴侣 App)
 // 语义 ← iOS 网格周模式 + WeekListWidgetLoader 同源:
-// · 列 = 周一起 7 天 (手表=手机固定口径, iOS 无周起始设置), visible_days 过滤;
-// · 列头 = 本地化星期 + show_date 镜像日期 + 节假日/调休标注 (有节假日或调休时
+// · 分组 = 周一起 7 天 (手表=手机固定口径, iOS 无周起始设置), visible_days 过滤;
+// · 分组标题 = 本地化星期 + show_date 镜像日期 + 节假日/调休标注 (有节假日或调休时
 //   直接写「放假/补班 X」, 灰显由 shouldGrey 决策核判定 — 读磁盘镜像纯函数);
-// · 列内课行 = store.courses(on:) (调休换日 + 学期过滤 + 节次排序共享层全口径)。
+// · 分组内课行 = store.courses(on:) (调休换日 + 学期过滤 + 节次排序共享层全口径)。
 
 import SwiftUI
 
@@ -15,16 +15,17 @@ struct WeekView: View {
         let scheme = WatchPalette.scheme(envDark: envScheme == .dark)
         Group {
             if let table = store.currentTable() {
-                ScrollView(.horizontal) {
-                    HStack(alignment: .top, spacing: 8) {
-                        // 锚定周 ← ScheduleViewModel:259 / WidgetWeekSource.resolvedToday:
-                        // nearest_busy_day 镜像开且今日无剩余课 → 跳最近有课日所在周
-                        ForEach(weekColumns(anchor: store.weekAnchorDate(table)), id: \.self) { date in
-                            dayColumn(date: date, table: table, scheme: scheme)
-                        }
+                // Horizontal swipes belong to the root tab pager. Use the same
+                // vertical scrolling axis as Today, including during fast tab changes.
+                let courses = store.allCourses(table: table)
+                let period = store.boundPeriod(for: table)
+                List {
+                    ForEach(weekColumns(anchor: store.weekAnchorDate(table, courses: courses)), id: \.self) { date in
+                        daySection(date: date, table: table, period: period, courses: courses, scheme: scheme)
                     }
-                    .padding(8)
                 }
+                .listStyle(.plain)
+                .accessibilityIdentifier("watch_week_agenda")
             } else {
                 Text(L10n.t("watch_no_table_hint"))
                     .font(.footnote)
@@ -34,8 +35,6 @@ struct WeekView: View {
             }
         }
         .navigationTitle(Text(L10n.t("tab_schedule")))
-        // watchOS List 默认缩进在手表上留大片死边, 归零
-        .environment(\.defaultMinListRowHeight, 30)
     }
 
     /// 锚定周 (周一..周日) 中可见的星期 (visible_days 1=一..7=日)
@@ -44,61 +43,56 @@ struct WeekView: View {
             .filter { store.visibleDays.contains(DateUtils.todayDayOfWeek(today: $0)) }
     }
 
-    @ViewBuilder
-    private func dayColumn(date: Date, table: TimeTableEntity, scheme: WidgetScheme) -> some View {
-        let courses = store.courses(on: date, table: table)
+    private func daySection(date: Date, table base: TimeTableEntity, period: PeriodTableEntity?,
+                            courses loaded: [CourseEntity], scheme: WidgetScheme) -> some View {
+        let table = store.tableForDisplay(base, on: date, period: period)
+        let courses = store.courses(on: date, table: table, previewBeforeStart: true, loadedCourses: loaded)
         let grey = store.shouldGrey(date, tableId: table.id)
-        let isTransferDay = store.isTransferSourceDay(date, tableId: table.id)
-        VStack(alignment: .leading, spacing: 4) {
-            // 列头: 星期 (灰显日降对比) + 日期 (show_date) + 标注行
-            VStack(alignment: .leading, spacing: 0) {
-                Text(DateUtils.localizedDay(DateUtils.todayDayOfWeek(today: date)))
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(grey ? scheme.onSurfaceVariant : scheme.primary)
-                if store.showDate {
-                    Text(DateUtils.shortDate(date))
-                        .font(.system(size: 9))
-                        .foregroundColor(scheme.onSurfaceVariant)
-                }
-                if grey {
-                    // 「放假 X」/「补班 X」/「无课」 — store 内同源前缀复用 iOS 键。
-                    // WidgetScheme 无 error token → WatchPalette.errorColor (M3 light=#B3261E/dark=#F2B8B5)
-                    Text(store.greyAnnotation(date, tableId: table.id))
-                        .font(.system(size: 9))
-                        .foregroundColor(WatchPalette.errorColor(isDark: scheme.isDark))
-                        .lineLimit(1)
-                } else if isTransferDay {
-                    // 用户调休上班日 (非法定节假日): 那天上换日后的课 — 列已呈现,
-                    // 仅点一枚圆点提示「此列为调休得来」(WidgetScheme 无 tertiary → primary)
-                    Circle().fill(scheme.primary).frame(width: 5, height: 5)
-                        .accessibilityLabel(L10n.t("holiday_list_workdays"))
-                }
+        let isTransferDay = store.isMakeupDay(date, tableId: table.id)
+
+        return Section {
+            if courses.isEmpty {
+                Text(L10n.t("no_course"))
+                    .font(.footnote)
+                    .foregroundColor(scheme.onSurfaceVariant)
             }
             ForEach(courses) { course in
                 NavigationLink {
                     CourseDetailView(course: course, table: table, groupRows: courses)
                 } label: {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(store.slotLabel(course, table: table))
-                            .font(.system(size: 9, weight: .medium).monospacedDigit())
-                            .foregroundColor(scheme.onSurfaceVariant)
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(CourseDisplayUtil.displayName(course, store.useGridAlias && !course.alias.isEmpty))
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.footnote.weight(.semibold))
                             .foregroundColor(scheme.onSurface)
-                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(store.slotLabel(course, table: table))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(scheme.onSurfaceVariant)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(4)
-                    .background(RoundedRectangle(cornerRadius: SleepyShapes.small).fill(scheme.surfaceVariant))
+                    .accessibilityElement(children: .combine)
                 }
-                .buttonStyle(SleepyButtonStyle())
             }
-            if courses.isEmpty && !grey && !isTransferDay {
-                Text(L10n.t("no_course"))
-                    .font(.system(size: 9))
-                    .foregroundColor(scheme.onSurfaceVariant)
+        } header: {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(DateUtils.localizedDay(DateUtils.todayDayOfWeek(today: date)))
+                        .foregroundColor(grey ? scheme.onSurfaceVariant : scheme.primary)
+                    if store.showDate {
+                        Text(DateUtils.shortDate(date))
+                            .foregroundColor(scheme.onSurfaceVariant)
+                    }
+                    if isTransferDay && !grey {
+                        Circle().fill(scheme.primary).frame(width: 5, height: 5)
+                            .accessibilityLabel(L10n.t("holiday_list_workdays"))
+                    }
+                }
+                if grey {
+                    Text(store.greyAnnotation(date, tableId: table.id))
+                        .foregroundColor(WatchPalette.errorColor(isDark: scheme.isDark))
+                }
             }
+            .accessibilityElement(children: .combine)
         }
-        .frame(width: 64, alignment: .leading)
     }
 }

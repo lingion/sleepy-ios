@@ -70,12 +70,146 @@ struct WatchProgressRing: View {
     let progress: Double
     var body: some View {
         ZStack {
-            Circle().stroke(.foreground.opacity(0.25), lineWidth: 3)
+            Circle().strokeBorder(.foreground.opacity(0.25), lineWidth: 3)
             Circle()
                 .trim(from: 0, to: min(1, max(0, progress)))
                 .stroke(style: StrokeStyle(lineWidth: 3, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .widgetAccentable()
         }
+    }
+}
+
+
+struct WatchMaterialPalette: Equatable {
+    let usesMaterial: Bool
+    let primaryText: Color
+    let secondaryText: Color
+    let accent: Color
+    let inProgressStart: Color
+    let stripCourseFill: Color
+    let stripCourseStroke: Color
+    let stripFreeStroke: Color
+    let stripActiveText: Color
+
+    static let systemDefault = WatchMaterialPalette(
+        usesMaterial: false,
+        primaryText: .primary,
+        secondaryText: .secondary,
+        accent: .primary,
+        inProgressStart: .primary,
+        stripCourseFill: Color.primary.opacity(0.18),
+        stripCourseStroke: .primary,
+        stripFreeStroke: .secondary,
+        stripActiveText: .primary
+    )
+
+    static func resolve(family: WidgetFamily, isFullColor: Bool, showsBackground: Bool,
+                        scheme: WidgetScheme) -> WatchMaterialPalette {
+        let material = family == .accessoryRectangular && isFullColor && showsBackground
+        guard material else { return .systemDefault }
+        return WatchMaterialPalette(
+            usesMaterial: true,
+            primaryText: scheme.onSurface,
+            secondaryText: scheme.onSurfaceVariant,
+            accent: scheme.primary,
+            inProgressStart: scheme.primary,
+            stripCourseFill: scheme.primaryContainer,
+            stripCourseStroke: scheme.primary,
+            stripFreeStroke: scheme.onSurfaceVariant.opacity(0.45),
+            stripActiveText: scheme.onPrimaryContainer
+        )
+    }
+}
+
+private struct WatchMaterialPaletteKey: EnvironmentKey {
+    static let defaultValue = WatchMaterialPalette.systemDefault
+}
+
+extension EnvironmentValues {
+    var watchMaterialPalette: WatchMaterialPalette {
+        get { self[WatchMaterialPaletteKey.self] }
+        set { self[WatchMaterialPaletteKey.self] = newValue }
+    }
+}
+
+// Material color roles are used only on full-color surfaces. Face tinting and
+// monochrome rendering keep the system's foreground and accent groups.
+struct WatchMaterialSurface: ViewModifier {
+    let family: WidgetFamily
+
+    @ViewBuilder func body(content: Content) -> some View {
+        #if compiler(>=5.9)
+        if #available(watchOS 10.0, *) {
+            content.modifier(WatchMaterialSurfaceWatchOS10(family: family))
+        } else {
+            content.modifier(WatchMaterialSurfaceWatchOS9(family: family))
+        }
+        #else
+        content.modifier(WatchMaterialSurfaceWatchOS9(family: family))
+        #endif
+    }
+}
+
+#if compiler(>=5.9)
+@available(watchOS 10.0, *)
+private struct WatchMaterialSurfaceWatchOS10: ViewModifier {
+    @Environment(\.widgetRenderingMode) private var rendering
+    @Environment(\.showsWidgetContainerBackground) private var showsBackground
+    @Environment(\.colorScheme) private var colorScheme
+
+    let family: WidgetFamily
+
+    func body(content: Content) -> some View {
+        let prefs = AppPrefs.shared
+        let isDark = prefs.isDarkMode(isSystemDark: colorScheme == .dark)
+        let scheme = resolveWidgetScheme(themeKey: prefs.getThemeKey(), isDark: isDark)
+        let palette = WatchMaterialPalette.resolve(
+            family: family,
+            isFullColor: rendering == .fullColor,
+            showsBackground: showsBackground,
+            scheme: scheme
+        )
+        return content
+            .foregroundStyle(palette.primaryText)
+            .tint(palette.accent)
+            .environment(\.watchMaterialPalette, palette)
+            .containerBackground(for: .widget) {
+                if palette.usesMaterial {
+                    scheme.surfaceContainer
+                } else {
+                    Color.clear
+                }
+            }
+    }
+}
+#endif
+
+private struct WatchMaterialSurfaceWatchOS9: ViewModifier {
+    @Environment(\.widgetRenderingMode) private var rendering
+    @Environment(\.colorScheme) private var colorScheme
+
+    let family: WidgetFamily
+
+    func body(content: Content) -> some View {
+        let prefs = AppPrefs.shared
+        let isDark = prefs.isDarkMode(isSystemDark: colorScheme == .dark)
+        let scheme = resolveWidgetScheme(themeKey: prefs.getThemeKey(), isDark: isDark)
+        let palette = WatchMaterialPalette.resolve(
+            family: family,
+            isFullColor: rendering == .fullColor,
+            showsBackground: true,
+            scheme: scheme
+        )
+        return content
+            .foregroundStyle(palette.primaryText)
+            .tint(palette.accent)
+            .environment(\.watchMaterialPalette, palette)
+    }
+}
+
+extension View {
+    func watchMaterialSurface(_ family: WidgetFamily) -> some View {
+        modifier(WatchMaterialSurface(family: family))
     }
 }

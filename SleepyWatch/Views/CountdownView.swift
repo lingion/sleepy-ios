@@ -20,10 +20,9 @@ struct CountdownView: View {
         // 每分钟刷新一次 (TimelineView 是 watchOS 原生省电刷新机制)
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let now = context.date
-            let courses = store.todayCourses(table: table)
-                .map { $0.normalizeNode(timeJson: table.timeJson) }
-                .sorted { $0.startNode < $1.startNode }
-            let state = computeState(courses: courses, table: table, now: now)
+            let effective = store.tableForDisplay(table, on: now)
+            let courses = store.courses(on: now, table: effective)
+            let state = computeState(courses: courses, table: effective, now: now)
 
             ZStack {
                 // 背景: 进行中 = primaryContainer (与 iOS Stat 周次胶囊同源色);
@@ -76,56 +75,19 @@ struct CountdownView: View {
     }
 
     private func computeState(courses: [CourseEntity], table: TimeTableEntity, now: Date) -> State {
-        let nodes = TimeTableUtils.parseNodes(table.timeJson)
-        let cal = Calendar(identifier: .gregorian)
-        let day = cal.startOfDay(for: now)
-
-        func clock(_ s: String) -> Date? {
-            guard let p = SleepyNativeFormat.parseClock(s) else { return nil }
-            return day.addingTimeInterval(TimeInterval(p.h * 3600 + p.min * 60))
+        let bells = ReminderBellTimes(table.timeJson)
+        let items = courses.compactMap { WatchAgendaCore.item(for: $0, bells: bells, now: now) }
+            .sorted { $0.startDate < $1.startDate }
+        if let current = WatchAgendaCore.currentClass(in: items, now: now) {
+            let remaining = Int(current.endDate.timeIntervalSince(now) / 60)
+            return State(phase: .inClass, label: L10n.t("watch_countdown_in_class"),
+                         countdownText: "\(max(remaining, 0))", courseName: current.courseName)
         }
-
-        func interval(_ c: CourseEntity) -> (Date, Date)? {
-            if (c.ownTime || c.isIrregularTime), !c.startTime.isEmpty, !c.endTime.isEmpty,
-               let st = clock(c.startTime), let en = clock(c.endTime) {
-                return (st, en)
-            }
-            if c.isIrregularNode { return nil }
-            guard let s = nodes.first(where: { $0.node == c.startNode }),
-                  let e = nodes.first(where: { $0.node == c.startNode + c.step - 1 })
-            else { return nil }
-            let st = combine(cal, day, s.start)
-            let en = combine(cal, day, e.end)
-            return (st, en)
+        if let next = WatchAgendaCore.nextClass(in: items, now: now) {
+            return State(phase: .between, label: L10n.t("watch_countdown_next"),
+                         countdownText: "\(next.minutesUntil(from: now))", courseName: next.courseName)
         }
-
-        // 找进行中 / 下一节
-        for c in courses {
-            guard let (st, en) = interval(c) else { continue }
-            if now >= st && now < en {
-                let remaining = Int(en.timeIntervalSince(now) / 60)
-                return State(phase: .inClass,
-                             label: L10n.t("watch_countdown_in_class"),
-                             countdownText: "\(max(remaining, 0))",
-                             courseName: c.courseName)
-            }
-            if now < st {
-                let until = Int(st.timeIntervalSince(now) / 60)
-                return State(phase: .between,
-                             label: L10n.t("watch_countdown_next"),
-                             countdownText: "\(until)",
-                             courseName: c.courseName)
-            }
-        }
-
-        return State(phase: .done,
-                     label: L10n.t("watch_countdown_done"),
-                     countdownText: "—",
-                     courseName: nil)
-    }
-
-    private func combine(_ cal: Calendar, _ day: Date, _ time: Date) -> Date {
-        let secs = cal.component(.hour, from: time) * 3600 + cal.component(.minute, from: time) * 60
-        return day.addingTimeInterval(TimeInterval(secs))
+        return State(phase: .done, label: L10n.t("watch_countdown_done"),
+                     countdownText: "—", courseName: nil)
     }
 }

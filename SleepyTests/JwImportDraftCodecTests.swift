@@ -40,6 +40,58 @@ final class JwImportDraftCodecTests: XCTestCase {
         XCTAssertEqual(snapshot.smartConfigJson, back.smartConfigJson)
     }
 
+    func testDatedRulesRoundTripWithoutNormalizingTheRawSource() throws {
+        var value = validSnapshot()
+        value.comboScheduleJson = #"{ "name":"原文🍂","publicSchedules": [] }"#
+        let text = JwImportDraftCodec.toJson(value)
+        let restored = try XCTUnwrap(JwImportDraftCodec.fromJson(text))
+        XCTAssertEqual(restored, value)
+        let legacy = try XCTUnwrap(JwImportDraftCodec.fromJson(JwImportDraftCodec.toJson(validSnapshot())))
+        XCTAssertEqual(legacy.comboScheduleJson, "")
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        object["comboScheduleJson"] = [:]
+        let wrongType = String(decoding: try JSONSerialization.data(withJSONObject: object), as: UTF8.self)
+        XCTAssertNil(JwImportDraftCodec.fromJson(wrongType))
+    }
+
+    func testPortableSchoolIdentityDoesNotGrantUpdateAndCatalogMismatchFailsClosed() throws {
+        var entry = school
+        entry.catalogId = "fixture-entry"
+        let json = JwImportDraftCodec.toSchoolSourceJson(entry)
+        let stored = try XCTUnwrap(JwImportDraftCodec.readSchoolSource(json))
+        XCTAssertEqual(stored.school, entry)
+        var table = TimeTableEntity(name: "Imported", startDate: "2026-09-07", jwSchoolSourceJson: json, id: 17)
+        XCTAssertNil(JwImportDraftCodec.authorizedUpdate(for: table, catalog: [entry]))
+        table.jwSchoolSourceVerified = true
+        XCTAssertEqual(JwImportDraftCodec.authorizedUpdate(for: table, catalog: [entry])?.id, 17)
+        XCTAssertNil(JwImportDraftCodec.authorizedUpdate(for: table, catalog: []))
+        XCTAssertNil(JwImportDraftCodec.authorizedUpdate(for: table, catalog: [entry, entry]))
+        var changed = entry
+        changed.type = "other"
+        XCTAssertNil(JwImportDraftCodec.authorizedUpdate(for: table, catalog: [changed]))
+        let exported = try JSONEncoder().encode(table)
+        XCTAssertFalse(String(decoding: exported, as: UTF8.self).contains("jwSchoolSourceVerified"))
+        let decoded = try JSONDecoder().decode(TimeTableEntity.self, from: exported)
+        XCTAssertFalse(decoded.jwSchoolSourceVerified)
+        XCTAssertEqual(decoded.jwSchoolSourceJson, json)
+    }
+
+    func testVerifiedUpdateKeepsTheExactSelectedAdapter() throws {
+        let school = JwSchoolInfo(sortKey: "Q", name: "Fixture", url: "https://jw.example.edu/campus",
+            type: JwProtocol.TYPE_SG_ASSET, catalogId: "fixture")
+        let manifest = Data(#"{"schools":[{"sgName":"Fixture","adapters":[{"adapterId":"a","jsPath":"a.js","importUrl":"https://jw.example.edu/other"},{"adapterId":"b","jsPath":"b.js","importUrl":"https://jw.example.edu/campus"}]}]}"#.utf8)
+        let choices = try JwSgAssetBridge.entries(schoolName: school.name, manifest: manifest)
+        var table = TimeTableEntity(name: "Fixture", startDate: "2026-09-07",
+            jwSchoolSourceJson: JwImportDraftCodec.toSchoolSourceJson(school, selectedAdapterId: "b"),
+            jwSchoolSourceVerified: true, id: 19)
+        let update = JwImportDraftCodec.authorizedUpdate(for: table, catalog: [school], adapters: { _ in choices })
+        XCTAssertEqual(update?.adapterId, "b")
+        XCTAssertEqual(update?.school.url, school.url)
+        XCTAssertNil(JwImportDraftCodec.authorizedUpdate(for: table, catalog: [school], adapters: { _ in Array(choices.prefix(1)) }))
+        table.jwSchoolSourceJson = JwImportDraftCodec.toSchoolSourceJson(school)
+        XCTAssertNil(JwImportDraftCodec.authorizedUpdate(for: table, catalog: [school], adapters: { _ in choices }))
+    }
+
     func testUsedDefaultTimesRoundTripsWhenTrue() throws {
         // 默认作息补齐标志随快照往返, 恢复草稿后提示不丢。
         var snapshot = validSnapshot()

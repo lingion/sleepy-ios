@@ -56,7 +56,7 @@ struct ManagementPage: View {
                             .frame(minWidth: style == .classic ? 58 : nil,
                                    minHeight: style == .classic ? 48 : nil)
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle())
+                    .sleepyPlatformButtonStyle()
                     .tint(colors.onSurfaceVariant)
                     .frame(minHeight: 48)
                     .accessibilityIdentifier("manage_all_tables")

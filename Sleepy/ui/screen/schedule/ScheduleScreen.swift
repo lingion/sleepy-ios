@@ -26,6 +26,15 @@ struct ScheduleCourseDetailRequest: Identifiable {
     let table: TimeTableEntity?
 }
 
+/// Keep the floating action occurrence request at the window level so layout changes do not dismiss the editor.
+struct ScheduleFloatingOccurrenceRequest: Identifiable {
+    let id = UUID()
+    let occurrence: CourseOccurrence
+    let table: TimeTableEntity
+    let startInEdit: Bool
+    var startWithDelete = false
+}
+
 private struct WeekLabelSurface: ViewModifier {
     @Environment(\.sleepyUIStyle) private var style
     let grouped: Bool
@@ -42,7 +51,7 @@ private struct ScheduleWeekLabelButtonStyle: PrimitiveButtonStyle {
                 .buttonStyle(SleepyButtonStyle())
         } else {
             Button(role: configuration.role, action: configuration.trigger) { configuration.label }
-                .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: SleepyShapes.medium, compact: true))
+                .sleepyPlatformButtonStyle(cornerRadius: SleepyShapes.medium, compact: true)
         }
     }
 }
@@ -66,14 +75,17 @@ private struct WeekGroupSurface: ViewModifier {
 
 struct ScheduleScreen: View {
     @Environment(\.localWakeUpColors) private var colors
+    @Environment(\.sleepyTabIsVisible) private var tabIsVisible
     @ObservedObject var viewModel: ScheduleViewModel
     // ← 原版本 b96c865b: 视图模式提升到 AppRoot 会话层(切 tab/开 overlay 不再弹回启动默认),
     // 顶部手动切换只改会话态, 不回写启动偏好(KEY_START_VIEW 既有分离设计)
     @Binding var viewMode: ViewMode
     var onGoImport: () -> Void = {}
-    var onShareRequested: ((TimeTableEntity, [CourseEntity]) -> Void)? = nil
+    var onShareRequested: ((TimeTableEntity, [CourseEntity], PeriodTableEntity?) -> Void)? = nil
     var onCourseDetailRequested: ((ScheduleCourseDetailRequest) -> Void)? = nil
     var courseDetailPresented = false
+    var onFloatingOccurrenceRequested: ((ScheduleFloatingOccurrenceRequest) -> Void)? = nil
+    var floatingOccurrencePresented = false
     var onManualAdd: () -> Void = {}
     var onCreateTable: () -> Void = {}
     var onEditCourse: (CourseEntity) -> Void = { _ in }
@@ -174,7 +186,7 @@ struct ScheduleScreen: View {
                     onShare: {
                         quickAdd.dismiss()
                         if let onShareRequested, let table = state.effectiveCurrentTable {
-                            onShareRequested(table, state.courses)
+                            onShareRequested(table, state.courses, state.effectivePeriodTable)
                         } else { showShareSheet = true }
                     },
                     hasUndoSnapshot: undoManager.hasSnapshot,
@@ -219,8 +231,10 @@ struct ScheduleScreen: View {
                           onRowHeightScaleChange: { rowHeightScale = $0 },
                           pinchZoomEnabled: AppPrefs.shared.isGridPinchZoom(),
                           dragEnabled: !showWeekJumpMenu && !showTableSwitcher && !showShareSheet
-                            && selectedCourse == nil && !courseDetailPresented,
+                            && selectedCourse == nil && !courseDetailPresented && !floatingOccurrencePresented,
                           quickAdd: quickAdd, quickAddEnabled: onAddAt != nil,
+                          floatingOccurrencePresented: floatingOccurrencePresented,
+                          onFloatingOccurrenceRequested: onFloatingOccurrenceRequested,
                           onQuickAdd: { week, day, node, step in
                               guard let table = state.currentTable else { return }
                               onAddAt?(table.id, week, day, node, step)
@@ -232,7 +246,8 @@ struct ScheduleScreen: View {
                         quickAdd.dismiss()
                         onCourseDetailRequested(ScheduleCourseDetailRequest(
                             course: course, allCourses: detailCourses(for: page),
-                            displayDate: displayDate, table: state.effectiveCurrentTable))
+                            displayDate: displayDate,
+                            table: displayDate.flatMap { state.effectiveTable(on: $0) } ?? state.effectiveCurrentTable))
                     } else {
                         selectedCourseWeek = page
                         selectedCourseDate = displayDate
@@ -240,6 +255,7 @@ struct ScheduleScreen: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -251,6 +267,7 @@ struct ScheduleScreen: View {
         .onChange(of: showWeekJumpMenu) { if $0 { quickAdd.dismiss() } }
         .onChange(of: showTableSwitcher) { if $0 { quickAdd.dismiss() } }
         .onChange(of: showShareSheet) { if $0 { quickAdd.dismiss() } }
+        .onChange(of: tabIsVisible) { if !$0 { quickAdd.dismiss() } }
         .onDisappear { quickAdd.dismiss() }
         // v7.10.14 课表切换弹窗(← TableSwitcherDialog)
         .centeredDialog(isPresented: $showTableSwitcher) {
@@ -266,7 +283,7 @@ struct ScheduleScreen: View {
         // v7.10.7 顶栏分享 → 格式选择弹层(JSON / 分享文本 / ICS)
         .sheet(isPresented: $showShareSheet) {
             if let table = state.effectiveCurrentTable {
-                ShareScheduleSheet(table: table, courses: state.courses,
+                ShareScheduleSheet(table: table, courses: state.courses, periodTable: state.effectivePeriodTable,
                                    onDismiss: { showShareSheet = false })
             }
         }
@@ -327,7 +344,8 @@ struct ScheduleScreen: View {
                     onEditCourse(state.courses.first { $0.id == c.id } ?? c)
                 },
                 // issue#40: 详情页时间域与网格同源 = 水合表 effectiveCurrentTable
-                timeJson: state.effectiveRenderTimeJson,
+                timeJson: selectedCourseDate.flatMap { state.effectiveRenderTimeJson(on: $0) }
+                    ?? state.effectiveRenderTimeJson,
                 displayDate: selectedCourseDate,
                 occurrenceTable: state.effectiveCurrentTable,
                 occurrenceRepository: viewModel.occurrenceRepository,
@@ -478,7 +496,7 @@ private struct WeekPager: View {
     @State private var dragHostWeek: Int?
     @State private var pagerEpoch: UInt = 0
     @State private var gridContributions = WeekGridContributions()
-    @State private var floatingOccurrence: FloatingOccurrenceRequest?
+    @State private var floatingOccurrence: ScheduleFloatingOccurrenceRequest?
     let viewMode: ViewMode
     let pagerMaxWeek: Int
     let displayMode: String
@@ -496,6 +514,8 @@ private struct WeekPager: View {
     let dragEnabled: Bool
     @ObservedObject var quickAdd: QuickAddCourseState
     let quickAddEnabled: Bool
+    let floatingOccurrencePresented: Bool
+    let onFloatingOccurrenceRequested: ((ScheduleFloatingOccurrenceRequest) -> Void)?
     let onQuickAdd: (Int, Int, Int, Int) -> Void
     let onCourseClick: (CourseEntity, Int) -> Void
 
@@ -510,9 +530,7 @@ private struct WeekPager: View {
     }
     private struct GreyRequest: Hashable {
         let context: GreyContext
-        let selectedWeek: Int
         let maxWeek: Int
-        let sourceWeek: Int?
     }
     private struct GreyCache {
         let context: GreyContext
@@ -523,19 +541,20 @@ private struct WeekPager: View {
         return GreyRequest(context: GreyContext(tableId: state.selectedTableId,
             startDate: state.currentTable?.startDate ?? "",
             transfers: state.transfers.flatMap { [$0.sourceDate, $0.targetDate] }, settings: greySettings),
-            selectedWeek: state.selectedWeek, maxWeek: pagerMaxWeek, sourceWeek: dragHostWeek)
+            maxWeek: pagerMaxWeek)
     }
     private func greyDays(for week: Int) -> Set<Int> {
         guard let cache = greyCache, cache.context == greyRequest.context else { return [] }
         return cache.daysByWeek[week] ?? []
     }
 
-    private struct FloatingOccurrenceRequest: Identifiable {
-        let id = UUID()
-        let occurrence: CourseOccurrence
-        let table: TimeTableEntity
-        let startInEdit: Bool
-        var startWithDelete = false
+    private func presentFloatingOccurrence(_ request: ScheduleFloatingOccurrenceRequest) {
+        if let onFloatingOccurrenceRequested {
+            quickAdd.dismiss()
+            onFloatingOccurrenceRequested(request)
+        } else {
+            floatingOccurrence = request
+        }
     }
 
     var body: some View {
@@ -612,7 +631,7 @@ private struct WeekPager: View {
                     onDismiss: { floatingOccurrence = nil }, startInEdit: request.startInEdit,
                     startWithDelete: request.startWithDelete)
             }
-            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification, object: UserDefaults.standard)
                 .receive(on: RunLoop.main)) { _ in
                 let settings = HolidayManager.greySettingsSignature()
                 if settings != greySettings { greySettings = settings }
@@ -622,15 +641,77 @@ private struct WeekPager: View {
             }
     }
 
+    private struct WeekPageSignature: Hashable {
+        let page: Int
+        let viewMode: ViewMode
+        let displayMode: String
+        let showDate: Bool
+        let visibleDays: Set<Int>
+        let tableId: Int64?
+        let startDate: String
+        let maxWeek: Int
+        let renderTimeJson: String?
+        let effectivePeriodTable: PeriodTableEntity?
+        let courses: [CourseEntity]
+        let greyDays: Set<Int>
+        let transfers: [HolidayTransferEntry]
+        let topOverrides: [String: Int64]
+        let rotationSteps: [String: Int]
+        let rowHeightScale: CGFloat
+        let pinchZoomEnabled: Bool
+        let dragEnabled: Bool
+        let quickAddActive: Bool
+        let dragHostWeek: Int?
+        let dragSelectedWeek: Int
+        let pendingMoveNil: Bool
+        let prefsRevision: UInt64
+    }
+
+    private func pageSignature(for page: Int, state: ScheduleState,
+                               pinchZoomEnabled: Bool, prefsRevision: UInt64) -> AnyHashable {
+        WeekPageSignature(
+            page: page,
+            viewMode: viewMode,
+            displayMode: displayMode,
+            showDate: showDate,
+            visibleDays: visibleDays,
+            tableId: state.selectedTableId,
+            startDate: state.currentTable?.startDate ?? "",
+            maxWeek: state.currentTable?.maxWeek ?? 0,
+            renderTimeJson: state.effectiveRenderTimeJson,
+            effectivePeriodTable: state.effectivePeriodTable,
+            courses: state.courses,
+            greyDays: greyDays(for: page),
+            transfers: state.transfers,
+            topOverrides: topOverrides,
+            rotationSteps: rotationSteps,
+            rowHeightScale: rowHeightScale,
+            pinchZoomEnabled: pinchZoomEnabled,
+            dragEnabled: dragEnabled,
+            quickAddActive: quickAddEnabled && dragEnabled && viewModel.pendingCourseMove == nil,
+            dragHostWeek: dragHostWeek,
+            dragSelectedWeek: dragHostWeek == nil ? 0 : state.selectedWeek,
+            pendingMoveNil: viewModel.pendingCourseMove == nil,
+            prefsRevision: prefsRevision
+        )
+    }
+
     private var pages: some View {
         let state = viewModel.state
         let epoch = pagerEpoch
         let tableID = state.selectedTableId
+        let pinchEnabled = AppPrefs.shared.isGridPinchZoom()
+        let prefsRev = AppPrefs.shared.mutationRevision
         // The native page controller explicitly animates programmatic selection.
         // A held course keeps its source host alive while the existing page stack moves.
         return NativeWeekPager(selection: min(max(dragHostWeek ?? state.selectedWeek, 1), pagerMaxWeek),
                                maxWeek: pagerMaxWeek,
                                animationsEnabled: dragHostWeek == nil,
+                               pageSignature: { page in
+                                   pageSignature(for: page, state: state,
+                                                 pinchZoomEnabled: pinchEnabled,
+                                                 prefsRevision: prefsRev)
+                               },
                                onSelect: { newWeek in
             guard epoch == pagerEpoch, tableID == viewModel.state.selectedTableId,
                   dragHostWeek == nil, (1...pagerMaxWeek).contains(newWeek) else { return }
@@ -648,7 +729,7 @@ private struct WeekPager: View {
                     }
                 }
                 .clipped()
-                .animation(weekPageAnimation, value: state.selectedWeek)
+                .animation(dragHostWeek == nil ? nil : weekPageAnimation, value: state.selectedWeek)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -670,6 +751,18 @@ private struct WeekPager: View {
                     .allowsHitTesting(page == state.selectedWeek)
             }
         }
+    }
+
+    private func renderedWeekBellSchedules(state: ScheduleState, week: Int) -> [Int: String] {
+        guard let table = state.currentTable, let period = state.effectivePeriodTable,
+              !period.comboScheduleJson.isEmpty else { return [:] }
+        var values: [Int: String] = [:]
+        for day in visibleDays {
+            if let date = CourseOccurrences.date(startDate: table.startDate, week: week, day: day) {
+                values[day] = state.effectiveRenderTimeJson(on: date)
+            }
+        }
+        return values
     }
 
     private func weekPage(_ page: Int, renderSelectedWeek: Int, publishesDropGrid: Bool) -> some View {
@@ -700,6 +793,7 @@ private struct WeekPager: View {
                                      displayMode: displayMode,
                                      // issue#40: 时间域读水合表 ← 原版本 effectiveCurrentTable?.timeJson ?: ""
                                      timeJson: state.effectiveRenderTimeJson ?? "",
+                                     dayTimeJson: renderedWeekBellSchedules(state: state, week: page),
                                      startDate: state.currentTable?.startDate ?? "",
                                      currentWeek: page,
                                      onCourseClick: { onCourseClick($0, page) },
@@ -732,8 +826,11 @@ private struct WeekPager: View {
                                       dragMaxWeek: state.currentTable?.maxWeek ?? 0,
                                       dragTransfers: state.transfers,
                                       quickAddState: quickAdd,
-                                      quickAddEnabled: quickAddEnabled && dragEnabled && page == state.selectedWeek
+                                      quickAddEnabled: quickAddEnabled && dragEnabled
                                         && viewModel.pendingCourseMove == nil,
+                                      canQuickAddOnPage: { [weak viewModel] in
+                                          viewModel?.state.selectedWeek == page
+                                      },
                                       onQuickAdd: { day, node, step in
                                           guard drag.source == nil, viewModel.pendingCourseMove == nil else { return }
                                           onQuickAdd(page, day, node, step)
@@ -748,7 +845,6 @@ private struct WeekPager: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.courseDragContext, viewMode == .cards && publishesDropGrid ? drag : nil)
         .environment(\.courseDragWeek, page)
-        .accessibilityHidden(page != state.selectedWeek)
         .tag(page)
     }
 
@@ -782,15 +878,15 @@ private struct WeekPager: View {
                     dragError = true
                     return
                 }
-                floatingOccurrence = FloatingOccurrenceRequest(occurrence: occurrence,
-                    table: table, startInEdit: editing, startWithDelete: !editing)
+                presentFloatingOccurrence(ScheduleFloatingOccurrenceRequest(occurrence: occurrence,
+                    table: table, startInEdit: editing, startWithDelete: !editing))
             }))
         .overlay(CourseDragProjection(drag: drag))
         .overlay(CourseDragEdgePeek(drag: drag))
     }
 
     private func openWeekOccurrence(_ projected: CourseEntity, displayWeek: Int) {
-        guard dragEnabled, floatingOccurrence == nil,
+        guard dragEnabled, floatingOccurrence == nil, !floatingOccurrencePresented,
               projected.tableId == viewModel.state.selectedTableId else { return }
         do {
             let repository = viewModel.occurrenceRepository
@@ -805,22 +901,20 @@ private struct WeekPager: View {
                 table: table, transfers: AppPrefs.shared.getHolidayTransfers(stored.id)) else {
                 throw CourseOccurrences.ValidationError.invalidOccurrence
             }
-            floatingOccurrence = FloatingOccurrenceRequest(occurrence: occurrence, table: table, startInEdit: false)
+            presentFloatingOccurrence(ScheduleFloatingOccurrenceRequest(occurrence: occurrence, table: table, startInEdit: false))
         } catch { dragError = true }
     }
 
     private func refreshGreyDays(_ request: GreyRequest) async {
         guard !Task.isCancelled, request == greyRequest else { return }
         guard !request.context.startDate.isEmpty else { greyCache = nil; return }
-        // Match the rendered viewport, retaining the pinned source during a drag.
+        // Precompute grey-day sets once for all weeks of the current timetable/settings context
+        // so swiping or jumping across weeks never churns greyCache or invalidates cached pages.
         let lastWeek = max(1, request.maxWeek)
-        let selectedWeek = min(max(1, request.selectedWeek), lastWeek)
-        var weeks = Set(max(1, selectedWeek - 1)...min(lastWeek, selectedWeek + 1))
-        if let source = request.sourceWeek { weeks.insert(source) }
         let old = greyCache?.context == request.context ? greyCache?.daysByWeek ?? [:] : [:]
-        var daysByWeek = old.filter { weeks.contains($0.key) }
+        var daysByWeek = old
         var cells: [(week: Int, day: Int, date: Date)] = []
-        for week in weeks.sorted() where daysByWeek[week] == nil {
+        for week in 1...lastWeek where daysByWeek[week] == nil {
             daysByWeek[week] = []
             for day in 1...7 {
                 if let date = DateUtils.dateOfWeek(startDate: request.context.startDate, week: week, dayOfWeek: day) {
@@ -828,6 +922,7 @@ private struct WeekPager: View {
                 }
             }
         }
+        guard !cells.isEmpty else { return }
         let grey = await HolidayManager.greyDates(cells.map(\.date), tableId: request.context.tableId,
                                                    transfers: viewModel.state.transfers)
         guard !Task.isCancelled, request == greyRequest else { return }
@@ -956,8 +1051,8 @@ private struct ScheduleTopBar: View {
         let description = status == .inRange ? label
             : L10n.format(status == .beforeStart ? "semester_not_started" : "semester_ended") + " · " + label
         let font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        let textWidth = ceil((label as NSString).size(withAttributes: [.font: font]).width)
-        let numberWidth = max(32, ceil((String(currentWeek) as NSString).size(withAttributes: [.font: font]).width) + 8)
+        let textWidth = ceil(Sleepy.textWidth(label, font: font))
+        let numberWidth = max(32, ceil(Sleepy.textWidth(String(currentWeek), font: font)) + 8)
         let native = style == .liquidGlass
         // Compact home controls retain the v1.0.64 fallback order while using
         // smaller action slots. Native glass keeps its platform-rendered surface.
@@ -1186,7 +1281,7 @@ private struct WeekNavButton: View {
                 .sleepyControlSurface(cornerRadius: 16 * scale, tint: colors.surfaceContainerHigh)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(SleepyPlatformButtonStyle(cornerRadius: 16 * scale, compact: true, shape: .circle))
+        .sleepyPlatformButtonStyle(cornerRadius: 16 * scale, compact: true, shape: .circle)
         .frame(width: platformSize, height: platformSize)
         .scaleEffect(actionSize / platformSize)
         .frame(width: actionSize, height: actionSize)
@@ -1249,7 +1344,7 @@ struct WeekJumpMenu: View {
             HStack {
                 Spacer()
                 Button(action: onDismiss) { Text(L10n.format("cancel")) }
-                    .buttonStyle(SleepyPlatformButtonStyle())
+                    .sleepyPlatformButtonStyle()
                     .tint(colors.primary)
                     .accessibilityIdentifier("week_jump_cancel")
             }
@@ -1281,8 +1376,8 @@ struct WeekJumpMenu: View {
                     .foregroundColor(isCurrent ? colors.onPrimary : colors.onSurface)
                     .frame(width: 24, height: 24)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(prominent: isCurrent,
-                                                   cornerRadius: 20, compact: true, shape: .circle))
+            .sleepyPlatformButtonStyle(prominent: isCurrent,
+                                                   cornerRadius: 20, compact: true, shape: .circle)
             .tint(colors.primary)
             .frame(width: chipDiameter, height: chipDiameter)
             .accessibilityIdentifier("week_num_\(w)")
@@ -1333,7 +1428,7 @@ private struct NoCourseState: View {
                     .frame(height: style == .classic ? 56 : nil)
                     .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
             .frame(minHeight: 56)
             .tint(colors.primary)
             Button(action: onImport) {
@@ -1344,7 +1439,7 @@ private struct NoCourseState: View {
                     .frame(height: style == .classic ? 56 : nil)
                     .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
             .frame(minHeight: 56)
             .tint(colors.secondaryContainer)
         }
@@ -1378,7 +1473,7 @@ private struct EmptyState: View {
                     .frame(height: style == .classic ? 56 : nil)
                     .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.primary, prominent: true)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
             .frame(minHeight: 56)
             .tint(colors.primary)
             Button(action: onCreateTable) {
@@ -1389,7 +1484,7 @@ private struct EmptyState: View {
                     .frame(height: style == .classic ? 56 : nil)
                     .sleepyControlSurface(cornerRadius: SleepyShapes.large, tint: colors.secondaryContainer, prominent: true)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large))
+            .sleepyPlatformButtonStyle(prominent: true, cornerRadius: SleepyShapes.large)
             .frame(minHeight: 56)
             .tint(colors.secondaryContainer)
         }

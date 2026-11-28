@@ -44,14 +44,31 @@ struct WeekGridWidgetProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekGridWidgetEntry>) -> Void) {
         Task {
-            let now = Date()
-            let data = await WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19")
-            let entries = Self.timelineEntries(data: data, family: context.family,
-                                               width: context.displaySize.width, from: now)
-            let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
-            WidgetArchiveLog.append(kind: "WeekGridWidgetV19", family: context.family.description, result: "success")
-            completion(Timeline(entries: entries, policy: .after(refresh)))
+            let timeline = await Self.timeline(family: context.family, width: context.displaySize.width,
+                                               familyDescription: context.family.description)
+            completion(timeline)
         }
+    }
+
+    static func timeline(family: WidgetFamily, width: CGFloat, familyDescription: String,
+                         overrideTableId: Int64? = nil) async -> Timeline<WeekGridWidgetEntry> {
+        let now = Date()
+        let data = await WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19", now: now,
+                                                           overrideTableId: overrideTableId)
+        let refresh = WidgetBoundaryScheduler.nextRefresh(after: now)
+        let rollover = WidgetBoundaryScheduler.nearestBusyRolloverDate(days: data.days, from: now)
+            .flatMap { $0 < refresh ? $0 : nil }
+        let nextData: WeekData?
+        if let rollover {
+            nextData = await WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19", now: rollover,
+                                                               overrideTableId: overrideTableId)
+        } else {
+            nextData = nil
+        }
+        let entries = timelineEntries(data: data, nextData: nextData, rollover: rollover,
+                                      family: family, width: width, from: now)
+        WidgetArchiveLog.append(kind: "WeekGridWidgetV19", family: familyDescription, result: "success")
+        return Timeline(entries: entries, policy: .after(refresh))
     }
 
     static func timelineEntries(data: WeekData, family: WidgetFamily, width: CGFloat,
@@ -65,7 +82,56 @@ struct WeekGridWidgetProvider: TimelineProvider {
             .filter { $0 < refresh }
         return [current] + boundaries.map { WeekGridWidgetEntry(date: $0, data: data) }
     }
+
+    static func timelineEntries(data: WeekData, nextData: WeekData?, rollover: Date?,
+                                family: WidgetFamily, width: CGFloat,
+                                from date: Date) -> [WeekGridWidgetEntry] {
+        let refresh = WidgetBoundaryScheduler.nextRefresh(after: date)
+        let base = timelineEntries(data: data, family: family, width: width, from: date)
+        guard let rollover, rollover < refresh, let nextData,
+              nextData.weekDisplayStatus == .nearestBusyDay else {
+            return base
+        }
+        return base.filter { $0.date < rollover }
+            + timelineEntries(data: nextData, family: family, width: width, from: rollover)
+                .filter { $0.date < refresh }
+    }
 }
+
+#if compiler(>=5.9)
+@available(iOS 17.0, *)
+struct WeekGridIntentWidgetProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> WeekGridWidgetEntry {
+        WeekGridWidgetProvider().placeholder(in: context)
+    }
+
+    func snapshot(for configuration: SelectTimetableIntent, in context: Context) async -> WeekGridWidgetEntry {
+        WidgetArchiveLog.append(kind: "WeekGridWidgetV19", family: context.family.description, result: "success")
+        let data = await WeekGridWidgetLoader.loadWeekData(kind: "WeekGridWidgetV19",
+                                                           overrideTableId: configuration.timetable?.id)
+        return WeekGridWidgetEntry(date: Date(), data: data)
+    }
+
+    func timeline(for configuration: SelectTimetableIntent, in context: Context) async -> Timeline<WeekGridWidgetEntry> {
+        await WeekGridWidgetProvider.timeline(family: context.family, width: context.displaySize.width,
+                                              familyDescription: context.family.description,
+                                              overrideTableId: configuration.timetable?.id)
+    }
+}
+
+@available(iOS 17.0, *)
+struct WeekGridIntentWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: "WeekGridWidgetV19", intent: SelectTimetableIntent.self,
+                               provider: WeekGridIntentWidgetProvider()) { entry in
+            WeekGridWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName(L10n.format("widget_week_grid_label"))
+        .supportedFamilies(WeekGridWidget.supportedFamilies)
+        .sleepyContentMarginsDisabled()
+    }
+}
+#endif
 
 // MARK: - View ← renderBitmap
 
@@ -237,7 +303,7 @@ private struct WeekGridBody: View {
                                 let count = dayData?.courses.count ?? 0
                                 // showDate → 短日期; 否则课程数 / —
                                 let sub: String = {
-                                    if data.showDate, let dd = dayData { return DateUtils.shortDate(dd.date) }
+                                    if data.showDate, let dd = dayData { return dd.dayLabel }
                                     return count > 0 ? "\(count)" : "—"
                                 }()
 
@@ -346,7 +412,7 @@ extension WeekGridBody {
         /// rowTop(rowIndex) ← weekGridRowTopPx (body 顶=0): 行高刚性恒 slotH,
         /// 越过其上方的餐段后整体下移 bandH×count
         func rowTop(_ index: Int) -> CGFloat {
-            let crossed = mealBreakAfterRows.count { $0 + 1 <= index }
+            let crossed = mealBreakAfterRows.filter { $0 + 1 <= index }.count
             return gapH + CGFloat(index) * (slotH + gapH) + CGFloat(crossed) * bandH
         }
         /// spanHeightPx ← 原版本: rows 夹 maxNode; 餐段带不折进卡高 (行高刚性, 卡被带劈开)
@@ -356,7 +422,7 @@ extension WeekGridBody {
         }
         /// 分隔线用: 已越过 (band 上缘 < boundary) 的餐段带数
         func crossedBands(_ boundary: Int) -> Int {
-            mealBreakAfterRows.count { $0 + 1 < boundary }
+            mealBreakAfterRows.filter { $0 + 1 < boundary }.count
         }
         /// 餐段薄带 ← mealBreakBands: row !in 0 until maxNode-1 跳过
         var mealBands: [(start: CGFloat, end: CGFloat)] {
@@ -403,7 +469,7 @@ extension WeekGridBody {
                 mealBreakAfterRows.insert(idx)
             }
         }
-        let mealCount = mealBreakAfterRows.count { $0 >= 0 && $0 < maxNode - 1 }
+        let mealCount = mealBreakAfterRows.filter { $0 >= 0 && $0 < maxNode - 1 }.count
         // slotH ← weekGridBodyGeomPx: 带厚先从 bodyH 扣, 余高均分等高行 (Int 域 floor)
         let slotH = max(floor(bodyH - gapH * CGFloat(maxNode + 1)
                               - bandH * CGFloat(mealCount)) / CGFloat(max(maxNode, 1)), 3)
@@ -949,15 +1015,59 @@ struct NameToken {
 }
 
 enum VerticalNameTokenizer {
+    private struct TextWidthKey: Hashable {
+        let text: String
+        let size: CGFloat
+        let bold: Bool
+    }
+    private struct FontKey: Hashable {
+        let size: CGFloat
+        let bold: Bool
+    }
+    private static let measureLock = NSLock()
+    private static var fontCache: [FontKey: UIFont] = [:]
+    private static var textWidthCache: [TextWidthKey: CGFloat] = [:]
+
     /// 文本墨迹宽度 — ← 原版本 paint.measureText 的 iOS 等价口径
     /// (NSAttributedString.size, 与 App 层 CourseTableView textWidth 同源)。
     /// 三行表头几何/字号自适应与竖排截断必须实测, 不能再用固定系数近似。
     static func textWidth(_ s: String, font: UIFont) -> CGFloat {
-        (s as NSString).size(withAttributes: [.font: font]).width
+        let key = TextWidthKey(text: s, size: font.pointSize, bold: font.fontDescriptor.symbolicTraits.contains(.traitBold))
+        measureLock.lock()
+        if let hit = textWidthCache[key] {
+            measureLock.unlock()
+            return hit
+        }
+        measureLock.unlock()
+        let width = (s as NSString).size(withAttributes: [.font: font]).width
+        measureLock.lock()
+        if textWidthCache.count >= 1024 { textWidthCache.removeAll(keepingCapacity: true) }
+        textWidthCache[key] = width
+        measureLock.unlock()
+        return width
     }
 
     static func textWidth(_ s: String, size: CGFloat, bold: Bool) -> CGFloat {
-        textWidth(s, font: UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular))
+        let key = TextWidthKey(text: s, size: size, bold: bold)
+        measureLock.lock()
+        if let hit = textWidthCache[key] {
+            measureLock.unlock()
+            return hit
+        }
+        let fontKey = FontKey(size: size, bold: bold)
+        let font = fontCache[fontKey] ?? {
+            let f = UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
+            if fontCache.count >= 64 { fontCache.removeAll(keepingCapacity: true) }
+            fontCache[fontKey] = f
+            return f
+        }()
+        measureLock.unlock()
+        let width = (s as NSString).size(withAttributes: [.font: font]).width
+        measureLock.lock()
+        if textWidthCache.count >= 1024 { textWidthCache.removeAll(keepingCapacity: true) }
+        textWidthCache[key] = width
+        measureLock.unlock()
+        return width
     }
 
     /// 标点字符集 — 横排符号, 需特殊处理(旋转或替换)
@@ -1144,6 +1254,6 @@ struct WeekGridWidget: Widget {
         // The two independent wide kinds own the medium (4×2) grid family.
         .supportedFamilies(Self.supportedFamilies)
         // iOS 17+ 系统边距关闭, 维持既有自管 padding 布局 (iOS 16 及以下 no-op)
-        .contentMarginsDisabled()
+        .sleepyContentMarginsDisabled()
     }
 }

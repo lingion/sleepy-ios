@@ -418,12 +418,13 @@ final class JwImportViewModelLogicTests: XCTestCase {
 
     // MARK: schools.json 载入工具
 
-    /// ← parseSchoolsJson 走 app bundle 的 schools.json
+    /// ← parseSchoolsJson 走 app bundle 的 schools.json(.lzma)
     private func loadSchools() throws -> [JwSchoolInfo] {
         let bundle = Bundle(for: JwImportViewModel.self) // @testable → 用 app 类型
-        let url = Bundle.main.url(forResource: "schools", withExtension: "json")
-            ?? bundle.url(forResource: "schools", withExtension: "json")
-        let raw = try String(contentsOf: url!, encoding: .utf8)
+        let raw = try XCTUnwrap(
+            BundledAssetLoader.loadText(name: "schools", ext: "json", bundles: [.main, bundle]),
+            "schools.json 应存在"
+        )
         return JwImportViewModel.parseSchoolsJson(raw)
     }
 

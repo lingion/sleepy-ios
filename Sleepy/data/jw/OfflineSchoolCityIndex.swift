@@ -107,7 +107,7 @@ final class OfflineSchoolCityIndex {
         }?.name
     }
 
-    // MARK: - SCB1 解析
+    // MARK: - SCB1 / SCB2 解析
 
     enum ParseError: Error, LocalizedError {
         case unsupportedFormat
@@ -134,7 +134,7 @@ final class OfflineSchoolCityIndex {
         }
     }
 
-    /// SCB1 流式解析 — 不建 JSON 树、不建点对象, 直接读进缩放整数 ring。
+    /// SCB1 / SCB2 流式解析 — 不建 JSON 树、不建点对象, 直接读进缩放整数 ring。
     /// 调用方持有流。每 ring 与每 256 点检查一次取消。
     /// `checkCancelled` 可抛错中断扫描(原 `{ coroutineContext.ensureActive() }` 语义):
     /// 抛 `CancellationError` 归一为 `ParseError.cancelled`, 其余错误原样传播。
@@ -149,6 +149,13 @@ final class OfflineSchoolCityIndex {
         try checkCancellation()
 
         var buffer = [UInt8](repeating: 0, count: 4)
+        var byteBuf: UInt8 = 0
+
+        func readByte() throws -> UInt8 {
+            let n = input.read(&byteBuf, maxLength: 1)
+            if n <= 0 { throw ParseError.unexpectedEndOfStream }
+            return byteBuf
+        }
 
         func readInt32() throws -> Int32 {
             var read = 0
@@ -164,13 +171,36 @@ final class OfflineSchoolCityIndex {
             return v
         }
 
-        func count(minimum: Int32, maximum: Int32) throws -> Int {
-            let v = try readInt32()
-            guard v >= minimum && v <= maximum else { throw ParseError.invalidCount }
-            return Int(v)
+        func readUVarint() throws -> UInt32 {
+            var result: UInt32 = 0
+            var shift: UInt32 = 0
+            while true {
+                let b = try readByte()
+                result |= UInt32(b & 0x7F) << shift
+                if (b & 0x80) == 0 { return result }
+                shift += 7
+                if shift >= 35 { throw ParseError.invalidCount }
+            }
         }
 
-        guard try readInt32() == 0x53434231 else { throw ParseError.unsupportedFormat }
+        func readSVarint() throws -> Int32 {
+            let u = try readUVarint()
+            return Int32(bitPattern: u >> 1) ^ -Int32(u & 1)
+        }
+
+        let magic = try readInt32()
+        let isDelta: Bool
+        switch magic {
+        case 0x53434231: isDelta = false
+        case 0x53434232: isDelta = true
+        default: throw ParseError.unsupportedFormat
+        }
+
+        func count(minimum: Int32, maximum: Int32) throws -> Int {
+            let v: Int64 = isDelta ? Int64(try readUVarint()) : Int64(try readInt32())
+            guard v >= Int64(minimum) && v <= Int64(maximum) else { throw ParseError.invalidCount }
+            return Int(v)
+        }
 
         var totalPoints = 0
         var areas: [Area] = []
@@ -200,10 +230,21 @@ final class OfflineSchoolCityIndex {
                     totalPoints += points
                     guard totalPoints <= 2_000_000 else { throw ParseError.tooLarge }
                     var coordinates = [Int32](repeating: 0, count: points * 2)
+                    var px: Int32 = 0
+                    var py: Int32 = 0
                     for point in 0..<points {
                         if point % 256 == 0 { try checkCancellation() }
-                        let longitude = try readInt32()
-                        let latitude = try readInt32()
+                        let longitude: Int32
+                        let latitude: Int32
+                        if isDelta {
+                            px = px &+ (try readSVarint())
+                            py = py &+ (try readSVarint())
+                            longitude = px
+                            latitude = py
+                        } else {
+                            longitude = try readInt32()
+                            latitude = try readInt32()
+                        }
                         guard longitude >= -1_800_000 && longitude <= 1_800_000
                             && latitude >= -900_000 && latitude <= 900_000 else {
                             throw ParseError.invalidCoordinate

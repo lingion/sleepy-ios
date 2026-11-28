@@ -41,12 +41,21 @@ struct ScheduleState {
             }
             .map { DateUtils.currentWeek(startDate: table.startDate, today: $0.targetDate) }
             .max() ?? table.maxWeek
-        return max(table.maxWeek, maxTransferWeek)
+        return max(1, max(table.maxWeek, maxTransferWeek))
     }
 
     /// issue#40: 水合后的当前表 — 节次时间域一律从这里读, 不得直接读 currentTable.timeJson
     var effectiveCurrentTable: TimeTableEntity? {
         currentTable.map { $0.hydratedWith(effectivePeriodTable) }
+    }
+
+    /// Rendering a dated occurrence must not mutate the editable base period table.
+    func effectiveTable(on date: Date) -> TimeTableEntity? {
+        currentTable?.hydratedWith(effectivePeriodTable, forDateKey: HolidayTransferOps.dayKey(date))
+    }
+
+    func effectiveRenderTimeJson(on date: Date) -> String? {
+        effectiveTable(on: date).map { TimeTableUtils.sanitizeTimeJsonForDisplay($0.timeJson) }
     }
 
     var effectiveRenderTimeJson: String? {
@@ -299,7 +308,9 @@ final class ScheduleViewModel: ObservableObject {
             guard let self = self, self.state.selectedTableId == tableId else { return }
             let rawTable = self.state.tables.first { $0.id == tableId }
             // 水合: 绑定存在时 nodesPerDay/timeJson/smartConfigJson 以时间节次表为准
-            let table = rawTable.map { $0.hydratedWith(periodTable) }
+            let now = AppClock.now
+            let civil = CourseReminderCalendar(timeZone: .current).civilDay(containing: now) ?? now
+            let table = rawTable.map { $0.hydratedWith(periodTable, forDateKey: HolidayTransferOps.dayKey(civil)) }
             let transfers = AppPrefs.shared.getHolidayTransfers(tableId)
             let displayContext = table.map {
                 // v1.0.62 B5b: resolver 传入调休映射 ← 原版本 WeekDisplayResolver.resolve(transfers=...)
@@ -307,7 +318,7 @@ final class ScheduleViewModel: ObservableObject {
                 WeekDisplayResolver.resolve(
                     startDate: $0.startDate,
                     maxWeek: $0.maxWeek,
-                    now: AppClock.now,
+                    now: now,
                     courses: courses,
                     timeJson: $0.timeJson,
                     enabled: AppPrefs.shared.isNearestBusyDay(),
@@ -671,13 +682,15 @@ final class ScheduleViewModel: ObservableObject {
     /// ← recalculateWeekDisplay (原版本): 外部语境变化(如回到本周)后重算展示周。
     /// weekSelectionManual=true 时保留用户所选周, 否则跟随 targetWeek。
     func recalculateWeekDisplay() {
-        guard let table = state.effectiveCurrentTable else { return }
+        let now = AppClock.now
+        let civil = CourseReminderCalendar(timeZone: .current).civilDay(containing: now) ?? now
+        guard let table = state.effectiveTable(on: civil) else { return }
         // v1.0.62 B5b: 传入调休映射 ← 原版本 recalculateWeekDisplay(transfers=AppPrefs 直读)
         let transfers = AppPrefs.shared.getHolidayTransfers(table.id)
         let context = WeekDisplayResolver.resolve(
             startDate: table.startDate,
             maxWeek: table.maxWeek,
-            now: AppClock.now,
+            now: now,
             courses: state.courses,
             timeJson: table.timeJson,
             enabled: AppPrefs.shared.isNearestBusyDay(),
@@ -743,6 +756,10 @@ extension ScheduleViewModel {
     /// ← 原版本 allPeriodTables.value (ScheduleViewModel.kt L77 StateFlow):
     /// 返回实时发布缓存, 库内变化后调用方读到最新值(§5.2 立即全部同步)。
     /// 冷启动首次 emit 未到达时缓存为空 → 回落一次同步读库, 防止调用方拿到假空列表。
+    func loadExportSnapshot(tableId: Int64) throws -> ScheduleExportSnapshot {
+        try repo.loadExportSnapshot(tableId: tableId)
+    }
+
     func loadAllPeriodTables() -> [PeriodTableEntity] {
         if !allPeriodTables.isEmpty { return allPeriodTables }
         return (try? repo.getAllPeriodTables()) ?? []

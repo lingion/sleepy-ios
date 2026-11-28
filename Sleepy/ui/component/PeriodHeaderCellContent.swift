@@ -324,10 +324,52 @@ struct PeriodHeaderCellContent: View {
 // 文件作用域自由函数: 渲染 (PeriodHeaderCellContent) 与宽度预算 API
 // (threeLineWidthDp / legacyLineWidthDp / legacyRowInk) 共享同一测量路径。
 
+private enum PeriodHeaderMeasureCache {
+    struct TextKey: Hashable {
+        let text: String
+        let font: UIFont
+    }
+    struct ThreeLineKey: Hashable {
+        let slots: [TimeSlot]
+        let headerStyle: String
+        let scale: CGFloat
+        let hangingUnits: CGFloat
+        let showX: Bool
+        let targetLabelSp: CGFloat
+    }
+    struct LegacyLineKey: Hashable {
+        let slots: [TimeSlot]
+        let headerStyle: String
+        let scale: CGFloat
+        let showX: Bool
+        let hideTime: Bool
+        let centerTime: Bool
+    }
+
+    static let lock = NSLock()
+    static var textWidths: [TextKey: CGFloat] = [:]
+    static var threeLineWidths: [ThreeLineKey: CGFloat] = [:]
+    static var legacyWidths: [LegacyLineKey: CGFloat] = [:]
+}
+
 func textWidth(_ s: String, font: UIFont) -> CGFloat {
+    let key = PeriodHeaderMeasureCache.TextKey(text: s, font: font)
+    PeriodHeaderMeasureCache.lock.lock()
+    if let hit = PeriodHeaderMeasureCache.textWidths[key] {
+        PeriodHeaderMeasureCache.lock.unlock()
+        return hit
+    }
+    PeriodHeaderMeasureCache.lock.unlock()
+
     let attrs: [NSAttributedString.Key: Any] = [.font: font]
-    let size = (s as NSString).size(withAttributes: attrs)
-    return size.width
+    let width = (s as NSString).size(withAttributes: attrs).width
+    PeriodHeaderMeasureCache.lock.lock()
+    if PeriodHeaderMeasureCache.textWidths.count >= 1024 {
+        PeriodHeaderMeasureCache.textWidths.removeAll(keepingCapacity: true)
+    }
+    PeriodHeaderMeasureCache.textWidths[key] = width
+    PeriodHeaderMeasureCache.lock.unlock()
+    return width
 }
 
 /// ← adaptiveHeaderTimeStyle / adaptiveHeaderLabelStyle 强制 lineHeight = size × 1.25 × scale
@@ -349,6 +391,16 @@ func threeLineWidthDp(
     showX: Bool = false,
     targetLabelSp: CGFloat = 16
 ) -> CGFloat {
+    let key = PeriodHeaderMeasureCache.ThreeLineKey(
+        slots: slots, headerStyle: headerStyle, scale: scale,
+        hangingUnits: hangingUnits, showX: showX, targetLabelSp: targetLabelSp)
+    PeriodHeaderMeasureCache.lock.lock()
+    if let hit = PeriodHeaderMeasureCache.threeLineWidths[key] {
+        PeriodHeaderMeasureCache.lock.unlock()
+        return hit
+    }
+    PeriodHeaderMeasureCache.lock.unlock()
+
     let timeFont = UIFont.systemFont(ofSize: 11 * scale)              // ← headerTimeStyle
     let labelFont = UIFont.systemFont(ofSize: 12 * scale, weight: .semibold) // ← headerLabelStyle
     // 投影到目标字号: 基准 12sp 测的宽度 × (目标字号 / 基准字号)
@@ -367,7 +419,14 @@ func threeLineWidthDp(
         maxGroup = max(maxGroup, metrics.inkWidth(u: hangingUnits) * projection)
     }
     // + 卡片内边距 ×2 (periodHeaderCardPadDp, 预览/网格/widget 同一常量), 乘 scale
-    return maxGroup + 2 * periodHeaderCardPadDp * scale
+    let result = maxGroup + 2 * periodHeaderCardPadDp * scale
+    PeriodHeaderMeasureCache.lock.lock()
+    if PeriodHeaderMeasureCache.threeLineWidths.count >= 128 {
+        PeriodHeaderMeasureCache.threeLineWidths.removeAll(keepingCapacity: true)
+    }
+    PeriodHeaderMeasureCache.threeLineWidths[key] = result
+    PeriodHeaderMeasureCache.lock.unlock()
+    return result
 }
 
 /// 老式表头列所需宽度(pt ← legacyLineWidthDp): 用户 2026-10-03 第二轮定稿 — dash 轴几何。
@@ -381,8 +440,19 @@ func legacyLineWidthDp(
     showX: Bool = false,
     centerTime: Bool = AppPrefs.shared.getPeriodHeaderTimeAlignment() == "center"
 ) -> CGFloat {
+    let key = PeriodHeaderMeasureCache.LegacyLineKey(
+        slots: slots, headerStyle: headerStyle, scale: scale,
+        showX: showX, hideTime: false, centerTime: centerTime)
+    PeriodHeaderMeasureCache.lock.lock()
+    if let hit = PeriodHeaderMeasureCache.legacyWidths[key] {
+        PeriodHeaderMeasureCache.lock.unlock()
+        return hit
+    }
+    PeriodHeaderMeasureCache.lock.unlock()
+
     let timeFont = UIFont.systemFont(ofSize: 11 * scale)
     let labelFont = UIFont.systemFont(ofSize: 12 * scale, weight: .semibold)
+    let dashPx = textWidth("-", font: timeFont)
     let rows = slots.filter { !$0.isPlaceholder }.map { slot -> LegacyDashRowInk in
         let label = (showX && slot.nodeStart == slot.nodeEnd)
             ? PeriodHeaderFormatter.fullLabel(slot.nodeStart, headerStyle)
@@ -391,13 +461,20 @@ func legacyLineWidthDp(
         return LegacyDashRowInk(
             labelPx: textWidth(label, font: labelFont),
             timeLeftPx: textWidth(slot.displayStart, font: timeFont),
-            dashPx: textWidth("-", font: timeFont),
+            dashPx: dashPx,
             timeRightPx: textWidth(slot.displayEnd, font: timeFont)
         )
     }
     let geometry = legacyTimeColumnPx(rows: rows, padPx: 0, centerTime: centerTime)
     // + 卡片内边距 ×2 (periodHeaderCardPadDp, 预览/网格/widget 同一常量), 乘 scale
-    return geometry.columnWidthPx + 2 * periodHeaderCardPadDp * scale
+    let result = geometry.columnWidthPx + 2 * periodHeaderCardPadDp * scale
+    PeriodHeaderMeasureCache.lock.lock()
+    if PeriodHeaderMeasureCache.legacyWidths.count >= 128 {
+        PeriodHeaderMeasureCache.legacyWidths.removeAll(keepingCapacity: true)
+    }
+    PeriodHeaderMeasureCache.legacyWidths[key] = result
+    PeriodHeaderMeasureCache.lock.unlock()
+    return result
 }
 
 /// 旧式表头共享几何：dash 档保留原轴，center 档按完整时间串的半宽预算。
@@ -436,6 +513,16 @@ func legacyTimeWidthDp(
         return legacyLineWidthDp(slots: slots, headerStyle: headerStyle, scale: scale,
                                  showX: showX, centerTime: centerTime)
     }
+    let key = PeriodHeaderMeasureCache.LegacyLineKey(
+        slots: slots, headerStyle: headerStyle, scale: scale,
+        showX: showX, hideTime: true, centerTime: centerTime)
+    PeriodHeaderMeasureCache.lock.lock()
+    if let hit = PeriodHeaderMeasureCache.legacyWidths[key] {
+        PeriodHeaderMeasureCache.lock.unlock()
+        return hit
+    }
+    PeriodHeaderMeasureCache.lock.unlock()
+
     let labelFont = UIFont.systemFont(ofSize: 12 * scale, weight: .semibold) // ← headerLabelStyle
     var maxLabel: CGFloat = 0
     for slot in slots {
@@ -445,7 +532,14 @@ func legacyTimeWidthDp(
         maxLabel = max(maxLabel, textWidth(label, font: labelFont))
     }
     let content = maxLabel + 2 * periodHeaderCardPadDp * scale
-    return max(content, 36 * scale)
+    let result = max(content, 36 * scale)
+    PeriodHeaderMeasureCache.lock.lock()
+    if PeriodHeaderMeasureCache.legacyWidths.count >= 128 {
+        PeriodHeaderMeasureCache.legacyWidths.removeAll(keepingCapacity: true)
+    }
+    PeriodHeaderMeasureCache.legacyWidths[key] = result
+    PeriodHeaderMeasureCache.lock.unlock()
+    return result
 }
 
 /// 老式表头单行墨迹 ← 原版本 legacyRowInk: 标签整宽 + 时间串三段 (start / dash / end,

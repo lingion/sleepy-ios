@@ -16,12 +16,15 @@ struct WatchWeekEntryView: View {
     let entry: WatchWidgetEntry<WatchWeekSnapshot>
 
     var body: some View {
-        switch family {
-        case .accessoryCircular: WatchWeekCircular(snap: entry.snapshot)
-        case .accessoryCorner: WatchWeekCorner(snap: entry.snapshot)
-        case .accessoryInline: WatchWeekInline(snap: entry.snapshot)
-        default: WatchWeekRectangular(snap: entry.snapshot)
+        Group {
+            switch family {
+            case .accessoryCircular: WatchWeekCircular(snap: entry.snapshot)
+            case .accessoryCorner: WatchWeekCorner(snap: entry.snapshot)
+            case .accessoryInline: WatchWeekInline(snap: entry.snapshot)
+            default: WatchWeekRectangular(snap: entry.snapshot)
+            }
         }
+        .watchMaterialSurface(family)
     }
 }
 
@@ -65,18 +68,20 @@ private struct WatchWeekCorner: View {
 
 /// rectangular — 第 N 周 / 共 M 周 / 进度条
 private struct WatchWeekRectangular: View {
+    @Environment(\.watchMaterialPalette) private var palette
     let snap: WatchWeekSnapshot
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             if !snap.inSemester {
-                Text(L10n.t("watch_holiday")).font(.system(size: 12)).foregroundColor(.secondary)
+                Text(L10n.t("watch_holiday")).font(.system(size: 12)).foregroundColor(palette.secondaryText)
             } else {
                 Text(L10n.format("schedule_week_prefix", snap.week))
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(palette.usesMaterial ? palette.accent : palette.primaryText)
                     .widgetAccentable()
                 Text(L10n.format("watch_week_total", snap.maxWeek))
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(palette.secondaryText)
                 ProgressView(value: snap.ratio)
             }
         }

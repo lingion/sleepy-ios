@@ -1,7 +1,9 @@
 // PeriodTableEntity.swift — ← data/entity/PeriodTableEntity.kt (逐行翻译, GPL-3.0)
 
 import Foundation
+#if !WIDGET_EXT && !WATCH_APP
 import GRDB
+#endif
 
 /// 独立时间节次表 (issue#40) — "第 N 节是几点到几点"的真源, 与课程表(TimeTable)平行的层级。
 ///
@@ -10,7 +12,7 @@ import GRDB
 /// 节次绑定, 不因本表修改而重算 (2026-09-15 用户拍板)。
 ///
 /// timeJson/smartConfigJson 沿用 TimeTableUtils 的 JSON 形状, 单一解析来源。
-struct PeriodTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Identifiable {
+struct PeriodTableEntity: Codable, Identifiable, Hashable {
     static let databaseTableName = "period_tables"
 
     /// 用户可见名称, 如"春季作息"
@@ -22,11 +24,14 @@ struct PeriodTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Id
     var timeJson: String = TimeTableUtils.DEFAULT_TIME_JSON
     /// 智慧节次配置 JSON。空串表示手动模式（timeJson）。
     var smartConfigJson: String = ""
+    /// Original date-range rules. An empty value means the base schedule applies every day.
+    var comboScheduleJson: String = ""
     var createdAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
     var updatedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
     /// 主键 autoGenerate
     var id: Int64 = 0
 
+    #if !WIDGET_EXT && !WATCH_APP
     /// GRDB: 自增主键插入后回填
     mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
@@ -39,8 +44,23 @@ struct PeriodTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Id
         container["nodesPerDay"] = nodesPerDay
         container["timeJson"] = timeJson
         container["smartConfigJson"] = smartConfigJson
+        container["comboScheduleJson"] = comboScheduleJson
         container["createdAt"] = createdAt
         container["updatedAt"] = updatedAt
+    }
+    #endif
+
+    private static let combinedPlans = PeriodReadCache<EffectivePeriodResolver.ValidatedSchedule?>()
+
+    /// Select by the actual display day. Transfer source days decide which courses
+    /// to select, not when the destination campus starts a period.
+    func timeJson(forDateKey date: String) -> String {
+        guard !comboScheduleJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return timeJson }
+        let key = "\(timeJson.utf16.count):\(timeJson)\(comboScheduleJson)"
+        let plan = Self.combinedPlans.value(for: key) {
+            try? EffectivePeriodResolver.validate(baseJson: timeJson, comboJson: comboScheduleJson)
+        }
+        return (try? plan?.resolve(date: date)) ?? timeJson
     }
 
     // MARK: - 绑定/解绑状态机 (C2, 2026-09-20, issue#40 用户数据破坏修复)
@@ -81,3 +101,27 @@ struct PeriodTableEntity: Codable, FetchableRecord, MutablePersistableRecord, Id
         return t
     }
 }
+
+
+// A phone on an older release does not include the combination in its Watch mirror.
+extension PeriodTableEntity {
+    enum CodingKeys: String, CodingKey {
+        case id, name, nodesPerDay, timeJson, smartConfigJson, comboScheduleJson, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let record = try decoder.container(keyedBy: CodingKeys.self)
+        id = try record.decode(Int64.self, forKey: .id)
+        name = try record.decode(String.self, forKey: .name)
+        nodesPerDay = try record.decode(Int.self, forKey: .nodesPerDay)
+        timeJson = try record.decode(String.self, forKey: .timeJson)
+        smartConfigJson = try record.decode(String.self, forKey: .smartConfigJson)
+        comboScheduleJson = try record.decodeIfPresent(String.self, forKey: .comboScheduleJson) ?? ""
+        createdAt = try record.decode(Int64.self, forKey: .createdAt)
+        updatedAt = try record.decode(Int64.self, forKey: .updatedAt)
+    }
+}
+
+#if !WIDGET_EXT && !WATCH_APP
+extension PeriodTableEntity: FetchableRecord, MutablePersistableRecord {}
+#endif

@@ -46,7 +46,7 @@ struct DatePickerField: View {
                                 AndroidMaterialIcon(name: .calendarMonth, size: 24)
                             }
                         }
-                        .buttonStyle(SleepyPlatformButtonStyle())
+                        .sleepyPlatformButtonStyle()
                         .controlSize(.large)
                         .tint(isError ? colors.error : colors.primary)
                         .accessibilityIdentifier("field_\(label)")
@@ -111,7 +111,7 @@ struct DatePickerField: View {
                     .contentShape(Circle())
                     .sleepyControlSurface(cornerRadius: 24, tint: Color.clear)
             }
-            .buttonStyle(SleepyPlatformButtonStyle(shape: .circle))
+            .sleepyPlatformButtonStyle(shape: .circle)
             .frame(width: 48, height: 48)
             .contentShape(Circle())
             // ← 原版本 Icon contentDescription = select_date
@@ -222,7 +222,7 @@ struct TimePickerField: View {
                               ? (showsPendingHint ? L10n.format("slot_pending") : L10n.format("select_time")) : value,
                               systemImage: "clock")
                     }
-                    .buttonStyle(SleepyPlatformButtonStyle())
+                    .sleepyPlatformButtonStyle()
                     .controlSize(.large)
                     .tint(colors.primary)
                     .accessibilityIdentifier("time_picker_\(label)")
@@ -273,7 +273,7 @@ struct TimePickerField: View {
             .sleepyControlSurface(cornerRadius: SleepyTheme.fieldShape, tint: colors.surfaceContainer)
             // ← 原 filled TextField, 无描边
         }
-        .buttonStyle(SleepyPlatformButtonStyle())
+        .sleepyPlatformButtonStyle()
         .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
     }
 }

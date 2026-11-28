@@ -55,7 +55,7 @@ enum WatchAgendaData {
         guard let ctx = context() else {
             return WatchCurrentSnapshot(items: [], current: nil, next: nil, inSemester: false)
         }
-        let items = WatchAgendaCore.dayItems(table: ctx.table, courses: ctx.courses, date: now)
+        let items = WatchAgendaCore.dayItems(table: ctx.table, courses: ctx.courses, date: now, period: ctx.period)
         return WatchCurrentSnapshot(
             items: items,
             current: WatchAgendaCore.currentClass(in: items, now: now),
@@ -68,7 +68,7 @@ enum WatchAgendaData {
             return WatchTodaySnapshot(items: [], current: nil, remaining: [],
                                       hasAnyClass: false, inSemester: false)
         }
-        let items = WatchAgendaCore.dayItems(table: ctx.table, courses: ctx.courses, date: now)
+        let items = WatchAgendaCore.dayItems(table: ctx.table, courses: ctx.courses, date: now, period: ctx.period)
         return WatchTodaySnapshot(
             items: items,
             current: WatchAgendaCore.currentClass(in: items, now: now),
@@ -83,7 +83,7 @@ enum WatchAgendaData {
                                          first: nil, last: nil, inSemester: false)
         }
         let info = WatchAgendaCore.weekInfo(table: ctx.table, date: now)
-        let items = WatchAgendaCore.dayItems(table: ctx.table, courses: ctx.courses, date: now)
+        let items = WatchAgendaCore.dayItems(table: ctx.table, courses: ctx.courses, date: now, period: ctx.period)
         return WatchOverviewSnapshot(
             week: info.week, maxWeek: info.maxWeek,
             totalCount: items.count, first: items.first, last: items.last,
@@ -95,7 +95,7 @@ enum WatchAgendaData {
         let tomorrow = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: now)) ?? now
         guard let ctx = context() else { return WatchTomorrowSnapshot(items: [], inSemester: false) }
         return WatchTomorrowSnapshot(
-            items: WatchAgendaCore.dayItems(table: ctx.table, courses: ctx.courses, date: tomorrow),
+            items: WatchAgendaCore.dayItems(table: ctx.table, courses: ctx.courses, date: tomorrow, period: ctx.period),
             inSemester: WatchAgendaCore.semesterStatus(table: ctx.table, date: tomorrow) == .inRange)
     }
 
@@ -112,10 +112,10 @@ enum WatchAgendaData {
     // MARK: - 内部
 
     /// ← WatchComplicationData.load 同源: 默认表 + 全量课程
-    private static func context() -> (table: TimeTableEntity, courses: [CourseEntity])? {
+    private static func context() -> (table: TimeTableEntity, courses: [CourseEntity], period: PeriodTableEntity?)? {
         let repo = ScheduleRepository(AppDatabase.getShared())
         guard let table = WidgetTableResolver.resolveCurrentTable(repo) else { return nil }
         let courses = (try? repo.getCourses(table.id)) ?? []
-        return (table, courses)
+        return (table, courses, table.periodTableId.flatMap { try? repo.getPeriodTable($0) })
     }
 }
