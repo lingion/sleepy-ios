@@ -297,7 +297,9 @@ def main() -> None:
     cities_min = json.dumps(cities_runtime, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     write_lzma(cities_min, os.path.join(RES, "SchoolCity", "school_cities.json.lzma"))
 
-    # 3. school_city_boundaries.bin.gz -> SCB2 lossless delta+zigzag varint -> SchoolCity/school_city_boundaries.bin.lzma
+    # 3. school_city_boundaries.bin.gz -> lossy-by-default SCB2 delta+zigzag varint -> SchoolCity/school_city_boundaries.bin.lzma.
+    #    Set SCB_SIMPLIFY_LARGE_RINGS=False above to regenerate the lossless SCB2 encoding.
+    #    Simplified output keeps the four boundary-sensitive cities in SCB_FULL_RESOLUTION_CITIES exact.
     with gzip.open(os.path.join(RES, "SchoolCity", "school_city_boundaries.bin.gz"), "rb") as f:
         boundaries_raw = f.read()
     write_lzma(encode_scb2(boundaries_raw), os.path.join(RES, "SchoolCity", "school_city_boundaries.bin.lzma"))
