@@ -14,7 +14,7 @@ ipa_export_dir="$ipa_repo_root/build/export"
 ipa_archive="$ipa_export_dir/Sleepy.xcarchive"
 ipa_file="$ipa_repo_root/build/Sleepy-unsigned.ipa"
 
-export PATH="/Users/lingion_k/bin:$PATH"
+if [ -d "$HOME/bin" ]; then export PATH="$HOME/bin:$PATH"; fi
 echo "▸ xcodegen generate"
 xcodegen generate
 
@@ -28,8 +28,7 @@ if [ "$ipa_config" = "Release" ]; then
     GCC_OPTIMIZATION_LEVEL=z
     STRINGS_FILE_OUTPUT_ENCODING=UTF-8
     DEAD_CODE_STRIPPING=YES
-    LLVM_LTO=YES
-    OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -disable-reflection-metadata -Xfrontend -conditional-runtime-records -Xfrontend -disable-cmo'
+    LLVM_LTO=NO
     OTHER_LDFLAGS='$(inherited) -Wl,-dead_strip -Wl,-dead_strip_dylibs'
   )
 fi

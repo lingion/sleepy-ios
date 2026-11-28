@@ -41,9 +41,8 @@ settings:
       STRIP_INSTALLED_PRODUCT: YES
       COPY_PHASE_STRIP: YES
       STRIP_SWIFT_SYMBOLS: YES
-      LLVM_LTO: YES
+      LLVM_LTO: NO
       SWIFT_COMPILATION_MODE: wholemodule
-      OTHER_SWIFT_FLAGS: "$(inherited) -Xfrontend -disable-reflection-metadata -Xfrontend -conditional-runtime-records -Xfrontend -disable-cmo"
       OTHER_LDFLAGS: "$(inherited) -Wl,-dead_strip -Wl,-dead_strip_dylibs"
 
 packages:
@@ -170,7 +169,7 @@ targets:
         # App Store 分发:手动签名 + 付费账号 Distribution 证书 + 专用 profile(2026-10-26)
         Release:
           CODE_SIGN_STYLE: Manual
-          STRIP_STYLE: all
+          STRIP_STYLE: non-global
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "Sleepy AppStore"
 
@@ -336,8 +335,8 @@ targets:
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
-          STRIP_STYLE: all
-          ARCHS: arm64_32
+          STRIP_STYLE: non-global
+          "ARCHS[sdk=watchos*]": arm64_32
           CODE_SIGN_IDENTITY: "Apple Distribution"
           # 开发者门户待建: Sleepy Watch AppStore profile (步骤 6 前补, 未建则 Release 构建失败)
           PROVISIONING_PROFILE_SPECIFIER: "Sleepy Watch AppStore"
@@ -422,7 +421,7 @@ targets:
         Release:
           CODE_SIGN_STYLE: Manual
           STRIP_STYLE: non-global
-          ARCHS: arm64_32
+          "ARCHS[sdk=watchos*]": arm64_32
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "Sleepy Watch Widgets AppStore"
 

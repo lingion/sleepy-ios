@@ -4084,13 +4084,12 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
-				LLVM_LTO = YES;
+				LLVM_LTO = NO;
 				MARKETING_VERSION = 1.0.67;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = NO;
 				OTHER_LDFLAGS = "$(inherited) -Wl,-dead_strip -Wl,-dead_strip_dylibs";
-				OTHER_SWIFT_FLAGS = "$(inherited) -Xfrontend -disable-reflection-metadata -Xfrontend -conditional-runtime-records -Xfrontend -disable-cmo";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRIP_INSTALLED_PRODUCT = YES;
@@ -4142,7 +4141,7 @@
 		6367ACD9211A33B0DBEAD271 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64_32;
+				"ARCHS[sdk=watchos*]" = arm64_32;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = SleepyWatch/SleepyWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
@@ -4159,7 +4158,7 @@
 				PROVISIONING_PROFILE_SPECIFIER = "Sleepy Watch AppStore";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
-				STRIP_STYLE = all;
+				STRIP_STYLE = "non-global";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = WATCH_APP;
 				TARGETED_DEVICE_FAMILY = 4;
 			};
@@ -4186,7 +4185,7 @@
 		A614662EF2202C5F80273403 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64_32;
+				"ARCHS[sdk=watchos*]" = arm64_32;
 				CODE_SIGN_ENTITLEMENTS = SleepyWatchWidgets/SleepyWatchWidgets.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
@@ -4372,7 +4371,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.lingion.sleepy;
 				PROVISIONING_PROFILE_SPECIFIER = "Sleepy AppStore";
 				SDKROOT = iphoneos;
-				STRIP_STYLE = all;
+				STRIP_STYLE = "non-global";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
