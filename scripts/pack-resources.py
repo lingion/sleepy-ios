@@ -145,52 +145,140 @@ def build_trimmed_ext_lproj() -> None:
     print(f"Generated trimmed resources-ext/*.lproj: total raw strings = {total_raw:,} bytes")
 
 
-def encode_scb2(raw: bytes) -> bytes:
-    """Losslessly re-encode SCB1 big-endian boundaries into SCB2 delta+zigzag varints."""
+# SCB1 -> SCB2 encoding for the offline school-city boundary index.
+# SCB_SIMPLIFY_LARGE_RINGS trades boundary fidelity for size: large rings are
+# simplified (about 1.1 km tolerance) and snapped to a 0.005 degree grid.
+# Set it to False for the lossless encoding (about 223 KB larger).
+# Cities in SCB_FULL_RESOLUTION_CITIES keep full resolution, because their
+# probe points moved into a neighbouring city during verification.
+SCB_SIMPLIFY_LARGE_RINGS = True
+SCB_FULL_RESOLUTION_CITIES = frozenset(['无锡市', '常州市', '三门峡市', '洛阳市'])
+
+
+def _put_uv(n, out):
+    while n >= 0x80:
+        out.append((n & 0x7F) | 0x80)
+        n >>= 7
+    out.append(n)
+
+
+def _put_sv(n, out):
+    _put_uv(((n << 1) ^ (-1 if n < 0 else 0)) & 0xFFFFFFFF, out)
+
+
+def _parse_scb1(raw):
     pos = 0
 
-    def read_i32() -> int:
+    def read_i32():
         nonlocal pos
-        val = struct.unpack_from(">i", raw, pos)[0]
+        value = struct.unpack_from('>i', raw, pos)[0]
         pos += 4
-        return val
-
-    def put_uv(n: int, out: bytearray) -> None:
-        while n >= 0x80:
-            out.append((n & 0x7F) | 0x80)
-            n >>= 7
-        out.append(n)
-
-    def put_sv(n: int, out: bytearray) -> None:
-        put_uv(((n << 1) ^ (-1 if n < 0 else 0)) & 0xFFFFFFFF, out)
+        return value
 
     if read_i32() != 0x53434231:
-        raise ValueError("Expected SCB1 header")
-    out = bytearray(b"SCB2")
-    area_count = read_i32()
-    put_uv(area_count, out)
-    for _ in range(area_count):
+        raise ValueError('Expected SCB1 header')
+    areas = []
+    for _ in range(read_i32()):
         name_len = read_i32()
-        put_uv(name_len, out)
-        out.extend(raw[pos : pos + name_len])
+        name_bytes = raw[pos:pos + name_len]
         pos += name_len
-        poly_count = read_i32()
-        put_uv(poly_count, out)
-        for _ in range(poly_count):
-            ring_count = read_i32()
-            put_uv(ring_count, out)
-            for _ in range(ring_count):
+        polys = []
+        for _ in range(read_i32()):
+            rings = []
+            for _ in range(read_i32()):
                 pt_count = read_i32()
-                put_uv(pt_count, out)
-                px = py = 0
-                for _ in range(pt_count):
-                    x = read_i32()
-                    y = read_i32()
-                    put_sv(x - px, out)
-                    put_sv(y - py, out)
-                    px, py = x, y
+                rings.append([(read_i32(), read_i32()) for _ in range(pt_count)])
+            polys.append(rings)
+        areas.append((name_bytes, polys))
     if pos != len(raw):
-        raise ValueError("Unexpected trailing SCB1 bytes")
+        raise ValueError('Unexpected trailing SCB1 bytes')
+    return areas
+
+
+def _rdp_open(pts, eps2):
+    if len(pts) <= 2:
+        return pts
+    keep = [False] * len(pts)
+    keep[0] = True
+    keep[-1] = True
+    stack = [(0, len(pts) - 1)]
+    while stack:
+        start, end = stack.pop()
+        if end - start <= 1:
+            continue
+        ax, ay = pts[start]
+        bx, by = pts[end]
+        dx = bx - ax
+        dy = by - ay
+        l2 = dx * dx + dy * dy
+        best = -1.0
+        best_index = -1
+        for i in range(start + 1, end):
+            px, py = pts[i]
+            if l2 == 0:
+                d2 = (px - ax) ** 2 + (py - ay) ** 2
+            else:
+                t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / l2))
+                d2 = (px - (ax + t * dx)) ** 2 + (py - (ay + t * dy)) ** 2
+            if d2 > best:
+                best = d2
+                best_index = i
+        if best > eps2 and best_index != -1:
+            keep[best_index] = True
+            stack.append((start, best_index))
+            stack.append((best_index, end))
+    return [p for p, k in zip(pts, keep) if k]
+
+
+def _simplify_large_ring(pts, step=50, eps=100, min_pts=220, min_span=1500):
+    if len(pts) <= min_pts:
+        return pts
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    if max(xs) - min(xs) < min_span or max(ys) - min(ys) < min_span:
+        return pts
+    closed = pts[0] == pts[-1]
+    base = pts[:-1] if closed else pts[:]
+    ax, ay = base[0]
+    far = max(range(1, len(base)), key=lambda i: (base[i][0] - ax) ** 2 + (base[i][1] - ay) ** 2)
+    eps2 = eps * eps
+    res = _rdp_open(base[:far + 1], eps2)[:-1] + _rdp_open(base[far:] + [base[0]], eps2)[:-1]
+    snapped = []
+    for x, y in res:
+        cell = (int(round(x / step)) * step, int(round(y / step)) * step)
+        if not snapped or cell != snapped[-1]:
+            snapped.append(cell)
+    if len(snapped) >= 3:
+        res = snapped
+    if closed and len(res) >= 3:
+        res.append(res[0])
+    return res if len(res) >= 60 else pts
+
+
+def encode_scb2(raw):
+    '''Re-encode SCB1 boundaries as SCB2 (delta + zigzag varints), simplifying large rings when enabled.'''
+    areas = _parse_scb1(raw)
+    out = bytearray(b'SCB2')
+    _put_uv(len(areas), out)
+    for name_bytes, polys in areas:
+        name = name_bytes.decode('utf-8', 'replace')
+        simplify = SCB_SIMPLIFY_LARGE_RINGS and name not in SCB_FULL_RESOLUTION_CITIES
+        _put_uv(len(name_bytes), out)
+        out.extend(name_bytes)
+        _put_uv(len(polys), out)
+        for rings in polys:
+            _put_uv(len(rings), out)
+            for pts in rings:
+                if simplify:
+                    pts = _simplify_large_ring(pts)
+                _put_uv(len(pts), out)
+                px = 0
+                py = 0
+                for x, y in pts:
+                    _put_sv(x - px, out)
+                    _put_sv(y - py, out)
+                    px = x
+                    py = y
     return bytes(out)
 
 
@@ -228,7 +316,7 @@ def main() -> None:
             os.path.join(sg_bundle_dir, "LICENSE-MIT.txt"),
         )
 
-    esbuild = "/Users/lingion_k/freellmapi/node_modules/.bin/esbuild"
+    esbuild = os.environ.get("ESBUILD") or shutil.which("esbuild") or ""
     has_esbuild = os.path.exists(esbuild)
     entries = []
     for p in sorted(glob.glob(os.path.join(sg_src_dir, "**", "*"), recursive=True)):
