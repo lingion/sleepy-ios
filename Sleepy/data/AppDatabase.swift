@@ -322,7 +322,12 @@ final class AppDatabase {
     convenience init(persistentURL: URL) throws {
         try FileManager.default.createDirectory(at: persistentURL.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
-        let queue = try LiteDatabase(path: persistentURL.path)
+        #if WIDGET_EXT
+        // The widget never owns migrations: only the main app's GRDB migrator may create the shared schema.
+        let queue = try LiteDatabase(path: persistentURL.path, createSchema: false)
+        #else
+        let queue = try LiteDatabase(path: persistentURL.path, createSchema: true)
+        #endif
         self.init(queue: queue)
     }
 

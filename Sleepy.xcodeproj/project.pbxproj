@@ -62,6 +62,7 @@
 		0F535B6DE69B27458BB21C1D /* MealBreakDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A1DB6476DB4970E3D39BFC5 /* MealBreakDetector.swift */; };
 		1019C91B3D4BD3F7F3756DA8 /* BackgroundReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA3B7F525825D51CDEC9739 /* BackgroundReliabilityTests.swift */; };
 		1090E91F815A223E47CFD718 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 517FEA6516EE11E941115E90 /* PrivacyInfo.xcprivacy */; };
+		109D3F3690DB0B27D6B6B4AD /* LiteSQLiteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE40361A480DFF698B89EDE /* LiteSQLiteTests.swift */; };
 		10D9CFAD96128961F82A2FCE /* WidgetCompactHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 945AE1E7D6D417CE3FBD4C89 /* WidgetCompactHelpers.swift */; };
 		10E749AF05144AF2D09A4EB6 /* WidgetGalleryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FCF63330F56FEE242126B7 /* WidgetGalleryData.swift */; };
 		118C9D479FCCF165698AFD84 /* HolidayReminderPolicyAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C64B8C9F20602B582D6F22 /* HolidayReminderPolicyAdapterTests.swift */; };
@@ -1354,6 +1355,7 @@
 		8914D7724268506DD70BA8A5 /* QuickAddCourseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddCourseTests.swift; sourceTree = "<group>"; };
 		89157928FB6E37E38BEAE8A8 /* JwEcuplSourcePeriods.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwEcuplSourcePeriods.swift; sourceTree = "<group>"; };
 		8AB83DCC65798AF11C37CD62 /* JwKustParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JwKustParser.swift; sourceTree = "<group>"; };
+		8AE40361A480DFF698B89EDE /* LiteSQLiteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteSQLiteTests.swift; sourceTree = "<group>"; };
 		8AEACE9316B4986B3F05F08E /* ClassDayActivityCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassDayActivityCore.swift; sourceTree = "<group>"; };
 		8AEB87F1BAD17F9852E4B728 /* ParityInterfaceCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParityInterfaceCompatibilityTests.swift; sourceTree = "<group>"; };
 		8B8C9D5CC7724D2A331C5616 /* ClassDayActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassDayActivityManager.swift; sourceTree = "<group>"; };
@@ -2378,6 +2380,7 @@
 				68B3C857EAD2A96B3332F08B /* JwWebViewConfigBuilderTests.swift */,
 				1AEFC2A0E1B4E3D771CDD8C2 /* JwWebViewFrameCaptureTests.swift */,
 				A92AD4732D1CB6F326DFEAED /* JwYethanParserTests.swift */,
+				8AE40361A480DFF698B89EDE /* LiteSQLiteTests.swift */,
 				B57469AF0CE273D87BED628C /* LiveActivitySelectionTests.swift */,
 				25AC6BA5397C193730D19A1B /* LocalCalendarFallbackTests.swift */,
 				23473ACBFDC5C56F0CC30A1D /* LocaleAndL10nTests.swift */,
@@ -3711,6 +3714,7 @@
 				257119BA1CFE153B0FD22311 /* JwWebViewConfigBuilderTests.swift in Sources */,
 				FC3C0CC5B97FA2D6955A06DC /* JwWebViewFrameCaptureTests.swift in Sources */,
 				0BDD896335B193A908351842 /* JwYethanParserTests.swift in Sources */,
+				109D3F3690DB0B27D6B6B4AD /* LiteSQLiteTests.swift in Sources */,
 				F4078C0500501DDB216F8A9D /* LiveActivitySelectionTests.swift in Sources */,
 				41EE28379E9850F49629598C /* LocalCalendarFallbackTests.swift in Sources */,
 				74C36660E2DFE6D371F31A2B /* LocaleAndL10nTests.swift in Sources */,

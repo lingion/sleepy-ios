@@ -1,4 +1,4 @@
-#if WIDGET_EXT || WATCH_APP
+#if WIDGET_EXT || WATCH_APP || DEBUG
 import Foundation
 import SQLite3
 
@@ -86,7 +86,7 @@ final class LiteDatabase {
     private var db: OpaquePointer?
     private let lock = NSRecursiveLock()
 
-    init(path: String) throws {
+    init(path: String, createSchema: Bool = true) throws {
         var handle: OpaquePointer?
         let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
         if sqlite3_open_v2(path, &handle, flags, nil) != SQLITE_OK {
@@ -95,12 +95,20 @@ final class LiteDatabase {
             throw LiteSQLiteError.open(msg)
         }
         self.db = handle
-        try write { conn in
-            try conn.execute("PRAGMA foreign_keys = ON;")
-            try conn.execute("PRAGMA busy_timeout = 5000;")
-            try conn.execute("PRAGMA journal_mode = WAL;")
+        sqlite3_busy_timeout(handle, 5000)
+        // Run connection-level PRAGMAs outside any transaction: SQLite rejects
+        // `PRAGMA journal_mode = WAL` inside a transaction and treats
+        // `PRAGMA foreign_keys = ON` as a no-op until outside a transaction.
+        let bootstrapConn = Connection(db: handle)
+        try bootstrapConn.execute("PRAGMA foreign_keys = ON;")
+        let currentJournal = try? bootstrapConn.fetchOne("PRAGMA journal_mode;") {
+            $0.colString(0).lowercased()
         }
-        try ensureSchema()
+        if currentJournal != "wal" {
+            try? bootstrapConn.execute("PRAGMA journal_mode = WAL;")
+        }
+        // Only the process that owns the GRDB migrations may create tables (see AppDatabase).
+        if createSchema { try ensureSchema() }
     }
 
     deinit {
@@ -156,7 +164,34 @@ final class LiteDatabase {
         }
     }
 
+    private func hasCurrentSchema(_ conn: Connection) throws -> Bool {
+        let requiredColumns: [(String, [String])] = [
+            ("time_tables", [
+                "periodTableId", "preBindSnapshotJson", "reminderEnabled",
+                "reminderOverride", "importSourceJson", "jwSchoolSourceJson",
+                "jwSchoolSourceVerified",
+            ]),
+            ("courses", [
+                "colorMode", "isIrregularNode", "isIrregularTime", "alias", "fixedDate",
+            ]),
+            ("period_tables", ["comboScheduleJson"]),
+            ("course_colors", ["tableKey", "groupId", "hue"]),
+        ]
+        for (table, columns) in requiredColumns {
+            let existing = Set(try conn.fetchAll("PRAGMA table_info(\(table));") { $0.colString(1) })
+            if existing.isEmpty { return false }
+            for column in columns where !existing.contains(column) {
+                return false
+            }
+        }
+        return true
+    }
+
     private func ensureSchema() throws {
+        let alreadyCurrent = try read { conn in
+            try hasCurrentSchema(conn)
+        }
+        if alreadyCurrent { return }
         try write { conn in
             try conn.execute("""
                 CREATE TABLE IF NOT EXISTS time_tables (
