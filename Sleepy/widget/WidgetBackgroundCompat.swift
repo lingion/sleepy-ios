@@ -40,12 +40,16 @@ private struct SleepyWidgetBackgroundModifier<BG: View>: ViewModifier {
     func body(content: Content) -> some View {
         if galleryFamily != nil {
             content.background(backgroundView)
-#if compiler(>=5.9)
-        } else if #available(iOS 17.0, *) {
-            content.containerBackground(for: .widget) { backgroundView }
-#endif
         } else {
+#if compiler(>=5.9)
+            if #available(iOS 17.0, *) {
+                content.containerBackground(for: .widget) { backgroundView }
+            } else {
+                content.background(backgroundView)
+            }
+#else
             content.background(backgroundView)
+#endif
         }
     }
 }
